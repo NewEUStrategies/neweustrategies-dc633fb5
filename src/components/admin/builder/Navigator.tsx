@@ -1,6 +1,6 @@
 // Layer tree (Navigator). Renders the document hierarchy and lets the user
 // jump to / toggle visibility of a node by clicking it.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronRight, ChevronDown, Eye, Layers } from "@/lib/lucide-shim";
 import type {
   BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode, Device,
