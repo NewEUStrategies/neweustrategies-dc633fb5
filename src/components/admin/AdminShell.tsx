@@ -24,6 +24,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     { to: "/admin/media", icon: ImageIcon, label: t("admin.nav.media") },
     { to: "/admin/categories", icon: FolderTree, label: t("admin.nav.categories") },
     { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
+    { to: "/admin/appearance", icon: Layers, label: "Wygląd" },
     ...(isAdmin ? [
       { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
       { to: "/admin/settings", icon: Settings, label: "Ustawienia" },
