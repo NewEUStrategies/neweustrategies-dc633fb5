@@ -378,23 +378,24 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
           onUndo={history.undo} onRedo={history.redo}
         />
 
-        <div className="flex-1 overflow-y-auto bg-background" onClick={() => setSelection({ kind: null, id: null })}>
-          <div className={`mx-auto transition-all ${device==="desktop"?"max-w-full":device==="tablet"?"max-w-[768px]":"max-w-[400px]"}`}>
-            {/* Site chrome — non-interactive preview of TopBar */}
-            <div
-              className="pointer-events-none select-none relative"
-              aria-hidden="true"
-              onClickCapture={(e) => e.stopPropagation()}
-            >
+        <div className="flex-1 overflow-y-auto bg-muted/30 p-4" onClick={() => setSelection({ kind: null, id: null })}>
+          <div
+            className={`mx-auto bg-background shadow-lg ring-1 ring-border transition-all ${
+              device === "desktop" ? "max-w-[1440px]"
+              : device === "tablet" ? "max-w-[820px]"
+              : "max-w-[390px]"
+            }`}
+          >
+            {/* Site chrome — Header preview with hover edit overlay */}
+            <ChromeFrame label="Nagłówek strony" editTo="/admin/settings/general">
               <Header />
-              <div className="absolute inset-0 bg-transparent" />
-            </div>
+            </ChromeFrame>
 
-            <div className="p-4">
+            <div className="px-2 py-2">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                 {doc.sections.length === 0 && <EmptyState onAdd={addSection} />}
 
-                <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} />
+                <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} prominent label="Wstaw sekcję pod nagłówkiem" />
 
                 {doc.sections.map((s, idx) => (
                   <div key={s.id}>
@@ -417,20 +418,20 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
                         updateWidget(id, (w) => { w.content = { ...w.content, [k]: v }; })
                       }
                     />
-                    <SectionDropZone onInsert={(cols) => insertSectionAt(idx + 1, cols)} index={idx + 1} />
+                    <SectionDropZone
+                      onInsert={(cols) => insertSectionAt(idx + 1, cols)}
+                      index={idx + 1}
+                      prominent={idx === doc.sections.length - 1}
+                      label={idx === doc.sections.length - 1 ? "Wstaw sekcję nad stopką" : undefined}
+                    />
                   </div>
                 ))}
               </DndContext>
             </div>
 
-            {/* Site chrome — non-interactive preview of Footer */}
-            <div
-              className="pointer-events-none select-none"
-              aria-hidden="true"
-              onClickCapture={(e) => e.stopPropagation()}
-            >
+            <ChromeFrame label="Stopka strony" editTo="/admin/settings/general">
               <Footer />
-            </div>
+            </ChromeFrame>
           </div>
         </div>
       </div>
