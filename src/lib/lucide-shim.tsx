@@ -46,7 +46,7 @@ function makeIcon(def: IconDefinition): LucideIcon {
           className={className}
           style={merged as React.CSSProperties & Record<`--fa-${string}`, string>}
           {...(rest as Record<string, unknown>)}
-          forwardedRef={ref as unknown as React.Ref<SVGSVGElement>}
+          ref={ref}
         />
       );
     },
