@@ -121,7 +121,7 @@ export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }:
               <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
                 {labels[cat]}
               </div>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
                 {items.map((w) => {
                   const Icon = w.icon;
                   return (
