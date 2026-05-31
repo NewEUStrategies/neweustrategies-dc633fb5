@@ -68,6 +68,14 @@ function PagePublic() {
   const isBuilder = page.editor === "builder" && doc.sections.length > 0;
   const html = lang === "en" ? page.content_en || page.content_pl : page.content_pl || page.content_en;
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: title,
+    image: page.cover_image_url ?? undefined,
+    datePublished: page.published_at ?? undefined,
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Header />
@@ -78,6 +86,7 @@ function PagePublic() {
         ) : (
           <article className="prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(html ?? "") }} />
         )}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       </main>
       <Footer />
     </div>
