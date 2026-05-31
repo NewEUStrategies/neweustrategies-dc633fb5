@@ -12,7 +12,9 @@ import { toast } from "sonner";
 interface Props {
   settingsKey: string;
   title: string;
+  scope?: "header" | "footer" | "menu";
 }
+
 
 type Json = Record<string, unknown>;
 
