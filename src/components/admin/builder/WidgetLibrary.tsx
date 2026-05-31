@@ -1,10 +1,11 @@
 // Left-panel widget library: searchable grid of widgets grouped by category,
-// plus a structure picker to add a new section. Used when nothing is selected.
+// plus a structure picker to add a new section, plus a saved-section template list.
 import { useState } from "react";
-import { Search, Plus, Layers } from "@/lib/lucide-shim";
+import { Search, Plus, Layers, Trash2, Bookmark } from "@/lib/lucide-shim";
 import { WIDGETS } from "@/lib/builder/registry";
 import type { WidgetType } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
+import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
 
 const STRUCTURES: Array<{ cols: number; label: string }> = [
   { cols: 1, label: "1" }, { cols: 2, label: "1/2 + 1/2" },
@@ -14,6 +15,7 @@ const STRUCTURES: Array<{ cols: number; label: string }> = [
 interface Props {
   onPickWidget: (t: WidgetType) => void;
   onPickStructure: (cols: number) => void;
+  onPickTemplate: (tpl: SectionTemplate) => void;
 }
 
 export function WidgetLibrary({ onPickWidget, onPickStructure }: Props) {
