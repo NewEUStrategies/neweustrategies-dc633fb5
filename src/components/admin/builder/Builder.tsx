@@ -313,7 +313,7 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
   const hasSelection = !!(selectedWidget || selectedSection || selectedColumn || selectedInner);
 
   return (
-    <div className="grid grid-cols-[360px_1fr] gap-3 h-[calc(100vh-220px)] min-h-[600px]">
+    <div className="grid grid-cols-[300px_1fr] gap-3 h-[calc(100vh-220px)] min-h-[600px]">
       {/* LEFT PANEL */}
       <aside className="bg-card border border-border rounded-lg flex flex-col overflow-hidden">
         {hasSelection ? (
