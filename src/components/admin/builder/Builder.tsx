@@ -587,12 +587,15 @@ function WidgetProperties({ widget, lang, device, onChange }: {
 }
 
 function ContentFields({ widget, lang, setContent }: {
-  widget: WidgetNode; lang: "pl"|"en"; setContent: (k: string, v: unknown) => void;
+  widget: WidgetNode; lang: "pl"|"en"; setContent: (k: string, v: Json) => void;
 }) {
   const c = widget.content;
-  const str = (k: string): string => typeof c[k] === "string" ? (c[k] as string) : "";
-  const num = (k: string, d: number): number => typeof c[k] === "number" ? (c[k] as number) : d;
-  const arr = (k: string): string[] => Array.isArray(c[k]) ? (c[k] as string[]) : [];
+  const str = (k: string): string => typeof c[k] === "string" ? c[k] : "";
+  const num = (k: string, d: number): number => typeof c[k] === "number" ? c[k] : d;
+  const arr = (k: string): string[] => {
+    const v = c[k];
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  };
 
   switch (widget.type) {
     case "heading":
