@@ -105,6 +105,7 @@ export type Database = {
       pages: {
         Row: {
           author_id: string | null
+          builder_data: Json | null
           content_en: string | null
           content_pl: string | null
           cover_image_url: string | null
@@ -121,6 +122,7 @@ export type Database = {
         }
         Insert: {
           author_id?: string | null
+          builder_data?: Json | null
           content_en?: string | null
           content_pl?: string | null
           cover_image_url?: string | null
@@ -137,6 +139,7 @@ export type Database = {
         }
         Update: {
           author_id?: string | null
+          builder_data?: Json | null
           content_en?: string | null
           content_pl?: string | null
           cover_image_url?: string | null
@@ -216,6 +219,7 @@ export type Database = {
       posts: {
         Row: {
           author_id: string | null
+          builder_data: Json | null
           content_en: string | null
           content_pl: string | null
           cover_image_url: string | null
@@ -235,6 +239,7 @@ export type Database = {
         }
         Insert: {
           author_id?: string | null
+          builder_data?: Json | null
           content_en?: string | null
           content_pl?: string | null
           cover_image_url?: string | null
@@ -254,6 +259,7 @@ export type Database = {
         }
         Update: {
           author_id?: string | null
+          builder_data?: Json | null
           content_en?: string | null
           content_pl?: string | null
           cover_image_url?: string | null
@@ -423,7 +429,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "editor" | "author"
-      editor_type: "richtext" | "markdown"
+      editor_type: "richtext" | "markdown" | "builder"
       post_status: "draft" | "published" | "archived"
     }
     CompositeTypes: {
@@ -553,7 +559,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "editor", "author"],
-      editor_type: ["richtext", "markdown"],
+      editor_type: ["richtext", "markdown", "builder"],
       post_status: ["draft", "published", "archived"],
     },
   },
