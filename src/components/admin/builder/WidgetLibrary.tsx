@@ -120,7 +120,7 @@ export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }:
               <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
                 {labels[cat]}
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 {items.map((w) => {
                   const Icon = w.icon;
                   return (
@@ -133,11 +133,11 @@ export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }:
                         e.dataTransfer.effectAllowed = "copy";
                       }}
                       onClick={() => onPickWidget(w.type)}
-                      className="aspect-square bg-muted/30 hover:bg-muted hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-1 p-2 transition group"
+                      className="h-16 bg-muted/30 hover:bg-muted hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 p-1 transition group"
                       title={`Dodaj: ${w.label}`}
                     >
-                      <Icon className="w-5 h-5 text-muted-foreground group-hover:text-brand" />
-                      <span className="text-[10px] text-center leading-tight">{w.label}</span>
+                      <Icon className="w-4 h-4 text-muted-foreground group-hover:text-brand" />
+                      <span className="text-[9px] text-center leading-tight">{w.label}</span>
                     </button>
                   );
                 })}
