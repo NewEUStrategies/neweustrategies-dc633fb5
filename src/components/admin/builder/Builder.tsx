@@ -499,6 +499,7 @@ interface SectionViewProps {
   onMove: (dir: -1 | 1) => void;
   onRemove: () => void;
   onDuplicate: () => void;
+  onSaveTemplate: () => void;
   onAddInnerSection: () => void;
   onAddColumn: () => void;
   onRemoveColumn: (id: string) => void;
@@ -545,6 +546,7 @@ function SectionView(p: SectionViewProps) {
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onAddColumn(); }} title="Dodaj kolumnę"><Columns2 className="w-3 h-3" /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onAddInnerSection(); }} title="Sekcja wewn."><Plus className="w-3 h-3" /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onDuplicate(); }} title="Duplikuj"><Copy className="w-3 h-3" /></IconBtn>
+        <IconBtn onClick={(e) => { e.stopPropagation(); p.onSaveTemplate(); }} title="Zapisz jako szablon"><Save className="w-3 h-3" /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
       </div>
 
