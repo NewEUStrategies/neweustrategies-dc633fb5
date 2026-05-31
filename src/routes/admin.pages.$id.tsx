@@ -14,6 +14,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PostEditor } from "@/components/admin/PostEditor";
+import { PageParentSelect } from "@/components/admin/PageParentSelect";
+import { useRequiredTenant } from "@/hooks/useAuth";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon } from "@/lib/lucide-shim";
@@ -38,11 +40,14 @@ interface PageForm {
   cover_image_url: string | null;
   published_at: string | null;
   builder_data: BuilderDocument | null;
+  parent_id: string | null;
+  menu_order: number;
 }
 
 
 function EditPage() {
   const { id } = Route.useParams();
+  const tenantId = useRequiredTenant();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -92,6 +97,8 @@ function EditPage() {
           content_en: snapshot.content_en,
           cover_image_url: snapshot.cover_image_url,
           builder_data: snapshot.builder_data,
+          parent_id: snapshot.parent_id,
+          menu_order: snapshot.menu_order,
         },
       },
     });
@@ -161,6 +168,16 @@ function EditPage() {
       <div>
         <Label>Slug</Label>
         <Input value={form.slug} onChange={(e) => set("slug", e.target.value)} />
+      </div>
+      <PageParentSelect
+        tenantId={tenantId}
+        value={form.parent_id}
+        onChange={(v) => set("parent_id", v)}
+        excludeId={form.id}
+      />
+      <div>
+        <Label>Kolejność w menu</Label>
+        <Input type="number" value={form.menu_order} onChange={(e) => set("menu_order", Number(e.target.value) || 0)} />
       </div>
       <div>
         <Label>{t("admin.posts.cover")}</Label>

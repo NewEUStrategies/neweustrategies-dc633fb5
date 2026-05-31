@@ -256,9 +256,12 @@ export type Database = {
           deleted_at: string | null
           editor: Database["public"]["Enums"]["editor_type"]
           id: string
+          menu_order: number
+          parent_id: string | null
           published_at: string | null
           slug: string
           status: Database["public"]["Enums"]["post_status"]
+          template_id: string | null
           tenant_id: string
           title_en: string
           title_pl: string
@@ -274,9 +277,12 @@ export type Database = {
           deleted_at?: string | null
           editor?: Database["public"]["Enums"]["editor_type"]
           id?: string
+          menu_order?: number
+          parent_id?: string | null
           published_at?: string | null
           slug: string
           status?: Database["public"]["Enums"]["post_status"]
+          template_id?: string | null
           tenant_id: string
           title_en?: string
           title_pl?: string
@@ -292,15 +298,33 @@ export type Database = {
           deleted_at?: string | null
           editor?: Database["public"]["Enums"]["editor_type"]
           id?: string
+          menu_order?: number
+          parent_id?: string | null
           published_at?: string | null
           slug?: string
           status?: Database["public"]["Enums"]["post_status"]
+          template_id?: string | null
           tenant_id?: string
           title_en?: string
           title_pl?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pages_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pages_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "builder_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       post_categories: {
         Row: {
@@ -375,10 +399,12 @@ export type Database = {
           excerpt_en: string | null
           excerpt_pl: string | null
           id: string
+          parent_page_id: string
           published_at: string | null
           read_minutes: number | null
           slug: string
           status: Database["public"]["Enums"]["post_status"]
+          template_id: string | null
           tenant_id: string
           title_en: string
           title_pl: string
@@ -396,10 +422,12 @@ export type Database = {
           excerpt_en?: string | null
           excerpt_pl?: string | null
           id?: string
+          parent_page_id: string
           published_at?: string | null
           read_minutes?: number | null
           slug: string
           status?: Database["public"]["Enums"]["post_status"]
+          template_id?: string | null
           tenant_id: string
           title_en?: string
           title_pl?: string
@@ -417,16 +445,32 @@ export type Database = {
           excerpt_en?: string | null
           excerpt_pl?: string | null
           id?: string
+          parent_page_id?: string
           published_at?: string | null
           read_minutes?: number | null
           slug?: string
           status?: Database["public"]["Enums"]["post_status"]
+          template_id?: string | null
           tenant_id?: string
           title_en?: string
           title_pl?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "posts_parent_page_id_fkey"
+            columns: ["parent_page_id"]
+            isOneToOne: false
+            referencedRelation: "pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "posts_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "builder_templates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "posts_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -646,6 +690,25 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      page_breadcrumbs: {
+        Args: { _page_id: string }
+        Returns: {
+          depth: number
+          full_path: string
+          id: string
+          slug: string
+          title_en: string
+          title_pl: string
+        }[]
+      }
+      page_full_path: { Args: { _page_id: string }; Returns: string }
+      resolve_path: {
+        Args: { _segments: string[] }
+        Returns: {
+          page_id: string
+          post_id: string
+        }[]
       }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
     }

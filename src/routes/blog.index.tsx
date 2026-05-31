@@ -9,20 +9,30 @@ export const Route = createFileRoute("/blog/")({
   loader: async () => {
     const { data, error } = await supabase
       .from("posts")
-      .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at")
+      .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id")
       .eq("status", "published")
       .is("deleted_at", null)
       .order("published_at", { ascending: false })
       .limit(50);
     if (error) throw error;
-    const posts = (data ?? []) as Array<{
+    const rows = (data ?? []) as Array<{
       id: string; slug: string;
       title_pl: string; title_en: string;
       excerpt_pl: string | null; excerpt_en: string | null;
       cover_image_url: string | null; published_at: string | null;
+      parent_page_id: string;
     }>;
+    // Resolve full parent paths in one go.
+    const parentIds = Array.from(new Set(rows.map((r) => r.parent_page_id)));
+    const paths = new Map<string, string>();
+    await Promise.all(parentIds.map(async (pid) => {
+      const { data: p } = await supabase.rpc("page_full_path", { _page_id: pid });
+      if (typeof p === "string") paths.set(pid, p);
+    }));
+    const posts = rows.map((r) => ({ ...r, href: `/${paths.get(r.parent_page_id) ?? "blog"}/${r.slug}` }));
     return { posts };
   },
+
   head: () => ({
     meta: [
       { title: "Blog - New European Strategies" },
@@ -66,7 +76,7 @@ function BlogIndex() {
               const title = lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
               const excerpt = lang === "en" ? p.excerpt_en : p.excerpt_pl;
               return (
-                <Link key={p.id} to="/post/$slug" params={{ slug: p.slug }} className="bg-card border border-border rounded-lg overflow-hidden hover:border-brand transition">
+                <Link key={p.id} to={p.href} className="bg-card border border-border rounded-lg overflow-hidden hover:border-brand transition">
                   {p.cover_image_url && <img src={p.cover_image_url} alt="" className="w-full h-44 object-cover" loading="lazy" />}
                   <div className="p-5">
                     <h2 className="font-display text-xl mb-2 line-clamp-2">{title}</h2>

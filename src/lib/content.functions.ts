@@ -109,25 +109,56 @@ const PostCore = z.object({
   cover_image_url: z.string().url().max(2048).nullable().optional(),
   read_minutes: z.number().int().min(0).max(999).nullable().optional(),
   builder_data: BuilderJsonValue.nullable().optional(),
+  parent_page_id: UUID.optional(),
+  template_id: UUID.nullable().optional(),
 });
+
+async function resolveDefaultBlogPage(
+  supabase: SupabaseClient, tenantId: string, authorId: string,
+): Promise<string> {
+  const { data: existing } = await supabase
+    .from("pages").select("id")
+    .eq("tenant_id", tenantId).eq("slug", "blog").is("parent_id", null)
+    .maybeSingle();
+  if (existing?.id) return existing.id as string;
+  const { data: created, error } = await supabase
+    .from("pages")
+    .insert({
+      tenant_id: tenantId, author_id: authorId, slug: "blog",
+      title_pl: "Blog", title_en: "Blog", status: "published",
+      published_at: new Date().toISOString(),
+    })
+    .select("id").single();
+  if (error || !created) throw new Error(error?.message || "Cannot create default blog page");
+  return created.id as string;
+}
 
 export const createPost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => z.object({ title_pl: z.string().max(300).optional(), title_en: z.string().max(300).optional() }).parse(i ?? {}))
+  .inputValidator((i: unknown) => z.object({
+    title_pl: z.string().max(300).optional(),
+    title_en: z.string().max(300).optional(),
+    parent_page_id: UUID.optional(),
+    template_id: UUID.optional(),
+  }).parse(i ?? {}))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("post.create", userId, 30, async () => {
       const tenantId = await resolveTenant(supabase, userId);
       const seed = (data.title_pl || data.title_en || `post-${Date.now().toString(36)}`).trim();
       const slug = await uniqueSlug(supabase, "posts", tenantId, seed);
+      const parentPageId = data.parent_page_id ?? await resolveDefaultBlogPage(supabase, tenantId, userId);
       const { data: row, error } = await supabase
         .from("posts")
         .insert({
           tenant_id: tenantId, author_id: userId, slug,
           title_pl: data.title_pl ?? "", title_en: data.title_en ?? "",
+          parent_page_id: parentPageId,
+          template_id: data.template_id ?? null,
         })
         .select("id, slug").single();
       if (error) throw new Error(error.message);
+
       await audit(supabase, tenantId, "post.create", "post", row.id, { slug });
       return { id: row.id as string, slug: row.slug as string };
     });
@@ -213,11 +244,19 @@ const PageCore = z.object({
   content_en: NullableStr(200_000),
   cover_image_url: z.string().url().max(2048).nullable().optional(),
   builder_data: BuilderJsonValue.nullable().optional(),
+  parent_id: UUID.nullable().optional(),
+  template_id: UUID.nullable().optional(),
+  menu_order: z.number().int().min(0).max(99999).optional(),
 });
 
 export const createPage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => z.object({ title_pl: z.string().max(300).optional(), title_en: z.string().max(300).optional() }).parse(i ?? {}))
+  .inputValidator((i: unknown) => z.object({
+    title_pl: z.string().max(300).optional(),
+    title_en: z.string().max(300).optional(),
+    parent_id: UUID.nullable().optional(),
+    template_id: UUID.optional(),
+  }).parse(i ?? {}))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("page.create", userId, 30, async () => {
@@ -229,6 +268,8 @@ export const createPage = createServerFn({ method: "POST" })
         .insert({
           tenant_id: tenantId, author_id: userId, slug,
           title_pl: data.title_pl ?? "", title_en: data.title_en ?? "",
+          parent_id: data.parent_id ?? null,
+          template_id: data.template_id ?? null,
         })
         .select("id, slug").single();
       if (error) throw new Error(error.message);
@@ -236,6 +277,7 @@ export const createPage = createServerFn({ method: "POST" })
       return { id: row.id as string, slug: row.slug as string };
     });
   });
+
 
 export const updatePage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

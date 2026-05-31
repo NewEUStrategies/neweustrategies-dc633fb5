@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PostEditor } from "@/components/admin/PostEditor";
+import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon } from "@/lib/lucide-shim";
@@ -43,7 +44,9 @@ interface PostForm {
   read_minutes: number | null;
   published_at: string | null;
   builder_data: BuilderDocument | null;
+  parent_page_id: string;
 }
+
 
 interface CategoryOpt { id: string; name_pl: string; name_en: string }
 interface TagOpt { id: string; name: string }
@@ -128,6 +131,7 @@ function EditPost() {
           cover_image_url: snapshot.cover_image_url,
           read_minutes: snapshot.read_minutes,
           builder_data: snapshot.builder_data,
+          parent_page_id: snapshot.parent_page_id,
         },
         categories: selectedCats,
         tags: selectedTags,
@@ -206,6 +210,13 @@ function EditPost() {
         <Label>Slug</Label>
         <Input value={form.slug} onChange={(e) => set("slug", e.target.value)} />
       </div>
+      <PageParentSelect
+        tenantId={tenantId}
+        value={form.parent_page_id}
+        onChange={(v) => v && set("parent_page_id", v)}
+        label="Strona nadrzędna"
+        noneLabel="— wybierz stronę —"
+      />
       <div>
         <Label>{t("admin.posts.readMinutes")}</Label>
         <Input type="number" value={form.read_minutes ?? ""} onChange={(e) => set("read_minutes", e.target.value ? Number(e.target.value) : null)} />
