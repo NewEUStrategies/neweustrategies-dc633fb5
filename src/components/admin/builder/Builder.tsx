@@ -16,7 +16,7 @@ import {
 } from "@/lib/lucide-shim";
 import { WIDGETS, makeWidget } from "@/lib/builder/registry";
 import type {
-  BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode,
+  BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode, Json,
   Device, WidgetType, CommonStyle, ResponsiveValue,
 } from "@/lib/builder/types";
 import { emptyDocument, newId } from "@/lib/builder/types";
@@ -486,7 +486,7 @@ function WidgetProperties({ widget, lang, device, onChange }: {
   widget: WidgetNode; lang: "pl"|"en"; device: Device;
   onChange: (mut: (w: WidgetNode) => void) => void;
 }) {
-  const setContent = (k: string, v: unknown) => onChange((w) => { w.content[k] = v; });
+  const setContent = (k: string, v: Json) => onChange((w) => { w.content[k] = v; });
   const setStyle = (mut: (s: CommonStyle) => void) => onChange((w) => {
     w.style = w.style ?? {};
     mut(w.style);
@@ -495,7 +495,7 @@ function WidgetProperties({ widget, lang, device, onChange }: {
     w.advanced = w.advanced ?? {};
     mut(w.advanced);
   });
-  const setResp = <T,>(rv: ResponsiveValue<T> | undefined, val: T): ResponsiveValue<T> => ({
+  const setResp = <T,>(rv: ResponsiveValue<T> | undefined, val: T | undefined): ResponsiveValue<T> => ({
     ...(rv ?? {}), [device]: val,
   });
 
@@ -523,11 +523,11 @@ function WidgetProperties({ widget, lang, device, onChange }: {
         </div>
         <div>
           <Label className="text-xs">Padding ({device})</Label>
-          <Input value={widget.style?.padding?.[device] ?? ""} onChange={(e) => setStyle((s) => { s.padding = setResp(s.padding, e.target.value || undefined as unknown as string); })} placeholder="16px 24px" className="h-8 text-xs" />
+          <Input value={widget.style?.padding?.[device] ?? ""} onChange={(e) => setStyle((s) => { s.padding = setResp(s.padding, e.target.value || undefined); })} placeholder="16px 24px" className="h-8 text-xs" />
         </div>
         <div>
           <Label className="text-xs">Margin ({device})</Label>
-          <Input value={widget.style?.margin?.[device] ?? ""} onChange={(e) => setStyle((s) => { s.margin = setResp(s.margin, e.target.value || undefined as unknown as string); })} placeholder="0 0 16px" className="h-8 text-xs" />
+          <Input value={widget.style?.margin?.[device] ?? ""} onChange={(e) => setStyle((s) => { s.margin = setResp(s.margin, e.target.value || undefined); })} placeholder="0 0 16px" className="h-8 text-xs" />
         </div>
         <div>
           <Label className="text-xs">Wyrównanie ({device})</Label>
@@ -587,12 +587,15 @@ function WidgetProperties({ widget, lang, device, onChange }: {
 }
 
 function ContentFields({ widget, lang, setContent }: {
-  widget: WidgetNode; lang: "pl"|"en"; setContent: (k: string, v: unknown) => void;
+  widget: WidgetNode; lang: "pl"|"en"; setContent: (k: string, v: Json) => void;
 }) {
   const c = widget.content;
-  const str = (k: string): string => typeof c[k] === "string" ? (c[k] as string) : "";
-  const num = (k: string, d: number): number => typeof c[k] === "number" ? (c[k] as number) : d;
-  const arr = (k: string): string[] => Array.isArray(c[k]) ? (c[k] as string[]) : [];
+  const str = (k: string): string => typeof c[k] === "string" ? c[k] : "";
+  const num = (k: string, d: number): number => typeof c[k] === "number" ? c[k] : d;
+  const arr = (k: string): string[] => {
+    const v = c[k];
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  };
 
   switch (widget.type) {
     case "heading":

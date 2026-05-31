@@ -4,7 +4,7 @@
 import type { CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { WidgetNode, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
+import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import {
   sanitizeHtml,
@@ -53,15 +53,15 @@ interface ViewProps {
   device: Device;
 }
 
-function getStr(c: Record<string, unknown>, k: string): string {
+function getStr(c: WidgetContent, k: string): string {
   const v = c[k];
   return typeof v === "string" ? v : "";
 }
-function getNum(c: Record<string, unknown>, k: string, dflt: number): number {
+function getNum(c: WidgetContent, k: string, dflt: number): number {
   const v = c[k];
   return typeof v === "number" ? v : dflt;
 }
-function getStrArr(c: Record<string, unknown>, k: string): string[] {
+function getStrArr(c: WidgetContent, k: string): string[] {
   const v = c[k];
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
@@ -141,7 +141,8 @@ export function WidgetView({ node, lang, device }: ViewProps) {
     case "icon": {
       const name = getStr(c, "name") || "Star";
       const size = getNum(c, "size", 32);
-      const reg = LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>;
+      const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
+        LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
       const Cmp = reg[name] ?? LucideIcons.Star;
       return wrap(<Cmp size={size} />);
     }
@@ -176,7 +177,7 @@ export function WidgetView({ node, lang, device }: ViewProps) {
   }
 }
 
-function PostListView({ c, lang, carousel = false }: { c: Record<string, unknown>; lang: Lang; carousel?: boolean }) {
+function PostListView({ c, lang, carousel = false }: { c: WidgetContent; lang: Lang; carousel?: boolean }) {
   const limit = getNum(c, "limit", 6);
   const cols = getNum(c, "columns", 3);
   const { data } = useQuery({
