@@ -292,17 +292,36 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     case "tags":
       return wrap(<TagsView />);
     case "newsletter": {
-      const title = getStr(c, `title_${lang}`) || getStr(c, "title_pl");
-      return wrap(<form className="bg-muted/30 rounded-lg p-6 space-y-3"><h3 className="font-display text-xl">{title}</h3><div className="flex gap-2"><input type="email" placeholder="email@example.com" className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" /><button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">OK</button></div></form>);
+      const tKey = `title_${lang}`;
+      const title = getStr(c, tKey) || getStr(c, "title_pl");
+      return wrap(
+        <form className="bg-muted/30 rounded-lg p-6 space-y-3">
+          {canEdit
+            ? <Editable as="h3" value={title} onCommit={(v) => commit(tKey, v)} className="font-display text-xl" placeholder="Tytuł newslettera…" />
+            : <h3 className="font-display text-xl">{title}</h3>}
+          <div className="flex gap-2"><input type="email" placeholder="email@example.com" className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" /><button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">OK</button></div>
+        </form>,
+      );
     }
     case "contact": {
       return wrap(<form className="space-y-3"><input placeholder="Imię" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><input placeholder="Email" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><textarea placeholder="Wiadomość" rows={4} className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Wyślij</button></form>);
     }
     case "cta": {
-      const title = getStr(c, `title_${lang}`) || getStr(c, "title_pl");
-      const cta = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl");
+      const tKey = `title_${lang}`;
+      const cKey = `cta_${lang}`;
+      const title = getStr(c, tKey) || getStr(c, "title_pl");
+      const cta = getStr(c, cKey) || getStr(c, "cta_pl");
       const href = safeUrl(getStr(c, "href"));
-      return wrap(<div className="bg-brand text-brand-foreground rounded-lg p-8 flex flex-col sm:flex-row items-center justify-between gap-4"><h3 className="font-display text-2xl">{title}</h3><a href={href} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium">{cta}</a></div>);
+      return wrap(
+        <div className="bg-brand text-brand-foreground rounded-lg p-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          {canEdit
+            ? <Editable as="h3" value={title} onCommit={(v) => commit(tKey, v)} className="font-display text-2xl" placeholder="Nagłówek CTA…" />
+            : <h3 className="font-display text-2xl">{title}</h3>}
+          {canEdit
+            ? <Editable as="span" value={cta} onCommit={(v) => commit(cKey, v)} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium" placeholder="Etykieta…" />
+            : <a href={href} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium">{cta}</a>}
+        </div>,
+      );
     }
     case "accordion": {
       const items = Array.isArray(c.items) ? c.items as Array<Record<string, string>> : [];
