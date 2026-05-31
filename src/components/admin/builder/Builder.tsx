@@ -530,7 +530,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                     <EmptyState onAdd={addSection} title={copy.title} hint={copy.hint} />
                   )}
 
-                  <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} prominent label={copy.first} />
+                  <SectionDropZone onInsert={(s) => insertSectionAt(0, s)} index={0} prominent label={copy.first} />
 
                   {doc.sections.map((s, idx) => (
                     <div key={s.id}>
