@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Plus, Trash2, Pencil } from "@/lib/lucide-shim";
+import { upsertCategory, deleteCategory } from "@/lib/content.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/categories")({
@@ -34,14 +36,12 @@ interface CategoryForm {
 
 const emptyForm: CategoryForm = { name_pl: "", name_en: "", slug: "", description_pl: "", description_en: "" };
 
-function slugify(s: string): string {
-  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
 function Categories() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const tenantId = useRequiredTenant();
+  const upsert$ = useServerFn(upsertCategory);
+  const delete$ = useServerFn(deleteCategory);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CategoryRow | null>(null);
   const [form, setForm] = useState<CategoryForm>(emptyForm);
@@ -69,21 +69,35 @@ function Categories() {
   };
 
   const save = async () => {
-    const payload = { ...form, slug: form.slug || slugify(form.name_pl || form.name_en), tenant_id: tenantId };
-    const { error } = editing
-      ? await supabase.from("categories").update(payload).eq("id", editing.id)
-      : await supabase.from("categories").insert(payload);
-    if (error) { toast.error(error.message); return; }
-    toast.success(t("admin.saved"));
-    setOpen(false);
-    qc.invalidateQueries({ queryKey: ["categories"] });
+    try {
+      await upsert$({
+        data: {
+          id: editing?.id,
+          fields: {
+            name_pl: form.name_pl,
+            name_en: form.name_en,
+            slug: form.slug || undefined,
+            description_pl: form.description_pl || null,
+            description_en: form.description_en || null,
+          },
+        },
+      });
+      toast.success(t("admin.saved"));
+      setOpen(false);
+      qc.invalidateQueries({ queryKey: ["categories"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
   };
 
   const del = async (id: string) => {
     if (!confirm(t("admin.confirmDelete"))) return;
-    const { error } = await supabase.from("categories").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
-    qc.invalidateQueries({ queryKey: ["categories"] });
+    try {
+      await delete$({ data: { id } });
+      qc.invalidateQueries({ queryKey: ["categories"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
   };
 
   return (

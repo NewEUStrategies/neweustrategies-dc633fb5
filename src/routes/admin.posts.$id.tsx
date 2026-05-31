@@ -2,8 +2,10 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
+import { updatePost, deletePost } from "@/lib/content.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,6 +51,8 @@ function EditPost() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const tenantId = useRequiredTenant();
+  const update$ = useServerFn(updatePost);
+  const delete$ = useServerFn(deletePost);
 
   const { data: post, isLoading } = useQuery({
     queryKey: ["post", id],
@@ -97,30 +101,27 @@ function EditPost() {
     if (!form) return;
     setBusy(true);
     try {
-      const payload = {
-        slug: form.slug,
-        status: form.status,
-        editor: form.editor,
-        title_pl: form.title_pl,
-        title_en: form.title_en,
-        excerpt_pl: form.excerpt_pl,
-        excerpt_en: form.excerpt_en,
-        content_pl: form.content_pl,
-        content_en: form.content_en,
-        cover_image_url: form.cover_image_url,
-        read_minutes: form.read_minutes,
-        builder_data: form.builder_data as unknown as never,
-        published_at: form.status === "published" ? (form.published_at ?? new Date().toISOString()) : form.published_at,
-      };
-      const { error } = await supabase.from("posts").update(payload).eq("id", id);
-      if (error) throw error;
-
-      await supabase.from("post_categories").delete().eq("post_id", id);
-      if (selectedCats.length)
-        await supabase.from("post_categories").insert(selectedCats.map((c) => ({ post_id: id, category_id: c })));
-      await supabase.from("post_tags").delete().eq("post_id", id);
-      if (selectedTags.length)
-        await supabase.from("post_tags").insert(selectedTags.map((tg) => ({ post_id: id, tag_id: tg })));
+      await update$({
+        data: {
+          id,
+          fields: {
+            slug: form.slug,
+            status: form.status,
+            editor: form.editor,
+            title_pl: form.title_pl,
+            title_en: form.title_en,
+            excerpt_pl: form.excerpt_pl,
+            excerpt_en: form.excerpt_en,
+            content_pl: form.content_pl,
+            content_en: form.content_en,
+            cover_image_url: form.cover_image_url,
+            read_minutes: form.read_minutes,
+            builder_data: form.builder_data,
+          },
+          categories: selectedCats,
+          tags: selectedTags,
+        },
+      });
 
       qc.invalidateQueries({ queryKey: ["admin-posts"] });
       qc.invalidateQueries({ queryKey: ["post", id] });
@@ -134,10 +135,13 @@ function EditPost() {
 
   const del = async () => {
     if (!confirm(t("admin.confirmDelete"))) return;
-    const { error } = await supabase.from("posts").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
-    toast.success(t("admin.deleted"));
-    navigate({ to: "/admin/posts" });
+    try {
+      await delete$({ data: { id } });
+      toast.success(t("admin.deleted"));
+      navigate({ to: "/admin/posts" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
   };
 
   return (

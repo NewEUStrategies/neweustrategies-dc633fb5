@@ -1,11 +1,13 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2 } from "@/lib/lucide-shim";
+import { deletePost } from "@/lib/content.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/posts")({
@@ -24,6 +26,7 @@ function PostsList() {
   const lang = i18n.language ?? "pl";
   const qc = useQueryClient();
   const { tenantId } = useAuth();
+  const del$ = useServerFn(deletePost);
 
   const { data: posts, isLoading } = useQuery({
     enabled: !!tenantId,
@@ -41,11 +44,12 @@ function PostsList() {
 
   const del = async (id: string) => {
     if (!confirm(t("admin.confirmDelete"))) return;
-    const { error } = await supabase.from("posts").delete().eq("id", id);
-    if (error) toast.error(error.message);
-    else {
+    try {
+      await del$({ data: { id } });
       toast.success(t("admin.deleted"));
       qc.invalidateQueries({ queryKey: ["admin-posts"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
     }
   };
 

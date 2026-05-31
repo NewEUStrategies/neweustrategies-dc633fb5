@@ -2,7 +2,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { updatePage, deletePage } from "@/lib/content.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +43,8 @@ function EditPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const update$ = useServerFn(updatePage);
+  const delete$ = useServerFn(deletePage);
 
   const { data: page, isLoading } = useQuery({
     queryKey: ["page", id],
@@ -67,20 +71,22 @@ function EditPage() {
     if (!form) return;
     setBusy(true);
     try {
-      const payload = {
-        slug: form.slug,
-        status: form.status,
-        editor: form.editor,
-        title_pl: form.title_pl,
-        title_en: form.title_en,
-        content_pl: form.content_pl,
-        content_en: form.content_en,
-        cover_image_url: form.cover_image_url,
-        builder_data: form.builder_data as unknown as never,
-        published_at: form.status === "published" ? (form.published_at ?? new Date().toISOString()) : form.published_at,
-      };
-      const { error } = await supabase.from("pages").update(payload).eq("id", id);
-      if (error) throw error;
+      await update$({
+        data: {
+          id,
+          fields: {
+            slug: form.slug,
+            status: form.status,
+            editor: form.editor,
+            title_pl: form.title_pl,
+            title_en: form.title_en,
+            content_pl: form.content_pl,
+            content_en: form.content_en,
+            cover_image_url: form.cover_image_url,
+            builder_data: form.builder_data,
+          },
+        },
+      });
       qc.invalidateQueries({ queryKey: ["admin-pages"] });
       qc.invalidateQueries({ queryKey: ["page", id] });
       toast.success(t("admin.saved"));
@@ -93,10 +99,13 @@ function EditPage() {
 
   const del = async () => {
     if (!confirm(t("admin.confirmDelete"))) return;
-    const { error } = await supabase.from("pages").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
-    toast.success(t("admin.deleted"));
-    navigate({ to: "/admin/pages" });
+    try {
+      await delete$({ data: { id } });
+      toast.success(t("admin.deleted"));
+      navigate({ to: "/admin/pages" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
   };
 
   return (
