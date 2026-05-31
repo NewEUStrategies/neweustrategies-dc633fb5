@@ -210,6 +210,13 @@ function EditPost() {
         <Label>Slug</Label>
         <Input value={form.slug} onChange={(e) => set("slug", e.target.value)} />
       </div>
+      <PageParentSelect
+        tenantId={tenantId}
+        value={form.parent_page_id}
+        onChange={(v) => v && set("parent_page_id", v)}
+        label="Strona nadrzędna"
+        noneLabel="— wybierz stronę —"
+      />
       <div>
         <Label>{t("admin.posts.readMinutes")}</Label>
         <Input type="number" value={form.read_minutes ?? ""} onChange={(e) => set("read_minutes", e.target.value ? Number(e.target.value) : null)} />
