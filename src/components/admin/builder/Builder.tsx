@@ -371,38 +371,59 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
           onUndo={history.undo} onRedo={history.redo}
         />
 
-        <div className="flex-1 overflow-y-auto p-4" onClick={() => setSelection({ kind: null, id: null })}>
+        <div className="flex-1 overflow-y-auto bg-background" onClick={() => setSelection({ kind: null, id: null })}>
           <div className={`mx-auto transition-all ${device==="desktop"?"max-w-full":device==="tablet"?"max-w-[768px]":"max-w-[400px]"}`}>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-              {doc.sections.length === 0 && <EmptyState onAdd={addSection} />}
+            {/* Site chrome — non-interactive preview of TopBar */}
+            <div
+              className="pointer-events-none select-none relative"
+              aria-hidden="true"
+              onClickCapture={(e) => e.stopPropagation()}
+            >
+              <Header />
+              <div className="absolute inset-0 bg-transparent" />
+            </div>
 
-              <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} />
+            <div className="p-4">
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+                {doc.sections.length === 0 && <EmptyState onAdd={addSection} />}
 
-              {doc.sections.map((s, idx) => (
-                <div key={s.id}>
-                  <SectionView
-                    section={s} device={device} lang={lang}
-                    selection={selection} setSelection={setSelection}
-                    isFirst={idx === 0} isLast={idx === doc.sections.length - 1}
-                    onMove={(dir) => moveSection(s.id, dir)}
-                    onRemove={() => removeSection(s.id)}
-                    onDuplicate={() => duplicateSection(s.id)}
-                    onSaveTemplate={() => saveSectionAsTemplate(s.id)}
-                    onAddInnerSection={() => addInnerSection(s.id)}
-                    onAddColumn={() => addColumn(s.id)}
-                    onRemoveColumn={removeColumn}
-                    onDuplicateColumn={duplicateColumn}
-                    onRemoveWidget={removeWidget}
-                    onDuplicateWidget={duplicateWidget}
-                    onDropWidget={addWidgetToColumn}
-                    onUpdateWidgetContent={(id, k, v) =>
-                      updateWidget(id, (w) => { w.content = { ...w.content, [k]: v }; })
-                    }
-                  />
-                  <SectionDropZone onInsert={(cols) => insertSectionAt(idx + 1, cols)} index={idx + 1} />
-                </div>
-              ))}
-            </DndContext>
+                <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} />
+
+                {doc.sections.map((s, idx) => (
+                  <div key={s.id}>
+                    <SectionView
+                      section={s} device={device} lang={lang}
+                      selection={selection} setSelection={setSelection}
+                      isFirst={idx === 0} isLast={idx === doc.sections.length - 1}
+                      onMove={(dir) => moveSection(s.id, dir)}
+                      onRemove={() => removeSection(s.id)}
+                      onDuplicate={() => duplicateSection(s.id)}
+                      onSaveTemplate={() => saveSectionAsTemplate(s.id)}
+                      onAddInnerSection={() => addInnerSection(s.id)}
+                      onAddColumn={() => addColumn(s.id)}
+                      onRemoveColumn={removeColumn}
+                      onDuplicateColumn={duplicateColumn}
+                      onRemoveWidget={removeWidget}
+                      onDuplicateWidget={duplicateWidget}
+                      onDropWidget={addWidgetToColumn}
+                      onUpdateWidgetContent={(id, k, v) =>
+                        updateWidget(id, (w) => { w.content = { ...w.content, [k]: v }; })
+                      }
+                    />
+                    <SectionDropZone onInsert={(cols) => insertSectionAt(idx + 1, cols)} index={idx + 1} />
+                  </div>
+                ))}
+              </DndContext>
+            </div>
+
+            {/* Site chrome — non-interactive preview of Footer */}
+            <div
+              className="pointer-events-none select-none"
+              aria-hidden="true"
+              onClickCapture={(e) => e.stopPropagation()}
+            >
+              <Footer />
+            </div>
           </div>
         </div>
       </div>
