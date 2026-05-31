@@ -18,7 +18,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { PostEditor } from "@/components/admin/PostEditor";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
-import { ArrowLeft, Save, Trash2 } from "@/lib/lucide-shim";
+import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/posts/$id")({
@@ -89,6 +89,9 @@ function EditPost() {
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  // Two-step flow: "details" shows metadata + titles + descriptions in both
+  // languages; "content" opens the actual editor (builder / rich text).
+  const [step, setStep] = useState<"details" | "content">("details");
 
   useEffect(() => { if (post) history.reset(post); }, [post, history.reset]);
   useEffect(() => { if (postCats) setSelectedCats(postCats.map((c) => c.category_id)); }, [postCats]);
@@ -172,13 +175,125 @@ function EditPost() {
     }
   };
 
+  const metaCard = (
+    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+      <h3 className="text-sm font-semibold inline-flex items-center gap-2 mb-1">
+        <SettingsIcon className="w-4 h-4" /> Ustawienia wpisu
+      </h3>
+      <div>
+        <Label>{t("admin.posts.status")}</Label>
+        <Select value={form.status} onValueChange={(v) => set("status", v as PostStatus)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="draft">{t("admin.status.draft")}</SelectItem>
+            <SelectItem value="published">{t("admin.status.published")}</SelectItem>
+            <SelectItem value="archived">{t("admin.status.archived")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>{t("admin.posts.editor")}</Label>
+        <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="builder">Visual Builder (Elementor)</SelectItem>
+            <SelectItem value="richtext">Rich text (legacy)</SelectItem>
+            <SelectItem value="markdown">Markdown (legacy)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>Slug</Label>
+        <Input value={form.slug} onChange={(e) => set("slug", e.target.value)} />
+      </div>
+      <div>
+        <Label>{t("admin.posts.readMinutes")}</Label>
+        <Input type="number" value={form.read_minutes ?? ""} onChange={(e) => set("read_minutes", e.target.value ? Number(e.target.value) : null)} />
+      </div>
+      <div>
+        <Label>{t("admin.posts.cover")}</Label>
+        <Input value={form.cover_image_url ?? ""} onChange={(e) => set("cover_image_url", e.target.value)} placeholder="https://..." />
+        {form.cover_image_url && (
+          <img src={form.cover_image_url} alt="" className="mt-2 rounded w-full h-24 object-cover" />
+        )}
+      </div>
+    </div>
+  );
+
+  const catsCard = (
+    <div className="bg-card border border-border rounded-lg p-4">
+      <Label className="mb-2 block">{t("admin.nav.categories")}</Label>
+      <div className="space-y-1 max-h-48 overflow-auto">
+        {allCats?.map((c) => (
+          <label key={c.id} className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={selectedCats.includes(c.id)}
+              onChange={(e) =>
+                setSelectedCats((s) => (e.target.checked ? [...s, c.id] : s.filter((x) => x !== c.id)))
+              }
+            />
+            {c.name_pl} / {c.name_en}
+          </label>
+        ))}
+        {!allCats?.length && <p className="text-xs text-muted-foreground">{t("admin.posts.noCats")}</p>}
+      </div>
+    </div>
+  );
+
+  const tagsCard = (
+    <div className="bg-card border border-border rounded-lg p-4">
+      <Label className="mb-2 block">{t("admin.nav.tags")}</Label>
+      <div className="flex flex-wrap gap-1.5 max-h-48 overflow-auto">
+        {allTags?.map((tg) => {
+          const active = selectedTags.includes(tg.id);
+          return (
+            <button
+              key={tg.id}
+              type="button"
+              onClick={() =>
+                setSelectedTags((s) => (active ? s.filter((x) => x !== tg.id) : [...s, tg.id]))
+              }
+              className={`px-2 py-1 text-xs rounded border transition ${active ? "bg-brand text-brand-foreground border-brand" : "bg-muted/30 border-border"}`}
+            >
+              {tg.name}
+            </button>
+          );
+        })}
+        {!allTags?.length && <p className="text-xs text-muted-foreground">{t("admin.posts.noTags")}</p>}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <Link to="/admin/posts" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-          <ArrowLeft className="w-4 h-4" /> {t("admin.back")}
-        </Link>
+        {step === "details" ? (
+          <Link to="/admin/posts" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+            <ArrowLeft className="w-4 h-4" /> {t("admin.back")}
+          </Link>
+        ) : (
+          <button onClick={() => setStep("details")} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+            <ArrowLeft className="w-4 h-4" /> Szczegóły wpisu
+          </button>
+        )}
         <div className="flex items-center gap-2">
+          {/* Step indicator */}
+          <div className="hidden md:flex items-center gap-1 mr-2 text-xs">
+            <button
+              onClick={() => setStep("details")}
+              className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "details" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
+            >
+              <SettingsIcon className="w-3.5 h-3.5" /> 1. Szczegóły
+            </button>
+            <span className="text-muted-foreground">→</span>
+            <button
+              onClick={() => setStep("content")}
+              className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "content" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
+            >
+              <FileText className="w-3.5 h-3.5" /> 2. Treść
+            </button>
+          </div>
           <AutosaveBar
             status={autosave.status} error={autosave.error}
             canUndo={history.canUndo} canRedo={history.canRedo}
@@ -189,22 +304,51 @@ function EditPost() {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-5">
-          {form.editor === "builder" ? (
-            <>
-              <div className="grid grid-cols-2 gap-4">
+      {step === "details" ? (
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-5">
+            <div className="bg-card border border-border rounded-lg p-5 space-y-5">
+              <div>
+                <h2 className="text-lg font-display font-semibold mb-1">Szczegóły wpisu</h2>
+                <p className="text-xs text-muted-foreground">
+                  Uzupełnij tytuł i opis w obu językach. Po zapisaniu przejdź do kroku „Treść”, by edytować treść właściwą.
+                </p>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <Label>{t("admin.posts.titleCol")} (PL)</Label>
-                  <Input value={form.title_pl} onChange={(e) => set("title_pl", e.target.value)} className="text-lg font-display" />
+                  <Label>{t("admin.posts.titleCol")} <span className="text-[10px] text-muted-foreground">(PL)</span></Label>
+                  <Input value={form.title_pl} onChange={(e) => set("title_pl", e.target.value)} className="text-lg font-display" placeholder="Tytuł po polsku" />
                 </div>
                 <div>
-                  <Label>{t("admin.posts.titleCol")} (EN)</Label>
-                  <Input value={form.title_en} onChange={(e) => set("title_en", e.target.value)} className="text-lg font-display" />
+                  <Label>{t("admin.posts.titleCol")} <span className="text-[10px] text-muted-foreground">(EN)</span></Label>
+                  <Input value={form.title_en} onChange={(e) => set("title_en", e.target.value)} className="text-lg font-display" placeholder="Title in English" />
+                </div>
+                <div>
+                  <Label>{t("admin.posts.excerpt")} <span className="text-[10px] text-muted-foreground">(PL)</span></Label>
+                  <Textarea value={form.excerpt_pl ?? ""} onChange={(e) => set("excerpt_pl", e.target.value)} rows={4} placeholder="Krótki opis wpisu po polsku" />
+                </div>
+                <div>
+                  <Label>{t("admin.posts.excerpt")} <span className="text-[10px] text-muted-foreground">(EN)</span></Label>
+                  <Textarea value={form.excerpt_en ?? ""} onChange={(e) => set("excerpt_en", e.target.value)} rows={4} placeholder="Short excerpt in English" />
                 </div>
               </div>
-              <BuilderPane form={form} set={set} />
-            </>
+              <div className="flex justify-end pt-2 border-t border-border">
+                <Button onClick={() => setStep("content")} disabled={!form.title_pl.trim() && !form.title_en.trim()}>
+                  Przejdź do edycji treści <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          <aside className="space-y-5">
+            {metaCard}
+            {catsCard}
+            {tagsCard}
+          </aside>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {form.editor === "builder" ? (
+            <BuilderPane form={form} set={set} />
           ) : (
             <Tabs defaultValue="pl">
               <TabsList>
@@ -213,27 +357,11 @@ function EditPost() {
               </TabsList>
               <TabsContent value="pl" className="space-y-4 mt-4">
                 <div>
-                  <Label>{t("admin.posts.titleCol")} (PL)</Label>
-                  <Input value={form.title_pl} onChange={(e) => set("title_pl", e.target.value)} className="text-xl font-display" />
-                </div>
-                <div>
-                  <Label>{t("admin.posts.excerpt")} (PL)</Label>
-                  <Textarea value={form.excerpt_pl ?? ""} onChange={(e) => set("excerpt_pl", e.target.value)} rows={3} />
-                </div>
-                <div>
                   <Label>{t("admin.posts.content")} (PL)</Label>
                   <PostEditor mode={form.editor === "markdown" ? "markdown" : "richtext"} value={form.content_pl ?? ""} onChange={(v) => set("content_pl", v)} onPickImage={pickImage} />
                 </div>
               </TabsContent>
               <TabsContent value="en" className="space-y-4 mt-4">
-                <div>
-                  <Label>{t("admin.posts.titleCol")} (EN)</Label>
-                  <Input value={form.title_en} onChange={(e) => set("title_en", e.target.value)} className="text-xl font-display" />
-                </div>
-                <div>
-                  <Label>{t("admin.posts.excerpt")} (EN)</Label>
-                  <Textarea value={form.excerpt_en ?? ""} onChange={(e) => set("excerpt_en", e.target.value)} rows={3} />
-                </div>
                 <div>
                   <Label>{t("admin.posts.content")} (EN)</Label>
                   <PostEditor mode={form.editor === "markdown" ? "markdown" : "richtext"} value={form.content_en ?? ""} onChange={(v) => set("content_en", v)} onPickImage={pickImage} />
@@ -242,90 +370,7 @@ function EditPost() {
             </Tabs>
           )}
         </div>
-
-        <aside className="space-y-5">
-          <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-            <div>
-              <Label>{t("admin.posts.status")}</Label>
-              <Select value={form.status} onValueChange={(v) => set("status", v as PostStatus)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">{t("admin.status.draft")}</SelectItem>
-                  <SelectItem value="published">{t("admin.status.published")}</SelectItem>
-                  <SelectItem value="archived">{t("admin.status.archived")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>{t("admin.posts.editor")}</Label>
-              <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="builder">Visual Builder (Elementor)</SelectItem>
-                  <SelectItem value="richtext">Rich text (legacy)</SelectItem>
-                  <SelectItem value="markdown">Markdown (legacy)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Slug</Label>
-              <Input value={form.slug} onChange={(e) => set("slug", e.target.value)} />
-            </div>
-            <div>
-              <Label>{t("admin.posts.readMinutes")}</Label>
-              <Input type="number" value={form.read_minutes ?? ""} onChange={(e) => set("read_minutes", e.target.value ? Number(e.target.value) : null)} />
-            </div>
-            <div>
-              <Label>{t("admin.posts.cover")}</Label>
-              <Input value={form.cover_image_url ?? ""} onChange={(e) => set("cover_image_url", e.target.value)} placeholder="https://..." />
-              {form.cover_image_url && (
-                <img src={form.cover_image_url} alt="" className="mt-2 rounded w-full h-24 object-cover" />
-              )}
-            </div>
-          </div>
-
-          <div className="bg-card border border-border rounded-lg p-4">
-            <Label className="mb-2 block">{t("admin.nav.categories")}</Label>
-            <div className="space-y-1 max-h-48 overflow-auto">
-              {allCats?.map((c) => (
-                <label key={c.id} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={selectedCats.includes(c.id)}
-                    onChange={(e) =>
-                      setSelectedCats((s) => (e.target.checked ? [...s, c.id] : s.filter((x) => x !== c.id)))
-                    }
-                  />
-                  {c.name_pl} / {c.name_en}
-                </label>
-              ))}
-              {!allCats?.length && <p className="text-xs text-muted-foreground">{t("admin.posts.noCats")}</p>}
-            </div>
-          </div>
-
-          <div className="bg-card border border-border rounded-lg p-4">
-            <Label className="mb-2 block">{t("admin.nav.tags")}</Label>
-            <div className="flex flex-wrap gap-1.5 max-h-48 overflow-auto">
-              {allTags?.map((tg) => {
-                const active = selectedTags.includes(tg.id);
-                return (
-                  <button
-                    key={tg.id}
-                    type="button"
-                    onClick={() =>
-                      setSelectedTags((s) => (active ? s.filter((x) => x !== tg.id) : [...s, tg.id]))
-                    }
-                    className={`px-2 py-1 text-xs rounded border transition ${active ? "bg-brand text-brand-foreground border-brand" : "bg-muted/30 border-border"}`}
-                  >
-                    {tg.name}
-                  </button>
-                );
-              })}
-              {!allTags?.length && <p className="text-xs text-muted-foreground">{t("admin.posts.noTags")}</p>}
-            </div>
-          </div>
-        </aside>
-      </div>
+      )}
     </div>
   );
 }
