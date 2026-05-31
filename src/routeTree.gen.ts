@@ -39,6 +39,7 @@ import { Route as AdminPostsIdRouteImport } from './routes/admin.posts.$id'
 import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
 import { Route as AdminPagesIdRouteImport } from './routes/admin.pages.$id'
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
+import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -190,6 +191,11 @@ const AdminAppearanceHeaderRoute = AdminAppearanceHeaderRouteImport.update({
   path: '/header',
   getParentRoute: () => AdminAppearanceRoute,
 } as any)
+const AdminAppearanceFooterRoute = AdminAppearanceFooterRouteImport.update({
+  id: '/footer',
+  path: '/footer',
+  getParentRoute: () => AdminAppearanceRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -207,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/post/$slug': typeof PostSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
+  '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/pages/$id': typeof AdminPagesIdRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
@@ -237,6 +244,7 @@ export interface FileRoutesByTo {
   '/post/$slug': typeof PostSlugRoute
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
+  '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/pages/$id': typeof AdminPagesIdRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
@@ -270,6 +278,7 @@ export interface FileRoutesById {
   '/post/$slug': typeof PostSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
+  '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/pages/$id': typeof AdminPagesIdRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
@@ -304,6 +313,7 @@ export interface FileRouteTypes {
     | '/post/$slug'
     | '/admin/'
     | '/blog/'
+    | '/admin/appearance/footer'
     | '/admin/appearance/header'
     | '/admin/pages/$id'
     | '/admin/pages/new'
@@ -334,6 +344,7 @@ export interface FileRouteTypes {
     | '/post/$slug'
     | '/admin'
     | '/blog'
+    | '/admin/appearance/footer'
     | '/admin/appearance/header'
     | '/admin/pages/$id'
     | '/admin/pages/new'
@@ -366,6 +377,7 @@ export interface FileRouteTypes {
     | '/post/$slug'
     | '/admin/'
     | '/blog/'
+    | '/admin/appearance/footer'
     | '/admin/appearance/header'
     | '/admin/pages/$id'
     | '/admin/pages/new'
@@ -606,14 +618,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppearanceHeaderRouteImport
       parentRoute: typeof AdminAppearanceRoute
     }
+    '/admin/appearance/footer': {
+      id: '/admin/appearance/footer'
+      path: '/footer'
+      fullPath: '/admin/appearance/footer'
+      preLoaderRoute: typeof AdminAppearanceFooterRouteImport
+      parentRoute: typeof AdminAppearanceRoute
+    }
   }
 }
 
 interface AdminAppearanceRouteChildren {
+  AdminAppearanceFooterRoute: typeof AdminAppearanceFooterRoute
   AdminAppearanceHeaderRoute: typeof AdminAppearanceHeaderRoute
 }
 
 const AdminAppearanceRouteChildren: AdminAppearanceRouteChildren = {
+  AdminAppearanceFooterRoute: AdminAppearanceFooterRoute,
   AdminAppearanceHeaderRoute: AdminAppearanceHeaderRoute,
 }
 
