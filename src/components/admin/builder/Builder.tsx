@@ -380,43 +380,74 @@ interface SectionViewProps {
 
 function SectionView(p: SectionViewProps) {
   const selected = p.selection.kind === "section" && p.selection.id === p.section.id;
+  const colsSum = p.section.children.reduce((a, c) => a + (c.kind === "column" ? (c.span.desktop ?? 12) : 12), 0) || 12;
+  const hidden = !!p.section.advanced?.hideOn?.[p.device];
+  const bgStyle = backgroundLayerStyle(p.section.background);
+  const skin: React.CSSProperties = {
+    ...sectionWrapperStyle(p.section),
+    ...bgStyle,
+    ...borderStyle(p.section.border),
+    ...typographyAlign(p.section.typography, p.device),
+    opacity: hidden ? 0.35 : undefined,
+  };
+  const typoCss = typographyCss(p.section.id, p.section.typography);
+  const videoUrl = p.section.background?.type === "video"
+    ? safeImageUrl(p.section.background.videoUrl) || p.section.background.videoUrl
+    : "";
+
   return (
     <div
+      data-sec-id={p.section.id}
       className={`relative my-3 border-2 rounded-lg transition ${selected ? "border-brand" : "border-transparent hover:border-brand/40"}`}
+      style={skin}
       onClick={(e) => { e.stopPropagation(); p.setSelection({ kind: "section", id: p.section.id }); }}
     >
-      <div className="absolute -top-3 left-3 z-10 flex items-center gap-1 bg-background border border-border rounded px-1.5 py-0.5 text-[10px] opacity-0 group-hover:opacity-100 hover:opacity-100" style={{ opacity: selected ? 1 : undefined }}>
-        <span className="font-medium text-muted-foreground">SEKCJA</span>
+      {p.section.background?.type === "video" && videoUrl && (
+        <video
+          src={videoUrl} autoPlay muted loop playsInline
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }}
+        />
+      )}
+      <div style={overlayLayerStyle(p.section.overlay)} aria-hidden />
+      <ShapeDivider s={p.section.shapeDividerTop} position="top" />
+      <ShapeDivider s={p.section.shapeDividerBottom} position="bottom" />
+
+      <div className="absolute -top-3 left-3 z-10 flex items-center gap-1 bg-background border border-border rounded px-1.5 py-0.5 text-[10px]" style={{ opacity: selected ? 1 : 0.85 }}>
+        <span className="font-medium text-muted-foreground">SEKCJA{hidden ? " (ukryta)" : ""}</span>
         <button onClick={(e) => { e.stopPropagation(); p.onMove(-1); }} disabled={p.isFirst} className="hover:text-brand disabled:opacity-30"><ChevronUp className="w-3 h-3" /></button>
         <button onClick={(e) => { e.stopPropagation(); p.onMove(1); }} disabled={p.isLast} className="hover:text-brand disabled:opacity-30"><ChevronDown className="w-3 h-3" /></button>
         <button onClick={(e) => { e.stopPropagation(); p.onAddColumn(); }} className="hover:text-brand" title="Dodaj kolumnę"><Columns2 className="w-3 h-3" /></button>
         <button onClick={(e) => { e.stopPropagation(); p.onAddInnerSection(); }} className="hover:text-brand" title="Dodaj sekcję wewnętrzną"><Plus className="w-3 h-3" /></button>
         <button onClick={(e) => { e.stopPropagation(); p.onRemove(); }} className="hover:text-destructive"><Trash2 className="w-3 h-3" /></button>
       </div>
-      <div className="grid gap-3 p-3" style={{ gridTemplateColumns: `repeat(${p.section.children.reduce((a, c) => a + (c.kind === "column" ? (c.span.desktop ?? 12) : 12), 0) || 12}, minmax(0, 1fr))` }}>
-        {p.section.children.map((child) => {
-          const span = child.kind === "column" ? (child.span.desktop ?? 12) : 12;
-          if (child.kind === "inner-section") {
+
+      <div style={sectionContainerStyle(p.section)}>
+        <div style={{ ...columnsRowStyle(p.section, colsSum), padding: "12px" }}>
+          {p.section.children.map((child) => {
+            const span = child.kind === "column" ? (child.span.desktop ?? 12) : 12;
+            if (child.kind === "inner-section") {
+              return (
+                <div key={child.id} style={{ gridColumn: `span ${span}` }}>
+                  <InnerSectionView
+                    inner={child} device={p.device} lang={p.lang}
+                    selection={p.selection} setSelection={p.setSelection}
+                    onRemoveColumn={p.onRemoveColumn} onRemoveWidget={p.onRemoveWidget}
+                  />
+                </div>
+              );
+            }
             return (
               <div key={child.id} style={{ gridColumn: `span ${span}` }}>
-                <InnerSectionView
-                  inner={child} device={p.device} lang={p.lang}
+                <ColumnView column={child} device={p.device} lang={p.lang}
                   selection={p.selection} setSelection={p.setSelection}
-                  onRemoveColumn={p.onRemoveColumn} onRemoveWidget={p.onRemoveWidget}
-                />
+                  onRemove={() => p.onRemoveColumn(child.id)}
+                  onRemoveWidget={p.onRemoveWidget} />
               </div>
             );
-          }
-          return (
-            <div key={child.id} style={{ gridColumn: `span ${span}` }}>
-              <ColumnView column={child} device={p.device} lang={p.lang}
-                selection={p.selection} setSelection={p.setSelection}
-                onRemove={() => p.onRemoveColumn(child.id)}
-                onRemoveWidget={p.onRemoveWidget} />
-            </div>
-          );
-        })}
+          })}
+        </div>
       </div>
+      {typoCss && <style dangerouslySetInnerHTML={{ __html: typoCss }} />}
     </div>
   );
 }
@@ -426,13 +457,20 @@ function InnerSectionView({ inner, device, lang, selection, setSelection, onRemo
   setSelection: (s: Selection) => void; onRemoveColumn: (id: string) => void; onRemoveWidget: (id: string) => void;
 }) {
   const selected = selection.kind === "inner-section" && selection.id === inner.id;
+  const colsSum = inner.columns.reduce((a, c) => a + (c.span.desktop ?? 6), 0) || 12;
+  const skin: React.CSSProperties = {
+    ...sectionWrapperStyle(inner),
+    ...backgroundLayerStyle(inner.background),
+    ...borderStyle(inner.border),
+  };
   return (
     <div
       className={`border rounded p-2 ${selected ? "border-brand" : "border-dashed border-border"}`}
+      style={skin}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "inner-section", id: inner.id }); }}
     >
-      <div className="text-[10px] text-muted-foreground mb-1">SEKCJA WEWNĘTRZNA</div>
-      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${inner.columns.reduce((a, c) => a + (c.span.desktop ?? 6), 0) || 12}, minmax(0, 1fr))` }}>
+      <div className="text-[10px] text-muted-foreground mb-1 relative z-10">SEKCJA WEWNĘTRZNA</div>
+      <div className="grid gap-2 relative z-10" style={columnsRowStyle(inner, colsSum)}>
         {inner.columns.map((c) => (
           <div key={c.id} style={{ gridColumn: `span ${c.span.desktop ?? 6}` }}>
             <ColumnView column={c} device={device} lang={lang} selection={selection}
