@@ -205,5 +205,4 @@ function PageBuilderPane({ form, set }: { form: { builder_data: BuilderDocument 
   const [lang, setLang] = useState<"pl" | "en">("pl");
   return <Builder value={form.builder_data} onChange={(v) => set("builder_data", v)} lang={lang} onLangChange={setLang} />;
 }
-  );
-}
+
