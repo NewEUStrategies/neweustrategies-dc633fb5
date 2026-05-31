@@ -935,18 +935,18 @@ function VisualCanvas({
     const root = rootRef.current;
     if (!root) return;
 
-    const widgets = Array.from(root.querySelectorAll<HTMLElement>("[data-widget-id]"));
-    const sections = Array.from(root.querySelectorAll<HTMLElement>("[data-sec-id]"));
-    const cols = Array.from(root.querySelectorAll<HTMLElement>("[data-col-id]"));
+    const widgets: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-widget-id]"));
+    const sections: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-sec-id]"));
+    const cols: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-col-id]"));
 
-    widgets.forEach((w) => {
+    widgets.forEach((w: HTMLElement) => {
       w.classList.toggle("is-selected", w.dataset.widgetId === selection.id && selection.kind === "widget");
       w.setAttribute("draggable", "true");
     });
-    cols.forEach((c) => {
+    cols.forEach((c: HTMLElement) => {
       c.classList.toggle("is-selected", c.dataset.colId === selection.id && selection.kind === "column");
     });
-    sections.forEach((s) => {
+    sections.forEach((s: HTMLElement) => {
       s.classList.toggle("is-selected", s.dataset.secId === selection.id && selection.kind === "section");
       s.setAttribute("draggable", "true");
     });
