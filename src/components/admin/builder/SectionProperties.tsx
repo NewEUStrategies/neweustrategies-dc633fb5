@@ -13,6 +13,9 @@ import type {
   BackgroundType, BackgroundPosition, BackgroundRepeat, BackgroundSize,
   BackgroundAttachment, GradientType, BorderStyle, ShapeDividerType,
 } from "@/lib/builder/types";
+import { PropField } from "./ui/atoms/PropField";
+import { MotionControl } from "./ui/molecules/MotionControl";
+import { VisibilityControl } from "./ui/molecules/VisibilityControl";
 
 type Mut = (mut: (s: SectionNode) => void) => void;
 
