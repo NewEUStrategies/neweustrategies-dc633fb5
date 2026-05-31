@@ -11,6 +11,7 @@ export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const setLang = (lng: "pl" | "en") => i18n.changeLanguage(lng);
+  const lang = i18n.language ?? "pl";
 
   const nav = [
     { label: t("nav.analyses"), to: "/" },
