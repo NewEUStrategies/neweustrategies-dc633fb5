@@ -19,33 +19,27 @@ export const Route = createFileRoute("/admin/appearance")({
 function AppearanceLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   return (
-    <div>
-      <h1 className="font-display text-3xl font-bold mb-2">Wygląd</h1>
-      <p className="text-muted-foreground mb-6">Edycja nagłówka, stopki i menu witryny.</p>
-
-      <div className="flex flex-col md:flex-row gap-6">
-        <aside className="md:w-56 shrink-0">
-          <nav className="bg-card border border-border rounded-lg p-2 space-y-1">
-            {tabs.map((t) => {
-              const active = path === t.to || path.startsWith(t.to + "/");
-              return (
-                <Link
-                  key={t.to}
-                  to={t.to}
-                  className={`block px-3 py-2 rounded-md text-sm transition ${
-                    active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted"
-                  }`}
-                >
-                  {t.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
-        <section className="flex-1 min-w-0 bg-card border border-border rounded-lg p-6">
-          <Outlet />
-        </section>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <h1 className="font-display text-xl font-bold mr-3">Wygląd</h1>
+        {tabs.map((t) => {
+          const active = path === t.to || path.startsWith(t.to + "/");
+          return (
+            <Link
+              key={t.to}
+              to={t.to}
+              className={`px-3 py-1.5 rounded-md text-sm transition border ${
+                active
+                  ? "bg-brand text-brand-foreground border-brand"
+                  : "border-border text-foreground hover:bg-muted"
+              }`}
+            >
+              {t.label}
+            </Link>
+          );
+        })}
       </div>
+      <Outlet />
     </div>
   );
 }

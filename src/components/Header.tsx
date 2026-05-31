@@ -5,6 +5,8 @@ import { useState } from "react";
 import { useTheme } from "./ThemeProvider";
 import { useAuth } from "@/hooks/useAuth";
 import { useSiteSetting } from "@/lib/useSiteSetting";
+import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import type { BuilderDocument } from "@/lib/builder/types";
 import logo from "@/assets/logo.png";
 
 type MenuItem = { label_pl: string; label_en: string; url: string };
@@ -19,12 +21,25 @@ export function Header() {
   const setLang = (lng: "pl" | "en") => i18n.changeLanguage(lng);
 
   const menu = useSiteSetting<{ items: MenuItem[] }>("menu_primary", { items: [] });
-  const headerCfg = useSiteSetting("header", {
+  const headerCfg = useSiteSetting<{
+    show_newsletter: boolean; show_socials: boolean;
+    social_facebook: string; social_twitter: string; social_youtube: string;
+    social_instagram: string; social_linkedin: string; contact_email: string;
+    builder_data?: BuilderDocument | null;
+  }>("header", {
     show_newsletter: true,
     show_socials: true,
     social_facebook: "#", social_twitter: "#", social_youtube: "#", social_instagram: "#", social_linkedin: "#",
     contact_email: "",
   });
+
+  if (headerCfg.builder_data && headerCfg.builder_data.sections?.length) {
+    return (
+      <header className="bg-background border-b border-border">
+        <BuilderRenderer doc={headerCfg.builder_data} lang={lang.startsWith("pl") ? "pl" : "en"} />
+      </header>
+    );
+  }
 
   const defaultNav: MenuItem[] = [
     { label_pl: t("nav.analyses"), label_en: t("nav.analyses"), url: "#" },
@@ -41,6 +56,7 @@ export function Header() {
 
   return (
     <header className="bg-background border-b border-border">
+
       {/* Utility bar */}
       <div className="border-b border-border">
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-11 flex items-center justify-between text-xs">
