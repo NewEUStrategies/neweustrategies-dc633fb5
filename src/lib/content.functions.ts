@@ -55,9 +55,9 @@ async function uniqueSlug(
   return `${base}-${Date.now().toString(36)}`;
 }
 
-async function guard(
-  scope: string, userId: string, max: number, action: () => Promise<unknown>,
-) {
+async function guard<T>(
+  scope: string, userId: string, max: number, action: () => Promise<T>,
+): Promise<T> {
   if (!(await rateLimit({ scope, subjectId: userId, max }))) {
     throw new Error("Rate limit exceeded - please slow down");
   }
@@ -70,6 +70,9 @@ async function audit(
 ) {
   await recordAudit(supabase, { tenantId, action, entityType, entityId, metadata });
 }
+
+type PostUpdateRow = Database["public"]["Tables"]["posts"]["Update"];
+type PageUpdateRow = Database["public"]["Tables"]["pages"]["Update"];
 
 // ---------- shared schemas ----------
 
