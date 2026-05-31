@@ -16,7 +16,7 @@ import {
   faQuoteRight, faRotateRight, faGripLines, faFloppyDisk, faMagnifyingGlass,
   faPaperPlane, faGear, faMobileScreen, faStar, faSun, faTabletScreenButton,
   faTags, faTrashCan, faFont, faRotateLeft, faUpload, faUser, faUsers,
-  faVideo, faXmark,
+  faVideo, faXmark, faSpinner, faTriangleExclamation,
 } from "@fortawesome/free-solid-svg-icons";
 import {
   faFacebook, faInstagram, faLinkedin, faXTwitter, faYoutube,
