@@ -1,11 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { updatePost, deletePost } from "@/lib/content.functions";
+import { useUndoRedo } from "@/hooks/useUndoRedo";
+import { useAutosave } from "@/hooks/useAutosave";
+import { AutosaveBar } from "@/components/admin/AutosaveBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -81,50 +84,75 @@ function EditPost() {
     queryFn: async () => (await supabase.from("post_tags").select("tag_id").eq("post_id", id)).data ?? [],
   });
 
-  const [form, setForm] = useState<PostForm | null>(null);
+  const history = useUndoRedo<PostForm | null>(null);
+  const form = history.state;
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (post) setForm(post); }, [post]);
+  useEffect(() => { if (post) history.reset(post); }, [post, history.reset]);
   useEffect(() => { if (postCats) setSelectedCats(postCats.map((c) => c.category_id)); }, [postCats]);
   useEffect(() => { if (postTags) setSelectedTags(postTags.map((c) => c.tag_id)); }, [postTags]);
+
+  // Keyboard shortcuts: Ctrl/Cmd+Z = undo, Shift+Ctrl/Cmd+Z (or Ctrl+Y) = redo
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.ctrlKey || e.metaKey;
+      if (!meta) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); history.undo(); }
+      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); history.redo(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [history.undo, history.redo]);
+
+  const saveFn = useCallback(async (snapshot: PostForm | null) => {
+    if (!snapshot) return;
+    await update$({
+      data: {
+        id,
+        fields: {
+          slug: snapshot.slug,
+          status: snapshot.status,
+          editor: snapshot.editor,
+          title_pl: snapshot.title_pl,
+          title_en: snapshot.title_en,
+          excerpt_pl: snapshot.excerpt_pl,
+          excerpt_en: snapshot.excerpt_en,
+          content_pl: snapshot.content_pl,
+          content_en: snapshot.content_en,
+          cover_image_url: snapshot.cover_image_url,
+          read_minutes: snapshot.read_minutes,
+          builder_data: snapshot.builder_data,
+        },
+        categories: selectedCats,
+        tags: selectedTags,
+      },
+    });
+    qc.invalidateQueries({ queryKey: ["admin-posts"] });
+    qc.invalidateQueries({ queryKey: ["post", id] });
+  }, [id, update$, selectedCats, selectedTags, qc]);
+
+  // Track tuple [form, cats, tags] for autosave so taxonomies persist too.
+  const autoValue = useMemo(() => ({ form, cats: selectedCats, tags: selectedTags }),
+    [form, selectedCats, selectedTags]);
+  const autosave = useAutosave({
+    value: autoValue, enabled: !!form,
+    save: async (v) => { await saveFn(v.form); },
+  });
 
   if (isLoading || !form) return <div className="text-sm text-muted-foreground">...</div>;
 
   const set = <K extends keyof PostForm>(k: K, v: PostForm[K]) =>
-    setForm((f) => (f ? { ...f, [k]: v } : f));
+    history.set((f) => (f ? { ...f, [k]: v } : f), { coalesce: true });
 
   const pickImage = async (): Promise<string | null> => window.prompt("URL obrazka") ?? null;
 
   const save = async () => {
-    if (!form) return;
     setBusy(true);
     try {
-      await update$({
-        data: {
-          id,
-          fields: {
-            slug: form.slug,
-            status: form.status,
-            editor: form.editor,
-            title_pl: form.title_pl,
-            title_en: form.title_en,
-            excerpt_pl: form.excerpt_pl,
-            excerpt_en: form.excerpt_en,
-            content_pl: form.content_pl,
-            content_en: form.content_en,
-            cover_image_url: form.cover_image_url,
-            read_minutes: form.read_minutes,
-            builder_data: form.builder_data,
-          },
-          categories: selectedCats,
-          tags: selectedTags,
-        },
-      });
-
-      qc.invalidateQueries({ queryKey: ["admin-posts"] });
-      qc.invalidateQueries({ queryKey: ["post", id] });
+      await autosave.flush();
       toast.success(t("admin.saved"));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
@@ -151,6 +179,11 @@ function EditPost() {
           <ArrowLeft className="w-4 h-4" /> {t("admin.back")}
         </Link>
         <div className="flex items-center gap-2">
+          <AutosaveBar
+            status={autosave.status} error={autosave.error}
+            canUndo={history.canUndo} canRedo={history.canRedo}
+            onUndo={history.undo} onRedo={history.redo}
+          />
           <Button variant="ghost" size="sm" onClick={del}><Trash2 className="w-4 h-4 mr-1 text-destructive" /> {t("admin.delete")}</Button>
           <Button onClick={save} disabled={busy}><Save className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.save")}</Button>
         </div>

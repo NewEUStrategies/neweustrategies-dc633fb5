@@ -16,7 +16,7 @@ import {
   faQuoteRight, faRotateRight, faGripLines, faFloppyDisk, faMagnifyingGlass,
   faPaperPlane, faGear, faMobileScreen, faStar, faSun, faTabletScreenButton,
   faTags, faTrashCan, faFont, faRotateLeft, faUpload, faUser, faUsers,
-  faVideo, faXmark,
+  faVideo, faXmark, faSpinner, faTriangleExclamation,
 } from "@fortawesome/free-solid-svg-icons";
 import {
   faFacebook, faInstagram, faLinkedin, faXTwitter, faYoutube,
@@ -108,6 +108,9 @@ export const Pencil = makeIcon(faPencil);
 export const Plus = makeIcon(faPlus);
 export const Quote = makeIcon(faQuoteRight);
 export const Redo = makeIcon(faRotateRight);
+export const Redo2 = Redo;
+export const Loader2 = makeIcon(faSpinner);
+export const AlertTriangle = makeIcon(faTriangleExclamation);
 export const Rows = makeIcon(faGripLines);
 export const Save = makeIcon(faFloppyDisk);
 export const Search = makeIcon(faMagnifyingGlass);
@@ -121,6 +124,7 @@ export const Tags = makeIcon(faTags);
 export const Trash2 = makeIcon(faTrashCan);
 export const Type = makeIcon(faFont);
 export const Undo = makeIcon(faRotateLeft);
+export const Undo2 = Undo;
 export const Upload = makeIcon(faUpload);
 export const User = makeIcon(faUser);
 export const Users = makeIcon(faUsers);
