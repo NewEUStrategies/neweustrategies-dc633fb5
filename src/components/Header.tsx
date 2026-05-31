@@ -11,6 +11,7 @@ export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const setLang = (lng: "pl" | "en") => i18n.changeLanguage(lng);
+  const lang = i18n.language ?? "pl";
 
   const nav = [
     { label: t("nav.analyses"), to: "/" },
@@ -56,13 +57,13 @@ export function Header() {
             <div className="hidden sm:flex items-center gap-1 text-xs font-semibold">
               <button
                 onClick={() => setLang("pl")}
-                className={`px-2 py-1 rounded ${i18n.language.startsWith("pl") ? "bg-brand text-brand-foreground" : "hover:bg-muted"}`}
+                className={`px-2 py-1 rounded ${lang.startsWith("pl") ? "bg-brand text-brand-foreground" : "hover:bg-muted"}`}
               >
                 PL
               </button>
               <button
                 onClick={() => setLang("en")}
-                className={`px-2 py-1 rounded ${i18n.language.startsWith("en") ? "bg-brand text-brand-foreground" : "hover:bg-muted"}`}
+                className={`px-2 py-1 rounded ${lang.startsWith("en") ? "bg-brand text-brand-foreground" : "hover:bg-muted"}`}
               >
                 EN
               </button>
