@@ -201,14 +201,15 @@ const resources = {
 
 if (!i18n.isInitialized) {
   i18n
-    .use(LanguageDetector)
     .use(initReactI18next)
     .init({
       resources,
+      lng: "pl",
       fallbackLng: "pl",
       supportedLngs: ["pl", "en"],
       interpolation: { escapeValue: false },
     });
 }
+
 
 export default i18n;
