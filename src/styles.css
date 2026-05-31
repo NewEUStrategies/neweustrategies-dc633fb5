@@ -36,8 +36,9 @@
   --color-cat-diplomacy: var(--cat-diplomacy);
   --color-cat-cyber: var(--cat-cyber);
   --color-hot: var(--hot);
-  --font-display: "Playfair Display", Georgia, serif;
-  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Red Hat Display", Georgia, serif;
+  --font-sans: "Red Hat Display", system-ui, sans-serif;
+
 }
 
 :root {
