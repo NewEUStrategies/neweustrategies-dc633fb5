@@ -125,21 +125,20 @@ export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }:
                 {items.map((w) => {
                   const Icon = w.icon;
                   return (
-                    <button
+                    <div
                       key={w.type}
-                      type="button"
                       draggable
                       onDragStart={(e) => {
                         e.dataTransfer.setData("application/x-widget-type", w.type);
                         e.dataTransfer.effectAllowed = "copy";
                       }}
-                      onClick={() => onPickWidget(w.type)}
-                      className="h-16 bg-muted/30 hover:bg-muted hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 p-1 transition group"
-                      title={`Dodaj: ${w.label}`}
+                      className="h-16 bg-muted/30 hover:bg-muted hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 p-1 transition group cursor-grab active:cursor-grabbing select-none"
+                      title={`Przeciągnij na sekcję: ${w.label}`}
                     >
                       <Icon className="w-4 h-4 text-muted-foreground group-hover:text-brand" />
                       <span className="text-[9px] text-center leading-tight">{w.label}</span>
-                    </button>
+                    </div>
+
                   );
                 })}
               </div>
