@@ -45,7 +45,7 @@ function makeIcon(def: IconDefinition): LucideIcon {
           icon={def}
           className={className}
           style={merged as React.CSSProperties & Record<`--fa-${string}`, string>}
-          {...(rest as Record<string, unknown>)}
+          {...rest}
           ref={ref}
         />
       );
