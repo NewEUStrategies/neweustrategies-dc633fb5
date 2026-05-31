@@ -168,7 +168,7 @@ export function WidgetView({ node, lang, device }: ViewProps) {
     case "cta": {
       const title = getStr(c, `title_${lang}`) || getStr(c, "title_pl");
       const cta = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl");
-      const href = getStr(c, "href") || "#";
+      const href = safeUrl(getStr(c, "href"));
       return wrap(<div className="bg-brand text-brand-foreground rounded-lg p-8 flex flex-col sm:flex-row items-center justify-between gap-4"><h3 className="font-display text-2xl">{title}</h3><a href={href} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium">{cta}</a></div>);
     }
     default:
