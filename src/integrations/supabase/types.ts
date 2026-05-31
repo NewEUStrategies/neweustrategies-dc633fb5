@@ -50,6 +50,33 @@ export type Database = {
         }
         Relationships: []
       }
+      builder_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data: Json
+          id: string
+          name: string
+          scope: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data: Json
+          id?: string
+          name: string
+          scope?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data?: Json
+          id?: string
+          name?: string
+          scope?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string

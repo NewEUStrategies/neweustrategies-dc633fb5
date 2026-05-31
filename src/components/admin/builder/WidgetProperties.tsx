@@ -84,6 +84,96 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
             onChange={(e) => setStyle((s) => { s.maxWidth = e.target.value || undefined; })}
             placeholder="600px" className="h-8 text-xs" />
         </Field>
+
+        <div className="pt-2 border-t border-border space-y-2">
+          <div className="text-[10px] text-muted-foreground uppercase">Typografia</div>
+          <Field label="Font family">
+            <Input value={widget.style?.typography?.fontFamily ?? ""}
+              onChange={(e) => setStyle((s) => {
+                s.typography = { ...(s.typography ?? {}), fontFamily: e.target.value || undefined };
+              })}
+              placeholder="Inter, system-ui" className="h-8 text-xs" />
+          </Field>
+          <Field label={`Font size (${device})`}>
+            <Input value={widget.style?.typography?.fontSize?.[device] ?? ""}
+              onChange={(e) => setStyle((s) => {
+                const t = s.typography ?? {};
+                t.fontSize = { ...(t.fontSize ?? {}), [device]: e.target.value || undefined };
+                s.typography = t;
+              })}
+              placeholder="16px / 1.25rem" className="h-8 text-xs" />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Weight">
+              <Select value={widget.style?.typography?.fontWeight ?? ""}
+                onValueChange={(v) => setStyle((s) => {
+                  s.typography = { ...(s.typography ?? {}), fontWeight: v || undefined };
+                })}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectContent>{["300","400","500","600","700","800","900"].map((w) => (
+                  <SelectItem key={w} value={w}>{w}</SelectItem>
+                ))}</SelectContent>
+              </Select>
+            </Field>
+            <Field label="Style">
+              <Select value={widget.style?.typography?.fontStyle ?? "normal"}
+                onValueChange={(v) => setStyle((s) => {
+                  s.typography = { ...(s.typography ?? {}), fontStyle: v as "normal"|"italic" };
+                })}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Normalny</SelectItem>
+                  <SelectItem value="italic">Italic</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Line height">
+              <Input value={widget.style?.typography?.lineHeight ?? ""}
+                onChange={(e) => setStyle((s) => {
+                  s.typography = { ...(s.typography ?? {}), lineHeight: e.target.value || undefined };
+                })}
+                placeholder="1.4" className="h-8 text-xs" />
+            </Field>
+            <Field label="Letter spacing">
+              <Input value={widget.style?.typography?.letterSpacing ?? ""}
+                onChange={(e) => setStyle((s) => {
+                  s.typography = { ...(s.typography ?? {}), letterSpacing: e.target.value || undefined };
+                })}
+                placeholder="0.02em" className="h-8 text-xs" />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Transform">
+              <Select value={widget.style?.typography?.textTransform ?? "none"}
+                onValueChange={(v) => setStyle((s) => {
+                  s.typography = { ...(s.typography ?? {}), textTransform: v as "none"|"uppercase"|"lowercase"|"capitalize" };
+                })}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">none</SelectItem>
+                  <SelectItem value="uppercase">UPPERCASE</SelectItem>
+                  <SelectItem value="lowercase">lowercase</SelectItem>
+                  <SelectItem value="capitalize">Capitalize</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Decoration">
+              <Select value={widget.style?.typography?.textDecoration ?? "none"}
+                onValueChange={(v) => setStyle((s) => {
+                  s.typography = { ...(s.typography ?? {}), textDecoration: v as "none"|"underline"|"line-through" };
+                })}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">none</SelectItem>
+                  <SelectItem value="underline">underline</SelectItem>
+                  <SelectItem value="line-through">line-through</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        </div>
       </TabsContent>
 
       <TabsContent value="advanced" className="space-y-3 mt-3">
@@ -97,18 +187,47 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
             onChange={(e) => setAdvanced((a) => { a.cssClass = e.target.value || undefined; })}
             className="h-8 text-xs" />
         </Field>
-        <Field label="Animacja wejścia">
-          <Select value={widget.advanced?.animation ?? "none"}
-            onValueChange={(v) => setAdvanced((a) => { a.animation = v as AdvancedSettings["animation"]; })}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Brak</SelectItem>
-              <SelectItem value="fade">Fade</SelectItem>
-              <SelectItem value="slide-up">Slide up</SelectItem>
-              <SelectItem value="zoom">Zoom</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
+        <div className="pt-2 border-t border-border space-y-2">
+          <div className="text-[10px] text-muted-foreground uppercase">Motion — animacja wejścia</div>
+          <Field label="Efekt">
+            <Select value={widget.advanced?.animation ?? "none"}
+              onValueChange={(v) => setAdvanced((a) => { a.animation = v as AdvancedSettings["animation"]; })}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[
+                  ["none","Brak"],["fade","Fade"],
+                  ["slide-up","Slide up"],["slide-down","Slide down"],
+                  ["slide-left","Slide left"],["slide-right","Slide right"],
+                  ["zoom","Zoom in"],["zoom-out","Zoom out"],["bounce","Bounce"],
+                ].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Duration (ms)">
+              <Input type="number" min={0} step={50} value={widget.advanced?.animationDuration ?? ""}
+                onChange={(e) => setAdvanced((a) => {
+                  const n = Number(e.target.value);
+                  a.animationDuration = Number.isFinite(n) && n >= 0 ? n : undefined;
+                })}
+                placeholder="600" className="h-8 text-xs" />
+            </Field>
+            <Field label="Delay (ms)">
+              <Input type="number" min={0} step={50} value={widget.advanced?.animationDelay ?? ""}
+                onChange={(e) => setAdvanced((a) => {
+                  const n = Number(e.target.value);
+                  a.animationDelay = Number.isFinite(n) && n >= 0 ? n : undefined;
+                })}
+                placeholder="0" className="h-8 text-xs" />
+            </Field>
+          </div>
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox"
+              checked={widget.advanced?.animationOnce !== false}
+              onChange={(e) => setAdvanced((a) => { a.animationOnce = e.target.checked; })} />
+            Odtwarzaj tylko raz
+          </label>
+        </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Ukryj na</Label>
           {(["desktop","tablet","mobile"] as const).map((d) => (

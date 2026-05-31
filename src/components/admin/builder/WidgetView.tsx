@@ -14,6 +14,7 @@ import {
   safeUrl,
   safeImageUrl,
 } from "@/lib/sanitize";
+import { useInView } from "@/hooks/use-in-view";
 
 type Lang = "pl" | "en";
 
@@ -41,6 +42,18 @@ export const styleToCSS = (
   if (align) css.textAlign = align;
   if (s.borderRadius) css.borderRadius = s.borderRadius;
   if (s.maxWidth) css.maxWidth = s.maxWidth;
+  const t = s.typography;
+  if (t) {
+    if (t.fontFamily) css.fontFamily = t.fontFamily;
+    const size = pick(t.fontSize, device);
+    if (size) css.fontSize = size;
+    if (t.fontWeight) css.fontWeight = t.fontWeight;
+    if (t.fontStyle) css.fontStyle = t.fontStyle;
+    if (t.lineHeight) css.lineHeight = t.lineHeight;
+    if (t.letterSpacing) css.letterSpacing = t.letterSpacing;
+    if (t.textTransform) css.textTransform = t.textTransform;
+    if (t.textDecoration) css.textDecoration = t.textDecoration;
+  }
   return css;
 };
 
@@ -66,20 +79,47 @@ function getStrArr(c: WidgetContent, k: string): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
 
+const MOTION_INITIAL: Record<string, CSSProperties> = {
+  fade:         { opacity: 0 },
+  "slide-up":   { opacity: 0, transform: "translateY(24px)" },
+  "slide-down": { opacity: 0, transform: "translateY(-24px)" },
+  "slide-left": { opacity: 0, transform: "translateX(24px)" },
+  "slide-right":{ opacity: 0, transform: "translateX(-24px)" },
+  zoom:         { opacity: 0, transform: "scale(0.92)" },
+  "zoom-out":   { opacity: 0, transform: "scale(1.08)" },
+  bounce:       { opacity: 0, transform: "translateY(24px) scale(0.96)" },
+};
+const MOTION_FINAL: CSSProperties = { opacity: 1, transform: "translate(0,0) scale(1)" };
+
 export function WidgetView({ node, lang, device }: ViewProps) {
   const baseStyle = styleToCSS(node.style, device);
   const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
   const htmlId = sanitizeHtmlId(node.advanced?.htmlId);
-  const animClass =
-    node.advanced?.animation === "fade" ? "animate-in fade-in duration-500"
-    : node.advanced?.animation === "slide-up" ? "animate-in slide-in-from-bottom-4 duration-500"
-    : node.advanced?.animation === "zoom" ? "animate-in zoom-in-95 duration-500"
-    : "";
+  const motion = node.advanced?.animation && node.advanced.animation !== "none"
+    ? node.advanced.animation : undefined;
+
+  const { ref: motionRef, inView } = useInView<HTMLDivElement>({
+    once: node.advanced?.animationOnce !== false,
+  });
+
+  const motionStyle: CSSProperties = motion
+    ? {
+        ...(inView ? MOTION_FINAL : (MOTION_INITIAL[motion] ?? {})),
+        transition: `opacity ${node.advanced?.animationDuration ?? 600}ms ease-out ${node.advanced?.animationDelay ?? 0}ms, transform ${node.advanced?.animationDuration ?? 600}ms ease-out ${node.advanced?.animationDelay ?? 0}ms`,
+        willChange: "opacity, transform",
+      }
+    : {};
 
   const scopedCss = scopeCustomCss(node.advanced?.customCss, node.id);
 
   const wrap = (children: React.ReactNode) => (
-    <div id={htmlId} data-w-id={node.id} className={`${cls} ${animClass}`.trim()} style={baseStyle}>
+    <div
+      id={htmlId}
+      data-w-id={node.id}
+      ref={motion ? motionRef : undefined}
+      className={`${cls}`.trim()}
+      style={{ ...baseStyle, ...motionStyle }}
+    >
       {children}
       {scopedCss && <style dangerouslySetInnerHTML={{ __html: scopedCss }} />}
     </div>

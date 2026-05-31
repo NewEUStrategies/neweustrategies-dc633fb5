@@ -17,7 +17,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Monitor, Tablet, Smartphone, Columns2,
-  Settings as SettingsIcon, X, Eye, Copy, Undo, Redo, ChevronLeft,
+  Settings as SettingsIcon, X, Eye, Copy, Undo, Redo, ChevronLeft, Save,
 } from "@/lib/lucide-shim";
 import { WIDGETS, makeWidget } from "@/lib/builder/registry";
 import type {
@@ -31,6 +31,7 @@ import {
 } from "@/lib/builder/operations";
 import { copyToClipboard, readClipboard, type ClipEnvelope } from "@/lib/builder/clipboard";
 import { useHistory } from "@/lib/builder/useHistory";
+import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
 import { WidgetView } from "./WidgetView";
 import { SectionProperties } from "./SectionProperties";
 import { WidgetProperties } from "./WidgetProperties";
@@ -83,7 +84,18 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
   }, [doc, history]);
 
   // ---------- structural ops ----------
+  const templates = useSectionTemplates();
   const addSection = (cols: number) => update((d) => { d.sections.push(newSection(cols)); });
+  const insertTemplateSection = (tpl: SectionTemplate) => update((d) => {
+    d.sections.push(cloneSection(tpl.data));
+  });
+  const saveSectionAsTemplate = (sid: string) => {
+    const s = findSection(doc, sid);
+    if (!s) return;
+    const name = window.prompt("Nazwa szablonu sekcji:");
+    if (!name) return;
+    void templates.save(name.trim(), s);
+  };
   const removeSection = (id: string) => update((d) => { d.sections = d.sections.filter((s) => s.id !== id); });
   const moveSection = (id: string, dir: -1 | 1) => update((d) => {
     const i = d.sections.findIndex((s) => s.id === id);
@@ -330,7 +342,7 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
             </div>
           </div>
         ) : (
-          <WidgetLibrary onPickWidget={addWidgetToFocused} onPickStructure={addSection} />
+          <WidgetLibrary onPickWidget={addWidgetToFocused} onPickStructure={addSection} onPickTemplate={insertTemplateSection} />
         )}
 
         <div className="border-t border-border">
@@ -373,6 +385,7 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
                     onMove={(dir) => moveSection(s.id, dir)}
                     onRemove={() => removeSection(s.id)}
                     onDuplicate={() => duplicateSection(s.id)}
+                    onSaveTemplate={() => saveSectionAsTemplate(s.id)}
                     onAddInnerSection={() => addInnerSection(s.id)}
                     onAddColumn={() => addColumn(s.id)}
                     onRemoveColumn={removeColumn}
@@ -486,6 +499,7 @@ interface SectionViewProps {
   onMove: (dir: -1 | 1) => void;
   onRemove: () => void;
   onDuplicate: () => void;
+  onSaveTemplate: () => void;
   onAddInnerSection: () => void;
   onAddColumn: () => void;
   onRemoveColumn: (id: string) => void;
@@ -532,6 +546,7 @@ function SectionView(p: SectionViewProps) {
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onAddColumn(); }} title="Dodaj kolumnę"><Columns2 className="w-3 h-3" /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onAddInnerSection(); }} title="Sekcja wewn."><Plus className="w-3 h-3" /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onDuplicate(); }} title="Duplikuj"><Copy className="w-3 h-3" /></IconBtn>
+        <IconBtn onClick={(e) => { e.stopPropagation(); p.onSaveTemplate(); }} title="Zapisz jako szablon"><Save className="w-3 h-3" /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
       </div>
 
