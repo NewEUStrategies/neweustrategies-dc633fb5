@@ -215,6 +215,77 @@ export function WidgetView({ node, lang, device }: ViewProps) {
       const href = safeUrl(getStr(c, "href"));
       return wrap(<div className="bg-brand text-brand-foreground rounded-lg p-8 flex flex-col sm:flex-row items-center justify-between gap-4"><h3 className="font-display text-2xl">{title}</h3><a href={href} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium">{cta}</a></div>);
     }
+    case "accordion": {
+      const items = Array.isArray(c.items) ? c.items as Array<Record<string, string>> : [];
+      return wrap(
+        <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
+          {items.map((it, i) => (
+            <details key={i} className="group">
+              <summary className="cursor-pointer list-none px-4 py-3 flex justify-between items-center hover:bg-muted/30 font-medium text-sm">
+                <span>{it[`q_${lang}`] || it.q_pl}</span>
+                <span className="text-muted-foreground group-open:rotate-180 transition">▾</span>
+              </summary>
+              <div className="px-4 pb-4 text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: sanitizeHtml(it[`a_${lang}`] || it.a_pl || "") }} />
+            </details>
+          ))}
+        </div>
+      );
+    }
+    case "tabs": {
+      const tabs = Array.isArray(c.tabs) ? c.tabs as Array<Record<string, string>> : [];
+      return wrap(<TabsBlock tabs={tabs} lang={lang} nodeId={node.id} />);
+    }
+    case "testimonial": {
+      const quote = getStr(c, `quote_${lang}`) || getStr(c, "quote_pl");
+      const author = getStr(c, "author");
+      const role = getStr(c, `role_${lang}`) || getStr(c, "role_pl");
+      const avatar = safeImageUrl(getStr(c, "avatar"));
+      return wrap(
+        <figure className="bg-muted/30 rounded-lg p-6 space-y-4">
+          <blockquote className="text-base italic leading-relaxed">"{quote}"</blockquote>
+          <figcaption className="flex items-center gap-3">
+            {avatar && <img src={avatar} alt="" className="w-10 h-10 rounded-full object-cover" />}
+            <div>
+              <div className="font-medium text-sm">{author}</div>
+              {role && <div className="text-xs text-muted-foreground">{role}</div>}
+            </div>
+          </figcaption>
+        </figure>
+      );
+    }
+    case "pricing": {
+      const plans = Array.isArray(c.plans) ? c.plans as Array<Record<string, unknown>> : [];
+      return wrap(
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {plans.map((p, i) => {
+            const name = (p[`name_${lang}`] || p.name_pl) as string;
+            const price = (p.price ?? "") as string;
+            const currency = (p.currency ?? "") as string;
+            const period = (p[`period_${lang}`] || p.period_pl || "") as string;
+            const featuresRaw = (p[`features_${lang}`] || p.features_pl || []) as unknown;
+            const features = Array.isArray(featuresRaw) ? featuresRaw.filter((x): x is string => typeof x === "string") : [];
+            const cta = (p[`cta_${lang}`] || p.cta_pl || "Wybierz") as string;
+            const href = safeUrl(typeof p.href === "string" ? p.href : "#");
+            const featured = !!p.featured;
+            return (
+              <div key={i} className={`rounded-lg border p-6 flex flex-col ${featured ? "border-brand bg-brand/5 shadow-lg" : "border-border bg-card"}`}>
+                <h3 className="font-display text-xl mb-2">{name}</h3>
+                <div className="flex items-baseline gap-1 mb-4">
+                  <span className="text-3xl font-bold">{price}</span>
+                  <span className="text-sm text-muted-foreground">{currency}{period}</span>
+                </div>
+                <ul className="space-y-2 mb-6 flex-1 text-sm">
+                  {features.map((f, j) => (
+                    <li key={j} className="flex items-start gap-2"><span className="text-brand mt-0.5">✓</span>{f}</li>
+                  ))}
+                </ul>
+                <a href={href} className={`text-center px-4 py-2 rounded font-medium text-sm ${featured ? "bg-brand text-brand-foreground" : "border border-border hover:bg-muted"}`}>{cta}</a>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
     default:
       return null;
   }
