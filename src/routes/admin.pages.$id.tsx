@@ -40,11 +40,14 @@ interface PageForm {
   cover_image_url: string | null;
   published_at: string | null;
   builder_data: BuilderDocument | null;
+  parent_id: string | null;
+  menu_order: number;
 }
 
 
 function EditPage() {
   const { id } = Route.useParams();
+  const tenantId = useRequiredTenant();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
