@@ -17,14 +17,12 @@ export const Route = createFileRoute("/admin/tags")({
 
 interface TagRow { id: string; name: string; slug: string }
 
-function slugify(s: string): string {
-  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
 function Tags() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const tenantId = useRequiredTenant();
+  const create$ = useServerFn(createTag);
+  const delete$ = useServerFn(deleteTag);
   const [name, setName] = useState("");
   const { data } = useQuery({
     queryKey: ["tags", tenantId],
@@ -38,14 +36,21 @@ function Tags() {
   const add = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    const { error } = await supabase.from("tags").insert({ name: name.trim(), slug: slugify(name), tenant_id: tenantId });
-    if (error) { toast.error(error.message); return; }
-    setName("");
-    qc.invalidateQueries({ queryKey: ["tags"] });
+    try {
+      await create$({ data: { name: name.trim() } });
+      setName("");
+      qc.invalidateQueries({ queryKey: ["tags"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
   };
   const del = async (id: string) => {
-    await supabase.from("tags").delete().eq("id", id);
-    qc.invalidateQueries({ queryKey: ["tags"] });
+    try {
+      await delete$({ data: { id } });
+      qc.invalidateQueries({ queryKey: ["tags"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
   };
 
   return (
