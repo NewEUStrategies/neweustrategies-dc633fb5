@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PostEditor } from "@/components/admin/PostEditor";
+import { Builder } from "@/components/admin/builder/Builder";
+import type { BuilderDocument } from "@/lib/builder/types";
 import { ArrowLeft, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,7 +21,7 @@ export const Route = createFileRoute("/admin/posts/$id")({
 });
 
 type PostStatus = "draft" | "published" | "archived";
-type EditorType = "richtext" | "markdown";
+type EditorType = "richtext" | "markdown" | "builder";
 
 interface PostForm {
   id: string;
@@ -35,6 +37,7 @@ interface PostForm {
   cover_image_url: string | null;
   read_minutes: number | null;
   published_at: string | null;
+  builder_data: BuilderDocument | null;
 }
 
 interface CategoryOpt { id: string; name_pl: string; name_en: string }
