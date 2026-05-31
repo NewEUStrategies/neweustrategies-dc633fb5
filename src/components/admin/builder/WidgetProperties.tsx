@@ -1,15 +1,23 @@
-// Widget properties panel: Content / Style / Advanced tabs. Style covers
-// typography (color, padding, margin, align, border radius) per device.
-// Advanced covers HTML id / classes, animation, responsive visibility,
-// custom CSS.
+// Widget properties panel: Content / Style / Advanced tabs.
+// Composed from atomic-design molecules:
+//   - SpacingControl     -> padding / margin / align
+//   - TypographyControl  -> font family/size/weight/style/decoration
+//   - MotionControl      -> enter animation preset + duration/delay
+//   - VisibilityControl  -> per-device hide
+//   - ColorField         -> bg / text colors with native picker
 import type {
-  WidgetNode, CommonStyle, AdvancedSettings, ResponsiveValue, Device, Json, Align,
+  WidgetNode, CommonStyle, AdvancedSettings, Device, Json, WidgetTypography,
 } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { PropField } from "./ui/atoms/PropField";
+import { ColorField } from "./ui/atoms/ColorField";
+import { SpacingControl } from "./ui/molecules/SpacingControl";
+import { TypographyControl } from "./ui/molecules/TypographyControl";
+import { MotionControl } from "./ui/molecules/MotionControl";
+import { VisibilityControl } from "./ui/molecules/VisibilityControl";
 
 interface Props {
   widget: WidgetNode;
@@ -26,8 +34,6 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
   const setAdvanced = (mut: (a: AdvancedSettings) => void) => onChange((w) => {
     w.advanced = w.advanced ?? {}; mut(w.advanced);
   });
-  const setResp = <T,>(rv: ResponsiveValue<T> | undefined, val: T | undefined): ResponsiveValue<T> =>
-    ({ ...(rv ?? {}), [device]: val });
 
   return (
     <Tabs defaultValue="content">
@@ -41,219 +47,105 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
         <ContentFields widget={widget} lang={lang} setContent={setContent} />
       </TabsContent>
 
-      <TabsContent value="style" className="space-y-3 mt-3">
-        <div className="text-[10px] text-muted-foreground uppercase">Edytujesz: {device}</div>
-        <Field label="Tło">
-          <Input type="text" value={widget.style?.bgColor ?? ""}
-            onChange={(e) => setStyle((s) => { s.bgColor = e.target.value || undefined; })}
-            placeholder="#fff lub var(--brand)" className="h-8 text-xs" />
-        </Field>
-        <Field label="Kolor tekstu">
-          <Input type="text" value={widget.style?.textColor ?? ""}
-            onChange={(e) => setStyle((s) => { s.textColor = e.target.value || undefined; })}
-            placeholder="#000" className="h-8 text-xs" />
-        </Field>
-        <Field label={`Padding (${device})`}>
-          <Input value={widget.style?.padding?.[device] ?? ""}
-            onChange={(e) => setStyle((s) => { s.padding = setResp(s.padding, e.target.value || undefined); })}
-            placeholder="16px 24px" className="h-8 text-xs" />
-        </Field>
-        <Field label={`Margin (${device})`}>
-          <Input value={widget.style?.margin?.[device] ?? ""}
-            onChange={(e) => setStyle((s) => { s.margin = setResp(s.margin, e.target.value || undefined); })}
-            placeholder="0 0 16px" className="h-8 text-xs" />
-        </Field>
-        <Field label={`Wyrównanie (${device})`}>
-          <Select value={widget.style?.align?.[device] ?? "left"}
-            onValueChange={(v) => setStyle((s) => { s.align = setResp(s.align, v as Align); })}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="left">Lewo</SelectItem>
-              <SelectItem value="center">Środek</SelectItem>
-              <SelectItem value="right">Prawo</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Border radius">
-          <Input value={widget.style?.borderRadius ?? ""}
-            onChange={(e) => setStyle((s) => { s.borderRadius = e.target.value || undefined; })}
-            placeholder="8px" className="h-8 text-xs" />
-        </Field>
-        <Field label="Max width">
-          <Input value={widget.style?.maxWidth ?? ""}
-            onChange={(e) => setStyle((s) => { s.maxWidth = e.target.value || undefined; })}
-            placeholder="600px" className="h-8 text-xs" />
-        </Field>
-
-        <div className="pt-2 border-t border-border space-y-2">
-          <div className="text-[10px] text-muted-foreground uppercase">Typografia</div>
-          <Field label="Font family">
-            <Input value={widget.style?.typography?.fontFamily ?? ""}
-              onChange={(e) => setStyle((s) => {
-                s.typography = { ...(s.typography ?? {}), fontFamily: e.target.value || undefined };
-              })}
-              placeholder="Inter, system-ui" className="h-8 text-xs" />
-          </Field>
-          <Field label={`Font size (${device})`}>
-            <Input value={widget.style?.typography?.fontSize?.[device] ?? ""}
-              onChange={(e) => setStyle((s) => {
-                const t = s.typography ?? {};
-                t.fontSize = { ...(t.fontSize ?? {}), [device]: e.target.value || undefined };
-                s.typography = t;
-              })}
-              placeholder="16px / 1.25rem" className="h-8 text-xs" />
-          </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Weight">
-              <Select value={widget.style?.typography?.fontWeight ?? ""}
-                onValueChange={(v) => setStyle((s) => {
-                  s.typography = { ...(s.typography ?? {}), fontWeight: v || undefined };
-                })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
-                <SelectContent>{["300","400","500","600","700","800","900"].map((w) => (
-                  <SelectItem key={w} value={w}>{w}</SelectItem>
-                ))}</SelectContent>
-              </Select>
-            </Field>
-            <Field label="Style">
-              <Select value={widget.style?.typography?.fontStyle ?? "normal"}
-                onValueChange={(v) => setStyle((s) => {
-                  s.typography = { ...(s.typography ?? {}), fontStyle: v as "normal"|"italic" };
-                })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="normal">Normalny</SelectItem>
-                  <SelectItem value="italic">Italic</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Line height">
-              <Input value={widget.style?.typography?.lineHeight ?? ""}
-                onChange={(e) => setStyle((s) => {
-                  s.typography = { ...(s.typography ?? {}), lineHeight: e.target.value || undefined };
-                })}
-                placeholder="1.4" className="h-8 text-xs" />
-            </Field>
-            <Field label="Letter spacing">
-              <Input value={widget.style?.typography?.letterSpacing ?? ""}
-                onChange={(e) => setStyle((s) => {
-                  s.typography = { ...(s.typography ?? {}), letterSpacing: e.target.value || undefined };
-                })}
-                placeholder="0.02em" className="h-8 text-xs" />
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Transform">
-              <Select value={widget.style?.typography?.textTransform ?? "none"}
-                onValueChange={(v) => setStyle((s) => {
-                  s.typography = { ...(s.typography ?? {}), textTransform: v as "none"|"uppercase"|"lowercase"|"capitalize" };
-                })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">none</SelectItem>
-                  <SelectItem value="uppercase">UPPERCASE</SelectItem>
-                  <SelectItem value="lowercase">lowercase</SelectItem>
-                  <SelectItem value="capitalize">Capitalize</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Decoration">
-              <Select value={widget.style?.typography?.textDecoration ?? "none"}
-                onValueChange={(v) => setStyle((s) => {
-                  s.typography = { ...(s.typography ?? {}), textDecoration: v as "none"|"underline"|"line-through" };
-                })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">none</SelectItem>
-                  <SelectItem value="underline">underline</SelectItem>
-                  <SelectItem value="line-through">line-through</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
+      <TabsContent value="style" className="space-y-4 mt-3">
+        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+          Edytujesz: {device}
         </div>
+
+        <section className="space-y-2">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Kolory</h4>
+          <PropField label="Tło">
+            <ColorField
+              value={widget.style?.bgColor}
+              onChange={(v) => setStyle((s) => { s.bgColor = v; })}
+            />
+          </PropField>
+          <PropField label="Tekst">
+            <ColorField
+              value={widget.style?.textColor}
+              onChange={(v) => setStyle((s) => { s.textColor = v; })}
+            />
+          </PropField>
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Odstępy</h4>
+          <SpacingControl style={widget.style} device={device} onChange={setStyle} />
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Wymiary</h4>
+          <div className="grid grid-cols-2 gap-2">
+            <PropField label="Border radius">
+              <Input
+                value={widget.style?.borderRadius ?? ""}
+                placeholder="8px"
+                onChange={(e) => setStyle((s) => { s.borderRadius = e.target.value || undefined; })}
+                className="h-8 text-xs"
+              />
+            </PropField>
+            <PropField label="Max width">
+              <Input
+                value={widget.style?.maxWidth ?? ""}
+                placeholder="600px"
+                onChange={(e) => setStyle((s) => { s.maxWidth = e.target.value || undefined; })}
+                className="h-8 text-xs"
+              />
+            </PropField>
+          </div>
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Typografia</h4>
+          <TypographyControl
+            value={widget.style?.typography}
+            device={device}
+            onChange={(typography: WidgetTypography) => setStyle((s) => { s.typography = typography; })}
+          />
+        </section>
       </TabsContent>
 
-      <TabsContent value="advanced" className="space-y-3 mt-3">
-        <Field label="HTML ID">
-          <Input value={widget.advanced?.htmlId ?? ""}
-            onChange={(e) => setAdvanced((a) => { a.htmlId = e.target.value || undefined; })}
-            className="h-8 text-xs" />
-        </Field>
-        <Field label="CSS class">
-          <Input value={widget.advanced?.cssClass ?? ""}
-            onChange={(e) => setAdvanced((a) => { a.cssClass = e.target.value || undefined; })}
-            className="h-8 text-xs" />
-        </Field>
-        <div className="pt-2 border-t border-border space-y-2">
-          <div className="text-[10px] text-muted-foreground uppercase">Motion — animacja wejścia</div>
-          <Field label="Efekt">
-            <Select value={widget.advanced?.animation ?? "none"}
-              onValueChange={(v) => setAdvanced((a) => { a.animation = v as AdvancedSettings["animation"]; })}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {[
-                  ["none","Brak"],["fade","Fade"],
-                  ["slide-up","Slide up"],["slide-down","Slide down"],
-                  ["slide-left","Slide left"],["slide-right","Slide right"],
-                  ["zoom","Zoom in"],["zoom-out","Zoom out"],["bounce","Bounce"],
-                ].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Duration (ms)">
-              <Input type="number" min={0} step={50} value={widget.advanced?.animationDuration ?? ""}
-                onChange={(e) => setAdvanced((a) => {
-                  const n = Number(e.target.value);
-                  a.animationDuration = Number.isFinite(n) && n >= 0 ? n : undefined;
-                })}
-                placeholder="600" className="h-8 text-xs" />
-            </Field>
-            <Field label="Delay (ms)">
-              <Input type="number" min={0} step={50} value={widget.advanced?.animationDelay ?? ""}
-                onChange={(e) => setAdvanced((a) => {
-                  const n = Number(e.target.value);
-                  a.animationDelay = Number.isFinite(n) && n >= 0 ? n : undefined;
-                })}
-                placeholder="0" className="h-8 text-xs" />
-            </Field>
-          </div>
-          <label className="flex items-center gap-2 text-xs">
-            <input type="checkbox"
-              checked={widget.advanced?.animationOnce !== false}
-              onChange={(e) => setAdvanced((a) => { a.animationOnce = e.target.checked; })} />
-            Odtwarzaj tylko raz
-          </label>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Ukryj na</Label>
-          {(["desktop","tablet","mobile"] as const).map((d) => (
-            <label key={d} className="flex items-center gap-2 text-xs">
-              <input type="checkbox" checked={widget.advanced?.hideOn?.[d] ?? false}
-                onChange={(e) => setAdvanced((a) => { a.hideOn = { ...(a.hideOn ?? {}), [d]: e.target.checked }; })} />
-              {d}
-            </label>
-          ))}
-        </div>
-        <Field label="Custom CSS">
-          <Textarea rows={3} value={widget.advanced?.customCss ?? ""}
+      <TabsContent value="advanced" className="space-y-4 mt-3">
+        <section className="space-y-2">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Identyfikatory</h4>
+          <PropField label="HTML ID">
+            <Input
+              value={widget.advanced?.htmlId ?? ""}
+              onChange={(e) => setAdvanced((a) => { a.htmlId = e.target.value || undefined; })}
+              className="h-8 text-xs"
+            />
+          </PropField>
+          <PropField label="CSS class">
+            <Input
+              value={widget.advanced?.cssClass ?? ""}
+              onChange={(e) => setAdvanced((a) => { a.cssClass = e.target.value || undefined; })}
+              className="h-8 text-xs"
+            />
+          </PropField>
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Motion</h4>
+          <MotionControl value={widget.advanced} onChange={setAdvanced} />
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Widoczność</h4>
+          <VisibilityControl value={widget.advanced} onChange={setAdvanced} />
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Custom CSS</h4>
+          <Textarea
+            rows={4}
+            value={widget.advanced?.customCss ?? ""}
             onChange={(e) => setAdvanced((a) => { a.customCss = e.target.value || undefined; })}
-            className="text-xs font-mono" placeholder=".my-class { color: red; }" />
-        </Field>
+            className="text-xs font-mono"
+            placeholder=".my-class { color: red; }"
+          />
+        </section>
       </TabsContent>
     </Tabs>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <Label className="text-xs">{label}</Label>
-      {children}
-    </div>
   );
 }
 
@@ -271,105 +163,105 @@ function ContentFields({ widget, lang, setContent }: {
   switch (widget.type) {
     case "heading":
       return <>
-        <Field label={`Tekst (${lang.toUpperCase()})`}>
+        <PropField label={`Tekst (${lang.toUpperCase()})`}>
           <Input value={str(`text_${lang}`)} onChange={(e) => setContent(`text_${lang}`, e.target.value)} className="h-8 text-xs" />
-        </Field>
-        <Field label="Tag">
+        </PropField>
+        <PropField label="Tag">
           <Select value={str("tag") || "h2"} onValueChange={(v) => setContent("tag", v)}>
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>{["h1","h2","h3","h4","h5","h6"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
           </Select>
-        </Field>
+        </PropField>
       </>;
     case "text":
-      return <Field label={`HTML (${lang.toUpperCase()})`}>
+      return <PropField label={`HTML (${lang.toUpperCase()})`}>
         <Textarea rows={6} value={str(`html_${lang}`)} onChange={(e) => setContent(`html_${lang}`, e.target.value)} className="text-xs font-mono" />
-      </Field>;
+      </PropField>;
     case "image":
       return <>
-        <Field label="URL obrazka">
+        <PropField label="URL obrazka">
           <Input value={str("src")} onChange={(e) => setContent("src", e.target.value)} placeholder="https://..." className="h-8 text-xs" />
-        </Field>
-        <Field label={`Alt (${lang.toUpperCase()})`}>
+        </PropField>
+        <PropField label={`Alt (${lang.toUpperCase()})`}>
           <Input value={str(`alt_${lang}`)} onChange={(e) => setContent(`alt_${lang}`, e.target.value)} className="h-8 text-xs" />
-        </Field>
+        </PropField>
       </>;
     case "button":
       return <>
-        <Field label={`Etykieta (${lang.toUpperCase()})`}>
+        <PropField label={`Etykieta (${lang.toUpperCase()})`}>
           <Input value={str(`label_${lang}`)} onChange={(e) => setContent(`label_${lang}`, e.target.value)} className="h-8 text-xs" />
-        </Field>
-        <Field label="Link"><Input value={str("href")} onChange={(e) => setContent("href", e.target.value)} className="h-8 text-xs" /></Field>
-        <Field label="Wariant">
+        </PropField>
+        <PropField label="Link"><Input value={str("href")} onChange={(e) => setContent("href", e.target.value)} className="h-8 text-xs" /></PropField>
+        <PropField label="Wariant">
           <Select value={str("variant") || "primary"} onValueChange={(v) => setContent("variant", v)}>
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>{["primary","outline","ghost"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
           </Select>
-        </Field>
+        </PropField>
       </>;
     case "spacer":
-      return <Field label="Wysokość (px)">
+      return <PropField label="Wysokość (px)">
         <Input type="number" value={num("height", 32)} onChange={(e) => setContent("height", Number(e.target.value))} className="h-8 text-xs" />
-      </Field>;
+      </PropField>;
     case "video":
-      return <Field label="URL (YouTube lub MP4)">
+      return <PropField label="URL (YouTube lub MP4)">
         <Input value={str("url")} onChange={(e) => setContent("url", e.target.value)} className="h-8 text-xs" />
-      </Field>;
+      </PropField>;
     case "gallery":
       return <>
-        <Field label="Obrazki (po jednym URL na linię)">
+        <PropField label="Obrazki (po jednym URL na linię)">
           <Textarea rows={5} value={arr("images").join("\n")}
             onChange={(e) => setContent("images", e.target.value.split("\n").map((s) => s.trim()).filter(Boolean))}
             className="text-xs font-mono" />
-        </Field>
-        <Field label="Kolumny">
+        </PropField>
+        <PropField label="Kolumny">
           <Input type="number" min={1} max={6} value={num("columns", 3)} onChange={(e) => setContent("columns", Number(e.target.value))} className="h-8 text-xs" />
-        </Field>
+        </PropField>
       </>;
     case "icon":
       return <>
-        <Field label="Nazwa ikony">
+        <PropField label="Nazwa ikony">
           <Input value={str("name") || "Star"} onChange={(e) => setContent("name", e.target.value)} placeholder="Star, Heart, Mail..." className="h-8 text-xs" />
-        </Field>
-        <Field label="Rozmiar (px)">
+        </PropField>
+        <PropField label="Rozmiar (px)">
           <Input type="number" value={num("size", 32)} onChange={(e) => setContent("size", Number(e.target.value))} className="h-8 text-xs" />
-        </Field>
+        </PropField>
       </>;
     case "map":
-      return <Field label="Adres / zapytanie">
+      return <PropField label="Adres / zapytanie">
         <Input value={str("query")} onChange={(e) => setContent("query", e.target.value)} className="h-8 text-xs" />
-      </Field>;
+      </PropField>;
     case "post-list":
     case "carousel":
       return <>
-        <Field label="Limit">
+        <PropField label="Limit">
           <Input type="number" value={num("limit", 6)} onChange={(e) => setContent("limit", Number(e.target.value))} className="h-8 text-xs" />
-        </Field>
+        </PropField>
         {widget.type === "post-list" && (
-          <Field label="Kolumny">
+          <PropField label="Kolumny">
             <Input type="number" min={1} max={6} value={num("columns", 3)} onChange={(e) => setContent("columns", Number(e.target.value))} className="h-8 text-xs" />
-          </Field>
+          </PropField>
         )}
       </>;
     case "newsletter":
     case "cta":
       return <>
-        <Field label={`Tytuł (${lang.toUpperCase()})`}>
+        <PropField label={`Tytuł (${lang.toUpperCase()})`}>
           <Input value={str(`title_${lang}`)} onChange={(e) => setContent(`title_${lang}`, e.target.value)} className="h-8 text-xs" />
-        </Field>
+        </PropField>
         {widget.type === "cta" && (
           <>
-            <Field label={`CTA (${lang.toUpperCase()})`}>
+            <PropField label={`CTA (${lang.toUpperCase()})`}>
               <Input value={str(`cta_${lang}`)} onChange={(e) => setContent(`cta_${lang}`, e.target.value)} className="h-8 text-xs" />
-            </Field>
-            <Field label="Link"><Input value={str("href")} onChange={(e) => setContent("href", e.target.value)} className="h-8 text-xs" /></Field>
+            </PropField>
+            <PropField label="Link"><Input value={str("href")} onChange={(e) => setContent("href", e.target.value)} className="h-8 text-xs" /></PropField>
           </>
         )}
       </>;
     case "contact":
-      return <Field label="Email odbiorcy">
+      return <PropField label="Email odbiorcy">
         <Input value={str("to")} onChange={(e) => setContent("to", e.target.value)} className="h-8 text-xs" />
-      </Field>;
+      </PropField>;
     default:
       return <div className="text-xs text-muted-foreground">Brak edytowalnych pól dla tego widgetu.</div>;
   }
