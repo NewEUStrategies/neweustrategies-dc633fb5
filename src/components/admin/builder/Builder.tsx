@@ -593,13 +593,14 @@ function SectionView(p: SectionViewProps) {
 
 function InnerSectionView({
   inner, device, lang, selection, setSelection, onRemoveColumn, onDuplicateColumn,
-  onRemoveWidget, onDuplicateWidget, onDropWidget,
+  onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent,
 }: {
   inner: InnerSectionNode; device: Device; lang: "pl"|"en"; selection: Selection;
   setSelection: (s: Selection) => void;
   onRemoveColumn: (id: string) => void; onDuplicateColumn: (id: string) => void;
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
+  onUpdateWidgetContent: (id: string, key: string, value: string) => void;
 }) {
   const selected = selection.kind === "inner-section" && selection.id === inner.id;
   const colsSum = inner.columns.reduce((a, c) => a + (c.span.desktop ?? 6), 0) || 12;
@@ -622,7 +623,8 @@ function InnerSectionView({
               setSelection={setSelection}
               onRemove={() => onRemoveColumn(c.id)} onDuplicate={() => onDuplicateColumn(c.id)}
               onRemoveWidget={onRemoveWidget} onDuplicateWidget={onDuplicateWidget}
-              onDropWidget={onDropWidget} />
+              onDropWidget={onDropWidget}
+              onUpdateWidgetContent={onUpdateWidgetContent} />
           </div>
         ))}
       </div>
