@@ -505,35 +505,83 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     }
     case "video": {
       const url = getStr(c, "url");
-      if (!url) return wrap(<div className="bg-muted rounded aspect-video flex items-center justify-center text-xs text-muted-foreground">brak wideo</div>);
+      const ratio = getStr(c, "ratio") || "16/9";
+      const autoplay = getStr(c, "autoplay") === "on";
+      const loop = getStr(c, "loop") === "on";
+      const controls = getStr(c, "controls") !== "off";
+      const ratioStyle: CSSProperties = { aspectRatio: ratio.replace("/", " / ") };
+      if (!url) return wrap(<div className="bg-muted rounded flex items-center justify-center text-xs text-muted-foreground" style={ratioStyle}>brak wideo</div>);
       const ytMatch = url.match(/(?:youtube\.com\/.*v=|youtu\.be\/)([\w-]+)/);
       if (ytMatch) {
-        return wrap(<div className="aspect-video"><iframe src={`https://www.youtube.com/embed/${ytMatch[1]}`} title="video" className="w-full h-full rounded" allowFullScreen /></div>);
+        const params = new URLSearchParams();
+        if (autoplay) { params.set("autoplay", "1"); params.set("mute", "1"); }
+        if (loop) { params.set("loop", "1"); params.set("playlist", ytMatch[1]); }
+        if (!controls) params.set("controls", "0");
+        const q = params.toString();
+        return wrap(<div style={ratioStyle}><iframe src={`https://www.youtube.com/embed/${ytMatch[1]}${q ? `?${q}` : ""}`} title="video" className="w-full h-full rounded" allowFullScreen /></div>);
       }
       const safe = safeImageUrl(url) || (url.startsWith("https://") ? url : "");
-      if (!safe) return wrap(<div className="bg-muted rounded aspect-video flex items-center justify-center text-xs text-muted-foreground">niedozwolony URL</div>);
-      return wrap(<video src={safe} controls className="w-full rounded" />);
+      if (!safe) return wrap(<div className="bg-muted rounded flex items-center justify-center text-xs text-muted-foreground" style={ratioStyle}>niedozwolony URL</div>);
+      return wrap(<video src={safe} controls={controls} autoPlay={autoplay} muted={autoplay} loop={loop} playsInline className="w-full rounded" style={ratioStyle} />);
     }
     case "gallery": {
       const imgs = getStrArr(c, "images").map(safeImageUrl).filter(Boolean);
       const cols = getNum(c, "columns", 3);
-      return wrap(<div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-        {imgs.length === 0 && <div className="col-span-full bg-muted rounded h-24 flex items-center justify-center text-xs text-muted-foreground">brak zdjęć</div>}
+      const variant = getStr(c, "variant") || "grid";
+      const gap = getStr(c, "gap") || "sm";
+      const gapCls = gap === "none" ? "gap-0" : gap === "xs" ? "gap-1" : gap === "md" ? "gap-4" : gap === "lg" ? "gap-6" : "gap-2";
+      if (imgs.length === 0) return wrap(<div className="bg-muted rounded h-24 flex items-center justify-center text-xs text-muted-foreground">brak zdjęć</div>);
+      if (variant === "carousel") {
+        return wrap(
+          <div className={`flex ${gapCls} overflow-x-auto snap-x pb-2`}>
+            {imgs.map((src, i) => <img key={i} src={src} alt="" className="snap-start h-48 w-auto rounded object-cover" loading="lazy" />)}
+          </div>,
+        );
+      }
+      if (variant === "masonry") {
+        return wrap(
+          <div style={{ columnCount: cols, columnGap: gap === "lg" ? "1.5rem" : gap === "md" ? "1rem" : "0.5rem" }}>
+            {imgs.map((src, i) => <img key={i} src={src} alt="" className="w-full mb-2 rounded break-inside-avoid" loading="lazy" />)}
+          </div>,
+        );
+      }
+      if (variant === "polaroid") {
+        return wrap(
+          <div className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+            {imgs.map((src, i) => (
+              <div key={i} className="bg-white p-2 pb-5 shadow-lg rotate-[-1deg] hover:rotate-0 transition">
+                <img src={src} alt="" className="w-full h-32 object-cover" loading="lazy" />
+              </div>
+            ))}
+          </div>,
+        );
+      }
+      return wrap(<div className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
         {imgs.map((src, i) => <img key={i} src={src} alt="" className="w-full h-32 object-cover rounded" loading="lazy" />)}
       </div>);
     }
     case "icon": {
       const name = getStr(c, "name") || "Star";
       const size = getNum(c, "size", 32);
+      const variant = getStr(c, "variant") || "plain";
+      const spin = getStr(c, "spin") || "none";
       const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
       const Cmp = reg[name] ?? LucideIcons.Star;
-      return wrap(<Cmp size={size} />);
+      const spinCls = spin === "spin" ? "animate-spin" : spin === "pulse" ? "animate-pulse" : spin === "bounce" ? "animate-bounce" : "";
+      const wrapperCls =
+        variant === "circle" ? "inline-flex items-center justify-center rounded-full bg-brand/10 text-brand p-3"
+        : variant === "square" ? "inline-flex items-center justify-center rounded-md bg-brand/10 text-brand p-3"
+        : variant === "soft" ? "inline-flex items-center justify-center rounded-lg bg-muted p-3"
+        : variant === "outlined" ? "inline-flex items-center justify-center rounded-lg border border-border p-3"
+        : "inline-flex";
+      return wrap(<span className={`${wrapperCls} ${spinCls}`.trim()}><Cmp size={size} /></span>);
     }
     case "map": {
       const q = getStr(c, "query") || "Warszawa";
+      const ratio = getStr(c, "ratio") || "16/9";
       const src = `https://maps.google.com/maps?q=${encodeURIComponent(q)}&output=embed`;
-      return wrap(<div className="aspect-video"><iframe src={src} title="map" className="w-full h-full rounded border-0" /></div>);
+      return wrap(<div style={{ aspectRatio: ratio.replace("/", " / ") }}><iframe src={src} title="map" className="w-full h-full rounded border-0" /></div>);
     }
     case "post-list":
       return wrap(<PostListView c={c} lang={lang} />);
