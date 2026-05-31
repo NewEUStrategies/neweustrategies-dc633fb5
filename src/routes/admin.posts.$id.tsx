@@ -131,6 +131,7 @@ function EditPost() {
           cover_image_url: snapshot.cover_image_url,
           read_minutes: snapshot.read_minutes,
           builder_data: snapshot.builder_data,
+          parent_page_id: snapshot.parent_page_id,
         },
         categories: selectedCats,
         tags: selectedTags,
