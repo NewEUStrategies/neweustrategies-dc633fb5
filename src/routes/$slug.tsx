@@ -1,6 +1,7 @@
 // Public page renderer at root. URL: /<slug>
 // Static routes (index, login, blog, post, admin, api, p) match before this dynamic route.
 import { createFileRoute, notFound, Link, useRouter } from "@tanstack/react-router";
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
@@ -8,6 +9,8 @@ import { Footer } from "@/components/Footer";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import { sanitizeMarkdownHtml } from "@/lib/sanitize";
+import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
+import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 
 export const Route = createFileRoute("/$slug")({
   loader: async ({ params }) => {
