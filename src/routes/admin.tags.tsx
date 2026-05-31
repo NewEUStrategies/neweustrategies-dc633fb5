@@ -2,11 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, X } from "@/lib/lucide-shim";
+import { createTag, deleteTag } from "@/lib/content.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/tags")({
