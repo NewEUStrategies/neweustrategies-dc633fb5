@@ -1008,7 +1008,7 @@ function VisualCanvas({
 }: {
   doc: BuilderDocument; lang: "pl" | "en"; device: Device;
   selection: Selection; setSelection: (s: Selection) => void;
-  onInsertSection: (index: number, cols: number) => void;
+  onInsertSection: (index: number, colsOrSpans: number | number[]) => void;
   onMoveWidget: (srcId: string, targetId: string, pos: "before" | "after") => void;
   onMoveSection: (srcId: string, targetId: string, pos: "before" | "after") => void;
   onDropNewWidgetToColumn: (colId: string, type: WidgetType) => void;
