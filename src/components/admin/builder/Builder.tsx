@@ -230,6 +230,43 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
     setSelection({ kind: "widget", id: w.id });
   };
 
+  // Insert a new widget before/after an existing widget (across columns).
+  const insertWidgetNear = (targetWidgetId: string, pos: "before" | "after", type: WidgetType) => {
+    const w = makeWidget(type);
+    update((d) => {
+      for (const s of d.sections) for (const c of s.children) {
+        const cols = c.kind === "column" ? [c] : c.columns;
+        for (const col of cols) {
+          const i = col.children.findIndex((x) => x.id === targetWidgetId);
+          if (i >= 0) { col.children.splice(pos === "before" ? i : i + 1, 0, w); return; }
+        }
+      }
+    });
+    setSelection({ kind: "widget", id: w.id });
+  };
+
+  // Append a new widget to the first column of a section (used when dropping
+  // on a section's empty area).
+  const appendWidgetToSection = (sectionId: string, type: WidgetType) => {
+    const w = makeWidget(type);
+    update((d) => {
+      const s = d.sections.find((x) => x.id === sectionId);
+      if (!s) return;
+      let col: ColumnNode | null = null;
+      for (const ch of s.children) {
+        if (ch.kind === "column") { col = ch; break; }
+        if (ch.kind === "inner-section" && ch.columns[0]) { col = ch.columns[0]; break; }
+      }
+      if (!col) {
+        const newCol = newColumn(12);
+        s.children.push(newCol);
+        col = newCol;
+      }
+      col.children.push(w);
+    });
+    setSelection({ kind: "widget", id: w.id });
+  };
+
   // Move a widget before/after another widget (across columns supported).
   const moveWidgetTo = (srcId: string, targetId: string, pos: "before" | "after") => update((d) => {
     if (srcId === targetId) return;
