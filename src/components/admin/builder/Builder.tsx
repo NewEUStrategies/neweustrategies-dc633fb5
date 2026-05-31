@@ -442,7 +442,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                       onInsert={(cols) => insertSectionAt(idx + 1, cols)}
                       index={idx + 1}
                       prominent={idx === doc.sections.length - 1}
-                      label={idx === doc.sections.length - 1 ? "Wstaw sekcję nad stopką" : undefined}
+                      label={idx === doc.sections.length - 1 ? copy.last : undefined}
                     />
                   </div>
                 ))}
