@@ -36,14 +36,12 @@ interface CategoryForm {
 
 const emptyForm: CategoryForm = { name_pl: "", name_en: "", slug: "", description_pl: "", description_en: "" };
 
-function slugify(s: string): string {
-  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
 function Categories() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const tenantId = useRequiredTenant();
+  const upsert$ = useServerFn(upsertCategory);
+  const delete$ = useServerFn(deleteCategory);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CategoryRow | null>(null);
   const [form, setForm] = useState<CategoryForm>(emptyForm);
@@ -71,21 +69,35 @@ function Categories() {
   };
 
   const save = async () => {
-    const payload = { ...form, slug: form.slug || slugify(form.name_pl || form.name_en), tenant_id: tenantId };
-    const { error } = editing
-      ? await supabase.from("categories").update(payload).eq("id", editing.id)
-      : await supabase.from("categories").insert(payload);
-    if (error) { toast.error(error.message); return; }
-    toast.success(t("admin.saved"));
-    setOpen(false);
-    qc.invalidateQueries({ queryKey: ["categories"] });
+    try {
+      await upsert$({
+        data: {
+          id: editing?.id,
+          fields: {
+            name_pl: form.name_pl,
+            name_en: form.name_en,
+            slug: form.slug || undefined,
+            description_pl: form.description_pl || null,
+            description_en: form.description_en || null,
+          },
+        },
+      });
+      toast.success(t("admin.saved"));
+      setOpen(false);
+      qc.invalidateQueries({ queryKey: ["categories"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
   };
 
   const del = async (id: string) => {
     if (!confirm(t("admin.confirmDelete"))) return;
-    const { error } = await supabase.from("categories").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
-    qc.invalidateQueries({ queryKey: ["categories"] });
+    try {
+      await delete$({ data: { id } });
+      qc.invalidateQueries({ queryKey: ["categories"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
   };
 
   return (
