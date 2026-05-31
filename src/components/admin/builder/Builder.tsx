@@ -956,13 +956,18 @@ function IconBtn({
 // drop-zones around each section let users insert new sections in the chrome.
 function VisualCanvas({
   doc, lang, device, selection, setSelection, onInsertSection,
-  onMoveWidget, onMoveSection, firstLabel, lastLabel,
+  onMoveWidget, onMoveSection,
+  onDropNewWidgetToColumn, onDropNewWidgetNear, onDropNewWidgetToSection,
+  firstLabel, lastLabel,
 }: {
   doc: BuilderDocument; lang: "pl" | "en"; device: Device;
   selection: Selection; setSelection: (s: Selection) => void;
   onInsertSection: (index: number, cols: number) => void;
   onMoveWidget: (srcId: string, targetId: string, pos: "before" | "after") => void;
   onMoveSection: (srcId: string, targetId: string, pos: "before" | "after") => void;
+  onDropNewWidgetToColumn: (colId: string, type: WidgetType) => void;
+  onDropNewWidgetNear: (targetWidgetId: string, pos: "before" | "after", type: WidgetType) => void;
+  onDropNewWidgetToSection: (sectionId: string, type: WidgetType) => void;
   firstLabel: string; lastLabel: string;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -1000,6 +1005,15 @@ function VisualCanvas({
       s.setAttribute("draggable", "true");
     });
 
+    const clearDropMarkers = () => {
+      root.querySelectorAll<HTMLElement>(".is-drop-before,.is-drop-after,.is-drop-into")
+        .forEach((el) => el.classList.remove("is-drop-before", "is-drop-after", "is-drop-into"));
+    };
+
+    // Returns true if currently dragging a new library widget.
+    const isLibraryDrag = (e: DragEvent) =>
+      !!e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("application/x-widget-type");
+
     const onDragStart = (e: DragEvent) => {
       const t = e.target as HTMLElement;
       const w = t.closest?.("[data-widget-id]") as HTMLElement | null;
@@ -1017,16 +1031,58 @@ function VisualCanvas({
         if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
       }
     };
+
     const onDragOver = (e: DragEvent) => {
-      if (!dragRef.current) return;
+      const lib = isLibraryDrag(e);
+      if (!dragRef.current && !lib) return;
       e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+      if (e.dataTransfer) e.dataTransfer.dropEffect = lib ? "copy" : "move";
+
+      clearDropMarkers();
+      const t = e.target as HTMLElement;
+      const widget = t.closest?.("[data-widget-id]") as HTMLElement | null;
+      if (widget) {
+        const r = widget.getBoundingClientRect();
+        const before = e.clientY < r.top + r.height / 2;
+        widget.classList.add(before ? "is-drop-before" : "is-drop-after");
+        return;
+      }
+      const col = t.closest?.("[data-col-id]") as HTMLElement | null;
+      if (col) { col.classList.add("is-drop-into"); return; }
+      const sec = t.closest?.("[data-sec-id]") as HTMLElement | null;
+      if (sec) sec.classList.add("is-drop-into");
     };
+
+    const onDragLeave = (e: DragEvent) => {
+      // Only clear when leaving the canvas entirely.
+      if (!root.contains(e.relatedTarget as Node)) clearDropMarkers();
+    };
+
     const onDrop = (e: DragEvent) => {
+      clearDropMarkers();
       const drag = dragRef.current;
       dragRef.current = null;
-      if (!drag) return;
       const t = e.target as HTMLElement;
+
+      // Library widget drop (new widget).
+      const newType = e.dataTransfer?.getData("application/x-widget-type") as WidgetType;
+      if (newType) {
+        e.preventDefault(); e.stopPropagation();
+        const widget = t.closest?.("[data-widget-id]") as HTMLElement | null;
+        if (widget && widget.dataset.widgetId) {
+          const r = widget.getBoundingClientRect();
+          const pos: "before" | "after" = e.clientY < r.top + r.height / 2 ? "before" : "after";
+          onDropNewWidgetNear(widget.dataset.widgetId, pos, newType);
+          return;
+        }
+        const col = t.closest?.("[data-col-id]") as HTMLElement | null;
+        if (col && col.dataset.colId) { onDropNewWidgetToColumn(col.dataset.colId, newType); return; }
+        const sec = t.closest?.("[data-sec-id]") as HTMLElement | null;
+        if (sec && sec.dataset.secId) onDropNewWidgetToSection(sec.dataset.secId, newType);
+        return;
+      }
+
+      if (!drag) return;
       if (drag.kind === "widget") {
         const target = t.closest?.("[data-widget-id]") as HTMLElement | null;
         if (!target || !target.dataset.widgetId || target.dataset.widgetId === drag.id) return;
@@ -1046,13 +1102,15 @@ function VisualCanvas({
 
     root.addEventListener("dragstart", onDragStart);
     root.addEventListener("dragover", onDragOver);
+    root.addEventListener("dragleave", onDragLeave);
     root.addEventListener("drop", onDrop);
     return () => {
       root.removeEventListener("dragstart", onDragStart);
       root.removeEventListener("dragover", onDragOver);
+      root.removeEventListener("dragleave", onDragLeave);
       root.removeEventListener("drop", onDrop);
     };
-  }, [doc, selection, onMoveWidget, onMoveSection]);
+  }, [doc, selection, onMoveWidget, onMoveSection, onDropNewWidgetToColumn, onDropNewWidgetNear, onDropNewWidgetToSection]);
 
   const ringCss = `
     [data-visual-canvas] [data-widget-id]{position:relative;cursor:grab;outline:1px dashed transparent;outline-offset:2px;border-radius:4px;transition:outline-color .15s}
@@ -1062,6 +1120,17 @@ function VisualCanvas({
     [data-visual-canvas] [data-sec-id]{outline:1px dashed transparent;outline-offset:-2px;transition:outline-color .15s}
     [data-visual-canvas] [data-sec-id]:hover{outline-color:color-mix(in oklab, var(--brand) 35%, transparent)}
     [data-visual-canvas] [data-sec-id].is-selected{outline:2px solid var(--brand)}
+    [data-visual-canvas] [data-col-id]{position:relative}
+    /* Drop indicators */
+    [data-visual-canvas] .is-drop-before::before,
+    [data-visual-canvas] .is-drop-after::after{
+      content:"";position:absolute;left:0;right:0;height:3px;background:var(--brand);
+      box-shadow:0 0 0 2px color-mix(in oklab, var(--brand) 40%, transparent);
+      border-radius:2px;z-index:50;pointer-events:none;
+    }
+    [data-visual-canvas] .is-drop-before::before{top:-2px}
+    [data-visual-canvas] .is-drop-after::after{bottom:-2px}
+    [data-visual-canvas] .is-drop-into{outline:2px dashed var(--brand) !important;outline-offset:-2px;background:color-mix(in oklab, var(--brand) 6%, transparent)}
     [data-visual-canvas] a{pointer-events:none}
     [data-visual-canvas] button{pointer-events:none}
   `;
