@@ -16,6 +16,7 @@ import { ThemeProvider } from "../components/ThemeProvider";
 import { AuthProvider } from "../hooks/useAuth";
 import { Toaster } from "../components/ui/sonner";
 import { IconPackSync } from "../components/IconPackSync";
+import { DesignTokensStyle } from "../components/DesignTokensStyle";
 
 function NotFoundComponent() {
   return (
@@ -126,6 +127,7 @@ function RootComponent() {
       <ThemeProvider>
         <AuthProvider>
           <IconPackSync />
+          <DesignTokensStyle />
           <Outlet />
           <Toaster />
         </AuthProvider>

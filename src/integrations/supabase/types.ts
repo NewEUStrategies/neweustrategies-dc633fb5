@@ -457,6 +457,33 @@ export type Database = {
         }
         Relationships: []
       }
+      site_design_tokens: {
+        Row: {
+          colors: Json
+          fonts: Json
+          scale: Json
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          colors?: Json
+          fonts?: Json
+          scale?: Json
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          colors?: Json
+          fonts?: Json
+          scale?: Json
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       site_settings: {
         Row: {
           key: string

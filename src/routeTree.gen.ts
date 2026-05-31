@@ -32,6 +32,7 @@ import { Route as AdminSettingsPermalinksRouteImport } from './routes/admin.sett
 import { Route as AdminSettingsMediaRouteImport } from './routes/admin.settings.media'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/admin.settings.general'
 import { Route as AdminSettingsDiscussionRouteImport } from './routes/admin.settings.discussion'
+import { Route as AdminSettingsDesignRouteImport } from './routes/admin.settings.design'
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
 import { Route as AdminPostsIdRouteImport } from './routes/admin.posts.$id'
 import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
@@ -152,6 +153,11 @@ const AdminSettingsDiscussionRoute = AdminSettingsDiscussionRouteImport.update({
   path: '/discussion',
   getParentRoute: () => AdminSettingsRoute,
 } as any)
+const AdminSettingsDesignRoute = AdminSettingsDesignRouteImport.update({
+  id: '/design',
+  path: '/design',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
 const AdminPostsNewRoute = AdminPostsNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
   '/admin/settings/media': typeof AdminSettingsMediaRoute
@@ -219,6 +226,7 @@ export interface FileRoutesByTo {
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
   '/admin/settings/media': typeof AdminSettingsMediaRoute
@@ -249,6 +257,7 @@ export interface FileRoutesById {
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
   '/admin/settings/general': typeof AdminSettingsGeneralRoute
   '/admin/settings/media': typeof AdminSettingsMediaRoute
@@ -280,6 +289,7 @@ export interface FileRouteTypes {
     | '/admin/pages/new'
     | '/admin/posts/$id'
     | '/admin/posts/new'
+    | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
     | '/admin/settings/media'
@@ -307,6 +317,7 @@ export interface FileRouteTypes {
     | '/admin/pages/new'
     | '/admin/posts/$id'
     | '/admin/posts/new'
+    | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
     | '/admin/settings/media'
@@ -336,6 +347,7 @@ export interface FileRouteTypes {
     | '/admin/pages/new'
     | '/admin/posts/$id'
     | '/admin/posts/new'
+    | '/admin/settings/design'
     | '/admin/settings/discussion'
     | '/admin/settings/general'
     | '/admin/settings/media'
@@ -521,6 +533,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsDiscussionRouteImport
       parentRoute: typeof AdminSettingsRoute
     }
+    '/admin/settings/design': {
+      id: '/admin/settings/design'
+      path: '/design'
+      fullPath: '/admin/settings/design'
+      preLoaderRoute: typeof AdminSettingsDesignRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
     '/admin/posts/new': {
       id: '/admin/posts/new'
       path: '/new'
@@ -581,6 +600,7 @@ const AdminPostsRouteWithChildren = AdminPostsRoute._addFileChildren(
 )
 
 interface AdminSettingsRouteChildren {
+  AdminSettingsDesignRoute: typeof AdminSettingsDesignRoute
   AdminSettingsDiscussionRoute: typeof AdminSettingsDiscussionRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
   AdminSettingsMediaRoute: typeof AdminSettingsMediaRoute
@@ -591,6 +611,7 @@ interface AdminSettingsRouteChildren {
 }
 
 const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
+  AdminSettingsDesignRoute: AdminSettingsDesignRoute,
   AdminSettingsDiscussionRoute: AdminSettingsDiscussionRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
   AdminSettingsMediaRoute: AdminSettingsMediaRoute,

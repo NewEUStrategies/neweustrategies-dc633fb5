@@ -272,7 +272,203 @@ function ContentFields({ widget, lang, setContent }: {
       return <PropField label="Email odbiorcy">
         <Input value={str("to")} onChange={(e) => setContent("to", e.target.value)} className="h-8 text-xs" />
       </PropField>;
+    case "accordion":
+      return <AccordionEditor c={c} lang={lang} setContent={setContent} />;
+    case "tabs":
+      return <TabsEditor c={c} lang={lang} setContent={setContent} />;
+    case "testimonial":
+      return <>
+        <PropField label={`Cytat (${lang.toUpperCase()})`}>
+          <Textarea rows={3} value={str(`quote_${lang}`)} onChange={(e) => setContent(`quote_${lang}`, e.target.value)} className="text-xs" />
+        </PropField>
+        <PropField label="Autor">
+          <Input value={str("author")} onChange={(e) => setContent("author", e.target.value)} className="h-8 text-xs" />
+        </PropField>
+        <PropField label={`Rola (${lang.toUpperCase()})`}>
+          <Input value={str(`role_${lang}`)} onChange={(e) => setContent(`role_${lang}`, e.target.value)} className="h-8 text-xs" />
+        </PropField>
+        <PropField label="Avatar (URL)">
+          <Input value={str("avatar")} onChange={(e) => setContent("avatar", e.target.value)} placeholder="https://..." className="h-8 text-xs" />
+        </PropField>
+      </>;
+    case "pricing":
+      return <PricingEditor c={c} lang={lang} setContent={setContent} />;
     default:
       return <div className="text-xs text-muted-foreground">Brak edytowalnych pól dla tego widgetu.</div>;
   }
+}
+
+// ---------- List editors for the new widgets ----------
+
+type Item = Record<string, unknown>;
+
+function itemsOf(c: WidgetNode["content"], k: string): Item[] {
+  const v = c[k];
+  if (!Array.isArray(v)) return [];
+  return (v as unknown[]).filter(
+    (x): x is Item => typeof x === "object" && x !== null && !Array.isArray(x),
+  );
+}
+
+function ListShell({
+  title, items, onAdd, children,
+}: {
+  title: string; items: Item[]; onAdd: () => void; children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{title}</span>
+        <button type="button" onClick={onAdd} className="text-[11px] text-brand hover:underline">+ Dodaj</button>
+      </div>
+      {items.length === 0
+        ? <p className="text-[11px] text-muted-foreground italic">Lista jest pusta.</p>
+        : children}
+    </div>
+  );
+}
+
+function ItemFrame({ title, onRemove, children }: { title: string; onRemove: () => void; children: React.ReactNode }) {
+  return (
+    <div className="border border-border rounded-md p-2 space-y-1.5 bg-background">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{title}</span>
+        <button type="button" onClick={onRemove} className="text-[10px] text-muted-foreground hover:text-destructive">Usuń</button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function AccordionEditor({ c, lang, setContent }: { c: WidgetNode["content"]; lang: "pl"|"en"; setContent: (k: string, v: Json) => void }) {
+  const items = itemsOf(c, "items");
+  const update = (next: Item[]) => setContent("items", next as unknown as Json);
+  return (
+    <ListShell
+      title="Pytania (FAQ)"
+      items={items}
+      onAdd={() => update([...items, { q_pl: "Nowe pytanie", a_pl: "Odpowiedź…" }])}
+    >
+      <div className="space-y-2">
+        {items.map((it, i) => (
+          <ItemFrame key={i} title={`Pozycja #${i + 1}`} onRemove={() => update(items.filter((_, j) => j !== i))}>
+            <PropField label={`Pytanie (${lang.toUpperCase()})`}>
+              <Input
+                value={typeof it[`q_${lang}`] === "string" ? it[`q_${lang}`] as string : ""}
+                onChange={(e) => update(items.map((x, j) => j === i ? { ...x, [`q_${lang}`]: e.target.value } : x))}
+                className="h-8 text-xs"
+              />
+            </PropField>
+            <PropField label={`Odpowiedź HTML (${lang.toUpperCase()})`}>
+              <Textarea rows={3}
+                value={typeof it[`a_${lang}`] === "string" ? it[`a_${lang}`] as string : ""}
+                onChange={(e) => update(items.map((x, j) => j === i ? { ...x, [`a_${lang}`]: e.target.value } : x))}
+                className="text-xs font-mono"
+              />
+            </PropField>
+          </ItemFrame>
+        ))}
+      </div>
+    </ListShell>
+  );
+}
+
+function TabsEditor({ c, lang, setContent }: { c: WidgetNode["content"]; lang: "pl"|"en"; setContent: (k: string, v: Json) => void }) {
+  const tabs = itemsOf(c, "tabs");
+  const update = (next: Item[]) => setContent("tabs", next as unknown as Json);
+  return (
+    <ListShell
+      title="Zakładki"
+      items={tabs}
+      onAdd={() => update([...tabs, { label_pl: "Nowa", html_pl: "<p>Treść…</p>" }])}
+    >
+      <div className="space-y-2">
+        {tabs.map((it, i) => (
+          <ItemFrame key={i} title={`Zakładka #${i + 1}`} onRemove={() => update(tabs.filter((_, j) => j !== i))}>
+            <PropField label={`Etykieta (${lang.toUpperCase()})`}>
+              <Input
+                value={typeof it[`label_${lang}`] === "string" ? it[`label_${lang}`] as string : ""}
+                onChange={(e) => update(tabs.map((x, j) => j === i ? { ...x, [`label_${lang}`]: e.target.value } : x))}
+                className="h-8 text-xs"
+              />
+            </PropField>
+            <PropField label={`Treść HTML (${lang.toUpperCase()})`}>
+              <Textarea rows={4}
+                value={typeof it[`html_${lang}`] === "string" ? it[`html_${lang}`] as string : ""}
+                onChange={(e) => update(tabs.map((x, j) => j === i ? { ...x, [`html_${lang}`]: e.target.value } : x))}
+                className="text-xs font-mono"
+              />
+            </PropField>
+          </ItemFrame>
+        ))}
+      </div>
+    </ListShell>
+  );
+}
+
+function PricingEditor({ c, lang, setContent }: { c: WidgetNode["content"]; lang: "pl"|"en"; setContent: (k: string, v: Json) => void }) {
+  const plans = itemsOf(c, "plans");
+  const update = (next: Item[]) => setContent("plans", next as unknown as Json);
+  const upd = (i: number, patch: Item) => update(plans.map((x, j) => j === i ? { ...x, ...patch } : x));
+  return (
+    <ListShell
+      title="Plany cenowe"
+      items={plans}
+      onAdd={() => update([...plans, {
+        name_pl: "Plan", price: "0", currency: "zł", period_pl: "/mies.",
+        features_pl: ["Funkcja 1"], cta_pl: "Wybierz", href: "#", featured: false,
+      }])}
+    >
+      <div className="space-y-2">
+        {plans.map((p, i) => {
+          const featuresRaw = p[`features_${lang}`];
+          const features = Array.isArray(featuresRaw)
+            ? (featuresRaw as unknown[]).filter((x): x is string => typeof x === "string")
+            : [];
+          return (
+            <ItemFrame key={i} title={`Plan #${i + 1}`} onRemove={() => update(plans.filter((_, j) => j !== i))}>
+              <PropField label={`Nazwa (${lang.toUpperCase()})`}>
+                <Input value={(p[`name_${lang}`] as string) ?? ""} onChange={(e) => upd(i, { [`name_${lang}`]: e.target.value })} className="h-8 text-xs" />
+              </PropField>
+              <div className="grid grid-cols-2 gap-2">
+                <PropField label="Cena">
+                  <Input value={(p.price as string) ?? ""} onChange={(e) => upd(i, { price: e.target.value })} className="h-8 text-xs" />
+                </PropField>
+                <PropField label="Waluta">
+                  <Input value={(p.currency as string) ?? ""} onChange={(e) => upd(i, { currency: e.target.value })} placeholder="zł / €" className="h-8 text-xs" />
+                </PropField>
+              </div>
+              <PropField label={`Okres (${lang.toUpperCase()})`}>
+                <Input value={(p[`period_${lang}`] as string) ?? ""} onChange={(e) => upd(i, { [`period_${lang}`]: e.target.value })} placeholder="/mies." className="h-8 text-xs" />
+              </PropField>
+              <PropField label={`Funkcje (${lang.toUpperCase()}) — po jednej na linię`}>
+                <Textarea rows={4}
+                  value={features.join("\n")}
+                  onChange={(e) => upd(i, { [`features_${lang}`]: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
+                  className="text-xs"
+                />
+              </PropField>
+              <div className="grid grid-cols-2 gap-2">
+                <PropField label={`CTA (${lang.toUpperCase()})`}>
+                  <Input value={(p[`cta_${lang}`] as string) ?? ""} onChange={(e) => upd(i, { [`cta_${lang}`]: e.target.value })} className="h-8 text-xs" />
+                </PropField>
+                <PropField label="Link CTA">
+                  <Input value={(p.href as string) ?? ""} onChange={(e) => upd(i, { href: e.target.value })} className="h-8 text-xs" />
+                </PropField>
+              </div>
+              <label className="inline-flex items-center gap-2 text-[11px] mt-1">
+                <input
+                  type="checkbox"
+                  checked={!!p.featured}
+                  onChange={(e) => upd(i, { featured: e.target.checked })}
+                  className="rounded border-border"
+                />
+                Wyróżniony plan
+              </label>
+            </ItemFrame>
+          );
+        })}
+      </div>
+    </ListShell>
+  );
 }
