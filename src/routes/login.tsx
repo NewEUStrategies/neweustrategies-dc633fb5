@@ -9,6 +9,9 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    mode: search.mode === "signup" ? "signup" : "signin",
+  }),
   component: LoginPage,
 });
 
@@ -16,7 +19,8 @@ function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { session, isStaff, loading } = useAuth();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const { mode: initialMode } = Route.useSearch();
+  const [mode, setMode] = useState<"signin" | "signup">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
