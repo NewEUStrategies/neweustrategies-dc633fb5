@@ -97,6 +97,8 @@ function EditPage() {
           content_en: snapshot.content_en,
           cover_image_url: snapshot.cover_image_url,
           builder_data: snapshot.builder_data,
+          parent_id: snapshot.parent_id,
+          menu_order: snapshot.menu_order,
         },
       },
     });
