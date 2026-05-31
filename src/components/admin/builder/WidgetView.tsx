@@ -3,7 +3,6 @@
 // the builder canvas and on public pages. All user-authored strings (custom
 // CSS, ids, classes, html, urls) go through src/lib/sanitize.ts.
 import { useEffect, useRef, useState, type CSSProperties, type ElementType, type KeyboardEvent } from "react";
-import { sanitizeHtml as _sanitizeHtml } from "@/lib/sanitize";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
