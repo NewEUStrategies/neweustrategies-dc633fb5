@@ -89,6 +89,9 @@ function EditPost() {
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  // Two-step flow: "details" shows metadata + titles + descriptions in both
+  // languages; "content" opens the actual editor (builder / rich text).
+  const [step, setStep] = useState<"details" | "content">("details");
 
   useEffect(() => { if (post) history.reset(post); }, [post, history.reset]);
   useEffect(() => { if (postCats) setSelectedCats(postCats.map((c) => c.category_id)); }, [postCats]);
