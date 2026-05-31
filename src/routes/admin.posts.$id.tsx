@@ -289,7 +289,14 @@ function EditPost() {
             </div>
           </div>
         </aside>
+        )}
       </div>
     </div>
   );
 }
+
+function BuilderPane({ form, set }: { form: { builder_data: BuilderDocument | null }; set: (k: "builder_data", v: BuilderDocument) => void }) {
+  const [lang, setLang] = useState<"pl" | "en">("pl");
+  return <Builder value={form.builder_data} onChange={(v) => set("builder_data", v)} lang={lang} onLangChange={setLang} />;
+}
+
