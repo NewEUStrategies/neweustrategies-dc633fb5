@@ -68,17 +68,20 @@ function getStrArr(c: Record<string, unknown>, k: string): string[] {
 
 export function WidgetView({ node, lang, device }: ViewProps) {
   const baseStyle = styleToCSS(node.style, device);
-  const cls = node.advanced?.cssClass ?? "";
+  const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
+  const htmlId = sanitizeHtmlId(node.advanced?.htmlId);
   const animClass =
     node.advanced?.animation === "fade" ? "animate-in fade-in duration-500"
     : node.advanced?.animation === "slide-up" ? "animate-in slide-in-from-bottom-4 duration-500"
     : node.advanced?.animation === "zoom" ? "animate-in zoom-in-95 duration-500"
     : "";
 
+  const scopedCss = scopeCustomCss(node.advanced?.customCss, node.id);
+
   const wrap = (children: React.ReactNode) => (
-    <div id={node.advanced?.htmlId} className={`${cls} ${animClass}`.trim()} style={baseStyle}>
+    <div id={htmlId} data-w-id={node.id} className={`${cls} ${animClass}`.trim()} style={baseStyle}>
       {children}
-      {node.advanced?.customCss && <style>{node.advanced.customCss}</style>}
+      {scopedCss && <style dangerouslySetInnerHTML={{ __html: scopedCss }} />}
     </div>
   );
 
