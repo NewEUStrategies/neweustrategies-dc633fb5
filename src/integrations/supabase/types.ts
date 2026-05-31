@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip: unknown
+          metadata: Json | null
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip?: unknown
+          metadata?: Json | null
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip?: unknown
+          metadata?: Json | null
+          tenant_id?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
@@ -55,10 +91,44 @@ export type Database = {
           },
         ]
       }
+      content_revisions: {
+        Row: {
+          author_id: string | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          note: string | null
+          snapshot: Json
+          tenant_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          note?: string | null
+          snapshot: Json
+          tenant_id: string
+        }
+        Update: {
+          author_id?: string | null
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          note?: string | null
+          snapshot?: Json
+          tenant_id?: string
+        }
+        Relationships: []
+      }
       media: {
         Row: {
           alt_text: string | null
           created_at: string
+          deleted_at: string | null
           filename: string
           id: string
           mime_type: string | null
@@ -71,6 +141,7 @@ export type Database = {
         Insert: {
           alt_text?: string | null
           created_at?: string
+          deleted_at?: string | null
           filename: string
           id?: string
           mime_type?: string | null
@@ -83,6 +154,7 @@ export type Database = {
         Update: {
           alt_text?: string | null
           created_at?: string
+          deleted_at?: string | null
           filename?: string
           id?: string
           mime_type?: string | null
@@ -110,6 +182,7 @@ export type Database = {
           content_pl: string | null
           cover_image_url: string | null
           created_at: string
+          deleted_at: string | null
           editor: Database["public"]["Enums"]["editor_type"]
           id: string
           published_at: string | null
@@ -127,6 +200,7 @@ export type Database = {
           content_pl?: string | null
           cover_image_url?: string | null
           created_at?: string
+          deleted_at?: string | null
           editor?: Database["public"]["Enums"]["editor_type"]
           id?: string
           published_at?: string | null
@@ -144,6 +218,7 @@ export type Database = {
           content_pl?: string | null
           cover_image_url?: string | null
           created_at?: string
+          deleted_at?: string | null
           editor?: Database["public"]["Enums"]["editor_type"]
           id?: string
           published_at?: string | null
@@ -224,6 +299,7 @@ export type Database = {
           content_pl: string | null
           cover_image_url: string | null
           created_at: string
+          deleted_at: string | null
           editor: Database["public"]["Enums"]["editor_type"]
           excerpt_en: string | null
           excerpt_pl: string | null
@@ -244,6 +320,7 @@ export type Database = {
           content_pl?: string | null
           cover_image_url?: string | null
           created_at?: string
+          deleted_at?: string | null
           editor?: Database["public"]["Enums"]["editor_type"]
           excerpt_en?: string | null
           excerpt_pl?: string | null
@@ -264,6 +341,7 @@ export type Database = {
           content_pl?: string | null
           cover_image_url?: string | null
           created_at?: string
+          deleted_at?: string | null
           editor?: Database["public"]["Enums"]["editor_type"]
           excerpt_en?: string | null
           excerpt_pl?: string | null
@@ -324,6 +402,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rate_limits: {
+        Row: {
+          count: number
+          id: string
+          scope: string
+          subject_id: string
+          window_start: string
+        }
+        Insert: {
+          count?: number
+          id?: string
+          scope: string
+          subject_id: string
+          window_start?: string
+        }
+        Update: {
+          count?: number
+          id?: string
+          scope?: string
+          subject_id?: string
+          window_start?: string
+        }
+        Relationships: []
       }
       tags: {
         Row: {
@@ -426,6 +528,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      storage_path_tenant: { Args: { _name: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "editor" | "author"
