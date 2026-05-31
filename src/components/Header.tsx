@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Moon, Sun, Search, Menu, X, ChevronDown, Mail, Facebook, Twitter, Youtube, Instagram, Linkedin, Send, LogIn, LayoutDashboard } from "@/lib/lucide-shim";
+import { Moon, Sun, Search, Menu, X, Mail, Facebook, Twitter, Youtube, Instagram, Linkedin, Send, LogIn, LayoutDashboard } from "@/lib/lucide-shim";
 import { useState } from "react";
 import { useTheme } from "./ThemeProvider";
 import { useAuth } from "@/hooks/useAuth";
