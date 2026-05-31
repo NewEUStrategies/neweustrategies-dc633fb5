@@ -76,10 +76,15 @@ const SCOPE_COPY = {
 const newColumn = (span = 12): ColumnNode => ({
   id: newId(), kind: "column", span: { desktop: span }, children: [],
 });
-const newSection = (cols = 1): SectionNode => ({
-  id: newId(), kind: "section",
-  children: Array.from({ length: cols }, () => newColumn(12 / cols)),
-});
+const newSection = (colsOrSpans: number | number[] = 1): SectionNode => {
+  const spans = Array.isArray(colsOrSpans)
+    ? colsOrSpans
+    : Array.from({ length: colsOrSpans }, () => 12 / colsOrSpans);
+  return {
+    id: newId(), kind: "section",
+    children: spans.map((sp) => newColumn(sp)),
+  };
+};
 const newInnerSection = (): InnerSectionNode => ({
   id: newId(), kind: "inner-section",
   columns: [newColumn(6), newColumn(6)],
