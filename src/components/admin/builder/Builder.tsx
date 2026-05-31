@@ -614,18 +614,18 @@ function EmptyState({ onAdd, title, hint }: { onAdd: (cols: number) => void; tit
     { cols: 4, label: "1/4 x4", hint: "Cztery kolumny" },
   ];
   return (
-    <div className="bg-card/60 border-2 border-dashed border-brand/40 rounded-lg p-10 text-center my-4">
+    <div data-section-inserter className="bg-card/60 border-2 border-dashed border-brand/40 rounded-lg p-10 text-center my-4">
       <div className="mx-auto w-10 h-10 rounded-full bg-brand/10 text-brand inline-flex items-center justify-center mb-3">
         <Plus className="w-5 h-5" />
       </div>
       <h3 className="text-sm font-semibold mb-1">{title ?? "Zacznij budować stronę"}</h3>
       <p className="text-xs text-muted-foreground mb-5">
-        {hint ?? "Wybierz strukturę pierwszej sekcji. Pojawi się między nagłówkiem a stopką."}
+        {hint ?? "Wybierz liczbę kolumn pierwszej sekcji. Pojawi się między nagłówkiem a stopką."}
       </p>
 
       <div className="flex flex-wrap gap-2 justify-center">
         {STRUCTURES.map((s) => (
-          <button key={s.cols} onClick={() => onAdd(s.cols)}
+          <button key={s.cols} type="button" onClick={() => onAdd(s.cols)}
             title={s.hint}
             className="px-3 py-2 bg-muted hover:bg-brand hover:text-brand-foreground rounded text-xs transition">
             {s.label}
