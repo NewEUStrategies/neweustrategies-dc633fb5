@@ -14,6 +14,7 @@ import {
   safeUrl,
   safeImageUrl,
 } from "@/lib/sanitize";
+import { useInView } from "@/hooks/use-in-view";
 
 type Lang = "pl" | "en";
 
