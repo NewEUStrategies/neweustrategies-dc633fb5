@@ -4,7 +4,7 @@
 import type { CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { WidgetNode, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
+import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import {
   sanitizeHtml,
