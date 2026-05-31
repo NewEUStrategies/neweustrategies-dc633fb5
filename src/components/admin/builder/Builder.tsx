@@ -503,7 +503,7 @@ function Toolbar({
   );
 }
 
-function EmptyState({ onAdd }: { onAdd: (cols: number) => void }) {
+function EmptyState({ onAdd, title, hint }: { onAdd: (cols: number) => void; title?: string; hint?: string }) {
   const STRUCTURES = [
     { cols: 1, label: "1", hint: "Pełna szerokość" },
     { cols: 2, label: "1/2 + 1/2", hint: "Dwie kolumny" },
@@ -515,10 +515,11 @@ function EmptyState({ onAdd }: { onAdd: (cols: number) => void }) {
       <div className="mx-auto w-10 h-10 rounded-full bg-brand/10 text-brand inline-flex items-center justify-center mb-3">
         <Plus className="w-5 h-5" />
       </div>
-      <h3 className="text-sm font-semibold mb-1">Zacznij budować stronę</h3>
+      <h3 className="text-sm font-semibold mb-1">{title ?? "Zacznij budować stronę"}</h3>
       <p className="text-xs text-muted-foreground mb-5">
-        Wybierz strukturę pierwszej sekcji. Pojawi się między nagłówkiem a stopką.
+        {hint ?? "Wybierz strukturę pierwszej sekcji. Pojawi się między nagłówkiem a stopką."}
       </p>
+
       <div className="flex flex-wrap gap-2 justify-center">
         {STRUCTURES.map((s) => (
           <button key={s.cols} onClick={() => onAdd(s.cols)}
