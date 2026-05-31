@@ -54,7 +54,13 @@ export interface CommonStyle {
 
 export type MotionPreset =
   | "none" | "fade" | "slide-up" | "slide-down" | "slide-left" | "slide-right"
-  | "zoom" | "zoom-out" | "bounce";
+  | "zoom" | "zoom-out" | "bounce"
+  | "flip-x" | "flip-y" | "rotate" | "skew" | "blur"
+  | "reveal-up" | "reveal-down" | "tilt" | "swing" | "pulse" | "rubber";
+
+export type MotionEasing =
+  | "ease" | "ease-in" | "ease-out" | "ease-in-out" | "linear"
+  | "spring" | "bounce";
 
 export interface AdvancedSettings {
   cssClass?: string;
@@ -63,6 +69,8 @@ export interface AdvancedSettings {
   animationDelay?: number;       // ms
   animationDuration?: number;    // ms
   animationOnce?: boolean;       // play only once on first view (default true)
+  animationEasing?: MotionEasing;
+  animationDistance?: number;    // px — for slide/reveal presets
   hideOn?: { desktop?: boolean; tablet?: boolean; mobile?: boolean };
   htmlId?: string;
 }
