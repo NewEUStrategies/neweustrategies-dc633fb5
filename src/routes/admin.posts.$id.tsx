@@ -190,7 +190,7 @@ function EditPost() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className={form.editor === "builder" ? "lg:col-span-3 space-y-5" : "lg:col-span-2 space-y-5"}>
+        <div className="lg:col-span-2 space-y-5">
           {form.editor === "builder" ? (
             <>
               <div className="grid grid-cols-2 gap-4">
