@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Text, SaveBar } from "@/components/admin/settings/fields";
-import { Plus, Trash2, ArrowUp, ArrowDown } from "@/lib/lucide-shim";
+import { Plus, Trash2, ChevronUp, ChevronDown } from "@/lib/lucide-shim";
 
 type MenuItem = { label_pl: string; label_en: string; url: string };
 type MenuSettings = { items: MenuItem[] };
