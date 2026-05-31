@@ -65,17 +65,17 @@ export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }:
           <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
             Nowa sekcja
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-5 gap-1.5">
             {STRUCTURES.map((s) => (
               <button
                 key={s.cols}
                 type="button"
                 onClick={() => onPickStructure(s.cols)}
-                className="aspect-square bg-muted/30 hover:bg-muted hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-1 p-2 transition group"
+                className="h-12 bg-muted/30 hover:bg-muted hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 p-1 transition group"
                 title={`Dodaj sekcję ${s.label}`}
               >
-                <Plus className="w-4 h-4 text-muted-foreground group-hover:text-brand" />
-                <span className="text-[10px]">{s.label}</span>
+                <Plus className="w-3 h-3 text-muted-foreground group-hover:text-brand" />
+                <span className="text-[9px] leading-tight">{s.label}</span>
               </button>
             ))}
           </div>
