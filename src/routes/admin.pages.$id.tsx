@@ -169,6 +169,16 @@ function EditPage() {
         <Label>Slug</Label>
         <Input value={form.slug} onChange={(e) => set("slug", e.target.value)} />
       </div>
+      <PageParentSelect
+        tenantId={tenantId}
+        value={form.parent_id}
+        onChange={(v) => set("parent_id", v)}
+        excludeId={form.id}
+      />
+      <div>
+        <Label>Kolejność w menu</Label>
+        <Input type="number" value={form.menu_order} onChange={(e) => set("menu_order", Number(e.target.value) || 0)} />
+      </div>
       <div>
         <Label>{t("admin.posts.cover")}</Label>
         <Input value={form.cover_image_url ?? ""} onChange={(e) => set("cover_image_url", e.target.value)} placeholder="https://..." />
