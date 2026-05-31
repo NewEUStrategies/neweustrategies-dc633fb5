@@ -250,7 +250,7 @@ export const updatePage = createServerFn({ method: "POST" })
       if (exErr) throw new Error(exErr.message);
       if (!existing) throw new Error("Page not found or access denied");
 
-      const updates: Record<string, unknown> = { ...data.fields };
+      const updates: PageUpdateRow = { ...data.fields } as PageUpdateRow;
       if (typeof updates.slug === "string") {
         updates.slug = await uniqueSlug(supabase, "pages", tenantId, updates.slug, data.id);
       }
