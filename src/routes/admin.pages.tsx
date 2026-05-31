@@ -25,6 +25,7 @@ function PagesList() {
   const lang = i18n.language ?? "pl";
   const qc = useQueryClient();
   const { tenantId } = useAuth();
+  const del$ = useServerFn(deletePage);
 
   const { data: pages, isLoading } = useQuery({
     enabled: !!tenantId,
@@ -42,11 +43,12 @@ function PagesList() {
 
   const del = async (id: string) => {
     if (!confirm(t("admin.confirmDelete"))) return;
-    const { error } = await supabase.from("pages").delete().eq("id", id);
-    if (error) toast.error(error.message);
-    else {
+    try {
+      await del$({ data: { id } });
       toast.success(t("admin.deleted"));
       qc.invalidateQueries({ queryKey: ["admin-pages"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
     }
   };
 
