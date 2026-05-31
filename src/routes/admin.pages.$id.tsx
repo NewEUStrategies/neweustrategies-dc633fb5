@@ -43,6 +43,8 @@ function EditPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const update$ = useServerFn(updatePage);
+  const delete$ = useServerFn(deletePage);
 
   const { data: page, isLoading } = useQuery({
     queryKey: ["page", id],
