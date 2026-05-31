@@ -15,8 +15,7 @@ interface Props {
   onPickTemplate: (tpl: SectionTemplate) => void;
 }
 
-export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }: Props) {
-  const _ = onPickWidget; void _;
+export function WidgetLibrary({ onPickStructure, onPickTemplate }: Props) {
   const [search, setSearch] = useState("");
   const [historyOf, setHistoryOf] = useState<SectionTemplate | null>(null);
   const filtered = WIDGETS.filter((w) => w.label.toLowerCase().includes(search.toLowerCase()));
