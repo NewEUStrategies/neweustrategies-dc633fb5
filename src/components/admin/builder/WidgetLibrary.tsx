@@ -1,11 +1,12 @@
 // Left-panel widget library: searchable grid of widgets grouped by category,
 // plus a structure picker to add a new section, plus a saved-section template list.
 import { useState } from "react";
-import { Search, Plus, Layers, Trash2, Save } from "@/lib/lucide-shim";
+import { Search, Plus, Layers, Trash2, Save, Clock } from "@/lib/lucide-shim";
 import { WIDGETS } from "@/lib/builder/registry";
 import type { WidgetType } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
-import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
+import { useSectionTemplates, type SectionTemplate, type TemplateRevision } from "@/lib/builder/templates";
+import { TemplateHistoryDialog } from "./TemplateHistoryDialog";
 
 const STRUCTURES: Array<{ cols: number; label: string }> = [
   { cols: 1, label: "1" }, { cols: 2, label: "1/2 + 1/2" },
@@ -20,11 +21,27 @@ interface Props {
 
 export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }: Props) {
   const [search, setSearch] = useState("");
+  const [historyOf, setHistoryOf] = useState<SectionTemplate | null>(null);
   const filtered = WIDGETS.filter((w) => w.label.toLowerCase().includes(search.toLowerCase()));
   const labels: Record<string, string> = {
     basic: "Podstawowe", media: "Media", dynamic: "Dynamiczne", form: "Formularze", blocks: "Bloki",
   };
   const tpl = useSectionTemplates();
+
+  const restoreToTemplate = async (rev: TemplateRevision) => {
+    await tpl.update(rev.template_id, { section: rev.data, name: rev.name });
+    setHistoryOf(null);
+  };
+  const insertRevision = (rev: TemplateRevision) => {
+    onPickTemplate({
+      id: rev.template_id,
+      name: rev.name,
+      data: rev.data,
+      created_at: rev.created_at,
+      created_by: rev.created_by,
+    });
+    setHistoryOf(null);
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -81,6 +98,10 @@ export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }:
                     className="flex-1 text-left text-xs px-2 py-1.5 bg-muted/30 hover:bg-brand hover:text-brand-foreground border border-border rounded truncate">
                     {t.name}
                   </button>
+                  <button type="button" title="Historia wersji" onClick={() => setHistoryOf(t)}
+                    className="p-1 text-muted-foreground hover:text-brand opacity-0 group-hover/tpl:opacity-100 transition">
+                    <Clock className="w-3 h-3" />
+                  </button>
                   <button type="button" title="Usuń szablon" onClick={() => { if (confirm(`Usunąć szablon "${t.name}"?`)) void tpl.remove(t.id); }}
                     className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover/tpl:opacity-100 transition">
                     <Trash2 className="w-3 h-3" />
@@ -125,6 +146,14 @@ export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }:
           );
         })}
       </div>
+
+      <TemplateHistoryDialog
+        template={historyOf}
+        open={!!historyOf}
+        onOpenChange={(o) => { if (!o) setHistoryOf(null); }}
+        onInsert={insertRevision}
+        onRestore={(r) => { void restoreToTemplate(r); }}
+      />
     </div>
   );
 }
