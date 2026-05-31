@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/users")({
@@ -13,17 +13,26 @@ export const Route = createFileRoute("/admin/users")({
 
 type Role = "admin" | "editor" | "author";
 
+interface UserRow {
+  id: string;
+  display_name: string | null;
+  email: string | null;
+  created_at: string;
+  roles: Role[];
+}
+
 function Users() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { user } = useAuth();
+  const tenantId = useRequiredTenant();
 
   const { data } = useQuery({
-    queryKey: ["all-users"],
-    queryFn: async () => {
+    queryKey: ["all-users", tenantId],
+    queryFn: async (): Promise<UserRow[]> => {
       const [{ data: profiles }, { data: roles }] = await Promise.all([
-        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-        supabase.from("user_roles").select("user_id, role"),
+        supabase.from("profiles").select("id, display_name, email, created_at").eq("tenant_id", tenantId).order("created_at", { ascending: false }),
+        supabase.from("user_roles").select("user_id, role").eq("tenant_id", tenantId),
       ]);
       return (profiles ?? []).map((p) => ({
         ...p,
@@ -33,9 +42,9 @@ function Users() {
   });
 
   const changeRole = async (uid: string, role: Role) => {
-    await supabase.from("user_roles").delete().eq("user_id", uid);
-    const { error } = await supabase.from("user_roles").insert({ user_id: uid, role });
-    if (error) return toast.error(error.message);
+    await supabase.from("user_roles").delete().eq("user_id", uid).eq("tenant_id", tenantId);
+    const { error } = await supabase.from("user_roles").insert({ user_id: uid, role, tenant_id: tenantId });
+    if (error) { toast.error(error.message); return; }
     toast.success(t("admin.saved"));
     qc.invalidateQueries({ queryKey: ["all-users"] });
   };
@@ -60,10 +69,10 @@ function Users() {
                 <td className="p-3 text-muted-foreground">{u.email}</td>
                 <td className="p-3">
                   {u.id === user?.id ? (
-                    <Badge>{u.roles[0] ?? "—"}</Badge>
+                    <Badge>{u.roles[0] ?? "-"}</Badge>
                   ) : (
                     <Select value={u.roles[0] ?? ""} onValueChange={(v) => changeRole(u.id, v as Role)}>
-                      <SelectTrigger className="w-32"><SelectValue placeholder="—" /></SelectTrigger>
+                      <SelectTrigger className="w-32"><SelectValue placeholder="-" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="admin">Admin</SelectItem>
                         <SelectItem value="editor">Editor</SelectItem>
