@@ -505,6 +505,9 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                   onInsertSection={insertSectionAt}
                   onMoveWidget={moveWidgetTo}
                   onMoveSection={moveSectionTo}
+                  onDropNewWidgetToColumn={addWidgetToColumn}
+                  onDropNewWidgetNear={insertWidgetNear}
+                  onDropNewWidgetToSection={appendWidgetToSection}
                   firstLabel={copy.first} lastLabel={copy.last}
                 />
               ) : (
