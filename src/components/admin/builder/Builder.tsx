@@ -39,6 +39,7 @@ import { WidgetProperties } from "./WidgetProperties";
 import { ColumnProperties } from "./ColumnProperties";
 import { WidgetLibrary } from "./WidgetLibrary";
 import { Navigator } from "./Navigator";
+import { BuilderRenderer } from "./BuilderRenderer";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import {
