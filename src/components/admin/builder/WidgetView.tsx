@@ -1,7 +1,9 @@
-// Renders a widget (read-only). Used in the live preview inside the builder
-// canvas and on public pages. All user-authored strings (custom CSS, ids,
-// classes, html, urls) go through src/lib/sanitize.ts.
-import { useState, type CSSProperties } from "react";
+// Renders a widget (read-only by default; opt-in inline editing in the builder
+// canvas via `editable` + `onContentChange`). Used in the live preview inside
+// the builder canvas and on public pages. All user-authored strings (custom
+// CSS, ids, classes, html, urls) go through src/lib/sanitize.ts.
+import { useEffect, useRef, useState, type CSSProperties, type ElementType, type KeyboardEvent } from "react";
+import { sanitizeHtml as _sanitizeHtml } from "@/lib/sanitize";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
