@@ -73,10 +73,16 @@ function makeIcon(faDef: IconDefinition, LucideComp: LucideIconImpl): LucideIcon
           />
         );
       }
+      // Font Awesome glyphs visually read larger than Lucide's stroked icons
+      // at the same box size. Scale down to ~72% so they look balanced
+      // when used as drop-in replacements.
+      const scaled = typeof size === "number" ? Math.round(size * 0.72) : size;
       const merged: React.CSSProperties = {
-        width: typeof size === "number" ? `${size}px` : size,
-        height: typeof size === "number" ? `${size}px` : size,
+        width: typeof scaled === "number" ? `${scaled}px` : scaled,
+        height: typeof scaled === "number" ? `${scaled}px` : scaled,
+        fontSize: typeof scaled === "number" ? `${scaled}px` : scaled,
         color,
+        verticalAlign: "middle",
         ...style,
       };
       return (
