@@ -141,7 +141,7 @@ function Editable({
   );
 }
 
-export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
+function getStr(c: WidgetContent, k: string): string {
   const v = c[k];
   return typeof v === "string" ? v : "";
 }
@@ -166,7 +166,7 @@ const MOTION_INITIAL: Record<string, CSSProperties> = {
 };
 const MOTION_FINAL: CSSProperties = { opacity: 1, transform: "translate(0,0) scale(1)" };
 
-export function WidgetView({ node, lang, device }: ViewProps) {
+export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
   const baseStyle = styleToCSS(node.style, device);
   const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
   const htmlId = sanitizeHtmlId(node.advanced?.htmlId);
