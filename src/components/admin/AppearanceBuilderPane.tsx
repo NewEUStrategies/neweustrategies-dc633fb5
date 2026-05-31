@@ -18,7 +18,7 @@ interface Props {
 
 type Json = Record<string, unknown>;
 
-export function AppearanceBuilderPane({ settingsKey, title }: Props) {
+export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
   const qc = useQueryClient();
   const [lang, setLang] = useState<"pl" | "en">("pl");
   const [doc, setDoc] = useState<BuilderDocument | null>(null);
