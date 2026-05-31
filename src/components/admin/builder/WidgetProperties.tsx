@@ -104,7 +104,16 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
             onChange={(typography: WidgetTypography) => setStyle((s) => { s.typography = typography; })}
           />
         </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Hover</h4>
+          <HoverControl
+            value={widget.style?.hover}
+            onChange={(hover) => setStyle((s) => { s.hover = hover; })}
+          />
+        </section>
       </TabsContent>
+
 
       <TabsContent value="advanced" className="space-y-4 mt-3">
         <section className="space-y-2">
