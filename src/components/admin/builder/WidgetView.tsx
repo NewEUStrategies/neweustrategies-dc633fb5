@@ -203,16 +203,26 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
   );
 
   const c = node.content;
+  const canEdit = editable && !!onContentChange;
+  const commit = (k: string, v: string) => onContentChange?.(k, v);
 
   switch (node.type) {
     case "heading": {
-      const text = getStr(c, `text_${lang}`) || getStr(c, "text_pl");
+      const key = `text_${lang}`;
+      const text = getStr(c, key) || getStr(c, "text_pl");
       const tag = (getStr(c, "tag") || "h2") as "h1"|"h2"|"h3"|"h4";
+      if (canEdit) {
+        return wrap(<Editable as={tag} value={text} onCommit={(v) => commit(key, v)} className="font-display text-3xl" placeholder="Nagłówek…" />);
+      }
       const Tag = tag;
       return wrap(<Tag className="font-display text-3xl">{text}</Tag>);
     }
     case "text": {
-      const html = getStr(c, `html_${lang}`) || getStr(c, "html_pl");
+      const key = `html_${lang}`;
+      const html = getStr(c, key) || getStr(c, "html_pl");
+      if (canEdit) {
+        return wrap(<Editable as="div" html multiline value={html} onCommit={(v) => commit(key, v)} className="prose prose-sm max-w-none dark:prose-invert" placeholder="Wpisz tekst…" />);
+      }
       return wrap(<div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />);
     }
     case "image": {
@@ -222,7 +232,8 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       return wrap(<img src={src} alt={alt} className="max-w-full h-auto rounded" loading="lazy" />);
     }
     case "button": {
-      const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl");
+      const key = `label_${lang}`;
+      const label = getStr(c, key) || getStr(c, "label_pl");
       const href = safeUrl(getStr(c, "href"));
       const variant = getStr(c, "variant") || "primary";
       const variantCls = variant === "outline"
@@ -230,7 +241,11 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         : variant === "ghost"
         ? "hover:bg-muted"
         : "bg-brand text-brand-foreground hover:opacity-90";
-      return wrap(<a href={href} rel={href.startsWith("http") ? "noopener noreferrer" : undefined} className={`inline-flex items-center px-5 py-2.5 rounded-md text-sm font-medium transition ${variantCls}`}>{label}</a>);
+      const cls = `inline-flex items-center px-5 py-2.5 rounded-md text-sm font-medium transition ${variantCls}`;
+      if (canEdit) {
+        return wrap(<Editable as="span" value={label} onCommit={(v) => commit(key, v)} className={cls} placeholder="Etykieta…" />);
+      }
+      return wrap(<a href={href} rel={href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{label}</a>);
     }
     case "divider":
       return wrap(<hr className="border-border" />);
