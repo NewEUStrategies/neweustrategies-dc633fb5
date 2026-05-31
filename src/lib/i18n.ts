@@ -307,8 +307,9 @@ if (!i18n.isInitialized) {
       fallbackLng: "pl",
       supportedLngs: ["pl", "en"],
       interpolation: { escapeValue: false },
+      initImmediate: false,
+      react: { useSuspense: false },
     });
 }
-
 
 export default i18n;
