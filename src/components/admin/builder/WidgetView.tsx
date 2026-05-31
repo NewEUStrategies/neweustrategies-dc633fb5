@@ -247,6 +247,43 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       }
       return wrap(<a href={href} rel={href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{label}</a>);
     }
+    case "nav-link": {
+      const key = `label_${lang}`;
+      const label = getStr(c, key) || getStr(c, "label_pl");
+      const href = safeUrl(getStr(c, "href"));
+      const target = getStr(c, "target") === "blank" ? "_blank" : undefined;
+      const variant = getStr(c, "variant") || "text";
+      const iconName = getStr(c, "iconName");
+      const variantCls =
+        variant === "primary" ? "inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-brand text-brand-foreground hover:opacity-90"
+        : variant === "outline" ? "inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-border hover:bg-muted"
+        : variant === "pill" ? "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted hover:bg-muted/70"
+        : variant === "underline" ? "inline-flex items-center gap-1.5 underline-offset-4 hover:underline"
+        : "inline-flex items-center gap-1.5 hover:text-brand";
+      const cls = `text-xs font-bold tracking-wider transition ${variantCls}`;
+      const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
+        LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
+      const Cmp = iconName ? (reg[iconName] ?? null) : null;
+      if (canEdit) {
+        return wrap(
+          <span className={cls}>
+            {Cmp ? <Cmp size={14} /> : null}
+            <Editable as="span" value={label} onCommit={(v) => commit(key, v)} placeholder="Etykieta…" />
+          </span>,
+        );
+      }
+      return wrap(
+        <a
+          href={href}
+          target={target}
+          rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined}
+          className={cls}
+        >
+          {Cmp ? <Cmp size={14} /> : null}
+          {label}
+        </a>,
+      );
+    }
     case "divider":
       return wrap(<hr className="border-border" />);
     case "spacer":
