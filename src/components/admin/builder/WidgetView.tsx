@@ -96,24 +96,24 @@ export function WidgetView({ node, lang, device }: ViewProps) {
     }
     case "text": {
       const html = getStr(c, `html_${lang}`) || getStr(c, "html_pl");
-      return wrap(<div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: html }} />);
+      return wrap(<div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />);
     }
     case "image": {
-      const src = getStr(c, "src");
-      const alt = getStr(c, `alt_${lang}`);
+      const src = safeImageUrl(getStr(c, "src"));
+      const alt = getStr(c, `alt_${lang}`) || getStr(c, "alt_pl");
       if (!src) return wrap(<div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>);
-      return wrap(<img src={src} alt={alt} className="max-w-full h-auto rounded" />);
+      return wrap(<img src={src} alt={alt} className="max-w-full h-auto rounded" loading="lazy" />);
     }
     case "button": {
       const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl");
-      const href = getStr(c, "href") || "#";
+      const href = safeUrl(getStr(c, "href"));
       const variant = getStr(c, "variant") || "primary";
       const variantCls = variant === "outline"
         ? "border border-border hover:bg-muted"
         : variant === "ghost"
         ? "hover:bg-muted"
         : "bg-brand text-brand-foreground hover:opacity-90";
-      return wrap(<a href={href} className={`inline-flex items-center px-5 py-2.5 rounded-md text-sm font-medium transition ${variantCls}`}>{label}</a>);
+      return wrap(<a href={href} rel={href.startsWith("http") ? "noopener noreferrer" : undefined} className={`inline-flex items-center px-5 py-2.5 rounded-md text-sm font-medium transition ${variantCls}`}>{label}</a>);
     }
     case "divider":
       return wrap(<hr className="border-border" />);
@@ -126,14 +126,16 @@ export function WidgetView({ node, lang, device }: ViewProps) {
       if (ytMatch) {
         return wrap(<div className="aspect-video"><iframe src={`https://www.youtube.com/embed/${ytMatch[1]}`} title="video" className="w-full h-full rounded" allowFullScreen /></div>);
       }
-      return wrap(<video src={url} controls className="w-full rounded" />);
+      const safe = safeImageUrl(url) || (url.startsWith("https://") ? url : "");
+      if (!safe) return wrap(<div className="bg-muted rounded aspect-video flex items-center justify-center text-xs text-muted-foreground">niedozwolony URL</div>);
+      return wrap(<video src={safe} controls className="w-full rounded" />);
     }
     case "gallery": {
-      const imgs = getStrArr(c, "images");
+      const imgs = getStrArr(c, "images").map(safeImageUrl).filter(Boolean);
       const cols = getNum(c, "columns", 3);
       return wrap(<div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
         {imgs.length === 0 && <div className="col-span-full bg-muted rounded h-24 flex items-center justify-center text-xs text-muted-foreground">brak zdjęć</div>}
-        {imgs.map((src, i) => <img key={i} src={src} alt="" className="w-full h-32 object-cover rounded" />)}
+        {imgs.map((src, i) => <img key={i} src={src} alt="" className="w-full h-32 object-cover rounded" loading="lazy" />)}
       </div>);
     }
     case "icon": {
