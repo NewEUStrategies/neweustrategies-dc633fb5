@@ -40,19 +40,19 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <aside
         className={`${compact ? "w-14" : "w-64"} bg-card border-r border-border flex flex-col transition-all duration-200`}
       >
-        <div className={`${compact ? "p-2" : "p-5"} border-b border-border flex items-center gap-2`}>
-          <Link to="/admin" className={`font-display font-bold ${compact ? "text-base" : "text-lg"}`}>
-            {compact ? "NES" : <>NES <span className="text-brand">Admin</span></>}
-          </Link>
-          {!compact && (
+        <div className={`${compact ? "p-2" : "p-5"} border-b border-border`}>
+          <div className="flex items-center gap-2">
+            <Link to="/admin" className={`font-display font-bold ${compact ? "text-sm" : "text-lg"}`}>
+              {compact ? "NES" : <>NES <span className="text-brand">Admin</span></>}
+            </Link>
             <button
               onClick={() => setForceCompact((s) => !s)}
               className="ml-auto text-muted-foreground hover:text-foreground"
               title={compact ? "Rozszerz" : "Zwiń"}
             >
-              <PanelLeft className="w-4 h-4" />
+              <PanelLeft className={`w-4 h-4 transition-transform ${compact ? "" : "rotate-180"}`} />
             </button>
-          )}
+          </div>
           {!compact && <p className="text-xs text-muted-foreground mt-1 truncate">{user?.email}</p>}
         </div>
         <nav className="flex-1 p-2 space-y-1">
