@@ -663,31 +663,20 @@ function CanvasActionBar({
 }
 
 
-function EmptyState({ onAdd, title, hint }: { onAdd: (cols: number) => void; title?: string; hint?: string }) {
-  const STRUCTURES = [
-    { cols: 1, label: "1", hint: "Pełna szerokość" },
-    { cols: 2, label: "1/2 + 1/2", hint: "Dwie kolumny" },
-    { cols: 3, label: "1/3 x3", hint: "Trzy kolumny" },
-    { cols: 4, label: "1/4 x4", hint: "Cztery kolumny" },
-  ];
+function EmptyState({ onAdd, title, hint }: { onAdd: (spans: number[]) => void; title?: string; hint?: string }) {
   return (
-    <div data-section-inserter className="bg-card/60 border-2 border-dashed border-brand/40 rounded-lg p-10 text-center my-4">
-      <div className="mx-auto w-10 h-10 rounded-full bg-brand/10 text-brand inline-flex items-center justify-center mb-3">
-        <Plus className="w-5 h-5" />
+    <div data-section-inserter className="bg-card/60 border-2 border-dashed border-brand/40 rounded-lg p-8 my-4">
+      <div className="text-center mb-5">
+        <div className="mx-auto w-10 h-10 rounded-full bg-brand/10 text-brand inline-flex items-center justify-center mb-3">
+          <Plus className="w-5 h-5" />
+        </div>
+        <h3 className="text-sm font-semibold mb-1">{title ?? "Zacznij budować stronę"}</h3>
+        <p className="text-xs text-muted-foreground">
+          {hint ?? "Wybierz strukturę pierwszej sekcji."}
+        </p>
       </div>
-      <h3 className="text-sm font-semibold mb-1">{title ?? "Zacznij budować stronę"}</h3>
-      <p className="text-xs text-muted-foreground mb-5">
-        {hint ?? "Wybierz liczbę kolumn pierwszej sekcji. Pojawi się między nagłówkiem a stopką."}
-      </p>
-
-      <div className="flex flex-wrap gap-2 justify-center">
-        {STRUCTURES.map((s) => (
-          <button key={s.cols} type="button" onClick={() => onAdd(s.cols)}
-            title={s.hint}
-            className="px-3 py-2 bg-muted hover:bg-brand hover:text-brand-foreground rounded text-xs transition">
-            {s.label}
-          </button>
-        ))}
+      <div className="max-w-3xl mx-auto">
+        <StructurePicker onPick={onAdd} cols={4} />
       </div>
     </div>
   );
@@ -699,21 +688,18 @@ function EmptyState({ onAdd, title, hint }: { onAdd: (cols: number) => void; tit
 function SectionDropZone({
   onInsert, index, prominent, label,
 }: {
-  onInsert: (cols: number) => void; index: number;
+  onInsert: (spans: number[]) => void; index: number;
   prominent?: boolean; label?: string;
 }) {
   const [open, setOpen] = useState(false);
   if (open) {
     return (
-      <div data-section-inserter className="my-2 flex flex-wrap items-center gap-1 p-1.5 border border-brand/60 rounded bg-card shadow-sm" onClick={(e) => e.stopPropagation()}>
-        <span className="text-[10px] text-muted-foreground px-1">Liczba kolumn:</span>
-        {[1, 2, 3, 4].map((c) => (
-          <button key={c} type="button" onClick={() => { onInsert(c); setOpen(false); }}
-            className="px-2.5 py-1 text-[10px] bg-muted hover:bg-brand hover:text-brand-foreground rounded font-medium">
-            {c === 1 ? "1 kolumna" : `${c} kolumny`}
-          </button>
-        ))}
-        <button type="button" onClick={() => setOpen(false)} className="px-1 text-[10px] text-muted-foreground ml-auto">×</button>
+      <div data-section-inserter className="my-2 p-2 border border-brand/60 rounded bg-card shadow-sm" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Wybierz strukturę</span>
+          <button type="button" onClick={() => setOpen(false)} className="px-1 text-[11px] text-muted-foreground hover:text-foreground">×</button>
+        </div>
+        <StructurePicker onPick={(s) => { onInsert(s); setOpen(false); }} cols={7} compact />
       </div>
     );
   }
@@ -733,6 +719,7 @@ function SectionDropZone({
         {label && <span>{label}</span>}
       </button>
     </div>
+
   );
 }
 
