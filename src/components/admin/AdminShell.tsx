@@ -110,7 +110,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
       <main className="flex-1 overflow-x-auto">
-        <div className="max-w-6xl mx-auto p-6 lg:p-10">{children}</div>
+        <div className={isEditRoute ? "p-3" : "max-w-6xl mx-auto p-6 lg:p-10"}>{children}</div>
       </main>
     </div>
   );
