@@ -262,9 +262,9 @@ function EditPost() {
               <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="richtext">Rich text</SelectItem>
-                  <SelectItem value="markdown">Markdown</SelectItem>
-                  <SelectItem value="builder">Drag &amp; Drop Builder</SelectItem>
+                  <SelectItem value="builder">Visual Builder (Elementor)</SelectItem>
+                  <SelectItem value="richtext">Rich text (legacy)</SelectItem>
+                  <SelectItem value="markdown">Markdown (legacy)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
