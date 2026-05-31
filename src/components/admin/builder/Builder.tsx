@@ -385,6 +385,7 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
                     onMove={(dir) => moveSection(s.id, dir)}
                     onRemove={() => removeSection(s.id)}
                     onDuplicate={() => duplicateSection(s.id)}
+                    onSaveTemplate={() => saveSectionAsTemplate(s.id)}
                     onAddInnerSection={() => addInnerSection(s.id)}
                     onAddColumn={() => addColumn(s.id)}
                     onRemoveColumn={removeColumn}
