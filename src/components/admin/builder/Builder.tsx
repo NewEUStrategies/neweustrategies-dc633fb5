@@ -205,21 +205,30 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   }, [doc, selection]);
 
   const addWidgetToFocused = (type: WidgetType) => {
+    const w = makeWidget(type);
     if (!focusedColumn) {
       update((d) => {
         const s = newSection(1);
-        (s.children[0] as ColumnNode).children.push(makeWidget(type));
+        (s.children[0] as ColumnNode).children.push(w);
         d.sections.push(s);
       });
-      return;
+    } else {
+      update((d) => {
+        const c = findColumn(d, focusedColumn.id);
+        if (c) c.children.push(w);
+      });
     }
-    addWidgetToColumn(focusedColumn.id, type);
+    setSelection({ kind: "widget", id: w.id });
   };
 
-  const addWidgetToColumn = (colId: string, type: WidgetType) => update((d) => {
-    const c = findColumn(d, colId);
-    if (c) c.children.push(makeWidget(type));
-  });
+  const addWidgetToColumn = (colId: string, type: WidgetType) => {
+    const w = makeWidget(type);
+    update((d) => {
+      const c = findColumn(d, colId);
+      if (c) c.children.push(w);
+    });
+    setSelection({ kind: "widget", id: w.id });
+  };
 
   // Move a widget before/after another widget (across columns supported).
   const moveWidgetTo = (srcId: string, targetId: string, pos: "before" | "after") => update((d) => {
