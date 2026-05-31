@@ -567,6 +567,7 @@ function SectionView(p: SectionViewProps) {
                     onRemoveColumn={p.onRemoveColumn} onDuplicateColumn={p.onDuplicateColumn}
                     onRemoveWidget={p.onRemoveWidget} onDuplicateWidget={p.onDuplicateWidget}
                     onDropWidget={p.onDropWidget}
+                    onUpdateWidgetContent={p.onUpdateWidgetContent}
                   />
                 </div>
               );
@@ -578,7 +579,8 @@ function SectionView(p: SectionViewProps) {
                   onRemove={() => p.onRemoveColumn(child.id)}
                   onDuplicate={() => p.onDuplicateColumn(child.id)}
                   onRemoveWidget={p.onRemoveWidget} onDuplicateWidget={p.onDuplicateWidget}
-                  onDropWidget={p.onDropWidget} />
+                  onDropWidget={p.onDropWidget}
+                  onUpdateWidgetContent={p.onUpdateWidgetContent} />
               </div>
             );
           })}
