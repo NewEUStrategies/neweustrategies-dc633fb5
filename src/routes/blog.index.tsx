@@ -76,7 +76,7 @@ function BlogIndex() {
               const title = lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
               const excerpt = lang === "en" ? p.excerpt_en : p.excerpt_pl;
               return (
-                <Link key={p.id} to="/post/$slug" params={{ slug: p.slug }} className="bg-card border border-border rounded-lg overflow-hidden hover:border-brand transition">
+                <Link key={p.id} to={p.href} className="bg-card border border-border rounded-lg overflow-hidden hover:border-brand transition">
                   {p.cover_image_url && <img src={p.cover_image_url} alt="" className="w-full h-44 object-cover" loading="lazy" />}
                   <div className="p-5">
                     <h2 className="font-display text-xl mb-2 line-clamp-2">{title}</h2>
