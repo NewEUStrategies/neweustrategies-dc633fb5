@@ -519,33 +519,32 @@ function AdvancedPane({ section, onChange }: { section: SectionNode; onChange: M
     onChange((s) => { s.advanced = ensure(s.advanced); mut(s.advanced!); });
   const a = section.advanced ?? {};
   return (
-    <>
-      <Row label="HTML ID"><Input value={a.htmlId ?? ""} onChange={(e) => setA((x) => { x.htmlId = e.target.value || undefined; })} className="h-8 text-xs" /></Row>
-      <Row label="CSS class"><Input value={a.cssClass ?? ""} onChange={(e) => setA((x) => { x.cssClass = e.target.value || undefined; })} className="h-8 text-xs" /></Row>
-      <Row label="Animacja">
-        <Select value={a.animation ?? "none"} onValueChange={(v) => setA((x) => { x.animation = v as "none"|"fade"|"slide-up"|"zoom"; })}>
-          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Brak</SelectItem>
-            <SelectItem value="fade">Fade</SelectItem>
-            <SelectItem value="slide-up">Slide up</SelectItem>
-            <SelectItem value="zoom">Zoom</SelectItem>
-          </SelectContent>
-        </Select>
-      </Row>
-      <div className="space-y-1.5">
-        <Label className="text-xs">Ukryj na</Label>
-        {(["desktop","tablet","mobile"] as const).map((d) => (
-          <label key={d} className="flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={a.hideOn?.[d] ?? false}
-              onChange={(e) => setA((x) => { x.hideOn = { ...(x.hideOn ?? {}), [d]: e.target.checked }; })} />
-            {d}
-          </label>
-        ))}
-      </div>
-      <Row label="Custom CSS">
+    <div className="space-y-4">
+      <section className="space-y-2">
+        <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Identyfikatory</h4>
+        <PropField label="HTML ID">
+          <Input value={a.htmlId ?? ""} onChange={(e) => setA((x) => { x.htmlId = e.target.value || undefined; })} className="h-8 text-xs" />
+        </PropField>
+        <PropField label="CSS class">
+          <Input value={a.cssClass ?? ""} onChange={(e) => setA((x) => { x.cssClass = e.target.value || undefined; })} className="h-8 text-xs" />
+        </PropField>
+      </section>
+
+      <section className="space-y-2 pt-2 border-t border-border">
+        <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Motion</h4>
+        <MotionControl value={a} onChange={setA} />
+      </section>
+
+      <section className="space-y-2 pt-2 border-t border-border">
+        <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Widoczność</h4>
+        <VisibilityControl value={a} onChange={setA} />
+      </section>
+
+      <section className="space-y-2 pt-2 border-t border-border">
+        <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Custom CSS</h4>
         <Textarea rows={4} value={a.customCss ?? ""} onChange={(e) => setA((x) => { x.customCss = e.target.value || undefined; })} className="text-xs font-mono" placeholder=".my-class { color: red; }" />
-      </Row>
-    </>
+      </section>
+    </div>
   );
 }
+
