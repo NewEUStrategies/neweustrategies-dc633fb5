@@ -288,6 +288,99 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       return wrap(<hr className="border-border" />);
     case "spacer":
       return wrap(<div style={{ height: `${getNum(c, "height", 32)}px` }} />);
+    case "site-logo": {
+      const src = safeImageUrl(getStr(c, "src"));
+      const href = safeUrl(getStr(c, "href") || "/");
+      const showText = c.showText !== false;
+      const l1 = getStr(c, `line1_${lang}`) || getStr(c, "line1_pl") || "New";
+      const l2 = getStr(c, `line2_${lang}`) || getStr(c, "line2_pl") || "European";
+      const l3 = getStr(c, `line3_${lang}`) || getStr(c, "line3_pl") || "Strategies";
+      return wrap(
+        <a href={href} className="inline-flex items-center gap-3">
+          {src
+            ? <img src={src} alt="" className="w-12 h-12 md:w-14 md:h-14" />
+            : <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-brand/20 inline-flex items-center justify-center text-brand"><LucideIcons.Image size={20} /></div>}
+          {showText && (
+            <div className="leading-[1.05]">
+              <div className="font-display font-bold text-xl md:text-2xl">{l1}</div>
+              <div className="font-display font-bold text-xl md:text-2xl text-brand">{l2}</div>
+              <div className="font-display font-bold text-xl md:text-2xl">{l3}</div>
+            </div>
+          )}
+        </a>,
+      );
+    }
+    case "social-icons": {
+      const size = getNum(c, "size", 16);
+      const items: Array<{ k: string; Cmp: LucideIcons.LucideIcon; label: string; href?: string }> = [
+        { k: "facebook",  Cmp: LucideIcons.Facebook,  label: "Facebook" },
+        { k: "twitter",   Cmp: LucideIcons.Twitter,   label: "X" },
+        { k: "youtube",   Cmp: LucideIcons.Youtube,   label: "YouTube" },
+        { k: "instagram", Cmp: LucideIcons.Instagram, label: "Instagram" },
+        { k: "linkedin",  Cmp: LucideIcons.Linkedin,  label: "LinkedIn" },
+      ];
+      const email = getStr(c, "email");
+      return wrap(
+        <div className="flex items-center gap-3 text-muted-foreground">
+          {items.map(({ k, Cmp, label }) => {
+            const href = getStr(c, k);
+            if (!href) return null;
+            return <a key={k} href={safeUrl(href)} aria-label={label} className="hover:text-brand"><Cmp size={size} /></a>;
+          })}
+          {email && <a href={`mailto:${email}`} aria-label="Email" className="hover:text-brand"><LucideIcons.Mail size={size} /></a>}
+        </div>,
+      );
+    }
+    case "lang-switcher": {
+      const showLabel = c.showLabel !== false;
+      const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Zmień język";
+      return wrap(
+        <div className="inline-flex items-center gap-3 text-xs">
+          {showLabel && <span className="hidden md:inline text-muted-foreground">{label}</span>}
+          <button type="button" aria-label="English" className="text-base leading-none opacity-60 hover:opacity-100">🇬🇧</button>
+          <button type="button" aria-label="Polski" className="text-base leading-none opacity-60 hover:opacity-100">🇵🇱</button>
+        </div>,
+      );
+    }
+    case "theme-toggle": {
+      return wrap(
+        <button type="button" aria-label="Toggle theme" className="p-2 rounded-full hover:bg-muted transition">
+          <LucideIcons.Moon className="w-4 h-4" />
+        </button>,
+      );
+    }
+    case "account-link": {
+      const signin = getStr(c, `signin_${lang}`) || getStr(c, "signin_pl") || "Zaloguj";
+      const signup = getStr(c, `signup_${lang}`) || getStr(c, "signup_pl") || "Zarejestruj";
+      return wrap(
+        <span className="inline-flex items-center gap-2 text-xs">
+          <a href="/login" className="inline-flex items-center gap-1 font-semibold text-muted-foreground hover:text-brand">
+            <LucideIcons.LogIn className="w-3.5 h-3.5" /> {signin}
+          </a>
+          <span className="text-muted-foreground/40">|</span>
+          <a href="/login?mode=signup" className="font-semibold text-brand hover:underline">{signup}</a>
+        </span>,
+      );
+    }
+    case "search-button": {
+      const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Szukaj";
+      return wrap(
+        <button type="button" aria-label="Search" className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition">
+          <LucideIcons.Search className="w-4 h-4" />
+          <span className="hidden sm:inline">{label}</span>
+        </button>,
+      );
+    }
+    case "copyright": {
+      const txt = getStr(c, `text_${lang}`) || getStr(c, "text_pl");
+      const showYear = c.showYear !== false;
+      const brand = getStr(c, "brand");
+      return wrap(
+        <div className="text-xs text-muted-foreground text-center">
+          {showYear && `© ${new Date().getFullYear()} `}{brand}{brand && txt ? ". " : ""}{txt}{txt && "."}
+        </div>,
+      );
+    }
     case "video": {
       const url = getStr(c, "url");
       if (!url) return wrap(<div className="bg-muted rounded aspect-video flex items-center justify-center text-xs text-muted-foreground">brak wideo</div>);

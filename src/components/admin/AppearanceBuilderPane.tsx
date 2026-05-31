@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Builder } from "@/components/admin/builder/Builder";
 import { emptyDocument, type BuilderDocument } from "@/lib/builder/types";
+import { defaultDocFor } from "@/lib/builder/chromeDefaults";
 import { Button } from "@/components/ui/button";
 import { Save } from "@/lib/lucide-shim";
 import { toast } from "sonner";
@@ -39,8 +40,15 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
   useEffect(() => {
     if (!data || doc) return;
     const existing = (data.builder_data ?? null) as BuilderDocument | null;
-    setDoc(existing ?? emptyDocument());
-  }, [data, doc]);
+    if (existing && existing.sections?.length) {
+      setDoc(existing);
+    } else if (scope) {
+      // Seed with the live default chrome so every part is editable.
+      setDoc(defaultDocFor(scope));
+    } else {
+      setDoc(emptyDocument());
+    }
+  }, [data, doc, scope]);
 
   const save = useMutation({
     mutationFn: async (next: BuilderDocument) => {

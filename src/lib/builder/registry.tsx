@@ -7,6 +7,7 @@ import {
   Minus, MoveVertical, Video, GalleryHorizontal, Star, MapPin,
   Newspaper, Rows, FolderTree, Tags, Mail, Send, Megaphone,
   List, PanelLeft, Quote, Check, Link as LinkIcon,
+  Globe, Sun, Search, User, Facebook,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
@@ -60,6 +61,39 @@ export const WIDGETS: WidgetDef[] = [
       label_pl: "Nowy link", label_en: "New link",
       href: "/", target: "self",
       variant: "text",
+    }) },
+  // Site chrome (header / footer / menu)
+  { type: "site-logo", label: "Logo strony", category: "navigation", icon: ImageIcon,
+    defaults: () => ({
+      src: "", href: "/",
+      line1_pl: "New", line1_en: "New",
+      line2_pl: "European", line2_en: "European",
+      line3_pl: "Strategies", line3_en: "Strategies",
+      showText: true,
+    }) },
+  { type: "social-icons", label: "Ikony social", category: "navigation", icon: Facebook,
+    defaults: () => ({
+      facebook: "", twitter: "", youtube: "", instagram: "", linkedin: "", email: "",
+      size: 16,
+    }) },
+  { type: "lang-switcher", label: "Język (PL/EN)", category: "navigation", icon: Globe,
+    defaults: () => ({ showLabel: true, label_pl: "Zmień język", label_en: "Switch language" }) },
+  { type: "theme-toggle", label: "Tryb jasny/ciemny", category: "navigation", icon: Sun,
+    defaults: () => ({}) },
+  { type: "account-link", label: "Konto / Logowanie", category: "navigation", icon: User,
+    defaults: () => ({
+      signin_pl: "Zaloguj", signin_en: "Sign in",
+      signup_pl: "Zarejestruj", signup_en: "Sign up",
+      panel_pl: "Panel", panel_en: "Dashboard",
+    }) },
+  { type: "search-button", label: "Wyszukiwarka", category: "navigation", icon: Search,
+    defaults: () => ({ label_pl: "Szukaj", label_en: "Search" }) },
+  { type: "copyright", label: "Copyright", category: "navigation", icon: TypeIcon,
+    defaults: () => ({
+      text_pl: "Wszelkie prawa zastrzeżone",
+      text_en: "All rights reserved",
+      showYear: true,
+      brand: "New European Strategies",
     }) },
   // Rich blocks
   { type: "accordion", label: "Accordion", category: "blocks", icon: List,
