@@ -69,7 +69,7 @@ export function AppearanceBuilderPane({ settingsKey, title }: Props) {
           <Save className="w-4 h-4 mr-2" /> {save.isPending ? "..." : "Zapisz"}
         </Button>
       </div>
-      <Builder value={doc} onChange={onChange} lang={lang} onLangChange={setLang} />
+      <Builder value={doc} onChange={onChange} lang={lang} onLangChange={setLang} hideChrome />
     </div>
   );
 }

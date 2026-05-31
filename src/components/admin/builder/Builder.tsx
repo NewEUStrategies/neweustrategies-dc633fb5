@@ -56,7 +56,10 @@ interface Props {
   onChange: (v: BuilderDocument) => void;
   lang: "pl" | "en";
   onLangChange: (l: "pl" | "en") => void;
+  /** Hide the surrounding site Header/Footer preview chrome. */
+  hideChrome?: boolean;
 }
+
 
 const newColumn = (span = 12): ColumnNode => ({
   id: newId(), kind: "column", span: { desktop: span }, children: [],
@@ -70,7 +73,7 @@ const newInnerSection = (): InnerSectionNode => ({
   columns: [newColumn(6), newColumn(6)],
 });
 
-export function Builder({ value, onChange, lang, onLangChange }: Props) {
+export function Builder({ value, onChange, lang, onLangChange, hideChrome = false }: Props) {
   const initial = value ?? emptyDocument();
   const history = useHistory(initial, onChange);
   const doc = history.doc;
@@ -387,9 +390,12 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
             }`}
           >
             {/* Site chrome — Header preview with hover edit overlay */}
-            <ChromeFrame label="Nagłówek strony" editTo="/admin/settings/general">
-              <Header />
-            </ChromeFrame>
+            {!hideChrome && (
+              <ChromeFrame label="Nagłówek strony" editTo="/admin/settings/general">
+                <Header />
+              </ChromeFrame>
+            )}
+
 
             <div className="px-2 py-2">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -429,9 +435,12 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
               </DndContext>
             </div>
 
-            <ChromeFrame label="Stopka strony" editTo="/admin/settings/general">
-              <Footer />
-            </ChromeFrame>
+            {!hideChrome && (
+              <ChromeFrame label="Stopka strony" editTo="/admin/settings/general">
+                <Footer />
+              </ChromeFrame>
+            )}
+
           </div>
         </div>
       </div>
