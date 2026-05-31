@@ -58,7 +58,17 @@ interface Props {
   onLangChange: (l: "pl" | "en") => void;
   /** Hide the surrounding site Header/Footer preview chrome. */
   hideChrome?: boolean;
+  /** Editor scope — controls empty-state copy and drop-zone labels. */
+  scope?: "page" | "header" | "footer" | "menu";
 }
+
+const SCOPE_COPY = {
+  page:   { title: "Zacznij budować stronę",   hint: "Wybierz strukturę pierwszej sekcji. Pojawi się między nagłówkiem a stopką.", first: "Wstaw sekcję pod nagłówkiem", last: "Wstaw sekcję nad stopką", between: "Wstaw sekcję" },
+  header: { title: "Zbuduj nagłówek",          hint: "Dodaj pierwszą sekcję nagłówka — np. logo, menu, wyszukiwarka.",            first: "Wstaw sekcję nagłówka",      last: "Dodaj sekcję na końcu nagłówka", between: "Wstaw sekcję" },
+  footer: { title: "Zbuduj stopkę",            hint: "Dodaj pierwszą sekcję stopki — np. kolumny linków, kontakt, copyright.",    first: "Wstaw sekcję stopki",        last: "Dodaj sekcję na końcu stopki",   between: "Wstaw sekcję" },
+  menu:   { title: "Zbuduj menu",              hint: "Dodaj sekcję z linkami menu — użyj widgetu „Link nawigacji".",              first: "Wstaw sekcję menu",          last: "Dodaj sekcję na końcu menu",     between: "Wstaw sekcję" },
+} as const;
+
 
 
 const newColumn = (span = 12): ColumnNode => ({
