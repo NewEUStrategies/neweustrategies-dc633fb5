@@ -227,9 +227,18 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     }
     case "image": {
       const src = safeImageUrl(getStr(c, "src"));
+      const srcDark = safeImageUrl(getStr(c, "srcDark"));
       const alt = getStr(c, `alt_${lang}`) || getStr(c, "alt_pl");
-      if (!src) return wrap(<div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>);
-      return wrap(<img src={src} alt={alt} className="max-w-full h-auto rounded" loading="lazy" />);
+      if (!src && !srcDark) return wrap(<div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>);
+      if (srcDark && src && srcDark !== src) {
+        return wrap(
+          <picture>
+            <source srcSet={srcDark} media="(prefers-color-scheme: dark)" />
+            <img src={src} alt={alt} className="max-w-full h-auto rounded" loading="lazy" />
+          </picture>,
+        );
+      }
+      return wrap(<img src={src || srcDark} alt={alt} className="max-w-full h-auto rounded" loading="lazy" />);
     }
     case "button": {
       const key = `label_${lang}`;
