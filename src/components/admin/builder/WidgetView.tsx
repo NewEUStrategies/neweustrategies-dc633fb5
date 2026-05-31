@@ -141,7 +141,8 @@ export function WidgetView({ node, lang, device }: ViewProps) {
     case "icon": {
       const name = getStr(c, "name") || "Star";
       const size = getNum(c, "size", 32);
-      const reg = LucideIcons as unknown as Record<string, React.ComponentType<{ size?: number }>>;
+      const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
+        LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
       const Cmp = reg[name] ?? LucideIcons.Star;
       return wrap(<Cmp size={size} />);
     }
