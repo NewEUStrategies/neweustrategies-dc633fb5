@@ -273,7 +273,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const Icon = iconName ? (reg[iconName] ?? null) : null;
       const inner = canEdit
         ? <Editable as={tag} value={text} onCommit={(v) => commit(key, v)} className={headCls} placeholder="Nagłówek…" />
-        : (() => { const Tag = tag as keyof JSX.IntrinsicElements; return <Tag className={headCls}>{text}</Tag>; })();
+        : (() => { const Tag = tag as React.ElementType; return <Tag className={headCls}>{text}</Tag>; })();
       const titleRow = (
         <span className={`inline-flex items-center gap-2 ${iconPos === "right" ? "flex-row-reverse" : ""}`}>
           {Icon && <Icon size={28} className="opacity-80" />}
