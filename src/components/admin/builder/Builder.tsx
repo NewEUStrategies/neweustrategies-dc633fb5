@@ -13,7 +13,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Monitor, Tablet, Smartphone, Columns2,
   Layers, Settings as SettingsIcon, X, Eye, Search,
-} from "lucide-react";
+} from "@/lib/lucide-shim";
 import { WIDGETS, makeWidget } from "@/lib/builder/registry";
 import type {
   BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode,

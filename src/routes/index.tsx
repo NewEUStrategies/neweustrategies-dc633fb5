@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, ChevronLeft, ChevronRight, Flame } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Flame } from "@/lib/lucide-shim";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { NewsletterForm } from "@/components/NewsletterForm";

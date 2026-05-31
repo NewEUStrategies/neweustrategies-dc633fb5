@@ -6,8 +6,8 @@ import {
   Heading1, Type as TypeIcon, Image as ImageIcon, MousePointerClick,
   Minus, MoveVertical, Video, GalleryHorizontal, Star, MapPin,
   Newspaper, Rows, FolderTree, Tags, Mail, Send, Megaphone,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+} from "@/lib/lucide-shim";
+import type { LucideIcon } from "@/lib/lucide-shim";
 
 export interface WidgetDef {
   type: WidgetType;

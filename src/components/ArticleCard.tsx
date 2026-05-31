@@ -1,4 +1,4 @@
-import { Clock, User } from "lucide-react";
+import { Clock, User } from "@/lib/lucide-shim";
 import { CategoryTag } from "./CategoryTag";
 
 type Props = {

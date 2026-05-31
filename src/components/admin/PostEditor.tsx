@@ -6,7 +6,7 @@ import { useEffect, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Bold, Italic, List, ListOrdered, Heading2, Heading3, Link as LinkIcon, Image as ImageIc, Quote, Undo, Redo } from "lucide-react";
+import { Bold, Italic, List, ListOrdered, Heading2, Heading3, Link as LinkIcon, Image as ImageIc, Quote, Undo, Redo } from "@/lib/lucide-shim";
 
 interface Props {
   value: string;
