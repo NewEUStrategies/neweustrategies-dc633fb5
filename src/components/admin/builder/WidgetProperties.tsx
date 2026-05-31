@@ -19,6 +19,8 @@ import { TypographyControl } from "./ui/molecules/TypographyControl";
 import { MotionControl } from "./ui/molecules/MotionControl";
 import { VisibilityControl } from "./ui/molecules/VisibilityControl";
 import { HoverControl } from "./ui/molecules/HoverControl";
+import { SchemaFieldControl } from "./ui/molecules/SchemaFieldControl";
+import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 
 interface Props {
   widget: WidgetNode;
