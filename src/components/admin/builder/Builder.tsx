@@ -540,7 +540,7 @@ function SectionDropZone({
         title={label ?? `Wstaw sekcję w pozycji ${index + 1}`}
         className={`w-full rounded inline-flex items-center justify-center gap-1.5 text-[10px] transition ${
           prominent
-            ? "h-7 border border-dashed border-brand/40 text-brand/80 hover:border-brand hover:bg-brand/5"
+            ? "h-[42px] border border-dashed border-brand/40 text-brand/80 hover:border-brand hover:bg-brand/5"
             : "h-5 border border-dashed border-transparent text-muted-foreground group-hover:border-brand/40 group-hover:text-brand"
         }`}
       >
