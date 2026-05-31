@@ -16,7 +16,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { PostEditor } from "@/components/admin/PostEditor";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
-import { ArrowLeft, Save, Trash2 } from "@/lib/lucide-shim";
+import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/pages/$id")({
