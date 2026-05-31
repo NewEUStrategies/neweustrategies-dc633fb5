@@ -114,10 +114,6 @@ function GeneralSettings() {
           <option value="fontawesome">Font Awesome (rezerwowy)</option>
         </Select>
       </Field>
-          <option value="1">poniedziałek</option>
-          <option value="0">niedziela</option>
-        </Select>
-      </Field>
 
       <SaveBar saving={save.isPending} onSave={() => save.mutate(draft)} />
     </div>
