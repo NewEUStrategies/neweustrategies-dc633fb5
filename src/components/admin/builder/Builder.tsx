@@ -16,7 +16,7 @@ import {
 } from "@/lib/lucide-shim";
 import { WIDGETS, makeWidget } from "@/lib/builder/registry";
 import type {
-  BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode,
+  BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode, Json,
   Device, WidgetType, CommonStyle, ResponsiveValue,
 } from "@/lib/builder/types";
 import { emptyDocument, newId } from "@/lib/builder/types";
