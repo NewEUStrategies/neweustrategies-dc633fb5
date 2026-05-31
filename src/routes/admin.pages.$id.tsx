@@ -58,40 +58,59 @@ function EditPage() {
     },
   });
 
-  const [form, setForm] = useState<PageForm | null>(null);
+  const history = useUndoRedo<PageForm | null>(null);
+  const form = history.state;
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (page) setForm(page); }, [page]);
+  useEffect(() => { if (page) history.reset(page); }, [page, history.reset]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.ctrlKey || e.metaKey;
+      if (!meta) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); history.undo(); }
+      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); history.redo(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [history.undo, history.redo]);
+
+  const saveFn = useCallback(async (snapshot: PageForm | null) => {
+    if (!snapshot) return;
+    await update$({
+      data: {
+        id,
+        fields: {
+          slug: snapshot.slug,
+          status: snapshot.status,
+          editor: snapshot.editor,
+          title_pl: snapshot.title_pl,
+          title_en: snapshot.title_en,
+          content_pl: snapshot.content_pl,
+          content_en: snapshot.content_en,
+          cover_image_url: snapshot.cover_image_url,
+          builder_data: snapshot.builder_data,
+        },
+      },
+    });
+    qc.invalidateQueries({ queryKey: ["admin-pages"] });
+    qc.invalidateQueries({ queryKey: ["page", id] });
+  }, [id, update$, qc]);
+
+  const autosave = useAutosave({ value: form, enabled: !!form, save: saveFn });
 
   if (isLoading || !form) return <div className="text-sm text-muted-foreground">...</div>;
 
   const set = <K extends keyof PageForm>(k: K, v: PageForm[K]) =>
-    setForm((f) => (f ? { ...f, [k]: v } : f));
+    history.set((f) => (f ? { ...f, [k]: v } : f), { coalesce: true });
 
   const pickImage = async (): Promise<string | null> => window.prompt("URL obrazka") ?? null;
 
   const save = async () => {
-    if (!form) return;
     setBusy(true);
     try {
-      await update$({
-        data: {
-          id,
-          fields: {
-            slug: form.slug,
-            status: form.status,
-            editor: form.editor,
-            title_pl: form.title_pl,
-            title_en: form.title_en,
-            content_pl: form.content_pl,
-            content_en: form.content_en,
-            cover_image_url: form.cover_image_url,
-            builder_data: form.builder_data,
-          },
-        },
-      });
-      qc.invalidateQueries({ queryKey: ["admin-pages"] });
-      qc.invalidateQueries({ queryKey: ["page", id] });
+      await autosave.flush();
       toast.success(t("admin.saved"));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
@@ -99,8 +118,6 @@ function EditPage() {
       setBusy(false);
     }
   };
-
-  const del = async () => {
     if (!confirm(t("admin.confirmDelete"))) return;
     try {
       await delete$({ data: { id } });
