@@ -58,7 +58,18 @@ interface Props {
   onLangChange: (l: "pl" | "en") => void;
   /** Hide the surrounding site Header/Footer preview chrome. */
   hideChrome?: boolean;
+  /** Editor scope — controls empty-state copy and drop-zone labels. */
+  scope?: "page" | "header" | "footer" | "menu";
 }
+
+const SCOPE_COPY = {
+  page:   { title: "Zacznij budować stronę", hint: "Wybierz strukturę pierwszej sekcji. Pojawi się między nagłówkiem a stopką.", first: "Wstaw sekcję pod nagłówkiem", last: "Wstaw sekcję nad stopką" },
+  header: { title: "Zbuduj nagłówek",        hint: "Dodaj pierwszą sekcję nagłówka (logo, menu, wyszukiwarka).",                first: "Wstaw sekcję nagłówka",      last: "Dodaj sekcję na końcu nagłówka" },
+  footer: { title: "Zbuduj stopkę",          hint: "Dodaj pierwszą sekcję stopki (kolumny linków, kontakt, copyright).",       first: "Wstaw sekcję stopki",        last: "Dodaj sekcję na końcu stopki" },
+  menu:   { title: "Zbuduj menu",            hint: "Dodaj sekcję z linkami menu — użyj widgetu Link nawigacji.",               first: "Wstaw sekcję menu",          last: "Dodaj sekcję na końcu menu" },
+} as const;
+
+
 
 
 const newColumn = (span = 12): ColumnNode => ({
@@ -73,7 +84,9 @@ const newInnerSection = (): InnerSectionNode => ({
   columns: [newColumn(6), newColumn(6)],
 });
 
-export function Builder({ value, onChange, lang, onLangChange, hideChrome = false }: Props) {
+export function Builder({ value, onChange, lang, onLangChange, hideChrome = false, scope = "page" }: Props) {
+  const copy = SCOPE_COPY[scope];
+
   const initial = value ?? emptyDocument();
   const history = useHistory(initial, onChange);
   const doc = history.doc;
@@ -399,9 +412,10 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
 
             <div className="px-2 py-2">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                {doc.sections.length === 0 && <EmptyState onAdd={addSection} />}
+                {doc.sections.length === 0 && <EmptyState onAdd={addSection} title={copy.title} hint={copy.hint} />}
 
-                <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} prominent label="Wstaw sekcję pod nagłówkiem" />
+                <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} prominent label={copy.first} />
+
 
                 {doc.sections.map((s, idx) => (
                   <div key={s.id}>
@@ -428,7 +442,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                       onInsert={(cols) => insertSectionAt(idx + 1, cols)}
                       index={idx + 1}
                       prominent={idx === doc.sections.length - 1}
-                      label={idx === doc.sections.length - 1 ? "Wstaw sekcję nad stopką" : undefined}
+                      label={idx === doc.sections.length - 1 ? copy.last : undefined}
                     />
                   </div>
                 ))}
@@ -489,7 +503,7 @@ function Toolbar({
   );
 }
 
-function EmptyState({ onAdd }: { onAdd: (cols: number) => void }) {
+function EmptyState({ onAdd, title, hint }: { onAdd: (cols: number) => void; title?: string; hint?: string }) {
   const STRUCTURES = [
     { cols: 1, label: "1", hint: "Pełna szerokość" },
     { cols: 2, label: "1/2 + 1/2", hint: "Dwie kolumny" },
@@ -501,10 +515,11 @@ function EmptyState({ onAdd }: { onAdd: (cols: number) => void }) {
       <div className="mx-auto w-10 h-10 rounded-full bg-brand/10 text-brand inline-flex items-center justify-center mb-3">
         <Plus className="w-5 h-5" />
       </div>
-      <h3 className="text-sm font-semibold mb-1">Zacznij budować stronę</h3>
+      <h3 className="text-sm font-semibold mb-1">{title ?? "Zacznij budować stronę"}</h3>
       <p className="text-xs text-muted-foreground mb-5">
-        Wybierz strukturę pierwszej sekcji. Pojawi się między nagłówkiem a stopką.
+        {hint ?? "Wybierz strukturę pierwszej sekcji. Pojawi się między nagłówkiem a stopką."}
       </p>
+
       <div className="flex flex-wrap gap-2 justify-center">
         {STRUCTURES.map((s) => (
           <button key={s.cols} onClick={() => onAdd(s.cols)}

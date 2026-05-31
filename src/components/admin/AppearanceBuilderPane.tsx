@@ -12,11 +12,13 @@ import { toast } from "sonner";
 interface Props {
   settingsKey: string;
   title: string;
+  scope?: "header" | "footer" | "menu";
 }
+
 
 type Json = Record<string, unknown>;
 
-export function AppearanceBuilderPane({ settingsKey, title }: Props) {
+export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
   const qc = useQueryClient();
   const [lang, setLang] = useState<"pl" | "en">("pl");
   const [doc, setDoc] = useState<BuilderDocument | null>(null);
@@ -69,7 +71,7 @@ export function AppearanceBuilderPane({ settingsKey, title }: Props) {
           <Save className="w-4 h-4 mr-2" /> {save.isPending ? "..." : "Zapisz"}
         </Button>
       </div>
-      <Builder value={doc} onChange={onChange} lang={lang} onLangChange={setLang} hideChrome />
+      <Builder value={doc} onChange={onChange} lang={lang} onLangChange={setLang} hideChrome scope={scope} />
     </div>
   );
 }
