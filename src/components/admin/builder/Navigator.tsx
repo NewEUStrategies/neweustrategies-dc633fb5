@@ -140,7 +140,7 @@ function Row({
         className="text-muted-foreground hover:text-foreground"
         title={hidden ? "Pokaż" : "Ukryj"}
       >
-        {hidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+        <Eye className={`w-3 h-3 ${hidden ? "opacity-30" : ""}`} />
       </button>
     </div>
   );
