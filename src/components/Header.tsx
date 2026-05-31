@@ -48,12 +48,18 @@ export function Header() {
           <div className="flex items-center gap-3">
             {session && isStaff ? (
               <Link to="/admin" className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline">
-                <LayoutDashboard className="w-3.5 h-3.5" /> Panel
+                <LayoutDashboard className="w-3.5 h-3.5" /> {lang.startsWith("pl") ? "Panel" : "Dashboard"}
               </Link>
             ) : (
-              <Link to="/login" className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-brand">
-                <LogIn className="w-3.5 h-3.5" /> {lang.startsWith("pl") ? "Zaloguj" : "Sign in"}
-              </Link>
+              <span className="hidden sm:inline-flex items-center gap-2 text-xs">
+                <Link to="/login" className="inline-flex items-center gap-1 font-semibold text-muted-foreground hover:text-brand">
+                  <LogIn className="w-3.5 h-3.5" /> {lang.startsWith("pl") ? "Zaloguj" : "Sign in"}
+                </Link>
+                <span className="text-muted-foreground/40">|</span>
+                <Link to="/login" search={{ mode: "signup" }} className="font-semibold text-brand hover:underline">
+                  {lang.startsWith("pl") ? "Zarejestruj" : "Sign up"}
+                </Link>
+              </span>
             )}
             <span className="hidden md:inline text-muted-foreground">
               {lang.startsWith("pl") ? "Zmień język" : "Switch language"}
