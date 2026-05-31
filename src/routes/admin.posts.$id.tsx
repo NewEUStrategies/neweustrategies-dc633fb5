@@ -243,7 +243,6 @@ function EditPost() {
           )}
         </div>
 
-        {form.editor !== "builder" && (
         <aside className="space-y-5">
           <div className="bg-card border border-border rounded-lg p-4 space-y-3">
             <div>
