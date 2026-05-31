@@ -3,7 +3,7 @@
 // or restore a revision as the current template content (creates a new revision via DB trigger).
 import { useTemplateRevisions, type SectionTemplate, type TemplateRevision } from "@/lib/builder/templates";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Clock, RotateCcw, Plus } from "@/lib/lucide-shim";
+import { Clock, Undo as RotateCcw, Plus } from "@/lib/lucide-shim";
 
 interface Props {
   template: SectionTemplate | null;
