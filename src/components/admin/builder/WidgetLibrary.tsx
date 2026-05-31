@@ -146,6 +146,14 @@ export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }:
           );
         })}
       </div>
+
+      <TemplateHistoryDialog
+        template={historyOf}
+        open={!!historyOf}
+        onOpenChange={(o) => { if (!o) setHistoryOf(null); }}
+        onInsert={insertRevision}
+        onRestore={(r) => { void restoreToTemplate(r); }}
+      />
     </div>
   );
 }
