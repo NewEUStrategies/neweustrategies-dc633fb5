@@ -73,11 +73,8 @@ export const defaultFooterDoc = (): BuilderDocument => ({
     section(
       [
         col(6, [
-          widget("site-logo", {
-            src: "", href: "/", showText: true,
-            line1_pl: "New", line1_en: "New",
-            line2_pl: "European", line2_en: "European",
-            line3_pl: "Strategies", line3_en: "Strategies",
+          widget("image", {
+            src: "", alt_pl: "Logo", alt_en: "Logo", href: "/", maxWidth: "180px",
           }),
           widget("text", {
             html_pl: "<p>Naszym celem jest zdefiniowanie przyszłości europejskiego bezpieczeństwa.</p>",
