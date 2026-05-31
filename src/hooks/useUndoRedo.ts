@@ -12,7 +12,7 @@ const MAX_HISTORY = 50;
 
 export interface UndoRedo<T> {
   state: T;
-  set: (next: T, opts?: { coalesce?: boolean }) => void;
+  set: (next: T | ((prev: T) => T), opts?: { coalesce?: boolean }) => void;
   reset: (next: T) => void;
   undo: () => void;
   redo: () => void;
@@ -29,15 +29,18 @@ export function useUndoRedo<T>(initial: T): UndoRedo<T> {
   const [s, setS] = useState<HistoryState<T>>({ past: [], present: initial, future: [] });
   const coalesceRef = useRef(false);
 
-  const set = useCallback((next: T, opts?: { coalesce?: boolean }) => {
+  const set = useCallback((next: T | ((prev: T) => T), opts?: { coalesce?: boolean }) => {
     setS((prev) => {
-      if (next === prev.present) return prev;
+      const resolved = typeof next === "function"
+        ? (next as (p: T) => T)(prev.present)
+        : next;
+      if (Object.is(resolved, prev.present)) return prev;
       if (opts?.coalesce && coalesceRef.current) {
-        return { past: prev.past, present: next, future: [] };
+        return { past: prev.past, present: resolved, future: [] };
       }
       coalesceRef.current = true;
       const past = [...prev.past, prev.present].slice(-MAX_HISTORY);
-      return { past, present: next, future: [] };
+      return { past, present: resolved, future: [] };
     });
   }, []);
 
