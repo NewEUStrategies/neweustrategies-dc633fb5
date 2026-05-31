@@ -15,6 +15,7 @@ import "../lib/i18n";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { AuthProvider } from "../hooks/useAuth";
 import { Toaster } from "../components/ui/sonner";
+import { IconPackSync } from "../components/IconPackSync";
 
 function NotFoundComponent() {
   return (
@@ -124,6 +125,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
+          <IconPackSync />
           <Outlet />
           <Toaster />
         </AuthProvider>

@@ -1,6 +1,7 @@
 /**
- * Drop-in replacement for `lucide-react` icon components, backed by Font Awesome.
- * Keeps the same PascalCase API so existing code can `import { Foo } from "@/lib/lucide-shim"`.
+ * Drop-in icon API. Renders Lucide by default; switches to Font Awesome
+ * when the icon pack is set to "fontawesome" via @/lib/iconPack.
+ * Keeps the same PascalCase exports used across the app.
  */
 import { forwardRef, type SVGAttributes } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -21,6 +22,30 @@ import {
 import {
   faFacebook, faInstagram, faLinkedin, faXTwitter, faYoutube,
 } from "@fortawesome/free-brands-svg-icons";
+import {
+  ArrowLeft as LArrowLeft, ArrowRight as LArrowRight, Bold as LBold, Check as LCheck,
+  ChevronDown as LChevronDown, ChevronLeft as LChevronLeft, ChevronRight as LChevronRight,
+  ChevronUp as LChevronUp, Circle as LCircle, Clock as LClock, Columns2 as LColumns2,
+  Copy as LCopy, Eye as LEye, File as LFile, FileText as LFileText, Flame as LFlame,
+  FolderTree as LFolderTree, GalleryHorizontal as LGalleryHorizontal, Globe as LGlobe,
+  GripVertical as LGripVertical, Heading1 as LHeading1, Heading2 as LHeading2,
+  Heading3 as LHeading3, Home as LHome, Image as LImage, Italic as LItalic,
+  Layers as LLayers, LayoutDashboard as LLayoutDashboard, Link as LLink, List as LList,
+  ListOrdered as LListOrdered, LogIn as LLogIn, LogOut as LLogOut, Mail as LMail,
+  MapPin as LMapPin, Megaphone as LMegaphone, Menu as LMenu, Minus as LMinus,
+  Monitor as LMonitor, Moon as LMoon, MoreHorizontal as LMoreHorizontal,
+  MousePointerClick as LMousePointerClick, MoveVertical as LMoveVertical,
+  Newspaper as LNewspaper, PanelLeft as LPanelLeft, Pencil as LPencil, Plus as LPlus,
+  Quote as LQuote, Redo as LRedo, Loader2 as LLoader2, AlertTriangle as LAlertTriangle,
+  Rows as LRows, Save as LSave, Search as LSearch, Send as LSend, Settings as LSettings,
+  Smartphone as LSmartphone, Star as LStar, Sun as LSun, Tablet as LTablet, Tags as LTags,
+  Trash2 as LTrash2, Type as LType, Undo as LUndo, Upload as LUpload, User as LUser,
+  Users as LUsers, Video as LVideo, X as LX,
+  Facebook as LFacebook, Instagram as LInstagram, Linkedin as LLinkedin,
+  Twitter as LTwitter, Youtube as LYoutube,
+  type LucideIcon as LucideIconImpl,
+} from "lucide-react";
+import { useIconPack } from "@/lib/iconPack";
 
 export type LucideIcon = React.FC<IconProps>;
 
@@ -31,9 +56,23 @@ export interface IconProps extends Omit<SVGAttributes<SVGSVGElement>, "color"> {
   absoluteStrokeWidth?: boolean;
 }
 
-function makeIcon(def: IconDefinition): LucideIcon {
+function makeIcon(faDef: IconDefinition, LucideComp: LucideIconImpl): LucideIcon {
   const Comp = forwardRef<SVGSVGElement, IconProps>(
-    ({ size = 24, color, className, style, strokeWidth: _sw, absoluteStrokeWidth: _abs, ...rest }, ref) => {
+    ({ size = 24, color, className, style, strokeWidth, absoluteStrokeWidth: _abs, ...rest }, ref) => {
+      const pack = useIconPack();
+      if (pack === "lucide") {
+        return (
+          <LucideComp
+            size={size}
+            color={color}
+            strokeWidth={strokeWidth as number | undefined}
+            className={className}
+            style={style}
+            {...(rest as Record<string, unknown>)}
+            ref={ref as unknown as React.Ref<SVGSVGElement>}
+          />
+        );
+      }
       const merged: React.CSSProperties = {
         width: typeof size === "number" ? `${size}px` : size,
         height: typeof size === "number" ? `${size}px` : size,
@@ -42,7 +81,7 @@ function makeIcon(def: IconDefinition): LucideIcon {
       };
       return (
         <FontAwesomeIcon
-          icon={def}
+          icon={faDef}
           className={className}
           style={merged as React.CSSProperties & Record<`--fa-${string}`, string>}
           {...(rest as Record<string, unknown>)}
@@ -51,89 +90,89 @@ function makeIcon(def: IconDefinition): LucideIcon {
       );
     },
   );
-  Comp.displayName = `Icon(${def.iconName})`;
+  Comp.displayName = `Icon(${faDef.iconName})`;
   return Comp as LucideIcon;
 }
 
 // Solid
-export const ArrowLeft = makeIcon(faArrowLeft);
-export const ArrowRight = makeIcon(faArrowRight);
-export const Bold = makeIcon(faBold);
-export const Check = makeIcon(faCheck);
-export const ChevronDown = makeIcon(faChevronDown);
+export const ArrowLeft = makeIcon(faArrowLeft, LArrowLeft);
+export const ArrowRight = makeIcon(faArrowRight, LArrowRight);
+export const Bold = makeIcon(faBold, LBold);
+export const Check = makeIcon(faCheck, LCheck);
+export const ChevronDown = makeIcon(faChevronDown, LChevronDown);
 export const ChevronDownIcon = ChevronDown;
-export const ChevronLeft = makeIcon(faChevronLeft);
+export const ChevronLeft = makeIcon(faChevronLeft, LChevronLeft);
 export const ChevronLeftIcon = ChevronLeft;
-export const ChevronRight = makeIcon(faChevronRight);
+export const ChevronRight = makeIcon(faChevronRight, LChevronRight);
 export const ChevronRightIcon = ChevronRight;
-export const ChevronUp = makeIcon(faChevronUp);
-export const Circle = makeIcon(faCircle);
-export const Clock = makeIcon(faClock);
-export const Columns2 = makeIcon(faTableColumns);
-export const Copy = makeIcon(faCopy);
-export const Eye = makeIcon(faEye);
-export const File = makeIcon(faFile);
-export const FileText = makeIcon(faFileLines);
-export const Flame = makeIcon(faFire);
-export const FolderTree = makeIcon(faFolderTree);
-export const GalleryHorizontal = makeIcon(faImages);
-export const Globe = makeIcon(faGlobe);
-export const GripVertical = makeIcon(faGripVertical);
-export const Heading1 = makeIcon(faHeading);
-export const Heading2 = makeIcon(faHeading);
-export const Heading3 = makeIcon(faHeading);
-export const Home = makeIcon(faHouse);
-export const Image = makeIcon(faImage);
-export const Italic = makeIcon(faItalic);
-export const Layers = makeIcon(faLayerGroup);
-export const LayoutDashboard = makeIcon(faGauge);
-export const Link = makeIcon(faLink);
-export const List = makeIcon(faListUl);
-export const ListOrdered = makeIcon(faListOl);
-export const LogIn = makeIcon(faRightToBracket);
-export const LogOut = makeIcon(faRightFromBracket);
-export const Mail = makeIcon(faEnvelope);
-export const MapPin = makeIcon(faLocationDot);
-export const Megaphone = makeIcon(faBullhorn);
-export const Menu = makeIcon(faBars);
-export const Minus = makeIcon(faMinus);
-export const Monitor = makeIcon(faDesktop);
-export const Moon = makeIcon(faMoon);
-export const MoreHorizontal = makeIcon(faEllipsis);
-export const MousePointerClick = makeIcon(faHandPointer);
-export const MoveVertical = makeIcon(faUpDown);
-export const Newspaper = makeIcon(faNewspaper);
-export const PanelLeft = makeIcon(faTableColumns);
-export const Pencil = makeIcon(faPencil);
-export const Plus = makeIcon(faPlus);
-export const Quote = makeIcon(faQuoteRight);
-export const Redo = makeIcon(faRotateRight);
+export const ChevronUp = makeIcon(faChevronUp, LChevronUp);
+export const Circle = makeIcon(faCircle, LCircle);
+export const Clock = makeIcon(faClock, LClock);
+export const Columns2 = makeIcon(faTableColumns, LColumns2);
+export const Copy = makeIcon(faCopy, LCopy);
+export const Eye = makeIcon(faEye, LEye);
+export const File = makeIcon(faFile, LFile);
+export const FileText = makeIcon(faFileLines, LFileText);
+export const Flame = makeIcon(faFire, LFlame);
+export const FolderTree = makeIcon(faFolderTree, LFolderTree);
+export const GalleryHorizontal = makeIcon(faImages, LGalleryHorizontal);
+export const Globe = makeIcon(faGlobe, LGlobe);
+export const GripVertical = makeIcon(faGripVertical, LGripVertical);
+export const Heading1 = makeIcon(faHeading, LHeading1);
+export const Heading2 = makeIcon(faHeading, LHeading2);
+export const Heading3 = makeIcon(faHeading, LHeading3);
+export const Home = makeIcon(faHouse, LHome);
+export const Image = makeIcon(faImage, LImage);
+export const Italic = makeIcon(faItalic, LItalic);
+export const Layers = makeIcon(faLayerGroup, LLayers);
+export const LayoutDashboard = makeIcon(faGauge, LLayoutDashboard);
+export const Link = makeIcon(faLink, LLink);
+export const List = makeIcon(faListUl, LList);
+export const ListOrdered = makeIcon(faListOl, LListOrdered);
+export const LogIn = makeIcon(faRightToBracket, LLogIn);
+export const LogOut = makeIcon(faRightFromBracket, LLogOut);
+export const Mail = makeIcon(faEnvelope, LMail);
+export const MapPin = makeIcon(faLocationDot, LMapPin);
+export const Megaphone = makeIcon(faBullhorn, LMegaphone);
+export const Menu = makeIcon(faBars, LMenu);
+export const Minus = makeIcon(faMinus, LMinus);
+export const Monitor = makeIcon(faDesktop, LMonitor);
+export const Moon = makeIcon(faMoon, LMoon);
+export const MoreHorizontal = makeIcon(faEllipsis, LMoreHorizontal);
+export const MousePointerClick = makeIcon(faHandPointer, LMousePointerClick);
+export const MoveVertical = makeIcon(faUpDown, LMoveVertical);
+export const Newspaper = makeIcon(faNewspaper, LNewspaper);
+export const PanelLeft = makeIcon(faTableColumns, LPanelLeft);
+export const Pencil = makeIcon(faPencil, LPencil);
+export const Plus = makeIcon(faPlus, LPlus);
+export const Quote = makeIcon(faQuoteRight, LQuote);
+export const Redo = makeIcon(faRotateRight, LRedo);
 export const Redo2 = Redo;
-export const Loader2 = makeIcon(faSpinner);
-export const AlertTriangle = makeIcon(faTriangleExclamation);
-export const Rows = makeIcon(faGripLines);
-export const Save = makeIcon(faFloppyDisk);
-export const Search = makeIcon(faMagnifyingGlass);
-export const Send = makeIcon(faPaperPlane);
-export const Settings = makeIcon(faGear);
-export const Smartphone = makeIcon(faMobileScreen);
-export const Star = makeIcon(faStar);
-export const Sun = makeIcon(faSun);
-export const Tablet = makeIcon(faTabletScreenButton);
-export const Tags = makeIcon(faTags);
-export const Trash2 = makeIcon(faTrashCan);
-export const Type = makeIcon(faFont);
-export const Undo = makeIcon(faRotateLeft);
+export const Loader2 = makeIcon(faSpinner, LLoader2);
+export const AlertTriangle = makeIcon(faTriangleExclamation, LAlertTriangle);
+export const Rows = makeIcon(faGripLines, LRows);
+export const Save = makeIcon(faFloppyDisk, LSave);
+export const Search = makeIcon(faMagnifyingGlass, LSearch);
+export const Send = makeIcon(faPaperPlane, LSend);
+export const Settings = makeIcon(faGear, LSettings);
+export const Smartphone = makeIcon(faMobileScreen, LSmartphone);
+export const Star = makeIcon(faStar, LStar);
+export const Sun = makeIcon(faSun, LSun);
+export const Tablet = makeIcon(faTabletScreenButton, LTablet);
+export const Tags = makeIcon(faTags, LTags);
+export const Trash2 = makeIcon(faTrashCan, LTrash2);
+export const Type = makeIcon(faFont, LType);
+export const Undo = makeIcon(faRotateLeft, LUndo);
 export const Undo2 = Undo;
-export const Upload = makeIcon(faUpload);
-export const User = makeIcon(faUser);
-export const Users = makeIcon(faUsers);
-export const Video = makeIcon(faVideo);
-export const X = makeIcon(faXmark);
+export const Upload = makeIcon(faUpload, LUpload);
+export const User = makeIcon(faUser, LUser);
+export const Users = makeIcon(faUsers, LUsers);
+export const Video = makeIcon(faVideo, LVideo);
+export const X = makeIcon(faXmark, LX);
 
 // Brands
-export const Facebook = makeIcon(faFacebook);
-export const Instagram = makeIcon(faInstagram);
-export const Linkedin = makeIcon(faLinkedin);
-export const Twitter = makeIcon(faXTwitter);
-export const Youtube = makeIcon(faYoutube);
+export const Facebook = makeIcon(faFacebook, LFacebook);
+export const Instagram = makeIcon(faInstagram, LInstagram);
+export const Linkedin = makeIcon(faLinkedin, LLinkedin);
+export const Twitter = makeIcon(faXTwitter, LTwitter);
+export const Youtube = makeIcon(faYoutube, LYoutube);
