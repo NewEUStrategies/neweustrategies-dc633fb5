@@ -288,28 +288,6 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       return wrap(<hr className="border-border" />);
     case "spacer":
       return wrap(<div style={{ height: `${getNum(c, "height", 32)}px` }} />);
-    case "site-logo": {
-      const src = safeImageUrl(getStr(c, "src"));
-      const href = safeUrl(getStr(c, "href") || "/");
-      const showText = c.showText !== false;
-      const l1 = getStr(c, `line1_${lang}`) || getStr(c, "line1_pl") || "New";
-      const l2 = getStr(c, `line2_${lang}`) || getStr(c, "line2_pl") || "European";
-      const l3 = getStr(c, `line3_${lang}`) || getStr(c, "line3_pl") || "Strategies";
-      return wrap(
-        <a href={href} className="inline-flex items-center gap-3">
-          {src
-            ? <img src={src} alt="" className="w-12 h-12 md:w-14 md:h-14" />
-            : <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-brand/20 inline-flex items-center justify-center text-brand"><LucideIcons.Image size={20} /></div>}
-          {showText && (
-            <div className="leading-[1.05]">
-              <div className="font-display font-bold text-xl md:text-2xl">{l1}</div>
-              <div className="font-display font-bold text-xl md:text-2xl text-brand">{l2}</div>
-              <div className="font-display font-bold text-xl md:text-2xl">{l3}</div>
-            </div>
-          )}
-        </a>,
-      );
-    }
     case "social-icons": {
       const size = getNum(c, "size", 16);
       const items: Array<{ k: string; Cmp: LucideIcons.LucideIcon; label: string; href?: string }> = [
