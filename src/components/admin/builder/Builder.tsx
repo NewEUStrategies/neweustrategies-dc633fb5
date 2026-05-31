@@ -134,8 +134,8 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
     if (i < 0) return;
     d.sections.splice(i + 1, 0, cloneSection(d.sections[i]));
   });
-  const insertSectionAt = (index: number, cols: number) =>
-    update((d) => { d.sections.splice(index, 0, newSection(cols)); });
+  const insertSectionAt = (index: number, colsOrSpans: number | number[]) =>
+    update((d) => { d.sections.splice(index, 0, newSection(colsOrSpans)); });
   const addInnerSection = (sectionId: string) => update((d) => {
     const s = d.sections.find((x) => x.id === sectionId);
     if (s) s.children.push(newInnerSection());
