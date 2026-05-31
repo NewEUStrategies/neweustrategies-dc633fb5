@@ -118,6 +118,8 @@ function EditPage() {
       setBusy(false);
     }
   };
+
+  const del = async () => {
     if (!confirm(t("admin.confirmDelete"))) return;
     try {
       await delete$({ data: { id } });
