@@ -172,6 +172,9 @@ export type WidgetType =
   | "newsletter" | "contact" | "cta"
   // Navigation
   | "nav-link"
+  // Site chrome (header/footer/menu)
+  | "site-logo" | "social-icons" | "lang-switcher" | "theme-toggle"
+  | "account-link" | "search-button" | "copyright"
   // Rich blocks
   | "accordion" | "tabs" | "testimonial" | "pricing";
 
