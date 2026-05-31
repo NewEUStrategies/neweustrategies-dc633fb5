@@ -61,6 +61,7 @@ function EditPage() {
   const history = useUndoRedo<PageForm | null>(null);
   const form = history.state;
   const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState<"details" | "content">("details");
 
   useEffect(() => { if (page) history.reset(page); }, [page, history.reset]);
 
