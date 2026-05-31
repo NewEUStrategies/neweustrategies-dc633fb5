@@ -179,6 +179,11 @@ function EditPost() {
           <ArrowLeft className="w-4 h-4" /> {t("admin.back")}
         </Link>
         <div className="flex items-center gap-2">
+          <AutosaveBar
+            status={autosave.status} error={autosave.error}
+            canUndo={history.canUndo} canRedo={history.canRedo}
+            onUndo={history.undo} onRedo={history.redo}
+          />
           <Button variant="ghost" size="sm" onClick={del}><Trash2 className="w-4 h-4 mr-1 text-destructive" /> {t("admin.delete")}</Button>
           <Button onClick={save} disabled={busy}><Save className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.save")}</Button>
         </div>
