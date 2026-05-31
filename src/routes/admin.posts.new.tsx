@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { useAuth } from "@/hooks/useAuth";
+import { createPost } from "@/lib/content.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/posts/new")({
@@ -11,29 +12,22 @@ export const Route = createFileRoute("/admin/posts/new")({
 function NewPost() {
   const navigate = useNavigate();
   const { user, loading, tenantId } = useAuth();
+  const create = useServerFn(createPost);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (loading || busy || !user || !tenantId) return;
     setBusy(true);
     (async () => {
-      const slug = `post-${Date.now().toString(36)}`;
-      const { data, error } = await supabase
-        .from("posts")
-        .insert({ slug, author_id: user.id, tenant_id: tenantId, title_pl: "", title_en: "" })
-        .select("id")
-        .single();
-      if (error) {
-        toast.error(error.message);
+      try {
+        const { id } = await create({ data: {} });
+        navigate({ to: "/admin/posts/$id", params: { id }, replace: true });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : String(e));
         navigate({ to: "/admin/posts" });
-      } else {
-        navigate({ to: "/admin/posts/$id", params: { id: data.id }, replace: true });
       }
     })();
-  }, [user, tenantId, loading, busy, navigate]);
-
-  // touch useRequiredTenant to make intent explicit at type level
-  void useRequiredTenant;
+  }, [user, tenantId, loading, busy, navigate, create]);
 
   return <div className="text-sm text-muted-foreground">...</div>;
 }
