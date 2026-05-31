@@ -21,11 +21,27 @@ interface Props {
 
 export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }: Props) {
   const [search, setSearch] = useState("");
+  const [historyOf, setHistoryOf] = useState<SectionTemplate | null>(null);
   const filtered = WIDGETS.filter((w) => w.label.toLowerCase().includes(search.toLowerCase()));
   const labels: Record<string, string> = {
     basic: "Podstawowe", media: "Media", dynamic: "Dynamiczne", form: "Formularze", blocks: "Bloki",
   };
   const tpl = useSectionTemplates();
+
+  const restoreToTemplate = async (rev: TemplateRevision) => {
+    await tpl.update(rev.template_id, { section: rev.data, name: rev.name });
+    setHistoryOf(null);
+  };
+  const insertRevision = (rev: TemplateRevision) => {
+    onPickTemplate({
+      id: rev.template_id,
+      name: rev.name,
+      data: rev.data,
+      created_at: rev.created_at,
+      created_by: rev.created_by,
+    });
+    setHistoryOf(null);
+  };
 
   return (
     <div className="flex flex-col h-full">
