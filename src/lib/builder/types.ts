@@ -39,12 +39,25 @@ export type WidgetType =
   // Forms
   | "newsletter" | "contact" | "cta";
 
+// JSON-safe primitives that may live inside a widget's content map.
+// This is a discriminated, recursive JSON type - strictly stronger than
+// `unknown` because every consumer must narrow via typeof/Array.isArray.
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | Json[]
+  | { [key: string]: Json };
+
+export type WidgetContent = { [key: string]: Json };
+
 export interface WidgetNode {
   id: string;
   kind: "widget";
   type: WidgetType;
   // Bilingual content map. UI exposes one language tab at a time.
-  content: Record<string, unknown>;
+  content: WidgetContent;
   style?: CommonStyle;
   advanced?: AdvancedSettings;
 }
