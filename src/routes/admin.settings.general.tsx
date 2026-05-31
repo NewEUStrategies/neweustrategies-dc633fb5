@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, Select, SaveBar } from "@/components/admin/settings/fields";
+import { setIconPack, type IconPack } from "@/lib/iconPack";
 
 type General = {
   site_name: string;
@@ -14,6 +16,7 @@ type General = {
   date_format: string;
   time_format: string;
   week_starts_on: number;
+  icon_pack: IconPack;
 };
 
 const DEFAULTS: General = {
@@ -28,6 +31,7 @@ const DEFAULTS: General = {
   date_format: "d.m.Y",
   time_format: "H:i",
   week_starts_on: 1,
+  icon_pack: "lucide",
 };
 
 export const Route = createFileRoute("/admin/settings/general")({
@@ -38,9 +42,19 @@ function GeneralSettings() {
   const { query, save } = useSettings<General>("general", DEFAULTS);
   const [draft, setDraft] = useDraft(query.data);
 
+  // Live preview: switching the dropdown updates icons immediately.
+  useEffect(() => {
+    if (draft?.icon_pack) setIconPack(draft.icon_pack);
+  }, [draft?.icon_pack]);
+
   if (!draft) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
 
   const set = <K extends keyof General>(k: K, v: General[K]) => setDraft({ ...draft, [k]: v });
+
+  return (
+    <div>
+      <h2 className="font-display text-xl mb-4">Ustawienia ogólne</h2>
+
 
   return (
     <div>
