@@ -402,8 +402,34 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         </a>,
       );
     }
-    case "divider":
-      return wrap(<hr className="border-border" />);
+    case "divider": {
+      const variant = getStr(c, "variant") || "line";
+      const thickness = getNum(c, "thickness", 1);
+      if (variant === "gradient") {
+        return wrap(<div style={{ height: `${thickness}px` }} className="bg-gradient-to-r from-transparent via-border to-transparent" />);
+      }
+      if (variant === "icon") {
+        const iconName = getStr(c, "iconName") || "Star";
+        const reg = LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
+        const Icon = reg[iconName] ?? LucideIcons.Star;
+        return wrap(
+          <div className="flex items-center gap-3 text-muted-foreground">
+            <div className="flex-1 border-t border-border" style={{ borderTopWidth: thickness }} />
+            <Icon size={16} />
+            <div className="flex-1 border-t border-border" style={{ borderTopWidth: thickness }} />
+          </div>,
+        );
+      }
+      if (variant === "wave") {
+        return wrap(
+          <svg viewBox="0 0 200 8" preserveAspectRatio="none" className="w-full h-3 text-border">
+            <path d="M0 4 Q 25 0 50 4 T 100 4 T 150 4 T 200 4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          </svg>,
+        );
+      }
+      const styleType = variant === "dashed" ? "dashed" : variant === "dotted" ? "dotted" : variant === "double" ? "double" : "solid";
+      return wrap(<hr className="border-border" style={{ borderTopStyle: styleType, borderTopWidth: thickness }} />);
+    }
     case "spacer":
       return wrap(<div style={{ height: `${getNum(c, "height", 32)}px` }} />);
     case "social-icons": {
