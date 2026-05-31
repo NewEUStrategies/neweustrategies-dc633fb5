@@ -17,7 +17,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Monitor, Tablet, Smartphone, Columns2,
-  Settings as SettingsIcon, X, Eye, Copy, Undo, Redo, ChevronLeft,
+  Settings as SettingsIcon, X, Eye, Copy, Undo, Redo, ChevronLeft, Save,
 } from "@/lib/lucide-shim";
 import { WIDGETS, makeWidget } from "@/lib/builder/registry";
 import type {
@@ -31,6 +31,7 @@ import {
 } from "@/lib/builder/operations";
 import { copyToClipboard, readClipboard, type ClipEnvelope } from "@/lib/builder/clipboard";
 import { useHistory } from "@/lib/builder/useHistory";
+import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
 import { WidgetView } from "./WidgetView";
 import { SectionProperties } from "./SectionProperties";
 import { WidgetProperties } from "./WidgetProperties";
