@@ -18,9 +18,9 @@ export function Footer() {
           <p className="text-sm leading-relaxed mb-2">{t("footer.forum")}</p>
           <p className="text-sm leading-relaxed mb-6">{t("footer.vision")}</p>
           <div className="text-sm space-y-1">
-            <div><span className="text-white/50">{t("footer.contactLabel")}:</span> office@neweuropeanstrategies.com</div>
-            <div><span className="text-white/50">{t("footer.phoneLabel")}:</span> (+48) 784 880 318</div>
-            <div><span className="text-white/50">{t("footer.addressLabel")}:</span> Tytusa Chałubińskiego 8, 00-613, Warsaw</div>
+            <div><span className="text-white/50">{t("footer.contactLabel")}:</span><span> office@neweuropeanstrategies.com</span></div>
+            <div><span className="text-white/50">{t("footer.phoneLabel")}:</span><span> (+48) 784 880 318</span></div>
+            <div><span className="text-white/50">{t("footer.addressLabel")}:</span><span> Tytusa Chałubińskiego 8, 00-613, Warsaw</span></div>
           </div>
         </div>
         <div>

@@ -229,7 +229,7 @@ const resources = {
         a1d: "Russia's geographic position in Eurasia naturally leads Russian elites to perceive international relations through…",
         a2t: "The polycentrization of the world according to great powers: Eurasia",
         a2d: "Rupert Murdoch said that 'the world is dynamically changing'. We're moving from the old economic model to a new one…",
-        a3t: "Between greatness and decline. On Poland in the 21st century — Bartłomiej Radziejewski's book",
+        a3t: "Between greatness and decline. On Poland in the 21st century - Bartłomiej Radziejewski's book",
         a3d: "Bartłomiej Radziejewski's book, founder of think-zine Nowa Konfederacja, sparked great enthusiasm in me…",
         a4t: "Minister Radosław Sikorski: Poland can do better in international rivalry. What does it look like?",
         a5t: "General Skrzypczak: Military challenges for Poland's strategy in the global Great-Power Game",
@@ -241,7 +241,7 @@ const resources = {
         a9t: "What started the Cold War? The roots of conflict between the US and the Soviet Union",
         a10t: "Hegemonic clash: the Spanish Empire, England and the United Provinces",
         a10d: "The British joined the European race to build overseas empires relatively late…",
-        a11t: "Geostrategic challenges for Poland — General Stanisław Koziej",
+        a11t: "Geostrategic challenges for Poland - General Stanisław Koziej",
         a11d: "Conference interview with the former Head of the National Security Bureau (2010–2015) on Poland's strategic priorities.",
       },
       auth: {
@@ -307,8 +307,8 @@ if (!i18n.isInitialized) {
       fallbackLng: "pl",
       supportedLngs: ["pl", "en"],
       interpolation: { escapeValue: false },
+      react: { useSuspense: false },
     });
 }
-
 
 export default i18n;

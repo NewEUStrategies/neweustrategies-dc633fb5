@@ -20,7 +20,7 @@ import imgBook from "@/assets/book-review.jpg";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "New European Strategies — Strategic thinking, new perspectives" },
+      { title: "New European Strategies - Strategic thinking, new perspectives" },
       { name: "description", content: "Think-tank o europejskim bezpieczeństwie, geopolityce i grze mocarstw. Analizy, raporty, wywiady i policy papers." },
       { property: "og:title", content: "New European Strategies" },
       { property: "og:description", content: "Strategic thinking, new perspectives. European security, geopolitics, great-power rivalry." },
@@ -234,15 +234,15 @@ function Index() {
       <section className="max-w-[1400px] mx-auto w-full px-4 lg:px-8 py-12 grid lg:grid-cols-3 gap-8">
         <div>
           <SectionLabel label={t("sections.transportEnergy")} color="transport" action={t("sections.seeMore")} />
-          <p className="text-sm text-muted-foreground">— Coming soon —</p>
+          <p className="text-sm text-muted-foreground">- Coming soon -</p>
         </div>
         <div>
           <SectionLabel label={t("sections.diplomacy")} color="diplomacy" action={t("sections.seeMore")} />
-          <p className="text-sm text-muted-foreground">— Coming soon —</p>
+          <p className="text-sm text-muted-foreground">- Coming soon -</p>
         </div>
         <div>
           <SectionLabel label={t("sections.cybersecurity")} color="cyber" action={t("sections.seeMore")} />
-          <p className="text-sm text-muted-foreground">— Coming soon —</p>
+          <p className="text-sm text-muted-foreground">- Coming soon -</p>
         </div>
       </section>
 
