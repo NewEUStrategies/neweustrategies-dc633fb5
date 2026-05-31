@@ -122,13 +122,13 @@ export function Header() {
 
           <nav className="hidden lg:flex items-center gap-7">
             {nav.map((item) => (
-              <button
+              <a
                 key={item.label}
+                href={item.url || "#"}
                 className="flex items-center gap-1 text-xs font-bold tracking-wider text-foreground hover:text-brand transition"
               >
                 {item.label}
-                {item.hasSub && <ChevronDown className="w-3 h-3" />}
-              </button>
+              </a>
             ))}
           </nav>
 
