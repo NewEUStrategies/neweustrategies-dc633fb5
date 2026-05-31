@@ -412,9 +412,10 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
 
             <div className="px-2 py-2">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                {doc.sections.length === 0 && <EmptyState onAdd={addSection} />}
+                {doc.sections.length === 0 && <EmptyState onAdd={addSection} title={copy.title} hint={copy.hint} />}
 
-                <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} prominent label="Wstaw sekcję pod nagłówkiem" />
+                <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} prominent label={copy.first} />
+
 
                 {doc.sections.map((s, idx) => (
                   <div key={s.id}>
