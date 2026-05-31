@@ -17,10 +17,10 @@ export const Route = createFileRoute("/api/public/sitemap.xml")({
           { loc: `${origin}/blog` },
         ];
         for (const p of posts ?? []) {
-          urls.push({ loc: `${origin}/blog/${encodeURIComponent(p.slug)}`, lastmod: p.updated_at ?? p.published_at ?? undefined });
+          urls.push({ loc: `${origin}/post/${encodeURIComponent(p.slug)}`, lastmod: p.updated_at ?? p.published_at ?? undefined });
         }
         for (const p of pages ?? []) {
-          urls.push({ loc: `${origin}/p/${encodeURIComponent(p.slug)}`, lastmod: p.updated_at ?? p.published_at ?? undefined });
+          urls.push({ loc: `${origin}/${encodeURIComponent(p.slug)}`, lastmod: p.updated_at ?? p.published_at ?? undefined });
         }
 
         const xml =

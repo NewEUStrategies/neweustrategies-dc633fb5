@@ -197,7 +197,7 @@ function PostListView({ c, lang, carousel = false }: { c: WidgetContent; lang: L
   return (
     <div className={cls} style={style}>
       {(data ?? []).map((p) => (
-        <a key={p.id} href={`/blog/${p.slug}`} className={`bg-card border border-border rounded-lg overflow-hidden hover:border-brand transition ${carousel ? "min-w-[260px] snap-start" : ""}`}>
+        <a key={p.id} href={`/post/${p.slug}`} className={`bg-card border border-border rounded-lg overflow-hidden hover:border-brand transition ${carousel ? "min-w-[260px] snap-start" : ""}`}>
           {p.cover_image_url && <img src={p.cover_image_url} alt="" className="w-full h-40 object-cover" />}
           <div className="p-4">
             <h4 className="font-display text-lg mb-1 line-clamp-2">{lang === "pl" ? p.title_pl : p.title_en}</h4>

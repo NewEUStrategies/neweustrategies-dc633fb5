@@ -1,4 +1,4 @@
-// Public post renderer. URL: /blog/<slug>
+// Public post renderer. URL: /post/<slug>
 import { createFileRoute, notFound, Link, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,7 @@ import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import { sanitizeMarkdownHtml } from "@/lib/sanitize";
 
-export const Route = createFileRoute("/blog/$slug")({
+export const Route = createFileRoute("/post/$slug")({
   loader: async ({ params }) => {
     const { data, error } = await supabase
       .from("posts")
