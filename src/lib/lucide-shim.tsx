@@ -2,7 +2,7 @@
  * Drop-in replacement for `lucide-react` icon components, backed by Font Awesome.
  * Keeps the same PascalCase API so existing code can `import { Foo } from "@/lib/lucide-shim"`.
  */
-import { forwardRef, type CSSProperties, type SVGAttributes } from "react";
+import { forwardRef, type SVGAttributes } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import {
