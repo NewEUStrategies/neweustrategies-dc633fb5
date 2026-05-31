@@ -554,7 +554,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                         }
                       />
                       <SectionDropZone
-                        onInsert={(cols) => insertSectionAt(idx + 1, cols)}
+                        onInsert={(s) => insertSectionAt(idx + 1, s)}
                         index={idx + 1}
                         prominent={idx === doc.sections.length - 1}
                         label={idx === doc.sections.length - 1 ? copy.last : undefined}
