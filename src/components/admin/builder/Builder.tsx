@@ -510,6 +510,7 @@ interface SectionViewProps {
   onRemoveWidget: (id: string) => void;
   onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
+  onUpdateWidgetContent: (id: string, key: string, value: string) => void;
 }
 
 function SectionView(p: SectionViewProps) {
