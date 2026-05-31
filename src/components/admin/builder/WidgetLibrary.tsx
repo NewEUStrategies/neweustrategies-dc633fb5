@@ -1,25 +1,22 @@
 // Left-panel widget library: searchable grid of widgets grouped by category,
 // plus a structure picker to add a new section, plus a saved-section template list.
 import { useState } from "react";
-import { Search, Plus, Layers, Trash2, Save, Clock } from "@/lib/lucide-shim";
+import { Search, Layers, Trash2, Save, Clock } from "@/lib/lucide-shim";
 import { WIDGETS } from "@/lib/builder/registry";
 import type { WidgetType } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { useSectionTemplates, type SectionTemplate, type TemplateRevision } from "@/lib/builder/templates";
 import { TemplateHistoryDialog } from "./TemplateHistoryDialog";
-
-const STRUCTURES: Array<{ cols: number; label: string }> = [
-  { cols: 1, label: "1" }, { cols: 2, label: "1/2 + 1/2" },
-  { cols: 3, label: "1/3 x3" }, { cols: 4, label: "1/4 x4" }, { cols: 6, label: "1/6 x6" },
-];
+import { StructurePicker } from "./StructurePicker";
 
 interface Props {
   onPickWidget: (t: WidgetType) => void;
-  onPickStructure: (cols: number) => void;
+  onPickStructure: (spans: number[]) => void;
   onPickTemplate: (tpl: SectionTemplate) => void;
 }
 
 export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }: Props) {
+  const _ = onPickWidget; void _;
   const [search, setSearch] = useState("");
   const [historyOf, setHistoryOf] = useState<SectionTemplate | null>(null);
   const filtered = WIDGETS.filter((w) => w.label.toLowerCase().includes(search.toLowerCase()));
@@ -64,22 +61,9 @@ export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }:
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         <section>
           <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
-            Nowa sekcja
+            Nowa sekcja — wybierz strukturę
           </div>
-          <div className="grid grid-cols-5 gap-1.5">
-            {STRUCTURES.map((s) => (
-              <button
-                key={s.cols}
-                type="button"
-                onClick={() => onPickStructure(s.cols)}
-                className="h-12 bg-muted/30 hover:bg-muted hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 p-1 transition group"
-                title={`Dodaj sekcję ${s.label}`}
-              >
-                <Plus className="w-3 h-3 text-muted-foreground group-hover:text-brand" />
-                <span className="text-[9px] leading-tight">{s.label}</span>
-              </button>
-            ))}
-          </div>
+          <StructurePicker onPick={onPickStructure} cols={2} />
         </section>
 
         <section>
