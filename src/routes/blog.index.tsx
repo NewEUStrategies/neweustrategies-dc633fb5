@@ -62,7 +62,7 @@ function BlogIndex() {
           <p className="text-muted-foreground">Brak opublikowanych wpisów.</p>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {posts.map((p) => {
+            {posts.map((p: typeof posts[number]) => {
               const title = lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
               const excerpt = lang === "en" ? p.excerpt_en : p.excerpt_pl;
               return (
