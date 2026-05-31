@@ -567,7 +567,7 @@ function ChromeFrame({
       <div className="pointer-events-none absolute inset-0 ring-2 ring-transparent group-hover:ring-brand/50 transition" />
       <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition">
         <Link
-          to={editTo}
+          to={editTo as never}
           className="inline-flex items-center gap-1.5 bg-background/95 border border-border shadow-sm rounded px-2.5 py-1 text-[11px] font-medium hover:bg-brand hover:text-brand-foreground hover:border-brand"
         >
           <Pencil className="w-3 h-3" /> Edytuj {label.toLowerCase()}
