@@ -40,7 +40,7 @@ export function FootnoteTooltips({
   containerRef,
 }: {
   notes: Footnote[];
-  containerRef: React.RefObject<HTMLElement>;
+  containerRef: React.RefObject<HTMLElement | null>;
 }) {
   const [state, setState] = useState<{ id: number; x: number; y: number } | null>(null);
   const hideTimer = useRef<number | null>(null);
