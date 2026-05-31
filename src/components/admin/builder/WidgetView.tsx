@@ -176,7 +176,7 @@ export function WidgetView({ node, lang, device }: ViewProps) {
   }
 }
 
-function PostListView({ c, lang, carousel = false }: { c: Record<string, unknown>; lang: Lang; carousel?: boolean }) {
+function PostListView({ c, lang, carousel = false }: { c: WidgetContent; lang: Lang; carousel?: boolean }) {
   const limit = getNum(c, "limit", 6);
   const cols = getNum(c, "columns", 3);
   const { data } = useQuery({
