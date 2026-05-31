@@ -1,6 +1,6 @@
 // Layer tree (Navigator). Renders the document hierarchy and lets the user
 // jump to / toggle visibility of a node by clicking it.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronRight, ChevronDown, Eye, Layers } from "@/lib/lucide-shim";
 import type {
   BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode, Device,
@@ -121,9 +121,16 @@ function Row({
   depth: number; open?: boolean; leaf?: boolean; selected: boolean; hidden: boolean;
   label: string; onToggle?: () => void; onSelect: () => void; onToggleHidden: () => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (selected && ref.current) {
+      ref.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [selected]);
   return (
     <div
-      className={`flex items-center gap-1 py-1 pr-2 rounded cursor-pointer ${selected ? "bg-brand/15 text-brand" : "hover:bg-muted/50"}`}
+      ref={ref}
+      className={`flex items-center gap-1 py-1 pr-2 rounded cursor-pointer transition ${selected ? "bg-brand/20 text-brand ring-1 ring-brand/40" : "hover:bg-muted/50"}`}
       style={{ paddingLeft: `${4 + depth * 12}px` }}
       onClick={onSelect}
     >

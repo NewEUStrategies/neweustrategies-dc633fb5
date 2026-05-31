@@ -7,6 +7,7 @@
 // mutation; the parent debounces autosave). useHistory wraps onChange so we
 // get undo/redo without breaking it.
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -17,7 +18,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Monitor, Tablet, Smartphone, Columns2,
-  Settings as SettingsIcon, X, Eye, Copy, Undo, Redo, ChevronLeft, Save,
+  Settings as SettingsIcon, X, Eye, Copy, Undo, Redo, ChevronLeft, Save, Pencil,
 } from "@/lib/lucide-shim";
 import { WIDGETS, makeWidget } from "@/lib/builder/registry";
 import type {
@@ -75,7 +76,13 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
   const doc = history.doc;
   const [device, setDevice] = useState<Device>("desktop");
   const [selection, setSelection] = useState<Selection>({ kind: null, id: null });
-  const [showNavigator, setShowNavigator] = useState(false);
+  const [showNavigator, setShowNavigator] = useState(true);
+
+  // Auto-open Navigator whenever something is selected on the canvas so the
+  // left sidebar reflects the active block.
+  useEffect(() => {
+    if (selection.id) setShowNavigator(true);
+  }, [selection.id]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -371,23 +378,24 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
           onUndo={history.undo} onRedo={history.redo}
         />
 
-        <div className="flex-1 overflow-y-auto bg-background" onClick={() => setSelection({ kind: null, id: null })}>
-          <div className={`mx-auto transition-all ${device==="desktop"?"max-w-full":device==="tablet"?"max-w-[768px]":"max-w-[400px]"}`}>
-            {/* Site chrome — non-interactive preview of TopBar */}
-            <div
-              className="pointer-events-none select-none relative"
-              aria-hidden="true"
-              onClickCapture={(e) => e.stopPropagation()}
-            >
+        <div className="flex-1 overflow-y-auto bg-muted/30 p-4" onClick={() => setSelection({ kind: null, id: null })}>
+          <div
+            className={`mx-auto bg-background shadow-lg ring-1 ring-border transition-all ${
+              device === "desktop" ? "max-w-[1440px]"
+              : device === "tablet" ? "max-w-[820px]"
+              : "max-w-[390px]"
+            }`}
+          >
+            {/* Site chrome — Header preview with hover edit overlay */}
+            <ChromeFrame label="Nagłówek strony" editTo="/admin/settings/general">
               <Header />
-              <div className="absolute inset-0 bg-transparent" />
-            </div>
+            </ChromeFrame>
 
-            <div className="p-4">
+            <div className="px-2 py-2">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                 {doc.sections.length === 0 && <EmptyState onAdd={addSection} />}
 
-                <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} />
+                <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} prominent label="Wstaw sekcję pod nagłówkiem" />
 
                 {doc.sections.map((s, idx) => (
                   <div key={s.id}>
@@ -410,20 +418,20 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
                         updateWidget(id, (w) => { w.content = { ...w.content, [k]: v }; })
                       }
                     />
-                    <SectionDropZone onInsert={(cols) => insertSectionAt(idx + 1, cols)} index={idx + 1} />
+                    <SectionDropZone
+                      onInsert={(cols) => insertSectionAt(idx + 1, cols)}
+                      index={idx + 1}
+                      prominent={idx === doc.sections.length - 1}
+                      label={idx === doc.sections.length - 1 ? "Wstaw sekcję nad stopką" : undefined}
+                    />
                   </div>
                 ))}
               </DndContext>
             </div>
 
-            {/* Site chrome — non-interactive preview of Footer */}
-            <div
-              className="pointer-events-none select-none"
-              aria-hidden="true"
-              onClickCapture={(e) => e.stopPropagation()}
-            >
+            <ChromeFrame label="Stopka strony" editTo="/admin/settings/general">
               <Footer />
-            </div>
+            </ChromeFrame>
           </div>
         </div>
       </div>
@@ -473,13 +481,25 @@ function Toolbar({
 }
 
 function EmptyState({ onAdd }: { onAdd: (cols: number) => void }) {
-  const STRUCTURES = [{ cols: 1, label: "1" }, { cols: 2, label: "1/2 + 1/2" }, { cols: 3, label: "1/3 x3" }, { cols: 4, label: "1/4 x4" }];
+  const STRUCTURES = [
+    { cols: 1, label: "1", hint: "Pełna szerokość" },
+    { cols: 2, label: "1/2 + 1/2", hint: "Dwie kolumny" },
+    { cols: 3, label: "1/3 x3", hint: "Trzy kolumny" },
+    { cols: 4, label: "1/4 x4", hint: "Cztery kolumny" },
+  ];
   return (
-    <div className="bg-card/50 border-2 border-dashed border-border rounded-lg p-8 text-center">
-      <p className="text-sm text-muted-foreground mb-4">Wybierz strukturę pierwszej sekcji</p>
+    <div className="bg-card/60 border-2 border-dashed border-brand/40 rounded-lg p-10 text-center my-4">
+      <div className="mx-auto w-10 h-10 rounded-full bg-brand/10 text-brand inline-flex items-center justify-center mb-3">
+        <Plus className="w-5 h-5" />
+      </div>
+      <h3 className="text-sm font-semibold mb-1">Zacznij budować stronę</h3>
+      <p className="text-xs text-muted-foreground mb-5">
+        Wybierz strukturę pierwszej sekcji. Pojawi się między nagłówkiem a stopką.
+      </p>
       <div className="flex flex-wrap gap-2 justify-center">
         {STRUCTURES.map((s) => (
           <button key={s.cols} onClick={() => onAdd(s.cols)}
+            title={s.hint}
             className="px-3 py-2 bg-muted hover:bg-brand hover:text-brand-foreground rounded text-xs transition">
             {s.label}
           </button>
@@ -489,30 +509,75 @@ function EmptyState({ onAdd }: { onAdd: (cols: number) => void }) {
   );
 }
 
-// Tiny zone between sections to insert a new section.
-function SectionDropZone({ onInsert, index }: { onInsert: (cols: number) => void; index: number }) {
+// Zone between sections / next to chrome to insert a new section.
+// `prominent` shows a permanent dashed bar (used near header/footer where
+// the boundary should always be obvious).
+function SectionDropZone({
+  onInsert, index, prominent, label,
+}: {
+  onInsert: (cols: number) => void; index: number;
+  prominent?: boolean; label?: string;
+}) {
   const [open, setOpen] = useState(false);
+  if (open) {
+    return (
+      <div className="my-2 flex flex-wrap items-center gap-1 p-1.5 border border-brand/60 rounded bg-card shadow-sm" onClick={(e) => e.stopPropagation()}>
+        <span className="text-[10px] text-muted-foreground px-1">Struktura:</span>
+        {[1, 2, 3, 4].map((c) => (
+          <button key={c} onClick={() => { onInsert(c); setOpen(false); }}
+            className="px-2 py-1 text-[10px] bg-muted hover:bg-brand hover:text-brand-foreground rounded">
+            {c === 1 ? "1" : `1/${c} x${c}`}
+          </button>
+        ))}
+        <button onClick={() => setOpen(false)} className="px-1 text-[10px] text-muted-foreground ml-auto">×</button>
+      </div>
+    );
+  }
   return (
     <div className="my-1 group" onClick={(e) => e.stopPropagation()}>
-      {!open ? (
-        <button
-          onClick={() => setOpen(true)}
-          className="w-full h-6 rounded border border-dashed border-transparent group-hover:border-brand/40 text-[10px] text-muted-foreground hover:text-brand inline-flex items-center justify-center gap-1"
-          title={`Wstaw sekcję w pozycji ${index + 1}`}
+      <button
+        onClick={() => setOpen(true)}
+        title={label ?? `Wstaw sekcję w pozycji ${index + 1}`}
+        className={`w-full rounded inline-flex items-center justify-center gap-1.5 text-[10px] transition ${
+          prominent
+            ? "h-7 border border-dashed border-brand/40 text-brand/80 hover:border-brand hover:bg-brand/5"
+            : "h-5 border border-dashed border-transparent text-muted-foreground group-hover:border-brand/40 group-hover:text-brand"
+        }`}
+      >
+        <Plus className={`w-3 h-3 ${prominent ? "" : "opacity-0 group-hover:opacity-100"}`} />
+        {label && <span>{label}</span>}
+      </button>
+    </div>
+  );
+}
+
+// Non-interactive Header/Footer preview with a hover overlay that opens
+// the settings page where their content (logo, brand, links) is edited.
+function ChromeFrame({
+  label, editTo, children,
+}: { label: string; editTo: string; children: React.ReactNode }) {
+  return (
+    <div
+      className="group relative"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="pointer-events-none select-none" aria-hidden="true">
+        {children}
+      </div>
+      <div className="pointer-events-none absolute inset-0 ring-2 ring-transparent group-hover:ring-brand/50 transition" />
+      <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition">
+        <Link
+          to={editTo as never}
+          className="inline-flex items-center gap-1.5 bg-background/95 border border-border shadow-sm rounded px-2.5 py-1 text-[11px] font-medium hover:bg-brand hover:text-brand-foreground hover:border-brand"
         >
-          <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100" />
-        </button>
-      ) : (
-        <div className="flex flex-wrap items-center gap-1 p-1 border border-border rounded bg-card">
-          {[1, 2, 3, 4].map((c) => (
-            <button key={c} onClick={() => { onInsert(c); setOpen(false); }}
-              className="px-2 py-1 text-[10px] bg-muted hover:bg-brand hover:text-brand-foreground rounded">
-              {c === 1 ? "1" : `1/${c} x${c}`}
-            </button>
-          ))}
-          <button onClick={() => setOpen(false)} className="px-1 text-[10px] text-muted-foreground ml-auto">×</button>
-        </div>
-      )}
+          <Pencil className="w-3 h-3" /> Edytuj {label.toLowerCase()}
+        </Link>
+      </div>
+      <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition">
+        <span className="inline-flex items-center bg-background/90 border border-border rounded px-2 py-0.5 text-[10px] text-muted-foreground">
+          {label}
+        </span>
+      </div>
     </div>
   );
 }
