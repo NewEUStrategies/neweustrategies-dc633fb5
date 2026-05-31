@@ -523,11 +523,11 @@ function WidgetProperties({ widget, lang, device, onChange }: {
         </div>
         <div>
           <Label className="text-xs">Padding ({device})</Label>
-          <Input value={widget.style?.padding?.[device] ?? ""} onChange={(e) => setStyle((s) => { s.padding = setResp(s.padding, e.target.value || undefined as unknown as string); })} placeholder="16px 24px" className="h-8 text-xs" />
+          <Input value={widget.style?.padding?.[device] ?? ""} onChange={(e) => setStyle((s) => { s.padding = setResp(s.padding, e.target.value || undefined); })} placeholder="16px 24px" className="h-8 text-xs" />
         </div>
         <div>
           <Label className="text-xs">Margin ({device})</Label>
-          <Input value={widget.style?.margin?.[device] ?? ""} onChange={(e) => setStyle((s) => { s.margin = setResp(s.margin, e.target.value || undefined as unknown as string); })} placeholder="0 0 16px" className="h-8 text-xs" />
+          <Input value={widget.style?.margin?.[device] ?? ""} onChange={(e) => setStyle((s) => { s.margin = setResp(s.margin, e.target.value || undefined); })} placeholder="0 0 16px" className="h-8 text-xs" />
         </div>
         <div>
           <Label className="text-xs">Wyrównanie ({device})</Label>
