@@ -89,10 +89,14 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
 
 function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   return (
-    <div className={sanitizeCssClass(column.advanced?.cssClass) ?? ""}>
+    <div data-col-id={column.id} className={sanitizeCssClass(column.advanced?.cssClass) ?? ""}>
       {column.children.map((w) => {
         if (hiddenOnDevice(w.advanced, device)) return null;
-        return <WidgetView key={w.id} node={w} lang={lang} device={device} />;
+        return (
+          <div key={w.id} data-widget-id={w.id}>
+            <WidgetView node={w} lang={lang} device={device} />
+          </div>
+        );
       })}
     </div>
   );
