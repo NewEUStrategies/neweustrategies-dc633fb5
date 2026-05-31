@@ -15,6 +15,7 @@ import {
   safeImageUrl,
 } from "@/lib/sanitize";
 import { useInView } from "@/hooks/use-in-view";
+import { hoverCss } from "@/lib/builder/hoverCss";
 
 type Lang = "pl" | "en";
 
@@ -111,6 +112,7 @@ export function WidgetView({ node, lang, device }: ViewProps) {
     : {};
 
   const scopedCss = scopeCustomCss(node.advanced?.customCss, node.id);
+  const hover = hoverCss(node.id, node.style, device);
 
   const wrap = (children: React.ReactNode) => (
     <div
@@ -121,6 +123,7 @@ export function WidgetView({ node, lang, device }: ViewProps) {
       style={{ ...baseStyle, ...motionStyle }}
     >
       {children}
+      {hover && <style dangerouslySetInnerHTML={{ __html: hover }} />}
       {scopedCss && <style dangerouslySetInnerHTML={{ __html: scopedCss }} />}
     </div>
   );
