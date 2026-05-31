@@ -6,7 +6,7 @@
 // Persistence happens via onChange (called by the parent route on every doc
 // mutation; the parent debounces autosave). useHistory wraps onChange so we
 // get undo/redo without breaking it.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
