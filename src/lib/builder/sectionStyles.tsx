@@ -2,7 +2,7 @@
 // scoped typography CSS) for a Section / InnerSection. Shared between the
 // builder canvas (live preview) and the public BuilderRenderer so the editor
 // always matches the published output.
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactElement } from "react";
 import type {
   SectionNode, InnerSectionNode, Device, BackgroundSettings, OverlaySettings,
   BorderSettings, ShapeDividerSettings, TypographySettings, SectionLayout,
@@ -196,7 +196,7 @@ interface DividerProps {
   position: "top" | "bottom";
 }
 
-export function ShapeDivider({ s, position }: DividerProps): React.ReactElement | null {
+export function ShapeDivider({ s, position }: DividerProps): ReactElement | null {
   if (!s || !s.type || s.type === "none") return null;
   const path = SHAPE_PATHS[s.type];
   if (!path) return null;
