@@ -1,11 +1,12 @@
 // Left-panel widget library: searchable grid of widgets grouped by category,
 // plus a structure picker to add a new section, plus a saved-section template list.
 import { useState } from "react";
-import { Search, Plus, Layers, Trash2, Save } from "@/lib/lucide-shim";
+import { Search, Plus, Layers, Trash2, Save, Clock } from "@/lib/lucide-shim";
 import { WIDGETS } from "@/lib/builder/registry";
 import type { WidgetType } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
-import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
+import { useSectionTemplates, type SectionTemplate, type TemplateRevision } from "@/lib/builder/templates";
+import { TemplateHistoryDialog } from "./TemplateHistoryDialog";
 
 const STRUCTURES: Array<{ cols: number; label: string }> = [
   { cols: 1, label: "1" }, { cols: 2, label: "1/2 + 1/2" },
