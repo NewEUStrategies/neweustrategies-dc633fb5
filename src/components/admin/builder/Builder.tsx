@@ -1141,6 +1141,9 @@ function VisualCanvas({
     [data-visual-canvas] .is-drop-into{outline:2px dashed var(--brand) !important;outline-offset:-2px;background:color-mix(in oklab, var(--brand) 6%, transparent)}
     [data-visual-canvas] a{pointer-events:none}
     [data-visual-canvas] button{pointer-events:none}
+    [data-visual-canvas] [data-section-inserter] button,
+    [data-visual-canvas] [data-section-inserter] a{pointer-events:auto}
+  
   `;
 
   return (
