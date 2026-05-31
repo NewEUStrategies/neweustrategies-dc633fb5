@@ -53,15 +53,15 @@ interface ViewProps {
   device: Device;
 }
 
-function getStr(c: Record<string, unknown>, k: string): string {
+function getStr(c: WidgetContent, k: string): string {
   const v = c[k];
   return typeof v === "string" ? v : "";
 }
-function getNum(c: Record<string, unknown>, k: string, dflt: number): number {
+function getNum(c: WidgetContent, k: string, dflt: number): number {
   const v = c[k];
   return typeof v === "number" ? v : dflt;
 }
-function getStrArr(c: Record<string, unknown>, k: string): string[] {
+function getStrArr(c: WidgetContent, k: string): string[] {
   const v = c[k];
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
