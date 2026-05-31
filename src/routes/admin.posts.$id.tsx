@@ -51,6 +51,8 @@ function EditPost() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const tenantId = useRequiredTenant();
+  const update$ = useServerFn(updatePost);
+  const delete$ = useServerFn(deletePost);
 
   const { data: post, isLoading } = useQuery({
     queryKey: ["post", id],
