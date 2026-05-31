@@ -246,51 +246,124 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     case "heading": {
       const key = `text_${lang}`;
       const text = getStr(c, key) || getStr(c, "text_pl");
-      const tag = (getStr(c, "tag") || "h2") as "h1"|"h2"|"h3"|"h4";
-      if (canEdit) {
-        return wrap(<Editable as={tag} value={text} onCommit={(v) => commit(key, v)} className="font-display text-3xl" placeholder="Nagłówek…" />);
-      }
-      const Tag = tag;
-      return wrap(<Tag className="font-display text-3xl">{text}</Tag>);
+      const subtitle = getStr(c, `subtitle_${lang}`) || getStr(c, "subtitle_pl");
+      const tag = (getStr(c, "tag") || "h2") as "h1"|"h2"|"h3"|"h4"|"h5"|"h6";
+      const variant = getStr(c, "variant") || "default";
+      const sizePreset = getStr(c, "sizePreset") || "md";
+      const href = safeUrl(getStr(c, "href"));
+      const target = getStr(c, "target") === "blank" ? "_blank" : undefined;
+      const iconName = getStr(c, "iconName");
+      const iconPos = getStr(c, "iconPosition") || "left";
+      const sizeCls =
+        sizePreset === "sm" ? "text-xl"
+        : sizePreset === "lg" ? "text-4xl"
+        : sizePreset === "xl" ? "text-5xl"
+        : sizePreset === "display" ? "text-6xl md:text-7xl"
+        : "text-3xl";
+      const variantCls =
+        variant === "gradient" ? "bg-gradient-to-r from-brand to-foreground bg-clip-text text-transparent"
+        : variant === "outlined" ? "[-webkit-text-stroke:1px_currentColor] text-transparent"
+        : variant === "highlight" ? "decoration-brand decoration-4 underline-offset-4 underline"
+        : variant === "uppercase" ? "uppercase tracking-widest"
+        : variant === "serif" ? "font-serif"
+        : "";
+      const headCls = `font-display ${sizeCls} ${variantCls}`.trim();
+      const reg: Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined> =
+        LucideIcons as Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined>;
+      const Icon = iconName ? (reg[iconName] ?? null) : null;
+      const inner = canEdit
+        ? <Editable as={tag} value={text} onCommit={(v) => commit(key, v)} className={headCls} placeholder="Nagłówek…" />
+        : (() => { const Tag = tag as keyof JSX.IntrinsicElements; return <Tag className={headCls}>{text}</Tag>; })();
+      const titleRow = (
+        <span className={`inline-flex items-center gap-2 ${iconPos === "right" ? "flex-row-reverse" : ""}`}>
+          {Icon && <Icon size={28} className="opacity-80" />}
+          <span className="contents">{inner}</span>
+        </span>
+      );
+      const block = (
+        <div className="space-y-1">
+          {href ? <a href={href} target={target} rel={target === "_blank" ? "noopener noreferrer" : undefined} className="hover:opacity-80 transition">{titleRow}</a> : titleRow}
+          {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+        </div>
+      );
+      return wrap(block);
     }
     case "text": {
       const key = `html_${lang}`;
       const html = getStr(c, key) || getStr(c, "html_pl");
+      const cols = getNum(c, "columns", 1);
+      const dropCap = getStr(c, "dropCap") === "on";
+      const proseCls = `prose prose-sm max-w-none dark:prose-invert ${dropCap ? "first-letter:float-left first-letter:text-5xl first-letter:font-display first-letter:mr-2 first-letter:leading-none" : ""}`;
+      const colStyle = cols > 1 ? { columnCount: cols, columnGap: "1.5rem" } as CSSProperties : undefined;
       if (canEdit) {
-        return wrap(<Editable as="div" html multiline value={html} onCommit={(v) => commit(key, v)} className="prose prose-sm max-w-none dark:prose-invert" placeholder="Wpisz tekst…" />);
+        return wrap(<Editable as="div" html multiline value={html} onCommit={(v) => commit(key, v)} className={proseCls} placeholder="Wpisz tekst…" />);
       }
-      return wrap(<div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />);
+      return wrap(<div className={proseCls} style={colStyle} dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />);
     }
     case "image": {
       const src = safeImageUrl(getStr(c, "src"));
       const srcDark = safeImageUrl(getStr(c, "srcDark"));
       const alt = getStr(c, `alt_${lang}`) || getStr(c, "alt_pl");
+      const caption = getStr(c, `caption_${lang}`) || getStr(c, "caption_pl");
+      const variant = getStr(c, "variant") || "default";
+      const fit = (getStr(c, "objectFit") || "cover") as CSSProperties["objectFit"];
+      const ratio = getStr(c, "ratio");
+      const variantCls =
+        variant === "rounded" ? "rounded-xl"
+        : variant === "circle" ? "rounded-full aspect-square"
+        : variant === "polaroid" ? "bg-white p-2 pb-6 shadow-lg rotate-[-1deg]"
+        : variant === "shadow" ? "rounded shadow-2xl"
+        : variant === "frame" ? "rounded border-4 border-foreground/10"
+        : variant === "zoom-hover" ? "rounded overflow-hidden transition-transform duration-500 hover:scale-105"
+        : "rounded";
+      const imgStyle: CSSProperties = {
+        objectFit: fit,
+        aspectRatio: ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined,
+        width: "100%",
+        height: "auto",
+      };
       if (!src && !srcDark) return wrap(<div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>);
-      if (srcDark && src && srcDark !== src) {
-        return wrap(
-          <picture>
-            <source srcSet={srcDark} media="(prefers-color-scheme: dark)" />
-            <img src={src} alt={alt} className="max-w-full h-auto rounded" loading="lazy" />
-          </picture>,
-        );
-      }
-      return wrap(<img src={src || srcDark} alt={alt} className="max-w-full h-auto rounded" loading="lazy" />);
+      const imgEl = srcDark && src && srcDark !== src ? (
+        <picture>
+          <source srcSet={srcDark} media="(prefers-color-scheme: dark)" />
+          <img src={src} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
+        </picture>
+      ) : (
+        <img src={src || srcDark} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
+      );
+      return wrap(
+        <figure className="space-y-2">
+          {imgEl}
+          {caption && <figcaption className="text-xs text-muted-foreground text-center">{caption}</figcaption>}
+        </figure>,
+      );
     }
     case "button": {
       const key = `label_${lang}`;
       const label = getStr(c, key) || getStr(c, "label_pl");
       const href = safeUrl(getStr(c, "href"));
+      const target = getStr(c, "target") === "blank" ? "_blank" : undefined;
       const variant = getStr(c, "variant") || "primary";
-      const variantCls = variant === "outline"
-        ? "border border-border hover:bg-muted"
-        : variant === "ghost"
-        ? "hover:bg-muted"
+      const size = getStr(c, "size") || "md";
+      const iconName = getStr(c, "iconName");
+      const iconPos = getStr(c, "iconPosition") || "left";
+      const fullWidth = getStr(c, "fullWidth") === "full";
+      const variantCls =
+        variant === "outline" ? "border border-border hover:bg-muted"
+        : variant === "ghost" ? "hover:bg-muted"
+        : variant === "gradient" ? "bg-gradient-to-r from-brand to-foreground text-brand-foreground hover:opacity-90"
+        : variant === "soft" ? "bg-brand/10 text-brand hover:bg-brand/20"
+        : variant === "link" ? "underline-offset-4 hover:underline text-brand px-0"
         : "bg-brand text-brand-foreground hover:opacity-90";
-      const cls = `inline-flex items-center px-5 py-2.5 rounded-md text-sm font-medium transition ${variantCls}`;
+      const sizeCls = size === "sm" ? "px-3 py-1.5 text-xs" : size === "lg" ? "px-7 py-3 text-base" : "px-5 py-2.5 text-sm";
+      const cls = `inline-flex items-center gap-2 rounded-md font-medium transition ${sizeCls} ${variantCls} ${fullWidth ? "w-full justify-center" : ""} ${iconPos === "right" ? "flex-row-reverse" : ""}`;
+      const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
+        LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
+      const Icon = iconName ? (reg[iconName] ?? null) : null;
       if (canEdit) {
-        return wrap(<Editable as="span" value={label} onCommit={(v) => commit(key, v)} className={cls} placeholder="Etykieta…" />);
+        return wrap(<span className={cls}>{Icon && <Icon size={16} />}<Editable as="span" value={label} onCommit={(v) => commit(key, v)} placeholder="Etykieta…" /></span>);
       }
-      return wrap(<a href={href} rel={href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{label}</a>);
+      return wrap(<a href={href} target={target} rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{Icon && <Icon size={16} />}{label}</a>);
     }
     case "nav-link": {
       const key = `label_${lang}`;
