@@ -495,7 +495,7 @@ function WidgetProperties({ widget, lang, device, onChange }: {
     w.advanced = w.advanced ?? {};
     mut(w.advanced);
   });
-  const setResp = <T,>(rv: ResponsiveValue<T> | undefined, val: T): ResponsiveValue<T> => ({
+  const setResp = <T,>(rv: ResponsiveValue<T> | undefined, val: T | undefined): ResponsiveValue<T> => ({
     ...(rv ?? {}), [device]: val,
   });
 
