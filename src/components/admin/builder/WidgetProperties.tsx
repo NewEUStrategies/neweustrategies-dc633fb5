@@ -174,6 +174,8 @@ function ContentFields({ widget, lang, setContent }: {
       return <TabsEditor c={c} lang={lang} setContent={setContent} />;
     case "pricing":
       return <PricingEditor c={c} lang={lang} setContent={setContent} />;
+    case "image":
+      return <ImageEditor c={c} lang={lang} setContent={setContent} />;
   }
 
   // Schema-driven render for simple widgets.
