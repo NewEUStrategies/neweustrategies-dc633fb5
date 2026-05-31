@@ -29,6 +29,107 @@ export interface AdvancedSettings {
   htmlId?: string;
 }
 
+// ---------- Section-specific settings (Elementor-style) ----------
+
+export type ContentWidth = "boxed" | "full";
+export type SectionHeight = "default" | "fit-screen" | "min-height";
+export type VerticalAlign =
+  | "default" | "top" | "middle" | "bottom"
+  | "space-between" | "space-around" | "space-evenly";
+export type ColumnsGap =
+  | "default" | "no" | "narrow" | "extended" | "wide" | "wider" | "custom";
+export type OverflowMode = "default" | "hidden";
+export type HtmlTag =
+  | "div" | "header" | "footer" | "main" | "article" | "aside" | "section" | "nav";
+
+export interface SectionLayout {
+  contentWidth?: ContentWidth;       // boxed (default) | full
+  width?: number;                    // px; only meaningful when boxed (e.g. 1140)
+  columnsGap?: ColumnsGap;
+  columnsGapCustom?: number;         // px when columnsGap === "custom"
+  height?: SectionHeight;
+  heightValue?: number;              // vh for fit-screen, px for min-height
+  verticalAlign?: VerticalAlign;
+  overflow?: OverflowMode;
+  stretch?: boolean;                 // stretch beyond container (100vw)
+  htmlTag?: HtmlTag;
+}
+
+export type BackgroundType = "none" | "classic" | "gradient" | "video" | "slideshow";
+export type BackgroundRepeat = "no-repeat" | "repeat" | "repeat-x" | "repeat-y";
+export type BackgroundSize = "auto" | "cover" | "contain";
+export type BackgroundPosition =
+  | "center center" | "top center" | "top left" | "top right"
+  | "center left" | "center right"
+  | "bottom center" | "bottom left" | "bottom right";
+export type BackgroundAttachment = "scroll" | "fixed";
+export type GradientType = "linear" | "radial";
+
+export interface BackgroundSettings {
+  type?: BackgroundType;
+  color?: string;
+  // classic image
+  imageUrl?: string;
+  position?: BackgroundPosition;
+  attachment?: BackgroundAttachment;
+  repeat?: BackgroundRepeat;
+  size?: BackgroundSize;
+  // gradient
+  gradientType?: GradientType;
+  gradientColor?: string;
+  gradientColor2?: string;
+  gradientAngle?: number;       // 0..360 for linear
+  gradientLocation?: number;    // 0..100
+  gradientLocation2?: number;   // 0..100
+  // video
+  videoUrl?: string;
+  videoFallbackColor?: string;
+  // slideshow
+  slideshowImages?: string[];
+  slideshowDurationMs?: number;
+}
+
+export interface OverlaySettings extends BackgroundSettings {
+  opacity?: number;             // 0..1
+  blendMode?:
+    | "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten"
+    | "color-dodge" | "saturation" | "color" | "difference" | "exclusion"
+    | "hue" | "luminosity";
+}
+
+export type BorderStyle = "none" | "solid" | "dashed" | "dotted" | "double" | "groove";
+export interface BoxSides {
+  top?: number; right?: number; bottom?: number; left?: number;
+}
+export interface BorderSettings {
+  style?: BorderStyle;
+  width?: BoxSides;
+  color?: string;
+  radius?: BoxSides;
+  boxShadow?: string;           // raw css, e.g. "0 10px 30px rgba(0,0,0,.2)"
+}
+
+export type ShapeDividerType =
+  | "none" | "mountains" | "drops" | "clouds" | "zigzag" | "pyramids"
+  | "triangle" | "tilt" | "waves" | "curve" | "split" | "arrow" | "book";
+export interface ShapeDividerSettings {
+  type?: ShapeDividerType;
+  color?: string;
+  width?: number;       // %, 100..300
+  height?: number;      // px
+  flipH?: boolean;
+  flipV?: boolean;      // (a.k.a. "invert")
+  bringToFront?: boolean;
+}
+
+export interface TypographySettings {
+  headingColor?: string;
+  textColor?: string;
+  linkColor?: string;
+  linkHoverColor?: string;
+  align?: ResponsiveValue<Align>;
+}
+
 export type WidgetType =
   // Basic
   | "heading" | "text" | "image" | "button" | "divider" | "spacer"
@@ -40,8 +141,6 @@ export type WidgetType =
   | "newsletter" | "contact" | "cta";
 
 // JSON-safe primitives that may live inside a widget's content map.
-// This is a discriminated, recursive JSON type - strictly stronger than
-// `unknown` because every consumer must narrow via typeof/Array.isArray.
 export type Json =
   | string
   | number
@@ -56,7 +155,6 @@ export interface WidgetNode {
   id: string;
   kind: "widget";
   type: WidgetType;
-  // Bilingual content map. UI exposes one language tab at a time.
   content: WidgetContent;
   style?: CommonStyle;
   advanced?: AdvancedSettings;
@@ -65,7 +163,6 @@ export interface WidgetNode {
 export interface ColumnNode {
   id: string;
   kind: "column";
-  // Width fraction 1..12 of parent row.
   span: ResponsiveValue<number>;
   style?: CommonStyle;
   advanced?: AdvancedSettings;
@@ -75,6 +172,10 @@ export interface ColumnNode {
 export interface InnerSectionNode {
   id: string;
   kind: "inner-section";
+  layout?: SectionLayout;
+  background?: BackgroundSettings;
+  border?: BorderSettings;
+  typography?: TypographySettings;
   style?: CommonStyle;
   advanced?: AdvancedSettings;
   columns: ColumnNode[];
@@ -85,9 +186,18 @@ export type SectionChild = ColumnNode | InnerSectionNode;
 export interface SectionNode {
   id: string;
   kind: "section";
+  layout?: SectionLayout;
+  background?: BackgroundSettings;
+  backgroundHover?: BackgroundSettings;
+  overlay?: OverlaySettings;
+  overlayHover?: OverlaySettings;
+  border?: BorderSettings;
+  borderHover?: BorderSettings;
+  shapeDividerTop?: ShapeDividerSettings;
+  shapeDividerBottom?: ShapeDividerSettings;
+  typography?: TypographySettings;
   style?: CommonStyle;
   advanced?: AdvancedSettings;
-  // A section is a row of columns; inner sections can be nested as siblings of columns
   children: SectionChild[];
 }
 

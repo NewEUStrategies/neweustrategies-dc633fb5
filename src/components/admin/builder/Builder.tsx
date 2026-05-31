@@ -21,6 +21,7 @@ import type {
 } from "@/lib/builder/types";
 import { emptyDocument, newId } from "@/lib/builder/types";
 import { WidgetView } from "./WidgetView";
+import { SectionProperties } from "./SectionProperties";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -194,6 +195,13 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
 
   const selectedWidget = selection.kind === "widget" && selection.id
     ? findWidget(doc, selection.id)?.widget ?? null : null;
+  const selectedSection = selection.kind === "section" && selection.id
+    ? doc.sections.find((s) => s.id === selection.id) ?? null : null;
+
+  const updateSection = (sid: string, mut: (s: SectionNode) => void) => update((d) => {
+    const s = d.sections.find((x) => x.id === sid);
+    if (s) mut(s);
+  });
 
   return (
     <div className="grid grid-cols-[300px_1fr_320px] gap-3 h-[calc(100vh-220px)] min-h-[600px]">
@@ -300,6 +308,12 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
               lang={lang}
               device={device}
               onChange={(mut) => updateWidget(selectedWidget.id, mut)}
+            />
+          ) : selectedSection ? (
+            <SectionProperties
+              section={selectedSection}
+              device={device}
+              onChange={(mut) => updateSection(selectedSection.id, mut)}
             />
           ) : (
             <div className="text-xs text-muted-foreground text-center py-8">
