@@ -1,7 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe } from "@/lib/lucide-shim";
+import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings } from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
 import type { ReactNode } from "react";
 
@@ -20,7 +20,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
     { to: "/admin/media", icon: ImageIcon, label: t("admin.nav.media") },
     { to: "/admin/categories", icon: FolderTree, label: t("admin.nav.categories") },
     { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
-    ...(isAdmin ? [{ to: "/admin/users", icon: Users, label: t("admin.nav.users") }] : []),
+    ...(isAdmin ? [
+      { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
+      { to: "/admin/settings", icon: Settings, label: "Ustawienia" },
+    ] : []),
   ];
 
   const handleSignOut = async () => {
