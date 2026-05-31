@@ -49,7 +49,7 @@ export function useSectionTemplates() {
     const uid = u.user?.id ?? null;
     const payload = cloneSection(section); // fresh ids
     await supabase.from("builder_templates").insert({
-      name, scope: "section", data: payload as unknown as Record<string, unknown>, created_by: uid,
+      name, scope: "section", data: JSON.parse(JSON.stringify(payload)), created_by: uid,
     });
     await reload();
   }, [reload]);
