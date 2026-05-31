@@ -486,7 +486,7 @@ function WidgetProperties({ widget, lang, device, onChange }: {
   widget: WidgetNode; lang: "pl"|"en"; device: Device;
   onChange: (mut: (w: WidgetNode) => void) => void;
 }) {
-  const setContent = (k: string, v: unknown) => onChange((w) => { w.content[k] = v; });
+  const setContent = (k: string, v: Json) => onChange((w) => { w.content[k] = v; });
   const setStyle = (mut: (s: CommonStyle) => void) => onChange((w) => {
     w.style = w.style ?? {};
     mut(w.style);
