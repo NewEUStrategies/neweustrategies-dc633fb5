@@ -22,6 +22,12 @@ import type {
 import { emptyDocument, newId } from "@/lib/builder/types";
 import { WidgetView } from "./WidgetView";
 import { SectionProperties } from "./SectionProperties";
+import {
+  sectionWrapperStyle, sectionContainerStyle, columnsRowStyle,
+  backgroundLayerStyle, overlayLayerStyle, borderStyle,
+  ShapeDivider, typographyCss, typographyAlign,
+} from "@/lib/builder/sectionStyles";
+import { safeImageUrl } from "@/lib/sanitize";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
