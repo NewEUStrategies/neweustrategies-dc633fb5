@@ -124,6 +124,7 @@ export const Tags = makeIcon(faTags);
 export const Trash2 = makeIcon(faTrashCan);
 export const Type = makeIcon(faFont);
 export const Undo = makeIcon(faRotateLeft);
+export const Undo2 = Undo;
 export const Upload = makeIcon(faUpload);
 export const User = makeIcon(faUser);
 export const Users = makeIcon(faUsers);
