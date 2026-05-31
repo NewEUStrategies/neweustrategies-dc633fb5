@@ -416,47 +416,54 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
             )}
 
             <div className={scope === "page" ? "px-2 py-2" : "p-0"}>
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                {doc.sections.length === 0 && (
-                  <EmptyState onAdd={addSection} title={copy.title} hint={copy.hint} />
-                )}
+              {scope !== "page" ? (
+                <VisualCanvas
+                  doc={doc} lang={lang} device={device}
+                  selection={selection} setSelection={setSelection}
+                  onInsertSection={insertSectionAt}
+                  firstLabel={copy.first} lastLabel={copy.last}
+                />
+              ) : (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+                  {doc.sections.length === 0 && (
+                    <EmptyState onAdd={addSection} title={copy.title} hint={copy.hint} />
+                  )}
 
-                <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} prominent label={copy.first} />
+                  <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} prominent label={copy.first} />
 
-
-
-
-                {doc.sections.map((s, idx) => (
-                  <div key={s.id}>
-                    <SectionView
-                      section={s} device={device} lang={lang}
-                      selection={selection} setSelection={setSelection}
-                      isFirst={idx === 0} isLast={idx === doc.sections.length - 1}
-                      onMove={(dir) => moveSection(s.id, dir)}
-                      onRemove={() => removeSection(s.id)}
-                      onDuplicate={() => duplicateSection(s.id)}
-                      onSaveTemplate={() => saveSectionAsTemplate(s.id)}
-                      onAddInnerSection={() => addInnerSection(s.id)}
-                      onAddColumn={() => addColumn(s.id)}
-                      onRemoveColumn={removeColumn}
-                      onDuplicateColumn={duplicateColumn}
-                      onRemoveWidget={removeWidget}
-                      onDuplicateWidget={duplicateWidget}
-                      onDropWidget={addWidgetToColumn}
-                      onUpdateWidgetContent={(id, k, v) =>
-                        updateWidget(id, (w) => { w.content = { ...w.content, [k]: v }; })
-                      }
-                    />
-                    <SectionDropZone
-                      onInsert={(cols) => insertSectionAt(idx + 1, cols)}
-                      index={idx + 1}
-                      prominent={idx === doc.sections.length - 1}
-                      label={idx === doc.sections.length - 1 ? copy.last : undefined}
-                    />
-                  </div>
-                ))}
-              </DndContext>
+                  {doc.sections.map((s, idx) => (
+                    <div key={s.id}>
+                      <SectionView
+                        section={s} device={device} lang={lang}
+                        selection={selection} setSelection={setSelection}
+                        isFirst={idx === 0} isLast={idx === doc.sections.length - 1}
+                        onMove={(dir) => moveSection(s.id, dir)}
+                        onRemove={() => removeSection(s.id)}
+                        onDuplicate={() => duplicateSection(s.id)}
+                        onSaveTemplate={() => saveSectionAsTemplate(s.id)}
+                        onAddInnerSection={() => addInnerSection(s.id)}
+                        onAddColumn={() => addColumn(s.id)}
+                        onRemoveColumn={removeColumn}
+                        onDuplicateColumn={duplicateColumn}
+                        onRemoveWidget={removeWidget}
+                        onDuplicateWidget={duplicateWidget}
+                        onDropWidget={addWidgetToColumn}
+                        onUpdateWidgetContent={(id, k, v) =>
+                          updateWidget(id, (w) => { w.content = { ...w.content, [k]: v }; })
+                        }
+                      />
+                      <SectionDropZone
+                        onInsert={(cols) => insertSectionAt(idx + 1, cols)}
+                        index={idx + 1}
+                        prominent={idx === doc.sections.length - 1}
+                        label={idx === doc.sections.length - 1 ? copy.last : undefined}
+                      />
+                    </div>
+                  ))}
+                </DndContext>
+              )}
             </div>
+
 
             {!hideChrome && scope === "page" && (
               <ChromeFrame label="Stopka strony" editTo="/admin/settings/general">
