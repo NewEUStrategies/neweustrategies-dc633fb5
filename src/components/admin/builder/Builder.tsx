@@ -393,6 +393,9 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
                     onRemoveWidget={removeWidget}
                     onDuplicateWidget={duplicateWidget}
                     onDropWidget={addWidgetToColumn}
+                    onUpdateWidgetContent={(id, k, v) =>
+                      updateWidget(id, (w) => { w.content = { ...w.content, [k]: v }; })
+                    }
                   />
                   <SectionDropZone onInsert={(cols) => insertSectionAt(idx + 1, cols)} index={idx + 1} />
                 </div>
