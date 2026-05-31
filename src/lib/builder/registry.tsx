@@ -6,13 +6,14 @@ import {
   Heading1, Type as TypeIcon, Image as ImageIcon, MousePointerClick,
   Minus, MoveVertical, Video, GalleryHorizontal, Star, MapPin,
   Newspaper, Rows, FolderTree, Tags, Mail, Send, Megaphone,
+  List, PanelLeft, Quote, Check,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
 export interface WidgetDef {
   type: WidgetType;
   label: string;
-  category: "basic" | "media" | "dynamic" | "form";
+  category: "basic" | "media" | "dynamic" | "form" | "blocks";
   icon: LucideIcon;
   defaults: () => WidgetNode["content"];
 }
@@ -53,6 +54,45 @@ export const WIDGETS: WidgetDef[] = [
     defaults: () => ({ to: "" }) },
   { type: "cta", label: "Wezwanie do akcji", category: "form", icon: Megaphone,
     defaults: () => ({ title_pl: "Działajmy razem", title_en: "Let's act together", href: "#", cta_pl: "Skontaktuj się", cta_en: "Contact us" }) },
+  // Rich blocks
+  { type: "accordion", label: "Accordion", category: "blocks", icon: List,
+    defaults: () => ({
+      items: [
+        { q_pl: "Pytanie 1", q_en: "Question 1", a_pl: "Odpowiedź…", a_en: "Answer…" },
+        { q_pl: "Pytanie 2", q_en: "Question 2", a_pl: "Odpowiedź…", a_en: "Answer…" },
+      ],
+    }) },
+  { type: "tabs", label: "Zakładki", category: "blocks", icon: PanelLeft,
+    defaults: () => ({
+      tabs: [
+        { label_pl: "Tab 1", label_en: "Tab 1", html_pl: "<p>Treść 1</p>", html_en: "<p>Content 1</p>" },
+        { label_pl: "Tab 2", label_en: "Tab 2", html_pl: "<p>Treść 2</p>", html_en: "<p>Content 2</p>" },
+      ],
+    }) },
+  { type: "testimonial", label: "Opinia / Cytat", category: "blocks", icon: Quote,
+    defaults: () => ({
+      quote_pl: "To rozwiązanie zmieniło sposób, w jaki pracujemy.",
+      quote_en: "This product changed the way we work.",
+      author: "Anna Kowalska",
+      role_pl: "CEO, ACME",
+      role_en: "CEO, ACME",
+      avatar: "",
+    }) },
+  { type: "pricing", label: "Cennik", category: "blocks", icon: Check,
+    defaults: () => ({
+      plans: [
+        {
+          name_pl: "Start", name_en: "Starter", price: "0", currency: "PLN", period_pl: "/mies.", period_en: "/mo",
+          features_pl: ["1 użytkownik", "Podstawowe funkcje"], features_en: ["1 user", "Core features"],
+          cta_pl: "Wybierz", cta_en: "Choose", href: "#", featured: false,
+        },
+        {
+          name_pl: "Pro", name_en: "Pro", price: "49", currency: "PLN", period_pl: "/mies.", period_en: "/mo",
+          features_pl: ["Wszystko ze Start", "Wsparcie 24/7"], features_en: ["Everything in Starter", "24/7 support"],
+          cta_pl: "Wybierz", cta_en: "Choose", href: "#", featured: true,
+        },
+      ],
+    }) },
 ];
 
 export const WIDGET_MAP: Record<WidgetType, WidgetDef> = WIDGETS.reduce(
