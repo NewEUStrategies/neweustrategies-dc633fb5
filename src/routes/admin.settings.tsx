@@ -3,6 +3,7 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 
 const tabs = [
   { to: "/admin/settings/general", label: "Ogólne" },
+  { to: "/admin/settings/design", label: "Design (tokeny marki)" },
   { to: "/admin/settings/reading", label: "Czytanie" },
   { to: "/admin/settings/discussion", label: "Dyskusja" },
   { to: "/admin/settings/media", label: "Media" },
