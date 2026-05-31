@@ -151,7 +151,7 @@ export const updatePost = createServerFn({ method: "POST" })
       if (exErr) throw new Error(exErr.message);
       if (!existing) throw new Error("Post not found or access denied");
 
-      const updates: Record<string, unknown> = { ...data.fields };
+      const updates: PostUpdateRow = { ...data.fields } as PostUpdateRow;
       if (typeof updates.slug === "string") {
         updates.slug = await uniqueSlug(supabase, "posts", tenantId, updates.slug, data.id);
       }
