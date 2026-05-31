@@ -244,11 +244,19 @@ const PageCore = z.object({
   content_en: NullableStr(200_000),
   cover_image_url: z.string().url().max(2048).nullable().optional(),
   builder_data: BuilderJsonValue.nullable().optional(),
+  parent_id: UUID.nullable().optional(),
+  template_id: UUID.nullable().optional(),
+  menu_order: z.number().int().min(0).max(99999).optional(),
 });
 
 export const createPage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => z.object({ title_pl: z.string().max(300).optional(), title_en: z.string().max(300).optional() }).parse(i ?? {}))
+  .inputValidator((i: unknown) => z.object({
+    title_pl: z.string().max(300).optional(),
+    title_en: z.string().max(300).optional(),
+    parent_id: UUID.nullable().optional(),
+    template_id: UUID.optional(),
+  }).parse(i ?? {}))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("page.create", userId, 30, async () => {
@@ -260,6 +268,8 @@ export const createPage = createServerFn({ method: "POST" })
         .insert({
           tenant_id: tenantId, author_id: userId, slug,
           title_pl: data.title_pl ?? "", title_en: data.title_en ?? "",
+          parent_id: data.parent_id ?? null,
+          template_id: data.template_id ?? null,
         })
         .select("id, slug").single();
       if (error) throw new Error(error.message);
@@ -267,6 +277,7 @@ export const createPage = createServerFn({ method: "POST" })
       return { id: row.id as string, slug: row.slug as string };
     });
   });
+
 
 export const updatePage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
