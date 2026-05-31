@@ -38,6 +38,8 @@ import { WidgetProperties } from "./WidgetProperties";
 import { ColumnProperties } from "./ColumnProperties";
 import { WidgetLibrary } from "./WidgetLibrary";
 import { Navigator } from "./Navigator";
+import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 import {
   sectionWrapperStyle, sectionContainerStyle, columnsRowStyle,
   backgroundLayerStyle, overlayLayerStyle, borderStyle,
