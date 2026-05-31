@@ -19,6 +19,8 @@ import { TypographyControl } from "./ui/molecules/TypographyControl";
 import { MotionControl } from "./ui/molecules/MotionControl";
 import { VisibilityControl } from "./ui/molecules/VisibilityControl";
 import { HoverControl } from "./ui/molecules/HoverControl";
+import { SchemaFieldControl } from "./ui/molecules/SchemaFieldControl";
+import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 
 interface Props {
   widget: WidgetNode;
@@ -163,140 +165,31 @@ function ContentFields({ widget, lang, setContent }: {
   widget: WidgetNode; lang: "pl" | "en"; setContent: (k: string, v: Json) => void;
 }) {
   const c = widget.content;
-  const str = (k: string): string => typeof c[k] === "string" ? c[k] as string : "";
-  const num = (k: string, d: number): number => typeof c[k] === "number" ? c[k] as number : d;
-  const arr = (k: string): string[] => {
-    const v = c[k];
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
-  };
 
+  // Custom (list-style) editors for complex widgets.
   switch (widget.type) {
-    case "heading":
-      return <>
-        <PropField label={`Tekst (${lang.toUpperCase()})`}>
-          <Input value={str(`text_${lang}`)} onChange={(e) => setContent(`text_${lang}`, e.target.value)} className="h-8 text-xs" />
-        </PropField>
-        <PropField label="Tag">
-          <Select value={str("tag") || "h2"} onValueChange={(v) => setContent("tag", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>{["h1","h2","h3","h4","h5","h6"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-          </Select>
-        </PropField>
-      </>;
-    case "text":
-      return <PropField label={`HTML (${lang.toUpperCase()})`}>
-        <Textarea rows={6} value={str(`html_${lang}`)} onChange={(e) => setContent(`html_${lang}`, e.target.value)} className="text-xs font-mono" />
-      </PropField>;
-    case "image":
-      return <>
-        <PropField label="URL obrazka">
-          <Input value={str("src")} onChange={(e) => setContent("src", e.target.value)} placeholder="https://..." className="h-8 text-xs" />
-        </PropField>
-        <PropField label={`Alt (${lang.toUpperCase()})`}>
-          <Input value={str(`alt_${lang}`)} onChange={(e) => setContent(`alt_${lang}`, e.target.value)} className="h-8 text-xs" />
-        </PropField>
-      </>;
-    case "button":
-      return <>
-        <PropField label={`Etykieta (${lang.toUpperCase()})`}>
-          <Input value={str(`label_${lang}`)} onChange={(e) => setContent(`label_${lang}`, e.target.value)} className="h-8 text-xs" />
-        </PropField>
-        <PropField label="Link"><Input value={str("href")} onChange={(e) => setContent("href", e.target.value)} className="h-8 text-xs" /></PropField>
-        <PropField label="Wariant">
-          <Select value={str("variant") || "primary"} onValueChange={(v) => setContent("variant", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>{["primary","outline","ghost"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-          </Select>
-        </PropField>
-      </>;
-    case "spacer":
-      return <PropField label="Wysokość (px)">
-        <Input type="number" value={num("height", 32)} onChange={(e) => setContent("height", Number(e.target.value))} className="h-8 text-xs" />
-      </PropField>;
-    case "video":
-      return <PropField label="URL (YouTube lub MP4)">
-        <Input value={str("url")} onChange={(e) => setContent("url", e.target.value)} className="h-8 text-xs" />
-      </PropField>;
-    case "gallery":
-      return <>
-        <PropField label="Obrazki (po jednym URL na linię)">
-          <Textarea rows={5} value={arr("images").join("\n")}
-            onChange={(e) => setContent("images", e.target.value.split("\n").map((s) => s.trim()).filter(Boolean))}
-            className="text-xs font-mono" />
-        </PropField>
-        <PropField label="Kolumny">
-          <Input type="number" min={1} max={6} value={num("columns", 3)} onChange={(e) => setContent("columns", Number(e.target.value))} className="h-8 text-xs" />
-        </PropField>
-      </>;
-    case "icon":
-      return <>
-        <PropField label="Nazwa ikony">
-          <Input value={str("name") || "Star"} onChange={(e) => setContent("name", e.target.value)} placeholder="Star, Heart, Mail..." className="h-8 text-xs" />
-        </PropField>
-        <PropField label="Rozmiar (px)">
-          <Input type="number" value={num("size", 32)} onChange={(e) => setContent("size", Number(e.target.value))} className="h-8 text-xs" />
-        </PropField>
-      </>;
-    case "map":
-      return <PropField label="Adres / zapytanie">
-        <Input value={str("query")} onChange={(e) => setContent("query", e.target.value)} className="h-8 text-xs" />
-      </PropField>;
-    case "post-list":
-    case "carousel":
-      return <>
-        <PropField label="Limit">
-          <Input type="number" value={num("limit", 6)} onChange={(e) => setContent("limit", Number(e.target.value))} className="h-8 text-xs" />
-        </PropField>
-        {widget.type === "post-list" && (
-          <PropField label="Kolumny">
-            <Input type="number" min={1} max={6} value={num("columns", 3)} onChange={(e) => setContent("columns", Number(e.target.value))} className="h-8 text-xs" />
-          </PropField>
-        )}
-      </>;
-    case "newsletter":
-    case "cta":
-      return <>
-        <PropField label={`Tytuł (${lang.toUpperCase()})`}>
-          <Input value={str(`title_${lang}`)} onChange={(e) => setContent(`title_${lang}`, e.target.value)} className="h-8 text-xs" />
-        </PropField>
-        {widget.type === "cta" && (
-          <>
-            <PropField label={`CTA (${lang.toUpperCase()})`}>
-              <Input value={str(`cta_${lang}`)} onChange={(e) => setContent(`cta_${lang}`, e.target.value)} className="h-8 text-xs" />
-            </PropField>
-            <PropField label="Link"><Input value={str("href")} onChange={(e) => setContent("href", e.target.value)} className="h-8 text-xs" /></PropField>
-          </>
-        )}
-      </>;
-    case "contact":
-      return <PropField label="Email odbiorcy">
-        <Input value={str("to")} onChange={(e) => setContent("to", e.target.value)} className="h-8 text-xs" />
-      </PropField>;
     case "accordion":
       return <AccordionEditor c={c} lang={lang} setContent={setContent} />;
     case "tabs":
       return <TabsEditor c={c} lang={lang} setContent={setContent} />;
-    case "testimonial":
-      return <>
-        <PropField label={`Cytat (${lang.toUpperCase()})`}>
-          <Textarea rows={3} value={str(`quote_${lang}`)} onChange={(e) => setContent(`quote_${lang}`, e.target.value)} className="text-xs" />
-        </PropField>
-        <PropField label="Autor">
-          <Input value={str("author")} onChange={(e) => setContent("author", e.target.value)} className="h-8 text-xs" />
-        </PropField>
-        <PropField label={`Rola (${lang.toUpperCase()})`}>
-          <Input value={str(`role_${lang}`)} onChange={(e) => setContent(`role_${lang}`, e.target.value)} className="h-8 text-xs" />
-        </PropField>
-        <PropField label="Avatar (URL)">
-          <Input value={str("avatar")} onChange={(e) => setContent("avatar", e.target.value)} placeholder="https://..." className="h-8 text-xs" />
-        </PropField>
-      </>;
     case "pricing":
       return <PricingEditor c={c} lang={lang} setContent={setContent} />;
-    default:
-      return <div className="text-xs text-muted-foreground">Brak edytowalnych pól dla tego widgetu.</div>;
   }
+
+  // Schema-driven render for simple widgets.
+  const schema = WIDGET_SCHEMAS[widget.type];
+  if (!schema || schema.length === 0) {
+    return <div className="text-xs text-muted-foreground">Brak edytowalnych pól dla tego widgetu.</div>;
+  }
+  return (
+    <>
+      {schema.map((f) => (
+        <SchemaFieldControl key={f.key} field={f} lang={lang} content={c} setContent={setContent} />
+      ))}
+    </>
+  );
 }
+
 
 // ---------- List editors for the new widgets ----------
 
