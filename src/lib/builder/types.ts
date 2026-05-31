@@ -11,6 +11,17 @@ export interface ResponsiveValue<T> {
   mobile?: T;
 }
 
+export interface WidgetTypography {
+  fontFamily?: string;
+  fontSize?: ResponsiveValue<string>;     // e.g. "16px", "1.25rem"
+  fontWeight?: string;                    // "400" | "700" | "bold" ...
+  fontStyle?: "normal" | "italic";
+  lineHeight?: string;                    // e.g. "1.4"
+  letterSpacing?: string;                 // e.g. "0.02em"
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
+  textDecoration?: "none" | "underline" | "line-through";
+}
+
 export interface CommonStyle {
   bgColor?: string;
   textColor?: string;
@@ -19,12 +30,20 @@ export interface CommonStyle {
   align?: ResponsiveValue<Align>;
   borderRadius?: string;
   maxWidth?: string;
+  typography?: WidgetTypography;
 }
+
+export type MotionPreset =
+  | "none" | "fade" | "slide-up" | "slide-down" | "slide-left" | "slide-right"
+  | "zoom" | "zoom-out" | "bounce";
 
 export interface AdvancedSettings {
   cssClass?: string;
   customCss?: string;
-  animation?: "none" | "fade" | "slide-up" | "zoom";
+  animation?: MotionPreset;
+  animationDelay?: number;       // ms
+  animationDuration?: number;    // ms
+  animationOnce?: boolean;       // play only once on first view (default true)
   hideOn?: { desktop?: boolean; tablet?: boolean; mobile?: boolean };
   htmlId?: string;
 }
