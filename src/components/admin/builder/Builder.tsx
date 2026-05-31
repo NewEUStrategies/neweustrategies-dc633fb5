@@ -221,6 +221,41 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
     if (c) c.children.push(makeWidget(type));
   });
 
+  // Move a widget before/after another widget (across columns supported).
+  const moveWidgetTo = (srcId: string, targetId: string, pos: "before" | "after") => update((d) => {
+    if (srcId === targetId) return;
+    let src: WidgetNode | null = null;
+    const removeFrom = (col: ColumnNode) => {
+      const i = col.children.findIndex((w) => w.id === srcId);
+      if (i >= 0) { src = col.children.splice(i, 1)[0]; return true; }
+      return false;
+    };
+    for (const s of d.sections) for (const c of s.children) {
+      const cols = c.kind === "column" ? [c] : c.columns;
+      for (const col of cols) if (removeFrom(col)) break;
+      if (src) break;
+    }
+    if (!src) return;
+    for (const s of d.sections) for (const c of s.children) {
+      const cols = c.kind === "column" ? [c] : c.columns;
+      for (const col of cols) {
+        const j = col.children.findIndex((w) => w.id === targetId);
+        if (j >= 0) { col.children.splice(pos === "before" ? j : j + 1, 0, src!); return; }
+      }
+    }
+  });
+
+  // Move a section before/after another section.
+  const moveSectionTo = (srcId: string, targetId: string, pos: "before" | "after") => update((d) => {
+    if (srcId === targetId) return;
+    const i = d.sections.findIndex((s) => s.id === srcId);
+    if (i < 0) return;
+    const [node] = d.sections.splice(i, 1);
+    const j = d.sections.findIndex((s) => s.id === targetId);
+    if (j < 0) { d.sections.push(node); return; }
+    d.sections.splice(pos === "before" ? j : j + 1, 0, node);
+  });
+
   // ---------- DnD reorder widgets within a column ----------
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
