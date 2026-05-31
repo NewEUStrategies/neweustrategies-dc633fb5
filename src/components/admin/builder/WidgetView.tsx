@@ -594,7 +594,32 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     case "newsletter": {
       const tKey = `title_${lang}`;
       const title = getStr(c, tKey) || getStr(c, "title_pl") || "Newsletter";
+      const variant = getStr(c, "variant") || "icon";
+      const placeholder = getStr(c, `placeholder_${lang}`) || getStr(c, "placeholder_pl") || "Twój email";
+      const ctaLabel = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || "Zapisz";
       const MailIcon = (LucideIcons as Record<string, React.ComponentType<{ className?: string }>>).Mail;
+      if (variant === "inline") {
+        return wrap(
+          <form className="flex gap-2 w-full max-w-md" onSubmit={(e) => e.preventDefault()}>
+            <input type="email" placeholder={placeholder} className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" />
+            <button type="submit" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium hover:opacity-90">{ctaLabel}</button>
+          </form>,
+        );
+      }
+      if (variant === "card") {
+        return wrap(
+          <div className="rounded-xl border border-border bg-card p-6 space-y-3 max-w-md">
+            <div className="flex items-center gap-2"><MailIcon className="w-5 h-5 text-brand" /><h4 className="font-display text-lg">{title}</h4></div>
+            <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
+              <input type="email" placeholder={placeholder} className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" />
+              <button type="submit" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium hover:opacity-90">{ctaLabel}</button>
+            </form>
+          </div>,
+        );
+      }
+      if (variant === "minimal") {
+        return wrap(<span className="text-sm font-medium border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
+      }
       return wrap(
         <div className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors cursor-pointer" title={title}>
           {MailIcon ? <MailIcon className="w-5 h-5" /> : <span>✉</span>}
@@ -604,31 +629,72 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     }
 
     case "contact": {
-      return wrap(<form className="space-y-3"><input placeholder="Imię" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><input placeholder="Email" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><textarea placeholder="Wiadomość" rows={4} className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Wyślij</button></form>);
+      const variant = getStr(c, "variant") || "stacked";
+      const wrapCls = variant === "card" ? "space-y-3 bg-card border border-border rounded-xl p-5" : "space-y-3";
+      if (variant === "compact") {
+        return wrap(
+          <form className="flex flex-col sm:flex-row gap-2">
+            <input placeholder="Email" className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" />
+            <input placeholder="Wiadomość" className="flex-[2] bg-background border border-border rounded px-3 py-2 text-sm" />
+            <button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Wyślij</button>
+          </form>,
+        );
+      }
+      return wrap(
+        <form className={wrapCls}>
+          <input placeholder="Imię" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" />
+          <input placeholder="Email" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" />
+          <textarea placeholder="Wiadomość" rows={4} className="w-full bg-background border border-border rounded px-3 py-2 text-sm" />
+          <button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Wyślij</button>
+        </form>,
+      );
     }
     case "cta": {
       const tKey = `title_${lang}`;
       const cKey = `cta_${lang}`;
       const title = getStr(c, tKey) || getStr(c, "title_pl");
+      const subtitle = getStr(c, `subtitle_${lang}`) || getStr(c, "subtitle_pl");
       const cta = getStr(c, cKey) || getStr(c, "cta_pl");
       const href = safeUrl(getStr(c, "href"));
+      const variant = getStr(c, "variant") || "default";
+      const align = getStr(c, "align") || "between";
+      const containerCls =
+        variant === "gradient" ? "bg-gradient-to-r from-brand to-foreground text-brand-foreground rounded-xl p-8"
+        : variant === "bar" ? "bg-brand text-brand-foreground rounded-md py-3 px-5"
+        : variant === "card" ? "bg-card border border-border rounded-xl p-8 shadow-2xl"
+        : "bg-brand text-brand-foreground rounded-lg p-8";
+      const layoutCls = variant === "split"
+        ? "flex flex-col items-start gap-4"
+        : `flex flex-col sm:flex-row gap-4 ${align === "left" ? "items-start sm:items-center" : align === "center" ? "items-center justify-center text-center" : "items-center justify-between"}`;
+      const ctaBtn = canEdit
+        ? <Editable as="span" value={cta} onCommit={(v) => commit(cKey, v)} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium" placeholder="Etykieta…" />
+        : <a href={href} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium hover:opacity-90 transition">{cta}</a>;
       return wrap(
-        <div className="bg-brand text-brand-foreground rounded-lg p-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          {canEdit
-            ? <Editable as="h3" value={title} onCommit={(v) => commit(tKey, v)} className="font-display text-2xl" placeholder="Nagłówek CTA…" />
-            : <h3 className="font-display text-2xl">{title}</h3>}
-          {canEdit
-            ? <Editable as="span" value={cta} onCommit={(v) => commit(cKey, v)} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium" placeholder="Etykieta…" />
-            : <a href={href} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium">{cta}</a>}
+        <div className={containerCls}>
+          <div className={layoutCls}>
+            <div className="space-y-1">
+              {canEdit
+                ? <Editable as="h3" value={title} onCommit={(v) => commit(tKey, v)} className="font-display text-2xl" placeholder="Nagłówek CTA…" />
+                : <h3 className="font-display text-2xl">{title}</h3>}
+              {subtitle && <p className="text-sm opacity-80">{subtitle}</p>}
+            </div>
+            {ctaBtn}
+          </div>
         </div>,
       );
     }
     case "accordion": {
       const items = Array.isArray(c.items) ? c.items as Array<Record<string, string>> : [];
+      const variant = getStr(c, "variant") || "bordered";
+      const containerCls =
+        variant === "separated" ? "space-y-2"
+        : variant === "minimal" ? "divide-y divide-border"
+        : "divide-y divide-border border border-border rounded-lg overflow-hidden";
+      const itemCls = variant === "separated" ? "group border border-border rounded-lg overflow-hidden" : "group";
       return wrap(
-        <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
+        <div className={containerCls}>
           {items.map((it, i) => (
-            <details key={i} className="group">
+            <details key={i} className={itemCls}>
               <summary className="cursor-pointer list-none px-4 py-3 flex justify-between items-center hover:bg-muted/30 font-medium text-sm">
                 <span>{it[`q_${lang}`] || it.q_pl}</span>
                 <span className="text-muted-foreground group-open:rotate-180 transition">▾</span>
@@ -636,7 +702,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
               <div className="px-4 pb-4 text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: sanitizeHtml(it[`a_${lang}`] || it.a_pl || "") }} />
             </details>
           ))}
-        </div>
+        </div>,
       );
     }
     case "tabs": {
@@ -648,17 +714,33 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const author = getStr(c, "author");
       const role = getStr(c, `role_${lang}`) || getStr(c, "role_pl");
       const avatar = safeImageUrl(getStr(c, "avatar"));
+      const rating = getNum(c, "rating", 0);
+      const variant = getStr(c, "variant") || "card";
+      const containerCls =
+        variant === "minimal" ? "space-y-3"
+        : variant === "quote" ? "relative pl-10 space-y-3"
+        : variant === "centered" ? "text-center space-y-4 max-w-xl mx-auto"
+        : "bg-muted/30 rounded-lg p-6 space-y-4";
+      const stars = rating > 0 && (
+        <div className={`flex gap-0.5 text-brand ${variant === "centered" ? "justify-center" : ""}`}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <LucideIcons.Star key={i} size={14} fill={i < rating ? "currentColor" : "none"} />
+          ))}
+        </div>
+      );
       return wrap(
-        <figure className="bg-muted/30 rounded-lg p-6 space-y-4">
-          <blockquote className="text-base italic leading-relaxed">"{quote}"</blockquote>
-          <figcaption className="flex items-center gap-3">
+        <figure className={containerCls}>
+          {variant === "quote" && <LucideIcons.Quote className="absolute left-0 top-0 w-7 h-7 text-brand/40" />}
+          {stars}
+          <blockquote className={`${variant === "centered" ? "text-lg" : "text-base"} italic leading-relaxed`}>"{quote}"</blockquote>
+          <figcaption className={`flex items-center gap-3 ${variant === "centered" ? "justify-center" : ""}`}>
             {avatar && <img src={avatar} alt="" className="w-10 h-10 rounded-full object-cover" />}
             <div>
               <div className="font-medium text-sm">{author}</div>
               {role && <div className="text-xs text-muted-foreground">{role}</div>}
             </div>
           </figcaption>
-        </figure>
+        </figure>,
       );
     }
     case "pricing": {
