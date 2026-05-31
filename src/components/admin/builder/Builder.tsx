@@ -417,9 +417,28 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
 
             <div className={scope === "page" ? "px-2 py-2" : "p-0"}>
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                {doc.sections.length === 0 && <EmptyState onAdd={addSection} title={copy.title} hint={copy.hint} />}
+                {doc.sections.length === 0 && scope === "header" && (
+                  <div className="relative">
+                    <div className="pointer-events-none"><Header /></div>
+                    <div className="px-3 py-2 text-[11px] text-muted-foreground bg-muted/40 border-t border-border">
+                      Podgląd aktualnego nagłówka z publicznej strony. Dodaj sekcję poniżej, aby zacząć własną kompozycję.
+                    </div>
+                  </div>
+                )}
+                {doc.sections.length === 0 && scope === "footer" && (
+                  <div className="relative">
+                    <div className="pointer-events-none"><Footer /></div>
+                    <div className="px-3 py-2 text-[11px] text-muted-foreground bg-muted/40 border-t border-border">
+                      Podgląd aktualnej stopki z publicznej strony. Dodaj sekcję poniżej, aby zacząć własną kompozycję.
+                    </div>
+                  </div>
+                )}
+                {doc.sections.length === 0 && (scope === "page" || scope === "menu") && (
+                  <EmptyState onAdd={addSection} title={copy.title} hint={copy.hint} />
+                )}
 
                 <SectionDropZone onInsert={(cols) => insertSectionAt(0, cols)} index={0} prominent label={copy.first} />
+
 
 
                 {doc.sections.map((s, idx) => (
