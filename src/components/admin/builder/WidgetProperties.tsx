@@ -98,6 +98,87 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
                 className="h-8 text-xs"
               />
             </PropField>
+            <PropField label="Min height">
+              <Input
+                value={widget.style?.minHeight ?? ""}
+                placeholder="120px"
+                onChange={(e) => setStyle((s) => { s.minHeight = e.target.value || undefined; })}
+                className="h-8 text-xs"
+              />
+            </PropField>
+            <PropField label="Krycie (opacity)">
+              <Input
+                type="number" min={0} max={1} step={0.05}
+                value={typeof widget.style?.opacity === "number" ? widget.style.opacity : ""}
+                placeholder="1"
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setStyle((s) => { s.opacity = v === "" ? undefined : Math.max(0, Math.min(1, Number(v))); });
+                }}
+                className="h-8 text-xs"
+              />
+            </PropField>
+          </div>
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Obramowanie</h4>
+          <div className="grid grid-cols-2 gap-2">
+            <PropField label="Styl">
+              <Select
+                value={widget.style?.borderStyle ?? "none"}
+                onValueChange={(v) => setStyle((s) => { s.borderStyle = v === "none" ? undefined : (v as CommonStyle["borderStyle"]); })}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["none","solid","dashed","dotted","double"].map((v) => (
+                    <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </PropField>
+            <PropField label="Grubość">
+              <Input
+                value={widget.style?.borderWidth ?? ""}
+                placeholder="1px"
+                onChange={(e) => setStyle((s) => { s.borderWidth = e.target.value || undefined; })}
+                className="h-8 text-xs"
+              />
+            </PropField>
+          </div>
+          <PropField label="Kolor obramowania">
+            <ColorField
+              value={widget.style?.borderColor}
+              onChange={(v) => setStyle((s) => { s.borderColor = v; })}
+            />
+          </PropField>
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Cień</h4>
+          <PropField label="Box shadow (CSS)">
+            <Input
+              value={widget.style?.boxShadow ?? ""}
+              placeholder="0 10px 30px rgba(0,0,0,.15)"
+              onChange={(e) => setStyle((s) => { s.boxShadow = e.target.value || undefined; })}
+              className="h-8 text-xs"
+            />
+          </PropField>
+          <div className="flex flex-wrap gap-1">
+            {[
+              { label: "brak", v: "" },
+              { label: "sm", v: "0 1px 2px rgba(0,0,0,.08)" },
+              { label: "md", v: "0 4px 12px rgba(0,0,0,.12)" },
+              { label: "lg", v: "0 10px 30px rgba(0,0,0,.18)" },
+              { label: "xl", v: "0 24px 60px rgba(0,0,0,.25)" },
+            ].map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => setStyle((s) => { s.boxShadow = p.v || undefined; })}
+                className="px-2 py-0.5 text-[10px] rounded border border-border hover:bg-muted"
+              >{p.label}</button>
+            ))}
           </div>
         </section>
 
