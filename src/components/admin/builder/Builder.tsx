@@ -84,7 +84,18 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
   }, [doc, history]);
 
   // ---------- structural ops ----------
+  const templates = useSectionTemplates();
   const addSection = (cols: number) => update((d) => { d.sections.push(newSection(cols)); });
+  const insertTemplateSection = (tpl: SectionTemplate) => update((d) => {
+    d.sections.push(cloneSection(tpl.data));
+  });
+  const saveSectionAsTemplate = (sid: string) => {
+    const s = findSection(doc, sid);
+    if (!s) return;
+    const name = window.prompt("Nazwa szablonu sekcji:");
+    if (!name) return;
+    void templates.save(name.trim(), s);
+  };
   const removeSection = (id: string) => update((d) => { d.sections = d.sections.filter((s) => s.id !== id); });
   const moveSection = (id: string, dir: -1 | 1) => update((d) => {
     const i = d.sections.findIndex((s) => s.id === id);
@@ -331,7 +342,7 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
             </div>
           </div>
         ) : (
-          <WidgetLibrary onPickWidget={addWidgetToFocused} onPickStructure={addSection} />
+          <WidgetLibrary onPickWidget={addWidgetToFocused} onPickStructure={addSection} onPickTemplate={insertTemplateSection} />
         )}
 
         <div className="border-t border-border">
