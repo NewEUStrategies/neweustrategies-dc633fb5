@@ -56,7 +56,10 @@ interface Props {
   onChange: (v: BuilderDocument) => void;
   lang: "pl" | "en";
   onLangChange: (l: "pl" | "en") => void;
+  /** Hide the surrounding site Header/Footer preview chrome. */
+  hideChrome?: boolean;
 }
+
 
 const newColumn = (span = 12): ColumnNode => ({
   id: newId(), kind: "column", span: { desktop: span }, children: [],
