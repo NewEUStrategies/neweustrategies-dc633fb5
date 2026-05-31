@@ -34,7 +34,7 @@ export interface IconProps extends Omit<SVGAttributes<SVGSVGElement>, "color"> {
 function makeIcon(def: IconDefinition): LucideIcon {
   const Comp = forwardRef<SVGSVGElement, IconProps>(
     ({ size = 24, color, className, style, strokeWidth: _sw, absoluteStrokeWidth: _abs, ...rest }, ref) => {
-      const merged: CSSProperties = {
+      const merged: React.CSSProperties = {
         width: typeof size === "number" ? `${size}px` : size,
         height: typeof size === "number" ? `${size}px` : size,
         color,
