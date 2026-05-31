@@ -2,6 +2,7 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2 } from "lucide-react";
@@ -22,13 +23,16 @@ function PostsList() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language ?? "pl";
   const qc = useQueryClient();
+  const { tenantId } = useAuth();
 
   const { data: posts, isLoading } = useQuery({
-    queryKey: ["admin-posts"],
+    enabled: !!tenantId,
+    queryKey: ["admin-posts", tenantId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("posts")
         .select("id, slug, title_pl, title_en, status, published_at, updated_at, author_id")
+        .eq("tenant_id", tenantId!)
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -76,7 +80,7 @@ function PostsList() {
               {posts.map((p) => (
                 <tr key={p.id} className="border-t border-border hover:bg-muted/20">
                   <td className="p-3">
-                    <div className="font-medium">{(lang === "en" ? p.title_en : p.title_pl) || <span className="italic text-muted-foreground">— bez tytułu —</span>}</div>
+                    <div className="font-medium">{(lang === "en" ? p.title_en : p.title_pl) || <span className="italic text-muted-foreground">- bez tytułu -</span>}</div>
                     <div className="text-xs text-muted-foreground">{p.slug}</div>
                   </td>
                   <td className="p-3">

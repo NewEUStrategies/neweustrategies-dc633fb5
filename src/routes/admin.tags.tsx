@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useRequiredTenant } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, X } from "lucide-react";
@@ -12,24 +13,31 @@ export const Route = createFileRoute("/admin/tags")({
   component: Tags,
 });
 
-function slugify(s: string) {
+interface TagRow { id: string; name: string; slug: string }
+
+function slugify(s: string): string {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 function Tags() {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const tenantId = useRequiredTenant();
   const [name, setName] = useState("");
   const { data } = useQuery({
-    queryKey: ["tags"],
-    queryFn: async () => (await supabase.from("tags").select("*").order("name")).data ?? [],
+    queryKey: ["tags", tenantId],
+    queryFn: async (): Promise<TagRow[]> => {
+      const { data, error } = await supabase.from("tags").select("*").eq("tenant_id", tenantId).order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
-  const add = async (e: React.FormEvent) => {
+  const add = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    const { error } = await supabase.from("tags").insert({ name: name.trim(), slug: slugify(name) });
-    if (error) return toast.error(error.message);
+    const { error } = await supabase.from("tags").insert({ name: name.trim(), slug: slugify(name), tenant_id: tenantId });
+    if (error) { toast.error(error.message); return; }
     setName("");
     qc.invalidateQueries({ queryKey: ["tags"] });
   };
@@ -51,7 +59,7 @@ function Tags() {
         {data?.map((tg) => (
           <span key={tg.id} className="inline-flex items-center gap-2 bg-card border border-border rounded-full pl-3 pr-1 py-1 text-sm">
             {tg.name}
-            <button onClick={() => del(tg.id)} className="w-6 h-6 rounded-full hover:bg-destructive/10 inline-flex items-center justify-center">
+            <button onClick={() => del(tg.id)} type="button" aria-label={t("admin.delete")} className="w-6 h-6 rounded-full hover:bg-destructive/10 inline-flex items-center justify-center">
               <X className="w-3.5 h-3.5 text-destructive" />
             </button>
           </span>
