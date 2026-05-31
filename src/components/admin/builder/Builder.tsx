@@ -84,7 +84,9 @@ const newInnerSection = (): InnerSectionNode => ({
   columns: [newColumn(6), newColumn(6)],
 });
 
-export function Builder({ value, onChange, lang, onLangChange, hideChrome = false }: Props) {
+export function Builder({ value, onChange, lang, onLangChange, hideChrome = false, scope = "page" }: Props) {
+  const copy = SCOPE_COPY[scope];
+
   const initial = value ?? emptyDocument();
   const history = useHistory(initial, onChange);
   const doc = history.doc;
