@@ -1,6 +1,7 @@
 // Public page renderer at root. URL: /<slug>
 // Static routes (index, login, blog, post, admin, api, p) match before this dynamic route.
 import { createFileRoute, notFound, Link, useRouter } from "@tanstack/react-router";
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
@@ -8,6 +9,8 @@ import { Footer } from "@/components/Footer";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import { sanitizeMarkdownHtml } from "@/lib/sanitize";
+import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
+import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 
 export const Route = createFileRoute("/$slug")({
   loader: async ({ params }) => {
@@ -64,9 +67,14 @@ function PagePublic() {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const title = lang === "en" ? page.title_en || page.title_pl : page.title_pl || page.title_en;
-  const doc = parseBuilderDoc(page.builder_data);
-  const isBuilder = page.editor === "builder" && doc.sections.length > 0;
-  const html = lang === "en" ? page.content_en || page.content_pl : page.content_pl || page.content_en;
+  const rawDoc = parseBuilderDoc(page.builder_data);
+  const isBuilder = page.editor === "builder" && rawDoc.sections.length > 0;
+  const rawHtml = lang === "en" ? page.content_en || page.content_pl : page.content_pl || page.content_en;
+
+  const { doc, notes: builderNotes } = processDocFootnotes(rawDoc, lang);
+  const { html: processedHtml, notes: htmlNotes } = processHtmlFootnotes(rawHtml ?? "", 1);
+  const notes = isBuilder ? builderNotes : htmlNotes;
+  const articleRef = useRef<HTMLDivElement>(null);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -81,11 +89,15 @@ function PagePublic() {
       <Header />
       <main className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
         <h1 className="font-display text-4xl lg:text-5xl mb-8">{title}</h1>
-        {isBuilder ? (
-          <BuilderRenderer doc={doc} lang={lang} />
-        ) : (
-          <article className="prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(html ?? "") }} />
-        )}
+        <div ref={articleRef}>
+          {isBuilder ? (
+            <BuilderRenderer doc={doc} lang={lang} />
+          ) : (
+            <article className="prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(processedHtml) }} />
+          )}
+          <FootnotesList notes={notes} />
+        </div>
+        <FootnoteTooltips notes={notes} containerRef={articleRef} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       </main>
       <Footer />
