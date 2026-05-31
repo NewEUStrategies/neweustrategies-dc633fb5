@@ -76,7 +76,13 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
   const doc = history.doc;
   const [device, setDevice] = useState<Device>("desktop");
   const [selection, setSelection] = useState<Selection>({ kind: null, id: null });
-  const [showNavigator, setShowNavigator] = useState(false);
+  const [showNavigator, setShowNavigator] = useState(true);
+
+  // Auto-open Navigator whenever something is selected on the canvas so the
+  // left sidebar reflects the active block.
+  useEffect(() => {
+    if (selection.id) setShowNavigator(true);
+  }, [selection.id]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
