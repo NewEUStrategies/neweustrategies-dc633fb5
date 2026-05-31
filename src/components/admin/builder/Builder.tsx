@@ -1035,23 +1035,31 @@ function VisualCanvas({
     const onDragOver = (e: DragEvent) => {
       const lib = isLibraryDrag(e);
       if (!dragRef.current && !lib) return;
-      e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = lib ? "copy" : "move";
 
       clearDropMarkers();
       const t = e.target as HTMLElement;
       const widget = t.closest?.("[data-widget-id]") as HTMLElement | null;
+      // For new library widgets, only allow drops inside a section/column/widget-inside-section.
+      const col = t.closest?.("[data-col-id]") as HTMLElement | null;
+      const sec = t.closest?.("[data-sec-id]") as HTMLElement | null;
+      const hasSectionTarget = !!(widget || col || sec);
+      if (lib && !hasSectionTarget) {
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
+        return;
+      }
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = lib ? "copy" : "move";
+
       if (widget) {
         const r = widget.getBoundingClientRect();
         const before = e.clientY < r.top + r.height / 2;
         widget.classList.add(before ? "is-drop-before" : "is-drop-after");
         return;
       }
-      const col = t.closest?.("[data-col-id]") as HTMLElement | null;
       if (col) { col.classList.add("is-drop-into"); return; }
-      const sec = t.closest?.("[data-sec-id]") as HTMLElement | null;
       if (sec) sec.classList.add("is-drop-into");
     };
+
 
     const onDragLeave = (e: DragEvent) => {
       // Only clear when leaving the canvas entirely.
