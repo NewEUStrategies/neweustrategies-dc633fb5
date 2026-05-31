@@ -69,11 +69,10 @@ export function useAutosave<T>({
       return;
     }
     if (equals(value, lastSavedRef.current)) return;
+    // Manual-save only: mark as dirty, do NOT schedule an automatic save.
     setStatus("dirty");
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => { void runSave(value); }, delayMs);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [value, enabled, delayMs, equals, runSave]);
+  }, [value, enabled, equals]);
+
 
   const flush = useCallback(async () => {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
