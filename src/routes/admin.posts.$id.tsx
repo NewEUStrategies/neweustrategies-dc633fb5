@@ -325,7 +325,6 @@ function EditPost() {
             </div>
           </div>
         </aside>
-        )}
       </div>
     </div>
   );
