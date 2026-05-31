@@ -18,7 +18,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Monitor, Tablet, Smartphone, Columns2,
-  Settings as SettingsIcon, X, Eye, Copy, Undo, Redo, ChevronLeft, Save,
+  Settings as SettingsIcon, X, Eye, Copy, Undo, Redo, ChevronLeft, Save, Pencil,
 } from "@/lib/lucide-shim";
 import { WIDGETS, makeWidget } from "@/lib/builder/registry";
 import type {
