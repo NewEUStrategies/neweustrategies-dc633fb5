@@ -688,10 +688,11 @@ function ColumnView({
 }
 
 function SortableWidget({
-  widget, lang, device, selected, onSelect, onDuplicate, onRemove,
+  widget, lang, device, selected, onSelect, onDuplicate, onRemove, onUpdateContent,
 }: {
   widget: WidgetNode; lang: "pl"|"en"; device: Device; selected: boolean;
   onSelect: () => void; onDuplicate: () => void; onRemove: () => void;
+  onUpdateContent: (key: string, value: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
@@ -706,8 +707,15 @@ function SortableWidget({
         <IconBtn onClick={(e) => { e.stopPropagation(); onDuplicate(); }} title="Duplikuj"><Copy className="w-3 h-3" /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
       </div>
-      <div className="pointer-events-none">
-        <WidgetView node={widget} lang={lang} device={device} />
+      {/* Allow pointer events when selected so inline-editable text fields are usable. */}
+      <div className={selected ? "" : "pointer-events-none"}>
+        <WidgetView
+          node={widget}
+          lang={lang}
+          device={device}
+          editable={selected}
+          onContentChange={onUpdateContent}
+        />
       </div>
     </div>
   );
