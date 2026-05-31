@@ -52,8 +52,8 @@ function MenuEditor() {
         {draft.items.map((item, i) => (
           <div key={i} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] items-center gap-2 border border-border rounded-md p-2">
             <div className="flex flex-col">
-              <button onClick={() => move(i, -1)} className="p-1 hover:bg-muted rounded"><ArrowUp className="w-3 h-3" /></button>
-              <button onClick={() => move(i, 1)} className="p-1 hover:bg-muted rounded"><ArrowDown className="w-3 h-3" /></button>
+              <button onClick={() => move(i, -1)} className="p-1 hover:bg-muted rounded"><ChevronUp className="w-3 h-3" /></button>
+              <button onClick={() => move(i, 1)} className="p-1 hover:bg-muted rounded"><ChevronDown className="w-3 h-3" /></button>
             </div>
             <Text placeholder="Etykieta PL" value={item.label_pl} onChange={(e) => update(i, { label_pl: e.target.value })} />
             <Text placeholder="Etykieta EN" value={item.label_en} onChange={(e) => update(i, { label_en: e.target.value })} />
