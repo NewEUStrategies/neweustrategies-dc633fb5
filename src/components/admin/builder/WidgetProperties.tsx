@@ -8,6 +8,9 @@
 import type {
   WidgetNode, CommonStyle, AdvancedSettings, Device, Json, WidgetTypography,
 } from "@/lib/builder/types";
+import { useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Upload, Image as ImageIcon, Sun, Moon, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
