@@ -13,7 +13,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const lang = i18n.language ?? "pl";
 
-  const isEditRoute = /^\/admin\/(posts|pages)\/[^/]+$/.test(path);
+  const isEditRoute = /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
   const [forceCompact, setForceCompact] = useState(false);
   const compact = isEditRoute || forceCompact;
 
