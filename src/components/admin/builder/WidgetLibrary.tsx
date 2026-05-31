@@ -98,6 +98,10 @@ export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }:
                     className="flex-1 text-left text-xs px-2 py-1.5 bg-muted/30 hover:bg-brand hover:text-brand-foreground border border-border rounded truncate">
                     {t.name}
                   </button>
+                  <button type="button" title="Historia wersji" onClick={() => setHistoryOf(t)}
+                    className="p-1 text-muted-foreground hover:text-brand opacity-0 group-hover/tpl:opacity-100 transition">
+                    <Clock className="w-3 h-3" />
+                  </button>
                   <button type="button" title="Usuń szablon" onClick={() => { if (confirm(`Usunąć szablon "${t.name}"?`)) void tpl.remove(t.id); }}
                     className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover/tpl:opacity-100 transition">
                     <Trash2 className="w-3 h-3" />
