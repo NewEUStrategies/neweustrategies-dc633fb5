@@ -56,9 +56,6 @@ function GeneralSettings() {
       <h2 className="font-display text-xl mb-4">Ustawienia ogólne</h2>
 
 
-  return (
-    <div>
-      <h2 className="font-display text-xl mb-4">Ustawienia ogólne</h2>
 
       <Field label="Nazwa witryny">
         <Text value={draft.site_name} onChange={(e) => set("site_name", e.target.value)} />
@@ -101,6 +98,22 @@ function GeneralSettings() {
           value={String(draft.week_starts_on)}
           onChange={(e) => set("week_starts_on", Number(e.target.value))}
         >
+          <option value="1">poniedziałek</option>
+          <option value="0">niedziela</option>
+        </Select>
+      </Field>
+      <Field
+        label="Zestaw ikon"
+        hint="Lucide jest domyślny i zalecany. Font Awesome dostępny jako wariant rezerwowy."
+      >
+        <Select
+          value={draft.icon_pack}
+          onChange={(e) => set("icon_pack", e.target.value as IconPack)}
+        >
+          <option value="lucide">Lucide (domyślnie)</option>
+          <option value="fontawesome">Font Awesome (rezerwowy)</option>
+        </Select>
+      </Field>
           <option value="1">poniedziałek</option>
           <option value="0">niedziela</option>
         </Select>
