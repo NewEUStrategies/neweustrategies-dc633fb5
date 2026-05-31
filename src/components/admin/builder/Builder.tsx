@@ -390,9 +390,12 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
             }`}
           >
             {/* Site chrome — Header preview with hover edit overlay */}
-            <ChromeFrame label="Nagłówek strony" editTo="/admin/settings/general">
-              <Header />
-            </ChromeFrame>
+            {!hideChrome && (
+              <ChromeFrame label="Nagłówek strony" editTo="/admin/settings/general">
+                <Header />
+              </ChromeFrame>
+            )}
+
 
             <div className="px-2 py-2">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
