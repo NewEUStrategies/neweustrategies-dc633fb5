@@ -435,9 +435,12 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
               </DndContext>
             </div>
 
-            <ChromeFrame label="Stopka strony" editTo="/admin/settings/general">
-              <Footer />
-            </ChromeFrame>
+            {!hideChrome && (
+              <ChromeFrame label="Stopka strony" editTo="/admin/settings/general">
+                <Footer />
+              </ChromeFrame>
+            )}
+
           </div>
         </div>
       </div>
