@@ -614,18 +614,18 @@ function EmptyState({ onAdd, title, hint }: { onAdd: (cols: number) => void; tit
     { cols: 4, label: "1/4 x4", hint: "Cztery kolumny" },
   ];
   return (
-    <div className="bg-card/60 border-2 border-dashed border-brand/40 rounded-lg p-10 text-center my-4">
+    <div data-section-inserter className="bg-card/60 border-2 border-dashed border-brand/40 rounded-lg p-10 text-center my-4">
       <div className="mx-auto w-10 h-10 rounded-full bg-brand/10 text-brand inline-flex items-center justify-center mb-3">
         <Plus className="w-5 h-5" />
       </div>
       <h3 className="text-sm font-semibold mb-1">{title ?? "Zacznij budować stronę"}</h3>
       <p className="text-xs text-muted-foreground mb-5">
-        {hint ?? "Wybierz strukturę pierwszej sekcji. Pojawi się między nagłówkiem a stopką."}
+        {hint ?? "Wybierz liczbę kolumn pierwszej sekcji. Pojawi się między nagłówkiem a stopką."}
       </p>
 
       <div className="flex flex-wrap gap-2 justify-center">
         {STRUCTURES.map((s) => (
-          <button key={s.cols} onClick={() => onAdd(s.cols)}
+          <button key={s.cols} type="button" onClick={() => onAdd(s.cols)}
             title={s.hint}
             className="px-3 py-2 bg-muted hover:bg-brand hover:text-brand-foreground rounded text-xs transition">
             {s.label}
@@ -648,21 +648,22 @@ function SectionDropZone({
   const [open, setOpen] = useState(false);
   if (open) {
     return (
-      <div className="my-2 flex flex-wrap items-center gap-1 p-1.5 border border-brand/60 rounded bg-card shadow-sm" onClick={(e) => e.stopPropagation()}>
-        <span className="text-[10px] text-muted-foreground px-1">Struktura:</span>
+      <div data-section-inserter className="my-2 flex flex-wrap items-center gap-1 p-1.5 border border-brand/60 rounded bg-card shadow-sm" onClick={(e) => e.stopPropagation()}>
+        <span className="text-[10px] text-muted-foreground px-1">Liczba kolumn:</span>
         {[1, 2, 3, 4].map((c) => (
-          <button key={c} onClick={() => { onInsert(c); setOpen(false); }}
-            className="px-2 py-1 text-[10px] bg-muted hover:bg-brand hover:text-brand-foreground rounded">
-            {c === 1 ? "1" : `1/${c} x${c}`}
+          <button key={c} type="button" onClick={() => { onInsert(c); setOpen(false); }}
+            className="px-2.5 py-1 text-[10px] bg-muted hover:bg-brand hover:text-brand-foreground rounded font-medium">
+            {c === 1 ? "1 kolumna" : `${c} kolumny`}
           </button>
         ))}
-        <button onClick={() => setOpen(false)} className="px-1 text-[10px] text-muted-foreground ml-auto">×</button>
+        <button type="button" onClick={() => setOpen(false)} className="px-1 text-[10px] text-muted-foreground ml-auto">×</button>
       </div>
     );
   }
   return (
-    <div className="my-1 group" onClick={(e) => e.stopPropagation()}>
+    <div data-section-inserter className="my-1 group" onClick={(e) => e.stopPropagation()}>
       <button
+        type="button"
         onClick={() => setOpen(true)}
         title={label ?? `Wstaw sekcję w pozycji ${index + 1}`}
         className={`w-full rounded inline-flex items-center justify-center gap-1.5 text-[10px] transition ${
@@ -1141,6 +1142,9 @@ function VisualCanvas({
     [data-visual-canvas] .is-drop-into{outline:2px dashed var(--brand) !important;outline-offset:-2px;background:color-mix(in oklab, var(--brand) 6%, transparent)}
     [data-visual-canvas] a{pointer-events:none}
     [data-visual-canvas] button{pointer-events:none}
+    [data-visual-canvas] [data-section-inserter] button,
+    [data-visual-canvas] [data-section-inserter] a{pointer-events:auto}
+  
   `;
 
   return (
