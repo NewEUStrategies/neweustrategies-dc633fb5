@@ -45,20 +45,26 @@ export function Header() {
       <div className="border-b border-border">
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-11 flex items-center justify-between text-xs">
           <div className="flex items-center gap-5">
-            <a href="#newsletter" className="flex items-center gap-2 font-semibold text-foreground hover:text-brand transition">
-              <span className="w-7 h-7 rounded-full bg-brand text-brand-foreground inline-flex items-center justify-center">
-                <Send className="w-3.5 h-3.5" />
-              </span>
-              {t("nav.newsletter")}
-            </a>
-            <div className="hidden sm:flex items-center gap-3 text-muted-foreground">
-              <a href="#" aria-label="Facebook" className="hover:text-brand"><Facebook className="w-4 h-4" /></a>
-              <a href="#" aria-label="X" className="hover:text-brand"><Twitter className="w-4 h-4" /></a>
-              <a href="#" aria-label="YouTube" className="hover:text-brand"><Youtube className="w-4 h-4" /></a>
-              <a href="#" aria-label="Instagram" className="hover:text-brand"><Instagram className="w-4 h-4" /></a>
-              <a href="#" aria-label="LinkedIn" className="hover:text-brand"><Linkedin className="w-4 h-4" /></a>
-              <a href="#" aria-label="Email" className="hover:text-brand"><Mail className="w-4 h-4" /></a>
-            </div>
+            {headerCfg.show_newsletter && (
+              <a href="#newsletter" className="flex items-center gap-2 font-semibold text-foreground hover:text-brand transition">
+                <span className="w-7 h-7 rounded-full bg-brand text-brand-foreground inline-flex items-center justify-center">
+                  <Send className="w-3.5 h-3.5" />
+                </span>
+                {t("nav.newsletter")}
+              </a>
+            )}
+            {headerCfg.show_socials && (
+              <div className="hidden sm:flex items-center gap-3 text-muted-foreground">
+                <a href={headerCfg.social_facebook || "#"} aria-label="Facebook" className="hover:text-brand"><Facebook className="w-4 h-4" /></a>
+                <a href={headerCfg.social_twitter || "#"} aria-label="X" className="hover:text-brand"><Twitter className="w-4 h-4" /></a>
+                <a href={headerCfg.social_youtube || "#"} aria-label="YouTube" className="hover:text-brand"><Youtube className="w-4 h-4" /></a>
+                <a href={headerCfg.social_instagram || "#"} aria-label="Instagram" className="hover:text-brand"><Instagram className="w-4 h-4" /></a>
+                <a href={headerCfg.social_linkedin || "#"} aria-label="LinkedIn" className="hover:text-brand"><Linkedin className="w-4 h-4" /></a>
+                {headerCfg.contact_email && (
+                  <a href={`mailto:${headerCfg.contact_email}`} aria-label="Email" className="hover:text-brand"><Mail className="w-4 h-4" /></a>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {session && isStaff ? (
