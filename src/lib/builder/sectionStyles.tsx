@@ -196,7 +196,7 @@ interface DividerProps {
   position: "top" | "bottom";
 }
 
-export function ShapeDivider({ s, position }: DividerProps): JSX.Element | null {
+export function ShapeDivider({ s, position }: DividerProps): React.ReactElement | null {
   if (!s || !s.type || s.type === "none") return null;
   const path = SHAPE_PATHS[s.type];
   if (!path) return null;
