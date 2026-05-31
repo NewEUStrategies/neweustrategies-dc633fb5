@@ -153,12 +153,13 @@ export function Header() {
         {mobileOpen && (
           <div className="lg:hidden border-t border-border py-4 px-4 flex flex-col gap-3">
             {nav.map((item) => (
-              <button
+              <a
                 key={item.label}
+                href={item.url || "#"}
                 className="text-left text-sm font-semibold tracking-wider text-foreground/80"
               >
                 {item.label}
-              </button>
+              </a>
             ))}
           </div>
         )}
