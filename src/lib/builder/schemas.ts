@@ -36,13 +36,44 @@ export interface SchemaField {
 export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaField>>> = {
   heading: [
     { key: "text", type: "i18nText", label: "Tekst" },
+    { key: "subtitle", type: "i18nText", label: "Podtytuł (opcjonalny)" },
     {
-      key: "tag", type: "select", label: "Tag",
+      key: "tag", type: "select", label: "Tag (SEO)",
       options: ["h1", "h2", "h3", "h4", "h5", "h6"].map((v) => ({ value: v })),
+    },
+    { key: "href", type: "url", label: "Link (opcjonalny)", placeholder: "/o-nas lub https://…" },
+    {
+      key: "target", type: "select", label: "Otwórz link w",
+      options: [
+        { value: "self", label: "tym samym oknie" },
+        { value: "blank", label: "nowej karcie" },
+      ],
+      visibleWhen: (c) => typeof c.href === "string" && c.href.length > 0,
+    },
+    {
+      key: "iconName", type: "text", label: "Ikona (opcjonalna)",
+      placeholder: "Star, Sparkles, ArrowRight…",
+      hint: "Nazwa ikony Lucide. Zostaw puste, aby ukryć.",
+    },
+    {
+      key: "iconPosition", type: "select", label: "Pozycja ikony",
+      options: [
+        { value: "left", label: "po lewej" },
+        { value: "right", label: "po prawej" },
+      ],
+      visibleWhen: (c) => typeof c.iconName === "string" && c.iconName.length > 0,
     },
   ],
   text: [
     { key: "html", type: "i18nHtml", label: "HTML", rows: 6 },
+    {
+      key: "columns", type: "number", label: "Kolumny tekstu", min: 1, max: 4,
+      hint: "Podział tekstu na kolumny (CSS multi-column).",
+    },
+    { key: "dropCap", type: "select", label: "Inicjał", options: [
+      { value: "off", label: "wyłączony" },
+      { value: "on", label: "włączony" },
+    ]},
   ],
   image: [
     { key: "src", type: "url", label: "URL obrazka", placeholder: "https://..." },
@@ -52,9 +83,37 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "label", type: "i18nText", label: "Etykieta" },
     { key: "href", type: "url", label: "Link" },
     {
+      key: "target", type: "select", label: "Otwórz w",
+      options: [
+        { value: "self", label: "tym samym oknie" },
+        { value: "blank", label: "nowej karcie" },
+      ],
+    },
+    {
       key: "variant", type: "select", label: "Wariant",
       options: [{ value: "primary" }, { value: "outline" }, { value: "ghost" }],
     },
+    {
+      key: "size", type: "select", label: "Rozmiar",
+      options: [
+        { value: "sm", label: "mały" },
+        { value: "md", label: "średni" },
+        { value: "lg", label: "duży" },
+      ],
+    },
+    { key: "iconName", type: "text", label: "Ikona (Lucide)", placeholder: "ArrowRight…" },
+    {
+      key: "iconPosition", type: "select", label: "Pozycja ikony",
+      options: [
+        { value: "left", label: "po lewej" },
+        { value: "right", label: "po prawej" },
+      ],
+      visibleWhen: (c) => typeof c.iconName === "string" && c.iconName.length > 0,
+    },
+    { key: "fullWidth", type: "select", label: "Szerokość", options: [
+      { value: "auto", label: "automatyczna" },
+      { value: "full", label: "100%" },
+    ]},
   ],
   spacer: [
     { key: "height", type: "number", label: "Wysokość (px)", min: 1, max: 800 },

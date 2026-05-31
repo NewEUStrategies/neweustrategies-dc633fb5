@@ -44,6 +44,14 @@ export const styleToCSS = (
   if (align) css.textAlign = align;
   if (s.borderRadius) css.borderRadius = s.borderRadius;
   if (s.maxWidth) css.maxWidth = s.maxWidth;
+  if (s.minHeight) css.minHeight = s.minHeight;
+  if (s.borderStyle && s.borderStyle !== "none") {
+    css.borderStyle = s.borderStyle;
+    css.borderWidth = s.borderWidth || "1px";
+    if (s.borderColor) css.borderColor = s.borderColor;
+  }
+  if (s.boxShadow) css.boxShadow = s.boxShadow;
+  if (typeof s.opacity === "number") css.opacity = s.opacity;
   const t = s.typography;
   if (t) {
     if (t.fontFamily) css.fontFamily = t.fontFamily;
