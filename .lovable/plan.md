@@ -1,79 +1,128 @@
-## Cel
+# Architektura: strony, wpisy i breadcrumbs
 
-Doprowadzić builder do poziomu „world class" stosując atomic design (atomy → molekuły → organizmy → szablony) i dodać cztery brakujące obszary: multi-tenant szablony, globalne style marki, hover, dodatkowe widgety.
+## Zasada przewodnia
 
-## Warstwa atomic design (refaktor wspólny dla wszystkich punktów)
+- **Strony** tworzą hierarchię (drzewo). Każda strona może mieć rodzica → ścieżka URL i breadcrumbs wynikają wprost z drzewa.
+- **Wpisy** zawsze należą do jakiejś strony („wpisy tworzą część strony"). Wpis bez strony nadrzędnej nie istnieje.
+- **Szablony** są wspólnym magazynem blueprintów. Mogą mieć zasięg `section` (jak dziś), `page` lub `post` — czyli pełny `BuilderDocument`, nie tylko jedna sekcja.
+- Szablon przy zastosowaniu jest **klonowany** do `builder_data` strony/wpisu (jak dziś dla sekcji). Bez „live link" — modyfikacja szablonu nie zmienia istniejących stron.
 
-Stworzymy spójną strukturę w `src/components/admin/builder/ui/`:
+## Model danych (migracje)
 
-- **atoms/** — `PropField`, `ColorSwatch`, `NumberStepper`, `ResponsiveInput`, `Switch`, `Segmented`, `TokenPicker`
-- **molecules/** — `TypographyControl`, `SpacingControl`, `BorderControl`, `BackgroundControl`, `MotionControl`, `HoverToggle`
-- **organisms/** — `WidgetPropertiesPanel`, `SectionPropertiesPanel`, `ColumnPropertiesPanel`, `WidgetLibraryPanel`
-- **templates/** — `BuilderLayout` (lewy panel / canvas / toolbar)
+### `pages`
+- `parent_id uuid` — FK → `pages(id)` ON DELETE RESTRICT (zakaz kasowania rodzica z dziećmi)
+- `template_id uuid` — FK → `builder_templates(id)` ON DELETE SET NULL (informacja, z którego szablonu wystartowała)
+- `menu_order int default 0` — kolejność w obrębie rodzica (do nav/breadcrumbs)
+- Indeks: `(parent_id, menu_order)`, unikalność `(parent_id, slug)` (slug unikalny w obrębie rodzica)
+- Walidacja w triggerze: zakaz cyklu (strona nie może być potomkiem samej siebie)
 
-Każdy widget z biblioteki rozbity będzie na ten sam wzorzec: `WidgetRegistry → WidgetView` (renderer) + `WidgetSchema` (definicja pól zaawan. wpinanych w `WidgetPropertiesPanel`). Dziś każdy widget ma ręczny `switch` w `WidgetProperties.tsx` — to wymienimy na deklaratywne schematy.
+### `posts`
+- `parent_page_id uuid NOT NULL` — FK → `pages(id)` ON DELETE RESTRICT. Wpis MUSI należeć do strony.
+- `template_id uuid` — FK → `builder_templates(id)` ON DELETE SET NULL
+- Unikalność: `(parent_page_id, slug)`
+- Backfill: istniejące wpisy dostaną auto-utworzoną stronę „Blog" jako rodzica (jednorazowo)
 
-## 1) Multi-tenant dla szablonów
+### `builder_templates`
+- Rozszerzenie `scope`: dziś tylko `"section"`. Dodajemy obsługę `"page"` i `"post"` (kolumna jest już TEXT, więc bez zmiany schematu — tylko logika UI).
+- `data` dla `scope='page'/'post'` przechowuje cały `BuilderDocument` (tablica sekcji), a nie pojedynczy `SectionNode`.
 
-Migracja `builder_templates`:
-- dodaje `tenant_id uuid not null default current_tenant_id()`
-- backfill istniejących rekordów do tenanta autora (lub usunięcie, bo to dane testowe)
-- RLS: SELECT/INSERT/DELETE tylko gdy `tenant_id = current_tenant_id()`
-- indeks `(tenant_id, created_at desc)`
-- `scope` rozszerzony o `'page'` i `'widget'` (na kolejne iteracje)
+## URL i routing
 
-Klient: `useSectionTemplates` zostaje, ale używa RLS — żadnych zmian w kodzie wywołującym.
+| Treść | URL |
+|---|---|
+| Strona główna | `/` |
+| Strona top-level | `/<slug>` |
+| Strona zagnieżdżona | `/<parent-slug>/<child-slug>/...` |
+| Wpis | `/<page-path>/<post-slug>` (gdzie `page-path` = pełna ścieżka strony nadrzędnej) |
 
-## 2) Globalne style marki (tokeny)
+Implementacja:
+- Usunięcie/zmiana `src/routes/post.$slug.tsx` → wpisy nie żyją już pod `/post/...`.
+- Splat route `src/routes/$.tsx` (`createFileRoute("/$")`) który po stronie loadera:
+  1. Rozbija ścieżkę po `/`.
+  2. Spróbuje dopasować jako stronę po pełnej hierarchii (`parent_id` chain).
+  3. Jeśli ostatni segment nie jest stroną-dzieckiem, traktuje go jako slug wpisu w obrębie znalezionej strony nadrzędnej.
+  4. W innym wypadku → `notFound()`.
+- `/blog` zostaje jako lista wszystkich wpisów (przekrojowa), ale każdy wpis linkuje na swój `parent-page-path/slug`.
+- Dodanie kolumny obliczanej (DB function) `page_full_path(page_id) returns text` — wykorzystywana przez loader i sitemap.
 
-Nowa tabela `site_design_tokens` per tenant (lub klucz w `site_settings`):
-- `colors: { brand, accent, neutralFg, neutralBg, ... }`
-- `fonts: { heading, body, mono }`
-- `radii`, `shadows`
+## Breadcrumbs
 
-UI: nowa karta w `Ustawienia → Marka i design` (edycja JSON-podobna z preview). Tokeny eksportowane do CSS variables w runtime przez `<DesignTokensStyle/>` montowany w `__root.tsx`.
+### Komponent `<Breadcrumbs items={...} />`
+- Lokalizacja: `src/components/Breadcrumbs.tsx`.
+- Renderuje listę `<ol>` z separatorami, semantyka `aria-label="breadcrumb"`, JSON-LD `BreadcrumbList` w `<script type="application/ld+json">`.
+- Stylowanie przez design tokens (text-muted-foreground, hover:text-foreground).
 
-`TokenPicker` (atom) w `TypographyControl` / kolor / `BackgroundControl` pokazuje tokeny obok pól wolnego tekstu — wybór tokena zapisuje `var(--brand)` zamiast hexa.
+### Źródło danych
+- Helper `getBreadcrumbsForPage(pageId)` w `src/lib/breadcrumbs.ts` — pojedyncze rekurencyjne zapytanie (CTE `WITH RECURSIVE`) zwraca tablicę `{slug, title_pl, title_en}` od korzenia do strony bieżącej.
+- Dla wpisu: breadcrumbs strony nadrzędnej + sam wpis jako ostatni crumb (bez linku).
+- Hook `useBreadcrumbs(entity)` zwracający gotowe items na podstawie aktualnego języka.
 
-## 3) Style hover
+### Gdzie się pojawiają
+- Render automatyczny na publicznych routach: `$.tsx` (strony + wpisy), tuż nad `<main>`.
+- Strona główna `/` — bez breadcrumbs.
+- Admin: opcjonalnie w nagłówku edytora strony/wpisu, żeby pokazać kontekst (nice-to-have, niżej priorytetowo).
 
-Typ `CommonStyle` zyskuje opcjonalny `hover?: Partial<CommonStyle & { transition?: string }>`. `WidgetView` montuje `<style>` ze skopowaną regułą `[data-w-id="..."]:hover { ... }` zamiast inline (inline nie obsługuje `:hover`).
+## Edytor admin
 
-W panelu właściwości widgetu nowa molekuła `HoverToggle` przełącza widok Style ↔ Style (hover) — ten sam zestaw kontrolek edytuje warstwę hover.
+### Edycja strony
+- Nowy widget w `admin.pages.$id.tsx`: pole „Rodzic" (select z drzewa stron, z wykluczeniem samej siebie i potomków).
+- Pole „Szablon startowy" (tylko przy tworzeniu — `admin.pages.new.tsx`): pre-wypełnia `builder_data` sklonowanym dokumentem.
+- Akcja „Zapisz jako szablon strony" (analogicznie do istniejącego „Zapisz jako szablon sekcji") — zapisuje cały `BuilderDocument` z `scope='page'`.
 
-## 4) Nowe widgety (accordion, tabs, testimonial, pricing, FAQ, stats, team)
+### Edycja wpisu
+- Pole „Strona nadrzędna" — wymagane, select z drzewa stron.
+- Pole „Szablon startowy wpisu" przy tworzeniu — z `scope='post'`.
+- Akcja „Zapisz jako szablon wpisu" → `scope='post'`.
 
-Dodawane jeden po drugim według wzorca:
-- `registry.tsx` — typ + ikona + kategoria + `makeWidget` z domyślną treścią dwujęzyczną
-- `WidgetView.tsx` — renderer dostępny semantycznie (a11y: `role="tablist"`, `aria-expanded`, etc.)
-- `schema` — pola edytora (przejście z `switch` na deklaratywny schemat)
+### Builder
+- W `WidgetLibrary` sekcja „Szablony" rozszerzona: zakładki Section / Page / Post (`scope`).
+- Wstawianie szablonu page/post zastępuje cały dokument (z konfirmacją), section — dodaje sekcję (jak dziś).
 
-Zakres pierwszej iteracji nowych widgetów: **Accordion**, **Tabs**, **Testimonial**, **Pricing Table**.
+## Pliki do zmiany / utworzenia
 
-## Kolejność wdrożenia (osobne tury)
+**Migracje (jedna):**
+- `pages.parent_id`, `pages.template_id`, `pages.menu_order`, indeksy, trigger anty-cykl, unikalność `(parent_id, slug)`.
+- `posts.parent_page_id` (NOT NULL po backfill), `posts.template_id`, unikalność `(parent_page_id, slug)`.
+- Funkcja `page_full_path(uuid) returns text`.
+- Backfill: utworzenie strony „Blog" (slug `blog`) i przypięcie wszystkich istniejących wpisów.
 
-1. **Refaktor atomic design** — atomy/molekuły, migracja istniejących pól (`WidgetProperties`, `SectionProperties`, `ColumnProperties`) na molekuły. Bez zmian funkcjonalnych dla użytkownika, ale baza pod resztę.
-2. **Multi-tenant szablonów** — migracja + RLS.
-3. **Tokeny marki** — tabela + edytor + `TokenPicker` w pickerach.
-4. **Hover** — typ + renderer + `HoverToggle`.
-5. **Deklaratywne schematy widgetów** — migracja istniejących na schemat (bez nowych pól).
-6. **Nowe widgety** — Accordion → Tabs → Testimonial → Pricing.
+**Nowe pliki:**
+- `src/lib/breadcrumbs.ts` — fetchery + JSON-LD helper.
+- `src/lib/pageTree.ts` — `getPageTree()`, `resolvePath(segments) → {page, post?}`.
+- `src/components/Breadcrumbs.tsx`.
+- `src/routes/$.tsx` — uniwersalny resolver stron i wpisów.
+- `src/components/admin/PageParentSelect.tsx` — select drzewa.
 
-Po każdym kroku oddzielne podsumowanie + sanity check w preview.
+**Zmiany:**
+- `src/routes/$slug.tsx` → usunięcie (zastąpione przez `$.tsx`).
+- `src/routes/post.$slug.tsx` → usunięcie (lub przekierowanie na nowy URL).
+- `src/routes/blog.index.tsx` → linki wpisów używają nowej pełnej ścieżki.
+- `src/routes/admin.pages.$id.tsx`, `admin.pages.new.tsx` — pola Rodzic + Szablon.
+- `src/routes/admin.posts.$id.tsx`, `admin.posts.new.tsx` — pole Strona nadrzędna (wymagane) + Szablon.
+- `src/components/admin/builder/WidgetLibrary.tsx` — zakładki scope w sekcji szablonów.
+- `src/lib/builder/templates.ts` — `useTemplates(scope)` zamiast `useSectionTemplates()`.
 
-## Sekcja techniczna
+## Kolejność wdrożenia
 
-- Brak zmian w `client.ts`, `client.server.ts`, `types.ts` (auto).
-- Typy buildera (`src/lib/builder/types.ts`) zyskają `hover`, ewentualne nowe pola w schematach.
-- Wszystkie nowe pliki — TypeScript strict; `lucide-shim` poszerzony jeśli zabraknie ikon.
-- Migracje: `builder_templates` (alter) + `site_design_tokens` (create + GRANT + RLS).
-- Bez SSR/edge zmian; cała praca w stronie klienta + RLS.
+1. **Migracja DB** (pojedynczy commit): kolumny, FK, indeksy, trigger, funkcja `page_full_path`, backfill strony „Blog".
+2. **Resolver i routing**: `pageTree.ts`, nowy `$.tsx`, usunięcie starych routów stron/wpisów, aktualizacja linków w `blog.index.tsx`.
+3. **Breadcrumbs**: helper + komponent + wpięcie do `$.tsx` (publiczne strony i wpisy).
+4. **Admin — strony**: select rodzica + szablon startowy + „zapisz jako szablon strony".
+5. **Admin — wpisy**: wymagana strona nadrzędna + szablon + „zapisz jako szablon wpisu".
+6. **Builder library**: zakładki Section/Page/Post w panelu szablonów.
 
-## Co NIE wchodzi w ten plan
+## Szczegóły techniczne
 
-- Bezpośrednia edycja inline w canvasie (kliknij heading → wpisz tekst).
-- Historia rewizji per szablon.
-- Marketplace szablonów między tenantami.
-- Eksport/import dokumentu jako JSON do pliku.
+- **Anty-cykl**: trigger `BEFORE INSERT OR UPDATE` na `pages` — funkcja `check_page_parent_no_cycle()` wspina się po `parent_id` i sprawdza, czy nie napotka samego siebie. RAISE EXCEPTION przy cyklu.
+- **`page_full_path`**: SQL function z `WITH RECURSIVE`, zwraca slug-join `/` od korzenia.
+- **Loader splat route**: pojedyncze RPC `resolve_path(text[])` po stronie DB (zwraca page + opcjonalny post) — żeby uniknąć N+1 i round-tripów.
+- **RLS**: dla nowych kolumn zachować dotychczasowe polityki (read public dla published, write tylko dla autora/tenanta — bez zmian w semantyce).
+- **Breadcrumbs SEO**: każdy crumb to link, ostatni element bez linku, JSON-LD na każdej publicznej stronie.
+- **Migracja URL-i**: stare URL-e `/post/<slug>` można obsłużyć stałym route'em `/post/$slug` zwracającym `Navigate` na nowy URL (301-friendly redirect), żeby nie psuć linków zewnętrznych — robimy w kroku 2.
 
-Można dodać w osobnych iteracjach po zakończeniu powyższych sześciu kroków.
+## Czego nie robimy w tej iteracji
+
+- Live-link template (zmiana szablonu nie modyfikuje już istniejących stron).
+- Wielopoziomowych szablonów (template kompozyt z innych).
+- UI do zarządzania drzewem stron przez drag&drop — w v1 tylko select rodzica.
+- Wersjonowania `template_id` na poziomie strony (samo template_revisions istnieje, ale nie wpinamy go w UI strony).
