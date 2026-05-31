@@ -94,6 +94,32 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   contact: [
     { key: "to", type: "text", label: "Email odbiorcy", placeholder: "kontakt@..." },
   ],
+  "nav-link": [
+    { key: "label", type: "i18nText", label: "Etykieta" },
+    { key: "href", type: "url", label: "Docelowy URL", placeholder: "/about lub https://…" },
+    {
+      key: "target", type: "select", label: "Otwórz w",
+      options: [
+        { value: "self", label: "tym samym oknie" },
+        { value: "blank", label: "nowej karcie" },
+      ],
+    },
+    {
+      key: "variant", type: "select", label: "Wygląd",
+      options: [
+        { value: "text", label: "tekst" },
+        { value: "underline", label: "podkreślony" },
+        { value: "pill", label: "pigułka" },
+        { value: "primary", label: "przycisk primary" },
+        { value: "outline", label: "przycisk obrysowany" },
+      ],
+    },
+    {
+      key: "iconName", type: "text", label: "Ikona (opcjonalna)",
+      placeholder: "ChevronRight, ExternalLink…",
+      hint: "Nazwa ikony Lucide. Zostaw puste, aby ukryć.",
+    },
+  ],
   testimonial: [
     { key: "quote", type: "i18nHtml", label: "Cytat", rows: 3 },
     { key: "author", type: "text", label: "Autor" },

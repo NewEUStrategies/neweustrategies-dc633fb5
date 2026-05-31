@@ -6,14 +6,14 @@ import {
   Heading1, Type as TypeIcon, Image as ImageIcon, MousePointerClick,
   Minus, MoveVertical, Video, GalleryHorizontal, Star, MapPin,
   Newspaper, Rows, FolderTree, Tags, Mail, Send, Megaphone,
-  List, PanelLeft, Quote, Check,
+  List, PanelLeft, Quote, Check, Link as LinkIcon,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
 export interface WidgetDef {
   type: WidgetType;
   label: string;
-  category: "basic" | "media" | "dynamic" | "form" | "blocks";
+  category: "basic" | "media" | "dynamic" | "form" | "navigation" | "blocks";
   icon: LucideIcon;
   defaults: () => WidgetNode["content"];
 }
@@ -54,6 +54,13 @@ export const WIDGETS: WidgetDef[] = [
     defaults: () => ({ to: "" }) },
   { type: "cta", label: "Wezwanie do akcji", category: "form", icon: Megaphone,
     defaults: () => ({ title_pl: "Działajmy razem", title_en: "Let's act together", href: "#", cta_pl: "Skontaktuj się", cta_en: "Contact us" }) },
+  // Navigation
+  { type: "nav-link", label: "Link menu", category: "navigation", icon: LinkIcon,
+    defaults: () => ({
+      label_pl: "Nowy link", label_en: "New link",
+      href: "/", target: "self",
+      variant: "text",
+    }) },
   // Rich blocks
   { type: "accordion", label: "Accordion", category: "blocks", icon: List,
     defaults: () => ({

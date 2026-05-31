@@ -24,7 +24,8 @@ export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }:
   const [historyOf, setHistoryOf] = useState<SectionTemplate | null>(null);
   const filtered = WIDGETS.filter((w) => w.label.toLowerCase().includes(search.toLowerCase()));
   const labels: Record<string, string> = {
-    basic: "Podstawowe", media: "Media", dynamic: "Dynamiczne", form: "Formularze", blocks: "Bloki",
+    basic: "Podstawowe", media: "Media", dynamic: "Dynamiczne",
+    form: "Formularze", navigation: "Nawigacja", blocks: "Bloki",
   };
   const tpl = useSectionTemplates();
 
@@ -112,7 +113,7 @@ export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }:
           )}
         </section>
 
-        {(["basic", "media", "dynamic", "form"] as const).map((cat) => {
+        {(["basic", "media", "dynamic", "form", "navigation"] as const).map((cat) => {
           const items = filtered.filter((w) => w.category === cat);
           if (!items.length) return null;
           return (

@@ -170,6 +170,8 @@ export type WidgetType =
   | "post-list" | "carousel" | "categories" | "tags"
   // Forms
   | "newsletter" | "contact" | "cta"
+  // Navigation
+  | "nav-link"
   // Rich blocks
   | "accordion" | "tabs" | "testimonial" | "pricing";
 
