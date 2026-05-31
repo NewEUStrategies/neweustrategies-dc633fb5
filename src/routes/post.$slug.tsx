@@ -71,9 +71,14 @@ function PostPublic() {
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const title = lang === "en" ? post.title_en || post.title_pl : post.title_pl || post.title_en;
   const excerpt = lang === "en" ? post.excerpt_en : post.excerpt_pl;
-  const doc = parseBuilderDoc(post.builder_data);
-  const isBuilder = post.editor === "builder" && doc.sections.length > 0;
-  const html = lang === "en" ? post.content_en || post.content_pl : post.content_pl || post.content_en;
+  const rawDoc = parseBuilderDoc(post.builder_data);
+  const isBuilder = post.editor === "builder" && rawDoc.sections.length > 0;
+  const rawHtml = lang === "en" ? post.content_en || post.content_pl : post.content_pl || post.content_en;
+
+  const { doc, notes: builderNotes } = processDocFootnotes(rawDoc, lang);
+  const { html: processedHtml, notes: htmlNotes } = processHtmlFootnotes(rawHtml ?? "", 1);
+  const notes = isBuilder ? builderNotes : htmlNotes;
+  const articleRef = useRef<HTMLDivElement>(null);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -94,11 +99,15 @@ function PostPublic() {
         {post.cover_image_url && (
           <img src={post.cover_image_url} alt={title} className="w-full rounded-lg mb-8 max-h-[480px] object-cover" loading="eager" />
         )}
-        {isBuilder ? (
-          <BuilderRenderer doc={doc} lang={lang} />
-        ) : (
-          <article className="prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(html ?? "") }} />
-        )}
+        <div ref={articleRef}>
+          {isBuilder ? (
+            <BuilderRenderer doc={doc} lang={lang} />
+          ) : (
+            <article className="prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(processedHtml) }} />
+          )}
+          <FootnotesList notes={notes} />
+        </div>
+        <FootnoteTooltips notes={notes} containerRef={articleRef} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       </main>
       <Footer />
