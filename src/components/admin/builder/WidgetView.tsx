@@ -401,16 +401,16 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       return wrap(<TagsView />);
     case "newsletter": {
       const tKey = `title_${lang}`;
-      const title = getStr(c, tKey) || getStr(c, "title_pl");
+      const title = getStr(c, tKey) || getStr(c, "title_pl") || "Newsletter";
+      const MailIcon = (LucideIcons as Record<string, React.ComponentType<{ className?: string }>>).Mail;
       return wrap(
-        <form className="bg-muted/30 rounded-lg p-6 space-y-3">
-          {canEdit
-            ? <Editable as="h3" value={title} onCommit={(v) => commit(tKey, v)} className="font-display text-xl" placeholder="Tytuł newslettera…" />
-            : <h3 className="font-display text-xl">{title}</h3>}
-          <div className="flex gap-2"><input type="email" placeholder="email@example.com" className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" /><button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">OK</button></div>
-        </form>,
+        <div className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors cursor-pointer" title={title}>
+          {MailIcon ? <MailIcon className="w-5 h-5" /> : <span>✉</span>}
+          <span className="text-sm font-medium">{title}</span>
+        </div>,
       );
     }
+
     case "contact": {
       return wrap(<form className="space-y-3"><input placeholder="Imię" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><input placeholder="Email" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><textarea placeholder="Wiadomość" rows={4} className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Wyślij</button></form>);
     }
