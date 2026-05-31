@@ -38,6 +38,7 @@ import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
 import { Route as AdminPostsIdRouteImport } from './routes/admin.posts.$id'
 import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
 import { Route as AdminPagesIdRouteImport } from './routes/admin.pages.$id'
+import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearance.menu'
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
 
@@ -186,6 +187,11 @@ const AdminPagesIdRoute = AdminPagesIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AdminPagesRoute,
 } as any)
+const AdminAppearanceMenuRoute = AdminAppearanceMenuRouteImport.update({
+  id: '/menu',
+  path: '/menu',
+  getParentRoute: () => AdminAppearanceRoute,
+} as any)
 const AdminAppearanceHeaderRoute = AdminAppearanceHeaderRouteImport.update({
   id: '/header',
   path: '/header',
@@ -215,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/blog/': typeof BlogIndexRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
+  '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/pages/$id': typeof AdminPagesIdRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
@@ -246,6 +253,7 @@ export interface FileRoutesByTo {
   '/blog': typeof BlogIndexRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
+  '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/pages/$id': typeof AdminPagesIdRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
@@ -280,6 +288,7 @@ export interface FileRoutesById {
   '/blog/': typeof BlogIndexRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
+  '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/pages/$id': typeof AdminPagesIdRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
@@ -315,6 +324,7 @@ export interface FileRouteTypes {
     | '/blog/'
     | '/admin/appearance/footer'
     | '/admin/appearance/header'
+    | '/admin/appearance/menu'
     | '/admin/pages/$id'
     | '/admin/pages/new'
     | '/admin/posts/$id'
@@ -346,6 +356,7 @@ export interface FileRouteTypes {
     | '/blog'
     | '/admin/appearance/footer'
     | '/admin/appearance/header'
+    | '/admin/appearance/menu'
     | '/admin/pages/$id'
     | '/admin/pages/new'
     | '/admin/posts/$id'
@@ -379,6 +390,7 @@ export interface FileRouteTypes {
     | '/blog/'
     | '/admin/appearance/footer'
     | '/admin/appearance/header'
+    | '/admin/appearance/menu'
     | '/admin/pages/$id'
     | '/admin/pages/new'
     | '/admin/posts/$id'
@@ -611,6 +623,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPagesIdRouteImport
       parentRoute: typeof AdminPagesRoute
     }
+    '/admin/appearance/menu': {
+      id: '/admin/appearance/menu'
+      path: '/menu'
+      fullPath: '/admin/appearance/menu'
+      preLoaderRoute: typeof AdminAppearanceMenuRouteImport
+      parentRoute: typeof AdminAppearanceRoute
+    }
     '/admin/appearance/header': {
       id: '/admin/appearance/header'
       path: '/header'
@@ -631,11 +650,13 @@ declare module '@tanstack/react-router' {
 interface AdminAppearanceRouteChildren {
   AdminAppearanceFooterRoute: typeof AdminAppearanceFooterRoute
   AdminAppearanceHeaderRoute: typeof AdminAppearanceHeaderRoute
+  AdminAppearanceMenuRoute: typeof AdminAppearanceMenuRoute
 }
 
 const AdminAppearanceRouteChildren: AdminAppearanceRouteChildren = {
   AdminAppearanceFooterRoute: AdminAppearanceFooterRoute,
   AdminAppearanceHeaderRoute: AdminAppearanceHeaderRoute,
+  AdminAppearanceMenuRoute: AdminAppearanceMenuRoute,
 }
 
 const AdminAppearanceRouteWithChildren = AdminAppearanceRoute._addFileChildren(
