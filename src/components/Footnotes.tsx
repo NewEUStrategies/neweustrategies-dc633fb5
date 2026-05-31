@@ -59,11 +59,7 @@ export function FootnoteTooltips({
         hideTimer.current = null;
       }
       const r = a.getBoundingClientRect();
-      setState({
-        id,
-        x: r.left + r.width / 2 + window.scrollX,
-        y: r.top + window.scrollY,
-      });
+      setState({ id, x: r.left + r.width / 2, y: r.top });
     };
     const leave = () => {
       hideTimer.current = window.setTimeout(() => setState(null), 200);
