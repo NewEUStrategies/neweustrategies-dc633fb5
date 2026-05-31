@@ -2,11 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState, type ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Upload, Trash2, Copy, Check } from "@/lib/lucide-shim";
 import { toast } from "sonner";
+import { registerMediaUpload, deleteMedia } from "@/lib/media.functions";
 
 export const Route = createFileRoute("/admin/media")({
   component: Media,
@@ -29,6 +31,8 @@ function Media() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const registerUpload = useServerFn(registerMediaUpload);
+  const removeMedia = useServerFn(deleteMedia);
 
   const { data } = useQuery({
     queryKey: ["media", tenantId],
@@ -45,22 +49,20 @@ function Media() {
     setBusy(true);
     try {
       for (const file of Array.from(files)) {
-        const ext = file.name.split(".").pop() ?? "bin";
-        // Tenant-scoped storage path -> matches storage RLS policy
+        const ext = (file.name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
         const path = `${tenantId}/${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: upErr } = await supabase.storage.from("media").upload(path, file, { contentType: file.type });
         if (upErr) throw upErr;
         const { data: urlData } = supabase.storage.from("media").getPublicUrl(path);
-        const { error } = await supabase.from("media").insert({
-          uploader_id: user.id,
-          tenant_id: tenantId,
-          storage_path: path,
-          public_url: urlData.publicUrl,
-          filename: file.name,
-          mime_type: file.type,
-          size_bytes: file.size,
+        await registerUpload({
+          data: {
+            storagePath: path,
+            filename: file.name,
+            mimeType: file.type,
+            sizeBytes: file.size,
+            publicUrl: urlData.publicUrl,
+          },
         });
-        if (error) throw error;
       }
       toast.success(t("admin.media.uploaded"));
       qc.invalidateQueries({ queryKey: ["media"] });
@@ -74,9 +76,12 @@ function Media() {
 
   const del = async (item: MediaItem) => {
     if (!confirm(t("admin.confirmDelete"))) return;
-    await supabase.storage.from("media").remove([item.storage_path]);
-    await supabase.from("media").delete().eq("id", item.id);
-    qc.invalidateQueries({ queryKey: ["media"] });
+    try {
+      await removeMedia({ data: { mediaId: item.id } });
+      qc.invalidateQueries({ queryKey: ["media"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const copy = (url: string) => {
