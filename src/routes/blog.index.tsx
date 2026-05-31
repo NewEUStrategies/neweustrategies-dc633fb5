@@ -15,7 +15,13 @@ export const Route = createFileRoute("/blog/")({
       .order("published_at", { ascending: false })
       .limit(50);
     if (error) throw error;
-    return { posts: data ?? [] };
+    const posts = (data ?? []) as Array<{
+      id: string; slug: string;
+      title_pl: string; title_en: string;
+      excerpt_pl: string | null; excerpt_en: string | null;
+      cover_image_url: string | null; published_at: string | null;
+    }>;
+    return { posts };
   },
   head: () => ({
     meta: [
