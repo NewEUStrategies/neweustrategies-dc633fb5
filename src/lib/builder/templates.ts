@@ -85,11 +85,11 @@ export function useSectionTemplates() {
   }, [reload]);
 
   const update = useCallback(async (id: string, opts: { name?: string; section?: SectionNode }) => {
-    const patch: { name?: string; data?: unknown } = {};
+    const patch: { name?: string; data?: SectionNode } = {};
     if (opts.name !== undefined) patch.name = opts.name;
     if (opts.section) patch.data = JSON.parse(JSON.stringify(cloneSection(opts.section)));
     if (Object.keys(patch).length === 0) return;
-    await supabase.from("builder_templates").update(patch).eq("id", id);
+    await supabase.from("builder_templates").update(patch as never).eq("id", id);
     await reload();
   }, [reload]);
 
