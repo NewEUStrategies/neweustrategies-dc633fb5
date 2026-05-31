@@ -634,13 +634,14 @@ function InnerSectionView({
 
 function ColumnView({
   column, device, lang, selection, setSelection, onRemove, onDuplicate,
-  onRemoveWidget, onDuplicateWidget, onDropWidget,
+  onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent,
 }: {
   column: ColumnNode; device: Device; lang: "pl"|"en"; selection: Selection;
   setSelection: (s: Selection) => void;
   onRemove: () => void; onDuplicate: () => void;
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
+  onUpdateWidgetContent: (id: string, key: string, value: string) => void;
 }) {
   const selected = selection.kind === "column" && selection.id === column.id;
   const [dragOver, setDragOver] = useState(false);
