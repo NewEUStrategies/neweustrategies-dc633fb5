@@ -23,6 +23,7 @@ import { Route as AdminPostsRouteImport } from './routes/admin.posts'
 import { Route as AdminPagesRouteImport } from './routes/admin.pages'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
+import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as ApiPublicSitemapDotxmlRouteImport } from './routes/api/public/sitemap[.]xml'
 import { Route as ApiPublicRobotsDottxtRouteImport } from './routes/api/public/robots[.]txt'
@@ -37,6 +38,9 @@ import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
 import { Route as AdminPostsIdRouteImport } from './routes/admin.posts.$id'
 import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
 import { Route as AdminPagesIdRouteImport } from './routes/admin.pages.$id'
+import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearance.menu'
+import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
+import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -106,6 +110,11 @@ const AdminMediaRoute = AdminMediaRouteImport.update({
 const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAppearanceRoute = AdminAppearanceRouteImport.update({
+  id: '/appearance',
+  path: '/appearance',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
@@ -178,12 +187,28 @@ const AdminPagesIdRoute = AdminPagesIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AdminPagesRoute,
 } as any)
+const AdminAppearanceMenuRoute = AdminAppearanceMenuRouteImport.update({
+  id: '/menu',
+  path: '/menu',
+  getParentRoute: () => AdminAppearanceRoute,
+} as any)
+const AdminAppearanceHeaderRoute = AdminAppearanceHeaderRouteImport.update({
+  id: '/header',
+  path: '/header',
+  getParentRoute: () => AdminAppearanceRoute,
+} as any)
+const AdminAppearanceFooterRoute = AdminAppearanceFooterRouteImport.update({
+  id: '/footer',
+  path: '/footer',
+  getParentRoute: () => AdminAppearanceRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRouteWithChildren
   '/login': typeof LoginRoute
+  '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
@@ -194,6 +219,9 @@ export interface FileRoutesByFullPath {
   '/post/$slug': typeof PostSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
+  '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
+  '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
+  '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/pages/$id': typeof AdminPagesIdRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
@@ -213,6 +241,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
   '/login': typeof LoginRoute
+  '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
@@ -222,6 +251,9 @@ export interface FileRoutesByTo {
   '/post/$slug': typeof PostSlugRoute
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
+  '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
+  '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
+  '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/pages/$id': typeof AdminPagesIdRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
@@ -243,6 +275,7 @@ export interface FileRoutesById {
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRouteWithChildren
   '/login': typeof LoginRoute
+  '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
@@ -253,6 +286,9 @@ export interface FileRoutesById {
   '/post/$slug': typeof PostSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
+  '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
+  '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
+  '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/pages/$id': typeof AdminPagesIdRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
@@ -275,6 +311,7 @@ export interface FileRouteTypes {
     | '/$slug'
     | '/admin'
     | '/login'
+    | '/admin/appearance'
     | '/admin/categories'
     | '/admin/media'
     | '/admin/pages'
@@ -285,6 +322,9 @@ export interface FileRouteTypes {
     | '/post/$slug'
     | '/admin/'
     | '/blog/'
+    | '/admin/appearance/footer'
+    | '/admin/appearance/header'
+    | '/admin/appearance/menu'
     | '/admin/pages/$id'
     | '/admin/pages/new'
     | '/admin/posts/$id'
@@ -304,6 +344,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$slug'
     | '/login'
+    | '/admin/appearance'
     | '/admin/categories'
     | '/admin/media'
     | '/admin/pages'
@@ -313,6 +354,9 @@ export interface FileRouteTypes {
     | '/post/$slug'
     | '/admin'
     | '/blog'
+    | '/admin/appearance/footer'
+    | '/admin/appearance/header'
+    | '/admin/appearance/menu'
     | '/admin/pages/$id'
     | '/admin/pages/new'
     | '/admin/posts/$id'
@@ -333,6 +377,7 @@ export interface FileRouteTypes {
     | '/$slug'
     | '/admin'
     | '/login'
+    | '/admin/appearance'
     | '/admin/categories'
     | '/admin/media'
     | '/admin/pages'
@@ -343,6 +388,9 @@ export interface FileRouteTypes {
     | '/post/$slug'
     | '/admin/'
     | '/blog/'
+    | '/admin/appearance/footer'
+    | '/admin/appearance/header'
+    | '/admin/appearance/menu'
     | '/admin/pages/$id'
     | '/admin/pages/new'
     | '/admin/posts/$id'
@@ -470,6 +518,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCategoriesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/appearance': {
+      id: '/admin/appearance'
+      path: '/appearance'
+      fullPath: '/admin/appearance'
+      preLoaderRoute: typeof AdminAppearanceRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/settings/': {
       id: '/admin/settings/'
       path: '/'
@@ -568,8 +623,45 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPagesIdRouteImport
       parentRoute: typeof AdminPagesRoute
     }
+    '/admin/appearance/menu': {
+      id: '/admin/appearance/menu'
+      path: '/menu'
+      fullPath: '/admin/appearance/menu'
+      preLoaderRoute: typeof AdminAppearanceMenuRouteImport
+      parentRoute: typeof AdminAppearanceRoute
+    }
+    '/admin/appearance/header': {
+      id: '/admin/appearance/header'
+      path: '/header'
+      fullPath: '/admin/appearance/header'
+      preLoaderRoute: typeof AdminAppearanceHeaderRouteImport
+      parentRoute: typeof AdminAppearanceRoute
+    }
+    '/admin/appearance/footer': {
+      id: '/admin/appearance/footer'
+      path: '/footer'
+      fullPath: '/admin/appearance/footer'
+      preLoaderRoute: typeof AdminAppearanceFooterRouteImport
+      parentRoute: typeof AdminAppearanceRoute
+    }
   }
 }
+
+interface AdminAppearanceRouteChildren {
+  AdminAppearanceFooterRoute: typeof AdminAppearanceFooterRoute
+  AdminAppearanceHeaderRoute: typeof AdminAppearanceHeaderRoute
+  AdminAppearanceMenuRoute: typeof AdminAppearanceMenuRoute
+}
+
+const AdminAppearanceRouteChildren: AdminAppearanceRouteChildren = {
+  AdminAppearanceFooterRoute: AdminAppearanceFooterRoute,
+  AdminAppearanceHeaderRoute: AdminAppearanceHeaderRoute,
+  AdminAppearanceMenuRoute: AdminAppearanceMenuRoute,
+}
+
+const AdminAppearanceRouteWithChildren = AdminAppearanceRoute._addFileChildren(
+  AdminAppearanceRouteChildren,
+)
 
 interface AdminPagesRouteChildren {
   AdminPagesIdRoute: typeof AdminPagesIdRoute
@@ -626,6 +718,7 @@ const AdminSettingsRouteWithChildren = AdminSettingsRoute._addFileChildren(
 )
 
 interface AdminRouteChildren {
+  AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminMediaRoute: typeof AdminMediaRoute
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
@@ -637,6 +730,7 @@ interface AdminRouteChildren {
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminMediaRoute: AdminMediaRoute,
   AdminPagesRoute: AdminPagesRouteWithChildren,

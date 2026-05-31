@@ -1,10 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Moon, Sun, Search, Menu, X, ChevronDown, Mail, Facebook, Twitter, Youtube, Instagram, Linkedin, Send, LogIn, LayoutDashboard } from "@/lib/lucide-shim";
+import { Moon, Sun, Search, Menu, X, Mail, Facebook, Twitter, Youtube, Instagram, Linkedin, Send, LogIn, LayoutDashboard } from "@/lib/lucide-shim";
 import { useState } from "react";
 import { useTheme } from "./ThemeProvider";
 import { useAuth } from "@/hooks/useAuth";
+import { useSiteSetting } from "@/lib/useSiteSetting";
 import logo from "@/assets/logo.png";
+
+type MenuItem = { label_pl: string; label_en: string; url: string };
 
 export function Header() {
   const { t, i18n } = useTranslation();
@@ -15,14 +18,26 @@ export function Header() {
 
   const setLang = (lng: "pl" | "en") => i18n.changeLanguage(lng);
 
-  const nav: { label: string; hasSub?: boolean }[] = [
-    { label: t("nav.analyses"), hasSub: true },
-    { label: t("nav.interviews"), hasSub: true },
-    { label: t("nav.policyPapers"), hasSub: true },
-    { label: t("nav.reports"), hasSub: true },
-    { label: t("nav.events"), hasSub: true },
-    { label: t("nav.about"), hasSub: true },
+  const menu = useSiteSetting<{ items: MenuItem[] }>("menu_primary", { items: [] });
+  const headerCfg = useSiteSetting("header", {
+    show_newsletter: true,
+    show_socials: true,
+    social_facebook: "#", social_twitter: "#", social_youtube: "#", social_instagram: "#", social_linkedin: "#",
+    contact_email: "",
+  });
+
+  const defaultNav: MenuItem[] = [
+    { label_pl: t("nav.analyses"), label_en: t("nav.analyses"), url: "#" },
+    { label_pl: t("nav.interviews"), label_en: t("nav.interviews"), url: "#" },
+    { label_pl: t("nav.policyPapers"), label_en: t("nav.policyPapers"), url: "#" },
+    { label_pl: t("nav.reports"), label_en: t("nav.reports"), url: "#" },
+    { label_pl: t("nav.events"), label_en: t("nav.events"), url: "#" },
+    { label_pl: t("nav.about"), label_en: t("nav.about"), url: "#" },
   ];
+  const nav = (menu.items?.length ? menu.items : defaultNav).map((m) => ({
+    label: lang.startsWith("pl") ? m.label_pl : m.label_en,
+    url: m.url,
+  }));
 
   return (
     <header className="bg-background border-b border-border">
@@ -30,20 +45,26 @@ export function Header() {
       <div className="border-b border-border">
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-11 flex items-center justify-between text-xs">
           <div className="flex items-center gap-5">
-            <a href="#newsletter" className="flex items-center gap-2 font-semibold text-foreground hover:text-brand transition">
-              <span className="w-7 h-7 rounded-full bg-brand text-brand-foreground inline-flex items-center justify-center">
-                <Send className="w-3.5 h-3.5" />
-              </span>
-              {t("nav.newsletter")}
-            </a>
-            <div className="hidden sm:flex items-center gap-3 text-muted-foreground">
-              <a href="#" aria-label="Facebook" className="hover:text-brand"><Facebook className="w-4 h-4" /></a>
-              <a href="#" aria-label="X" className="hover:text-brand"><Twitter className="w-4 h-4" /></a>
-              <a href="#" aria-label="YouTube" className="hover:text-brand"><Youtube className="w-4 h-4" /></a>
-              <a href="#" aria-label="Instagram" className="hover:text-brand"><Instagram className="w-4 h-4" /></a>
-              <a href="#" aria-label="LinkedIn" className="hover:text-brand"><Linkedin className="w-4 h-4" /></a>
-              <a href="#" aria-label="Email" className="hover:text-brand"><Mail className="w-4 h-4" /></a>
-            </div>
+            {headerCfg.show_newsletter && (
+              <a href="#newsletter" className="flex items-center gap-2 font-semibold text-foreground hover:text-brand transition">
+                <span className="w-7 h-7 rounded-full bg-brand text-brand-foreground inline-flex items-center justify-center">
+                  <Send className="w-3.5 h-3.5" />
+                </span>
+                {t("nav.newsletter")}
+              </a>
+            )}
+            {headerCfg.show_socials && (
+              <div className="hidden sm:flex items-center gap-3 text-muted-foreground">
+                <a href={headerCfg.social_facebook || "#"} aria-label="Facebook" className="hover:text-brand"><Facebook className="w-4 h-4" /></a>
+                <a href={headerCfg.social_twitter || "#"} aria-label="X" className="hover:text-brand"><Twitter className="w-4 h-4" /></a>
+                <a href={headerCfg.social_youtube || "#"} aria-label="YouTube" className="hover:text-brand"><Youtube className="w-4 h-4" /></a>
+                <a href={headerCfg.social_instagram || "#"} aria-label="Instagram" className="hover:text-brand"><Instagram className="w-4 h-4" /></a>
+                <a href={headerCfg.social_linkedin || "#"} aria-label="LinkedIn" className="hover:text-brand"><Linkedin className="w-4 h-4" /></a>
+                {headerCfg.contact_email && (
+                  <a href={`mailto:${headerCfg.contact_email}`} aria-label="Email" className="hover:text-brand"><Mail className="w-4 h-4" /></a>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {session && isStaff ? (
@@ -107,13 +128,13 @@ export function Header() {
 
           <nav className="hidden lg:flex items-center gap-7">
             {nav.map((item) => (
-              <button
+              <a
                 key={item.label}
+                href={item.url || "#"}
                 className="flex items-center gap-1 text-xs font-bold tracking-wider text-foreground hover:text-brand transition"
               >
                 {item.label}
-                {item.hasSub && <ChevronDown className="w-3 h-3" />}
-              </button>
+              </a>
             ))}
           </nav>
 
@@ -138,12 +159,13 @@ export function Header() {
         {mobileOpen && (
           <div className="lg:hidden border-t border-border py-4 px-4 flex flex-col gap-3">
             {nav.map((item) => (
-              <button
+              <a
                 key={item.label}
+                href={item.url || "#"}
                 className="text-left text-sm font-semibold tracking-wider text-foreground/80"
               >
                 {item.label}
-              </button>
+              </a>
             ))}
           </div>
         )}
