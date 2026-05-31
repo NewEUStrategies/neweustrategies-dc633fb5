@@ -1,9 +1,9 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings } from "@/lib/lucide-shim";
+import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft } from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 export function AdminShell({ children }: { children: ReactNode }) {
   const { t, i18n } = useTranslation();
@@ -12,6 +12,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const lang = i18n.language ?? "pl";
+
+  const isEditRoute = /^\/admin\/(posts|pages)\/[^/]+$/.test(path);
+  const [forceCompact, setForceCompact] = useState(false);
+  const compact = isEditRoute || forceCompact;
 
   const items = [
     { to: "/admin", icon: LayoutDashboard, label: t("admin.nav.dashboard") },
@@ -33,45 +37,74 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex bg-muted/30">
-      <aside className="w-64 bg-card border-r border-border flex flex-col">
-        <div className="p-5 border-b border-border">
-          <Link to="/admin" className="font-display text-lg font-bold">
-            NES <span className="text-brand">Admin</span>
+      <aside
+        className={`${compact ? "w-14" : "w-64"} bg-card border-r border-border flex flex-col transition-all duration-200`}
+      >
+        <div className={`${compact ? "p-2" : "p-5"} border-b border-border flex items-center gap-2`}>
+          <Link to="/admin" className={`font-display font-bold ${compact ? "text-base" : "text-lg"}`}>
+            {compact ? "NES" : <>NES <span className="text-brand">Admin</span></>}
           </Link>
-          <p className="text-xs text-muted-foreground mt-1 truncate">{user?.email}</p>
+          {!compact && (
+            <button
+              onClick={() => setForceCompact((s) => !s)}
+              className="ml-auto text-muted-foreground hover:text-foreground"
+              title={compact ? "Rozszerz" : "Zwiń"}
+            >
+              <PanelLeft className="w-4 h-4" />
+            </button>
+          )}
+          {!compact && <p className="text-xs text-muted-foreground mt-1 truncate">{user?.email}</p>}
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-2 space-y-1">
           {items.map(({ to, icon: Icon, label }) => {
             const active = path === to || (to !== "/admin" && path.startsWith(to));
             return (
               <Link
                 key={to}
                 to={to}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition ${
+                title={label}
+                className={`flex items-center ${compact ? "justify-center" : "gap-3"} px-2 py-2 rounded-md text-sm transition ${
                   active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted"
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                {label}
+                <Icon className="w-4 h-4 shrink-0" />
+                {!compact && <span className="truncate">{label}</span>}
               </Link>
             );
           })}
         </nav>
-        <div className="p-3 border-t border-border space-y-1">
-          <Link to="/" className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted">
-            <Home className="w-4 h-4" /> {t("admin.viewSite")}
+        <div className="p-2 border-t border-border space-y-1">
+          <Link
+            to="/"
+            title={t("admin.viewSite")}
+            className={`flex items-center ${compact ? "justify-center" : "gap-3"} px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted`}
+          >
+            <Home className="w-4 h-4 shrink-0" />
+            {!compact && <span>{t("admin.viewSite")}</span>}
           </Link>
-          <button onClick={toggle} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted">
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />} {t("admin.theme")}
+          <button
+            onClick={toggle}
+            title={t("admin.theme")}
+            className={`w-full flex items-center ${compact ? "justify-center" : "gap-3"} px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted`}
+          >
+            {theme === "dark" ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
+            {!compact && <span>{t("admin.theme")}</span>}
           </button>
           <button
             onClick={() => i18n.changeLanguage(lang.startsWith("pl") ? "en" : "pl")}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted"
+            title={lang.startsWith("pl") ? "PL" : "EN"}
+            className={`w-full flex items-center ${compact ? "justify-center" : "gap-3"} px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted`}
           >
-            <Globe className="w-4 h-4" /> {lang.startsWith("pl") ? "PL" : "EN"}
+            <Globe className="w-4 h-4 shrink-0" />
+            {!compact && <span>{lang.startsWith("pl") ? "PL" : "EN"}</span>}
           </button>
-          <button onClick={handleSignOut} className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-destructive hover:bg-destructive/10">
-            <LogOut className="w-4 h-4" /> {t("admin.signout")}
+          <button
+            onClick={handleSignOut}
+            title={t("admin.signout")}
+            className={`w-full flex items-center ${compact ? "justify-center" : "gap-3"} px-2 py-2 rounded-md text-sm text-destructive hover:bg-destructive/10`}
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            {!compact && <span>{t("admin.signout")}</span>}
           </button>
         </div>
       </aside>
