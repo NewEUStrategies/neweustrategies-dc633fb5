@@ -127,6 +127,7 @@ function RootComponent() {
       <ThemeProvider>
         <AuthProvider>
           <IconPackSync />
+          <DesignTokensStyle />
           <Outlet />
           <Toaster />
         </AuthProvider>
