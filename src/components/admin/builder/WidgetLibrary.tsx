@@ -22,7 +22,7 @@ export function WidgetLibrary({ onPickWidget, onPickStructure, onPickTemplate }:
   const [search, setSearch] = useState("");
   const filtered = WIDGETS.filter((w) => w.label.toLowerCase().includes(search.toLowerCase()));
   const labels: Record<string, string> = {
-    basic: "Podstawowe", media: "Media", dynamic: "Dynamiczne", form: "Formularze",
+    basic: "Podstawowe", media: "Media", dynamic: "Dynamiczne", form: "Formularze", blocks: "Bloki",
   };
   const tpl = useSectionTemplates();
 

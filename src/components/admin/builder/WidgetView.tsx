@@ -1,7 +1,7 @@
 // Renders a widget (read-only). Used in the live preview inside the builder
 // canvas and on public pages. All user-authored strings (custom CSS, ids,
 // classes, html, urls) go through src/lib/sanitize.ts.
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
@@ -341,4 +341,33 @@ function TagsView() {
   return <div className="flex flex-wrap gap-1.5">{(data ?? []).map((t) => (
     <span key={t.id} className="px-2 py-0.5 rounded bg-muted text-xs">#{t.name}</span>
   ))}</div>;
+}
+
+function TabsBlock({ tabs, lang, nodeId }: { tabs: Array<Record<string, string>>; lang: Lang; nodeId: string }) {
+  const [active, setActive] = useState(0);
+  if (!tabs.length) return <div className="text-xs text-muted-foreground">Brak zakładek</div>;
+  const safe = Math.min(active, tabs.length - 1);
+  const cur = tabs[safe];
+  return (
+    <div role="tablist" aria-label="Tabs" className="space-y-3">
+      <div className="flex gap-1 border-b border-border overflow-x-auto">
+        {tabs.map((t, i) => (
+          <button
+            key={`${nodeId}-${i}`}
+            role="tab"
+            aria-selected={i === safe}
+            type="button"
+            onClick={() => setActive(i)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+              i === safe ? "border-brand text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t[`label_${lang}`] || t.label_pl}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" className="prose prose-sm max-w-none dark:prose-invert"
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(cur[`html_${lang}`] || cur.html_pl || "") }} />
+    </div>
+  );
 }
