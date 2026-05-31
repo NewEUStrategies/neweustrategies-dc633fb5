@@ -2,7 +2,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,7 +51,8 @@ function RichEditor({ value, onChange, onPickImage }: { value: string; onChange:
 
   if (!editor) return null;
 
-  const Btn = ({ onClick, active, children, label }: any) => (
+  interface BtnProps { onClick: () => void; active?: boolean; children: ReactNode; label: string }
+  const Btn = ({ onClick, active, children, label }: BtnProps) => (
     <button
       type="button"
       onClick={onClick}

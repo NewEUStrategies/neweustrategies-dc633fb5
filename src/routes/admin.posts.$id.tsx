@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useRequiredTenant } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,35 +11,58 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PostEditor } from "@/components/admin/PostEditor";
-import { ArrowLeft, Save, Trash2, ExternalLink } from "lucide-react";
+import { ArrowLeft, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/posts/$id")({
   component: EditPost,
 });
 
+type PostStatus = "draft" | "published" | "archived";
+type EditorType = "richtext" | "markdown";
+
+interface PostForm {
+  id: string;
+  slug: string;
+  status: PostStatus;
+  editor: EditorType;
+  title_pl: string;
+  title_en: string;
+  excerpt_pl: string | null;
+  excerpt_en: string | null;
+  content_pl: string | null;
+  content_en: string | null;
+  cover_image_url: string | null;
+  read_minutes: number | null;
+  published_at: string | null;
+}
+
+interface CategoryOpt { id: string; name_pl: string; name_en: string }
+interface TagOpt { id: string; name: string }
+
 function EditPost() {
   const { id } = Route.useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const tenantId = useRequiredTenant();
 
   const { data: post, isLoading } = useQuery({
     queryKey: ["post", id],
-    queryFn: async () => {
+    queryFn: async (): Promise<PostForm> => {
       const { data, error } = await supabase.from("posts").select("*").eq("id", id).single();
       if (error) throw error;
-      return data;
+      return data as PostForm;
     },
   });
 
   const { data: allCats } = useQuery({
-    queryKey: ["categories"],
-    queryFn: async () => (await supabase.from("categories").select("*").order("name_pl")).data ?? [],
+    queryKey: ["categories", tenantId],
+    queryFn: async (): Promise<CategoryOpt[]> => (await supabase.from("categories").select("id, name_pl, name_en").eq("tenant_id", tenantId).order("name_pl")).data ?? [],
   });
   const { data: allTags } = useQuery({
-    queryKey: ["tags"],
-    queryFn: async () => (await supabase.from("tags").select("*").order("name")).data ?? [],
+    queryKey: ["tags", tenantId],
+    queryFn: async (): Promise<TagOpt[]> => (await supabase.from("tags").select("id, name").eq("tenant_id", tenantId).order("name")).data ?? [],
   });
 
   const { data: postCats } = useQuery({
@@ -50,7 +74,7 @@ function EditPost() {
     queryFn: async () => (await supabase.from("post_tags").select("tag_id").eq("post_id", id)).data ?? [],
   });
 
-  const [form, setForm] = useState<any>(null);
+  const [form, setForm] = useState<PostForm | null>(null);
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -59,19 +83,18 @@ function EditPost() {
   useEffect(() => { if (postCats) setSelectedCats(postCats.map((c) => c.category_id)); }, [postCats]);
   useEffect(() => { if (postTags) setSelectedTags(postTags.map((c) => c.tag_id)); }, [postTags]);
 
-  if (isLoading || !form) return <div className="text-sm text-muted-foreground">…</div>;
+  if (isLoading || !form) return <div className="text-sm text-muted-foreground">...</div>;
 
-  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+  const set = <K extends keyof PostForm>(k: K, v: PostForm[K]) =>
+    setForm((f) => (f ? { ...f, [k]: v } : f));
 
-  const pickImage = async (): Promise<string | null> => {
-    const url = window.prompt("URL obrazka (lub dodaj plik w Media)");
-    return url;
-  };
+  const pickImage = async (): Promise<string | null> => window.prompt("URL obrazka") ?? null;
 
   const save = async () => {
+    if (!form) return;
     setBusy(true);
     try {
-      const payload: any = {
+      const payload = {
         slug: form.slug,
         status: form.status,
         editor: form.editor,
@@ -88,11 +111,9 @@ function EditPost() {
       const { error } = await supabase.from("posts").update(payload).eq("id", id);
       if (error) throw error;
 
-      // sync cats
       await supabase.from("post_categories").delete().eq("post_id", id);
       if (selectedCats.length)
         await supabase.from("post_categories").insert(selectedCats.map((c) => ({ post_id: id, category_id: c })));
-      // sync tags
       await supabase.from("post_tags").delete().eq("post_id", id);
       if (selectedTags.length)
         await supabase.from("post_tags").insert(selectedTags.map((tg) => ({ post_id: id, tag_id: tg })));
@@ -100,8 +121,8 @@ function EditPost() {
       qc.invalidateQueries({ queryKey: ["admin-posts"] });
       qc.invalidateQueries({ queryKey: ["post", id] });
       toast.success(t("admin.saved"));
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -110,7 +131,7 @@ function EditPost() {
   const del = async () => {
     if (!confirm(t("admin.confirmDelete"))) return;
     const { error } = await supabase.from("posts").delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success(t("admin.deleted"));
     navigate({ to: "/admin/posts" });
   };
@@ -123,7 +144,7 @@ function EditPost() {
         </Link>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={del}><Trash2 className="w-4 h-4 mr-1 text-destructive" /> {t("admin.delete")}</Button>
-          <Button onClick={save} disabled={busy}><Save className="w-4 h-4 mr-2" /> {busy ? "…" : t("admin.save")}</Button>
+          <Button onClick={save} disabled={busy}><Save className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.save")}</Button>
         </div>
       </div>
 
@@ -137,7 +158,7 @@ function EditPost() {
             <TabsContent value="pl" className="space-y-4 mt-4">
               <div>
                 <Label>{t("admin.posts.titleCol")} (PL)</Label>
-                <Input value={form.title_pl ?? ""} onChange={(e) => set("title_pl", e.target.value)} className="text-xl font-display" />
+                <Input value={form.title_pl} onChange={(e) => set("title_pl", e.target.value)} className="text-xl font-display" />
               </div>
               <div>
                 <Label>{t("admin.posts.excerpt")} (PL)</Label>
@@ -151,7 +172,7 @@ function EditPost() {
             <TabsContent value="en" className="space-y-4 mt-4">
               <div>
                 <Label>{t("admin.posts.titleCol")} (EN)</Label>
-                <Input value={form.title_en ?? ""} onChange={(e) => set("title_en", e.target.value)} className="text-xl font-display" />
+                <Input value={form.title_en} onChange={(e) => set("title_en", e.target.value)} className="text-xl font-display" />
               </div>
               <div>
                 <Label>{t("admin.posts.excerpt")} (EN)</Label>
@@ -169,7 +190,7 @@ function EditPost() {
           <div className="bg-card border border-border rounded-lg p-4 space-y-3">
             <div>
               <Label>{t("admin.posts.status")}</Label>
-              <Select value={form.status} onValueChange={(v) => set("status", v)}>
+              <Select value={form.status} onValueChange={(v) => set("status", v as PostStatus)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="draft">{t("admin.status.draft")}</SelectItem>
@@ -180,7 +201,7 @@ function EditPost() {
             </div>
             <div>
               <Label>{t("admin.posts.editor")}</Label>
-              <Select value={form.editor} onValueChange={(v) => set("editor", v)}>
+              <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="richtext">Rich text</SelectItem>
@@ -190,7 +211,7 @@ function EditPost() {
             </div>
             <div>
               <Label>Slug</Label>
-              <Input value={form.slug ?? ""} onChange={(e) => set("slug", e.target.value)} />
+              <Input value={form.slug} onChange={(e) => set("slug", e.target.value)} />
             </div>
             <div>
               <Label>{t("admin.posts.readMinutes")}</Label>

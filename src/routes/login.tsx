@@ -46,8 +46,8 @@ function LoginPage() {
         if (error) throw error;
         toast.success(t("auth.signinOk"));
       }
-    } catch (err: any) {
-      toast.error(err.message ?? "Error");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error");
     } finally {
       setBusy(false);
     }
