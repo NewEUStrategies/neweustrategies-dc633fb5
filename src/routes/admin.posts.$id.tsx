@@ -44,7 +44,9 @@ interface PostForm {
   read_minutes: number | null;
   published_at: string | null;
   builder_data: BuilderDocument | null;
+  parent_page_id: string;
 }
+
 
 interface CategoryOpt { id: string; name_pl: string; name_en: string }
 interface TagOpt { id: string; name: string }
