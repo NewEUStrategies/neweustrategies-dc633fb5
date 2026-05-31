@@ -38,6 +38,7 @@ import { SectionProperties } from "./SectionProperties";
 import { WidgetProperties } from "./WidgetProperties";
 import { ColumnProperties } from "./ColumnProperties";
 import { WidgetLibrary } from "./WidgetLibrary";
+import { StructurePicker } from "./StructurePicker";
 import { Navigator } from "./Navigator";
 import { BuilderRenderer } from "./BuilderRenderer";
 import { Header } from "@/components/Header";
