@@ -1,7 +1,8 @@
-// Renders a widget (read-only). Used in the live preview inside the builder
-// canvas and on public pages. All user-authored strings (custom CSS, ids,
-// classes, html, urls) go through src/lib/sanitize.ts.
-import { useState, type CSSProperties } from "react";
+// Renders a widget (read-only by default; opt-in inline editing in the builder
+// canvas via `editable` + `onContentChange`). Used in the live preview inside
+// the builder canvas and on public pages. All user-authored strings (custom
+// CSS, ids, classes, html, urls) go through src/lib/sanitize.ts.
+import { useEffect, useRef, useState, type CSSProperties, type ElementType, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
@@ -65,6 +66,79 @@ interface ViewProps {
   node: WidgetNode;
   lang: Lang;
   device: Device;
+  /** When true, click-to-edit text fields are enabled in canvas. */
+  editable?: boolean;
+  /** Commit a single content field. Called on blur / Enter. */
+  onContentChange?: (key: string, value: string) => void;
+}
+
+/** Inline-editable text node. Plain text by default; pass `html` to allow rich content. */
+function Editable({
+  as: As = "span",
+  value,
+  onCommit,
+  className,
+  style,
+  html = false,
+  multiline = false,
+  placeholder,
+}: {
+  as?: ElementType;
+  value: string;
+  onCommit: (next: string) => void;
+  className?: string;
+  style?: CSSProperties;
+  html?: boolean;
+  multiline?: boolean;
+  placeholder?: string;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  // Sync DOM with prop only when not focused, so caret position is preserved.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (document.activeElement === el) return;
+    if (html) {
+      if (el.innerHTML !== value) el.innerHTML = value;
+    } else if (el.textContent !== value) {
+      el.textContent = value;
+    }
+  }, [value, html]);
+  const commit = () => {
+    const el = ref.current;
+    if (!el) return;
+    const next = html ? sanitizeHtml(el.innerHTML) : (el.textContent ?? "");
+    if (next !== value) onCommit(next);
+  };
+  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key === "Enter" && !multiline && !e.shiftKey) {
+      e.preventDefault();
+      (e.target as HTMLElement).blur();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      const el = ref.current;
+      if (el) {
+        if (html) el.innerHTML = value;
+        else el.textContent = value;
+      }
+      (e.target as HTMLElement).blur();
+    }
+  };
+  return (
+    <As
+      ref={ref as never}
+      contentEditable
+      suppressContentEditableWarning
+      data-placeholder={placeholder}
+      onBlur={commit}
+      onKeyDown={onKeyDown}
+      onClick={(e: React.MouseEvent) => e.stopPropagation()}
+      onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+      className={`${className ?? ""} outline-none focus:ring-2 focus:ring-brand/40 focus:rounded empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50`}
+      style={style}
+    />
+  );
 }
 
 function getStr(c: WidgetContent, k: string): string {
@@ -92,7 +166,7 @@ const MOTION_INITIAL: Record<string, CSSProperties> = {
 };
 const MOTION_FINAL: CSSProperties = { opacity: 1, transform: "translate(0,0) scale(1)" };
 
-export function WidgetView({ node, lang, device }: ViewProps) {
+export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
   const baseStyle = styleToCSS(node.style, device);
   const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
   const htmlId = sanitizeHtmlId(node.advanced?.htmlId);
@@ -129,16 +203,26 @@ export function WidgetView({ node, lang, device }: ViewProps) {
   );
 
   const c = node.content;
+  const canEdit = editable && !!onContentChange;
+  const commit = (k: string, v: string) => onContentChange?.(k, v);
 
   switch (node.type) {
     case "heading": {
-      const text = getStr(c, `text_${lang}`) || getStr(c, "text_pl");
+      const key = `text_${lang}`;
+      const text = getStr(c, key) || getStr(c, "text_pl");
       const tag = (getStr(c, "tag") || "h2") as "h1"|"h2"|"h3"|"h4";
+      if (canEdit) {
+        return wrap(<Editable as={tag} value={text} onCommit={(v) => commit(key, v)} className="font-display text-3xl" placeholder="Nagłówek…" />);
+      }
       const Tag = tag;
       return wrap(<Tag className="font-display text-3xl">{text}</Tag>);
     }
     case "text": {
-      const html = getStr(c, `html_${lang}`) || getStr(c, "html_pl");
+      const key = `html_${lang}`;
+      const html = getStr(c, key) || getStr(c, "html_pl");
+      if (canEdit) {
+        return wrap(<Editable as="div" html multiline value={html} onCommit={(v) => commit(key, v)} className="prose prose-sm max-w-none dark:prose-invert" placeholder="Wpisz tekst…" />);
+      }
       return wrap(<div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />);
     }
     case "image": {
@@ -148,7 +232,8 @@ export function WidgetView({ node, lang, device }: ViewProps) {
       return wrap(<img src={src} alt={alt} className="max-w-full h-auto rounded" loading="lazy" />);
     }
     case "button": {
-      const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl");
+      const key = `label_${lang}`;
+      const label = getStr(c, key) || getStr(c, "label_pl");
       const href = safeUrl(getStr(c, "href"));
       const variant = getStr(c, "variant") || "primary";
       const variantCls = variant === "outline"
@@ -156,7 +241,11 @@ export function WidgetView({ node, lang, device }: ViewProps) {
         : variant === "ghost"
         ? "hover:bg-muted"
         : "bg-brand text-brand-foreground hover:opacity-90";
-      return wrap(<a href={href} rel={href.startsWith("http") ? "noopener noreferrer" : undefined} className={`inline-flex items-center px-5 py-2.5 rounded-md text-sm font-medium transition ${variantCls}`}>{label}</a>);
+      const cls = `inline-flex items-center px-5 py-2.5 rounded-md text-sm font-medium transition ${variantCls}`;
+      if (canEdit) {
+        return wrap(<Editable as="span" value={label} onCommit={(v) => commit(key, v)} className={cls} placeholder="Etykieta…" />);
+      }
+      return wrap(<a href={href} rel={href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{label}</a>);
     }
     case "divider":
       return wrap(<hr className="border-border" />);
@@ -203,17 +292,36 @@ export function WidgetView({ node, lang, device }: ViewProps) {
     case "tags":
       return wrap(<TagsView />);
     case "newsletter": {
-      const title = getStr(c, `title_${lang}`) || getStr(c, "title_pl");
-      return wrap(<form className="bg-muted/30 rounded-lg p-6 space-y-3"><h3 className="font-display text-xl">{title}</h3><div className="flex gap-2"><input type="email" placeholder="email@example.com" className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" /><button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">OK</button></div></form>);
+      const tKey = `title_${lang}`;
+      const title = getStr(c, tKey) || getStr(c, "title_pl");
+      return wrap(
+        <form className="bg-muted/30 rounded-lg p-6 space-y-3">
+          {canEdit
+            ? <Editable as="h3" value={title} onCommit={(v) => commit(tKey, v)} className="font-display text-xl" placeholder="Tytuł newslettera…" />
+            : <h3 className="font-display text-xl">{title}</h3>}
+          <div className="flex gap-2"><input type="email" placeholder="email@example.com" className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" /><button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">OK</button></div>
+        </form>,
+      );
     }
     case "contact": {
       return wrap(<form className="space-y-3"><input placeholder="Imię" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><input placeholder="Email" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><textarea placeholder="Wiadomość" rows={4} className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Wyślij</button></form>);
     }
     case "cta": {
-      const title = getStr(c, `title_${lang}`) || getStr(c, "title_pl");
-      const cta = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl");
+      const tKey = `title_${lang}`;
+      const cKey = `cta_${lang}`;
+      const title = getStr(c, tKey) || getStr(c, "title_pl");
+      const cta = getStr(c, cKey) || getStr(c, "cta_pl");
       const href = safeUrl(getStr(c, "href"));
-      return wrap(<div className="bg-brand text-brand-foreground rounded-lg p-8 flex flex-col sm:flex-row items-center justify-between gap-4"><h3 className="font-display text-2xl">{title}</h3><a href={href} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium">{cta}</a></div>);
+      return wrap(
+        <div className="bg-brand text-brand-foreground rounded-lg p-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          {canEdit
+            ? <Editable as="h3" value={title} onCommit={(v) => commit(tKey, v)} className="font-display text-2xl" placeholder="Nagłówek CTA…" />
+            : <h3 className="font-display text-2xl">{title}</h3>}
+          {canEdit
+            ? <Editable as="span" value={cta} onCommit={(v) => commit(cKey, v)} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium" placeholder="Etykieta…" />
+            : <a href={href} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium">{cta}</a>}
+        </div>,
+      );
     }
     case "accordion": {
       const items = Array.isArray(c.items) ? c.items as Array<Record<string, string>> : [];

@@ -393,6 +393,9 @@ export function Builder({ value, onChange, lang, onLangChange }: Props) {
                     onRemoveWidget={removeWidget}
                     onDuplicateWidget={duplicateWidget}
                     onDropWidget={addWidgetToColumn}
+                    onUpdateWidgetContent={(id, k, v) =>
+                      updateWidget(id, (w) => { w.content = { ...w.content, [k]: v }; })
+                    }
                   />
                   <SectionDropZone onInsert={(cols) => insertSectionAt(idx + 1, cols)} index={idx + 1} />
                 </div>
@@ -507,6 +510,7 @@ interface SectionViewProps {
   onRemoveWidget: (id: string) => void;
   onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
+  onUpdateWidgetContent: (id: string, key: string, value: string) => void;
 }
 
 function SectionView(p: SectionViewProps) {
@@ -563,6 +567,7 @@ function SectionView(p: SectionViewProps) {
                     onRemoveColumn={p.onRemoveColumn} onDuplicateColumn={p.onDuplicateColumn}
                     onRemoveWidget={p.onRemoveWidget} onDuplicateWidget={p.onDuplicateWidget}
                     onDropWidget={p.onDropWidget}
+                    onUpdateWidgetContent={p.onUpdateWidgetContent}
                   />
                 </div>
               );
@@ -574,7 +579,8 @@ function SectionView(p: SectionViewProps) {
                   onRemove={() => p.onRemoveColumn(child.id)}
                   onDuplicate={() => p.onDuplicateColumn(child.id)}
                   onRemoveWidget={p.onRemoveWidget} onDuplicateWidget={p.onDuplicateWidget}
-                  onDropWidget={p.onDropWidget} />
+                  onDropWidget={p.onDropWidget}
+                  onUpdateWidgetContent={p.onUpdateWidgetContent} />
               </div>
             );
           })}
@@ -587,13 +593,14 @@ function SectionView(p: SectionViewProps) {
 
 function InnerSectionView({
   inner, device, lang, selection, setSelection, onRemoveColumn, onDuplicateColumn,
-  onRemoveWidget, onDuplicateWidget, onDropWidget,
+  onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent,
 }: {
   inner: InnerSectionNode; device: Device; lang: "pl"|"en"; selection: Selection;
   setSelection: (s: Selection) => void;
   onRemoveColumn: (id: string) => void; onDuplicateColumn: (id: string) => void;
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
+  onUpdateWidgetContent: (id: string, key: string, value: string) => void;
 }) {
   const selected = selection.kind === "inner-section" && selection.id === inner.id;
   const colsSum = inner.columns.reduce((a, c) => a + (c.span.desktop ?? 6), 0) || 12;
@@ -616,7 +623,8 @@ function InnerSectionView({
               setSelection={setSelection}
               onRemove={() => onRemoveColumn(c.id)} onDuplicate={() => onDuplicateColumn(c.id)}
               onRemoveWidget={onRemoveWidget} onDuplicateWidget={onDuplicateWidget}
-              onDropWidget={onDropWidget} />
+              onDropWidget={onDropWidget}
+              onUpdateWidgetContent={onUpdateWidgetContent} />
           </div>
         ))}
       </div>
@@ -626,13 +634,14 @@ function InnerSectionView({
 
 function ColumnView({
   column, device, lang, selection, setSelection, onRemove, onDuplicate,
-  onRemoveWidget, onDuplicateWidget, onDropWidget,
+  onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent,
 }: {
   column: ColumnNode; device: Device; lang: "pl"|"en"; selection: Selection;
   setSelection: (s: Selection) => void;
   onRemove: () => void; onDuplicate: () => void;
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
+  onUpdateWidgetContent: (id: string, key: string, value: string) => void;
 }) {
   const selected = selection.kind === "column" && selection.id === column.id;
   const [dragOver, setDragOver] = useState(false);
@@ -670,7 +679,8 @@ function ColumnView({
             selected={selection.kind === "widget" && selection.id === w.id}
             onSelect={() => setSelection({ kind: "widget", id: w.id })}
             onDuplicate={() => onDuplicateWidget(w.id)}
-            onRemove={() => onRemoveWidget(w.id)} />
+            onRemove={() => onRemoveWidget(w.id)}
+            onUpdateContent={(k, v) => onUpdateWidgetContent(w.id, k, v)} />
         ))}
       </SortableContext>
     </div>
@@ -678,10 +688,11 @@ function ColumnView({
 }
 
 function SortableWidget({
-  widget, lang, device, selected, onSelect, onDuplicate, onRemove,
+  widget, lang, device, selected, onSelect, onDuplicate, onRemove, onUpdateContent,
 }: {
   widget: WidgetNode; lang: "pl"|"en"; device: Device; selected: boolean;
   onSelect: () => void; onDuplicate: () => void; onRemove: () => void;
+  onUpdateContent: (key: string, value: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
@@ -696,8 +707,15 @@ function SortableWidget({
         <IconBtn onClick={(e) => { e.stopPropagation(); onDuplicate(); }} title="Duplikuj"><Copy className="w-3 h-3" /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
       </div>
-      <div className="pointer-events-none">
-        <WidgetView node={widget} lang={lang} device={device} />
+      {/* Allow pointer events when selected so inline-editable text fields are usable. */}
+      <div className={selected ? "" : "pointer-events-none"}>
+        <WidgetView
+          node={widget}
+          lang={lang}
+          device={device}
+          editable={selected}
+          onContentChange={onUpdateContent}
+        />
       </div>
     </div>
   );
