@@ -41,8 +41,15 @@ export interface CommonStyle {
   align?: ResponsiveValue<Align>;
   borderRadius?: string;
   maxWidth?: string;
+  minHeight?: string;
   typography?: WidgetTypography;
   hover?: HoverStyle;
+  // Border + shadow + opacity
+  borderStyle?: "none" | "solid" | "dashed" | "dotted" | "double";
+  borderWidth?: string;   // e.g. "1px" or "1px 2px"
+  borderColor?: string;
+  boxShadow?: string;     // raw css value
+  opacity?: number;       // 0..1
 }
 
 export type MotionPreset =
