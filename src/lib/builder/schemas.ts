@@ -186,7 +186,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "wave", label: "fala" },
       ],
     },
-    { key: "iconName", type: "text", label: "Ikona (dla wariantu „z ikoną")",
+    { key: "iconName", type: "text", label: "Ikona (dla wariantu z ikoną)",
       visibleWhen: (c) => c.variant === "icon" },
     { key: "thickness", type: "number", label: "Grubość (px)", min: 1, max: 12 },
   ],
