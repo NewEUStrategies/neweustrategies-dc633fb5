@@ -1,13 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Moon, Sun, Search, Menu, X, ChevronDown, Mail, Facebook, Twitter, Youtube, Instagram, Linkedin, Send } from "lucide-react";
+import { Moon, Sun, Search, Menu, X, ChevronDown, Mail, Facebook, Twitter, Youtube, Instagram, Linkedin, Send, LogIn, LayoutDashboard } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "./ThemeProvider";
+import { useAuth } from "@/hooks/useAuth";
 import logo from "@/assets/logo.png";
 
 export function Header() {
   const { t, i18n } = useTranslation();
   const { theme, toggle } = useTheme();
+  const { session, isStaff } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const lang = i18n.language ?? "pl";
 
@@ -44,7 +46,16 @@ export function Header() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden sm:inline text-muted-foreground">
+            {session && isStaff ? (
+              <Link to="/admin" className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline">
+                <LayoutDashboard className="w-3.5 h-3.5" /> Panel
+              </Link>
+            ) : (
+              <Link to="/login" className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-brand">
+                <LogIn className="w-3.5 h-3.5" /> {lang.startsWith("pl") ? "Zaloguj" : "Sign in"}
+              </Link>
+            )}
+            <span className="hidden md:inline text-muted-foreground">
               {lang.startsWith("pl") ? "Zmień język" : "Switch language"}
             </span>
             <button
