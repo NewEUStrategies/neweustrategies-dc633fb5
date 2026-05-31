@@ -400,17 +400,22 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
               device === "desktop" ? "max-w-[1440px]"
               : device === "tablet" ? "max-w-[820px]"
               : "max-w-[390px]"
-            }`}
+            } ${scope !== "page" ? "rounded-md" : ""}`}
           >
-            {/* Site chrome — Header preview with hover edit overlay */}
-            {!hideChrome && (
+            {/* Site chrome — Header preview with hover edit overlay (page editor only) */}
+            {!hideChrome && scope === "page" && (
               <ChromeFrame label="Nagłówek strony" editTo="/admin/settings/general">
                 <Header />
               </ChromeFrame>
             )}
 
+            {scope !== "page" && (
+              <div className="px-3 py-1.5 border-b border-border bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                Edytujesz: {scope === "header" ? "Nagłówek" : scope === "footer" ? "Stopkę" : "Menu"}
+              </div>
+            )}
 
-            <div className="px-2 py-2">
+            <div className={scope === "page" ? "px-2 py-2" : "p-0"}>
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                 {doc.sections.length === 0 && <EmptyState onAdd={addSection} title={copy.title} hint={copy.hint} />}
 
@@ -449,7 +454,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
               </DndContext>
             </div>
 
-            {!hideChrome && (
+            {!hideChrome && scope === "page" && (
               <ChromeFrame label="Stopka strony" editTo="/admin/settings/general">
                 <Footer />
               </ChromeFrame>
