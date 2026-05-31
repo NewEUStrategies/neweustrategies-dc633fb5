@@ -162,17 +162,41 @@ function getStrArr(c: WidgetContent, k: string): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
 
-const MOTION_INITIAL: Record<string, CSSProperties> = {
-  fade:         { opacity: 0 },
-  "slide-up":   { opacity: 0, transform: "translateY(24px)" },
-  "slide-down": { opacity: 0, transform: "translateY(-24px)" },
-  "slide-left": { opacity: 0, transform: "translateX(24px)" },
-  "slide-right":{ opacity: 0, transform: "translateX(-24px)" },
-  zoom:         { opacity: 0, transform: "scale(0.92)" },
-  "zoom-out":   { opacity: 0, transform: "scale(1.08)" },
-  bounce:       { opacity: 0, transform: "translateY(24px) scale(0.96)" },
+const MOTION_INITIAL: Record<string, (d: number) => CSSProperties> = {
+  fade:          () => ({ opacity: 0 }),
+  "slide-up":    (d) => ({ opacity: 0, transform: `translateY(${d}px)` }),
+  "slide-down":  (d) => ({ opacity: 0, transform: `translateY(-${d}px)` }),
+  "slide-left":  (d) => ({ opacity: 0, transform: `translateX(${d}px)` }),
+  "slide-right": (d) => ({ opacity: 0, transform: `translateX(-${d}px)` }),
+  zoom:          () => ({ opacity: 0, transform: "scale(0.92)" }),
+  "zoom-out":    () => ({ opacity: 0, transform: "scale(1.08)" }),
+  bounce:        (d) => ({ opacity: 0, transform: `translateY(${d}px) scale(0.96)` }),
+  "flip-x":      () => ({ opacity: 0, transform: "perspective(800px) rotateX(70deg)" }),
+  "flip-y":      () => ({ opacity: 0, transform: "perspective(800px) rotateY(70deg)" }),
+  rotate:        () => ({ opacity: 0, transform: "rotate(-12deg) scale(0.96)" }),
+  skew:          () => ({ opacity: 0, transform: "skewY(6deg) translateY(16px)" }),
+  blur:          () => ({ opacity: 0, filter: "blur(12px)" }),
+  "reveal-up":   (d) => ({ opacity: 0, clipPath: "inset(100% 0 0 0)", transform: `translateY(${d / 2}px)` }),
+  "reveal-down": (d) => ({ opacity: 0, clipPath: "inset(0 0 100% 0)", transform: `translateY(-${d / 2}px)` }),
+  tilt:          () => ({ opacity: 0, transform: "rotate(4deg) translateY(20px)" }),
+  swing:         () => ({ opacity: 0, transform: "rotate(-6deg)" }),
+  pulse:         () => ({ opacity: 0, transform: "scale(1.06)" }),
+  rubber:        () => ({ opacity: 0, transform: "scale(1.1, 0.85)" }),
 };
-const MOTION_FINAL: CSSProperties = { opacity: 1, transform: "translate(0,0) scale(1)" };
+const MOTION_FINAL: CSSProperties = {
+  opacity: 1, transform: "translate(0,0) scale(1) rotate(0) skew(0) perspective(800px) rotateX(0) rotateY(0)",
+  filter: "blur(0)", clipPath: "inset(0 0 0 0)",
+};
+
+const EASING_MAP: Record<string, string> = {
+  ease: "ease",
+  "ease-in": "ease-in",
+  "ease-out": "ease-out",
+  "ease-in-out": "ease-in-out",
+  linear: "linear",
+  spring: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+  bounce: "cubic-bezier(0.68, -0.55, 0.27, 1.55)",
+};
 
 export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
   const baseStyle = styleToCSS(node.style, device);
@@ -185,11 +209,15 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     once: node.advanced?.animationOnce !== false,
   });
 
+  const dur = node.advanced?.animationDuration ?? 600;
+  const delay = node.advanced?.animationDelay ?? 0;
+  const dist = node.advanced?.animationDistance ?? 24;
+  const ease = EASING_MAP[node.advanced?.animationEasing ?? "ease-out"] ?? "ease-out";
   const motionStyle: CSSProperties = motion
     ? {
-        ...(inView ? MOTION_FINAL : (MOTION_INITIAL[motion] ?? {})),
-        transition: `opacity ${node.advanced?.animationDuration ?? 600}ms ease-out ${node.advanced?.animationDelay ?? 0}ms, transform ${node.advanced?.animationDuration ?? 600}ms ease-out ${node.advanced?.animationDelay ?? 0}ms`,
-        willChange: "opacity, transform",
+        ...(inView ? MOTION_FINAL : (MOTION_INITIAL[motion]?.(dist) ?? {})),
+        transition: `opacity ${dur}ms ${ease} ${delay}ms, transform ${dur}ms ${ease} ${delay}ms, filter ${dur}ms ${ease} ${delay}ms, clip-path ${dur}ms ${ease} ${delay}ms`,
+        willChange: "opacity, transform, filter, clip-path",
       }
     : {};
 
@@ -218,51 +246,124 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     case "heading": {
       const key = `text_${lang}`;
       const text = getStr(c, key) || getStr(c, "text_pl");
-      const tag = (getStr(c, "tag") || "h2") as "h1"|"h2"|"h3"|"h4";
-      if (canEdit) {
-        return wrap(<Editable as={tag} value={text} onCommit={(v) => commit(key, v)} className="font-display text-3xl" placeholder="Nagłówek…" />);
-      }
-      const Tag = tag;
-      return wrap(<Tag className="font-display text-3xl">{text}</Tag>);
+      const subtitle = getStr(c, `subtitle_${lang}`) || getStr(c, "subtitle_pl");
+      const tag = (getStr(c, "tag") || "h2") as "h1"|"h2"|"h3"|"h4"|"h5"|"h6";
+      const variant = getStr(c, "variant") || "default";
+      const sizePreset = getStr(c, "sizePreset") || "md";
+      const href = safeUrl(getStr(c, "href"));
+      const target = getStr(c, "target") === "blank" ? "_blank" : undefined;
+      const iconName = getStr(c, "iconName");
+      const iconPos = getStr(c, "iconPosition") || "left";
+      const sizeCls =
+        sizePreset === "sm" ? "text-xl"
+        : sizePreset === "lg" ? "text-4xl"
+        : sizePreset === "xl" ? "text-5xl"
+        : sizePreset === "display" ? "text-6xl md:text-7xl"
+        : "text-3xl";
+      const variantCls =
+        variant === "gradient" ? "bg-gradient-to-r from-brand to-foreground bg-clip-text text-transparent"
+        : variant === "outlined" ? "[-webkit-text-stroke:1px_currentColor] text-transparent"
+        : variant === "highlight" ? "decoration-brand decoration-4 underline-offset-4 underline"
+        : variant === "uppercase" ? "uppercase tracking-widest"
+        : variant === "serif" ? "font-serif"
+        : "";
+      const headCls = `font-display ${sizeCls} ${variantCls}`.trim();
+      const reg: Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined> =
+        LucideIcons as Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined>;
+      const Icon = iconName ? (reg[iconName] ?? null) : null;
+      const inner = canEdit
+        ? <Editable as={tag} value={text} onCommit={(v) => commit(key, v)} className={headCls} placeholder="Nagłówek…" />
+        : (() => { const Tag = tag as React.ElementType; return <Tag className={headCls}>{text}</Tag>; })();
+      const titleRow = (
+        <span className={`inline-flex items-center gap-2 ${iconPos === "right" ? "flex-row-reverse" : ""}`}>
+          {Icon && <Icon size={28} className="opacity-80" />}
+          <span className="contents">{inner}</span>
+        </span>
+      );
+      const block = (
+        <div className="space-y-1">
+          {href ? <a href={href} target={target} rel={target === "_blank" ? "noopener noreferrer" : undefined} className="hover:opacity-80 transition">{titleRow}</a> : titleRow}
+          {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+        </div>
+      );
+      return wrap(block);
     }
     case "text": {
       const key = `html_${lang}`;
       const html = getStr(c, key) || getStr(c, "html_pl");
+      const cols = getNum(c, "columns", 1);
+      const dropCap = getStr(c, "dropCap") === "on";
+      const proseCls = `prose prose-sm max-w-none dark:prose-invert ${dropCap ? "first-letter:float-left first-letter:text-5xl first-letter:font-display first-letter:mr-2 first-letter:leading-none" : ""}`;
+      const colStyle = cols > 1 ? { columnCount: cols, columnGap: "1.5rem" } as CSSProperties : undefined;
       if (canEdit) {
-        return wrap(<Editable as="div" html multiline value={html} onCommit={(v) => commit(key, v)} className="prose prose-sm max-w-none dark:prose-invert" placeholder="Wpisz tekst…" />);
+        return wrap(<Editable as="div" html multiline value={html} onCommit={(v) => commit(key, v)} className={proseCls} placeholder="Wpisz tekst…" />);
       }
-      return wrap(<div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />);
+      return wrap(<div className={proseCls} style={colStyle} dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />);
     }
     case "image": {
       const src = safeImageUrl(getStr(c, "src"));
       const srcDark = safeImageUrl(getStr(c, "srcDark"));
       const alt = getStr(c, `alt_${lang}`) || getStr(c, "alt_pl");
+      const caption = getStr(c, `caption_${lang}`) || getStr(c, "caption_pl");
+      const variant = getStr(c, "variant") || "default";
+      const fit = (getStr(c, "objectFit") || "cover") as CSSProperties["objectFit"];
+      const ratio = getStr(c, "ratio");
+      const variantCls =
+        variant === "rounded" ? "rounded-xl"
+        : variant === "circle" ? "rounded-full aspect-square"
+        : variant === "polaroid" ? "bg-white p-2 pb-6 shadow-lg rotate-[-1deg]"
+        : variant === "shadow" ? "rounded shadow-2xl"
+        : variant === "frame" ? "rounded border-4 border-foreground/10"
+        : variant === "zoom-hover" ? "rounded overflow-hidden transition-transform duration-500 hover:scale-105"
+        : "rounded";
+      const imgStyle: CSSProperties = {
+        objectFit: fit,
+        aspectRatio: ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined,
+        width: "100%",
+        height: "auto",
+      };
       if (!src && !srcDark) return wrap(<div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>);
-      if (srcDark && src && srcDark !== src) {
-        return wrap(
-          <picture>
-            <source srcSet={srcDark} media="(prefers-color-scheme: dark)" />
-            <img src={src} alt={alt} className="max-w-full h-auto rounded" loading="lazy" />
-          </picture>,
-        );
-      }
-      return wrap(<img src={src || srcDark} alt={alt} className="max-w-full h-auto rounded" loading="lazy" />);
+      const imgEl = srcDark && src && srcDark !== src ? (
+        <picture>
+          <source srcSet={srcDark} media="(prefers-color-scheme: dark)" />
+          <img src={src} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
+        </picture>
+      ) : (
+        <img src={src || srcDark} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
+      );
+      return wrap(
+        <figure className="space-y-2">
+          {imgEl}
+          {caption && <figcaption className="text-xs text-muted-foreground text-center">{caption}</figcaption>}
+        </figure>,
+      );
     }
     case "button": {
       const key = `label_${lang}`;
       const label = getStr(c, key) || getStr(c, "label_pl");
       const href = safeUrl(getStr(c, "href"));
+      const target = getStr(c, "target") === "blank" ? "_blank" : undefined;
       const variant = getStr(c, "variant") || "primary";
-      const variantCls = variant === "outline"
-        ? "border border-border hover:bg-muted"
-        : variant === "ghost"
-        ? "hover:bg-muted"
+      const size = getStr(c, "size") || "md";
+      const iconName = getStr(c, "iconName");
+      const iconPos = getStr(c, "iconPosition") || "left";
+      const fullWidth = getStr(c, "fullWidth") === "full";
+      const variantCls =
+        variant === "outline" ? "border border-border hover:bg-muted"
+        : variant === "ghost" ? "hover:bg-muted"
+        : variant === "gradient" ? "bg-gradient-to-r from-brand to-foreground text-brand-foreground hover:opacity-90"
+        : variant === "soft" ? "bg-brand/10 text-brand hover:bg-brand/20"
+        : variant === "link" ? "underline-offset-4 hover:underline text-brand px-0"
         : "bg-brand text-brand-foreground hover:opacity-90";
-      const cls = `inline-flex items-center px-5 py-2.5 rounded-md text-sm font-medium transition ${variantCls}`;
+      const sizeCls = size === "sm" ? "px-3 py-1.5 text-xs" : size === "lg" ? "px-7 py-3 text-base" : "px-5 py-2.5 text-sm";
+      const cls = `inline-flex items-center gap-2 rounded-md font-medium transition ${sizeCls} ${variantCls} ${fullWidth ? "w-full justify-center" : ""} ${iconPos === "right" ? "flex-row-reverse" : ""}`;
+      const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
+        LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
+      const Icon = iconName ? (reg[iconName] ?? null) : null;
       if (canEdit) {
-        return wrap(<Editable as="span" value={label} onCommit={(v) => commit(key, v)} className={cls} placeholder="Etykieta…" />);
+        return wrap(<span className={cls}>{Icon && <Icon size={16} />}<Editable as="span" value={label} onCommit={(v) => commit(key, v)} placeholder="Etykieta…" /></span>);
       }
-      return wrap(<a href={href} rel={href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{label}</a>);
+      return wrap(<a href={href} target={target} rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{Icon && <Icon size={16} />}{label}</a>);
     }
     case "nav-link": {
       const key = `label_${lang}`;
@@ -301,8 +402,34 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         </a>,
       );
     }
-    case "divider":
-      return wrap(<hr className="border-border" />);
+    case "divider": {
+      const variant = getStr(c, "variant") || "line";
+      const thickness = getNum(c, "thickness", 1);
+      if (variant === "gradient") {
+        return wrap(<div style={{ height: `${thickness}px` }} className="bg-gradient-to-r from-transparent via-border to-transparent" />);
+      }
+      if (variant === "icon") {
+        const iconName = getStr(c, "iconName") || "Star";
+        const reg = LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
+        const Icon = reg[iconName] ?? LucideIcons.Star;
+        return wrap(
+          <div className="flex items-center gap-3 text-muted-foreground">
+            <div className="flex-1 border-t border-border" style={{ borderTopWidth: thickness }} />
+            <Icon size={16} />
+            <div className="flex-1 border-t border-border" style={{ borderTopWidth: thickness }} />
+          </div>,
+        );
+      }
+      if (variant === "wave") {
+        return wrap(
+          <svg viewBox="0 0 200 8" preserveAspectRatio="none" className="w-full h-3 text-border">
+            <path d="M0 4 Q 25 0 50 4 T 100 4 T 150 4 T 200 4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          </svg>,
+        );
+      }
+      const styleType = variant === "dashed" ? "dashed" : variant === "dotted" ? "dotted" : variant === "double" ? "double" : "solid";
+      return wrap(<hr className="border-border" style={{ borderTopStyle: styleType, borderTopWidth: thickness }} />);
+    }
     case "spacer":
       return wrap(<div style={{ height: `${getNum(c, "height", 32)}px` }} />);
     case "social-icons": {
@@ -378,35 +505,83 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     }
     case "video": {
       const url = getStr(c, "url");
-      if (!url) return wrap(<div className="bg-muted rounded aspect-video flex items-center justify-center text-xs text-muted-foreground">brak wideo</div>);
+      const ratio = getStr(c, "ratio") || "16/9";
+      const autoplay = getStr(c, "autoplay") === "on";
+      const loop = getStr(c, "loop") === "on";
+      const controls = getStr(c, "controls") !== "off";
+      const ratioStyle: CSSProperties = { aspectRatio: ratio.replace("/", " / ") };
+      if (!url) return wrap(<div className="bg-muted rounded flex items-center justify-center text-xs text-muted-foreground" style={ratioStyle}>brak wideo</div>);
       const ytMatch = url.match(/(?:youtube\.com\/.*v=|youtu\.be\/)([\w-]+)/);
       if (ytMatch) {
-        return wrap(<div className="aspect-video"><iframe src={`https://www.youtube.com/embed/${ytMatch[1]}`} title="video" className="w-full h-full rounded" allowFullScreen /></div>);
+        const params = new URLSearchParams();
+        if (autoplay) { params.set("autoplay", "1"); params.set("mute", "1"); }
+        if (loop) { params.set("loop", "1"); params.set("playlist", ytMatch[1]); }
+        if (!controls) params.set("controls", "0");
+        const q = params.toString();
+        return wrap(<div style={ratioStyle}><iframe src={`https://www.youtube.com/embed/${ytMatch[1]}${q ? `?${q}` : ""}`} title="video" className="w-full h-full rounded" allowFullScreen /></div>);
       }
       const safe = safeImageUrl(url) || (url.startsWith("https://") ? url : "");
-      if (!safe) return wrap(<div className="bg-muted rounded aspect-video flex items-center justify-center text-xs text-muted-foreground">niedozwolony URL</div>);
-      return wrap(<video src={safe} controls className="w-full rounded" />);
+      if (!safe) return wrap(<div className="bg-muted rounded flex items-center justify-center text-xs text-muted-foreground" style={ratioStyle}>niedozwolony URL</div>);
+      return wrap(<video src={safe} controls={controls} autoPlay={autoplay} muted={autoplay} loop={loop} playsInline className="w-full rounded" style={ratioStyle} />);
     }
     case "gallery": {
       const imgs = getStrArr(c, "images").map(safeImageUrl).filter(Boolean);
       const cols = getNum(c, "columns", 3);
-      return wrap(<div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-        {imgs.length === 0 && <div className="col-span-full bg-muted rounded h-24 flex items-center justify-center text-xs text-muted-foreground">brak zdjęć</div>}
+      const variant = getStr(c, "variant") || "grid";
+      const gap = getStr(c, "gap") || "sm";
+      const gapCls = gap === "none" ? "gap-0" : gap === "xs" ? "gap-1" : gap === "md" ? "gap-4" : gap === "lg" ? "gap-6" : "gap-2";
+      if (imgs.length === 0) return wrap(<div className="bg-muted rounded h-24 flex items-center justify-center text-xs text-muted-foreground">brak zdjęć</div>);
+      if (variant === "carousel") {
+        return wrap(
+          <div className={`flex ${gapCls} overflow-x-auto snap-x pb-2`}>
+            {imgs.map((src, i) => <img key={i} src={src} alt="" className="snap-start h-48 w-auto rounded object-cover" loading="lazy" />)}
+          </div>,
+        );
+      }
+      if (variant === "masonry") {
+        return wrap(
+          <div style={{ columnCount: cols, columnGap: gap === "lg" ? "1.5rem" : gap === "md" ? "1rem" : "0.5rem" }}>
+            {imgs.map((src, i) => <img key={i} src={src} alt="" className="w-full mb-2 rounded break-inside-avoid" loading="lazy" />)}
+          </div>,
+        );
+      }
+      if (variant === "polaroid") {
+        return wrap(
+          <div className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+            {imgs.map((src, i) => (
+              <div key={i} className="bg-white p-2 pb-5 shadow-lg rotate-[-1deg] hover:rotate-0 transition">
+                <img src={src} alt="" className="w-full h-32 object-cover" loading="lazy" />
+              </div>
+            ))}
+          </div>,
+        );
+      }
+      return wrap(<div className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
         {imgs.map((src, i) => <img key={i} src={src} alt="" className="w-full h-32 object-cover rounded" loading="lazy" />)}
       </div>);
     }
     case "icon": {
       const name = getStr(c, "name") || "Star";
       const size = getNum(c, "size", 32);
+      const variant = getStr(c, "variant") || "plain";
+      const spin = getStr(c, "spin") || "none";
       const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
       const Cmp = reg[name] ?? LucideIcons.Star;
-      return wrap(<Cmp size={size} />);
+      const spinCls = spin === "spin" ? "animate-spin" : spin === "pulse" ? "animate-pulse" : spin === "bounce" ? "animate-bounce" : "";
+      const wrapperCls =
+        variant === "circle" ? "inline-flex items-center justify-center rounded-full bg-brand/10 text-brand p-3"
+        : variant === "square" ? "inline-flex items-center justify-center rounded-md bg-brand/10 text-brand p-3"
+        : variant === "soft" ? "inline-flex items-center justify-center rounded-lg bg-muted p-3"
+        : variant === "outlined" ? "inline-flex items-center justify-center rounded-lg border border-border p-3"
+        : "inline-flex";
+      return wrap(<span className={`${wrapperCls} ${spinCls}`.trim()}><Cmp size={size} /></span>);
     }
     case "map": {
       const q = getStr(c, "query") || "Warszawa";
+      const ratio = getStr(c, "ratio") || "16/9";
       const src = `https://maps.google.com/maps?q=${encodeURIComponent(q)}&output=embed`;
-      return wrap(<div className="aspect-video"><iframe src={src} title="map" className="w-full h-full rounded border-0" /></div>);
+      return wrap(<div style={{ aspectRatio: ratio.replace("/", " / ") }}><iframe src={src} title="map" className="w-full h-full rounded border-0" /></div>);
     }
     case "post-list":
       return wrap(<PostListView c={c} lang={lang} />);
@@ -419,7 +594,32 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     case "newsletter": {
       const tKey = `title_${lang}`;
       const title = getStr(c, tKey) || getStr(c, "title_pl") || "Newsletter";
+      const variant = getStr(c, "variant") || "icon";
+      const placeholder = getStr(c, `placeholder_${lang}`) || getStr(c, "placeholder_pl") || "Twój email";
+      const ctaLabel = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || "Zapisz";
       const MailIcon = (LucideIcons as Record<string, React.ComponentType<{ className?: string }>>).Mail;
+      if (variant === "inline") {
+        return wrap(
+          <form className="flex gap-2 w-full max-w-md" onSubmit={(e) => e.preventDefault()}>
+            <input type="email" placeholder={placeholder} className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" />
+            <button type="submit" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium hover:opacity-90">{ctaLabel}</button>
+          </form>,
+        );
+      }
+      if (variant === "card") {
+        return wrap(
+          <div className="rounded-xl border border-border bg-card p-6 space-y-3 max-w-md">
+            <div className="flex items-center gap-2"><MailIcon className="w-5 h-5 text-brand" /><h4 className="font-display text-lg">{title}</h4></div>
+            <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
+              <input type="email" placeholder={placeholder} className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" />
+              <button type="submit" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium hover:opacity-90">{ctaLabel}</button>
+            </form>
+          </div>,
+        );
+      }
+      if (variant === "minimal") {
+        return wrap(<span className="text-sm font-medium border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
+      }
       return wrap(
         <div className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors cursor-pointer" title={title}>
           {MailIcon ? <MailIcon className="w-5 h-5" /> : <span>✉</span>}
@@ -429,31 +629,72 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     }
 
     case "contact": {
-      return wrap(<form className="space-y-3"><input placeholder="Imię" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><input placeholder="Email" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><textarea placeholder="Wiadomość" rows={4} className="w-full bg-background border border-border rounded px-3 py-2 text-sm" /><button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Wyślij</button></form>);
+      const variant = getStr(c, "variant") || "stacked";
+      const wrapCls = variant === "card" ? "space-y-3 bg-card border border-border rounded-xl p-5" : "space-y-3";
+      if (variant === "compact") {
+        return wrap(
+          <form className="flex flex-col sm:flex-row gap-2">
+            <input placeholder="Email" className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" />
+            <input placeholder="Wiadomość" className="flex-[2] bg-background border border-border rounded px-3 py-2 text-sm" />
+            <button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Wyślij</button>
+          </form>,
+        );
+      }
+      return wrap(
+        <form className={wrapCls}>
+          <input placeholder="Imię" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" />
+          <input placeholder="Email" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" />
+          <textarea placeholder="Wiadomość" rows={4} className="w-full bg-background border border-border rounded px-3 py-2 text-sm" />
+          <button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Wyślij</button>
+        </form>,
+      );
     }
     case "cta": {
       const tKey = `title_${lang}`;
       const cKey = `cta_${lang}`;
       const title = getStr(c, tKey) || getStr(c, "title_pl");
+      const subtitle = getStr(c, `subtitle_${lang}`) || getStr(c, "subtitle_pl");
       const cta = getStr(c, cKey) || getStr(c, "cta_pl");
       const href = safeUrl(getStr(c, "href"));
+      const variant = getStr(c, "variant") || "default";
+      const align = getStr(c, "align") || "between";
+      const containerCls =
+        variant === "gradient" ? "bg-gradient-to-r from-brand to-foreground text-brand-foreground rounded-xl p-8"
+        : variant === "bar" ? "bg-brand text-brand-foreground rounded-md py-3 px-5"
+        : variant === "card" ? "bg-card border border-border rounded-xl p-8 shadow-2xl"
+        : "bg-brand text-brand-foreground rounded-lg p-8";
+      const layoutCls = variant === "split"
+        ? "flex flex-col items-start gap-4"
+        : `flex flex-col sm:flex-row gap-4 ${align === "left" ? "items-start sm:items-center" : align === "center" ? "items-center justify-center text-center" : "items-center justify-between"}`;
+      const ctaBtn = canEdit
+        ? <Editable as="span" value={cta} onCommit={(v) => commit(cKey, v)} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium" placeholder="Etykieta…" />
+        : <a href={href} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium hover:opacity-90 transition">{cta}</a>;
       return wrap(
-        <div className="bg-brand text-brand-foreground rounded-lg p-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          {canEdit
-            ? <Editable as="h3" value={title} onCommit={(v) => commit(tKey, v)} className="font-display text-2xl" placeholder="Nagłówek CTA…" />
-            : <h3 className="font-display text-2xl">{title}</h3>}
-          {canEdit
-            ? <Editable as="span" value={cta} onCommit={(v) => commit(cKey, v)} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium" placeholder="Etykieta…" />
-            : <a href={href} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium">{cta}</a>}
+        <div className={containerCls}>
+          <div className={layoutCls}>
+            <div className="space-y-1">
+              {canEdit
+                ? <Editable as="h3" value={title} onCommit={(v) => commit(tKey, v)} className="font-display text-2xl" placeholder="Nagłówek CTA…" />
+                : <h3 className="font-display text-2xl">{title}</h3>}
+              {subtitle && <p className="text-sm opacity-80">{subtitle}</p>}
+            </div>
+            {ctaBtn}
+          </div>
         </div>,
       );
     }
     case "accordion": {
       const items = Array.isArray(c.items) ? c.items as Array<Record<string, string>> : [];
+      const variant = getStr(c, "variant") || "bordered";
+      const containerCls =
+        variant === "separated" ? "space-y-2"
+        : variant === "minimal" ? "divide-y divide-border"
+        : "divide-y divide-border border border-border rounded-lg overflow-hidden";
+      const itemCls = variant === "separated" ? "group border border-border rounded-lg overflow-hidden" : "group";
       return wrap(
-        <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
+        <div className={containerCls}>
           {items.map((it, i) => (
-            <details key={i} className="group">
+            <details key={i} className={itemCls}>
               <summary className="cursor-pointer list-none px-4 py-3 flex justify-between items-center hover:bg-muted/30 font-medium text-sm">
                 <span>{it[`q_${lang}`] || it.q_pl}</span>
                 <span className="text-muted-foreground group-open:rotate-180 transition">▾</span>
@@ -461,7 +702,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
               <div className="px-4 pb-4 text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: sanitizeHtml(it[`a_${lang}`] || it.a_pl || "") }} />
             </details>
           ))}
-        </div>
+        </div>,
       );
     }
     case "tabs": {
@@ -473,17 +714,33 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const author = getStr(c, "author");
       const role = getStr(c, `role_${lang}`) || getStr(c, "role_pl");
       const avatar = safeImageUrl(getStr(c, "avatar"));
+      const rating = getNum(c, "rating", 0);
+      const variant = getStr(c, "variant") || "card";
+      const containerCls =
+        variant === "minimal" ? "space-y-3"
+        : variant === "quote" ? "relative pl-10 space-y-3"
+        : variant === "centered" ? "text-center space-y-4 max-w-xl mx-auto"
+        : "bg-muted/30 rounded-lg p-6 space-y-4";
+      const stars = rating > 0 && (
+        <div className={`flex gap-0.5 text-brand ${variant === "centered" ? "justify-center" : ""}`}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <LucideIcons.Star key={i} size={14} fill={i < rating ? "currentColor" : "none"} />
+          ))}
+        </div>
+      );
       return wrap(
-        <figure className="bg-muted/30 rounded-lg p-6 space-y-4">
-          <blockquote className="text-base italic leading-relaxed">"{quote}"</blockquote>
-          <figcaption className="flex items-center gap-3">
+        <figure className={containerCls}>
+          {variant === "quote" && <LucideIcons.Quote className="absolute left-0 top-0 w-7 h-7 text-brand/40" />}
+          {stars}
+          <blockquote className={`${variant === "centered" ? "text-lg" : "text-base"} italic leading-relaxed`}>"{quote}"</blockquote>
+          <figcaption className={`flex items-center gap-3 ${variant === "centered" ? "justify-center" : ""}`}>
             {avatar && <img src={avatar} alt="" className="w-10 h-10 rounded-full object-cover" />}
             <div>
               <div className="font-medium text-sm">{author}</div>
               {role && <div className="text-xs text-muted-foreground">{role}</div>}
             </div>
           </figcaption>
-        </figure>
+        </figure>,
       );
     }
     case "pricing": {
