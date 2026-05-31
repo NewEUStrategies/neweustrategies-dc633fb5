@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useSiteSetting } from "@/lib/useSiteSetting";
+import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import type { BuilderDocument } from "@/lib/builder/types";
 import logo from "@/assets/logo.png";
 
 type FooterColumn = {
@@ -17,6 +19,7 @@ type FooterSettings = {
   columns: FooterColumn[];
   copyright_pl: string;
   copyright_en: string;
+  builder_data?: BuilderDocument | null;
 };
 
 export function Footer() {
@@ -34,8 +37,17 @@ export function Footer() {
     copyright_en: "All rights reserved",
   });
 
+  if (cfg.builder_data && cfg.builder_data.sections?.length) {
+    return (
+      <footer className="bg-[oklch(0.13_0.02_260)] text-white/80">
+        <BuilderRenderer doc={cfg.builder_data} lang={isPl ? "pl" : "en"} />
+      </footer>
+    );
+  }
+
   const mission = (isPl ? cfg.mission_pl : cfg.mission_en) || t("footer.mission");
   const copyright = isPl ? cfg.copyright_pl : cfg.copyright_en;
+
 
   const defaultColumns: FooterColumn[] = [
     {
