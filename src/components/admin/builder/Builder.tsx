@@ -679,7 +679,8 @@ function ColumnView({
             selected={selection.kind === "widget" && selection.id === w.id}
             onSelect={() => setSelection({ kind: "widget", id: w.id })}
             onDuplicate={() => onDuplicateWidget(w.id)}
-            onRemove={() => onRemoveWidget(w.id)} />
+            onRemove={() => onRemoveWidget(w.id)}
+            onUpdateContent={(k, v) => onUpdateWidgetContent(w.id, k, v)} />
         ))}
       </SortableContext>
     </div>
