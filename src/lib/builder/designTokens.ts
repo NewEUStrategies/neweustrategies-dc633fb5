@@ -74,13 +74,12 @@ export function useSaveDesignTokens() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (next: DesignTokens) => {
-      // We rely on the `tenant_id` column default `current_tenant_id()` to
-      // populate the row for first-time inserts.
+      // `tenant_id` is omitted: the DB default `current_tenant_id()` fills
+      // it on insert; on update RLS already scopes to the caller's tenant.
       const { error } = await supabase
         .from("site_design_tokens")
         .upsert(
           {
-            tenant_id: undefined as unknown as string, // let DB default fill it
             colors: next.colors as unknown as never,
             fonts: next.fonts as unknown as never,
             scale: next.scale as unknown as never,
