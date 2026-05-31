@@ -889,11 +889,11 @@ function VisualCanvas({
 
   const ringCss = `
     [data-visual-canvas] [data-widget-id]{position:relative;cursor:pointer;outline:1px dashed transparent;outline-offset:2px;border-radius:4px;transition:outline-color .15s}
-    [data-visual-canvas] [data-widget-id]:hover{outline-color:hsl(var(--brand)/.5)}
-    [data-visual-canvas] [data-widget-id].is-selected{outline:2px solid hsl(var(--brand))}
+    [data-visual-canvas] [data-widget-id]:hover{outline-color:color-mix(in oklab, var(--brand) 50%, transparent)}
+    [data-visual-canvas] [data-widget-id].is-selected{outline:2px solid var(--brand)}
     [data-visual-canvas] [data-sec-id]{outline:1px dashed transparent;outline-offset:-2px;transition:outline-color .15s}
-    [data-visual-canvas] [data-sec-id]:hover{outline-color:hsl(var(--brand)/.35)}
-    [data-visual-canvas] [data-sec-id].is-selected{outline:2px solid hsl(var(--brand))}
+    [data-visual-canvas] [data-sec-id]:hover{outline-color:color-mix(in oklab, var(--brand) 35%, transparent)}
+    [data-visual-canvas] [data-sec-id].is-selected{outline:2px solid var(--brand)}
     [data-visual-canvas] a{pointer-events:none}
     [data-visual-canvas] button{pointer-events:none}
   `;
