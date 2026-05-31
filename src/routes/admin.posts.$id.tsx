@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PostEditor } from "@/components/admin/PostEditor";
+import { Builder } from "@/components/admin/builder/Builder";
+import type { BuilderDocument } from "@/lib/builder/types";
 import { ArrowLeft, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,7 +21,7 @@ export const Route = createFileRoute("/admin/posts/$id")({
 });
 
 type PostStatus = "draft" | "published" | "archived";
-type EditorType = "richtext" | "markdown";
+type EditorType = "richtext" | "markdown" | "builder";
 
 interface PostForm {
   id: string;
@@ -35,6 +37,7 @@ interface PostForm {
   cover_image_url: string | null;
   read_minutes: number | null;
   published_at: string | null;
+  builder_data: BuilderDocument | null;
 }
 
 interface CategoryOpt { id: string; name_pl: string; name_en: string }
@@ -106,6 +109,7 @@ function EditPost() {
         content_en: form.content_en,
         cover_image_url: form.cover_image_url,
         read_minutes: form.read_minutes,
+        builder_data: form.builder_data as unknown as never,
         published_at: form.status === "published" ? (form.published_at ?? new Date().toISOString()) : form.published_at,
       };
       const { error } = await supabase.from("posts").update(payload).eq("id", id);
@@ -149,43 +153,60 @@ function EditPost() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-5">
-          <Tabs defaultValue="pl">
-            <TabsList>
-              <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
-              <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
-            </TabsList>
-            <TabsContent value="pl" className="space-y-4 mt-4">
-              <div>
-                <Label>{t("admin.posts.titleCol")} (PL)</Label>
-                <Input value={form.title_pl} onChange={(e) => set("title_pl", e.target.value)} className="text-xl font-display" />
+        <div className={form.editor === "builder" ? "lg:col-span-3 space-y-5" : "lg:col-span-2 space-y-5"}>
+          {form.editor === "builder" ? (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>{t("admin.posts.titleCol")} (PL)</Label>
+                  <Input value={form.title_pl} onChange={(e) => set("title_pl", e.target.value)} className="text-lg font-display" />
+                </div>
+                <div>
+                  <Label>{t("admin.posts.titleCol")} (EN)</Label>
+                  <Input value={form.title_en} onChange={(e) => set("title_en", e.target.value)} className="text-lg font-display" />
+                </div>
               </div>
-              <div>
-                <Label>{t("admin.posts.excerpt")} (PL)</Label>
-                <Textarea value={form.excerpt_pl ?? ""} onChange={(e) => set("excerpt_pl", e.target.value)} rows={3} />
-              </div>
-              <div>
-                <Label>{t("admin.posts.content")} (PL)</Label>
-                <PostEditor mode={form.editor} value={form.content_pl ?? ""} onChange={(v) => set("content_pl", v)} onPickImage={pickImage} />
-              </div>
-            </TabsContent>
-            <TabsContent value="en" className="space-y-4 mt-4">
-              <div>
-                <Label>{t("admin.posts.titleCol")} (EN)</Label>
-                <Input value={form.title_en} onChange={(e) => set("title_en", e.target.value)} className="text-xl font-display" />
-              </div>
-              <div>
-                <Label>{t("admin.posts.excerpt")} (EN)</Label>
-                <Textarea value={form.excerpt_en ?? ""} onChange={(e) => set("excerpt_en", e.target.value)} rows={3} />
-              </div>
-              <div>
-                <Label>{t("admin.posts.content")} (EN)</Label>
-                <PostEditor mode={form.editor} value={form.content_en ?? ""} onChange={(v) => set("content_en", v)} onPickImage={pickImage} />
-              </div>
-            </TabsContent>
-          </Tabs>
+              <BuilderPane form={form} set={set} />
+            </>
+          ) : (
+            <Tabs defaultValue="pl">
+              <TabsList>
+                <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
+                <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
+              </TabsList>
+              <TabsContent value="pl" className="space-y-4 mt-4">
+                <div>
+                  <Label>{t("admin.posts.titleCol")} (PL)</Label>
+                  <Input value={form.title_pl} onChange={(e) => set("title_pl", e.target.value)} className="text-xl font-display" />
+                </div>
+                <div>
+                  <Label>{t("admin.posts.excerpt")} (PL)</Label>
+                  <Textarea value={form.excerpt_pl ?? ""} onChange={(e) => set("excerpt_pl", e.target.value)} rows={3} />
+                </div>
+                <div>
+                  <Label>{t("admin.posts.content")} (PL)</Label>
+                  <PostEditor mode={form.editor === "markdown" ? "markdown" : "richtext"} value={form.content_pl ?? ""} onChange={(v) => set("content_pl", v)} onPickImage={pickImage} />
+                </div>
+              </TabsContent>
+              <TabsContent value="en" className="space-y-4 mt-4">
+                <div>
+                  <Label>{t("admin.posts.titleCol")} (EN)</Label>
+                  <Input value={form.title_en} onChange={(e) => set("title_en", e.target.value)} className="text-xl font-display" />
+                </div>
+                <div>
+                  <Label>{t("admin.posts.excerpt")} (EN)</Label>
+                  <Textarea value={form.excerpt_en ?? ""} onChange={(e) => set("excerpt_en", e.target.value)} rows={3} />
+                </div>
+                <div>
+                  <Label>{t("admin.posts.content")} (EN)</Label>
+                  <PostEditor mode={form.editor === "markdown" ? "markdown" : "richtext"} value={form.content_en ?? ""} onChange={(v) => set("content_en", v)} onPickImage={pickImage} />
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
         </div>
 
+        {form.editor !== "builder" && (
         <aside className="space-y-5">
           <div className="bg-card border border-border rounded-lg p-4 space-y-3">
             <div>
@@ -206,6 +227,7 @@ function EditPost() {
                 <SelectContent>
                   <SelectItem value="richtext">Rich text</SelectItem>
                   <SelectItem value="markdown">Markdown</SelectItem>
+                  <SelectItem value="builder">Drag &amp; Drop Builder</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -267,7 +289,14 @@ function EditPost() {
             </div>
           </div>
         </aside>
+        )}
       </div>
     </div>
   );
 }
+
+function BuilderPane({ form, set }: { form: { builder_data: BuilderDocument | null }; set: (k: "builder_data", v: BuilderDocument) => void }) {
+  const [lang, setLang] = useState<"pl" | "en">("pl");
+  return <Builder value={form.builder_data} onChange={(v) => set("builder_data", v)} lang={lang} onLangChange={setLang} />;
+}
+
