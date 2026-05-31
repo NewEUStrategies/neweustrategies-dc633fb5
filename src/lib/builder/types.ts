@@ -22,6 +22,17 @@ export interface WidgetTypography {
   textDecoration?: "none" | "underline" | "line-through";
 }
 
+export interface HoverStyle {
+  bgColor?: string;
+  textColor?: string;
+  borderRadius?: string;
+  scale?: number;                    // 1 = none; e.g. 1.03
+  translateY?: string;               // CSS length, e.g. "-2px"
+  shadow?: string;                   // raw box-shadow, e.g. "0 8px 24px rgba(0,0,0,.18)"
+  transitionMs?: number;             // duration; default 200
+  typography?: WidgetTypography;
+}
+
 export interface CommonStyle {
   bgColor?: string;
   textColor?: string;
@@ -31,6 +42,7 @@ export interface CommonStyle {
   borderRadius?: string;
   maxWidth?: string;
   typography?: WidgetTypography;
+  hover?: HoverStyle;
 }
 
 export type MotionPreset =
