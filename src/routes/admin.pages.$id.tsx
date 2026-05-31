@@ -230,7 +230,6 @@ function EditPage() {
             </div>
           </div>
         </aside>
-        )}
       </div>
     </div>
   );
