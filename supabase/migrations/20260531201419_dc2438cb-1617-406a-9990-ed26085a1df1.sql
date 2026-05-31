@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.snapshot_builder_template() FROM PUBLIC, anon, authenticated;
