@@ -4,7 +4,10 @@ import { Moon, Sun, Search, Menu, X, ChevronDown, Mail, Facebook, Twitter, Youtu
 import { useState } from "react";
 import { useTheme } from "./ThemeProvider";
 import { useAuth } from "@/hooks/useAuth";
+import { useSiteSetting } from "@/lib/useSiteSetting";
 import logo from "@/assets/logo.png";
+
+type MenuItem = { label_pl: string; label_en: string; url: string };
 
 export function Header() {
   const { t, i18n } = useTranslation();
@@ -15,14 +18,26 @@ export function Header() {
 
   const setLang = (lng: "pl" | "en") => i18n.changeLanguage(lng);
 
-  const nav: { label: string; hasSub?: boolean }[] = [
-    { label: t("nav.analyses"), hasSub: true },
-    { label: t("nav.interviews"), hasSub: true },
-    { label: t("nav.policyPapers"), hasSub: true },
-    { label: t("nav.reports"), hasSub: true },
-    { label: t("nav.events"), hasSub: true },
-    { label: t("nav.about"), hasSub: true },
+  const menu = useSiteSetting<{ items: MenuItem[] }>("menu_primary", { items: [] });
+  const headerCfg = useSiteSetting("header", {
+    show_newsletter: true,
+    show_socials: true,
+    social_facebook: "#", social_twitter: "#", social_youtube: "#", social_instagram: "#", social_linkedin: "#",
+    contact_email: "",
+  });
+
+  const defaultNav: MenuItem[] = [
+    { label_pl: t("nav.analyses"), label_en: t("nav.analyses"), url: "#" },
+    { label_pl: t("nav.interviews"), label_en: t("nav.interviews"), url: "#" },
+    { label_pl: t("nav.policyPapers"), label_en: t("nav.policyPapers"), url: "#" },
+    { label_pl: t("nav.reports"), label_en: t("nav.reports"), url: "#" },
+    { label_pl: t("nav.events"), label_en: t("nav.events"), url: "#" },
+    { label_pl: t("nav.about"), label_en: t("nav.about"), url: "#" },
   ];
+  const nav = (menu.items?.length ? menu.items : defaultNav).map((m) => ({
+    label: lang.startsWith("pl") ? m.label_pl : m.label_en,
+    url: m.url,
+  }));
 
   return (
     <header className="bg-background border-b border-border">
