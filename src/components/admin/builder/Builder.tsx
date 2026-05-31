@@ -863,3 +863,74 @@ function IconBtn({
     </button>
   );
 }
+
+// -------------------- Visual canvas (header/footer/menu) --------------------
+// Renders the real public-style output (BuilderRenderer) and lets the user
+// click any widget/section/column to edit it in the left panel. Section
+// drop-zones around each section let users insert new sections in the chrome.
+function VisualCanvas({
+  doc, lang, device, selection, setSelection, onInsertSection, firstLabel, lastLabel,
+}: {
+  doc: BuilderDocument; lang: "pl" | "en"; device: Device;
+  selection: Selection; setSelection: (s: Selection) => void;
+  onInsertSection: (index: number, cols: number) => void;
+  firstLabel: string; lastLabel: string;
+}) {
+  const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = e.target as HTMLElement;
+    const w = el.closest("[data-widget-id]") as HTMLElement | null;
+    if (w) { e.stopPropagation(); setSelection({ kind: "widget", id: w.dataset.widgetId! }); return; }
+    const c = el.closest("[data-col-id]") as HTMLElement | null;
+    if (c) { e.stopPropagation(); setSelection({ kind: "column", id: c.dataset.colId! }); return; }
+    const s = el.closest("[data-sec-id]") as HTMLElement | null;
+    if (s) { e.stopPropagation(); setSelection({ kind: "section", id: s.dataset.secId! }); return; }
+    setSelection({ kind: null, id: null });
+  };
+
+  const ringCss = `
+    [data-visual-canvas] [data-widget-id]{position:relative;cursor:pointer;outline:1px dashed transparent;outline-offset:2px;border-radius:4px;transition:outline-color .15s}
+    [data-visual-canvas] [data-widget-id]:hover{outline-color:hsl(var(--brand)/.5)}
+    [data-visual-canvas] [data-widget-id].is-selected{outline:2px solid hsl(var(--brand))}
+    [data-visual-canvas] [data-sec-id]{outline:1px dashed transparent;outline-offset:-2px;transition:outline-color .15s}
+    [data-visual-canvas] [data-sec-id]:hover{outline-color:hsl(var(--brand)/.35)}
+    [data-visual-canvas] [data-sec-id].is-selected{outline:2px solid hsl(var(--brand))}
+    [data-visual-canvas] a{pointer-events:none}
+    [data-visual-canvas] button{pointer-events:none}
+  `;
+
+  // Tag selected nodes via class.
+  const selClass = (id: string) => selection.id === id ? "is-selected" : "";
+
+  return (
+    <div data-visual-canvas onClick={onClick}>
+      <style dangerouslySetInnerHTML={{ __html: ringCss }} />
+      <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} />
+      {doc.sections.map((s, idx) => (
+        <div key={s.id}>
+          <div
+            data-sec-id={s.id}
+            className={selClass(s.id)}
+            // mark selected widget via wrapper class
+            ref={(el) => {
+              if (!el) return;
+              el.querySelectorAll<HTMLElement>("[data-widget-id]").forEach((w) => {
+                w.classList.toggle("is-selected", w.dataset.widgetId === selection.id && selection.kind === "widget");
+              });
+              el.querySelectorAll<HTMLElement>("[data-col-id]").forEach((c) => {
+                c.classList.toggle("is-selected", c.dataset.colId === selection.id && selection.kind === "column");
+              });
+            }}
+          >
+            <BuilderRenderer doc={{ ...doc, sections: [s] }} lang={lang} device={device} />
+          </div>
+          <SectionDropZone
+            onInsert={(cols) => onInsertSection(idx + 1, cols)}
+            index={idx + 1}
+            prominent={idx === doc.sections.length - 1}
+            label={idx === doc.sections.length - 1 ? lastLabel : undefined}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
