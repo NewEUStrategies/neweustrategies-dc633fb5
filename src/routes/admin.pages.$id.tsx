@@ -148,7 +148,7 @@ function EditPage() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className={form.editor === "builder" ? "lg:col-span-3 space-y-5" : "lg:col-span-2 space-y-5"}>
+        <div className="lg:col-span-2 space-y-5">
           {form.editor === "builder" ? (
             <>
               <div className="grid grid-cols-2 gap-4">
@@ -193,7 +193,6 @@ function EditPage() {
           )}
         </div>
 
-        {form.editor !== "builder" && (
         <aside className="space-y-5">
           <div className="bg-card border border-border rounded-lg p-4 space-y-3">
             <div>
@@ -212,9 +211,9 @@ function EditPage() {
               <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="richtext">Rich text</SelectItem>
-                  <SelectItem value="markdown">Markdown</SelectItem>
-                  <SelectItem value="builder">Drag &amp; Drop Builder</SelectItem>
+                  <SelectItem value="builder">Visual Builder (Elementor)</SelectItem>
+                  <SelectItem value="richtext">Rich text (legacy)</SelectItem>
+                  <SelectItem value="markdown">Markdown (legacy)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -231,7 +230,6 @@ function EditPage() {
             </div>
           </div>
         </aside>
-        )}
       </div>
     </div>
   );

@@ -100,7 +100,7 @@ const BuilderJsonValue: z.ZodType<unknown> = z.lazy(() =>
 const PostCore = z.object({
   slug: SlugInput,
   status: Status.default("draft"),
-  editor: Editor.default("richtext"),
+  editor: Editor.default("builder"),
   ...TitleBlock,
   excerpt_pl: NullableStr(1000),
   excerpt_en: NullableStr(1000),
@@ -207,7 +207,7 @@ export const deletePost = createServerFn({ method: "POST" })
 const PageCore = z.object({
   slug: SlugInput,
   status: Status.default("draft"),
-  editor: Editor.default("richtext"),
+  editor: Editor.default("builder"),
   ...TitleBlock,
   content_pl: NullableStr(200_000),
   content_en: NullableStr(200_000),
