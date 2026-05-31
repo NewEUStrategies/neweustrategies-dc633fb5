@@ -18,12 +18,20 @@ import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminTagsRouteImport } from './routes/admin.tags'
+import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
 import { Route as AdminPagesRouteImport } from './routes/admin.pages'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
+import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as ApiPublicSitemapDotxmlRouteImport } from './routes/api/public/sitemap[.]xml'
 import { Route as ApiPublicRobotsDottxtRouteImport } from './routes/api/public/robots[.]txt'
+import { Route as AdminSettingsReadingRouteImport } from './routes/admin.settings.reading'
+import { Route as AdminSettingsPrivacyRouteImport } from './routes/admin.settings.privacy'
+import { Route as AdminSettingsPermalinksRouteImport } from './routes/admin.settings.permalinks'
+import { Route as AdminSettingsMediaRouteImport } from './routes/admin.settings.media'
+import { Route as AdminSettingsGeneralRouteImport } from './routes/admin.settings.general'
+import { Route as AdminSettingsDiscussionRouteImport } from './routes/admin.settings.discussion'
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
 import { Route as AdminPostsIdRouteImport } from './routes/admin.posts.$id'
 import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
@@ -74,6 +82,11 @@ const AdminTagsRoute = AdminTagsRouteImport.update({
   path: '/tags',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPostsRoute = AdminPostsRouteImport.update({
   id: '/posts',
   path: '/posts',
@@ -94,6 +107,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
 const ApiPublicSitemapDotxmlRoute = ApiPublicSitemapDotxmlRouteImport.update({
   id: '/api/public/sitemap.xml',
   path: '/api/public/sitemap.xml',
@@ -103,6 +121,36 @@ const ApiPublicRobotsDottxtRoute = ApiPublicRobotsDottxtRouteImport.update({
   id: '/api/public/robots.txt',
   path: '/api/public/robots.txt',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminSettingsReadingRoute = AdminSettingsReadingRouteImport.update({
+  id: '/reading',
+  path: '/reading',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsPrivacyRoute = AdminSettingsPrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsPermalinksRoute = AdminSettingsPermalinksRouteImport.update({
+  id: '/permalinks',
+  path: '/permalinks',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsMediaRoute = AdminSettingsMediaRouteImport.update({
+  id: '/media',
+  path: '/media',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
+  id: '/general',
+  path: '/general',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
+const AdminSettingsDiscussionRoute = AdminSettingsDiscussionRouteImport.update({
+  id: '/discussion',
+  path: '/discussion',
+  getParentRoute: () => AdminSettingsRoute,
 } as any)
 const AdminPostsNewRoute = AdminPostsNewRouteImport.update({
   id: '/new',
@@ -134,6 +182,7 @@ export interface FileRoutesByFullPath {
   '/admin/media': typeof AdminMediaRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/users': typeof AdminUsersRoute
   '/post/$slug': typeof PostSlugRoute
@@ -143,8 +192,15 @@ export interface FileRoutesByFullPath {
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
+  '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/media': typeof AdminSettingsMediaRoute
+  '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
+  '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
+  '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
   '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
+  '/admin/settings/': typeof AdminSettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -163,8 +219,15 @@ export interface FileRoutesByTo {
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
+  '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/media': typeof AdminSettingsMediaRoute
+  '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
+  '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
+  '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
   '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
+  '/admin/settings': typeof AdminSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -176,6 +239,7 @@ export interface FileRoutesById {
   '/admin/media': typeof AdminMediaRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/users': typeof AdminUsersRoute
   '/post/$slug': typeof PostSlugRoute
@@ -185,8 +249,15 @@ export interface FileRoutesById {
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
+  '/admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/admin/settings/media': typeof AdminSettingsMediaRoute
+  '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
+  '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
+  '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
   '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
+  '/admin/settings/': typeof AdminSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -199,6 +270,7 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/pages'
     | '/admin/posts'
+    | '/admin/settings'
     | '/admin/tags'
     | '/admin/users'
     | '/post/$slug'
@@ -208,8 +280,15 @@ export interface FileRouteTypes {
     | '/admin/pages/new'
     | '/admin/posts/$id'
     | '/admin/posts/new'
+    | '/admin/settings/discussion'
+    | '/admin/settings/general'
+    | '/admin/settings/media'
+    | '/admin/settings/permalinks'
+    | '/admin/settings/privacy'
+    | '/admin/settings/reading'
     | '/api/public/robots.txt'
     | '/api/public/sitemap.xml'
+    | '/admin/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -228,8 +307,15 @@ export interface FileRouteTypes {
     | '/admin/pages/new'
     | '/admin/posts/$id'
     | '/admin/posts/new'
+    | '/admin/settings/discussion'
+    | '/admin/settings/general'
+    | '/admin/settings/media'
+    | '/admin/settings/permalinks'
+    | '/admin/settings/privacy'
+    | '/admin/settings/reading'
     | '/api/public/robots.txt'
     | '/api/public/sitemap.xml'
+    | '/admin/settings'
   id:
     | '__root__'
     | '/'
@@ -240,6 +326,7 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/pages'
     | '/admin/posts'
+    | '/admin/settings'
     | '/admin/tags'
     | '/admin/users'
     | '/post/$slug'
@@ -249,8 +336,15 @@ export interface FileRouteTypes {
     | '/admin/pages/new'
     | '/admin/posts/$id'
     | '/admin/posts/new'
+    | '/admin/settings/discussion'
+    | '/admin/settings/general'
+    | '/admin/settings/media'
+    | '/admin/settings/permalinks'
+    | '/admin/settings/privacy'
+    | '/admin/settings/reading'
     | '/api/public/robots.txt'
     | '/api/public/sitemap.xml'
+    | '/admin/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -329,6 +423,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminTagsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/posts': {
       id: '/admin/posts'
       path: '/posts'
@@ -357,6 +458,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCategoriesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/settings/': {
+      id: '/admin/settings/'
+      path: '/'
+      fullPath: '/admin/settings/'
+      preLoaderRoute: typeof AdminSettingsIndexRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
     '/api/public/sitemap.xml': {
       id: '/api/public/sitemap.xml'
       path: '/api/public/sitemap.xml'
@@ -370,6 +478,48 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/public/robots.txt'
       preLoaderRoute: typeof ApiPublicRobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/settings/reading': {
+      id: '/admin/settings/reading'
+      path: '/reading'
+      fullPath: '/admin/settings/reading'
+      preLoaderRoute: typeof AdminSettingsReadingRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/privacy': {
+      id: '/admin/settings/privacy'
+      path: '/privacy'
+      fullPath: '/admin/settings/privacy'
+      preLoaderRoute: typeof AdminSettingsPrivacyRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/permalinks': {
+      id: '/admin/settings/permalinks'
+      path: '/permalinks'
+      fullPath: '/admin/settings/permalinks'
+      preLoaderRoute: typeof AdminSettingsPermalinksRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/media': {
+      id: '/admin/settings/media'
+      path: '/media'
+      fullPath: '/admin/settings/media'
+      preLoaderRoute: typeof AdminSettingsMediaRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/general': {
+      id: '/admin/settings/general'
+      path: '/general'
+      fullPath: '/admin/settings/general'
+      preLoaderRoute: typeof AdminSettingsGeneralRouteImport
+      parentRoute: typeof AdminSettingsRoute
+    }
+    '/admin/settings/discussion': {
+      id: '/admin/settings/discussion'
+      path: '/discussion'
+      fullPath: '/admin/settings/discussion'
+      preLoaderRoute: typeof AdminSettingsDiscussionRouteImport
+      parentRoute: typeof AdminSettingsRoute
     }
     '/admin/posts/new': {
       id: '/admin/posts/new'
@@ -430,11 +580,36 @@ const AdminPostsRouteWithChildren = AdminPostsRoute._addFileChildren(
   AdminPostsRouteChildren,
 )
 
+interface AdminSettingsRouteChildren {
+  AdminSettingsDiscussionRoute: typeof AdminSettingsDiscussionRoute
+  AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
+  AdminSettingsMediaRoute: typeof AdminSettingsMediaRoute
+  AdminSettingsPermalinksRoute: typeof AdminSettingsPermalinksRoute
+  AdminSettingsPrivacyRoute: typeof AdminSettingsPrivacyRoute
+  AdminSettingsReadingRoute: typeof AdminSettingsReadingRoute
+  AdminSettingsIndexRoute: typeof AdminSettingsIndexRoute
+}
+
+const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
+  AdminSettingsDiscussionRoute: AdminSettingsDiscussionRoute,
+  AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
+  AdminSettingsMediaRoute: AdminSettingsMediaRoute,
+  AdminSettingsPermalinksRoute: AdminSettingsPermalinksRoute,
+  AdminSettingsPrivacyRoute: AdminSettingsPrivacyRoute,
+  AdminSettingsReadingRoute: AdminSettingsReadingRoute,
+  AdminSettingsIndexRoute: AdminSettingsIndexRoute,
+}
+
+const AdminSettingsRouteWithChildren = AdminSettingsRoute._addFileChildren(
+  AdminSettingsRouteChildren,
+)
+
 interface AdminRouteChildren {
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminMediaRoute: typeof AdminMediaRoute
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
+  AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
   AdminTagsRoute: typeof AdminTagsRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -445,6 +620,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminMediaRoute: AdminMediaRoute,
   AdminPagesRoute: AdminPagesRouteWithChildren,
   AdminPostsRoute: AdminPostsRouteWithChildren,
+  AdminSettingsRoute: AdminSettingsRouteWithChildren,
   AdminTagsRoute: AdminTagsRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
