@@ -1,4 +1,4 @@
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
 
 export function ThemeToggle({ className = "" }: { className?: string }) {

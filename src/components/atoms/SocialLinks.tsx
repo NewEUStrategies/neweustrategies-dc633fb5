@@ -1,4 +1,4 @@
-import { Facebook, Twitter, Youtube, Instagram, Linkedin, Mail } from "lucide-react";
+import { Facebook, Twitter, Youtube, Instagram, Linkedin, Mail } from "@/lib/lucide-shim";
 
 const links = [
   { href: "#", label: "Facebook", Icon: Facebook },
