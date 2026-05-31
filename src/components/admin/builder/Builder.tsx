@@ -498,6 +498,21 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
             )}
 
             <div className={scope === "page" ? "px-2 py-2" : "p-0"}>
+              <CanvasActionBar
+                canUndo={history.canUndo}
+                canRedo={history.canRedo}
+                onUndo={history.undo}
+                onRedo={history.redo}
+                selection={selection}
+                onDelete={() => {
+                  if (!selection.id) return;
+                  if (selection.kind === "section") removeSection(selection.id);
+                  else if (selection.kind === "column") removeColumn(selection.id);
+                  else if (selection.kind === "widget") removeWidget(selection.id);
+                  setSelection({ kind: null, id: null });
+                }}
+              />
+
               {scope !== "page" ? (
                 <VisualCanvas
                   doc={doc} lang={lang} device={device}
