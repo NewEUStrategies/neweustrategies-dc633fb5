@@ -44,8 +44,7 @@ function makeIcon(def: IconDefinition): LucideIcon {
         <FontAwesomeIcon
           icon={def}
           className={className}
-          style={merged}
-          // FA forwards extra SVG attrs through
+          style={merged as React.CSSProperties & Record<`--fa-${string}`, string>}
           {...(rest as Record<string, unknown>)}
           forwardedRef={ref as unknown as React.Ref<SVGSVGElement>}
         />
