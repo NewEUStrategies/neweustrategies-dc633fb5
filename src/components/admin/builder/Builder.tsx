@@ -457,6 +457,8 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                   doc={doc} lang={lang} device={device}
                   selection={selection} setSelection={setSelection}
                   onInsertSection={insertSectionAt}
+                  onMoveWidget={moveWidgetTo}
+                  onMoveSection={moveSectionTo}
                   firstLabel={copy.first} lastLabel={copy.last}
                 />
               ) : (
