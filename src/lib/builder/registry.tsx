@@ -63,14 +63,6 @@ export const WIDGETS: WidgetDef[] = [
       variant: "text",
     }) },
   // Site chrome (header / footer / menu)
-  { type: "site-logo", label: "Logo strony", category: "navigation", icon: ImageIcon,
-    defaults: () => ({
-      src: "", href: "/",
-      line1_pl: "New", line1_en: "New",
-      line2_pl: "European", line2_en: "European",
-      line3_pl: "Strategies", line3_en: "Strategies",
-      showText: true,
-    }) },
   { type: "social-icons", label: "Ikony social", category: "navigation", icon: Facebook,
     defaults: () => ({
       facebook: "", twitter: "", youtube: "", instagram: "", linkedin: "", email: "",
