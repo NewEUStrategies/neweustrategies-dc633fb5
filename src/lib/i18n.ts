@@ -113,14 +113,15 @@ const resources = {
       },
       admin: {
         nav: {
-          dashboard: "Pulpit",
-          posts: "Artykuły",
+          dashboard: "Kokpit",
+          posts: "Wpisy",
+          pages: "Strony",
           categories: "Kategorie",
           tags: "Tagi",
           media: "Media",
           users: "Użytkownicy",
         },
-        dashboard: { title: "Pulpit", subtitle: "Przegląd treści serwisu" },
+        dashboard: { title: "Kokpit", subtitle: "Przegląd treści serwisu" },
         viewSite: "Zobacz stronę",
         theme: "Motyw",
         signout: "Wyloguj",
@@ -137,11 +138,14 @@ const resources = {
         drafts: "szkiców",
         status: { draft: "Szkic", published: "Opublikowany", archived: "Zarchiwizowany" },
         posts: {
-          title: "Artykuły", new: "Nowy artykuł", count: "artykułów",
-          titleCol: "Tytuł", status: "Status", updated: "Aktualizacja", empty: "Brak artykułów",
+          title: "Wpisy", new: "Nowy wpis", count: "wpisów",
+          titleCol: "Tytuł", status: "Status", updated: "Aktualizacja", empty: "Brak wpisów",
           excerpt: "Lead / zajawka", content: "Treść", editor: "Edytor",
           readMinutes: "Czas czytania (min)", cover: "Obrazek wyróżniający",
           noCats: "Najpierw dodaj kategorie", noTags: "Najpierw dodaj tagi",
+        },
+        pages: {
+          title: "Strony", new: "Nowa strona", count: "stron", empty: "Brak stron",
         },
         tags: { placeholder: "Nazwa tagu i Enter" },
         users: { name: "Imię", role: "Rola", created: "Dołączył" },
@@ -262,6 +266,7 @@ const resources = {
         nav: {
           dashboard: "Dashboard",
           posts: "Posts",
+          pages: "Pages",
           categories: "Categories",
           tags: "Tags",
           media: "Media",
@@ -289,6 +294,9 @@ const resources = {
           excerpt: "Excerpt", content: "Content", editor: "Editor",
           readMinutes: "Read time (min)", cover: "Cover image",
           noCats: "Create categories first", noTags: "Create tags first",
+        },
+        pages: {
+          title: "Pages", new: "New page", count: "pages", empty: "No pages yet",
         },
         tags: { placeholder: "Tag name + Enter" },
         users: { name: "Name", role: "Role", created: "Joined" },

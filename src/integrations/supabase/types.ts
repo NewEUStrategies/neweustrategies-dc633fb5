@@ -102,6 +102,57 @@ export type Database = {
           },
         ]
       }
+      pages: {
+        Row: {
+          author_id: string | null
+          content_en: string | null
+          content_pl: string | null
+          cover_image_url: string | null
+          created_at: string
+          editor: Database["public"]["Enums"]["editor_type"]
+          id: string
+          published_at: string | null
+          slug: string
+          status: Database["public"]["Enums"]["post_status"]
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          content_en?: string | null
+          content_pl?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          editor?: Database["public"]["Enums"]["editor_type"]
+          id?: string
+          published_at?: string | null
+          slug: string
+          status?: Database["public"]["Enums"]["post_status"]
+          tenant_id: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          content_en?: string | null
+          content_pl?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          editor?: Database["public"]["Enums"]["editor_type"]
+          id?: string
+          published_at?: string | null
+          slug?: string
+          status?: Database["public"]["Enums"]["post_status"]
+          tenant_id?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       post_categories: {
         Row: {
           category_id: string

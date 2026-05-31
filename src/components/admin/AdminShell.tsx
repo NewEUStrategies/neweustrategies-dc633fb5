@@ -1,7 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe } from "lucide-react";
+import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import type { ReactNode } from "react";
 
@@ -16,9 +16,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const items = [
     { to: "/admin", icon: LayoutDashboard, label: t("admin.nav.dashboard") },
     { to: "/admin/posts", icon: FileText, label: t("admin.nav.posts") },
+    { to: "/admin/pages", icon: File, label: t("admin.nav.pages") },
+    { to: "/admin/media", icon: ImageIcon, label: t("admin.nav.media") },
     { to: "/admin/categories", icon: FolderTree, label: t("admin.nav.categories") },
     { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
-    { to: "/admin/media", icon: ImageIcon, label: t("admin.nav.media") },
     ...(isAdmin ? [{ to: "/admin/users", icon: Users, label: t("admin.nav.users") }] : []),
   ];
 
