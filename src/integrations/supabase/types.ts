@@ -50,6 +50,47 @@ export type Database = {
         }
         Relationships: []
       }
+      builder_template_revisions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data: Json
+          id: string
+          name: string
+          note: string | null
+          template_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data: Json
+          id?: string
+          name: string
+          note?: string | null
+          template_id: string
+          tenant_id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data?: Json
+          id?: string
+          name?: string
+          note?: string | null
+          template_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "builder_template_revisions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "builder_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       builder_templates: {
         Row: {
           created_at: string
