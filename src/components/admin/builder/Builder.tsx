@@ -6,7 +6,7 @@
 // Persistence happens via onChange (called by the parent route on every doc
 // mutation; the parent debounces autosave). useHistory wraps onChange so we
 // get undo/redo without breaking it.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -221,6 +221,41 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
     if (c) c.children.push(makeWidget(type));
   });
 
+  // Move a widget before/after another widget (across columns supported).
+  const moveWidgetTo = (srcId: string, targetId: string, pos: "before" | "after") => update((d) => {
+    if (srcId === targetId) return;
+    let src: WidgetNode | null = null;
+    const removeFrom = (col: ColumnNode) => {
+      const i = col.children.findIndex((w) => w.id === srcId);
+      if (i >= 0) { src = col.children.splice(i, 1)[0]; return true; }
+      return false;
+    };
+    for (const s of d.sections) for (const c of s.children) {
+      const cols = c.kind === "column" ? [c] : c.columns;
+      for (const col of cols) if (removeFrom(col)) break;
+      if (src) break;
+    }
+    if (!src) return;
+    for (const s of d.sections) for (const c of s.children) {
+      const cols = c.kind === "column" ? [c] : c.columns;
+      for (const col of cols) {
+        const j = col.children.findIndex((w) => w.id === targetId);
+        if (j >= 0) { col.children.splice(pos === "before" ? j : j + 1, 0, src!); return; }
+      }
+    }
+  });
+
+  // Move a section before/after another section.
+  const moveSectionTo = (srcId: string, targetId: string, pos: "before" | "after") => update((d) => {
+    if (srcId === targetId) return;
+    const i = d.sections.findIndex((s) => s.id === srcId);
+    if (i < 0) return;
+    const [node] = d.sections.splice(i, 1);
+    const j = d.sections.findIndex((s) => s.id === targetId);
+    if (j < 0) { d.sections.push(node); return; }
+    d.sections.splice(pos === "before" ? j : j + 1, 0, node);
+  });
+
   // ---------- DnD reorder widgets within a column ----------
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
@@ -422,6 +457,8 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                   doc={doc} lang={lang} device={device}
                   selection={selection} setSelection={setSelection}
                   onInsertSection={insertSectionAt}
+                  onMoveWidget={moveWidgetTo}
+                  onMoveSection={moveSectionTo}
                   firstLabel={copy.first} lastLabel={copy.last}
                 />
               ) : (
@@ -869,13 +906,19 @@ function IconBtn({
 // click any widget/section/column to edit it in the left panel. Section
 // drop-zones around each section let users insert new sections in the chrome.
 function VisualCanvas({
-  doc, lang, device, selection, setSelection, onInsertSection, firstLabel, lastLabel,
+  doc, lang, device, selection, setSelection, onInsertSection,
+  onMoveWidget, onMoveSection, firstLabel, lastLabel,
 }: {
   doc: BuilderDocument; lang: "pl" | "en"; device: Device;
   selection: Selection; setSelection: (s: Selection) => void;
   onInsertSection: (index: number, cols: number) => void;
+  onMoveWidget: (srcId: string, targetId: string, pos: "before" | "after") => void;
+  onMoveSection: (srcId: string, targetId: string, pos: "before" | "after") => void;
   firstLabel: string; lastLabel: string;
 }) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ kind: "widget" | "section"; id: string } | null>(null);
+
   const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = e.target as HTMLElement;
     const w = el.closest("[data-widget-id]") as HTMLElement | null;
@@ -887,10 +930,86 @@ function VisualCanvas({
     setSelection({ kind: null, id: null });
   };
 
+  // After render: tag selected nodes, mark draggable, attach drag handlers.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const widgets: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-widget-id]"));
+    const sections: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-sec-id]"));
+    const cols: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-col-id]"));
+
+    widgets.forEach((w: HTMLElement) => {
+      w.classList.toggle("is-selected", w.dataset.widgetId === selection.id && selection.kind === "widget");
+      w.setAttribute("draggable", "true");
+    });
+    cols.forEach((c: HTMLElement) => {
+      c.classList.toggle("is-selected", c.dataset.colId === selection.id && selection.kind === "column");
+    });
+    sections.forEach((s: HTMLElement) => {
+      s.classList.toggle("is-selected", s.dataset.secId === selection.id && selection.kind === "section");
+      s.setAttribute("draggable", "true");
+    });
+
+    const onDragStart = (e: DragEvent) => {
+      const t = e.target as HTMLElement;
+      const w = t.closest?.("[data-widget-id]") as HTMLElement | null;
+      if (w && w.dataset.widgetId) {
+        e.stopPropagation();
+        dragRef.current = { kind: "widget", id: w.dataset.widgetId };
+        e.dataTransfer?.setData("text/plain", w.dataset.widgetId);
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+        return;
+      }
+      const s = t.closest?.("[data-sec-id]") as HTMLElement | null;
+      if (s && s.dataset.secId) {
+        dragRef.current = { kind: "section", id: s.dataset.secId };
+        e.dataTransfer?.setData("text/plain", s.dataset.secId);
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+      }
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (!dragRef.current) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    };
+    const onDrop = (e: DragEvent) => {
+      const drag = dragRef.current;
+      dragRef.current = null;
+      if (!drag) return;
+      const t = e.target as HTMLElement;
+      if (drag.kind === "widget") {
+        const target = t.closest?.("[data-widget-id]") as HTMLElement | null;
+        if (!target || !target.dataset.widgetId || target.dataset.widgetId === drag.id) return;
+        e.preventDefault(); e.stopPropagation();
+        const r = target.getBoundingClientRect();
+        const pos: "before" | "after" = e.clientY < r.top + r.height / 2 ? "before" : "after";
+        onMoveWidget(drag.id, target.dataset.widgetId, pos);
+      } else {
+        const target = t.closest?.("[data-sec-id]") as HTMLElement | null;
+        if (!target || !target.dataset.secId || target.dataset.secId === drag.id) return;
+        e.preventDefault();
+        const r = target.getBoundingClientRect();
+        const pos: "before" | "after" = e.clientY < r.top + r.height / 2 ? "before" : "after";
+        onMoveSection(drag.id, target.dataset.secId, pos);
+      }
+    };
+
+    root.addEventListener("dragstart", onDragStart);
+    root.addEventListener("dragover", onDragOver);
+    root.addEventListener("drop", onDrop);
+    return () => {
+      root.removeEventListener("dragstart", onDragStart);
+      root.removeEventListener("dragover", onDragOver);
+      root.removeEventListener("drop", onDrop);
+    };
+  }, [doc, selection, onMoveWidget, onMoveSection]);
+
   const ringCss = `
-    [data-visual-canvas] [data-widget-id]{position:relative;cursor:pointer;outline:1px dashed transparent;outline-offset:2px;border-radius:4px;transition:outline-color .15s}
+    [data-visual-canvas] [data-widget-id]{position:relative;cursor:grab;outline:1px dashed transparent;outline-offset:2px;border-radius:4px;transition:outline-color .15s}
     [data-visual-canvas] [data-widget-id]:hover{outline-color:color-mix(in oklab, var(--brand) 50%, transparent)}
     [data-visual-canvas] [data-widget-id].is-selected{outline:2px solid var(--brand)}
+    [data-visual-canvas] [data-widget-id]:active{cursor:grabbing}
     [data-visual-canvas] [data-sec-id]{outline:1px dashed transparent;outline-offset:-2px;transition:outline-color .15s}
     [data-visual-canvas] [data-sec-id]:hover{outline-color:color-mix(in oklab, var(--brand) 35%, transparent)}
     [data-visual-canvas] [data-sec-id].is-selected{outline:2px solid var(--brand)}
@@ -898,31 +1017,13 @@ function VisualCanvas({
     [data-visual-canvas] button{pointer-events:none}
   `;
 
-  // Tag selected nodes via class.
-  const selClass = (id: string) => selection.id === id ? "is-selected" : "";
-
   return (
-    <div data-visual-canvas onClick={onClick}>
+    <div data-visual-canvas onClick={onClick} ref={rootRef}>
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
       <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} />
       {doc.sections.map((s, idx) => (
         <div key={s.id}>
-          <div
-            data-sec-id={s.id}
-            className={selClass(s.id)}
-            // mark selected widget via wrapper class
-            ref={(el) => {
-              if (!el) return;
-              el.querySelectorAll<HTMLElement>("[data-widget-id]").forEach((w) => {
-                w.classList.toggle("is-selected", w.dataset.widgetId === selection.id && selection.kind === "widget");
-              });
-              el.querySelectorAll<HTMLElement>("[data-col-id]").forEach((c) => {
-                c.classList.toggle("is-selected", c.dataset.colId === selection.id && selection.kind === "column");
-              });
-            }}
-          >
-            <BuilderRenderer doc={{ ...doc, sections: [s] }} lang={lang} device={device} />
-          </div>
+          <BuilderRenderer doc={{ ...doc, sections: [s] }} lang={lang} device={device} />
           <SectionDropZone
             onInsert={(cols) => onInsertSection(idx + 1, cols)}
             index={idx + 1}
