@@ -257,6 +257,25 @@ export function GlobalColorsEditor() {
                           onChange={(v) => setSlot(slot.key, "dark", v)}
                         />
                       )}
+                      {isSlotHoverable(slot, group) && (
+                        <div className="rounded-md border border-dashed border-border/70 bg-muted/20 p-2 space-y-2">
+                          <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+                            Hover (po najechaniu)
+                          </div>
+                          <ColorRow
+                            label="Light"
+                            value={val.hoverLight ?? ""}
+                            defaultValue={slot.defaultHoverLight ?? slot.defaultLight}
+                            onChange={(v) => setSlot(slot.key, "hoverLight", v)}
+                          />
+                          <ColorRow
+                            label="Dark"
+                            value={val.hoverDark ?? ""}
+                            defaultValue={slot.defaultHoverDark ?? slot.defaultDark}
+                            onChange={(v) => setSlot(slot.key, "hoverDark", v)}
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
