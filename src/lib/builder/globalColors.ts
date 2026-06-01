@@ -371,14 +371,18 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
 ];
 
-export type GlobalColorsValue = Record<string, { light?: string; dark?: string }>;
+export type GlobalColorsValue = Record<
+  string,
+  { light?: string; dark?: string; hoverLight?: string; hoverDark?: string }
+>;
 
 export const EMPTY_GLOBAL_COLORS: GlobalColorsValue = {};
 
 /**
  * Buduje CSS dla globalnych kolorów — emituje:
  *  1) `--gc-<key>` na :root (light) i .dark (dark),
- *  2) nadpisania semantycznych tokenów shadcn (np. --primary, --background).
+ *  2) `--gc-<key>-hover` dla slotów `hoverable`,
+ *  3) nadpisania semantycznych tokenów shadcn (np. --primary, --background).
  */
 export function globalColorsToCss(value: GlobalColorsValue): string {
   const rootLines: string[] = [];
@@ -387,7 +391,6 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
   for (const group of GLOBAL_COLOR_GROUPS) {
     for (const slot of group.slots) {
       const v = value[slot.key];
-      // Always emit defaults if defined (so :where() fallbacks have a value).
       const light = v?.light || slot.defaultLight;
       const dark = (slot.hasDark ? v?.dark : undefined) || slot.defaultDark;
       if (light) {
@@ -398,12 +401,19 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
         darkLines.push(`--gc-${slot.key}: ${dark};`);
         for (const o of slot.overrides ?? []) darkLines.push(`${o}: ${dark};`);
       }
+      if (slot.hoverable) {
+        const hLight = v?.hoverLight || slot.defaultHoverLight || light;
+        const hDark = v?.hoverDark || slot.defaultHoverDark || dark || hLight;
+        if (hLight) rootLines.push(`--gc-${slot.key}-hover: ${hLight};`);
+        if (hDark) darkLines.push(`--gc-${slot.key}-hover: ${hDark};`);
+      }
     }
   }
 
   const parts: string[] = [];
   if (rootLines.length) parts.push(`:root{${rootLines.join("")}}`);
   if (darkLines.length) parts.push(`.dark{${darkLines.join("")}}`);
+
 
   // Widget bridge: map global colors to widget elements with specificity 0
   // (via :where()), so any explicit per-widget color always wins.
