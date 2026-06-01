@@ -1,0 +1,1 @@
+ALTER FUNCTION public.posts_validate_takeaways() SET search_path = public, pg_temp;

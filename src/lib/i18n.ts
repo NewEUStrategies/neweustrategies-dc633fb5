@@ -111,7 +111,19 @@ const resources = {
         signinOk: "Zalogowano",
         signupOk: "Konto utworzone",
       },
+      post: {
+        takeaways: {
+          title: "Z tego materiału dowiesz się, że ...",
+          adminTitle: "Z tego materiału dowiesz się, że ... (max 6 punktów)",
+          placeholder: "Punkt {{n}}",
+          add: "Dodaj punkt",
+          remove: "Usuń",
+          hint: "Krótkie, konkretne bullet pointy - max 6. Wyświetlane nad treścią wpisu w wybranym języku.",
+          empty: "Brak punktów dla tego języka.",
+        },
+      },
       admin: {
+
         nav: {
           dashboard: "Kokpit",
           posts: "Wpisy",
@@ -438,7 +450,19 @@ const resources = {
         signinOk: "Signed in",
         signupOk: "Account created",
       },
+      post: {
+        takeaways: {
+          title: "From this material you will learn that ...",
+          adminTitle: "From this material you will learn that ... (max 6 bullets)",
+          placeholder: "Bullet {{n}}",
+          add: "Add bullet",
+          remove: "Remove",
+          hint: "Short, concrete bullet points - max 6. Shown above the post content in the matching language.",
+          empty: "No bullets for this language.",
+        },
+      },
       admin: {
+
         nav: {
           dashboard: "Dashboard",
           posts: "Posts",

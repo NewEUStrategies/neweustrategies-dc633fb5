@@ -113,6 +113,9 @@ const PostCore = z.object({
   template_id: UUID.nullable().optional(),
   post_format: z.enum(["standard", "video", "audio", "gallery"]).optional(),
   layout_overrides: z.record(z.string(), z.unknown()).nullable().optional(),
+  takeaways_pl: z.array(z.string().max(500)).max(6).optional(),
+  takeaways_en: z.array(z.string().max(500)).max(6).optional(),
+
 });
 
 async function resolveDefaultBlogPage(

@@ -37,7 +37,10 @@ export interface PostData extends PageData {
   read_minutes: number | null;
   post_format: PostFormat;
   layout_overrides: LayoutOverrides | null;
+  takeaways_pl: string[];
+  takeaways_en: string[];
 }
+
 
 export type ResolvedContent =
   | {
@@ -107,7 +110,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
           supabase
             .from("posts")
             .select(
-              "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at, read_minutes, post_format, layout_overrides",
+              "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en",
             )
             .eq("id", hit.post_id)
             .maybeSingle(),
