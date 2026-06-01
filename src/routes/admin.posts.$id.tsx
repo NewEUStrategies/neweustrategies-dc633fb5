@@ -20,7 +20,9 @@ import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon, Layers } from "@/lib/lucide-shim";
-import { getLayoutSet } from "@/lib/postLayouts";
+import { getLayoutSet, findLayout, mergeOverrides, pickLayoutId } from "@/lib/postLayouts";
+import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
+import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { toast } from "sonner";
 
@@ -65,6 +67,7 @@ function EditPost() {
   const tenantId = useRequiredTenant();
   const update$ = useServerFn(updatePost);
   const delete$ = useServerFn(deletePost);
+  const { data: globalLayout } = usePostLayoutSettings();
 
   const { data: post, isLoading } = useQuery({
     queryKey: ["post", id],
@@ -281,6 +284,21 @@ function EditPost() {
           </SelectContent>
         </Select>
       </div>
+      {globalLayout && (() => {
+        const effective = mergeOverrides(globalLayout, ov);
+        const layoutId = pickLayoutId(globalLayout, currentFormat, ov.layout);
+        const preset = findLayout(currentFormat, layoutId);
+        return (
+          <div className="pt-2 border-t border-border space-y-1.5">
+            <p className="text-xs text-muted-foreground">Podgląd na żywo</p>
+            <LayoutPreview preset={preset} settings={effective} />
+            <p className="text-[10px] text-muted-foreground">
+              {preset.label} · format: {currentFormat}
+              {ov.layout ? " · override" : " · z globalnych"}
+            </p>
+          </div>
+        );
+      })()}
       <div className="space-y-1.5 pt-2 border-t border-border">
         <p className="text-xs text-muted-foreground mb-1">Nadpisz sekcje stopki (puste = z globalnych):</p>
         {([
