@@ -105,6 +105,7 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
     style.minHeight = node.style.minHeight;
   } else if (COMPACT_WIDGET_TYPES.has(node.type)) {
     style.minHeight = COMPACT_WIDGET_MIN_HEIGHT;
+    style.height = COMPACT_WIDGET_MIN_HEIGHT;
   } else if (!autoFit) {
     style.minHeight = DEFAULT_WIDGET_MIN_HEIGHT;
   }

@@ -118,6 +118,11 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
   const c = node.content;
   const canEdit = editable && !!onContentChange;
   const commit = (k: string, v: string) => onContentChange?.(k, v);
+  const compactRowStyle: CSSProperties = {
+    minHeight: COMPACT_WIDGET_MIN_HEIGHT,
+    height: COMPACT_WIDGET_MIN_HEIGHT,
+    boxSizing: "border-box",
+  };
 
   // Read-only widgets without inline editing — short-circuit via dispatcher.
   const simple = renderSimpleWidget(node, lang, theme);
@@ -191,10 +196,13 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const dropCap = getStr(c, "dropCap") === "on";
       const proseCls = `prose prose-sm max-w-none dark:prose-invert ${dropCap ? "first-letter:float-left first-letter:text-5xl first-letter:font-display first-letter:mr-2 first-letter:leading-none" : ""}`;
       const colStyle = cols > 1 ? { columnCount: cols, columnGap: "1.5rem" } as CSSProperties : undefined;
+      const singleColumnCompactStyle = cols <= 1
+        ? { ...compactRowStyle, display: "flex", alignItems: "center", width: "100%" } satisfies CSSProperties
+        : undefined;
       if (canEdit) {
-        return wrap(<Editable as="div" html multiline value={html} onCommit={(v) => commit(key, v)} className={proseCls} placeholder="Wpisz tekst…" />);
+        return wrap(<Editable as="div" html multiline value={html} onCommit={(v) => commit(key, v)} className={proseCls} style={singleColumnCompactStyle} placeholder="Wpisz tekst…" />);
       }
-      return wrap(<div className={proseCls} style={colStyle} dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />);
+      return wrap(<div className={proseCls} style={{ ...colStyle, ...singleColumnCompactStyle }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />);
     }
     case "button": {
       const key = `label_${lang}`;
@@ -236,7 +244,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         : variant === "pill" ? "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted hover:bg-muted/70"
         : variant === "underline" ? "inline-flex items-center gap-1.5 underline-offset-4 hover:underline"
         : "inline-flex items-center gap-1.5 hover:text-brand";
-      const cls = `min-h-10 text-xs font-bold tracking-wider transition ${variantCls}`;
+      const cls = `h-10 text-xs font-bold tracking-wider leading-none transition ${variantCls}`;
       const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
       const Cmp = iconName ? (reg[iconName] ?? null) : null;
@@ -299,18 +307,18 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       // Public render → realny <NewsletterForm/> z RLS-insert.
       if (!editable) {
         if (variant === "minimal") {
-          return wrap(<span style={{ minHeight: COMPACT_WIDGET_MIN_HEIGHT }} className="inline-flex items-center text-sm font-medium border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
+          return wrap(<span style={compactRowStyle} className="inline-flex items-center text-sm font-medium leading-none border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
         }
         if (variant === "icon-only") {
           return wrap(
-            <a href="#newsletter" className="inline-flex items-center justify-center w-10 h-10 rounded-full text-foreground/80 hover:text-brand hover:bg-foreground/5 transition-colors" title={title} aria-label={title}>
+            <a href="#newsletter" className="inline-flex items-center justify-center rounded-full text-foreground/80 hover:text-brand hover:bg-foreground/5 transition-colors" style={compactRowStyle} title={title} aria-label={title}>
               {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
             </a>,
           );
         }
         if (variant === "icon") {
           return wrap(
-            <a href="#newsletter" style={{ minHeight: COMPACT_WIDGET_MIN_HEIGHT }} className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors" title={title}>
+            <a href="#newsletter" style={compactRowStyle} className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors" title={title}>
               {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
               <span className="text-sm font-medium">{title}</span>
             </a>,
@@ -346,17 +354,17 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         );
       }
       if (variant === "minimal") {
-        return wrap(<span style={{ minHeight: COMPACT_WIDGET_MIN_HEIGHT }} className="inline-flex items-center text-sm font-medium border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
+        return wrap(<span style={compactRowStyle} className="inline-flex items-center text-sm font-medium leading-none border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
       }
       if (variant === "icon-only") {
         return wrap(
-          <div className="inline-flex items-center justify-center w-10 h-10 rounded-full text-foreground/80 hover:text-brand hover:bg-foreground/5 transition-colors cursor-pointer" title={title} aria-label={title}>
+          <div className="inline-flex items-center justify-center rounded-full text-foreground/80 hover:text-brand hover:bg-foreground/5 transition-colors cursor-pointer" style={compactRowStyle} title={title} aria-label={title}>
             {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
           </div>,
         );
       }
       return wrap(
-        <div style={{ minHeight: COMPACT_WIDGET_MIN_HEIGHT }} className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors cursor-pointer" title={title}>
+        <div style={compactRowStyle} className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors cursor-pointer" title={title}>
           {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
           <span className="text-sm font-medium">{title}</span>
         </div>,
