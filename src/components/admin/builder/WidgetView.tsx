@@ -120,8 +120,6 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
   const canEdit = editable && !!onContentChange;
   const commit = (k: string, v: string) => onContentChange?.(k, v);
   const compactRowStyle: CSSProperties = {
-    minHeight: COMPACT_WIDGET_MIN_HEIGHT,
-    height: COMPACT_WIDGET_MIN_HEIGHT,
     boxSizing: "border-box",
   };
 
