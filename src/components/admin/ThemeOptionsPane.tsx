@@ -8,12 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard } from "@/lib/lucide-shim";
+import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers } from "@/lib/lucide-shim";
 
 // ---------- Defaults ----------
 type HoverEffect = "color-border" | "underline" | "background" | "scale" | "none";
 type SearchMode = "standalone" | "dropdown" | "fullscreen";
 type AlertStyle = "info" | "warning" | "success" | "brand";
+type HeaderLayout = "layout-1" | "layout-2" | "layout-3" | "layout-4" | "layout-5";
+type SocialPlacement = "topbar" | "navbar" | "both" | "hidden";
+type ButtonVariant = "solid" | "outline" | "ghost" | "pill";
 
 interface ThemeOptions extends Record<string, unknown> {
   logo: {
@@ -24,6 +27,7 @@ interface ThemeOptions extends Record<string, unknown> {
     add_to_home_screen: boolean;
   };
   header: {
+    layout: HeaderLayout;
     main_menu: {
       hover_effect: HoverEffect; sticky: boolean; smart_sticky: boolean; glass_effect: boolean;
       item_spacing: number; icon_spacing: number;
@@ -46,26 +50,53 @@ interface ThemeOptions extends Record<string, unknown> {
       sticky: boolean;
       show_search: boolean;
     };
+    socials: {
+      placement: SocialPlacement;
+      facebook: string; twitter: string; instagram: string;
+      linkedin: string; youtube: string; email: string;
+      size: number;
+    };
+    signin: {
+      enabled: boolean;
+      signin_label_pl: string; signin_label_en: string;
+      signup_label_pl: string; signup_label_en: string;
+      variant: ButtonVariant;
+      show_signup: boolean;
+    };
   };
 }
 
 const DEFAULTS: ThemeOptions = {
   logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", organization: "", bookmark_ios: "", bookmark_windows: "", add_to_home_screen: true },
   header: {
+    layout: "layout-1",
     main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
     search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
     alert_bar: { enabled: false, message_pl: "", message_en: "", link_url: "", style: "brand", dismissible: true },
     mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
+    socials: { placement: "topbar", facebook: "", twitter: "", instagram: "", linkedin: "", youtube: "", email: "", size: 16 },
+    signin: { enabled: true, signin_label_pl: "Zaloguj", signin_label_en: "Sign in", signup_label_pl: "Zarejestruj", signup_label_en: "Sign up", variant: "ghost", show_signup: true },
   },
 };
 
 const SECTIONS = [
   { id: "logo", label: "Logo", icon: ImageIcon },
+  { id: "header.layout", label: "Header Layout", icon: Layers },
   { id: "header.main_menu", label: "Main Menu", icon: Menu },
   { id: "header.search", label: "Header Search", icon: Search },
   { id: "header.alert_bar", label: "Alert Bar", icon: Megaphone },
+  { id: "header.socials", label: "Social Icons", icon: Users },
+  { id: "header.signin", label: "Sign In Buttons", icon: LogIn },
   { id: "header.mobile", label: "Mobile Header", icon: LayoutDashboard },
 ] as const;
+
+const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
+  "layout-1": { label: "Layout 1 — Classic Centered", hint: "Utility bar + centered logo + nav (current default)" },
+  "layout-2": { label: "Layout 2 — Logo Left", hint: "Logo po lewej, nav po prawej, jeden pasek" },
+  "layout-3": { label: "Layout 3 — Split Nav", hint: "Logo centralnie, menu po obu stronach" },
+  "layout-4": { label: "Layout 4 — Stacked", hint: "Utility bar + logo + nav (3 paski)" },
+  "layout-5": { label: "Layout 5 — Minimal", hint: "Tylko logo + menu, bez utility bar" },
+};
 
 export function ThemeOptionsPane() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
