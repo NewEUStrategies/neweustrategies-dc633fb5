@@ -5,6 +5,7 @@ import type {
   WidgetTypography, HoverStyle,
 } from "@/lib/builder/types";
 import { pickMode } from "@/lib/builder/themed";
+import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 
 // Default width: widgets hug their content so they sit side-by-side in a row (left-aligned).
 // Max-width still capped at 100% so nothing overflows. Override per-device via advanced.width.
