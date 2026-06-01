@@ -104,7 +104,7 @@ export interface SectionLayout {
   columnsGap?: ColumnsGap;
   columnsGapCustom?: number;         // px when columnsGap === "custom"
   height?: SectionHeight;
-  heightValue?: number;              // vh for fit-screen, px for min-height
+  heightValue?: number;              // vh for fit-screen, px for min-height / fixed
   marginTop?: number;                // px gap to previous element
   marginBottom?: number;             // px gap to next element
   verticalAlign?: VerticalAlign;
