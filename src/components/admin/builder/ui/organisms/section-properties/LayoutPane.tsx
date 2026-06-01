@@ -52,13 +52,14 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
         </Row>
       )}
 
-      <Row label="Wysokość" hint="Domyślnie = dopasuj do treści. Dopasuj do ekranu = % wysokości okna (vh). Minimalna wysokość = sekcja będzie co najmniej tak wysoka (px).">
+      <Row label="Wysokość" hint="Domyślnie = dopasuj do treści. Dopasuj do ekranu = % wysokości okna (vh). Minimalna wysokość = sekcja będzie co najmniej tak wysoka (px). Stała wysokość = dokładnie tyle pikseli.">
         <Select value={L.height ?? "default"} onValueChange={(v) => setL((l) => { l.height = v as SectionHeight; })}>
           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="default">Domyślnie (dopasuj do treści)</SelectItem>
             <SelectItem value="fit-screen">Dopasuj do ekranu (vh)</SelectItem>
             <SelectItem value="min-height">Minimalna wysokość (px)</SelectItem>
+            <SelectItem value="fixed">Stała wysokość (px)</SelectItem>
           </SelectContent>
         </Select>
       </Row>
@@ -67,6 +68,9 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
       )}
       {L.height === "min-height" && (
         <Row label="Wysokość minimalna (px)" hint="Sekcja będzie co najmniej tak wysoka — treść może ją rozciągnąć dalej."><NumberInput value={L.heightValue ?? 400} onChange={(n) => setL((l) => { l.heightValue = n; })} min={40} max={2000} suffix="px" /></Row>
+      )}
+      {L.height === "fixed" && (
+        <Row label="Wysokość (px)" hint="Dokładna wysokość sekcji. Treść większa zostanie przycięta (chyba że ustawisz Przepływ → Domyślnie)."><NumberInput value={L.heightValue ?? 400} onChange={(n) => setL((l) => { l.heightValue = n; })} min={40} max={4000} suffix="px" /></Row>
       )}
 
       <Row label="Odstęp górny (px)" hint="Odstęp od poprzedniej sekcji. Domyślnie 5, 0 = brak.">
