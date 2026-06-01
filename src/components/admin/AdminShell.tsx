@@ -29,7 +29,8 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
 
   const isEditRoute = /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
   const [forceCompact, setForceCompact] = useState(false);
-  const compact = isEditRoute || forceCompact;
+  const compact = (isEditRoute || forceCompact) && !extras;
+
 
   const items = [
     { to: "/admin", icon: LayoutDashboard, label: t("admin.nav.dashboard") },
