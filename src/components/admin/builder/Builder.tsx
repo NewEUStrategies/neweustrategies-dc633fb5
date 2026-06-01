@@ -296,6 +296,64 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
     }
   });
 
+  const moveWidgetToColumn = (srcId: string, targetColId: string) => update((d) => {
+    let src: WidgetNode | null = null;
+    for (const s of d.sections) for (const c of s.children) {
+      const cols = c.kind === "column" ? [c] : c.columns;
+      for (const col of cols) {
+        const i = col.children.findIndex((w) => w.id === srcId);
+        if (i >= 0) {
+          src = col.children.splice(i, 1)[0];
+          break;
+        }
+      }
+      if (src) break;
+    }
+    if (!src) return;
+    for (const s of d.sections) for (const c of s.children) {
+      const cols = c.kind === "column" ? [c] : c.columns;
+      for (const col of cols) {
+        if (col.id === targetColId) {
+          col.children.push(src);
+          return;
+        }
+      }
+    }
+  });
+
+  const moveWidgetToSection = (srcId: string, targetSectionId: string) => update((d) => {
+    let src: WidgetNode | null = null;
+    for (const s of d.sections) for (const c of s.children) {
+      const cols = c.kind === "column" ? [c] : c.columns;
+      for (const col of cols) {
+        const i = col.children.findIndex((w) => w.id === srcId);
+        if (i >= 0) {
+          src = col.children.splice(i, 1)[0];
+          break;
+        }
+      }
+      if (src) break;
+    }
+    if (!src) return;
+
+    const targetSection = d.sections.find((section) => section.id === targetSectionId);
+    if (!targetSection) return;
+
+    let targetColumn: ColumnNode | null = null;
+    for (const child of targetSection.children) {
+      if (child.kind === "column") { targetColumn = child; break; }
+      if (child.kind === "inner-section" && child.columns[0]) { targetColumn = child.columns[0]; break; }
+    }
+
+    if (!targetColumn) {
+      const newCol = newColumn(12);
+      targetSection.children.push(newCol);
+      targetColumn = newCol;
+    }
+
+    targetColumn.children.push(src);
+  });
+
   // Move a section before/after another section.
   const moveSectionTo = (srcId: string, targetId: string, pos: "before" | "after") => update((d) => {
     if (srcId === targetId) return;
@@ -576,6 +634,8 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                   selection={selection} setSelection={setSelection}
                   onInsertSection={insertSectionAt}
                   onMoveWidget={moveWidgetTo}
+                  onMoveWidgetToColumn={moveWidgetToColumn}
+                  onMoveWidgetToSection={moveWidgetToSection}
                   onMoveSection={moveSectionTo}
                   onDropNewWidgetToColumn={addWidgetToColumn}
                   onDropNewWidgetNear={insertWidgetNear}
@@ -1077,7 +1137,7 @@ function IconBtn({
 // drop-zones around each section let users insert new sections in the chrome.
 function VisualCanvas({
   doc, lang, device, selection, setSelection, onInsertSection,
-  onMoveWidget, onMoveSection,
+  onMoveWidget, onMoveWidgetToColumn, onMoveWidgetToSection, onMoveSection,
   onDropNewWidgetToColumn, onDropNewWidgetNear, onDropNewWidgetToSection,
   firstLabel, lastLabel,
 }: {
@@ -1085,6 +1145,8 @@ function VisualCanvas({
   selection: Selection; setSelection: (s: Selection) => void;
   onInsertSection: (index: number, colsOrSpans: number | number[]) => void;
   onMoveWidget: (srcId: string, targetId: string, pos: "before" | "after") => void;
+  onMoveWidgetToColumn: (srcId: string, targetColId: string) => void;
+  onMoveWidgetToSection: (srcId: string, targetSectionId: string) => void;
   onMoveSection: (srcId: string, targetId: string, pos: "before" | "after") => void;
   onDropNewWidgetToColumn: (colId: string, type: WidgetType) => void;
   onDropNewWidgetNear: (targetWidgetId: string, pos: "before" | "after", type: WidgetType) => void;
@@ -1213,12 +1275,25 @@ function VisualCanvas({
 
       if (!drag) return;
       if (drag.kind === "widget") {
-        const target = t.closest?.("[data-widget-id]") as HTMLElement | null;
-        if (!target || !target.dataset.widgetId || target.dataset.widgetId === drag.id) return;
         e.preventDefault(); e.stopPropagation();
-        const r = target.getBoundingClientRect();
-        const pos: "before" | "after" = e.clientY < r.top + r.height / 2 ? "before" : "after";
-        onMoveWidget(drag.id, target.dataset.widgetId, pos);
+        const targetWidget = t.closest?.("[data-widget-id]") as HTMLElement | null;
+        if (targetWidget?.dataset.widgetId && targetWidget.dataset.widgetId !== drag.id) {
+          const r = targetWidget.getBoundingClientRect();
+          const pos: "before" | "after" = e.clientY < r.top + r.height / 2 ? "before" : "after";
+          onMoveWidget(drag.id, targetWidget.dataset.widgetId, pos);
+          return;
+        }
+
+        const targetCol = t.closest?.("[data-col-id]") as HTMLElement | null;
+        if (targetCol?.dataset.colId) {
+          onMoveWidgetToColumn(drag.id, targetCol.dataset.colId);
+          return;
+        }
+
+        const targetSection = t.closest?.("[data-sec-id]") as HTMLElement | null;
+        if (targetSection?.dataset.secId) {
+          onMoveWidgetToSection(drag.id, targetSection.dataset.secId);
+        }
       } else {
         const target = t.closest?.("[data-sec-id]") as HTMLElement | null;
         if (!target || !target.dataset.secId || target.dataset.secId === drag.id) return;
@@ -1239,7 +1314,7 @@ function VisualCanvas({
       root.removeEventListener("dragleave", onDragLeave);
       root.removeEventListener("drop", onDrop);
     };
-  }, [doc, selection, onMoveWidget, onMoveSection, onDropNewWidgetToColumn, onDropNewWidgetNear, onDropNewWidgetToSection]);
+  }, [doc, selection, onMoveWidget, onMoveWidgetToColumn, onMoveWidgetToSection, onMoveSection, onDropNewWidgetToColumn, onDropNewWidgetNear, onDropNewWidgetToSection]);
 
   const ringCss = `
     [data-visual-canvas] [data-widget-id]{position:relative;cursor:grab;outline:1px dashed transparent;outline-offset:2px;border-radius:4px;transition:outline-color .15s}
