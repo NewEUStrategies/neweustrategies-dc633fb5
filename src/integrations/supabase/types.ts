@@ -712,6 +712,8 @@ export type Database = {
           read_minutes: number | null
           slug: string
           status: Database["public"]["Enums"]["post_status"]
+          takeaways_en: string[]
+          takeaways_pl: string[]
           template_id: string | null
           tenant_id: string
           title_en: string
@@ -737,6 +739,8 @@ export type Database = {
           read_minutes?: number | null
           slug: string
           status?: Database["public"]["Enums"]["post_status"]
+          takeaways_en?: string[]
+          takeaways_pl?: string[]
           template_id?: string | null
           tenant_id: string
           title_en?: string
@@ -762,6 +766,8 @@ export type Database = {
           read_minutes?: number | null
           slug?: string
           status?: Database["public"]["Enums"]["post_status"]
+          takeaways_en?: string[]
+          takeaways_pl?: string[]
           template_id?: string | null
           tenant_id?: string
           title_en?: string
