@@ -25,7 +25,10 @@ interface ThemeOptions extends Record<string, unknown> {
   logo: {
     main: string; main_dark: string;
     mobile: string; mobile_dark: string;
-    transparent: string; organization: string;
+    transparent: string; transparent_dark: string;
+    organization: string; organization_dark: string;
+    sidebar_icon: string; sidebar_icon_dark: string;
+    sidebar_expanded: string; sidebar_expanded_dark: string;
     bookmark_ios: string; bookmark_windows: string;
     add_to_home_screen: boolean;
   };
