@@ -1,10 +1,12 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Layers, Star, Mail, Bookmark } from "@/lib/lucide-shim";
+import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Layers, Star, Mail, Bookmark, ChevronRight } from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
+import { AdminSidebarExtrasProvider, useAdminSidebarExtrasSlot } from "@/components/admin/AdminSidebarExtras";
+
 
 export function AdminShell({ children, hideSidebar }: { children: ReactNode; hideSidebar?: boolean }) {
   const { t, i18n } = useTranslation();
