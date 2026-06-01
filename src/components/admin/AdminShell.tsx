@@ -6,6 +6,18 @@ import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
 import { AdminSidebarExtrasProvider, useAdminSidebarExtrasSlot } from "@/components/admin/AdminSidebarExtras";
+import { useSiteSetting } from "@/lib/useSiteSetting";
+
+type SidebarLogoCfg = {
+  logo: {
+    sidebar_icon: string; sidebar_icon_dark: string;
+    sidebar_expanded: string; sidebar_expanded_dark: string;
+    main: string; main_dark: string;
+  };
+};
+const SIDEBAR_LOGO_DEFAULTS: SidebarLogoCfg = {
+  logo: { sidebar_icon: "", sidebar_icon_dark: "", sidebar_expanded: "", sidebar_expanded_dark: "", main: "", main_dark: "" },
+};
 
 
 export function AdminShell({ children, hideSidebar }: { children: ReactNode; hideSidebar?: boolean }) {
@@ -69,18 +81,17 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
 
           <div className="p-3 border-b border-border">
             <div className="flex items-center gap-2">
-              <Link to="/admin" className="font-display font-bold text-base">
-                {compact ? "NES" : <>NES <span className="text-brand">Admin</span></>}
+              <Link to="/admin" className="font-display font-bold text-base flex items-center min-w-0 flex-1">
+                <SidebarBrand compact={compact} />
               </Link>
               <button
                 onClick={() => setForceCompact((s) => !s)}
-                className="ml-auto text-muted-foreground hover:text-foreground"
+                className="ml-auto text-muted-foreground hover:text-foreground shrink-0"
                 title={compact ? t("admin.sidebar.expand") : t("admin.sidebar.collapse")}
               >
                 <PanelLeft className={`w-4 h-4 transition-transform ${compact ? "" : "rotate-180"}`} />
               </button>
             </div>
-            {!compact && <p className="text-xs text-muted-foreground mt-1 truncate">{user?.email}</p>}
           </div>
           <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
             {items.map(({ to, icon: Icon, label }) => {
@@ -174,4 +185,22 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
       </main>
     </div>
   );
+}
+
+function SidebarBrand({ compact }: { compact: boolean }) {
+  const cfg = useSiteSetting<SidebarLogoCfg>("theme_options", SIDEBAR_LOGO_DEFAULTS);
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const logo = cfg.logo ?? SIDEBAR_LOGO_DEFAULTS.logo;
+  const iconSrc = (isDark ? logo.sidebar_icon_dark : logo.sidebar_icon) || logo.sidebar_icon || logo.sidebar_icon_dark;
+  const expandedSrc = (isDark ? logo.sidebar_expanded_dark : logo.sidebar_expanded) || logo.sidebar_expanded || logo.sidebar_expanded_dark || (isDark ? logo.main_dark : logo.main) || logo.main;
+
+  if (compact) {
+    return iconSrc
+      ? <img src={iconSrc} alt="Logo" className="w-8 h-8 object-contain" />
+      : <span className="text-base">NES</span>;
+  }
+  return expandedSrc
+    ? <img src={expandedSrc} alt="Logo" className="max-h-9 max-w-full object-contain" />
+    : <span>NES <span className="text-brand">Admin</span></span>;
 }
