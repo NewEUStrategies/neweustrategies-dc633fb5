@@ -109,7 +109,8 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); runSearch(q); } }}
               placeholder={placeholder}
               aria-label={label}
-              className="flex-1 min-w-0 bg-transparent border-none outline-none text-xs text-foreground placeholder:text-muted-foreground py-1"
+              dir="ltr"
+              className="flex-1 min-w-0 bg-transparent border-none outline-none text-xs text-left text-foreground placeholder:text-muted-foreground py-1"
             />
             {loading && <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />}
             <button
