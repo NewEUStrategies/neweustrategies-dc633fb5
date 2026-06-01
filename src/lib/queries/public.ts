@@ -59,6 +59,28 @@ export type ResolvedContent =
 
 const PAGE_PATH_TTL = 10 * 60_000;
 
+// Fetches the page used as the public homepage (`/`).
+// Convention: a top-level page with slug = "home". Returns null if missing.
+export const homePageQueryOptions = () =>
+  queryOptions({
+    queryKey: ["public", "home-page"] as const,
+    queryFn: async (): Promise<PageData | null> => {
+      const { data, error } = await supabase
+        .from("pages")
+        .select(
+          "id, slug, title_pl, title_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at",
+        )
+        .eq("slug", "home")
+        .is("parent_id", null)
+        .is("deleted_at", null)
+        .eq("status", "published")
+        .maybeSingle();
+      if (error) throw error;
+      return (data as PageData | null) ?? null;
+    },
+    staleTime: PAGE_PATH_TTL,
+  });
+
 export const blogListQueryOptions = () =>
   queryOptions({
     queryKey: ["public", "blog", "list", { limit: 50 }] as const,

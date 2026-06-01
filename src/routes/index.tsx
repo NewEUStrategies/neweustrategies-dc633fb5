@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, ChevronLeft, ChevronRight, Flame } from "@/lib/lucide-shim";
 import { Header } from "@/components/Header";
@@ -7,6 +8,9 @@ import { NewsletterForm } from "@/components/NewsletterForm";
 import { SectionLabel } from "@/components/SectionLabel";
 import { ArticleCard } from "@/components/ArticleCard";
 import { CategoryTag } from "@/components/CategoryTag";
+import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { parseBuilderDoc } from "@/lib/builder/parse";
+import { homePageQueryOptions } from "@/lib/queries/public";
 
 import imgMilitary from "@/assets/report-military.jpg";
 import imgGeo from "@/assets/geopolitics.jpg";
@@ -18,6 +22,10 @@ import imgMinister from "@/assets/interview-minister.jpg";
 import imgBook from "@/assets/book-review.jpg";
 
 export const Route = createFileRoute("/")({
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData(homePageQueryOptions());
+    return null;
+  },
   head: () => ({
     meta: [
       { title: "New European Strategies - Strategic thinking, new perspectives" },
@@ -31,6 +39,31 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const { i18n } = useTranslation();
+  const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
+  const { data: homePage } = useSuspenseQuery(homePageQueryOptions());
+
+  // If a CMS page with slug "home" exists and uses the builder with content,
+  // render it. Otherwise fall back to the hardcoded landing layout below.
+  if (homePage && homePage.editor === "builder") {
+    const doc = parseBuilderDoc(homePage.builder_data);
+    if (doc.sections.length > 0) {
+      return (
+        <div className="min-h-screen flex flex-col bg-background text-foreground">
+          <Header />
+          <main className="flex-1 w-full">
+            <BuilderRenderer doc={doc} lang={lang} />
+          </main>
+          <Footer />
+        </div>
+      );
+    }
+  }
+
+  return <IndexFallback />;
+}
+
+function IndexFallback() {
   const { t } = useTranslation();
 
   return (
