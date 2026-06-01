@@ -170,11 +170,11 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
     <span ref={wrapRef} className="relative flex w-[min(88vw,420px)] max-w-full min-w-0">
       {/* Trigger: closed = pill with icon + label; open = inline input with icon */}
       <div
-        style={{ borderRadius: 4, textAlign: open ? "left" : undefined, direction: "ltr", justifyContent: open ? "flex-start" : undefined }}
-        className={`flex w-[min(88vw,420px)] max-w-full min-w-0 items-center gap-2 border bg-background transition-all duration-150 ${
+        style={{ borderRadius: 4, direction: "ltr" }}
+        className={`flex w-[min(88vw,420px)] max-w-full min-w-0 items-center gap-2 border bg-background transition-colors duration-150 px-3.5 h-10 ${
           open
-            ? "border-ring ring-2 ring-ring/30 pl-3 pr-1 py-1"
-            : "border-border hover:bg-accent hover:text-accent-foreground px-3.5 py-2 cursor-pointer"
+            ? "border-ring ring-2 ring-ring/30"
+            : "border-border hover:bg-accent hover:text-accent-foreground cursor-pointer"
         }`}
         onClick={() => { if (!open) setOpen(true); }}
         role={open ? undefined : "button"}
@@ -193,7 +193,7 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
               aria-label={label}
               dir="ltr"
               style={{ textAlign: "left", direction: "ltr", unicodeBidi: "plaintext" }}
-              className="block w-full flex-1 min-w-[14rem] bg-transparent border-none outline-none text-xs text-left text-foreground placeholder:text-muted-foreground py-1"
+              className="block w-full flex-1 min-w-0 bg-transparent border-none outline-none text-xs text-left text-foreground placeholder:text-muted-foreground"
             />
             {loading && <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />}
             <button
@@ -204,7 +204,7 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
                 if (q) { setQ(""); setResults([]); setSearched(false); inputRef.current?.focus(); }
                 else setOpen(false);
               }}
-              className="p-1 rounded-sm hover:bg-accent transition-colors shrink-0"
+              className="p-1 -mr-1 rounded-sm hover:bg-accent transition-colors shrink-0"
             >
               <LucideIcons.X className="w-3.5 h-3.5 text-muted-foreground" />
             </button>
