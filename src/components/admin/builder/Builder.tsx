@@ -591,7 +591,9 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
     toggleHidden,
   ]);
 
+  return (
     <div className="grid grid-cols-[300px_1fr] gap-3 items-start">
+
 
       {/* LEFT PANEL */}
       <aside className="bg-card border border-border rounded-lg flex flex-col overflow-hidden sticky top-3 max-h-[calc(100vh-1.5rem)] self-start">
