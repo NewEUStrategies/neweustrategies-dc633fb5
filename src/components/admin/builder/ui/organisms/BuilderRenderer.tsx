@@ -89,11 +89,13 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
 }
 
 function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
-  const itemsClass =
-    column.contentAlign === "center" ? "items-center" :
-    column.contentAlign === "end" ? "items-end" : "items-start";
+  const singleWidget = column.children.length <= 1;
+  const axisClass = singleWidget
+    ? (column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : "items-start")
+    : (column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start");
+  const layoutClass = singleWidget ? "flex-col" : "flex-row flex-wrap content-start";
   return (
-    <div data-col-id={column.id} className={`flex flex-col gap-2 h-full min-w-0 max-w-full overflow-hidden ${itemsClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: 40 }}>
+    <div data-col-id={column.id} className={`flex ${layoutClass} gap-2 h-full min-w-0 max-w-full overflow-hidden ${axisClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: 40 }}>
       {column.children.map((w) => {
         if (hiddenOnDevice(w.advanced, device)) return null;
         return (
