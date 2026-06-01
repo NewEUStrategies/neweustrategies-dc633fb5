@@ -6,21 +6,17 @@
 // Persistence happens via onChange (called by the parent route on every doc
 // mutation; the parent debounces autosave). useHistory wraps onChange so we
 // get undo/redo without breaking it.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDroppable,
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
 import {
-  SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import {
-  Plus, Trash2, ChevronUp, ChevronDown, Monitor, Tablet, Smartphone, Columns2,
-  Settings as SettingsIcon, X, Eye, Copy, Undo, Redo, ChevronLeft, Save, Pencil,
+  Settings as SettingsIcon, X, ChevronUp, ChevronDown, ChevronLeft,
 } from "@/lib/lucide-shim";
-import { WIDGETS, makeWidget } from "@/lib/builder/registry";
+import { WIDGETS as _WIDGETS, makeWidget } from "@/lib/builder/registry";
+void _WIDGETS;
 import type {
   BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode,
   Device, WidgetType,
@@ -34,26 +30,19 @@ import { copyToClipboard, readClipboard, type ClipEnvelope } from "@/lib/builder
 import { useHistory } from "@/lib/builder/useHistory";
 import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
 import { buildHomepageDocument } from "@/lib/builder/homepageTemplate";
-import { WidgetView, getWidgetFrameStyle } from "./WidgetView";
 import { SectionProperties } from "./SectionProperties";
 import { WidgetProperties } from "./WidgetProperties";
 import { ColumnProperties } from "./ColumnProperties";
 import { WidgetLibrary } from "./WidgetLibrary";
-import { StructurePicker } from "./StructurePicker";
 import { Navigator } from "./Navigator";
-import { BuilderRenderer } from "./BuilderRenderer";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import {
-  sectionWrapperStyle, sectionContainerStyle, columnsRowStyle,
-  backgroundLayerStyle, overlayLayerStyle, borderStyle,
-  ShapeDivider, typographyCss, typographyAlign,
-} from "@/lib/builder/sectionStyles";
-import { safeImageUrl } from "@/lib/sanitize";
-import { IconBtn } from "./ui/atoms/IconBtn";
+  Toolbar, CanvasActionBar, EmptyState, SectionDropZone, ChromeFrame,
+  SectionView, VisualCanvas,
+  type Selection, type SelectionKind,
+} from "./ui/organisms/builder";
 
-type SelectionKind = "section" | "column" | "widget" | "inner-section" | null;
-interface Selection { kind: SelectionKind; id: string | null; }
 
 interface Props {
   value: BuilderDocument | null;
