@@ -70,10 +70,10 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
       )}
 
       <Row label="Odstęp górny (px)" hint="Odstęp od poprzedniej sekcji. Domyślnie 5, 0 = brak.">
-        <NumberInput value={L.marginTop} onChange={(n) => setL((l) => { l.marginTop = n; })} min={0} max={400} suffix="px" />
+        <NumberInput value={L.marginTop ?? 5} onChange={(n) => setL((l) => { l.marginTop = n; })} min={0} max={400} suffix="px" />
       </Row>
       <Row label="Odstęp dolny (px)" hint="Odstęp do następnej sekcji. Domyślnie 5, 0 = brak.">
-        <NumberInput value={L.marginBottom} onChange={(n) => setL((l) => { l.marginBottom = n; })} min={0} max={400} suffix="px" />
+        <NumberInput value={L.marginBottom ?? 5} onChange={(n) => setL((l) => { l.marginBottom = n; })} min={0} max={400} suffix="px" />
       </Row>
 
       <Row label="Wyrównanie pionowe">
