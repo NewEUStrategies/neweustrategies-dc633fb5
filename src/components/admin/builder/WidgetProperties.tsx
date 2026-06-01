@@ -18,8 +18,10 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { PropField } from "./ui/atoms/PropField";
-import { ColorField } from "./ui/atoms/ColorField";
+import {
+  PropField, ColorField, ItemFrame,
+  CollapsibleSection as Collapsible,
+} from "./ui/atoms";
 import { SpacingControl } from "./ui/molecules/SpacingControl";
 import { TypographyControl } from "./ui/molecules/TypographyControl";
 import { MotionControl } from "./ui/molecules/MotionControl";
