@@ -69,18 +69,22 @@ export function WidgetLibrary({ onPickStructure, onPickTemplate }: Props) {
 
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         <section>
-          <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+          <button type="button" onClick={() => toggle("__struct")}
+            className="w-full text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider inline-flex items-center gap-1 hover:text-foreground">
+            {collapsed.__struct ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             Nowa sekcja — wybierz strukturę
-          </div>
-          <StructurePicker onPick={onPickStructure} cols={2} />
+          </button>
+          {!collapsed.__struct && <StructurePicker onPick={onPickStructure} cols={2} />}
         </section>
 
         <section>
-          <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider inline-flex items-center gap-1.5">
+          <button type="button" onClick={() => toggle("__tpl")}
+            className="w-full text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider inline-flex items-center gap-1.5 hover:text-foreground">
+            {collapsed.__tpl ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             <Save className="w-3.5 h-3.5" /> Szablony sekcji
             {tpl.loading && <span className="text-[10px] normal-case">…</span>}
-          </div>
-          {tpl.items.length === 0 ? (
+          </button>
+          {!collapsed.__tpl && (tpl.items.length === 0 ? (
             <div className="text-[10px] text-muted-foreground px-2 py-3 border border-dashed border-border rounded">
               Brak zapisanych. Zaznacz sekcję na canvasie i kliknij ikonę zapisu.
             </div>
@@ -103,38 +107,43 @@ export function WidgetLibrary({ onPickStructure, onPickTemplate }: Props) {
                 </li>
               ))}
             </ul>
-          )}
+          ))}
         </section>
 
         {(["basic", "media", "dynamic", "form", "navigation"] as const).map((cat) => {
           const items = filtered.filter((w) => w.category === cat);
           if (!items.length) return null;
+          const isCollapsed = !!collapsed[cat];
           return (
             <section key={cat}>
-              <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+              <button type="button" onClick={() => toggle(cat)}
+                className="w-full text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider inline-flex items-center gap-1 hover:text-foreground">
+                {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 {labels[cat]}
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {items.map((w) => {
-                  const Icon = w.icon;
-                  return (
-                    <div
-                      key={w.type}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData("application/x-widget-type", w.type);
-                        e.dataTransfer.effectAllowed = "copy";
-                      }}
-                      className="h-16 bg-muted/30 hover:bg-muted hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 p-1 transition group cursor-grab active:cursor-grabbing select-none"
-                      title={`Przeciągnij na sekcję: ${w.label}`}
-                    >
-                      <Icon className="w-4 h-4 text-muted-foreground group-hover:text-brand" />
-                      <span className="text-[9px] text-center leading-tight">{w.label}</span>
-                    </div>
-
-                  );
-                })}
-              </div>
+                <span className="ml-1 text-[10px] normal-case opacity-60">({items.length})</span>
+              </button>
+              {!isCollapsed && (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {items.map((w) => {
+                    const Icon = w.icon;
+                    return (
+                      <div
+                        key={w.type}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("application/x-widget-type", w.type);
+                          e.dataTransfer.effectAllowed = "copy";
+                        }}
+                        className="h-16 bg-muted/30 hover:bg-muted hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 p-1 transition group cursor-grab active:cursor-grabbing select-none"
+                        title={`Przeciągnij na sekcję: ${w.label}`}
+                      >
+                        <Icon className="w-4 h-4 text-muted-foreground group-hover:text-brand" />
+                        <span className="text-[9px] text-center leading-tight">{w.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
           );
         })}
