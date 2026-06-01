@@ -282,6 +282,9 @@ export function GlobalColorsEditor() {
                         value={val.light ?? ""}
                         defaultValue={slot.defaultLight}
                         onChange={(v) => setSlot(slot.key, "light", v)}
+                        onCommit={trackRecent}
+                        brandPalette={brandPalette}
+                        recentColors={recentColors}
                       />
                       {slot.hasDark && (
                         <ColorRow
@@ -289,6 +292,9 @@ export function GlobalColorsEditor() {
                           value={val.dark ?? ""}
                           defaultValue={slot.defaultDark}
                           onChange={(v) => setSlot(slot.key, "dark", v)}
+                          onCommit={trackRecent}
+                          brandPalette={brandPalette}
+                          recentColors={recentColors}
                         />
                       )}
                       {isSlotHoverable(slot, group) && (
@@ -301,12 +307,18 @@ export function GlobalColorsEditor() {
                             value={val.hoverLight ?? ""}
                             defaultValue={slot.defaultHoverLight ?? slot.defaultLight}
                             onChange={(v) => setSlot(slot.key, "hoverLight", v)}
+                            onCommit={trackRecent}
+                            brandPalette={brandPalette}
+                            recentColors={recentColors}
                           />
                           <ColorRow
                             label="Dark"
                             value={val.hoverDark ?? ""}
                             defaultValue={slot.defaultHoverDark ?? slot.defaultDark}
                             onChange={(v) => setSlot(slot.key, "hoverDark", v)}
+                            onCommit={trackRecent}
+                            brandPalette={brandPalette}
+                            recentColors={recentColors}
                           />
                         </div>
                       )}
