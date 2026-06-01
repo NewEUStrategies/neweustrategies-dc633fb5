@@ -116,14 +116,7 @@ export function Header() {
   // Smart-sticky: hide on scroll down, show on scroll up. Sticky: always fixed at top.
   const [navHidden, setNavHidden] = useState(false);
   const lastY = useRef(0);
-  const headerOpts = { ...THEME_DEFAULTS.header, ...(themeOpts.header ?? {}) };
-  const mainMenu = { ...THEME_DEFAULTS.header.main_menu, ...(headerOpts.main_menu ?? {}) };
-  const mobileOpts = { ...THEME_DEFAULTS.header.mobile, ...(headerOpts.mobile ?? {}) };
-  const searchOpts = { ...THEME_DEFAULTS.header.search, ...(headerOpts.search ?? {}) };
-  const signinOpts = { ...THEME_DEFAULTS.header.signin, ...(headerOpts.signin ?? {}) };
-  const socialsOpts = { ...THEME_DEFAULTS.header.socials, ...(headerOpts.socials ?? {}) };
-  const logoOpts = { ...THEME_DEFAULTS.logo, ...(themeOpts.logo ?? {}) };
-  const { sticky, smart_sticky, glass_effect, hover_effect, item_spacing } = mainMenu;
+  const { sticky, smart_sticky, glass_effect, hover_effect, item_spacing } = themeOpts.header.main_menu;
   useEffect(() => {
     if (!smart_sticky) return;
     const onScroll = () => {
