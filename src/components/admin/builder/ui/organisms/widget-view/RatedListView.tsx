@@ -5,6 +5,15 @@ import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import type { WidgetContent } from "@/lib/builder/types";
 import { getStr } from "./frame";
+import { autoInvertColor } from "@/lib/builder/autoInvertColor";
+
+// Auto-derive a dark-mode color from the light value when the user hasn't
+// explicitly set one (and vice versa). Empty string === inherit/default.
+const autoDark = (light: string, dark: string): string =>
+  dark || (light ? autoInvertColor(light, "dark") : "");
+const autoLight = (dark: string, light: string): string =>
+  light || (dark ? autoInvertColor(dark, "light") : "");
+void autoLight;
 
 type Lang = "pl" | "en";
 
@@ -25,21 +34,24 @@ export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   const numWeight = getStr(c, "numberWeight") || "700";
   const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 48;
   const numColor = getStr(c, "numberColor") || "#000000";
-  const numColorDark = getStr(c, "numberColorDark") || "#ffffff";
+  const numColorDarkRaw = getStr(c, "numberColorDark");
+  const numColorDark = numColorDarkRaw || autoInvertColor(numColor, "dark");
   const numOpacity = typeof c.numberOpacity === "number" ? c.numberOpacity : 0.05;
   const numPos = getStr(c, "numberPosition") || "behind";
   const showRating = c.showRating !== false;
 
   const showCategory = c.showCategory === true;
   const categoryColor = getStr(c, "categoryColor") || "#dc2626";
-  const categoryColorDark = getStr(c, "categoryColorDark") || "#f87171";
+  const categoryColorDarkRaw = getStr(c, "categoryColorDark");
+  const categoryColorDark = categoryColorDarkRaw || autoInvertColor(categoryColor, "dark");
   const categorySize = typeof c.categorySizePx === "number" ? c.categorySizePx : 11;
   const categoryWeight = getStr(c, "categoryWeight") || "700";
   const categoryUppercase = c.categoryUppercase !== false;
 
   const titleColor = getStr(c, "titleColor");
-  const titleColorDark = getStr(c, "titleColorDark");
+  const titleColorDark = autoDark(titleColor, getStr(c, "titleColorDark"));
   const titleHoverColor = getStr(c, "titleHoverColor");
+  const titleHoverColorDark = titleHoverColor ? autoInvertColor(titleHoverColor, "dark") : "";
   const titleSize = typeof c.titleSizePx === "number" ? c.titleSizePx : 18;
   const titleWeight = getStr(c, "titleWeight") || "700";
   const titleFont = getStr(c, "titleFont") || "display";
@@ -47,19 +59,19 @@ export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   const showAuthor = c.showAuthor !== false;
   const showDate = c.showDate === true;
   const metaColor = getStr(c, "metaColor");
-  const metaColorDark = getStr(c, "metaColorDark");
+  const metaColorDark = autoDark(metaColor, getStr(c, "metaColorDark"));
   const metaSize = typeof c.metaSizePx === "number" ? c.metaSizePx : 12;
 
   const showExcerpt = c.showExcerpt !== false;
   const excerptColor = getStr(c, "excerptColor");
-  const excerptColorDark = getStr(c, "excerptColorDark");
+  const excerptColorDark = autoDark(excerptColor, getStr(c, "excerptColorDark"));
   const excerptSize = typeof c.excerptSizePx === "number" ? c.excerptSizePx : 13;
   const excerptLines = typeof c.excerptLines === "number" ? c.excerptLines : 3;
 
   const showReadMore = c.showReadMore === true;
   const readMoreText = getStr(c, `readMoreText_${lang}`) || (lang === "pl" ? "Czytaj więcej" : "Read more");
   const readMoreColor = getStr(c, "readMoreColor");
-  const readMoreColorDark = getStr(c, "readMoreColorDark");
+  const readMoreColorDark = autoDark(readMoreColor, getStr(c, "readMoreColorDark"));
 
   const showBookmark = c.showBookmark === true;
   const bookmarkColor = getStr(c, "bookmarkColor");
@@ -250,6 +262,7 @@ export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
         ${titleColor ? `.rl-wrap .rl-title{color:${titleColor};}` : ""}
         ${titleColorDark ? `.dark .rl-wrap .rl-title{color:${titleColorDark};}` : ""}
         ${titleHoverColor ? `.rl-wrap .rl-title:hover{color:${titleHoverColor};}` : ""}
+        ${titleHoverColorDark ? `.dark .rl-wrap .rl-title:hover{color:${titleHoverColorDark};}` : ""}
         ${metaColor ? `.rl-wrap .rl-meta{color:${metaColor};}` : ""}
         ${metaColorDark ? `.dark .rl-wrap .rl-meta{color:${metaColorDark};}` : ""}
         ${excerptColor ? `.rl-wrap .rl-exc{color:${excerptColor};}` : ""}
