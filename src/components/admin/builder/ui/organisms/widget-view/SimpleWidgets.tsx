@@ -12,7 +12,7 @@ import {
   AnimatedHeadingRender, type AnimatedHeadingConfig,
   type AnimatedHeadingMode, type AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
-import { getStr, getNum, getStrArr } from "./frame";
+import { COMPACT_ICON_BOX_SIZE, COMPACT_WIDGET_MIN_HEIGHT, getStr, getNum, getStrArr } from "./frame";
 
 type Lang = "pl" | "en";
 
@@ -56,7 +56,7 @@ export function renderSimpleWidget(
       return <div style={{ height: `${getNum(c, "height", 32)}px` }} />;
     case "social-icons": {
       const size = getNum(c, "size", 16);
-      const box = Math.max(size + 16, 32);
+      const box = Math.max(size + 16, COMPACT_ICON_BOX_SIZE);
       const items: Array<{ k: string; Cmp: LucideIcons.LucideIcon; label: string }> = [
         { k: "facebook",  Cmp: LucideIcons.Facebook,  label: "Facebook" },
         { k: "twitter",   Cmp: LucideIcons.Twitter,   label: "X" },
@@ -66,9 +66,9 @@ export function renderSimpleWidget(
       ];
       const email = getStr(c, "email");
       const linkCls = "inline-flex items-center justify-center rounded-md hover:text-brand hover:bg-muted/40 transition-colors shrink-0";
-      const linkStyle: React.CSSProperties = { width: box, height: box, lineHeight: 0 };
+      const linkStyle: React.CSSProperties = { width: box, height: box, minWidth: box, lineHeight: 0 };
       return (
-        <div className="flex items-center gap-1 text-muted-foreground">
+        <div className="flex min-h-10 items-center gap-1 text-muted-foreground">
           {items.map(({ k, Cmp, label }) => {
             const href = getStr(c, k);
             if (!href) return null;
@@ -82,16 +82,16 @@ export function renderSimpleWidget(
       const showLabel = c.showLabel !== false;
       const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Zmień język";
       return (
-        <div className="inline-flex items-center gap-3 text-xs">
+        <div className="inline-flex min-h-10 items-center gap-3 text-xs">
           {showLabel && <span className="hidden md:inline text-muted-foreground">{label}</span>}
-          <button type="button" aria-label="English" className="text-base leading-none opacity-60 hover:opacity-100">🇬🇧</button>
-          <button type="button" aria-label="Polski" className="text-base leading-none opacity-60 hover:opacity-100">🇵🇱</button>
+          <button type="button" aria-label="English" className="inline-flex h-10 w-10 items-center justify-center text-base leading-none opacity-60 hover:opacity-100">🇬🇧</button>
+          <button type="button" aria-label="Polski" className="inline-flex h-10 w-10 items-center justify-center text-base leading-none opacity-60 hover:opacity-100">🇵🇱</button>
         </div>
       );
     }
     case "theme-toggle":
       return (
-        <button type="button" aria-label="Toggle theme" className="p-2 rounded-full hover:bg-muted transition">
+        <button type="button" aria-label="Toggle theme" className="inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-muted transition">
           <LucideIcons.Moon className="w-4 h-4" />
         </button>
       );
@@ -99,19 +99,19 @@ export function renderSimpleWidget(
       const signin = getStr(c, `signin_${lang}`) || getStr(c, "signin_pl") || "Zaloguj";
       const signup = getStr(c, `signup_${lang}`) || getStr(c, "signup_pl") || "Zarejestruj";
       return (
-        <span className="inline-flex items-center gap-2 text-xs">
-          <a href="/login" className="inline-flex items-center gap-1 font-semibold text-muted-foreground hover:text-brand">
+        <span className="inline-flex min-h-10 items-center gap-2 text-xs">
+          <a href="/login" className="inline-flex min-h-10 items-center gap-1 font-semibold text-muted-foreground hover:text-brand">
             <LucideIcons.LogIn className="w-3.5 h-3.5" /> {signin}
           </a>
           <span className="text-muted-foreground/40">|</span>
-          <a href="/login?mode=signup" className="font-semibold text-brand hover:underline">{signup}</a>
+          <a href="/login?mode=signup" className="inline-flex min-h-10 items-center font-semibold text-brand hover:underline">{signup}</a>
         </span>
       );
     }
     case "search-button": {
       const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Szukaj";
       return (
-        <button type="button" aria-label="Search" className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition">
+        <button type="button" aria-label="Search" className="inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition">
           <LucideIcons.Search className="w-4 h-4" />
           <span className="hidden sm:inline">{label}</span>
         </button>
