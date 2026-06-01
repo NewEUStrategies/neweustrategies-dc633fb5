@@ -44,7 +44,7 @@ export interface SectionViewProps {
   onRemoveWidget: (id: string) => void;
   onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
-  onUpdateWidgetContent: (id: string, key: string, value: string) => void;
+  onUpdateWidgetContent: (id: string, key: string, value: string | number) => void;
 }
 
 export function SectionView(p: SectionViewProps) {
@@ -136,7 +136,7 @@ function InnerSectionView({
   onRemoveColumn: (id: string) => void; onDuplicateColumn: (id: string) => void;
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
-  onUpdateWidgetContent: (id: string, key: string, value: string) => void;
+  onUpdateWidgetContent: (id: string, key: string, value: string | number) => void;
 }) {
   const selected = selection.kind === "inner-section" && selection.id === inner.id;
   const colsSum = inner.columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
@@ -178,7 +178,7 @@ function ColumnView({
   onRemove: () => void; onDuplicate: () => void;
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
-  onUpdateWidgetContent: (id: string, key: string, value: string) => void;
+  onUpdateWidgetContent: (id: string, key: string, value: string | number) => void;
 }) {
   const selected = selection.kind === "column" && selection.id === column.id;
   const singleWidget = column.children.length <= 1;
@@ -245,7 +245,7 @@ function SortableWidget({
 }: {
   widget: WidgetNode; lang: "pl" | "en"; device: Device; selected: boolean;
   onSelect: () => void; onDuplicate: () => void; onRemove: () => void;
-  onUpdateContent: (key: string, value: string) => void;
+  onUpdateContent: (key: string, value: string | number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
