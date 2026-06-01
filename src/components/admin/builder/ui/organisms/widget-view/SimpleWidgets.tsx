@@ -16,6 +16,7 @@ import {
 import { COMPACT_ICON_BOX_SIZE, COMPACT_WIDGET_MIN_HEIGHT, getStr, getNum, getStrArr } from "./frame";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { supabase } from "@/integrations/supabase/client";
+import { useTheme } from "@/components/ThemeProvider";
 import { useQuery } from "@tanstack/react-query";
 
 type Lang = "pl" | "en";
@@ -494,11 +495,7 @@ export function renderSimpleWidget(
 
 
     case "theme-toggle":
-      return (
-        <button type="button" aria-label="Toggle theme" className="inline-flex items-center justify-center rounded-full hover:bg-muted transition" style={compactIconBoxStyle()}>
-          <LucideIcons.Moon className="w-4 h-4" />
-        </button>
-      );
+      return <ThemeToggleWidget />;
     case "account-link": {
       const signin = getStr(c, `signin_${lang}`) || getStr(c, "signin_pl") || "Zaloguj";
       const signup = getStr(c, `signup_${lang}`) || getStr(c, "signup_pl") || "Zarejestruj";
@@ -1166,5 +1163,26 @@ export function ResizableBox({
         </div>
       )}
     </div>
+  );
+}
+
+function ThemeToggleWidget() {
+  const { theme, toggle } = useTheme();
+  const isDark = theme === "dark";
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={isDark ? "Przełącz na tryb jasny" : "Przełącz na tryb ciemny"}
+      title={isDark ? "Tryb ciemny (kliknij, aby zmienić)" : "Tryb jasny (kliknij, aby zmienić)"}
+      className="inline-flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+      style={{ width: 32, height: 32 }}
+    >
+      {isDark ? (
+        <LucideIcons.Sun className="w-4 h-4" style={{ color: "#FA9346" }} />
+      ) : (
+        <LucideIcons.Moon className="w-4 h-4" />
+      )}
+    </button>
   );
 }
