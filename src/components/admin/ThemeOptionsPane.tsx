@@ -8,77 +8,54 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight } from "@/lib/lucide-shim";
+import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard } from "@/lib/lucide-shim";
 
 // ---------- Defaults ----------
 type HoverEffect = "color-border" | "underline" | "background" | "scale" | "none";
 type SearchMode = "standalone" | "dropdown" | "fullscreen";
+type AlertStyle = "info" | "warning" | "success" | "brand";
 
 interface ThemeOptions extends Record<string, unknown> {
   logo: {
-    main: string;
-    main_dark: string;
-    mobile: string;
-    mobile_dark: string;
-    transparent: string;
-    organization: string;
-    bookmark_ios: string;
-    bookmark_windows: string;
+    main: string; main_dark: string;
+    mobile: string; mobile_dark: string;
+    transparent: string; organization: string;
+    bookmark_ios: string; bookmark_windows: string;
     add_to_home_screen: boolean;
   };
   header: {
     main_menu: {
-      hover_effect: HoverEffect;
-      sticky: boolean;
-      smart_sticky: boolean;
-      glass_effect: boolean;
-      item_spacing: number;
-      icon_spacing: number;
-      submenu_bg_from: string;
-      submenu_bg_to: string;
+      hover_effect: HoverEffect; sticky: boolean; smart_sticky: boolean; glass_effect: boolean;
+      item_spacing: number; icon_spacing: number;
+      submenu_bg_from: string; submenu_bg_to: string;
     };
     search: {
+      enabled: boolean; heading: string; mode: SearchMode;
+      live_results: boolean; live_limit: number; more_menu_search: boolean;
+    };
+    alert_bar: {
       enabled: boolean;
-      heading: string;
-      mode: SearchMode;
-      live_results: boolean;
-      live_limit: number;
-      more_menu_search: boolean;
+      message_pl: string; message_en: string;
+      link_url: string;
+      style: AlertStyle;
+      dismissible: boolean;
+    };
+    mobile: {
+      breakpoint: number;
+      use_mobile_logo: boolean;
+      sticky: boolean;
+      show_search: boolean;
     };
   };
 }
 
 const DEFAULTS: ThemeOptions = {
-  logo: {
-    main: "",
-    main_dark: "",
-    mobile: "",
-    mobile_dark: "",
-    transparent: "",
-    organization: "",
-    bookmark_ios: "",
-    bookmark_windows: "",
-    add_to_home_screen: true,
-  },
+  logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", organization: "", bookmark_ios: "", bookmark_windows: "", add_to_home_screen: true },
   header: {
-    main_menu: {
-      hover_effect: "color-border",
-      sticky: true,
-      smart_sticky: false,
-      glass_effect: false,
-      item_spacing: 12,
-      icon_spacing: 5,
-      submenu_bg_from: "",
-      submenu_bg_to: "",
-    },
-    search: {
-      enabled: true,
-      heading: "Search",
-      mode: "standalone",
-      live_results: true,
-      live_limit: 5,
-      more_menu_search: true,
-    },
+    main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
+    search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
+    alert_bar: { enabled: false, message_pl: "", message_en: "", link_url: "", style: "brand", dismissible: true },
+    mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
   },
 };
 
@@ -86,6 +63,8 @@ const SECTIONS = [
   { id: "logo", label: "Logo", icon: ImageIcon },
   { id: "header.main_menu", label: "Main Menu", icon: Menu },
   { id: "header.search", label: "Header Search", icon: Search },
+  { id: "header.alert_bar", label: "Alert Bar", icon: Megaphone },
+  { id: "header.mobile", label: "Mobile Header", icon: LayoutDashboard },
 ] as const;
 
 export function ThemeOptionsPane() {
@@ -104,6 +83,10 @@ export function ThemeOptionsPane() {
     setDraft({ ...draft, header: { ...draft.header, main_menu: { ...draft.header.main_menu, ...p } } });
   const patchSearch = (p: Partial<ThemeOptions["header"]["search"]>) =>
     setDraft({ ...draft, header: { ...draft.header, search: { ...draft.header.search, ...p } } });
+  const patchAlert = (p: Partial<ThemeOptions["header"]["alert_bar"]>) =>
+    setDraft({ ...draft, header: { ...draft.header, alert_bar: { ...draft.header.alert_bar, ...p } } });
+  const patchMobile = (p: Partial<ThemeOptions["header"]["mobile"]>) =>
+    setDraft({ ...draft, header: { ...draft.header, mobile: { ...draft.header.mobile, ...p } } });
 
   return (
     <div className="grid grid-cols-[220px_1fr] gap-4 min-h-[600px]">
@@ -330,6 +313,59 @@ export function ThemeOptionsPane() {
             </Row>
             <Row label="More Menu — Search Form" hint="Pokaż formularz w sekcji „More”.">
               <Switch checked={draft.header.search.more_menu_search} onCheckedChange={(v) => patchSearch({ more_menu_search: v })} />
+            </Row>
+          </div>
+        )}
+
+        {active === "header.alert_bar" && (
+          <div className="space-y-4">
+            <Row label="Włącz Alert Bar" hint="Pasek powiadomień nad nagłówkiem.">
+              <Switch checked={draft.header.alert_bar.enabled} onCheckedChange={(v) => patchAlert({ enabled: v })} />
+            </Row>
+            <Row label="Treść (PL)">
+              <Input value={draft.header.alert_bar.message_pl} onChange={(e) => patchAlert({ message_pl: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="Nowa publikacja dostępna…" />
+            </Row>
+            <Row label="Treść (EN)">
+              <Input value={draft.header.alert_bar.message_en} onChange={(e) => patchAlert({ message_en: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="New publication available…" />
+            </Row>
+            <Row label="Link (URL)" hint="Opcjonalny — całość paska klikalna.">
+              <Input value={draft.header.alert_bar.link_url} onChange={(e) => patchAlert({ link_url: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="/blog" />
+            </Row>
+            <Row label="Styl">
+              <Select value={draft.header.alert_bar.style} onValueChange={(v) => patchAlert({ style: v as AlertStyle })}>
+                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="brand">Brand</SelectItem>
+                  <SelectItem value="info">Info</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="success">Success</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label="Możliwość zamknięcia" hint="Użytkownik może ukryć pasek (zapamiętane w localStorage).">
+              <Switch checked={draft.header.alert_bar.dismissible} onCheckedChange={(v) => patchAlert({ dismissible: v })} />
+            </Row>
+          </div>
+        )}
+
+        {active === "header.mobile" && (
+          <div className="space-y-4">
+            <Row label="Mobile Breakpoint (px)" hint="Poniżej tej szerokości aktywuje się układ mobilny.">
+              <Input
+                type="number" min={480} max={1400}
+                className="w-[120px] h-9 text-xs"
+                value={draft.header.mobile.breakpoint}
+                onChange={(e) => patchMobile({ breakpoint: Number(e.target.value) || 1024 })}
+              />
+            </Row>
+            <Row label="Użyj Mobile Logo" hint="Zamiast głównego logo na mobile.">
+              <Switch checked={draft.header.mobile.use_mobile_logo} onCheckedChange={(v) => patchMobile({ use_mobile_logo: v })} />
+            </Row>
+            <Row label="Sticky na mobile">
+              <Switch checked={draft.header.mobile.sticky} onCheckedChange={(v) => patchMobile({ sticky: v })} />
+            </Row>
+            <Row label="Pokaż ikonę wyszukiwania">
+              <Switch checked={draft.header.mobile.show_search} onCheckedChange={(v) => patchMobile({ show_search: v })} />
             </Row>
           </div>
         )}

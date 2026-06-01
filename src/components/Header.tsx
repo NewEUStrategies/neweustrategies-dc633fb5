@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
+import { AlertBar } from "@/components/AlertBar";
 import logo from "@/assets/logo.png";
 
 type ThemeOptions = {
@@ -27,6 +28,9 @@ type ThemeOptions = {
       mode: "standalone" | "dropdown" | "fullscreen";
       live_results: boolean; live_limit: number; more_menu_search: boolean;
     };
+    mobile: {
+      breakpoint: number; use_mobile_logo: boolean; sticky: boolean; show_search: boolean;
+    };
   };
 };
 
@@ -35,6 +39,7 @@ const THEME_DEFAULTS: ThemeOptions = {
   header: {
     main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
     search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
+    mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
   },
 };
 
@@ -86,13 +91,29 @@ export function Header() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [smart_sticky]);
 
-  const logoSrc = theme === "dark"
+  // Track viewport for mobile-logo swap based on configured breakpoint.
+  const [isMobile, setIsMobile] = useState(false);
+  const mobileBp = themeOpts.header.mobile.breakpoint;
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${mobileBp - 1}px)`);
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, [mobileBp]);
+
+  const desktopLogo = theme === "dark"
     ? (themeOpts.logo.main_dark || themeOpts.logo.main || logo)
     : (themeOpts.logo.main || logo);
+  const mobileLogo = theme === "dark"
+    ? (themeOpts.logo.mobile_dark || themeOpts.logo.mobile || desktopLogo)
+    : (themeOpts.logo.mobile || desktopLogo);
+  const logoSrc = (isMobile && themeOpts.header.mobile.use_mobile_logo) ? mobileLogo : desktopLogo;
 
   if (headerCfg.builder_data && headerCfg.builder_data.sections?.length) {
     return (
       <header className="bg-background border-b border-border">
+        <AlertBar />
         <BuilderRenderer doc={headerCfg.builder_data} lang={lang.startsWith("pl") ? "pl" : "en"} />
       </header>
     );
@@ -113,6 +134,7 @@ export function Header() {
 
   return (
     <header className="bg-background border-b border-border">
+      <AlertBar />
 
       {/* Utility bar */}
       <div className="border-b border-border">
