@@ -7,7 +7,12 @@ import { Builder } from "@/components/admin/builder/Builder";
 import { emptyDocument, type BuilderDocument } from "@/lib/builder/types";
 import { defaultDocFor } from "@/lib/builder/chromeDefaults";
 import { Button } from "@/components/ui/button";
-import { Save } from "@/lib/lucide-shim";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Save, Undo as RotateCcw } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { ThemeOptionsPane } from "@/components/admin/ThemeOptionsPane";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -77,9 +82,39 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="font-display text-xl">{title}</h2>
-        <Button onClick={() => save.mutate(doc)} disabled={save.isPending}>
-          <Save className="w-4 h-4 mr-2" /> {save.isPending ? "..." : "Zapisz"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {scope ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <RotateCcw className="w-4 h-4 mr-2" /> Przywróć domyślny układ
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Przywrócić domyślny układ?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Bieżący układ zostanie zastąpiony domyślnym szablonem. Zmiana wejdzie w życie po kliknięciu „Zapisz”.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Anuluj</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      setDoc(defaultDocFor(scope));
+                      toast.info("Przywrócono domyślny układ – kliknij „Zapisz”, aby utrwalić.");
+                    }}
+                  >
+                    Przywróć
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : null}
+          <Button onClick={() => save.mutate(doc)} disabled={save.isPending}>
+            <Save className="w-4 h-4 mr-2" /> {save.isPending ? "..." : "Zapisz"}
+          </Button>
+        </div>
       </div>
       {scope === "header" ? (
         <Tabs defaultValue="builder">
