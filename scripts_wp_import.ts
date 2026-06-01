@@ -126,18 +126,9 @@ async function main() {
     const status = p.status === "publish" ? "published" : "draft";
     const pubAt = p.date ? `'${p.date}'::timestamptz` : "NULL";
     // Try update existing row with NULL builder_data, else insert new
-    stmts.push(`
-WITH upd AS (
-  UPDATE pages SET builder_data='${docJson}'::jsonb, title_pl='${titleE}', title_en='${titleE}', cover_image_url=COALESCE(cover_image_url, ${cover}), updated_at=now()
-  WHERE tenant_id='${TENANT}' AND slug='${sqlEscape(slug)}' AND builder_data IS NULL
-  RETURNING 'updated' AS k
-), ins AS (
-  INSERT INTO pages (tenant_id, slug, title_pl, title_en, status, builder_data, cover_image_url, published_at, editor, menu_order)
-  SELECT '${TENANT}','${sqlEscape(slug)}','${titleE}','${titleE}','${status}'::post_status,'${docJson}'::jsonb, ${cover}, ${pubAt}, 'builder'::editor_type, 0
-  WHERE NOT EXISTS (SELECT 1 FROM pages WHERE tenant_id='${TENANT}' AND slug='${sqlEscape(slug)}')
-  RETURNING 'inserted' AS k
-)
-SELECT (SELECT k FROM upd) AS updated, (SELECT k FROM ins) AS inserted;`);
+    stmts.push(`INSERT INTO pages (tenant_id, slug, title_pl, title_en, status, builder_data, cover_image_url, published_at, editor, menu_order)
+SELECT '${TENANT}','${sqlEscape(slug)}','${titleE}','${titleE}','${status}'::post_status,'${docJson}'::jsonb, ${cover}, ${pubAt}, 'builder'::editor_type, 0
+WHERE NOT EXISTS (SELECT 1 FROM pages WHERE tenant_id='${TENANT}' AND slug='${sqlEscape(slug)}');`);
   }
 
   for (const p of posts) {
