@@ -26,6 +26,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
     { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
     { to: "/admin/paywall", icon: Star, label: "Paywall" },
     { to: "/admin/appearance", icon: Layers, label: "Wygląd" },
+    { to: "/admin/post-layouts", icon: Layers, label: "Layouty wpisów" },
+    { to: "/admin/content-area", icon: FileText, label: "Content Area" },
+    { to: "/admin/newsletter", icon: Mail, label: "Newsletter" },
     ...(isAdmin ? [
       { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
       { to: "/admin/settings", icon: Settings, label: "Ustawienia" },
