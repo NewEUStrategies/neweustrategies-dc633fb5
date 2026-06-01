@@ -9,8 +9,15 @@ import {
 } from "@/lib/lucide-shim";
 import type {
   SectionNode, ColumnNode, InnerSectionNode, WidgetNode,
-  Device, WidgetType,
+  Device, WidgetType, ResponsiveValue,
 } from "@/lib/builder/types";
+
+function resolveSpan(span: ResponsiveValue<number>, device: Device, deskDefault: number): number {
+  if (device === "mobile") return span.mobile ?? 12;
+  if (device === "tablet") return span.tablet ?? span.desktop ?? deskDefault;
+  return span.desktop ?? deskDefault;
+}
+
 import {
   sectionWrapperStyle, sectionContainerStyle, columnsRowStyle,
   backgroundLayerStyle, overlayLayerStyle, borderStyle,
