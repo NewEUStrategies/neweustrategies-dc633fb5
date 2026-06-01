@@ -63,6 +63,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
       {hideSidebar && <AdminLangBar />}
       {!hideSidebar && (
         <aside
+          data-sidebar="sidebar"
           className={`${compact ? "w-14" : "w-64"} bg-card border-r border-border flex flex-col transition-all duration-200 sticky top-0 self-start h-screen max-h-screen`}
         >
 
