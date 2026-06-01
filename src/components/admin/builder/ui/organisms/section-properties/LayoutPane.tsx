@@ -52,21 +52,21 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
         </Row>
       )}
 
-      <Row label="Wysokość">
+      <Row label="Wysokość" hint="Domyślnie = dopasuj do treści. Dopasuj do ekranu = % wysokości okna (vh). Minimalna wysokość = sekcja będzie co najmniej tak wysoka (px).">
         <Select value={L.height ?? "default"} onValueChange={(v) => setL((l) => { l.height = v as SectionHeight; })}>
           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="default">Domyślnie</SelectItem>
-            <SelectItem value="fit-screen">Dopasuj do ekranu</SelectItem>
-            <SelectItem value="min-height">Minimalna wysokość</SelectItem>
+            <SelectItem value="default">Domyślnie (dopasuj do treści)</SelectItem>
+            <SelectItem value="fit-screen">Dopasuj do ekranu (vh)</SelectItem>
+            <SelectItem value="min-height">Minimalna wysokość (px)</SelectItem>
           </SelectContent>
         </Select>
       </Row>
       {L.height === "fit-screen" && (
-        <Row label="Wysokość (vh)"><NumberInput value={L.heightValue} onChange={(n) => setL((l) => { l.heightValue = n; })} min={10} max={100} suffix="vh" /></Row>
+        <Row label="Wysokość (vh)" hint="100 = pełna wysokość okna przeglądarki."><NumberInput value={L.heightValue ?? 100} onChange={(n) => setL((l) => { l.heightValue = n; })} min={10} max={100} suffix="vh" /></Row>
       )}
       {L.height === "min-height" && (
-        <Row label="Wysokość (px)"><NumberInput value={L.heightValue} onChange={(n) => setL((l) => { l.heightValue = n; })} min={40} max={2000} suffix="px" /></Row>
+        <Row label="Wysokość minimalna (px)" hint="Sekcja będzie co najmniej tak wysoka — treść może ją rozciągnąć dalej."><NumberInput value={L.heightValue ?? 400} onChange={(n) => setL((l) => { l.heightValue = n; })} min={40} max={2000} suffix="px" /></Row>
       )}
 
       <Row label="Odstęp górny (px)" hint="Odstęp od poprzedniej sekcji. Domyślnie 5, 0 = brak.">
