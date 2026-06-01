@@ -149,9 +149,76 @@ export function Header() {
     url: m.url,
   }));
 
+  // ---------- Layout 2: Logo Left (single-bar) ----------
+  if (themeOpts.header.layout === "layout-2") {
+    return (
+      <header className="bg-background border-b border-border">
+        <AlertBar />
+        <div
+          className={[
+            "bg-background transition-transform duration-300",
+            sticky ? "sticky top-0 z-40" : "",
+            glass_effect ? "backdrop-blur-md bg-background/70" : "",
+            navHidden ? "-translate-y-full" : "translate-y-0",
+          ].filter(Boolean).join(" ")}
+        >
+          <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-16 flex items-center justify-between gap-6">
+            <Link to="/" className="flex items-center gap-2 shrink-0">
+              <img src={logoSrc} alt="Logo" className="h-9 w-auto object-contain" />
+              {!themeOpts.logo.main && (
+                <span className="font-display font-bold text-base hidden sm:inline">New <span className="text-brand">European</span> Strategies</span>
+              )}
+            </Link>
+            <nav className="hidden lg:flex items-center gap-2 flex-1 justify-center">
+              {nav.map((item) => (
+                <a key={item.label} href={item.url || "#"}
+                  style={{ paddingLeft: item_spacing, paddingRight: item_spacing }}
+                  className={`flex items-center gap-1 py-2 text-xs font-bold tracking-wider text-foreground transition ${HOVER_CLASS[hover_effect]}`}>
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+            <div className="flex items-center gap-3 shrink-0">
+              {themeOpts.header.search.enabled && (
+                <button aria-label="Search" className="p-2 hover:text-brand transition">
+                  <Search className="w-4 h-4" />
+                </button>
+              )}
+              {session && isStaff ? (
+                <Link to="/admin" className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline">
+                  <LayoutDashboard className="w-3.5 h-3.5" /> {lang.startsWith("pl") ? "Panel" : "Dashboard"}
+                </Link>
+              ) : themeOpts.header.signin.enabled ? (
+                <Link to="/login" className={`inline-flex items-center gap-1 text-xs ${SIGNIN_CLASS[themeOpts.header.signin.variant]}`}>
+                  <LogIn className="w-3.5 h-3.5" />
+                  {lang.startsWith("pl") ? themeOpts.header.signin.signin_label_pl : themeOpts.header.signin.signin_label_en}
+                </Link>
+              ) : null}
+              <button onClick={toggle} aria-label="Toggle theme" className="p-2 rounded-full hover:bg-muted transition">
+                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+              <button onClick={() => setMobileOpen((o) => !o)} className="lg:hidden p-2 rounded-full hover:bg-muted" aria-label="Menu">
+                {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+          {mobileOpen && (
+            <div className="lg:hidden border-t border-border py-4 px-4 flex flex-col gap-3">
+              {nav.map((item) => (
+                <a key={item.label} href={item.url || "#"} className="text-left text-sm font-semibold tracking-wider text-foreground/80">{item.label}</a>
+              ))}
+            </div>
+          )}
+        </div>
+      </header>
+    );
+  }
+
+  // ---------- Layout 1 (default): Classic Centered ----------
   return (
     <header className="bg-background border-b border-border">
       <AlertBar />
+
 
       {/* Utility bar */}
       <div className="border-b border-border">
