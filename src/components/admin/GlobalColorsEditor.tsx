@@ -1,10 +1,11 @@
 // Global Colors editor — pozwala ustawić kolory dla light/dark mode
 // dla każdego slotu z GLOBAL_COLOR_GROUPS. Wybór z palety presetów,
 // pełny color picker oraz przycisk przywracania domyślnych wartości.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-import { Save, Undo, X } from "@/lib/lucide-shim";
+import { Save, Undo, Redo, X } from "@/lib/lucide-shim";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
