@@ -778,6 +778,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
             )}
 
           </div>
+          </BuilderModeProvider>
         </div>
       </div>
       <ConfirmDeleteDialog
