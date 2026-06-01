@@ -16,7 +16,6 @@ import {
   isSlotHoverable,
   type GlobalColorsValue,
   type GlobalColorSlot,
-  type GlobalColorGroup,
 } from "@/lib/builder/globalColors";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
 
