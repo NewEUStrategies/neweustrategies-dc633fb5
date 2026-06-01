@@ -227,6 +227,9 @@ export function GlobalColorsEditor() {
       </div>
 
 
+
+      <BrandPaletteEditor palette={brandPalette} onChange={setBrandPalette} />
+
       <Tabs defaultValue={GLOBAL_COLOR_GROUPS[0]?.id} className="w-full">
         <TabsList className="w-full grid grid-cols-2 gap-1 h-auto bg-muted/50 p-1">
           {GLOBAL_COLOR_GROUPS.map((group) => (
