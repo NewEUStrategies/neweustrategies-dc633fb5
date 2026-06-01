@@ -97,7 +97,9 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
   };
 
   const sj = node.style?.selfJustify;
-  const sa = node.style?.selfAlign;
+  const saRaw = node.style?.selfAlign;
+  // Default: vertically center widgets in their column cell.
+  const sa = !saRaw || saRaw === "auto" ? "center" : saRaw;
   const horizontalAnchored = sj && sj !== "auto";
 
   // When user anchors the widget horizontally, it must shrink to its content
@@ -111,8 +113,11 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
     style.minHeight = node.style.minHeight;
   } else if (COMPACT_WIDGET_TYPES.has(node.type)) {
     style.minHeight = COMPACT_WIDGET_MIN_HEIGHT;
-    // Allow vertical anchoring to move the widget within the column height.
-    if (!sa || sa === "auto") style.height = COMPACT_WIDGET_MIN_HEIGHT;
+    if (sa === "stretch") {
+      style.height = "auto";
+    } else {
+      style.height = COMPACT_WIDGET_MIN_HEIGHT;
+    }
   } else if (!autoFit) {
     style.minHeight = DEFAULT_WIDGET_MIN_HEIGHT;
   }
@@ -127,22 +132,21 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
 
   // Vertical alignment inside the column (uses auto margins so it works in
   // flex-col regardless of the column's align-items setting).
-  if (sa && sa !== "auto") {
-    if (sa === "stretch") {
-      style.flexGrow = 1;
-      style.alignSelf = horizontalAnchored ? style.alignSelf : "stretch";
-      style.height = "auto";
-    } else if (sa === "center") {
-      style.marginTop = "auto";
-      style.marginBottom = "auto";
-    } else if (sa === "end") {
-      style.marginTop = "auto";
-      style.marginBottom = 0;
-    } else if (sa === "start") {
-      style.marginTop = 0;
-      style.marginBottom = "auto";
-    }
+  if (sa === "stretch") {
+    style.flexGrow = 1;
+    style.alignSelf = horizontalAnchored ? style.alignSelf : "stretch";
+    style.height = "auto";
+  } else if (sa === "center") {
+    style.marginTop = "auto";
+    style.marginBottom = "auto";
+  } else if (sa === "end") {
+    style.marginTop = "auto";
+    style.marginBottom = 0;
+  } else if (sa === "start") {
+    style.marginTop = 0;
+    style.marginBottom = "auto";
   }
+
   return style;
 };
 
