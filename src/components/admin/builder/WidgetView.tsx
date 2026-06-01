@@ -36,7 +36,7 @@ import {
 type Lang = "pl" | "en";
 
 const DEFAULT_WIDGET_BOX_WIDTH = 192;
-const DEFAULT_WIDGET_BOX_HEIGHT = 192;
+const DEFAULT_WIDGET_MIN_HEIGHT = 48;
 
 const pick = <T,>(
   rv: { desktop?: T; tablet?: T; mobile?: T } | undefined,
