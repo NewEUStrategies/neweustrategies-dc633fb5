@@ -606,7 +606,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                   )}
 
 
-                  <SectionDropZone onInsert={(s) => insertSectionAt(0, s)} index={0} prominent label={copy.first} />
+                  <SectionDropZone onInsert={(s) => insertSectionAt(0, s)} index={0} prominent label={copy.first} onRemoveBelow={doc.sections[0] ? () => askRemoveSection(doc.sections[0].id) : undefined} />
 
                   {doc.sections.map((s, idx) => (
                     <div key={s.id}>
