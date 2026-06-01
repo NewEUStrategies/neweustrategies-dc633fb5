@@ -60,16 +60,54 @@ export type ResolvedContent =
 const PAGE_PATH_TTL = 10 * 60_000;
 
 // Fetches the page used as the public homepage (`/`).
-// Convention: a top-level page with slug = "home". Returns null if missing.
+// Resolution order:
+//   1. site_settings.reading.homepage_mode === "static_page" → page by
+//      homepage_page_id or homepage_page_slug.
+//   2. fallback: top-level page with slug = "home".
+// Returns null if neither is found / published.
 export const homePageQueryOptions = () =>
   queryOptions({
     queryKey: ["public", "home-page"] as const,
     queryFn: async (): Promise<PageData | null> => {
+      // 1. Read reading-settings to find the designated homepage.
+      const { data: setting } = await supabase
+        .from("site_settings")
+        .select("value")
+        .eq("key", "reading")
+        .maybeSingle();
+      const reading = (setting?.value ?? {}) as {
+        homepage_mode?: string;
+        homepage_page_id?: string;
+        homepage_page_slug?: string;
+      };
+
+      const cols = "id, slug, title_pl, title_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at";
+
+      if (reading.homepage_mode === "static_page") {
+        if (reading.homepage_page_id) {
+          const { data } = await supabase
+            .from("pages").select(cols)
+            .eq("id", reading.homepage_page_id)
+            .is("deleted_at", null)
+            .eq("status", "published")
+            .maybeSingle();
+          if (data) return data as PageData;
+        }
+        if (reading.homepage_page_slug) {
+          const { data } = await supabase
+            .from("pages").select(cols)
+            .eq("slug", reading.homepage_page_slug)
+            .is("parent_id", null)
+            .is("deleted_at", null)
+            .eq("status", "published")
+            .maybeSingle();
+          if (data) return data as PageData;
+        }
+      }
+
+      // 2. Fallback: conventional slug = "home".
       const { data, error } = await supabase
-        .from("pages")
-        .select(
-          "id, slug, title_pl, title_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at",
-        )
+        .from("pages").select(cols)
         .eq("slug", "home")
         .is("parent_id", null)
         .is("deleted_at", null)
@@ -80,6 +118,7 @@ export const homePageQueryOptions = () =>
     },
     staleTime: PAGE_PATH_TTL,
   });
+
 
 export const blogListQueryOptions = () =>
   queryOptions({
