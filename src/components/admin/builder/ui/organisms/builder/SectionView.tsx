@@ -49,7 +49,7 @@ export interface SectionViewProps {
 
 export function SectionView(p: SectionViewProps) {
   const selected = p.selection.kind === "section" && p.selection.id === p.section.id;
-  const colsSum = p.section.children.reduce((a, c) => a + (c.kind === "column" ? (c.span.desktop ?? 12) : 12), 0) || 12;
+  const colsSum = p.section.children.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, p.device, 12) : 12), 0) || 12;
   const hidden = !!p.section.advanced?.hideOn?.[p.device];
   const skin: React.CSSProperties = {
     ...sectionWrapperStyle(p.section),
