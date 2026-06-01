@@ -740,6 +740,59 @@ export function ThemeOptionsPane() {
   );
 }
 
+function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
+  const radius = opts.default_variant === "pill" ? 999 : opts.radius;
+  const base: React.CSSProperties = {
+    borderRadius: radius,
+    paddingLeft: opts.padding_x,
+    paddingRight: opts.padding_x,
+    paddingTop: opts.padding_y,
+    paddingBottom: opts.padding_y,
+    fontWeight: opts.font_weight,
+    textTransform: opts.uppercase ? "uppercase" : "none",
+    letterSpacing: `${opts.letter_spacing}px`,
+    fontSize: opts.default_size === "sm" ? 12 : opts.default_size === "lg" ? 16 : 14,
+  };
+  return (
+    <div className="rounded-md border border-border bg-background/40 p-4">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Podgląd</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button style={{ ...base, background: "var(--gc-btn-bg, hsl(var(--primary)))", color: "var(--gc-btn-text, hsl(var(--primary-foreground)))" }}>Solid</button>
+        <button style={{ ...base, background: "transparent", color: "var(--gc-btn-bg, hsl(var(--primary)))", border: `2px solid var(--gc-btn-bg, hsl(var(--primary)))` }}>Outline</button>
+        <button style={{ ...base, background: "transparent", color: "var(--gc-btn-bg, hsl(var(--primary)))" }}>Ghost</button>
+      </div>
+    </div>
+  );
+}
+
+function InputPreview({ opts }: { opts: ThemeOptions["text_fields"] }) {
+  const isUnderline = opts.style === "underline";
+  const isFilled = opts.style === "filled";
+  const style: React.CSSProperties = {
+    height: opts.height,
+    borderRadius: isUnderline ? 0 : opts.radius,
+    borderWidth: isUnderline ? 0 : opts.border_width,
+    borderBottomWidth: isUnderline ? Math.max(1, opts.border_width) : opts.border_width,
+    borderStyle: "solid",
+    borderColor: "var(--gc-input-border, hsl(var(--border)))",
+    background: isFilled ? "var(--gc-input-bg, hsl(var(--muted)))" : isUnderline ? "transparent" : "var(--gc-input-bg, hsl(var(--background)))",
+    color: "var(--gc-input-text, inherit)",
+    paddingLeft: isUnderline ? 0 : 12,
+    paddingRight: isUnderline ? 0 : 12,
+    width: "100%",
+    fontSize: 14,
+    outline: "none",
+  };
+  return (
+    <div className="rounded-md border border-border bg-background/40 p-4 space-y-2">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Podgląd</div>
+      {opts.show_label_above && <Label className="text-xs">E-mail</Label>}
+      <input type="email" placeholder={opts.show_label_above ? "twoj@email.pl" : "E-mail"} style={style} />
+      <p className="text-[10px] text-muted-foreground">Hover / focus używają kolorów z Global Colors.</p>
+    </div>
+  );
+}
+
 function ThemeOptionsBody({
   draft,
   active,
