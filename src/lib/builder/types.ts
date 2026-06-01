@@ -41,6 +41,8 @@ export interface CommonStyle {
   align?: ResponsiveValue<Align>;
   /** Vertical alignment of this item within its parent column/row (alignSelf). */
   selfAlign?: "auto" | "start" | "center" | "end" | "stretch";
+  /** Horizontal alignment of this item within its column line (via auto margins). */
+  selfJustify?: "auto" | "start" | "center" | "end";
   borderRadius?: string;
   maxWidth?: string;
   minHeight?: string;
