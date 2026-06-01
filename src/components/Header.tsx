@@ -179,32 +179,44 @@ export function Header() {
       {/* Centered logo */}
       <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-6 flex justify-center">
         <Link to="/" className="flex items-center gap-3">
-          <img src={logo} alt="New European Strategies" className="w-12 h-12 md:w-14 md:h-14" width={56} height={56} />
-          <div className="leading-[1.05]">
-            <div className="font-display font-bold text-xl md:text-2xl">New</div>
-            <div className="font-display font-bold text-xl md:text-2xl text-brand">European</div>
-            <div className="font-display font-bold text-xl md:text-2xl">Strategies</div>
-          </div>
+          <img src={logoSrc} alt="New European Strategies" className="w-12 h-12 md:w-14 md:h-14 object-contain" width={56} height={56} />
+          {!themeOpts.logo.main && (
+            <div className="leading-[1.05]">
+              <div className="font-display font-bold text-xl md:text-2xl">New</div>
+              <div className="font-display font-bold text-xl md:text-2xl text-brand">European</div>
+              <div className="font-display font-bold text-xl md:text-2xl">Strategies</div>
+            </div>
+          )}
         </Link>
       </div>
 
       {/* Nav bar */}
-      <div className="border-t border-border">
+      <div
+        className={[
+          "border-t border-border bg-background transition-transform duration-300",
+          sticky ? "sticky top-0 z-40" : "",
+          glass_effect ? "backdrop-blur-md bg-background/70" : "",
+          navHidden ? "-translate-y-full" : "translate-y-0",
+        ].filter(Boolean).join(" ")}
+      >
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-14 flex items-center justify-between gap-4">
-          <button
-            aria-label="Search"
-            className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition"
-          >
-            <Search className="w-4 h-4" />
-            <span className="hidden sm:inline">{t("nav.search")}</span>
-          </button>
+          {themeOpts.header.search.enabled && (
+            <button
+              aria-label="Search"
+              className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition"
+            >
+              <Search className="w-4 h-4" />
+              <span className="hidden sm:inline">{themeOpts.header.search.heading || t("nav.search")}</span>
+            </button>
+          )}
 
-          <nav className="hidden lg:flex items-center gap-7">
+          <nav className="hidden lg:flex items-center gap-2">
             {nav.map((item) => (
               <a
                 key={item.label}
                 href={item.url || "#"}
-                className="flex items-center gap-1 text-xs font-bold tracking-wider text-foreground hover:text-brand transition"
+                style={{ paddingLeft: item_spacing, paddingRight: item_spacing }}
+                className={`flex items-center gap-1 py-2 text-xs font-bold tracking-wider text-foreground transition ${HOVER_CLASS[hover_effect]}`}
               >
                 {item.label}
               </a>
