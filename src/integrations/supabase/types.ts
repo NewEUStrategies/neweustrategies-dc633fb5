@@ -867,7 +867,6 @@ export type Database = {
         Args: {
           _entity_id: string
           _entity_type: Database["public"]["Enums"]["access_entity_type"]
-          _user_id: string
         }
         Returns: boolean
       }
