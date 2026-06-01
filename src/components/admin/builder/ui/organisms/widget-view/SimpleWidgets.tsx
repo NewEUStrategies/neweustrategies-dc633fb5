@@ -109,7 +109,7 @@ export function renderSimpleWidget(
         </svg>
       );
 
-      type IconCmp = (props: { size?: number }) => JSX.Element;
+      type IconCmp = (props: { size?: number }) => ReactElement;
       const items: Array<{ k: string; altKeys?: string[]; Cmp: IconCmp; label: string }> = [
         { k: "facebook",  Cmp: (p) => <LucideIcons.Facebook {...p} />,  label: "Facebook" },
         { k: "x",         altKeys: ["twitter"], Cmp: (p) => <XIcon {...p} />, label: "X" },
