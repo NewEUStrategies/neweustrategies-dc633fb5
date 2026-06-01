@@ -52,11 +52,13 @@ function ReadingListPage() {
     );
   }
 
-  const tabs: Array<{ id: Tab; label: string; enabled: boolean }> = [
-    { id: "saved", label: settings.sections.saved.heading, enabled: settings.sections.saved.enabled },
-    { id: "followed", label: settings.sections.followed.heading, enabled: settings.sections.followed.enabled },
-    { id: "recommended", label: settings.sections.recommended.heading, enabled: settings.sections.recommended.enabled },
-  ].filter((t) => t.enabled);
+  const tabs = (
+    [
+      { id: "saved" as Tab, label: settings.sections.saved.heading, enabled: settings.sections.saved.enabled },
+      { id: "followed" as Tab, label: settings.sections.followed.heading, enabled: settings.sections.followed.enabled },
+      { id: "recommended" as Tab, label: settings.sections.recommended.heading, enabled: settings.sections.recommended.enabled },
+    ] as const
+  ).filter((t) => t.enabled);
 
   const currentSection = settings.sections[tab];
 
