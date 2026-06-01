@@ -143,15 +143,11 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                 </Select>
               </PropField>
             </div>
-            <PropField label="ID kategorii (opcjonalnie)">
-              <Input value={categoryId}
-                onChange={(e) => setContent("categoryId", e.target.value)}
-                className="h-8 text-xs font-mono" placeholder="np. 8b3c…-uuid" />
+            <PropField label="Kategorie">
+              <TaxonomyPicker mode="categories" value={categorySlugs} onChange={(v) => setContent("categorySlugs", v)} />
             </PropField>
-            <PropField label="Tagi (slug, po przecinku)">
-              <Input value={tagSlugs}
-                onChange={(e) => setContent("tagSlugs", e.target.value)}
-                className="h-8 text-xs" placeholder="geopolityka, raporty" />
+            <PropField label="Tagi">
+              <TaxonomyPicker mode="tags" value={tagSlugs} onChange={(v) => setContent("tagSlugs", v)} />
             </PropField>
             <PropField label="Wyklucz ID wpisów (po przecinku)">
               <Input value={excludeIds}
