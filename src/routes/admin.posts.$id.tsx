@@ -448,6 +448,13 @@ function EditPost() {
                   <Textarea value={form.excerpt_en ?? ""} onChange={(e) => set("excerpt_en", e.target.value)} rows={4} placeholder="Short excerpt in English" />
                 </div>
               </div>
+
+              <TakeawaysEditor
+                pl={form.takeaways_pl ?? []}
+                en={form.takeaways_en ?? []}
+                onChange={(lang, next) => set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)}
+              />
+
               <div className="flex justify-end pt-2 border-t border-border">
                 <Button onClick={() => setStep("content")} disabled={!form.title_pl.trim() && !form.title_en.trim()}>
                   Przejdź do edycji treści <ArrowRight className="w-4 h-4 ml-2" />
