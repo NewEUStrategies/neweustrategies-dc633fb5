@@ -667,8 +667,8 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
           />
         </div>
 
-        <div className="bg-muted/30 p-4" onClick={() => setSelection({ kind: null, id: null })} onContextMenu={onCanvasContextMenu}>
-
+        <div className={`bg-muted/30 p-4 ${mode === "dark" ? "dark" : ""}`} onClick={() => setSelection({ kind: null, id: null })} onContextMenu={onCanvasContextMenu}>
+          <BuilderModeProvider mode={mode}>
           <div
             className={`mx-auto bg-background shadow-lg ring-1 ring-border transition-all ${
               device === "desktop" ? "max-w-[1440px]"
