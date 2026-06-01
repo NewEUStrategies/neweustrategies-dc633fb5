@@ -61,16 +61,15 @@ export function sectionWrapperStyle(node: SectionNode | InnerSectionNode): CSSPr
   }
   if (L?.overflow === "hidden") css.overflow = "hidden";
   if (L?.height === "fit-screen") {
-    css.minHeight = `${Math.max(SECTION_DEFAULT_MIN_HEIGHT_PX, (L.heightValue ?? 100))}vh`;
+    css.minHeight = `${L.heightValue ?? 100}vh`;
   } else if (L?.height === "min-height") {
-    css.minHeight = `${Math.max(SECTION_DEFAULT_MIN_HEIGHT_PX, L.heightValue ?? SECTION_DEFAULT_MIN_HEIGHT_PX)}px`;
+    css.minHeight = `${L.heightValue ?? 40}px`;
   } else if (L?.height === "fixed") {
-    const px = Math.max(SECTION_DEFAULT_MIN_HEIGHT_PX, L.heightValue ?? 400);
+    const px = L.heightValue ?? 400;
     css.height = `${px}px`;
     css.minHeight = `${px}px`;
-  } else {
-    css.minHeight = `${SECTION_DEFAULT_MIN_HEIGHT_PX}px`;
   }
+  // "default" → no min-height: section is exactly as tall as its content.
   css.marginTop = `${typeof L?.marginTop === "number" ? L.marginTop : 5}px`;
   css.marginBottom = `${typeof L?.marginBottom === "number" ? L.marginBottom : 5}px`;
   return css;
