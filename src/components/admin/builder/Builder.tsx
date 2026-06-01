@@ -307,24 +307,69 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
     d.sections.splice(pos === "before" ? j : j + 1, 0, node);
   });
 
-  // ---------- DnD reorder widgets within a column ----------
+  // ---------- DnD reorder widgets within / across columns ----------
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
+    const srcId = String(active.id);
+    const overId = String(over.id);
+    // Drop on a column droppable -> append to end of that column
+    if (overId.startsWith("col:")) {
+      const targetColId = overId.slice(4);
+      update((d) => {
+        let src: WidgetNode | null = null;
+        for (const s of d.sections) for (const c of s.children) {
+          const cols = c.kind === "column" ? [c] : c.columns;
+          for (const col of cols) {
+            const i = col.children.findIndex((w) => w.id === srcId);
+            if (i >= 0) { src = col.children.splice(i, 1)[0]; break; }
+          }
+          if (src) break;
+        }
+        if (!src) return;
+        for (const s of d.sections) for (const c of s.children) {
+          const cols = c.kind === "column" ? [c] : c.columns;
+          for (const col of cols) if (col.id === targetColId) { col.children.push(src!); return; }
+        }
+      });
+      return;
+    }
+    // Drop on another widget -> same-column reorder OR cross-column insert before
     update((d) => {
+      // same-column reorder
       for (const s of d.sections) for (const c of s.children) {
         const cols = c.kind === "column" ? [c] : c.columns;
         for (const col of cols) {
           const ids = col.children.map((w) => w.id);
-          if (ids.includes(active.id as string) && ids.includes(over.id as string)) {
-            const oldIdx = ids.indexOf(active.id as string);
-            const newIdx = ids.indexOf(over.id as string);
+          if (ids.includes(srcId) && ids.includes(overId)) {
+            const oldIdx = ids.indexOf(srcId);
+            const newIdx = ids.indexOf(overId);
             col.children = arrayMove(col.children, oldIdx, newIdx);
+            return;
           }
+        }
+      }
+      // cross-column: remove src, insert before target
+      let src: WidgetNode | null = null;
+      for (const s of d.sections) for (const c of s.children) {
+        const cols = c.kind === "column" ? [c] : c.columns;
+        for (const col of cols) {
+          const i = col.children.findIndex((w) => w.id === srcId);
+          if (i >= 0) { src = col.children.splice(i, 1)[0]; break; }
+        }
+        if (src) break;
+      }
+      if (!src) return;
+      for (const s of d.sections) for (const c of s.children) {
+        const cols = c.kind === "column" ? [c] : c.columns;
+        for (const col of cols) {
+          const j = col.children.findIndex((w) => w.id === overId);
+          if (j >= 0) { col.children.splice(j, 0, src!); return; }
         }
       }
     });
   };
+
 
   // ---------- clipboard ----------
   const copySelection = useCallback(() => {
