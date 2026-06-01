@@ -105,6 +105,8 @@ export interface SectionLayout {
   columnsGapCustom?: number;         // px when columnsGap === "custom"
   height?: SectionHeight;
   heightValue?: number;              // vh for fit-screen, px for min-height
+  marginTop?: number;                // px gap to previous element
+  marginBottom?: number;             // px gap to next element
   verticalAlign?: VerticalAlign;
   overflow?: OverflowMode;
   stretch?: boolean;                 // stretch beyond container (100vw)
