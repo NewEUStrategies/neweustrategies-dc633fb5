@@ -407,7 +407,8 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     aside[data-sidebar="sidebar"], [data-sidebar="sidebar"]{background:var(--gc-sidebar-bg, var(--sidebar-background)) !important;color:var(--gc-sidebar-text, var(--sidebar-foreground)) !important;border-color:var(--gc-sidebar-border, var(--sidebar-border)) !important;}
     [data-sidebar="sidebar"] a, [data-sidebar="sidebar"] button, [data-sidebar="menu-button"]{color:var(--gc-sidebar-text, inherit);}
     [data-sidebar="sidebar"] svg{color:var(--gc-sidebar-text, currentColor);}
-    [data-sidebar="menu-button"]:hover, [data-sidebar="sidebar"] a:hover:not([data-active="true"]), [data-sidebar="sidebar"] button:hover{background:var(--gc-sidebar-btn-hover-bg) !important;color:var(--gc-sidebar-btn-hover-text, var(--gc-sidebar-text)) !important;}
+    [data-sidebar="menu-button"]:hover, [data-sidebar="sidebar"] a:hover:not([data-active="true"]):not([data-sidebar-brand]), [data-sidebar="sidebar"] button:hover:not([data-sidebar-brand]){background:var(--gc-sidebar-btn-hover-bg) !important;color:var(--gc-sidebar-btn-hover-text, var(--gc-sidebar-text)) !important;}
+    [data-sidebar="sidebar"] a[data-sidebar-brand], [data-sidebar="sidebar"] a[data-sidebar-brand]:hover{background:transparent !important;}
     [data-sidebar="menu-button"][data-active="true"], [data-sidebar="menu-button"].active, [data-sidebar="sidebar"] .active{background:var(--gc-sidebar-btn-bg) !important;color:var(--gc-sidebar-btn-text, var(--gc-sidebar-text)) !important;}
     [data-sidebar="menu-button"][data-active="true"] svg, [data-sidebar="sidebar"] .active svg{color:var(--gc-sidebar-btn-text, currentColor) !important;}
     [data-sidebar="separator"]{background:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
