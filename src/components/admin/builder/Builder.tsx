@@ -1202,7 +1202,24 @@ function VisualCanvas({
     [data-visual-canvas] [data-sec-id]{outline:1px dashed transparent;outline-offset:-2px;transition:outline-color .15s}
     [data-visual-canvas] [data-sec-id]:hover{outline-color:color-mix(in oklab, var(--brand) 35%, transparent)}
     [data-visual-canvas] [data-sec-id].is-selected{outline:2px solid var(--brand)}
-    [data-visual-canvas] [data-col-id]{position:relative}
+    [data-visual-canvas] [data-col-id]{
+      position:relative;
+      min-height:48px;
+      outline:1px dashed color-mix(in oklab, var(--brand) 30%, transparent);
+      outline-offset:-2px;
+      border-radius:4px;
+      transition:outline-color .15s, background-color .15s;
+    }
+    [data-visual-canvas] [data-col-id]:hover{outline-color:color-mix(in oklab, var(--brand) 55%, transparent)}
+    [data-visual-canvas] [data-col-id]:empty::before{
+      content:"Pusta kolumna";
+      position:absolute;inset:0;
+      display:flex;align-items:center;justify-content:center;
+      font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+      color:color-mix(in oklab, var(--brand) 70%, transparent);
+      background:color-mix(in oklab, var(--brand) 4%, transparent);
+      border-radius:4px;pointer-events:none;
+    }
     /* Drop indicators */
     [data-visual-canvas] .is-drop-before::before,
     [data-visual-canvas] .is-drop-after::after{
