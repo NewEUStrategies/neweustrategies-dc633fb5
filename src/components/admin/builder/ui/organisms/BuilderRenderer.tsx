@@ -1,7 +1,7 @@
 // Read-only renderer for public pages. Applies all Section settings
 // (layout, background layers, overlay, border, shape dividers, typography).
 import type { CSSProperties, ElementType } from "react";
-import type { BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, Device } from "@/lib/builder/types";
+import type { BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, Device, ResponsiveValue } from "@/lib/builder/types";
 import { WidgetView, getWidgetFrameStyle, hiddenOnDevice } from "@/components/admin/builder/WidgetView";
 import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl } from "@/lib/sanitize";
 import {
@@ -10,6 +10,13 @@ import {
   ShapeDivider, typographyCss, typographyAlign,
   INNER_SECTION_SAFE_AREA_PX, COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
+
+function resolveSpan(span: ResponsiveValue<number>, device: Device, deskDefault: number): number {
+  if (device === "mobile") return span.mobile ?? 12;
+  if (device === "tablet") return span.tablet ?? span.desktop ?? deskDefault;
+  return span.desktop ?? deskDefault;
+}
+
 
 interface Props {
   doc: BuilderDocument;
@@ -26,7 +33,7 @@ export function BuilderRenderer({ doc, lang, device = "desktop" }: Props) {
 }
 
 function RenderSection({ section, lang, device }: { section: SectionNode; lang: "pl"|"en"; device: Device }) {
-  const colsSum = section.children.reduce((a, c) => a + (c.kind === "column" ? (c.span.desktop ?? 12) : 12), 0) || 12;
+  const colsSum = section.children.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12), 0) || 12;
   const Tag = (section.layout?.htmlTag ?? "section") as ElementType;
   const bgStyle = backgroundLayerStyle(section.background);
   const wrapStyle: CSSProperties = {
@@ -57,7 +64,7 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
       <div style={sectionContainerStyle(section)}>
         <div className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(section, colsSum), paddingTop: `${INNER_SECTION_SAFE_AREA_PX}px`, paddingBottom: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
           {section.children.map((c) => {
-            const span = c.kind === "column" ? (c.span.desktop ?? 12) : 12;
+            const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
             return (
               <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${span}` }}>
                 {c.kind === "inner-section"
@@ -74,12 +81,13 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
 }
 
 function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "pl"|"en"; device: Device }) {
-  const colsSum = inner.columns.reduce((a, c) => a + (c.span.desktop ?? 6), 0) || 12;
+  const colsSum = inner.columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()} style={{ ...sectionWrapperStyle(inner), ...backgroundLayerStyle(inner.background), ...borderStyle(inner.border), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
       <div className="min-w-0 max-w-full overflow-hidden" style={columnsRowStyle(inner, colsSum)}>
         {inner.columns.map((c) => (
-          <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${c.span.desktop ?? 6}` }}>
+          <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${resolveSpan(c.span, device, 6)}` }}>
+
             <RenderColumn column={c} lang={lang} device={device} />
           </div>
         ))}
