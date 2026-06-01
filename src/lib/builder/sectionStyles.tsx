@@ -23,6 +23,10 @@ export const GAP_PX: Record<ColumnsGap, number> = {
   default: 20, no: 0, narrow: 10, extended: 15, wide: 30, wider: 40, custom: 20,
 };
 
+export const SECTION_SAFE_AREA_PX = 16;
+export const INNER_SECTION_SAFE_AREA_PX = 12;
+export const COLUMN_SAFE_AREA_PX = 12;
+
 export function columnsGapPx(layout?: SectionLayout): number {
   const g = layout?.columnsGap ?? "default";
   if (g === "custom") return layout?.columnsGapCustom ?? 20;
@@ -41,9 +45,15 @@ const VALIGN_FLEX: Partial<Record<VerticalAlign, CSSProperties>> = {
 /** CSS for the wrapper <section>. Stretch, min-height, overflow, vertical align. */
 export function sectionWrapperStyle(node: SectionNode | InnerSectionNode): CSSProperties {
   const L = node.layout;
-  const css: CSSProperties = { position: "relative" };
+  const css: CSSProperties = {
+    position: "relative",
+    width: "100%",
+    maxWidth: "100%",
+    boxSizing: "border-box",
+  };
   if (L?.stretch) {
     css.width = "100vw";
+    css.maxWidth = undefined;
     css.marginLeft = "calc(50% - 50vw)";
     css.marginRight = "calc(50% - 50vw)";
   }
@@ -56,14 +66,21 @@ export function sectionWrapperStyle(node: SectionNode | InnerSectionNode): CSSPr
 /** Style for the inner container (boxed width vs. full). */
 export function sectionContainerStyle(node: SectionNode | InnerSectionNode): CSSProperties {
   const L = node.layout;
-  const css: CSSProperties = { position: "relative", zIndex: 1 };
+  const css: CSSProperties = {
+    position: "relative",
+    zIndex: 1,
+    width: "100%",
+    maxWidth: "100%",
+    boxSizing: "border-box",
+    overflow: "hidden",
+    paddingLeft: `${SECTION_SAFE_AREA_PX}px`,
+    paddingRight: `${SECTION_SAFE_AREA_PX}px`,
+  };
   const contentWidth = L?.contentWidth ?? "boxed";
   if (contentWidth === "boxed") {
     css.maxWidth = `${L?.width ?? 1140}px`;
     css.marginLeft = "auto";
     css.marginRight = "auto";
-    css.paddingLeft = "16px";
-    css.paddingRight = "16px";
   }
   return css;
 }
@@ -74,6 +91,10 @@ export function columnsRowStyle(node: SectionNode | InnerSectionNode, totalSpan:
   const valign = node.layout?.verticalAlign ?? "default";
   const css: CSSProperties = {
     display: "grid",
+    width: "100%",
+    minWidth: 0,
+    maxWidth: "100%",
+    boxSizing: "border-box",
     gridTemplateColumns: `repeat(${totalSpan}, minmax(0, 1fr))`,
     gap: `${gap}px`,
   };

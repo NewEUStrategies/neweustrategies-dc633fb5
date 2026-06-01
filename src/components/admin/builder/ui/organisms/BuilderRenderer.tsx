@@ -8,6 +8,7 @@ import {
   sectionWrapperStyle, sectionContainerStyle, columnsRowStyle,
   backgroundLayerStyle, overlayLayerStyle, borderStyle,
   ShapeDivider, typographyCss, typographyAlign,
+  INNER_SECTION_SAFE_AREA_PX, COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
 
 interface Props {
@@ -41,7 +42,7 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
     <Tag
       id={sanitizeHtmlId(section.advanced?.htmlId)}
       data-sec-id={section.id}
-      className={sanitizeCssClass(section.advanced?.cssClass) ?? ""}
+      className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(section.advanced?.cssClass) ?? ""}`.trim()}
       style={wrapStyle}
     >
       {section.background?.type === "video" && videoUrl && (
@@ -54,11 +55,11 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
       <ShapeDivider s={section.shapeDividerTop} position="top" />
       <ShapeDivider s={section.shapeDividerBottom} position="bottom" />
       <div style={sectionContainerStyle(section)}>
-        <div style={columnsRowStyle(section, colsSum)}>
+        <div className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(section, colsSum), paddingTop: `${INNER_SECTION_SAFE_AREA_PX}px`, paddingBottom: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
           {section.children.map((c) => {
             const span = c.kind === "column" ? (c.span.desktop ?? 12) : 12;
             return (
-              <div key={c.id} style={{ gridColumn: `span ${span}` }}>
+              <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${span}` }}>
                 {c.kind === "inner-section"
                   ? <RenderInner inner={c} lang={lang} device={device} />
                   : <RenderColumn column={c} lang={lang} device={device} />}
@@ -75,10 +76,10 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
 function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "pl"|"en"; device: Device }) {
   const colsSum = inner.columns.reduce((a, c) => a + (c.span.desktop ?? 6), 0) || 12;
   return (
-    <div className={sanitizeCssClass(inner.advanced?.cssClass) ?? ""} style={{ ...sectionWrapperStyle(inner), ...backgroundLayerStyle(inner.background), ...borderStyle(inner.border) }}>
-      <div className="max-w-full overflow-hidden" style={columnsRowStyle(inner, colsSum)}>
+    <div className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()} style={{ ...sectionWrapperStyle(inner), ...backgroundLayerStyle(inner.background), ...borderStyle(inner.border), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
+      <div className="min-w-0 max-w-full overflow-hidden" style={columnsRowStyle(inner, colsSum)}>
         {inner.columns.map((c) => (
-          <div key={c.id} className="min-w-0" style={{ gridColumn: `span ${c.span.desktop ?? 6}` }}>
+          <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${c.span.desktop ?? 6}` }}>
             <RenderColumn column={c} lang={lang} device={device} />
           </div>
         ))}
@@ -89,11 +90,11 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
 
 function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   return (
-    <div data-col-id={column.id} className={`flex flex-wrap items-start content-start gap-2 min-w-0 max-w-full overflow-hidden ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()}>
+    <div data-col-id={column.id} className={`flex flex-wrap items-start content-start gap-2 min-w-0 max-w-full overflow-hidden ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box" }}>
       {column.children.map((w) => {
         if (hiddenOnDevice(w.advanced, device)) return null;
         return (
-          <div key={w.id} data-widget-id={w.id} className="flex flex-col items-stretch justify-start shrink min-w-0 self-start max-w-full overflow-hidden" style={getWidgetFrameStyle(w, device)}>
+          <div key={w.id} data-widget-id={w.id} className="flex flex-col items-stretch justify-start shrink min-w-0 self-start max-w-full overflow-hidden" style={{ ...getWidgetFrameStyle(w, device), boxSizing: "border-box" }}>
             <WidgetView node={w} lang={lang} device={device} />
           </div>
         );

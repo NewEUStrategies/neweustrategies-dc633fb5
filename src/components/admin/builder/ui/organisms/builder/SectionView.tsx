@@ -15,6 +15,7 @@ import {
   sectionWrapperStyle, sectionContainerStyle, columnsRowStyle,
   backgroundLayerStyle, overlayLayerStyle, borderStyle,
   ShapeDivider, typographyCss, typographyAlign,
+  INNER_SECTION_SAFE_AREA_PX, COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
 import { safeImageUrl } from "@/lib/sanitize";
 import { WidgetView, getWidgetFrameStyle } from "../../../WidgetView";
@@ -57,7 +58,7 @@ export function SectionView(p: SectionViewProps) {
   return (
     <div
       data-sec-id={p.section.id}
-      className={`group relative my-3 border-2 rounded-lg transition ${selected ? "border-brand" : "border-transparent hover:border-brand/40"}`}
+      className={`group relative my-3 min-w-0 max-w-full overflow-hidden border-2 rounded-lg transition ${selected ? "border-brand" : "border-transparent hover:border-brand/40"}`}
       style={skin}
       onClick={(e) => { e.stopPropagation(); p.setSelection({ kind: "section", id: p.section.id }); }}
     >
@@ -81,12 +82,12 @@ export function SectionView(p: SectionViewProps) {
       </div>
 
       <div style={sectionContainerStyle(p.section)}>
-        <div className="max-w-full overflow-hidden" style={{ ...columnsRowStyle(p.section, colsSum), padding: "16px" }}>
+        <div className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(p.section, colsSum), paddingTop: `${INNER_SECTION_SAFE_AREA_PX}px`, paddingBottom: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
           {p.section.children.map((child) => {
             const span = child.kind === "column" ? (child.span.desktop ?? 12) : 12;
             if (child.kind === "inner-section") {
               return (
-                <div key={child.id} className="min-w-0" style={{ gridColumn: `span ${span}` }}>
+                <div key={child.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${span}` }}>
                   <InnerSectionView
                     inner={child} device={p.device} lang={p.lang}
                     selection={p.selection} setSelection={p.setSelection}
@@ -99,7 +100,7 @@ export function SectionView(p: SectionViewProps) {
               );
             }
             return (
-              <div key={child.id} className="min-w-0" style={{ gridColumn: `span ${span}` }}>
+              <div key={child.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${span}` }}>
                 <ColumnView column={child} device={p.device} lang={p.lang}
                   selection={p.selection} setSelection={p.setSelection}
                   onRemove={() => p.onRemoveColumn(child.id)}
@@ -137,14 +138,14 @@ function InnerSectionView({
   };
   return (
     <div
-      className={`border rounded p-3 ${selected ? "border-brand" : "border-dashed border-border"}`}
+      className={`min-w-0 max-w-full overflow-hidden border rounded ${selected ? "border-brand" : "border-dashed border-border"}`}
       style={skin}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "inner-section", id: inner.id }); }}
     >
       <div className="text-[10px] text-muted-foreground mb-1 relative z-10">SEKCJA WEWNĘTRZNA</div>
-      <div className="grid gap-2 relative z-10 max-w-full overflow-hidden" style={columnsRowStyle(inner, colsSum)}>
+      <div className="grid gap-2 relative z-10 min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(inner, colsSum), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
         {inner.columns.map((c) => (
-          <div key={c.id} className="min-w-0" style={{ gridColumn: `span ${c.span.desktop ?? 6}` }}>
+          <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${c.span.desktop ?? 6}` }}>
             <ColumnView column={c} device={device} lang={lang} selection={selection}
               setSelection={setSelection}
               onRemove={() => onRemoveColumn(c.id)} onDuplicate={() => onDuplicateColumn(c.id)}
@@ -175,7 +176,8 @@ function ColumnView({
   return (
     <div
       ref={setDropRef}
-      className={`group/col relative min-h-[80px] rounded border-2 ${selected ? "border-brand bg-brand/5" : (dragOver || isOver) ? "border-brand/70 bg-brand/5" : "border-dashed border-border/60"} p-3 transition`}
+      className={`group/col relative min-h-[80px] min-w-0 max-w-full overflow-hidden rounded border-2 ${selected ? "border-brand bg-brand/5" : (dragOver || isOver) ? "border-brand/70 bg-brand/5" : "border-dashed border-border/60"} transition`}
+      style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box" }}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "column", id: column.id }); }}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("application/x-widget-type")) {
@@ -228,7 +230,7 @@ function SortableWidget({
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   const hidden = !!widget.advanced?.hideOn?.[device];
   return (
-    <div ref={setNodeRef} style={{ ...style, ...getWidgetFrameStyle(widget, device) }} {...attributes}
+    <div ref={setNodeRef} style={{ ...style, ...getWidgetFrameStyle(widget, device), boxSizing: "border-box" }} {...attributes}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
       className={`group/w relative flex flex-col items-stretch justify-start shrink min-w-0 self-start max-w-full overflow-hidden rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} p-1 ${hidden ? "opacity-40" : ""}`}
     >
