@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_plans: {
+        Row: {
+          active: boolean
+          created_at: string
+          currency: string
+          description_en: string | null
+          description_pl: string | null
+          id: string
+          interval: Database["public"]["Enums"]["plan_interval"]
+          name_en: string
+          name_pl: string
+          price_cents: number
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          currency?: string
+          description_en?: string | null
+          description_pl?: string | null
+          id?: string
+          interval?: Database["public"]["Enums"]["plan_interval"]
+          name_en?: string
+          name_pl?: string
+          price_cents?: number
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          currency?: string
+          description_en?: string | null
+          description_pl?: string | null
+          id?: string
+          interval?: Database["public"]["Enums"]["plan_interval"]
+          name_en?: string
+          name_pl?: string
+          price_cents?: number
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string
@@ -161,6 +209,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      content_access: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_type: Database["public"]["Enums"]["access_entity_type"]
+          id: string
+          mode: Database["public"]["Enums"]["access_mode"]
+          one_time_currency: string | null
+          one_time_price_cents: number | null
+          plan_ids: string[]
+          teaser_en: string | null
+          teaser_pl: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_type: Database["public"]["Enums"]["access_entity_type"]
+          id?: string
+          mode?: Database["public"]["Enums"]["access_mode"]
+          one_time_currency?: string | null
+          one_time_price_cents?: number | null
+          plan_ids?: string[]
+          teaser_en?: string | null
+          teaser_pl?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_type?: Database["public"]["Enums"]["access_entity_type"]
+          id?: string
+          mode?: Database["public"]["Enums"]["access_mode"]
+          one_time_currency?: string | null
+          one_time_price_cents?: number | null
+          plan_ids?: string[]
+          teaser_en?: string | null
+          teaser_pl?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       content_revisions: {
         Row: {
@@ -646,6 +739,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_purchases: {
+        Row: {
+          amount_cents: number
+          currency: string
+          entity_id: string
+          entity_type: Database["public"]["Enums"]["access_entity_type"]
+          external_ref: string | null
+          id: string
+          purchased_at: string
+          status: Database["public"]["Enums"]["purchase_status"]
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          amount_cents?: number
+          currency?: string
+          entity_id: string
+          entity_type: Database["public"]["Enums"]["access_entity_type"]
+          external_ref?: string | null
+          id?: string
+          purchased_at?: string
+          status?: Database["public"]["Enums"]["purchase_status"]
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          amount_cents?: number
+          currency?: string
+          entity_id?: string
+          entity_type?: Database["public"]["Enums"]["access_entity_type"]
+          external_ref?: string | null
+          id?: string
+          purchased_at?: string
+          status?: Database["public"]["Enums"]["purchase_status"]
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -678,12 +810,66 @@ export type Database = {
           },
         ]
       }
+      user_subscriptions: {
+        Row: {
+          canceled_at: string | null
+          created_at: string
+          current_period_end: string | null
+          external_ref: string | null
+          id: string
+          plan_id: string
+          started_at: string
+          status: Database["public"]["Enums"]["purchase_status"]
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          canceled_at?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          external_ref?: string | null
+          id?: string
+          plan_id: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["purchase_status"]
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          canceled_at?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          external_ref?: string | null
+          id?: string
+          plan_id?: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["purchase_status"]
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "access_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       current_tenant_id: { Args: never; Returns: string }
+      has_content_access: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -713,9 +899,13 @@ export type Database = {
       storage_path_tenant: { Args: { _name: string }; Returns: string }
     }
     Enums: {
+      access_entity_type: "post" | "page" | "media"
+      access_mode: "public" | "members" | "paid"
       app_role: "admin" | "editor" | "author"
       editor_type: "richtext" | "markdown" | "builder"
+      plan_interval: "month" | "year" | "one_time"
       post_status: "draft" | "published" | "archived"
+      purchase_status: "pending" | "active" | "refunded" | "canceled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -843,9 +1033,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      access_entity_type: ["post", "page", "media"],
+      access_mode: ["public", "members", "paid"],
       app_role: ["admin", "editor", "author"],
       editor_type: ["richtext", "markdown", "builder"],
+      plan_interval: ["month", "year", "one_time"],
       post_status: ["draft", "published", "archived"],
+      purchase_status: ["pending", "active", "refunded", "canceled"],
     },
   },
 } as const

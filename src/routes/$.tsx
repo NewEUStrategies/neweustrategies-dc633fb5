@@ -16,6 +16,8 @@ import { sanitizeMarkdownHtml } from "@/lib/sanitize";
 import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { fetchPageBreadcrumbs, buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
+import { useContentAccess } from "@/hooks/useContentAccess";
+import { Paywall } from "@/components/Paywall";
 
 interface PageData {
   id: string; slug: string;
@@ -108,6 +110,8 @@ function PublicPage() {
   const title = lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en;
   const excerpt = data.kind === "post" ? (lang === "en" ? (it as PostData).excerpt_en : (it as PostData).excerpt_pl) : null;
 
+  const access = useContentAccess(data.kind === "post" ? "post" : "page", it.id);
+
   const rawDoc = parseBuilderDoc(it.builder_data);
   const isBuilder = it.editor === "builder" && rawDoc.sections.length > 0;
   const rawHtml = lang === "en" ? it.content_en || it.content_pl : it.content_pl || it.content_en;
@@ -144,12 +148,18 @@ function PublicPage() {
           <img src={it.cover_image_url} alt={title} className="w-full rounded-lg mb-8 max-h-[480px] object-cover" loading="eager" />
         )}
         <div ref={articleRef}>
-          {isBuilder ? (
-            <BuilderRenderer doc={doc} lang={lang} />
+          {access.rule && !access.hasAccess ? (
+            <Paywall rule={access.rule} lang={lang} fallbackText={rawHtml} />
           ) : (
-            <article className="prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(processedHtml) }} />
+            <>
+              {isBuilder ? (
+                <BuilderRenderer doc={doc} lang={lang} />
+              ) : (
+                <article className="prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(processedHtml) }} />
+              )}
+              <FootnotesList notes={notes} />
+            </>
           )}
-          <FootnotesList notes={notes} />
         </div>
         <FootnoteTooltips notes={notes} containerRef={articleRef} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />

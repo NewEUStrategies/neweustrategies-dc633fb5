@@ -20,6 +20,7 @@ import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminTagsRouteImport } from './routes/admin.tags'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
+import { Route as AdminPaywallRouteImport } from './routes/admin.paywall'
 import { Route as AdminPagesRouteImport } from './routes/admin.pages'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
@@ -95,6 +96,11 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
 const AdminPostsRoute = AdminPostsRouteImport.update({
   id: '/posts',
   path: '/posts',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPaywallRoute = AdminPaywallRouteImport.update({
+  id: '/paywall',
+  path: '/paywall',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminPagesRoute = AdminPagesRouteImport.update({
@@ -212,6 +218,7 @@ export interface FileRoutesByFullPath {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
+  '/admin/paywall': typeof AdminPaywallRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
@@ -245,6 +252,7 @@ export interface FileRoutesByTo {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
+  '/admin/paywall': typeof AdminPaywallRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -279,6 +287,7 @@ export interface FileRoutesById {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
+  '/admin/paywall': typeof AdminPaywallRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
@@ -315,6 +324,7 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/media'
     | '/admin/pages'
+    | '/admin/paywall'
     | '/admin/posts'
     | '/admin/settings'
     | '/admin/tags'
@@ -348,6 +358,7 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/media'
     | '/admin/pages'
+    | '/admin/paywall'
     | '/admin/posts'
     | '/admin/tags'
     | '/admin/users'
@@ -381,6 +392,7 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/media'
     | '/admin/pages'
+    | '/admin/paywall'
     | '/admin/posts'
     | '/admin/settings'
     | '/admin/tags'
@@ -495,6 +507,13 @@ declare module '@tanstack/react-router' {
       path: '/posts'
       fullPath: '/admin/posts'
       preLoaderRoute: typeof AdminPostsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/paywall': {
+      id: '/admin/paywall'
+      path: '/paywall'
+      fullPath: '/admin/paywall'
+      preLoaderRoute: typeof AdminPaywallRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/pages': {
@@ -722,6 +741,7 @@ interface AdminRouteChildren {
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminMediaRoute: typeof AdminMediaRoute
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
+  AdminPaywallRoute: typeof AdminPaywallRoute
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
   AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
   AdminTagsRoute: typeof AdminTagsRoute
@@ -734,6 +754,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminMediaRoute: AdminMediaRoute,
   AdminPagesRoute: AdminPagesRouteWithChildren,
+  AdminPaywallRoute: AdminPaywallRoute,
   AdminPostsRoute: AdminPostsRouteWithChildren,
   AdminSettingsRoute: AdminSettingsRouteWithChildren,
   AdminTagsRoute: AdminTagsRoute,
