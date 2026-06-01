@@ -31,68 +31,8 @@ interface Props {
 
 const ensure = <T extends object>(v: T | undefined): T => (v ?? ({} as T));
 
-function Row({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
-  return (
-    <div className="space-y-1">
-      <Label className="text-xs">{label}</Label>
-      {children}
-      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}
-
-function ColorInput({ value, onChange, placeholder }: { value?: string; onChange: (v: string | undefined) => void; placeholder?: string }) {
-  return (
-    <div className="flex gap-2">
-      <input
-        type="color"
-        value={value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#000000"}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-8 w-10 rounded border border-border bg-background cursor-pointer"
-      />
-      <Input
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value || undefined)}
-        placeholder={placeholder ?? "#000 / rgba(...) / var(--brand)"}
-        className="h-8 text-xs flex-1"
-      />
-    </div>
-  );
-}
-
-function NumberInput({ value, onChange, min, max, step = 1, suffix }: { value?: number; onChange: (v: number | undefined) => void; min?: number; max?: number; step?: number; suffix?: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <Input
-        type="number"
-        value={value ?? ""}
-        min={min} max={max} step={step}
-        onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))}
-        className="h-8 text-xs"
-      />
-      {suffix && <span className="text-[10px] text-muted-foreground">{suffix}</span>}
-    </div>
-  );
-}
-
-function SidesInput({ value, onChange, suffix = "px" }: { value?: BoxSides; onChange: (v: BoxSides) => void; suffix?: string }) {
-  const v = value ?? {};
-  const upd = (k: keyof BoxSides, n: number | undefined) => onChange({ ...v, [k]: n });
-  return (
-    <div className="grid grid-cols-4 gap-1.5">
-      {(["top","right","bottom","left"] as const).map((k) => (
-        <div key={k}>
-          <Input type="number" value={v[k] ?? ""} placeholder={k[0].toUpperCase()}
-            onChange={(e) => upd(k, e.target.value === "" ? undefined : Number(e.target.value))}
-            className="h-8 text-xs" />
-          <div className="text-[9px] text-muted-foreground text-center mt-0.5">{k} ({suffix})</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // -------- main component --------
+
 
 export function SectionProperties({ section, device, onChange }: Props) {
   return (
