@@ -20,6 +20,9 @@ type AlertStyle = "info" | "warning" | "success" | "brand";
 type HeaderLayout = "layout-1" | "layout-2" | "layout-3" | "layout-4" | "layout-5";
 type SocialPlacement = "topbar" | "navbar" | "both" | "hidden";
 type ButtonVariant = "solid" | "outline" | "ghost" | "pill";
+type ButtonSize = "sm" | "md" | "lg";
+type InputStyle = "filled" | "outline" | "underline";
+type FocusRing = "none" | "brand" | "border";
 
 interface ThemeOptions extends Record<string, unknown> {
   logo: {
