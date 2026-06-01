@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import type { AccessPlan } from "@/hooks/useContentAccess";
 import { formatMoney } from "@/hooks/useContentAccess";
-import { Plus, Trash } from "@/lib/lucide-shim";
+import { Plus, Trash2 as Trash } from "@/lib/lucide-shim";
 
 export const Route = createFileRoute("/admin/paywall")({ component: PaywallAdmin });
 
