@@ -615,14 +615,14 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                         selection={selection} setSelection={setSelection}
                         isFirst={idx === 0} isLast={idx === doc.sections.length - 1}
                         onMove={(dir) => moveSection(s.id, dir)}
-                        onRemove={() => removeSection(s.id)}
+                        onRemove={() => askRemoveSection(s.id)}
                         onDuplicate={() => duplicateSection(s.id)}
                         onSaveTemplate={() => saveSectionAsTemplate(s.id)}
                         onAddInnerSection={() => addInnerSection(s.id)}
                         onAddColumn={() => addColumn(s.id)}
-                        onRemoveColumn={removeColumn}
+                        onRemoveColumn={askRemoveColumn}
                         onDuplicateColumn={duplicateColumn}
-                        onRemoveWidget={removeWidget}
+                        onRemoveWidget={askRemoveWidget}
                         onDuplicateWidget={duplicateWidget}
                         onDropWidget={addWidgetToColumn}
                         onUpdateWidgetContent={(id, k, v) =>
@@ -634,7 +634,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                         index={idx + 1}
                         prominent={idx === doc.sections.length - 1}
                         label={idx === doc.sections.length - 1 ? copy.last : undefined}
-                        onRemoveAdjacent={() => removeSection(s.id)}
+                        onRemoveAdjacent={() => askRemoveSection(s.id)}
                         removeLabel="Usuń sekcję powyżej"
                       />
                     </div>
