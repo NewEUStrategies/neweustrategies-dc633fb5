@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { PropField, ColorField } from "./ui/atoms";
 import { SpacingControl } from "./ui/molecules/SpacingControl";
 import { TypographyControl } from "./ui/molecules/TypographyControl";
 import { MotionControl } from "./ui/molecules/MotionControl";
