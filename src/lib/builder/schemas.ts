@@ -53,7 +53,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
-      key: "sizePreset", type: "select", label: "Rozmiar",
+      key: "sizePreset", type: "select", label: "Rozmiar (preset)",
       options: [
         { value: "sm", label: "S" },
         { value: "md", label: "M (domyślny)" },
@@ -61,6 +61,16 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "xl", label: "XL" },
         { value: "display", label: "Display" },
       ],
+    },
+    {
+      key: "sizePx", type: "number", label: "Rozmiar (px)",
+      min: 8, max: 200,
+      hint: "Wpisz dokładny rozmiar w pikselach (np. 28, 32). Nadpisuje preset.",
+    },
+    {
+      key: "sizePxMobile", type: "number", label: "Rozmiar mobile (px)",
+      min: 8, max: 200,
+      hint: "Opcjonalny rozmiar na małych ekranach (<768px).",
     },
     { key: "href", type: "url", label: "Link (opcjonalny)", placeholder: "/o-nas lub https://…" },
     {
