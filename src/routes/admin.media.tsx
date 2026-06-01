@@ -110,13 +110,21 @@ function Media() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {data.map((m) => (
             <div key={m.id} className="bg-card border border-border rounded-lg overflow-hidden group">
-              <div className="aspect-square bg-muted/30">
+              <button
+                type="button"
+                onClick={() => setPreview(m)}
+                className="block w-full aspect-square bg-muted/30 hover:bg-muted/50 transition-colors"
+                aria-label={`Podgląd ${m.filename}`}
+              >
                 {m.mime_type?.startsWith("image/") ? (
                   <img src={m.public_url} alt={m.filename} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="flex items-center justify-center h-full text-xs text-muted-foreground">{m.mime_type}</div>
+                  <div className="flex flex-col items-center justify-center h-full text-xs text-muted-foreground gap-1 p-2 text-center">
+                    <span className="text-2xl">📄</span>
+                    <span className="truncate w-full">{m.mime_type || m.filename.split('.').pop()?.toUpperCase()}</span>
+                  </div>
                 )}
-              </div>
+              </button>
               <div className="p-2 text-xs">
                 <div className="truncate font-medium" title={m.filename}>{m.filename}</div>
                 <div className="text-muted-foreground">{((m.size_bytes ?? 0) / 1024).toFixed(0)} KB</div>
