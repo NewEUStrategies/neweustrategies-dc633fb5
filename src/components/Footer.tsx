@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { defaultDocFor } from "@/lib/builder/chromeDefaults";
 import type { BuilderDocument } from "@/lib/builder/types";
 
 type FooterSettings = {
@@ -13,11 +14,18 @@ export function Footer() {
 
   const cfg = useSiteSetting<FooterSettings>("footer", {});
 
-  if (!cfg.builder_data || !cfg.builder_data.sections?.length) return null;
+  // Fall back to default chrome when no footer has been saved yet, so the
+  // site always renders a usable footer instead of disappearing silently.
+  const doc =
+    cfg.builder_data && cfg.builder_data.sections?.length
+      ? cfg.builder_data
+      : defaultDocFor("footer");
+
+  if (!doc.sections?.length) return null;
 
   return (
     <footer>
-      <BuilderRenderer doc={cfg.builder_data} lang={isPl ? "pl" : "en"} />
+      <BuilderRenderer doc={doc} lang={isPl ? "pl" : "en"} />
     </footer>
   );
 }
