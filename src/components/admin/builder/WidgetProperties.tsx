@@ -12,6 +12,7 @@ import { WIDGETS } from "@/lib/builder/registry";
 
 import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useRequiredTenant } from "@/hooks/useAuth";
 import { Upload, Image as ImageIcon, Sun, Moon, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
