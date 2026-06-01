@@ -89,11 +89,11 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
 
 function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   return (
-    <div data-col-id={column.id} className={sanitizeCssClass(column.advanced?.cssClass) ?? ""}>
+    <div data-col-id={column.id} className={`flex flex-wrap items-start content-start gap-2 ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()}>
       {column.children.map((w) => {
         if (hiddenOnDevice(w.advanced, device)) return null;
         return (
-          <div key={w.id} data-widget-id={w.id}>
+          <div key={w.id} data-widget-id={w.id} className="inline-flex w-fit max-w-full shrink-0 self-start">
             <WidgetView node={w} lang={lang} device={device} />
           </div>
         );
