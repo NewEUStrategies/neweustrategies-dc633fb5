@@ -49,7 +49,7 @@ import { RatedListView } from "./ui/organisms/widget-view/RatedListView";
 import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
 import { TagsView } from "./ui/organisms/widget-view/TagsView";
 import { TabsBlock } from "./ui/organisms/widget-view/TabsBlock";
-import { renderSimpleWidget } from "./ui/organisms/widget-view/SimpleWidgets";
+import { renderSimpleWidget, ResizableBox } from "./ui/organisms/widget-view/SimpleWidgets";
 export {
   styleToCSS, getWidgetFrameStyle, hiddenOnDevice,
   DEFAULT_WIDGET_WIDTH_BY_DEVICE, DEFAULT_WIDGET_MIN_HEIGHT, AUTO_SIZE_WIDGETS,
@@ -216,6 +216,8 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const iconName = getStr(c, "iconName");
       const iconPos = getStr(c, "iconPosition") || "left";
       const fullWidth = getStr(c, "fullWidth") === "full";
+      const widthPx = getNum(c, "widthPx", 0);
+      const heightPx = getNum(c, "heightPx", 0);
       const variantCls =
         variant === "outline" ? "border border-border hover:bg-muted"
         : variant === "ghost" ? "hover:bg-muted"
@@ -223,15 +225,25 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         : variant === "soft" ? "bg-brand/10 text-brand hover:bg-brand/20"
         : variant === "link" ? "underline-offset-4 hover:underline text-brand px-0"
         : "bg-brand text-brand-foreground hover:opacity-90";
-      const sizeCls = size === "sm" ? "px-3 py-1.5 text-xs" : size === "lg" ? "px-7 py-3 text-base" : "px-5 py-2.5 text-sm";
-      const cls = `inline-flex items-center gap-2 rounded-md font-medium transition ${sizeCls} ${variantCls} ${fullWidth ? "w-full justify-center" : ""} ${iconPos === "right" ? "flex-row-reverse" : ""}`;
+      // Default ("md") matches the search-widget closed pill height.
+      const sizeCls = size === "sm" ? "px-3 py-1.5 text-xs" : size === "lg" ? "px-7 py-3 text-base" : "px-3.5 py-2 text-xs";
+      const cls = `inline-flex items-center justify-center gap-2 rounded-md font-medium leading-none transition w-full h-full ${sizeCls} ${variantCls} ${fullWidth ? "justify-center" : ""} ${iconPos === "right" ? "flex-row-reverse" : ""}`;
       const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
       const Icon = iconName ? (reg[iconName] ?? null) : null;
-      if (canEdit) {
-        return wrap(<span className={cls}>{Icon && <Icon size={16} />}<Editable as="span" value={label} onCommit={(v) => commit(key, v)} placeholder="Etykieta…" /></span>);
-      }
-      return wrap(<a href={href} target={target} rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{Icon && <Icon size={16} />}{label}</a>);
+      const inner = canEdit
+        ? <span className={cls}>{Icon && <Icon size={14} />}<Editable as="span" value={label} onCommit={(v) => commit(key, v)} placeholder="Etykieta…" /></span>
+        : <a href={href} target={target} rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{Icon && <Icon size={14} />}{label}</a>;
+      return wrap(
+        <ResizableBox
+          enabled={canEdit}
+          widthPx={widthPx > 0 ? widthPx : undefined}
+          heightPx={heightPx > 0 ? heightPx : undefined}
+          onCommit={(w, h) => { onContentChange?.("widthPx", w); onContentChange?.("heightPx", h); }}
+        >
+          {inner}
+        </ResizableBox>,
+      );
     }
     case "nav-link": {
       const key = `label_${lang}`;
@@ -390,9 +402,22 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const layoutCls = variant === "split"
         ? "flex flex-col items-start gap-4"
         : `flex flex-col sm:flex-row gap-4 ${align === "left" ? "items-start sm:items-center" : align === "center" ? "items-center justify-center text-center" : "items-center justify-between"}`;
-      const ctaBtn = canEdit
-        ? <Editable as="span" value={cta} onCommit={(v) => commit(cKey, v)} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium" placeholder="Etykieta…" />
-        : <a href={href} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium hover:opacity-90 transition">{cta}</a>;
+      const ctaWidthPx = getNum(c, "ctaWidthPx", 0);
+      const ctaHeightPx = getNum(c, "ctaHeightPx", 0);
+      const ctaBtnCls = "inline-flex items-center justify-center w-full h-full bg-brand-foreground text-brand px-3.5 py-2 rounded font-medium text-xs leading-none";
+      const ctaInner = canEdit
+        ? <Editable as="span" value={cta} onCommit={(v) => commit(cKey, v)} className={ctaBtnCls} placeholder="Etykieta…" />
+        : <a href={href} className={`${ctaBtnCls} hover:opacity-90 transition`}>{cta}</a>;
+      const ctaBtn = (
+        <ResizableBox
+          enabled={canEdit}
+          widthPx={ctaWidthPx > 0 ? ctaWidthPx : undefined}
+          heightPx={ctaHeightPx > 0 ? ctaHeightPx : undefined}
+          onCommit={(w, h) => { onContentChange?.("ctaWidthPx", w); onContentChange?.("ctaHeightPx", h); }}
+        >
+          {ctaInner}
+        </ResizableBox>
+      );
       return wrap(
         <div className={containerCls}>
           <div className={layoutCls}>
