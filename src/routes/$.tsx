@@ -16,6 +16,8 @@ import { sanitizeMarkdownHtml } from "@/lib/sanitize";
 import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { fetchPageBreadcrumbs, buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
+import { useContentAccess } from "@/hooks/useContentAccess";
+import { Paywall } from "@/components/Paywall";
 
 interface PageData {
   id: string; slug: string;
