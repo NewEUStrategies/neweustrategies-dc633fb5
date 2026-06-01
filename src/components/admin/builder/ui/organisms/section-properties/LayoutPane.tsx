@@ -66,7 +66,7 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
         <Row label="Wysokość (vh)"><NumberInput value={L.heightValue} onChange={(n) => setL((l) => { l.heightValue = n; })} min={10} max={100} suffix="vh" /></Row>
       )}
       {L.height === "min-height" && (
-        <Row label="Wysokość (px)"><NumberInput value={L.heightValue} onChange={(n) => setL((l) => { l.heightValue = n; })} min={50} max={2000} suffix="px" /></Row>
+        <Row label="Wysokość (px)"><NumberInput value={L.heightValue} onChange={(n) => setL((l) => { l.heightValue = n; })} min={40} max={2000} suffix="px" /></Row>
       )}
 
       <Row label="Wyrównanie pionowe">
