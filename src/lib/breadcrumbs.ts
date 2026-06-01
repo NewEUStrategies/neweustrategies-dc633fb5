@@ -8,7 +8,7 @@ export interface BreadcrumbItem {
   href?: string;
 }
 
-interface PageRow {
+export interface BreadcrumbRow {
   id: string;
   slug: string;
   title_pl: string;
@@ -16,6 +16,8 @@ interface PageRow {
   depth: number;
   full_path: string;
 }
+type PageRow = BreadcrumbRow;
+
 
 export async function fetchPageBreadcrumbs(pageId: string): Promise<PageRow[]> {
   const { data, error } = await supabase.rpc("page_breadcrumbs", { _page_id: pageId });
