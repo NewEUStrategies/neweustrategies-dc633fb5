@@ -33,7 +33,7 @@ export function BuilderRenderer({ doc, lang, device = "desktop" }: Props) {
 }
 
 function RenderSection({ section, lang, device }: { section: SectionNode; lang: "pl"|"en"; device: Device }) {
-  const colsSum = section.children.reduce((a, c) => a + (c.kind === "column" ? (c.span.desktop ?? 12) : 12), 0) || 12;
+  const colsSum = section.children.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12), 0) || 12;
   const Tag = (section.layout?.htmlTag ?? "section") as ElementType;
   const bgStyle = backgroundLayerStyle(section.background);
   const wrapStyle: CSSProperties = {
