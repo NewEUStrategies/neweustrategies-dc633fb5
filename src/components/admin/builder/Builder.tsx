@@ -573,10 +573,9 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                 selection={selection}
                 onDelete={() => {
                   if (!selection.id) return;
-                  if (selection.kind === "section") removeSection(selection.id);
-                  else if (selection.kind === "column") removeColumn(selection.id);
-                  else if (selection.kind === "widget") removeWidget(selection.id);
-                  setSelection({ kind: null, id: null });
+                  if (selection.kind === "section") askRemoveSection(selection.id);
+                  else if (selection.kind === "column") askRemoveColumn(selection.id);
+                  else if (selection.kind === "widget") askRemoveWidget(selection.id);
                 }}
               />
 
