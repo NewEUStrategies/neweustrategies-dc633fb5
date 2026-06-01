@@ -202,7 +202,7 @@ function ColumnView({
         </div>
       )}
       <SortableContext items={column.children.map((w) => w.id)} strategy={verticalListSortingStrategy}>
-        <div className={`flex flex-wrap items-start content-start gap-2 min-w-0 max-w-full overflow-hidden ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"}`}>
+        <div className={`flex flex-col h-full gap-2 min-w-0 max-w-full overflow-hidden ${column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : "items-start"}`}>
           {column.children.map((w) => (
             <SortableWidget key={w.id} widget={w} lang={lang} device={device}
               selected={selection.kind === "widget" && selection.id === w.id}
