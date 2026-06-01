@@ -156,8 +156,8 @@ export function renderSimpleWidget(
 
       return (
         <div className={`flex items-center gap-1 text-muted-foreground ${themeCls}`} style={compactRowStyle}>
-          {items.map(({ k, Cmp, label }) => {
-            const href = getStr(c, k);
+          {items.map(({ k, altKeys, Cmp, label }) => {
+            const href = getStr(c, k) || (altKeys?.map((ak) => getStr(c, ak)).find(Boolean) ?? "");
             const active = !!href;
             if (!active && !showEmpty) return null;
             const color = active ? resolveColor(k) : undefined;
