@@ -26,7 +26,7 @@ interface Props {
 
 export function BuilderRenderer({ doc, lang, device = "desktop" }: Props) {
   return (
-    <div className="space-y-6">
+    <div>
       {doc.sections.map((s) => <RenderSection key={s.id} section={s} lang={lang} device={device} />)}
     </div>
   );
