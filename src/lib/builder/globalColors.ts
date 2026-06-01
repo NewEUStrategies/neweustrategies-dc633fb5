@@ -190,14 +190,16 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
   for (const group of GLOBAL_COLOR_GROUPS) {
     for (const slot of group.slots) {
       const v = value[slot.key];
-      if (!v) continue;
-      if (v.light) {
-        rootLines.push(`--gc-${slot.key}: ${v.light};`);
-        for (const o of slot.overrides ?? []) rootLines.push(`${o}: ${v.light};`);
+      // Always emit defaults if defined (so :where() fallbacks have a value).
+      const light = v?.light || slot.defaultLight;
+      const dark = (slot.hasDark ? v?.dark : undefined) || slot.defaultDark;
+      if (light) {
+        rootLines.push(`--gc-${slot.key}: ${light};`);
+        for (const o of slot.overrides ?? []) rootLines.push(`${o}: ${light};`);
       }
-      if (slot.hasDark && v.dark) {
-        darkLines.push(`--gc-${slot.key}: ${v.dark};`);
-        for (const o of slot.overrides ?? []) darkLines.push(`${o}: ${v.dark};`);
+      if (dark) {
+        darkLines.push(`--gc-${slot.key}: ${dark};`);
+        for (const o of slot.overrides ?? []) darkLines.push(`${o}: ${dark};`);
       }
     }
   }
@@ -205,5 +207,29 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
   const parts: string[] = [];
   if (rootLines.length) parts.push(`:root{${rootLines.join("")}}`);
   if (darkLines.length) parts.push(`.dark{${darkLines.join("")}}`);
+
+  // Widget bridge: map global colors to widget elements with specificity 0
+  // (via :where()), so any explicit per-widget color always wins.
+  parts.push(`
+    :where(.rl-wrap .rl-num){color:var(--gc-highlight, currentColor);}
+    :where(.rl-wrap .rl-cat){color:var(--gc-highlight, currentColor);}
+    :where(.rl-wrap .rl-title:hover){color:var(--gc-highlight, currentColor);}
+    :where(.rl-wrap .rl-format){color:var(--gc-highlight, currentColor);}
+    :where(.rl-wrap .rl-bookmark){color:var(--gc-bookmark-hover, currentColor);}
+    :where(.rl-wrap .rl-read-more){color:var(--gc-highlight, currentColor);}
+    :where(a, .link){color:var(--gc-highlight, inherit);}
+    :where(.review-star-bg){background:var(--gc-review-bg, transparent);}
+    :where(.review-star-icon){color:var(--gc-review-icon, currentColor);}
+    :where(.sponsor-label){color:var(--gc-sponsor-label, currentColor);}
+    :where(.popular-counter){color:var(--gc-popular-counter, currentColor);}
+    :where(.live-blog-dot){color:var(--gc-live-blog, currentColor);background:var(--gc-live-blog, transparent);}
+    :where(.toc-wrap, .share-bar){background:var(--gc-toc-bg, transparent);}
+    :where(.verified-tick){color:var(--gc-verified-tick, currentColor);}
+    :where(.mode-switcher-light){color:var(--gc-switcher-light-icon, currentColor);background:var(--gc-switcher-light-bg, transparent);}
+    :where(.mode-switcher-dark){color:var(--gc-switcher-dark-icon, currentColor);background:var(--gc-switcher-dark-bg, transparent);}
+    :where(button.btn-primary, .btn-primary){background:var(--gc-btn-bg, var(--primary));color:var(--gc-btn-text, var(--primary-foreground));}
+    :where(button.btn-primary:hover, .btn-primary:hover){background:var(--gc-btn-hover-bg, var(--gc-btn-bg, var(--primary)));color:var(--gc-btn-hover-text, var(--gc-btn-text, var(--primary-foreground)));}
+  `.replace(/\s+/g, " ").trim());
+
   return parts.join("");
 }
