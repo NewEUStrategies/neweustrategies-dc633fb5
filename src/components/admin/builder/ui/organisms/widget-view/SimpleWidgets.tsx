@@ -85,13 +85,13 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
   const showEmpty = hasQuery && !loading && searched && results.length === 0;
 
   return (
-    <span ref={wrapRef} className="relative inline-flex">
+    <span ref={wrapRef} className="relative flex w-full min-w-0">
       {/* Trigger: closed = pill with icon + label; open = inline input with icon */}
       <div
         style={{ borderRadius: 4, textAlign: open ? "left" : undefined, direction: "ltr", justifyContent: open ? "flex-start" : undefined }}
-        className={`inline-flex items-center gap-2 border bg-background transition-all duration-150 ${
+        className={`flex w-full min-w-0 items-center gap-2 border bg-background transition-all duration-150 ${
           open
-            ? "border-ring ring-2 ring-ring/30 pl-3 pr-1 py-1 w-[min(88vw,420px)]"
+            ? "border-ring ring-2 ring-ring/30 pl-3 pr-1 py-1"
             : "border-border hover:bg-accent hover:text-accent-foreground px-3.5 py-2 cursor-pointer"
         }`}
         onClick={() => { if (!open) setOpen(true); }}
@@ -111,7 +111,7 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
               aria-label={label}
               dir="ltr"
               style={{ textAlign: "left", direction: "ltr", unicodeBidi: "plaintext" }}
-              className="block flex-1 min-w-[12rem] bg-transparent border-none outline-none text-xs text-left text-foreground placeholder:text-muted-foreground py-1"
+              className="block w-full flex-1 min-w-0 bg-transparent border-none outline-none text-xs text-left text-foreground placeholder:text-muted-foreground py-1"
             />
             {loading && <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />}
             <button
