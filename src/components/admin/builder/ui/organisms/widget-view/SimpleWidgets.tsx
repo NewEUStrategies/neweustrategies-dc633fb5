@@ -364,9 +364,16 @@ export function renderSimpleWidget(
       if (!src && !srcDark) return <div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>;
       const activeSrc = theme === "dark" ? (srcDark || src) : (src || srcDark);
       const figureAlign = align === "left" ? "items-start" : align === "right" ? "items-end" : "items-center";
+      const showResize = editable && !!onContentChange;
       return (
         <figure className={`space-y-2 flex flex-col ${figureAlign}`}>
-          <img src={activeSrc} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
+          <ResizableImageWrap
+            enabled={showResize}
+            currentPx={widthPx > 0 ? widthPx : undefined}
+            onCommit={(px) => onContentChange?.("widthPx", Math.round(px))}
+          >
+            <img src={activeSrc} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
+          </ResizableImageWrap>
           {caption && <figcaption className="text-xs text-muted-foreground text-center">{caption}</figcaption>}
         </figure>
       );
