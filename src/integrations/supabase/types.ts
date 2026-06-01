@@ -338,6 +338,105 @@ export type Database = {
           },
         ]
       }
+      newsletter_settings: {
+        Row: {
+          description_en: string
+          description_pl: string
+          double_opt_in: boolean
+          enabled: boolean
+          heading_en: string
+          heading_pl: string
+          policy_html_en: string | null
+          policy_html_pl: string | null
+          success_message_en: string
+          success_message_pl: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          description_en?: string
+          description_pl?: string
+          double_opt_in?: boolean
+          enabled?: boolean
+          heading_en?: string
+          heading_pl?: string
+          policy_html_en?: string | null
+          policy_html_pl?: string | null
+          success_message_en?: string
+          success_message_pl?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          description_en?: string
+          description_pl?: string
+          double_opt_in?: boolean
+          enabled?: boolean
+          heading_en?: string
+          heading_pl?: string
+          policy_html_en?: string | null
+          policy_html_pl?: string | null
+          success_message_en?: string
+          success_message_pl?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      newsletter_subscribers: {
+        Row: {
+          confirmed_at: string | null
+          created_at: string
+          display_name: string | null
+          email: string
+          id: string
+          ip: unknown
+          language: string
+          meta: Json | null
+          source: string | null
+          status: string
+          tenant_id: string
+          unsubscribed_at: string | null
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          confirmed_at?: string | null
+          created_at?: string
+          display_name?: string | null
+          email: string
+          id?: string
+          ip?: unknown
+          language?: string
+          meta?: Json | null
+          source?: string | null
+          status?: string
+          tenant_id?: string
+          unsubscribed_at?: string | null
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          confirmed_at?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string
+          id?: string
+          ip?: unknown
+          language?: string
+          meta?: Json | null
+          source?: string | null
+          status?: string
+          tenant_id?: string
+          unsubscribed_at?: string | null
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       pages: {
         Row: {
           author_id: string | null
@@ -349,6 +448,7 @@ export type Database = {
           deleted_at: string | null
           editor: Database["public"]["Enums"]["editor_type"]
           id: string
+          layout_overrides: Json | null
           menu_order: number
           parent_id: string | null
           published_at: string | null
@@ -370,6 +470,7 @@ export type Database = {
           deleted_at?: string | null
           editor?: Database["public"]["Enums"]["editor_type"]
           id?: string
+          layout_overrides?: Json | null
           menu_order?: number
           parent_id?: string | null
           published_at?: string | null
@@ -391,6 +492,7 @@ export type Database = {
           deleted_at?: string | null
           editor?: Database["public"]["Enums"]["editor_type"]
           id?: string
+          layout_overrides?: Json | null
           menu_order?: number
           parent_id?: string | null
           published_at?: string | null
@@ -449,6 +551,111 @@ export type Database = {
           },
         ]
       }
+      post_layout_settings: {
+        Row: {
+          audio_layout: string
+          center_entry_meta: boolean
+          center_header: boolean
+          featured_ratio_l10: number
+          featured_ratio_l11: number
+          featured_ratio_l6: number
+          gallery_layout: string
+          has_sidebar_max_width: number
+          hyperlink_color: string | null
+          hyperlink_color_dark: string | null
+          hyperlink_style: string
+          hyperlink_underline: boolean
+          image_caption_left_border: boolean
+          list_style: string
+          no_sidebar_max_width: number
+          paragraph_spacing_rem: number
+          prev_next_mobile_hide: boolean
+          quick_view_info: boolean
+          show_author_card: boolean
+          show_bottom_newsletter: boolean
+          show_post_tags_bar: boolean
+          show_prev_next: boolean
+          show_sources_bar: boolean
+          show_via_bar: boolean
+          standard_layout: string
+          tenant_id: string
+          underline_color: string | null
+          underline_color_dark: string | null
+          updated_at: string
+          updated_by: string | null
+          video_layout: string
+          wide_align_max_width: number
+        }
+        Insert: {
+          audio_layout?: string
+          center_entry_meta?: boolean
+          center_header?: boolean
+          featured_ratio_l10?: number
+          featured_ratio_l11?: number
+          featured_ratio_l6?: number
+          gallery_layout?: string
+          has_sidebar_max_width?: number
+          hyperlink_color?: string | null
+          hyperlink_color_dark?: string | null
+          hyperlink_style?: string
+          hyperlink_underline?: boolean
+          image_caption_left_border?: boolean
+          list_style?: string
+          no_sidebar_max_width?: number
+          paragraph_spacing_rem?: number
+          prev_next_mobile_hide?: boolean
+          quick_view_info?: boolean
+          show_author_card?: boolean
+          show_bottom_newsletter?: boolean
+          show_post_tags_bar?: boolean
+          show_prev_next?: boolean
+          show_sources_bar?: boolean
+          show_via_bar?: boolean
+          standard_layout?: string
+          tenant_id?: string
+          underline_color?: string | null
+          underline_color_dark?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          video_layout?: string
+          wide_align_max_width?: number
+        }
+        Update: {
+          audio_layout?: string
+          center_entry_meta?: boolean
+          center_header?: boolean
+          featured_ratio_l10?: number
+          featured_ratio_l11?: number
+          featured_ratio_l6?: number
+          gallery_layout?: string
+          has_sidebar_max_width?: number
+          hyperlink_color?: string | null
+          hyperlink_color_dark?: string | null
+          hyperlink_style?: string
+          hyperlink_underline?: boolean
+          image_caption_left_border?: boolean
+          list_style?: string
+          no_sidebar_max_width?: number
+          paragraph_spacing_rem?: number
+          prev_next_mobile_hide?: boolean
+          quick_view_info?: boolean
+          show_author_card?: boolean
+          show_bottom_newsletter?: boolean
+          show_post_tags_bar?: boolean
+          show_prev_next?: boolean
+          show_sources_bar?: boolean
+          show_via_bar?: boolean
+          standard_layout?: string
+          tenant_id?: string
+          underline_color?: string | null
+          underline_color_dark?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          video_layout?: string
+          wide_align_max_width?: number
+        }
+        Relationships: []
+      }
       post_tags: {
         Row: {
           post_id: string
@@ -492,7 +699,9 @@ export type Database = {
           excerpt_en: string | null
           excerpt_pl: string | null
           id: string
+          layout_overrides: Json | null
           parent_page_id: string
+          post_format: string
           published_at: string | null
           read_minutes: number | null
           slug: string
@@ -515,7 +724,9 @@ export type Database = {
           excerpt_en?: string | null
           excerpt_pl?: string | null
           id?: string
+          layout_overrides?: Json | null
           parent_page_id: string
+          post_format?: string
           published_at?: string | null
           read_minutes?: number | null
           slug: string
@@ -538,7 +749,9 @@ export type Database = {
           excerpt_en?: string | null
           excerpt_pl?: string | null
           id?: string
+          layout_overrides?: Json | null
           parent_page_id?: string
+          post_format?: string
           published_at?: string | null
           read_minutes?: number | null
           slug?: string

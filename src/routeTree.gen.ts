@@ -21,9 +21,11 @@ import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminTagsRouteImport } from './routes/admin.tags'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
+import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layouts'
 import { Route as AdminPaywallRouteImport } from './routes/admin.paywall'
 import { Route as AdminPagesRouteImport } from './routes/admin.pages'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
+import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
@@ -105,6 +107,11 @@ const AdminPostsRoute = AdminPostsRouteImport.update({
   path: '/posts',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminPostLayoutsRoute = AdminPostLayoutsRouteImport.update({
+  id: '/post-layouts',
+  path: '/post-layouts',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPaywallRoute = AdminPaywallRouteImport.update({
   id: '/paywall',
   path: '/paywall',
@@ -118,6 +125,11 @@ const AdminPagesRoute = AdminPagesRouteImport.update({
 const AdminMediaRoute = AdminMediaRouteImport.update({
   id: '/media',
   path: '/media',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminContentAreaRoute = AdminContentAreaRouteImport.update({
+  id: '/content-area',
+  path: '/content-area',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
@@ -229,9 +241,11 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
+  '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
@@ -265,9 +279,11 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
+  '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -302,9 +318,11 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
+  '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
@@ -341,9 +359,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/admin/appearance'
     | '/admin/categories'
+    | '/admin/content-area'
     | '/admin/media'
     | '/admin/pages'
     | '/admin/paywall'
+    | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/settings'
     | '/admin/tags'
@@ -377,9 +397,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/admin/appearance'
     | '/admin/categories'
+    | '/admin/content-area'
     | '/admin/media'
     | '/admin/pages'
     | '/admin/paywall'
+    | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/tags'
     | '/admin/users'
@@ -413,9 +435,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/admin/appearance'
     | '/admin/categories'
+    | '/admin/content-area'
     | '/admin/media'
     | '/admin/pages'
     | '/admin/paywall'
+    | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/settings'
     | '/admin/tags'
@@ -542,6 +566,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPostsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/post-layouts': {
+      id: '/admin/post-layouts'
+      path: '/post-layouts'
+      fullPath: '/admin/post-layouts'
+      preLoaderRoute: typeof AdminPostLayoutsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/paywall': {
       id: '/admin/paywall'
       path: '/paywall'
@@ -561,6 +592,13 @@ declare module '@tanstack/react-router' {
       path: '/media'
       fullPath: '/admin/media'
       preLoaderRoute: typeof AdminMediaRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/content-area': {
+      id: '/admin/content-area'
+      path: '/content-area'
+      fullPath: '/admin/content-area'
+      preLoaderRoute: typeof AdminContentAreaRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/categories': {
@@ -781,9 +819,11 @@ const AdminSettingsRouteWithChildren = AdminSettingsRoute._addFileChildren(
 interface AdminRouteChildren {
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
   AdminCategoriesRoute: typeof AdminCategoriesRoute
+  AdminContentAreaRoute: typeof AdminContentAreaRoute
   AdminMediaRoute: typeof AdminMediaRoute
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
   AdminPaywallRoute: typeof AdminPaywallRoute
+  AdminPostLayoutsRoute: typeof AdminPostLayoutsRoute
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
   AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
   AdminTagsRoute: typeof AdminTagsRoute
@@ -794,9 +834,11 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
   AdminCategoriesRoute: AdminCategoriesRoute,
+  AdminContentAreaRoute: AdminContentAreaRoute,
   AdminMediaRoute: AdminMediaRoute,
   AdminPagesRoute: AdminPagesRouteWithChildren,
   AdminPaywallRoute: AdminPaywallRoute,
+  AdminPostLayoutsRoute: AdminPostLayoutsRoute,
   AdminPostsRoute: AdminPostsRouteWithChildren,
   AdminSettingsRoute: AdminSettingsRouteWithChildren,
   AdminTagsRoute: AdminTagsRoute,
