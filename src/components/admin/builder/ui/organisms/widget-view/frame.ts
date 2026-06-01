@@ -9,7 +9,7 @@ export const DEFAULT_WIDGET_WIDTH_BY_DEVICE: Record<Device, string> = {
   tablet: "auto",
   mobile: "auto",
 };
-export const DEFAULT_WIDGET_MIN_HEIGHT = 32;
+export const DEFAULT_WIDGET_MIN_HEIGHT = 40;
 export const AUTO_SIZE_WIDGETS = new Set(["image", "icon", "button", "spacer", "divider"]);
 export const COMPACT_WIDGET_MIN_HEIGHT = 40;
 export const COMPACT_ICON_BOX_SIZE = 40;
