@@ -134,6 +134,7 @@ export function Header() {
 
   return (
     <header className="bg-background border-b border-border">
+      <AlertBar />
 
       {/* Utility bar */}
       <div className="border-b border-border">
