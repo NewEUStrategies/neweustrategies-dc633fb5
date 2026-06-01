@@ -10,18 +10,8 @@ import type {
 } from "@/lib/builder/types";
 import { WIDGETS } from "@/lib/builder/registry";
 
-import { useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useRequiredTenant } from "@/hooks/useAuth";
-import { Upload, Image as ImageIcon, Sun, Moon, X } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import {
-  PropField, ColorField, ItemFrame,
-  CollapsibleSection as Collapsible,
-} from "./ui/atoms";
+import { PropField, ColorField } from "./ui/atoms";
 import { SpacingControl } from "./ui/molecules/SpacingControl";
 import { TypographyControl } from "./ui/molecules/TypographyControl";
 import { MotionControl } from "./ui/molecules/MotionControl";
@@ -30,11 +20,15 @@ import { HoverControl } from "./ui/molecules/HoverControl";
 import { SchemaFieldControl } from "./ui/molecules/SchemaFieldControl";
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 import {
-  SECTION_LABEL_VARIANTS,
-  SectionLabelRender,
-  resolveAccentColor,
-  type SectionLabelVariant,
-} from "@/lib/builder/sectionLabelVariants";
+  AccordionEditor,
+  TabsEditor,
+  PricingEditor,
+  RatedListEditor,
+  ImageEditor,
+  SectionLabelEditor,
+  SliderEditor,
+  AnimatedHeadingEditor,
+} from "./ui/organisms/widget-properties";
 
 interface Props {
   widget: WidgetNode;
