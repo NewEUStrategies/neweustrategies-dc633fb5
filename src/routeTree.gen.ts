@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ReadingListRouteImport } from './routes/reading-list'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -53,6 +55,16 @@ import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReadingListRoute = ReadingListRouteImport.update({
   id: '/reading-list',
   path: '/reading-list',
@@ -277,6 +289,8 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/login': typeof LoginRoute
   '/reading-list': typeof ReadingListRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
@@ -321,6 +335,8 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/login': typeof LoginRoute
   '/reading-list': typeof ReadingListRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
@@ -366,6 +382,8 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/login': typeof LoginRoute
   '/reading-list': typeof ReadingListRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
@@ -413,6 +431,8 @@ export interface FileRouteTypes {
     | '/admin'
     | '/login'
     | '/reading-list'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
@@ -457,6 +477,8 @@ export interface FileRouteTypes {
     | '/$'
     | '/login'
     | '/reading-list'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
@@ -501,6 +523,8 @@ export interface FileRouteTypes {
     | '/admin'
     | '/login'
     | '/reading-list'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
@@ -547,6 +571,8 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   LoginRoute: typeof LoginRoute
   ReadingListRoute: typeof ReadingListRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiTtsRoute: typeof ApiTtsRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   PostSlugRoute: typeof PostSlugRoute
@@ -558,6 +584,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reading-list': {
       id: '/reading-list'
       path: '/reading-list'
@@ -978,6 +1018,8 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   LoginRoute: LoginRoute,
   ReadingListRoute: ReadingListRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiTtsRoute: ApiTtsRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
   PostSlugRoute: PostSlugRoute,
