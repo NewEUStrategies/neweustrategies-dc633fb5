@@ -9,6 +9,7 @@ import { defaultDocFor } from "@/lib/builder/chromeDefaults";
 import { Button } from "@/components/ui/button";
 import { Save } from "@/lib/lucide-shim";
 import { toast } from "sonner";
+import { ThemeOptionsPane } from "@/components/admin/ThemeOptionsPane";
 
 interface Props {
   settingsKey: string;
