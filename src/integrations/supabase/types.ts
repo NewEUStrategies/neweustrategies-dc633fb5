@@ -1057,6 +1057,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_read_history: {
+        Row: {
+          id: string
+          post_id: string
+          read_at: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          post_id: string
+          read_at?: string
+          tenant_id?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          post_id?: string
+          read_at?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
