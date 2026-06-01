@@ -63,6 +63,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
       {hideSidebar && <AdminLangBar />}
       {!hideSidebar && (
         <aside
+          data-sidebar="sidebar"
           className={`${compact ? "w-14" : "w-64"} bg-card border-r border-border flex flex-col transition-all duration-200 sticky top-0 self-start h-screen max-h-screen`}
         >
 
@@ -89,6 +90,8 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
                   key={to}
                   to={to}
                   title={label}
+                  data-sidebar="menu-button"
+                  data-active={active ? "true" : "false"}
                   className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm transition ${
                     active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted"
                   }`}

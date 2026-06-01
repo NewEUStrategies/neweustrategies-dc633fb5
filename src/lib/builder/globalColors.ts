@@ -346,12 +346,13 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(header svg){color:var(--gc-header-icon, currentColor);}
     :where(header a, header button){color:var(--gc-header-icon, inherit);}
     :where(header a:hover, header button:hover, header a:hover svg, header button:hover svg){color:var(--gc-header-icon-hover, var(--gc-header-icon, inherit));}
-    :where([data-sidebar="sidebar"], aside[data-sidebar], .sidebar-root){background:var(--gc-sidebar-bg, var(--sidebar-background, transparent));color:var(--gc-sidebar-text, var(--sidebar-foreground, inherit));border-color:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
-    :where([data-sidebar="sidebar"] a, [data-sidebar="sidebar"] button, [data-sidebar="menu-button"]){color:var(--gc-sidebar-text, inherit);}
-    :where([data-sidebar="menu-button"]:hover, [data-sidebar="sidebar"] a:hover, [data-sidebar="sidebar"] button:hover){background:var(--gc-sidebar-btn-hover-bg, transparent);color:var(--gc-sidebar-btn-hover-text, var(--gc-sidebar-text, inherit));}
-    :where([data-sidebar="menu-button"][data-active="true"], [data-sidebar="menu-button"].active, [data-sidebar="sidebar"] .active){background:var(--gc-sidebar-btn-bg, transparent);color:var(--gc-sidebar-btn-text, var(--gc-sidebar-text, inherit));}
-    :where([data-sidebar="sidebar"] svg){color:var(--gc-sidebar-text, currentColor);}
-    :where([data-sidebar="separator"]){background:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
+    aside[data-sidebar="sidebar"], [data-sidebar="sidebar"]{background:var(--gc-sidebar-bg, var(--sidebar-background)) !important;color:var(--gc-sidebar-text, var(--sidebar-foreground)) !important;border-color:var(--gc-sidebar-border, var(--sidebar-border)) !important;}
+    [data-sidebar="sidebar"] a, [data-sidebar="sidebar"] button, [data-sidebar="menu-button"]{color:var(--gc-sidebar-text, inherit);}
+    [data-sidebar="sidebar"] svg{color:var(--gc-sidebar-text, currentColor);}
+    [data-sidebar="menu-button"]:hover, [data-sidebar="sidebar"] a:hover:not([data-active="true"]), [data-sidebar="sidebar"] button:hover{background:var(--gc-sidebar-btn-hover-bg) !important;color:var(--gc-sidebar-btn-hover-text, var(--gc-sidebar-text)) !important;}
+    [data-sidebar="menu-button"][data-active="true"], [data-sidebar="menu-button"].active, [data-sidebar="sidebar"] .active{background:var(--gc-sidebar-btn-bg) !important;color:var(--gc-sidebar-btn-text, var(--gc-sidebar-text)) !important;}
+    [data-sidebar="menu-button"][data-active="true"] svg, [data-sidebar="sidebar"] .active svg{color:var(--gc-sidebar-btn-text, currentColor) !important;}
+    [data-sidebar="separator"]{background:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
   `.replace(/\s+/g, " ").trim());
 
 
