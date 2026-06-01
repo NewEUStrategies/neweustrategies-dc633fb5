@@ -9,6 +9,15 @@ import { AdminSidebarExtrasProvider, useAdminSidebarExtrasSlot } from "@/compone
 
 
 export function AdminShell({ children, hideSidebar }: { children: ReactNode; hideSidebar?: boolean }) {
+  return (
+    <AdminSidebarExtrasProvider>
+      <AdminShellInner hideSidebar={hideSidebar}>{children}</AdminShellInner>
+    </AdminSidebarExtrasProvider>
+  );
+}
+
+function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideSidebar?: boolean }) {
+
   const { t, i18n } = useTranslation();
   const { signOut, user, isAdmin } = useAuth();
   const { theme, toggle } = useTheme();
