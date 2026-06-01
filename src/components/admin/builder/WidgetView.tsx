@@ -101,13 +101,14 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
   const scopedCss = scopeCustomCss(node.advanced?.customCss, node.id);
   const hover = hoverCss(node.id, node.style, device);
 
+  const isImage = node.type === "image";
   const wrap = (children: React.ReactNode) => (
     <div
       id={htmlId}
       data-w-id={node.id}
       ref={motion ? motionRef : undefined}
       className={`${cls}`.trim()}
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", width: "100%", minWidth: 0, height: "100%", maxWidth: "100%", boxSizing: "border-box", overflow: "hidden", ...baseStyle, ...motionStyle }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", width: "100%", minWidth: 0, height: "100%", maxWidth: isImage ? "none" : "100%", boxSizing: "border-box", overflow: isImage ? "visible" : "hidden", ...baseStyle, ...motionStyle }}
     >
       {children}
       {hover && <style dangerouslySetInnerHTML={{ __html: hover }} />}

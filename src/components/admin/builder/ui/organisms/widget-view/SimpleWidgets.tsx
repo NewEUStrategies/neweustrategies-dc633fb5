@@ -357,8 +357,8 @@ export function renderSimpleWidget(
       const imgStyle: CSSProperties = {
         objectFit: fit,
         aspectRatio: ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined,
-        width: "100%",
-        maxWidth: effectiveMaxPx > 0 ? `min(100%, ${effectiveMaxPx}px)` : "100%",
+        width: effectiveMaxPx > 0 ? `${effectiveMaxPx}px` : "100%",
+        maxWidth: effectiveMaxPx > 0 ? "none" : "100%",
         height: "auto",
       };
       if (!src && !srcDark) return <div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>;
@@ -696,7 +696,7 @@ function ResizableImageWrap({
   const wrapStyle: CSSProperties = {
     position: "relative",
     display: "inline-block",
-    maxWidth: "100%",
+    maxWidth: "none",
     width: displayPx ? `${displayPx}px` : "auto",
   };
   return (
