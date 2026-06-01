@@ -5,7 +5,7 @@ import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as Imag
 import { useTheme } from "@/components/ThemeProvider";
 import { useState, type ReactNode } from "react";
 
-export function AdminShell({ children }: { children: ReactNode }) {
+export function AdminShell({ children, hideSidebar }: { children: ReactNode; hideSidebar?: boolean }) {
   const { t, i18n } = useTranslation();
   const { signOut, user, isAdmin } = useAuth();
   const { theme, toggle } = useTheme();
