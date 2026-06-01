@@ -433,6 +433,7 @@ function EditPost() {
           </div>
           <aside className="space-y-5">
             {metaCard}
+            {layoutCard}
             {catsCard}
             {tagsCard}
             <AccessSettingsPane entityType="post" entityId={id} />
