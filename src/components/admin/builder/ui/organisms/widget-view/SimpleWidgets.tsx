@@ -501,11 +501,11 @@ export function renderSimpleWidget(
       const signup = getStr(c, `signup_${lang}`) || getStr(c, "signup_pl") || "Zarejestruj";
       return (
         <span className="inline-flex items-center gap-2 text-xs leading-none" style={compactRowStyle}>
-          <a href="/login" className="inline-flex h-10 items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
+          <a href="/login" className="inline-flex h-10 items-center gap-1 text-muted-foreground hover:text-foreground">
             <LucideIcons.LogIn className="w-3.5 h-3.5" /> {signin}
           </a>
           <span className="text-muted-foreground/40">|</span>
-          <a href="/login?mode=signup" className="inline-flex h-10 items-center font-semibold hover:underline" style={{ color: "#f97316" }}>{signup}</a>
+          <a href="/login?mode=signup" className="inline-flex h-10 items-center hover:underline" style={{ color: "#f97316" }}>{signup}</a>
         </span>
       );
     }
