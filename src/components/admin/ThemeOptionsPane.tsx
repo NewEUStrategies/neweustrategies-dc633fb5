@@ -111,7 +111,7 @@ export function ThemeOptionsPane() {
   const [draft, setDraft] = useState<ThemeOptions | null>(null);
   useEffect(() => { if (query.data && !draft) setDraft(query.data as ThemeOptions); }, [query.data, draft]);
   const [active, setActive] = useState<(typeof SECTIONS)[number]["id"]>("logo");
-  const [logoTab, setLogoTab] = useState<"default" | "mobile" | "transparent" | "organization" | "bookmark">("default");
+  const [logoTab, setLogoTab] = useState<"default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark">("default");
 
   if (!draft) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
 
