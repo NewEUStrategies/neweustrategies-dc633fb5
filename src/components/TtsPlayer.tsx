@@ -98,9 +98,9 @@ export function TtsPlayer({ text, voiceId, model, label }: TtsPlayerProps) {
         {loading ? (
           <Loader2 className="w-4 h-4 animate-spin" />
         ) : playing ? (
-          <Pause className="w-4 h-4" />
+          <PauseIcon className="w-4 h-4" />
         ) : (
-          <Play className="w-4 h-4" />
+          <PlayIcon className="w-4 h-4" />
         )}
         <span>{label}</span>
       </button>
