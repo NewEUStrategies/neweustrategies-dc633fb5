@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { usePostLayoutSettings, useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
-import { STANDARD_LAYOUTS, VIDEO_LAYOUTS, AUDIO_LAYOUTS, GALLERY_LAYOUTS, type PostLayoutSettings } from "@/lib/postLayouts";
+import { STANDARD_LAYOUTS, VIDEO_LAYOUTS, AUDIO_LAYOUTS, GALLERY_LAYOUTS, type PostLayoutSettings, type LayoutPreset } from "@/lib/postLayouts";
+import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
