@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers } from "@/lib/lucide-shim";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
+import { useTheme } from "@/components/ThemeProvider";
 
 
 // ---------- Defaults ----------
@@ -644,20 +645,61 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
 
   const Panel = ({ mode, src }: { mode: "light" | "dark"; src: string }) => {
     const isDark = mode === "dark";
+    const { theme, toggle } = useTheme();
+    const active = (theme === "dark") === isDark;
     return (
       <div
-        className="rounded-md border p-4 flex flex-col gap-2 min-h-[110px]"
+        className="rounded-md border p-4 flex flex-col gap-2 min-h-[110px] transition-all"
         style={{
           background: isDark ? "#01112F" : "#F8F6F4",
-          borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
+          borderColor: active ? "#FA9346" : (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"),
           color: isDark ? "#e5e7eb" : "#1f2937",
+          boxShadow: active ? "0 0 0 2px rgba(250,147,70,0.25)" : undefined,
         }}
       >
         <div className="flex items-center justify-between">
-          <span className="text-[9px] uppercase tracking-widest" style={{ opacity: 0.5 }}>
-            {isDark ? "Dark mode" : "Light mode"}
+          <span className="text-[9px] uppercase tracking-widest" style={{ opacity: 0.6 }}>
+            {isDark ? "Dark mode" : "Light mode"}{active ? " • aktywny" : ""}
           </span>
-          {isDark ? <Moon className="w-3 h-3 opacity-50" /> : <Sun className="w-3 h-3 opacity-50" />}
+          <button
+            type="button"
+            onClick={() => { if (!active) toggle(); }}
+            title={active ? "Aktywny motyw" : `Przełącz na ${isDark ? "dark" : "light"} mode`}
+            aria-pressed={active}
+            className="group relative w-9 h-9 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
+            style={{
+              background: isDark
+                ? "radial-gradient(circle at 30% 30%, #1e293b 0%, #0b1228 70%)"
+                : "radial-gradient(circle at 30% 30%, #fff7e0 0%, #ffd27a 70%)",
+              boxShadow: isDark
+                ? "inset 0 0 8px rgba(255,255,255,0.08), 0 0 12px rgba(120,150,255,0.25)"
+                : "inset 0 0 8px rgba(255,180,60,0.4), 0 0 14px rgba(250,180,70,0.5)",
+              border: `1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(250,147,70,0.4)"}`,
+            }}
+          >
+            {isDark ? (
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
+                <path d="M20 14.5A8 8 0 0 1 9.5 4a1 1 0 0 0-1.3-1.2A9.5 9.5 0 1 0 21.2 15.8a1 1 0 0 0-1.2-1.3Z" fill="#e2e8f0" />
+                <circle cx="16" cy="6" r="0.8" fill="#fff" />
+                <circle cx="19" cy="9" r="0.5" fill="#fff" />
+                <circle cx="14" cy="3.5" r="0.4" fill="#fff" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
+                <circle cx="12" cy="12" r="4" fill="#FA9346" />
+                <g stroke="#FA9346" strokeWidth="1.8" strokeLinecap="round">
+                  <line x1="12" y1="2.5" x2="12" y2="5" />
+                  <line x1="12" y1="19" x2="12" y2="21.5" />
+                  <line x1="2.5" y1="12" x2="5" y2="12" />
+                  <line x1="19" y1="12" x2="21.5" y2="12" />
+                  <line x1="5.2" y1="5.2" x2="6.9" y2="6.9" />
+                  <line x1="17.1" y1="17.1" x2="18.8" y2="18.8" />
+                  <line x1="5.2" y1="18.8" x2="6.9" y2="17.1" />
+                  <line x1="17.1" y1="6.9" x2="18.8" y2="5.2" />
+                </g>
+              </svg>
+            )}
+          </button>
         </div>
         <div className="flex-1 flex items-center justify-center">
           {src ? (
