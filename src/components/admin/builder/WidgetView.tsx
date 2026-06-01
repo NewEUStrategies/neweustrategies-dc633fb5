@@ -662,7 +662,9 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const variant = getStr(c, "variant") || "icon";
       const placeholder = getStr(c, `placeholder_${lang}`) || getStr(c, "placeholder_pl") || "Twój email";
       const ctaLabel = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || "Zapisz";
-      const MailIcon = (LucideIcons as Record<string, React.ComponentType<{ className?: string }>>).Mail;
+      const iconName = getStr(c, "iconName") || "Mail";
+      const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
+      const IconCmp = Icons[iconName] || Icons.Mail;
 
       // Builder canvas → statyczny podgląd (bez submitu do bazy).
       // Public render → realny <NewsletterForm/> z RLS-insert.
@@ -670,10 +672,17 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         if (variant === "minimal") {
           return wrap(<span className="text-sm font-medium border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
         }
+        if (variant === "icon-only") {
+          return wrap(
+            <a href="#newsletter" className="inline-flex items-center justify-center w-10 h-10 rounded-full text-foreground/80 hover:text-brand hover:bg-foreground/5 transition-colors" title={title} aria-label={title}>
+              {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
+            </a>,
+          );
+        }
         if (variant === "icon") {
           return wrap(
             <a href="#newsletter" className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors" title={title}>
-              {MailIcon ? <MailIcon className="w-5 h-5" /> : <span>✉</span>}
+              {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
               <span className="text-sm font-medium">{title}</span>
             </a>,
           );
@@ -699,7 +708,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       if (variant === "card") {
         return wrap(
           <div className="rounded-xl border border-border bg-card p-6 space-y-3 max-w-md">
-            <div className="flex items-center gap-2"><MailIcon className="w-5 h-5 text-brand" /><h4 className="font-display text-lg">{title}</h4></div>
+            <div className="flex items-center gap-2">{IconCmp && <IconCmp className="w-5 h-5 text-brand" />}<h4 className="font-display text-lg">{title}</h4></div>
             <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
               <input type="email" placeholder={placeholder} className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" />
               <button type="submit" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium hover:opacity-90">{ctaLabel}</button>
@@ -710,9 +719,16 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       if (variant === "minimal") {
         return wrap(<span className="text-sm font-medium border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
       }
+      if (variant === "icon-only") {
+        return wrap(
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded-full text-foreground/80 hover:text-brand hover:bg-foreground/5 transition-colors cursor-pointer" title={title} aria-label={title}>
+            {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
+          </div>,
+        );
+      }
       return wrap(
         <div className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors cursor-pointer" title={title}>
-          {MailIcon ? <MailIcon className="w-5 h-5" /> : <span>✉</span>}
+          {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
           <span className="text-sm font-medium">{title}</span>
         </div>,
       );
