@@ -106,6 +106,25 @@ const DEFAULTS: ThemeOptions = {
     socials: { placement: "topbar", facebook: "", twitter: "", instagram: "", linkedin: "", youtube: "", email: "", size: 16 },
     signin: { enabled: true, signin_label_pl: "Zaloguj", signin_label_en: "Sign in", signup_label_pl: "Zarejestruj", signup_label_en: "Sign up", variant: "ghost", show_signup: true },
   },
+  buttons: {
+    default_variant: "solid",
+    default_size: "md",
+    radius: 8,
+    padding_x: 16,
+    padding_y: 10,
+    font_weight: 600,
+    uppercase: false,
+    letter_spacing: 0,
+  },
+  text_fields: {
+    style: "outline",
+    radius: 6,
+    height: 40,
+    border_width: 1,
+    focus_ring: "brand",
+    focus_ring_width: 2,
+    show_label_above: true,
+  },
 };
 
 const SECTIONS = [
@@ -118,6 +137,8 @@ const SECTIONS = [
   { id: "header.socials", label: "Social Icons", icon: Users },
   { id: "header.signin", label: "Sign In Buttons", icon: LogIn },
   { id: "header.mobile", label: "Mobile Header", icon: LayoutDashboard },
+  { id: "buttons", label: "Buttons", icon: MousePointerClick },
+  { id: "text_fields", label: "Text Fields", icon: Pencil },
 ] as const;
 
 const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
