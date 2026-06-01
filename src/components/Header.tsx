@@ -86,13 +86,29 @@ export function Header() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [smart_sticky]);
 
-  const logoSrc = theme === "dark"
+  // Track viewport for mobile-logo swap based on configured breakpoint.
+  const [isMobile, setIsMobile] = useState(false);
+  const mobileBp = themeOpts.header.mobile.breakpoint;
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${mobileBp - 1}px)`);
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, [mobileBp]);
+
+  const desktopLogo = theme === "dark"
     ? (themeOpts.logo.main_dark || themeOpts.logo.main || logo)
     : (themeOpts.logo.main || logo);
+  const mobileLogo = theme === "dark"
+    ? (themeOpts.logo.mobile_dark || themeOpts.logo.mobile || desktopLogo)
+    : (themeOpts.logo.mobile || desktopLogo);
+  const logoSrc = (isMobile && themeOpts.header.mobile.use_mobile_logo) ? mobileLogo : desktopLogo;
 
   if (headerCfg.builder_data && headerCfg.builder_data.sections?.length) {
     return (
       <header className="bg-background border-b border-border">
+        <AlertBar />
         <BuilderRenderer doc={headerCfg.builder_data} lang={lang.startsWith("pl") ? "pl" : "en"} />
       </header>
     );
