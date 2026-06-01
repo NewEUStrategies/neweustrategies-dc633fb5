@@ -125,7 +125,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
   };
 
   // Read-only widgets without inline editing — short-circuit via dispatcher.
-  const simple = renderSimpleWidget(node, lang, theme);
+  const simple = renderSimpleWidget(node, lang, theme, editable);
   if (simple !== undefined) return wrap(simple);
 
   switch (node.type) {
