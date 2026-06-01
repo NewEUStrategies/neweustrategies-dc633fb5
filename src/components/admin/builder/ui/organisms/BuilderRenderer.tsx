@@ -111,7 +111,7 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
     : (va === "center" ? "content-center items-center" : va === "end" ? "content-end items-end" : va === "stretch" ? "content-stretch items-stretch" : "content-start items-start");
   const layoutClass = singleWidget ? "flex-col" : "flex-row flex-wrap";
   return (
-    <div data-col-id={column.id} className={`flex ${layoutClass} gap-2 h-full min-w-0 max-w-full overflow-hidden ${axisClass} ${vClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight ?? 40, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius }}>
+    <div data-col-id={column.id} className={`flex ${layoutClass} gap-2 h-full min-w-0 max-w-full overflow-hidden ${axisClass} ${vClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius }}>
       {column.children.map((w) => {
         if (hiddenOnDevice(w.advanced, device)) return null;
         return (
