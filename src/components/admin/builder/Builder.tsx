@@ -789,6 +789,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
           setPendingDelete(null);
         }}
       />
+      <BuilderContextMenu target={ctx} actions={ctxActions} onClose={() => setCtx(null)} />
     </div>
   );
 }
