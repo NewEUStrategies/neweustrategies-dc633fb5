@@ -88,7 +88,7 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
     <div className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()} style={{ ...sectionWrapperStyle(inner), ...backgroundLayerStyle(inner.background), ...borderStyle(inner.border), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
       <div className="min-w-0 max-w-full overflow-hidden" style={columnsRowStyle(inner, colsSum)}>
         {inner.columns.map((c) => (
-          <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${resolveSpan(c.span, device, 6)}` }}>
+          <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}` }}>
 
             <RenderColumn column={c} lang={lang} device={device} />
           </div>
