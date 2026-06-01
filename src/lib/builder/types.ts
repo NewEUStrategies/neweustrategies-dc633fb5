@@ -191,7 +191,9 @@ export type WidgetType =
   | "social-icons" | "lang-switcher" | "theme-toggle"
   | "account-link" | "search-button" | "copyright"
   // Rich blocks
-  | "accordion" | "tabs" | "testimonial" | "pricing";
+  | "accordion" | "tabs" | "testimonial" | "pricing"
+  // Home-page building blocks
+  | "section-label" | "hot-topic-bar" | "rated-list" | "dark-featured-card";
 
 // JSON-safe primitives that may live inside a widget's content map.
 export type Json =
