@@ -28,7 +28,7 @@ export function KeyTakeaways({ items, className }: KeyTakeawaysProps) {
       <ul className="space-y-2.5">
         {clean.map((bullet, i) => (
           <li key={i} className="flex items-start gap-3 text-sm lg:text-base leading-relaxed">
-            <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-brand" aria-hidden="true" />
+            <Check className="w-5 h-5 shrink-0 mt-0.5 text-brand" aria-hidden="true" />
             <span className="text-foreground/90">{bullet}</span>
           </li>
         ))}
