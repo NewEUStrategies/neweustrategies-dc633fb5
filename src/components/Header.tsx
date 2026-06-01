@@ -31,6 +31,13 @@ type ThemeOptions = {
     mobile: {
       breakpoint: number; use_mobile_logo: boolean; sticky: boolean; show_search: boolean;
     };
+    signin: {
+      enabled: boolean;
+      signin_label_pl: string; signin_label_en: string;
+      signup_label_pl: string; signup_label_en: string;
+      variant: "solid" | "outline" | "ghost" | "pill";
+      show_signup: boolean;
+    };
   };
 };
 
@@ -40,7 +47,15 @@ const THEME_DEFAULTS: ThemeOptions = {
     main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
     search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
     mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
+    signin: { enabled: true, signin_label_pl: "Zaloguj", signin_label_en: "Sign in", signup_label_pl: "Zarejestruj", signup_label_en: "Sign up", variant: "ghost", show_signup: true },
   },
+};
+
+const SIGNIN_CLASS: Record<ThemeOptions["header"]["signin"]["variant"], string> = {
+  solid: "px-3 py-1.5 rounded bg-brand text-brand-foreground hover:opacity-90",
+  outline: "px-3 py-1.5 rounded border border-brand text-brand hover:bg-brand hover:text-brand-foreground",
+  ghost: "font-semibold text-muted-foreground hover:text-brand",
+  pill: "px-3 py-1.5 rounded-full bg-brand text-brand-foreground hover:opacity-90",
 };
 
 const HOVER_CLASS: Record<ThemeOptions["header"]["main_menu"]["hover_effect"], string> = {
