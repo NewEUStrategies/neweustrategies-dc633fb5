@@ -137,7 +137,7 @@ function InnerSectionView({
   onUpdateWidgetContent: (id: string, key: string, value: string) => void;
 }) {
   const selected = selection.kind === "inner-section" && selection.id === inner.id;
-  const colsSum = inner.columns.reduce((a, c) => a + (c.span.desktop ?? 6), 0) || 12;
+  const colsSum = inner.columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
   const skin: React.CSSProperties = {
     ...sectionWrapperStyle(inner),
     ...backgroundLayerStyle(inner.background),
@@ -152,7 +152,8 @@ function InnerSectionView({
       <div className="text-[10px] text-muted-foreground mb-1 relative z-10">SEKCJA WEWNĘTRZNA</div>
       <div className="grid gap-2 relative z-10 min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(inner, colsSum), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
         {inner.columns.map((c) => (
-          <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${c.span.desktop ?? 6}` }}>
+          <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${resolveSpan(c.span, device, 6)}` }}>
+
             <ColumnView column={c} device={device} lang={lang} selection={selection}
               setSelection={setSelection}
               onRemove={() => onRemoveColumn(c.id)} onDuplicate={() => onDuplicateColumn(c.id)}
