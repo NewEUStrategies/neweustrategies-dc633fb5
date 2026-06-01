@@ -967,7 +967,7 @@ function SectionView(p: SectionViewProps) {
               );
             }
             return (
-              <div key={child.id} style={{ gridColumn: `span ${span}` }}>
+              <div key={child.id} className="min-w-0" style={{ gridColumn: `span ${span}` }}>
                 <ColumnView column={child} device={p.device} lang={p.lang}
                   selection={p.selection} setSelection={p.setSelection}
                   onRemove={() => p.onRemoveColumn(child.id)}
