@@ -14,9 +14,11 @@ import {
   type AnimatedHeadingMode, type AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
 import { COMPACT_ICON_BOX_SIZE, COMPACT_WIDGET_MIN_HEIGHT, getStr, getNum, getStrArr } from "./frame";
-import { SearchOverlay } from "@/components/SearchOverlay";
+import { supabase } from "@/integrations/supabase/client";
 
-function SearchButtonWidget({ label, mode, heading, liveResults, limit, lang }: {
+type SearchResult = { id: string; slug: string; title: string; excerpt: string | null };
+
+function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
   label: string;
   mode: "standalone" | "dropdown" | "fullscreen";
   heading: string;
@@ -25,19 +27,130 @@ function SearchButtonWidget({ label, mode, heading, liveResults, limit, lang }: 
   lang: Lang;
 }) {
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const wrapRef = useRef<HTMLSpanElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 30);
+    else { setQ(""); setResults([]); setSearched(false); }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDocClick);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const runSearch = async (term: string) => {
+    const t = term.trim();
+    if (t.length < 2) { setResults([]); setSearched(false); return; }
+    setLoading(true);
+    const titleCol = lang === "pl" ? "title_pl" : "title_en";
+    const excerptCol = lang === "pl" ? "excerpt_pl" : "excerpt_en";
+    const { data } = await supabase
+      .from("posts")
+      .select(`id, slug, ${titleCol}, ${excerptCol}`)
+      .eq("status", "published")
+      .is("deleted_at", null)
+      .ilike(titleCol, `%${t}%`)
+      .limit(Math.max(1, Math.min(limit, 20)));
+    setResults((data ?? []).map((r: any) => ({
+      id: r.id, slug: r.slug, title: r[titleCol] || "", excerpt: r[excerptCol] || null,
+    })));
+    setLoading(false);
+    setSearched(true);
+  };
+
+  useEffect(() => {
+    if (!open || !liveResults) return;
+    const h = setTimeout(() => runSearch(q), 220);
+    return () => clearTimeout(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, open, liveResults]);
+
   return (
-    <span className="relative inline-flex">
+    <span ref={wrapRef} className="relative inline-flex">
       <button
         type="button"
         aria-label="Search"
-        onClick={() => setOpen(true)}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-2 text-xs font-semibold leading-none text-muted-foreground hover:text-foreground transition"
         style={compactRowStyle}
       >
         <LucideIcons.Search className="w-4 h-4" />
         <span className="hidden sm:inline">{label}</span>
       </button>
-      <SearchOverlay open={open} onClose={() => setOpen(false)} mode={mode} heading={heading} liveResults={liveResults} limit={limit} lang={lang} />
+
+      {open && (
+        <div
+          className="absolute left-1/2 top-[calc(100%+10px)] z-50 w-[min(92vw,520px)] -translate-x-1/2 rounded-2xl bg-neutral-900 text-neutral-100 shadow-2xl ring-1 ring-black/40 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <form
+            onSubmit={(e) => { e.preventDefault(); runSearch(q); }}
+            className="flex items-center gap-3 px-4 h-12"
+          >
+            <LucideIcons.Search className="w-4 h-4 text-neutral-400 shrink-0" />
+            <input
+              ref={inputRef}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={heading || (lang === "pl" ? "Szukaj…" : "Search…")}
+              className="flex-1 bg-transparent outline-none text-sm placeholder:text-neutral-500"
+            />
+            {loading && <LucideIcons.Loader2 className="w-4 h-4 animate-spin text-neutral-400" />}
+            <button
+              type="submit"
+              aria-label="Submit search"
+              className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-neutral-600 text-neutral-300 hover:bg-neutral-800 hover:text-white transition shrink-0"
+            >
+              <LucideIcons.ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </form>
+
+          {q.trim().length >= 2 && (
+            <div className="border-t border-neutral-800 max-h-[60vh] overflow-y-auto">
+              {results.length === 0 ? (
+                (searched || liveResults) && !loading ? (
+                  <div className="px-4 py-5 text-sm text-neutral-400">
+                    {lang === "pl"
+                      ? "Brak wyników dla podanej frazy. Spróbuj innych słów."
+                      : "Sorry, but nothing matched your search terms. Please try again with different keywords."}
+                  </div>
+                ) : null
+              ) : (
+                <ul className="divide-y divide-neutral-800">
+                  {results.map((r) => (
+                    <li key={r.id}>
+                      <a
+                        href={`/posts/${r.slug}`}
+                        onClick={() => setOpen(false)}
+                        className="block px-4 py-3 hover:bg-neutral-800/70 transition"
+                      >
+                        <div className="text-sm font-semibold text-neutral-100">{r.title}</div>
+                        {r.excerpt && <div className="text-xs text-neutral-400 line-clamp-2 mt-1">{r.excerpt}</div>}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </span>
   );
 }
