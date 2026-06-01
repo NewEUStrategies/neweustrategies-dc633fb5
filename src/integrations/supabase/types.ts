@@ -789,28 +789,37 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          bio: string | null
+          cover_url: string | null
           created_at: string
           display_name: string | null
           email: string | null
           id: string
+          prefs: Json
           tenant_id: string
           updated_at: string
         }
         Insert: {
           avatar_url?: string | null
+          bio?: string | null
+          cover_url?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
           id: string
+          prefs?: Json
           tenant_id: string
           updated_at?: string
         }
         Update: {
           avatar_url?: string | null
+          bio?: string | null
+          cover_url?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
           id?: string
+          prefs?: Json
           tenant_id?: string
           updated_at?: string
         }
@@ -952,6 +961,60 @@ export type Database = {
           name?: string
           slug?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      user_bookmarks: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          tenant_id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_follows: {
+        Row: {
+          created_at: string
+          id: string
+          target_id: string
+          target_type: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          target_id: string
+          target_type: string
+          tenant_id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          target_id?: string
+          target_type?: string
+          tenant_id?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1117,7 +1180,7 @@ export type Database = {
     Enums: {
       access_entity_type: "post" | "page" | "media"
       access_mode: "public" | "members" | "paid"
-      app_role: "admin" | "editor" | "author"
+      app_role: "admin" | "editor" | "author" | "user"
       editor_type: "richtext" | "markdown" | "builder"
       plan_interval: "month" | "year" | "one_time"
       post_status: "draft" | "published" | "archived"
@@ -1251,7 +1314,7 @@ export const Constants = {
     Enums: {
       access_entity_type: ["post", "page", "media"],
       access_mode: ["public", "members", "paid"],
-      app_role: ["admin", "editor", "author"],
+      app_role: ["admin", "editor", "author", "user"],
       editor_type: ["richtext", "markdown", "builder"],
       plan_interval: ["month", "year", "one_time"],
       post_status: ["draft", "published", "archived"],
