@@ -203,17 +203,29 @@ function ColumnView({
         </div>
       )}
       <SortableContext items={column.children.map((w) => w.id)} strategy={verticalListSortingStrategy}>
-        <div className={`flex ${singleWidget ? "flex-col" : "flex-row flex-wrap content-start"} h-full gap-2 min-w-0 max-w-full overflow-hidden ${singleWidget ? (column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : "items-start") : (column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start")}`}>
-          {column.children.map((w) => (
-            <SortableWidget key={w.id} widget={w} lang={lang} device={device}
-              selected={selection.kind === "widget" && selection.id === w.id}
-              onSelect={() => setSelection({ kind: "widget", id: w.id })}
-              onDuplicate={() => onDuplicateWidget(w.id)}
-              onRemove={() => onRemoveWidget(w.id)}
-              onUpdateContent={(k, v) => onUpdateWidgetContent(w.id, k, v)} />
-          ))}
-        </div>
+        {(() => {
+          const va = column.verticalAlign ?? "start";
+          const hClass = singleWidget
+            ? (column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : va === "stretch" ? "items-stretch" : "items-start")
+            : (column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start");
+          const vClass = singleWidget
+            ? (va === "center" ? "justify-center" : va === "end" ? "justify-end" : va === "stretch" ? "justify-stretch" : "justify-start")
+            : (va === "center" ? "content-center items-center" : va === "end" ? "content-end items-end" : va === "stretch" ? "content-stretch items-stretch" : "content-start items-start");
+          return (
+            <div className={`flex ${singleWidget ? "flex-col" : "flex-row flex-wrap"} h-full gap-2 min-w-0 max-w-full overflow-hidden ${hClass} ${vClass}`}>
+              {column.children.map((w) => (
+                <SortableWidget key={w.id} widget={w} lang={lang} device={device}
+                  selected={selection.kind === "widget" && selection.id === w.id}
+                  onSelect={() => setSelection({ kind: "widget", id: w.id })}
+                  onDuplicate={() => onDuplicateWidget(w.id)}
+                  onRemove={() => onRemoveWidget(w.id)}
+                  onUpdateContent={(k, v) => onUpdateWidgetContent(w.id, k, v)} />
+              ))}
+            </div>
+          );
+        })()}
       </SortableContext>
+
     </div>
   );
 }

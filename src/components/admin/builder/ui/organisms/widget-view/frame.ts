@@ -98,9 +98,10 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
 
   const sj = node.style?.selfJustify;
   const saRaw = node.style?.selfAlign;
-  // Default: vertically center widgets in their column cell.
-  const sa = !saRaw || saRaw === "auto" ? "center" : saRaw;
+  // Default: no per-widget vertical anchor — column-level verticalAlign decides.
+  const sa = !saRaw || saRaw === "auto" ? undefined : saRaw;
   const horizontalAnchored = sj && sj !== "auto";
+
 
   // When user anchors the widget horizontally, it must shrink to its content
   // so the alignSelf has visible effect (otherwise width:100% fills the column).
@@ -132,20 +133,23 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
 
   // Vertical alignment inside the column (uses auto margins so it works in
   // flex-col regardless of the column's align-items setting).
-  if (sa === "stretch") {
-    style.flexGrow = 1;
-    style.alignSelf = horizontalAnchored ? style.alignSelf : "stretch";
-    style.height = "auto";
-  } else if (sa === "center") {
-    style.marginTop = "auto";
-    style.marginBottom = "auto";
-  } else if (sa === "end") {
-    style.marginTop = "auto";
-    style.marginBottom = 0;
-  } else if (sa === "start") {
-    style.marginTop = 0;
-    style.marginBottom = "auto";
+  if (sa) {
+    if (sa === "stretch") {
+      style.flexGrow = 1;
+      style.alignSelf = horizontalAnchored ? style.alignSelf : "stretch";
+      style.height = "auto";
+    } else if (sa === "center") {
+      style.marginTop = "auto";
+      style.marginBottom = "auto";
+    } else if (sa === "end") {
+      style.marginTop = "auto";
+      style.marginBottom = 0;
+    } else if (sa === "start") {
+      style.marginTop = 0;
+      style.marginBottom = "auto";
+    }
   }
+
 
   return style;
 };

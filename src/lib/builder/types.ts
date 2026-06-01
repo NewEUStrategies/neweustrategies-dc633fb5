@@ -237,7 +237,10 @@ export interface ColumnNode {
   advanced?: AdvancedSettings;
   /** Horizontal alignment of widgets in the wrap row. Default: "start". */
   contentAlign?: "start" | "center" | "end";
+  /** Vertical alignment of widgets in the column. Default: "start". */
+  verticalAlign?: "start" | "center" | "end" | "stretch";
   children: Array<WidgetNode>;
+
 }
 
 export interface InnerSectionNode {
