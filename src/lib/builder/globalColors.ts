@@ -32,6 +32,28 @@ export interface GlobalColorGroup {
 /** Pełna definicja paneli — odpowiada zakładce "Global Colors" w Foxiz. */
 export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   {
+    id: "header",
+    label: "Header — Icons & Menu",
+    slots: [
+      {
+        key: "header-icon",
+        label: "Header Icons & Menu Color",
+        description: "Kolor ikon (search, theme, social, account) oraz linków menu w nagłówku.",
+        hasDark: true,
+        defaultLight: "#374151",
+        defaultDark: "#e5e7eb",
+      },
+      {
+        key: "header-icon-hover",
+        label: "Header Icons & Menu — Hover",
+        description: "Kolor ikon i linków menu po najechaniu.",
+        hasDark: true,
+        defaultLight: "#111827",
+        defaultDark: "#ffffff",
+      },
+    ],
+  },
+  {
     id: "highlight",
     label: "Highlight Elements",
     slots: [
@@ -46,6 +68,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
     ],
   },
+
   {
     id: "dark-accent",
     label: "Dark Accent",
@@ -229,7 +252,11 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(.mode-switcher-dark){color:var(--gc-switcher-dark-icon, currentColor);background:var(--gc-switcher-dark-bg, transparent);}
     :where(button.btn-primary, .btn-primary){background:var(--gc-btn-bg, var(--primary));color:var(--gc-btn-text, var(--primary-foreground));}
     :where(button.btn-primary:hover, .btn-primary:hover){background:var(--gc-btn-hover-bg, var(--gc-btn-bg, var(--primary)));color:var(--gc-btn-hover-text, var(--gc-btn-text, var(--primary-foreground)));}
+    :where(header svg){color:var(--gc-header-icon, currentColor);}
+    :where(header a, header button){color:var(--gc-header-icon, inherit);}
+    :where(header a:hover, header button:hover, header a:hover svg, header button:hover svg){color:var(--gc-header-icon-hover, var(--gc-header-icon, inherit));}
   `.replace(/\s+/g, " ").trim());
+
 
   return parts.join("");
 }
