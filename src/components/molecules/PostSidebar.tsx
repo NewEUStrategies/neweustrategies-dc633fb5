@@ -2,7 +2,6 @@
 // Renderuje się tylko dla layoutów z hasSidebar=true (Layout 3/8/11).
 import { useEffect, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
 import { List, Tags as TagIcon } from "@/lib/lucide-shim";
 
 interface TocItem {
