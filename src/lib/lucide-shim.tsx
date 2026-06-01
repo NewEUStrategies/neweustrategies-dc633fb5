@@ -105,6 +105,9 @@ function makeIcon(faDef: IconDefinition, LucideComp: LucideIconImpl): LucideIcon
 export const ArrowLeft = makeIcon(faArrowLeft, LArrowLeft);
 export const ArrowRight = makeIcon(faArrowRight, LArrowRight);
 export const Bold = makeIcon(faBold, LBold);
+export const Bookmark = makeIcon(faBookmark, LBookmark);
+export const BookmarkCheck = makeIcon(faBookmark, LBookmarkCheck);
+export const BookOpen = makeIcon(faBookOpen, LBookOpen);
 export const Check = makeIcon(faCheck, LCheck);
 export const ChevronDown = makeIcon(faChevronDown, LChevronDown);
 export const ChevronDownIcon = ChevronDown;
