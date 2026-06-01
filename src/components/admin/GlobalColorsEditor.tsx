@@ -321,9 +321,18 @@ export function GlobalColorsEditor() {
 }
 
 function ColorRow({
-  label, value, defaultValue, onChange,
-}: { label: string; value: string; defaultValue?: string; onChange: (v: string) => void }) {
+  label, value, defaultValue, onChange, onCommit, brandPalette, recentColors,
+}: {
+  label: string;
+  value: string;
+  defaultValue?: string;
+  onChange: (v: string) => void;
+  onCommit: (v: string) => void;
+  brandPalette: BrandColor[];
+  recentColors: string[];
+}) {
   const effective = value || defaultValue || "#ffffff";
+  const handlePick = (v: string) => { onChange(v); onCommit(v); };
   return (
     <div className="rounded-md border border-border bg-background/60 p-2.5 space-y-2">
       <div className="flex items-center gap-2">
@@ -332,6 +341,7 @@ function ColorRow({
           type="color"
           value={effective}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={(e) => onCommit(e.target.value)}
           className="w-12 h-8 p-1 cursor-pointer"
         />
         <Input
@@ -339,6 +349,7 @@ function ColorRow({
           value={value}
           placeholder={defaultValue || "#______"}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={(e) => onCommit(e.target.value)}
           className="h-8 text-xs font-mono w-[120px]"
         />
         {value && (
@@ -355,11 +366,14 @@ function ColorRow({
         <div>
           <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Marka</div>
           <div className="flex flex-wrap gap-1">
-            {BRAND_PALETTE.map((c) => (
+            {brandPalette.length === 0 && (
+              <span className="text-[10px] text-muted-foreground italic">Brak kolorów — dodaj w sekcji „Paleta marki" powyżej.</span>
+            )}
+            {brandPalette.map((c) => (
               <button
-                key={c.value}
+                key={`${c.value}-${c.name}`}
                 type="button"
-                onClick={() => onChange(c.value)}
+                onClick={() => handlePick(c.value)}
                 className={`w-5 h-5 rounded border transition ${
                   value?.toLowerCase() === c.value.toLowerCase()
                     ? "border-foreground ring-2 ring-offset-1 ring-foreground/30"
@@ -372,13 +386,18 @@ function ColorRow({
           </div>
         </div>
         <div>
-          <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Neutralne</div>
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">
+            Ostatnio użyte {recentColors.length > 0 && <span className="opacity-60">({recentColors.length}/{RECENT_MAX})</span>}
+          </div>
           <div className="flex flex-wrap gap-1">
-            {NEUTRAL_PALETTE.map((c) => (
+            {recentColors.length === 0 && (
+              <span className="text-[10px] text-muted-foreground italic">Wybrane kolory pojawią się tutaj.</span>
+            )}
+            {recentColors.map((c) => (
               <button
                 key={c}
                 type="button"
-                onClick={() => onChange(c)}
+                onClick={() => handlePick(c)}
                 className={`w-5 h-5 rounded border transition ${
                   value?.toLowerCase() === c.toLowerCase()
                     ? "border-foreground ring-2 ring-offset-1 ring-foreground/30"
@@ -391,7 +410,104 @@ function ColorRow({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
 
+function BrandPaletteEditor({
+  palette, onChange,
+}: { palette: BrandColor[]; onChange: (next: BrandColor[]) => void }) {
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [draftValue, setDraftValue] = useState("#000000");
+  const [adding, setAdding] = useState(false);
+
+  const startAdd = () => { setAdding(true); setEditingIdx(null); setDraftName(""); setDraftValue("#000000"); };
+  const startEdit = (i: number) => {
+    setAdding(false); setEditingIdx(i);
+    setDraftName(palette[i].name); setDraftValue(palette[i].value);
+  };
+  const cancel = () => { setAdding(false); setEditingIdx(null); };
+  const commit = () => {
+    const v = draftValue.trim();
+    if (!isHexColor(v)) return;
+    const name = draftName.trim() || v;
+    if (adding) onChange([...palette, { name, value: v }]);
+    else if (editingIdx !== null) {
+      const next = palette.slice();
+      next[editingIdx] = { name, value: v };
+      onChange(next);
+    }
+    cancel();
+  };
+  const remove = (i: number) => onChange(palette.filter((_, j) => j !== i));
+
+  return (
+    <div className="rounded-lg border border-border bg-card/40">
+      <div className="flex items-center justify-between px-3 py-2 rounded-t-lg text-white text-xs font-semibold" style={{ background: "#FA9346" }}>
+        <span>Paleta marki ({palette.length})</span>
+        <button
+          type="button"
+          onClick={startAdd}
+          className="text-[11px] bg-white/20 hover:bg-white/30 rounded px-2 py-0.5"
+        >
+          + Dodaj kolor
+        </button>
+      </div>
+      <div className="p-3 space-y-2">
+        {palette.length === 0 && !adding && (
+          <p className="text-xs text-muted-foreground italic">Brak kolorów w palecie marki. Dodaj swój pierwszy.</p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {palette.map((c, i) => (
+            <div key={`${c.value}-${i}`} className="group relative">
+              <button
+                type="button"
+                onClick={() => startEdit(i)}
+                className="w-8 h-8 rounded border border-border hover:scale-110 transition block"
+                style={{ background: c.value }}
+                title={`${c.name} — ${c.value} (kliknij aby edytować)`}
+              />
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[10px] leading-none opacity-0 group-hover:opacity-100 transition"
+                title="Usuń"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        {(adding || editingIdx !== null) && (
+          <div className="rounded-md border border-border bg-background/60 p-2 flex flex-wrap items-center gap-2">
+            <Input
+              type="color"
+              value={isHexColor(draftValue) ? draftValue : "#000000"}
+              onChange={(e) => setDraftValue(e.target.value)}
+              className="w-10 h-8 p-1 cursor-pointer"
+            />
+            <Input
+              type="text"
+              value={draftValue}
+              onChange={(e) => setDraftValue(e.target.value)}
+              placeholder="#______"
+              className="h-8 text-xs font-mono w-[110px]"
+            />
+            <Input
+              type="text"
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              placeholder="Nazwa (opcjonalna)"
+              className="h-8 text-xs flex-1 min-w-[140px]"
+            />
+            <Button size="sm" onClick={commit} disabled={!isHexColor(draftValue)}>
+              {adding ? "Dodaj" : "Zapisz"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={cancel}>Anuluj</Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
