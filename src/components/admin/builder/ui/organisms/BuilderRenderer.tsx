@@ -76,7 +76,7 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
   const colsSum = inner.columns.reduce((a, c) => a + (c.span.desktop ?? 6), 0) || 12;
   return (
     <div className={sanitizeCssClass(inner.advanced?.cssClass) ?? ""} style={{ ...sectionWrapperStyle(inner), ...backgroundLayerStyle(inner.background), ...borderStyle(inner.border) }}>
-      <div style={columnsRowStyle(inner, colsSum)}>
+      <div className="max-w-full overflow-hidden" style={columnsRowStyle(inner, colsSum)}>
         {inner.columns.map((c) => (
           <div key={c.id} className="min-w-0" style={{ gridColumn: `span ${c.span.desktop ?? 6}` }}>
             <RenderColumn column={c} lang={lang} device={device} />
@@ -89,7 +89,7 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
 
 function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   return (
-    <div data-col-id={column.id} className={`flex flex-wrap items-start content-start gap-2 min-w-0 ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()}>
+    <div data-col-id={column.id} className={`flex flex-wrap items-start content-start gap-2 min-w-0 max-w-full overflow-hidden ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()}>
       {column.children.map((w) => {
         if (hiddenOnDevice(w.advanced, device)) return null;
         return (
