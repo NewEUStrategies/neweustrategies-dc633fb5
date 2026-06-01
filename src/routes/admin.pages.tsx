@@ -8,10 +8,24 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2 } from "@/lib/lucide-shim";
+import { Plus, Pencil, Trash2, Home } from "@/lib/lucide-shim";
 import { deletePage, bulkDeletePages, bulkUpdatePages } from "@/lib/content.functions";
 import { toast } from "sonner";
 import { BulkActionsBar, type BulkStatus } from "@/components/admin/BulkActionsBar";
+import { useSettings } from "@/lib/admin/useSettings";
+
+type Reading = {
+  posts_per_page: number;
+  homepage_mode: "latest_posts" | "static_page";
+  homepage_page_slug: string;
+  search_engine_visibility: boolean;
+};
+const READING_DEFAULTS: Reading = {
+  posts_per_page: 10,
+  homepage_mode: "latest_posts",
+  homepage_page_slug: "",
+  search_engine_visibility: true,
+};
 
 export const Route = createFileRoute("/admin/pages")({
   component: PagesLayout,
@@ -46,6 +60,26 @@ function PagesList() {
       return data;
     },
   });
+
+  const reading = useSettings<Reading>("reading", READING_DEFAULTS);
+  const currentHome =
+    reading.query.data?.homepage_mode === "static_page"
+      ? reading.query.data?.homepage_page_slug ?? ""
+      : "";
+
+  const setAsHome = async (slug: string, title: string) => {
+    const next: Reading = {
+      ...(reading.query.data ?? READING_DEFAULTS),
+      homepage_mode: "static_page",
+      homepage_page_slug: slug,
+    };
+    try {
+      await reading.save.mutateAsync(next);
+      toast.success(`Ustawiono "${title || slug}" jako stronę główną`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const allIds = useMemo(() => pages?.map((p) => p.id) ?? [], [pages]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
@@ -147,7 +181,14 @@ function PagesList() {
                     />
                   </td>
                   <td className="p-3">
-                    <div className="font-medium">{(lang === "en" ? p.title_en : p.title_pl) || <span className="italic text-muted-foreground">- bez tytułu -</span>}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium">{(lang === "en" ? p.title_en : p.title_pl) || <span className="italic text-muted-foreground">- bez tytułu -</span>}</div>
+                      {currentHome === p.slug && (
+                        <Badge variant="outline" className="gap-1 text-[10px]">
+                          <Home className="w-3 h-3" /> Strona główna
+                        </Badge>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground">/{p.slug}</div>
                   </td>
                   <td className="p-3">
@@ -160,6 +201,21 @@ function PagesList() {
                   </td>
                   <td className="p-3 text-right">
                     <div className="flex justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={currentHome === p.slug || reading.save.isPending || p.status !== "published"}
+                        title={
+                          p.status !== "published"
+                            ? "Opublikuj stronę, aby ustawić ją jako główną"
+                            : currentHome === p.slug
+                              ? "Już ustawiona jako strona główna"
+                              : "Ustaw jako stronę główną"
+                        }
+                        onClick={() => setAsHome(p.slug, (lang === "en" ? p.title_en : p.title_pl) ?? p.slug)}
+                      >
+                        <Home className={`w-4 h-4 ${currentHome === p.slug ? "text-primary" : ""}`} />
+                      </Button>
                       <Link to="/admin/pages/$id" params={{ id: p.id }}>
                         <Button size="sm" variant="ghost"><Pencil className="w-4 h-4" /></Button>
                       </Link>
