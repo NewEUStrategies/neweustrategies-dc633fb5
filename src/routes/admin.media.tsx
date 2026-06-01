@@ -122,6 +122,17 @@ function Media() {
                   <button type="button" onClick={() => copy(m.public_url)} aria-label="Copy URL" className="p-1 hover:text-brand">
                     {copied === m.public_url ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   </button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <button type="button" aria-label="Dostęp" className="p-1 hover:text-brand">
+                        <SettingsIcon className="w-4 h-4" />
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader><DialogTitle className="truncate">{m.filename}</DialogTitle></DialogHeader>
+                      <AccessSettingsPane entityType="media" entityId={m.id} />
+                    </DialogContent>
+                  </Dialog>
                   <button type="button" onClick={() => del(m)} aria-label={t("admin.delete")} className="p-1 hover:text-destructive">
                     <Trash2 className="w-4 h-4" />
                   </button>
