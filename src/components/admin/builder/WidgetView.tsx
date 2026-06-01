@@ -19,6 +19,11 @@ import { useInView } from "@/hooks/use-in-view";
 import { hoverCss } from "@/lib/builder/hoverCss";
 import { TtsPlayer } from "@/components/TtsPlayer";
 import { NewsletterForm as NewsletterFormLive } from "@/components/NewsletterForm";
+import {
+  SectionLabelRender,
+  resolveAccentColor,
+  type SectionLabelVariant,
+} from "@/lib/builder/sectionLabelVariants";
 
 type Lang = "pl" | "en";
 
