@@ -30,6 +30,8 @@ export const Route = createFileRoute("/admin/posts/$id")({
 type PostStatus = "draft" | "published" | "archived";
 type EditorType = "richtext" | "markdown" | "builder";
 
+import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
+
 interface PostForm {
   id: string;
   slug: string;
@@ -46,6 +48,8 @@ interface PostForm {
   published_at: string | null;
   builder_data: BuilderDocument | null;
   parent_page_id: string;
+  post_format: PostFormat;
+  layout_overrides: LayoutOverrides | null;
 }
 
 
