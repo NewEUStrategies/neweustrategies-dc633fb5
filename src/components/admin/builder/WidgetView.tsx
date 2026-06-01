@@ -35,11 +35,14 @@ import {
 
 type Lang = "pl" | "en";
 
-export {
+import {
   styleToCSS, getWidgetFrameStyle, hiddenOnDevice,
   DEFAULT_WIDGET_WIDTH_BY_DEVICE, DEFAULT_WIDGET_MIN_HEIGHT, AUTO_SIZE_WIDGETS,
 } from "./ui/organisms/widget-view/frame";
-import { getStr, getNum, getStrArr, normalizeNewsletterVariant } from "./ui/organisms/widget-view/frame";
+export {
+  styleToCSS, getWidgetFrameStyle, hiddenOnDevice,
+  DEFAULT_WIDGET_WIDTH_BY_DEVICE, DEFAULT_WIDGET_MIN_HEIGHT, AUTO_SIZE_WIDGETS,
+};
 
 
 interface ViewProps {
