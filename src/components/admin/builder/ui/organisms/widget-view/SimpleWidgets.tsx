@@ -86,61 +86,60 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
 
   return (
     <span ref={wrapRef} className="relative inline-flex">
-      <button
-        type="button"
-        aria-label="Search"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+      {/* Trigger: closed = pill with icon + label; open = inline input with icon */}
+      <div
         style={{ borderRadius: 4 }}
-        className="group inline-flex items-center gap-2 px-3.5 py-2 border border-border bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
+        className={`inline-flex items-center gap-2 border bg-background transition-all duration-150 ${
+          open
+            ? "border-ring ring-2 ring-ring/30 pl-3 pr-1 py-1 w-[min(80vw,340px)]"
+            : "border-border hover:bg-accent hover:text-accent-foreground px-3.5 py-2 cursor-pointer"
+        }`}
+        onClick={() => { if (!open) setOpen(true); }}
+        role={open ? undefined : "button"}
+        aria-label={open ? undefined : "Search"}
+        aria-expanded={open}
       >
-        <LucideIcons.Search className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-        <span className="text-xs font-medium leading-none text-foreground hidden sm:inline">
-          {label}
-        </span>
-      </button>
-
-      {open && (
-        <div
-          className="absolute left-1/2 top-[calc(100%+12px)] z-50 w-[min(92vw,540px)] -translate-x-1/2 rounded-2xl bg-popover text-popover-foreground border border-border shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
-          onClick={(e) => e.stopPropagation()}
-          role="dialog"
-          aria-label="Search"
-        >
-          {/* Input */}
-          <form
-            onSubmit={(e) => { e.preventDefault(); runSearch(q); }}
-            className="flex items-center gap-3 p-4 border-b border-border"
-          >
-            <LucideIcons.Search className="w-5 h-5 text-muted-foreground shrink-0" />
+        <LucideIcons.Search className="w-4 h-4 text-muted-foreground shrink-0" />
+        {open ? (
+          <>
             <input
               ref={inputRef}
               value={q}
               onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); runSearch(q); } }}
               placeholder={placeholder}
-              className="flex-1 bg-transparent border-none outline-none text-base text-foreground placeholder:text-muted-foreground"
+              aria-label={label}
+              className="flex-1 min-w-0 bg-transparent border-none outline-none text-xs text-foreground placeholder:text-muted-foreground py-1"
             />
-            {loading && <LucideIcons.Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
-            {q.length > 0 ? (
-              <button
-                type="button"
-                aria-label="Clear"
-                onClick={() => { setQ(""); setResults([]); setSearched(false); inputRef.current?.focus(); }}
-                className="p-1 hover:bg-accent rounded-md transition-colors"
-              >
-                <LucideIcons.X className="w-4 h-4 text-muted-foreground" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                aria-label="Close"
-                onClick={() => setOpen(false)}
-                className="p-1 hover:bg-accent rounded-md transition-colors"
-              >
-                <LucideIcons.X className="w-4 h-4 text-muted-foreground" />
-              </button>
-            )}
-          </form>
+            {loading && <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />}
+            <button
+              type="button"
+              aria-label={q ? "Clear" : "Close"}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (q) { setQ(""); setResults([]); setSearched(false); inputRef.current?.focus(); }
+                else setOpen(false);
+              }}
+              className="p-1 rounded-sm hover:bg-accent transition-colors shrink-0"
+            >
+              <LucideIcons.X className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
+          </>
+        ) : (
+          <span className="text-xs font-medium leading-none text-foreground hidden sm:inline">
+            {label}
+          </span>
+        )}
+      </div>
+
+      {open && (
+        <div
+          className="absolute left-0 top-[calc(100%+8px)] z-50 w-[min(92vw,540px)] rounded-2xl bg-popover text-popover-foreground border border-border shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-label="Search"
+        >
+
 
           {/* Results */}
           <div className="max-h-[380px] overflow-y-auto p-2">
