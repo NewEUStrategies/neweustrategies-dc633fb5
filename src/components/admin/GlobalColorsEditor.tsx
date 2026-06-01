@@ -2,7 +2,7 @@
 // dla każdego slotu z GLOBAL_COLOR_GROUPS. Wybór z palety presetów,
 // pełny color picker oraz przycisk przywracania domyślnych wartości.
 import { useEffect, useState } from "react";
-import { Save, RotateCcw } from "@/lib/lucide-shim";
+import { Save, Undo } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
