@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Layers, Star, Mail, Bookmark } from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
+import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
 
 export function AdminShell({ children, hideSidebar }: { children: ReactNode; hideSidebar?: boolean }) {
