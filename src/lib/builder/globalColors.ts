@@ -15,10 +15,16 @@ export interface GlobalColorSlot {
   description: string;
   /** Czy slot ma osobną wartość dla dark mode. */
   hasDark?: boolean;
+  /** Czy slot ma dodatkowe kolory hover (light + dark) edytowalne w UI. */
+  hoverable?: boolean;
   /** Sugerowana wartość domyślna (light). */
   defaultLight?: string;
   /** Sugerowana wartość domyślna (dark). */
   defaultDark?: string;
+  /** Sugerowana wartość domyślna dla hover (light). */
+  defaultHoverLight?: string;
+  /** Sugerowana wartość domyślna dla hover (dark). */
+  defaultHoverDark?: string;
   /** Lista semantycznych tokenów shadcn, które ten slot ma nadpisać. */
   overrides?: string[];
 }
