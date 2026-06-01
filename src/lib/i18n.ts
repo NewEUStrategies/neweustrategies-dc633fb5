@@ -464,6 +464,10 @@ const resources = {
           hint: "Short, concrete bullet points - max 6. Shown above the post content in the matching language.",
           empty: "No bullets for this language.",
         },
+        sidebar: {
+          toc: "Table of contents",
+          tags: "Tags",
+        },
       },
       admin: {
 
