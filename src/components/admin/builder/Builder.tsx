@@ -419,7 +419,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
     <div className="grid grid-cols-[300px_1fr] gap-3 items-start">
 
       {/* LEFT PANEL */}
-      <aside className="bg-card border border-border rounded-lg flex flex-col overflow-hidden">
+      <aside className="bg-card border border-border rounded-lg flex flex-col overflow-hidden sticky top-3 max-h-[calc(100vh-1.5rem)] self-start">
         {hasSelection ? (
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="p-3 border-b border-border flex items-center justify-between gap-2">
