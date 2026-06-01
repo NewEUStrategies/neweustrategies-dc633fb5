@@ -353,6 +353,7 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     [data-sidebar="menu-button"][data-active="true"], [data-sidebar="menu-button"].active, [data-sidebar="sidebar"] .active{background:var(--gc-sidebar-btn-bg) !important;color:var(--gc-sidebar-btn-text, var(--gc-sidebar-text)) !important;}
     [data-sidebar="menu-button"][data-active="true"] svg, [data-sidebar="sidebar"] .active svg{color:var(--gc-sidebar-btn-text, currentColor) !important;}
     [data-sidebar="separator"]{background:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
+    :where(html:not(.dark) main h1, html:not(.dark) main h2, html:not(.dark) main h3, html:not(.dark) main h4, html:not(.dark) main h5, html:not(.dark) main h6, html:not(.dark) main p, html:not(.dark) article h1, html:not(.dark) article h2, html:not(.dark) article h3, html:not(.dark) article h4, html:not(.dark) article p, html:not(.dark) section h1, html:not(.dark) section h2, html:not(.dark) section h3, html:not(.dark) section h4, html:not(.dark) section p){color:var(--gc-dark-accent, inherit);}
   `.replace(/\s+/g, " ").trim());
 
 
