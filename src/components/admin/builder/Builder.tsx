@@ -474,15 +474,18 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
       </aside>
 
       {/* CANVAS */}
-      <div className="bg-muted/20 border border-border rounded-lg flex flex-col overflow-hidden">
-        <Toolbar
-          lang={lang} onLangChange={onLangChange}
-          device={device} setDevice={setDevice}
-          canUndo={history.canUndo} canRedo={history.canRedo}
-          onUndo={history.undo} onRedo={history.redo}
-        />
+      <div className="bg-muted/20 border border-border rounded-lg flex flex-col min-w-0">
+        <div className="sticky top-3 z-20">
+          <Toolbar
+            lang={lang} onLangChange={onLangChange}
+            device={device} setDevice={setDevice}
+            canUndo={history.canUndo} canRedo={history.canRedo}
+            onUndo={history.undo} onRedo={history.redo}
+          />
+        </div>
 
-        <div className="flex-1 overflow-y-auto bg-muted/30 p-4" onClick={() => setSelection({ kind: null, id: null })}>
+        <div className="bg-muted/30 p-4" onClick={() => setSelection({ kind: null, id: null })}>
+
           <div
             className={`mx-auto bg-background shadow-lg ring-1 ring-border transition-all ${
               device === "desktop" ? "max-w-[1440px]"
