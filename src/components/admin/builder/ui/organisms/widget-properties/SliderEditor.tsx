@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PropField } from "../../atoms";
 import { ImageSlot } from "./ImageSlot";
+import { TaxonomyPicker } from "./TaxonomyPicker";
 import {
   SLIDER_VARIANTS,
   SliderRender,
@@ -27,7 +28,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const overlayOpacity = typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45;
   const source = (typeof c.source === "string" ? c.source : "manual") as "manual" | "posts";
   const limit = typeof c.limit === "number" ? c.limit : 5;
-  const categoryId = typeof c.categoryId === "string" ? c.categoryId : "";
+  const categorySlugs = typeof c.categorySlugs === "string" ? c.categorySlugs : "";
   const tagSlugs = typeof c.tagSlugs === "string" ? c.tagSlugs : "";
   const excludeIds = typeof c.excludeIds === "string" ? c.excludeIds : "";
   const orderBy = (typeof c.orderBy === "string" ? c.orderBy : "newest") as "newest" | "oldest" | "title";
@@ -142,15 +143,11 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                 </Select>
               </PropField>
             </div>
-            <PropField label="ID kategorii (opcjonalnie)">
-              <Input value={categoryId}
-                onChange={(e) => setContent("categoryId", e.target.value)}
-                className="h-8 text-xs font-mono" placeholder="np. 8b3c…-uuid" />
+            <PropField label="Kategorie">
+              <TaxonomyPicker mode="categories" value={categorySlugs} onChange={(v) => setContent("categorySlugs", v)} />
             </PropField>
-            <PropField label="Tagi (slug, po przecinku)">
-              <Input value={tagSlugs}
-                onChange={(e) => setContent("tagSlugs", e.target.value)}
-                className="h-8 text-xs" placeholder="geopolityka, raporty" />
+            <PropField label="Tagi">
+              <TaxonomyPicker mode="tags" value={tagSlugs} onChange={(v) => setContent("tagSlugs", v)} />
             </PropField>
             <PropField label="Wyklucz ID wpisów (po przecinku)">
               <Input value={excludeIds}
