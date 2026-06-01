@@ -15,10 +15,16 @@ export interface GlobalColorSlot {
   description: string;
   /** Czy slot ma osobną wartość dla dark mode. */
   hasDark?: boolean;
+  /** Czy slot ma dodatkowe kolory hover (light + dark) edytowalne w UI. */
+  hoverable?: boolean;
   /** Sugerowana wartość domyślna (light). */
   defaultLight?: string;
   /** Sugerowana wartość domyślna (dark). */
   defaultDark?: string;
+  /** Sugerowana wartość domyślna dla hover (light). */
+  defaultHoverLight?: string;
+  /** Sugerowana wartość domyślna dla hover (dark). */
+  defaultHoverDark?: string;
   /** Lista semantycznych tokenów shadcn, które ten slot ma nadpisać. */
   overrides?: string[];
 }
@@ -365,14 +371,39 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
 ];
 
-export type GlobalColorsValue = Record<string, { light?: string; dark?: string }>;
+export type GlobalColorsValue = Record<
+  string,
+  { light?: string; dark?: string; hoverLight?: string; hoverDark?: string }
+>;
 
 export const EMPTY_GLOBAL_COLORS: GlobalColorsValue = {};
 
 /**
+ * Czy dany slot powinien mieć dodatkową parę pickerów Hover (light + dark).
+ * Domyślnie TAK — pomijamy tylko sloty, które same są wariantem hover
+ * (klucz kończy się na `-hover`) lub mają już siostrzany slot `<key>-hover`
+ * w tej samej grupie, albo zostały jawnie wyłączone (`hoverable: false`).
+ */
+export function isSlotHoverable(slot: GlobalColorSlot, group: GlobalColorGroup): boolean {
+  if (slot.hoverable === false) return false;
+  if (slot.hoverable === true) return true;
+  if (slot.key.endsWith("-hover")) return false;
+  const keys = new Set(group.slots.map((s) => s.key));
+  if (keys.has(`${slot.key}-hover`)) return false;
+  // Sloty z dedykowanymi parami hover w obrębie grupy (button / input / sidebar btn).
+  const exempt = new Set([
+    "btn-bg", "btn-text",
+    "input-bg", "input-text", "input-placeholder", "input-border",
+    "sidebar-btn-bg", "sidebar-btn-text",
+  ]);
+  return !exempt.has(slot.key);
+}
+
+/**
  * Buduje CSS dla globalnych kolorów — emituje:
  *  1) `--gc-<key>` na :root (light) i .dark (dark),
- *  2) nadpisania semantycznych tokenów shadcn (np. --primary, --background).
+ *  2) `--gc-<key>-hover` dla slotów hoverable,
+ *  3) nadpisania semantycznych tokenów shadcn (np. --primary, --background).
  */
 export function globalColorsToCss(value: GlobalColorsValue): string {
   const rootLines: string[] = [];
@@ -381,7 +412,6 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
   for (const group of GLOBAL_COLOR_GROUPS) {
     for (const slot of group.slots) {
       const v = value[slot.key];
-      // Always emit defaults if defined (so :where() fallbacks have a value).
       const light = v?.light || slot.defaultLight;
       const dark = (slot.hasDark ? v?.dark : undefined) || slot.defaultDark;
       if (light) {
@@ -392,12 +422,19 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
         darkLines.push(`--gc-${slot.key}: ${dark};`);
         for (const o of slot.overrides ?? []) darkLines.push(`${o}: ${dark};`);
       }
+      if (isSlotHoverable(slot, group)) {
+        const hLight = v?.hoverLight || slot.defaultHoverLight || light;
+        const hDark = v?.hoverDark || slot.defaultHoverDark || dark || hLight;
+        if (hLight) rootLines.push(`--gc-${slot.key}-hover: ${hLight};`);
+        if (hDark) darkLines.push(`--gc-${slot.key}-hover: ${hDark};`);
+      }
     }
   }
 
   const parts: string[] = [];
   if (rootLines.length) parts.push(`:root{${rootLines.join("")}}`);
   if (darkLines.length) parts.push(`.dark{${darkLines.join("")}}`);
+
 
   // Widget bridge: map global colors to widget elements with specificity 0
   // (via :where()), so any explicit per-widget color always wins.
@@ -450,6 +487,31 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"])::placeholder, textarea::placeholder){color:var(--gc-input-placeholder, currentColor);}
     :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover, textarea:hover, select:hover){background:var(--gc-input-hover-bg, var(--gc-input-bg, transparent));border-color:var(--gc-input-hover-border, var(--gc-input-border, currentColor));}
     :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus, input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible, textarea:focus, textarea:focus-visible, select:focus, select:focus-visible){border-color:var(--gc-input-focus-border, var(--gc-highlight, currentColor));outline-color:var(--gc-input-focus-border, var(--gc-highlight, currentColor));}
+
+    /* Per-element hover (auto z isSlotHoverable). */
+    :where(main h1:hover, article h1:hover, section h1:hover){color:var(--gc-h1-hover, var(--gc-h1, inherit));}
+    :where(main h2:hover, article h2:hover, section h2:hover){color:var(--gc-h2-hover, var(--gc-h2, inherit));}
+    :where(main h3:hover, article h3:hover, section h3:hover){color:var(--gc-h3-hover, var(--gc-h3, inherit));}
+    :where(main h4:hover, article h4:hover, section h4:hover){color:var(--gc-h4-hover, var(--gc-h4, inherit));}
+    :where(main h5:hover, article h5:hover, section h5:hover){color:var(--gc-h5-hover, var(--gc-h5, inherit));}
+    :where(main h6:hover, article h6:hover, section h6:hover){color:var(--gc-h6-hover, var(--gc-h6, inherit));}
+    :where(main p:hover, article p:hover, section p:hover, main li:hover, article li:hover, section li:hover){color:var(--gc-body-text-hover, var(--gc-body-text, inherit));}
+    :where(main small:hover, article small:hover, section small:hover, .text-muted:hover, .muted:hover){color:var(--gc-body-text-muted-hover, var(--gc-body-text-muted, inherit));}
+    :where(.sponsor-label:hover){color:var(--gc-sponsor-label-hover, var(--gc-sponsor-label, currentColor));}
+    :where(.popular-counter:hover){color:var(--gc-popular-counter-hover, var(--gc-popular-counter, currentColor));}
+    :where(.live-blog-dot:hover){color:var(--gc-live-blog-hover, var(--gc-live-blog, currentColor));background:var(--gc-live-blog-hover, var(--gc-live-blog, transparent));}
+    :where(.verified-tick:hover){color:var(--gc-verified-tick-hover, var(--gc-verified-tick, currentColor));}
+    :where(.toc-wrap:hover, .share-bar:hover){background:var(--gc-toc-bg-hover, var(--gc-toc-bg, transparent));}
+    :where(.review-star-bg:hover){background:var(--gc-review-bg-hover, var(--gc-review-bg, transparent));}
+    :where(.review-star-icon:hover){color:var(--gc-review-icon-hover, var(--gc-review-icon, currentColor));}
+    :where(.mode-switcher-light:hover){color:var(--gc-switcher-light-icon-hover, var(--gc-switcher-light-icon, currentColor));background:var(--gc-switcher-light-bg-hover, var(--gc-switcher-light-bg, transparent));}
+    :where(.mode-switcher-dark:hover){color:var(--gc-switcher-dark-icon-hover, var(--gc-switcher-dark-icon, currentColor));background:var(--gc-switcher-dark-bg-hover, var(--gc-switcher-dark-bg, transparent));}
+    :where(body:hover){background:var(--gc-body-bg-hover, var(--gc-body-bg, transparent));}
+    :where([data-single-post]:hover){background:var(--gc-body-bg-single-hover, var(--gc-body-bg-single, var(--gc-body-bg, transparent)));}
+    :where([data-dark-accent]:hover){background:var(--gc-dark-accent-hover, var(--gc-dark-accent, transparent));}
+    :where([data-sidebar="sidebar"]:hover){background:var(--gc-sidebar-bg-hover, var(--gc-sidebar-bg, var(--sidebar-background))) !important;border-color:var(--gc-sidebar-border-hover, var(--gc-sidebar-border, var(--sidebar-border))) !important;}
+    :where([data-sidebar="sidebar"]:hover){color:var(--gc-sidebar-text-hover, var(--gc-sidebar-text, var(--sidebar-foreground))) !important;}
+    :where(.bookmark-icon:hover){color:var(--gc-bookmark-hover-hover, var(--gc-bookmark-hover, currentColor));}
   `.replace(/\s+/g, " ").trim());
 
 

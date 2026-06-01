@@ -13,6 +13,7 @@ import {
   GLOBAL_COLOR_GROUPS,
   EMPTY_GLOBAL_COLORS,
   globalColorsToCss,
+  isSlotHoverable,
   type GlobalColorsValue,
   type GlobalColorSlot,
 } from "@/lib/builder/globalColors";
@@ -120,13 +121,18 @@ export function GlobalColorsEditor() {
 
   if (isLoading || !draft) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
 
-  const setSlot = (key: string, mode: "light" | "dark", value: string) => {
+  const setSlot = (key: string, mode: "light" | "dark" | "hoverLight" | "hoverDark", value: string) => {
     applyDraft({ ...draft, [key]: { ...(draft[key] ?? {}), [mode]: value } });
   };
   const resetSlot = (slot: GlobalColorSlot) => {
     applyDraft({
       ...draft,
-      [slot.key]: { light: slot.defaultLight ?? "", dark: slot.defaultDark ?? "" },
+      [slot.key]: {
+        light: slot.defaultLight ?? "",
+        dark: slot.defaultDark ?? "",
+        hoverLight: slot.defaultHoverLight ?? "",
+        hoverDark: slot.defaultHoverDark ?? "",
+      },
     });
   };
 
@@ -249,6 +255,25 @@ export function GlobalColorsEditor() {
                           defaultValue={slot.defaultDark}
                           onChange={(v) => setSlot(slot.key, "dark", v)}
                         />
+                      )}
+                      {isSlotHoverable(slot, group) && (
+                        <div className="rounded-md border border-dashed border-border/70 bg-muted/20 p-2 space-y-2">
+                          <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+                            Hover (po najechaniu)
+                          </div>
+                          <ColorRow
+                            label="Light"
+                            value={val.hoverLight ?? ""}
+                            defaultValue={slot.defaultHoverLight ?? slot.defaultLight}
+                            onChange={(v) => setSlot(slot.key, "hoverLight", v)}
+                          />
+                          <ColorRow
+                            label="Dark"
+                            value={val.hoverDark ?? ""}
+                            defaultValue={slot.defaultHoverDark ?? slot.defaultDark}
+                            onChange={(v) => setSlot(slot.key, "hoverDark", v)}
+                          />
+                        </div>
                       )}
                     </div>
                   );
