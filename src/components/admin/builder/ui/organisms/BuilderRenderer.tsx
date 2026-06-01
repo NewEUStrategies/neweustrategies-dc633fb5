@@ -64,7 +64,7 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
       <div style={sectionContainerStyle(section)}>
         <div className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(section, colsSum), paddingTop: `${INNER_SECTION_SAFE_AREA_PX}px`, paddingBottom: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
           {section.children.map((c) => {
-            const span = c.kind === "column" ? (c.span.desktop ?? 12) : 12;
+            const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
             return (
               <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${span}` }}>
                 {c.kind === "inner-section"
