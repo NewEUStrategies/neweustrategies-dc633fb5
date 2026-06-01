@@ -979,9 +979,11 @@ function ColumnView({
 }) {
   const selected = selection.kind === "column" && selection.id === column.id;
   const [dragOver, setDragOver] = useState(false);
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: "col:" + column.id });
   return (
     <div
-      className={`group/col relative min-h-[80px] rounded border-2 ${selected ? "border-brand bg-brand/5" : dragOver ? "border-brand/70 bg-brand/5" : "border-dashed border-border/60"} p-2 transition`}
+      ref={setDropRef}
+      className={`group/col relative min-h-[80px] rounded border-2 ${selected ? "border-brand bg-brand/5" : (dragOver || isOver) ? "border-brand/70 bg-brand/5" : "border-dashed border-border/60"} p-2 transition`}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "column", id: column.id }); }}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("application/x-widget-type")) {
