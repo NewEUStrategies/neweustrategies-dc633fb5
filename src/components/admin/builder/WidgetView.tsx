@@ -332,7 +332,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         }
         if (variant === "icon") {
           return wrap(
-            <a href="#newsletter" style={compactRowStyle} className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors" title={title}>
+            <a href="#newsletter" style={compactRowStyle} className="inline-flex items-center gap-2 text-foreground hover:opacity-80 transition-colors" title={title}>
               {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
               <span className="text-sm font-medium">{title}</span>
             </a>,
