@@ -26,9 +26,12 @@ export function LoginPopup() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [override, setOverride] = useState<{ title?: string; description?: string }>({});
 
   useEffect(() => {
-    return onOpenLoginPopup((m) => {
+    return onOpenLoginPopup((opts) => {
+      const m = opts.mode ?? "signin";
+      setOverride({ title: opts.title, description: opts.description });
       if (!settings.popup_enabled) {
         navigate({ to: "/login", search: { mode: m } });
         return;
@@ -42,8 +45,8 @@ export function LoginPopup() {
     if (session && open) setOpen(false);
   }, [session, open]);
 
-  const heading = lang === "pl" ? settings.popup_heading_pl : settings.popup_heading_en;
-  const description = lang === "pl" ? settings.popup_description_pl : settings.popup_description_en;
+  const heading = override.title ?? (lang === "pl" ? settings.popup_heading_pl : settings.popup_heading_en);
+  const description = override.description ?? (lang === "pl" ? settings.popup_description_pl : settings.popup_description_en);
   const logo = lang === "pl" ? settings.form_logo_url : settings.form_logo_url;
 
   const submit = async (e: React.FormEvent) => {
