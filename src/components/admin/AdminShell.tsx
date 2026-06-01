@@ -93,7 +93,8 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
               {!compact && (
                 <button
                   onClick={() => setForceCompact((s) => !s)}
-                  className="ml-auto text-muted-foreground hover:text-foreground shrink-0"
+                  data-sidebar-toggle
+                  className="ml-auto text-muted-foreground hover:text-foreground shrink-0 bg-transparent hover:bg-transparent"
                   title={t("admin.sidebar.collapse")}
                 >
                   <PanelLeft className="w-4 h-4 rotate-180 transition-transform" />
@@ -103,7 +104,8 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
             {compact && (
               <button
                 onClick={() => setForceCompact((s) => !s)}
-                className="mt-2 mx-auto flex text-muted-foreground hover:text-foreground"
+                data-sidebar-toggle
+                className="mt-2 mx-auto flex text-muted-foreground hover:text-foreground bg-transparent hover:bg-transparent"
                 title={t("admin.sidebar.expand")}
               >
                 <PanelLeft className="w-4 h-4" />
