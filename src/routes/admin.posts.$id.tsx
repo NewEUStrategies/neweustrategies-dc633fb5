@@ -53,7 +53,10 @@ interface PostForm {
   parent_page_id: string;
   post_format: PostFormat;
   layout_overrides: LayoutOverrides | null;
+  takeaways_pl: string[];
+  takeaways_en: string[];
 }
+
 
 
 interface CategoryOpt { id: string; name_pl: string; name_en: string }
