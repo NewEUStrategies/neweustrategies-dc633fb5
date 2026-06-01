@@ -119,7 +119,7 @@ export function AdminShell({ children, hideSidebar }: { children: ReactNode; hid
           </div>
         </aside>
       )}
-      <main className={`overflow-x-auto ${hideSidebar ? "w-full" : "flex-1"}`}>
+      <main className={`${isEditRoute ? "min-w-0" : "overflow-x-auto"} ${hideSidebar ? "w-full" : "flex-1"}`}>
         <div className={isEditRoute ? "p-3" : "max-w-6xl mx-auto p-6 lg:p-10"}>{children}</div>
       </main>
     </div>
