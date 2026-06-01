@@ -66,6 +66,14 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultDark: "#fbbf24",
         overrides: ["--ring", "--brand"],
       },
+      {
+        key: "highlight-hover",
+        label: "Highlight — Hover",
+        description: "Kolor highlight po najechaniu kursorem.",
+        hasDark: true,
+        defaultLight: "#d97706",
+        defaultDark: "#fcd34d",
+      },
     ],
   },
   {
