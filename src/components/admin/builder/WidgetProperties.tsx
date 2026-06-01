@@ -279,6 +279,8 @@ function ContentFields({ widget, lang, setContent }: {
       return <RatedListEditor c={c} lang={lang} setContent={setContent} />;
     case "section-label":
       return <SectionLabelEditor c={c} lang={lang} setContent={setContent} />;
+    case "slider":
+      return <SliderEditor c={c} lang={lang} setContent={setContent} />;
   }
 
   // Schema-driven render for simple widgets.
