@@ -128,9 +128,9 @@ export function buildHomepageDocument(): BuilderDocument {
       section([
         column(12, [
           widget("section-label", {
-            label_pl: "Militaria i geopolityka", label_en: "Military & geopolitics",
-            color: "military",
-            action_pl: "zobacz więcej", action_en: "see more",
+            label_pl: "Wojskowość i Geopolityka", label_en: "Military & Geopolitics",
+            color: "military", variant: "rect-bg",
+            action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("post-list", { limit: 3, columns: 3, variant: "card" }),
         ]),
@@ -140,16 +140,17 @@ export function buildHomepageDocument(): BuilderDocument {
       section([
         column(8, [
           widget("section-label", {
-            label_pl: "Finanse i gospodarka", label_en: "Finance & economy",
-            color: "finance",
-            action_pl: "zobacz więcej", action_en: "see more",
+            label_pl: "Finanse i Gospodarka", label_en: "Finance & Economy",
+            color: "finance", variant: "rect-bg",
+            action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("post-list", { limit: 3, columns: 3, variant: "card" }),
         ]),
         column(4, [
-          widget("heading", {
-            text_pl: "Recenzje książek", text_en: "Book reviews",
-            tag: "h2", sizePreset: "lg", variant: "highlight",
+          widget("section-label", {
+            label_pl: "Recenzje książek", label_en: "Book reviews",
+            color: "#0a0a0a", variant: "rect-bg",
+            action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("post-list", { limit: 1, columns: 1, variant: "card" }),
         ]),
@@ -159,25 +160,25 @@ export function buildHomepageDocument(): BuilderDocument {
       section([
         column(4, [
           widget("section-label", {
-            label_pl: "Transport i energetyka", label_en: "Transport & energy",
-            color: "transport",
-            action_pl: "zobacz więcej", action_en: "see more",
+            label_pl: "Transport i Energetyka", label_en: "Transport & Energy",
+            color: "transport", variant: "rect-bg",
+            action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("post-list", { limit: 2, columns: 1, variant: "minimal" }),
         ]),
         column(4, [
           widget("section-label", {
             label_pl: "Dyplomacja", label_en: "Diplomacy",
-            color: "diplomacy",
-            action_pl: "zobacz więcej", action_en: "see more",
+            color: "diplomacy", variant: "rect-bg",
+            action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("post-list", { limit: 2, columns: 1, variant: "minimal" }),
         ]),
         column(4, [
           widget("section-label", {
             label_pl: "Cyberbezpieczeństwo", label_en: "Cybersecurity",
-            color: "cyber",
-            action_pl: "zobacz więcej", action_en: "see more",
+            color: "cyber", variant: "rect-bg",
+            action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("post-list", { limit: 2, columns: 1, variant: "minimal" }),
         ]),
