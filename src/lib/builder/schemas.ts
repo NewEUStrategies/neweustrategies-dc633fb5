@@ -403,18 +403,8 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   // ---------- Home-page building blocks ----------
   "section-label": [
     { key: "label", type: "i18nText", label: "Etykieta sekcji" },
-    {
-      key: "color", type: "select", label: "Kolor akcentu",
-      options: [
-        { value: "brand", label: "marka" },
-        { value: "military", label: "military" },
-        { value: "finance", label: "finance" },
-        { value: "transport", label: "transport" },
-        { value: "diplomacy", label: "diplomacy" },
-        { value: "cyber", label: "cyber" },
-        { value: "neutral", label: "neutralny" },
-      ],
-    },
+    // `variant` and `color`/`accentColor` are rendered by a custom visual picker
+    // (SectionLabelEditor) — not by the generic schema renderer.
     { key: "action", type: "i18nText", label: "Tekst linku (opcjonalny)", placeholder: "więcej" },
     { key: "href", type: "url", label: "URL linku (opcjonalny)", placeholder: "/kategoria/..." },
   ],
