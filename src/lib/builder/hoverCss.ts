@@ -1,5 +1,6 @@
 // Build a scoped :hover CSS block for a widget from its HoverStyle.
-import type { CommonStyle, Device, HoverStyle } from "./types";
+import type { CommonStyle, Device, HoverStyle, Mode } from "./types";
+import { pickMode } from "./themed";
 
 const escape = (s: string) => s.replace(/[^a-zA-Z0-9_-]/g, "");
 
@@ -9,8 +10,13 @@ function pickFontSize(t: HoverStyle["typography"], device: Device): string | und
   return fs[device] ?? fs.desktop ?? fs.tablet ?? fs.mobile;
 }
 
-export function hoverCss(widgetId: string, style: CommonStyle | undefined, device: Device): string {
-  const h = style?.hover;
+export function hoverCss(
+  widgetId: string,
+  style: CommonStyle | undefined,
+  device: Device,
+  mode: Mode = "light",
+): string {
+  const h = pickMode<HoverStyle>(style?.hover, mode);
   if (!h) return "";
   const id = escape(widgetId);
   if (!id) return "";
