@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers } from "@/lib/lucide-shim";
+import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers, MousePointerClick, Pencil } from "@/lib/lucide-shim";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
 import { useTheme } from "@/components/ThemeProvider";
 
@@ -20,6 +20,9 @@ type AlertStyle = "info" | "warning" | "success" | "brand";
 type HeaderLayout = "layout-1" | "layout-2" | "layout-3" | "layout-4" | "layout-5";
 type SocialPlacement = "topbar" | "navbar" | "both" | "hidden";
 type ButtonVariant = "solid" | "outline" | "ghost" | "pill";
+type ButtonSize = "sm" | "md" | "lg";
+type InputStyle = "filled" | "outline" | "underline";
+type FocusRing = "none" | "brand" | "border";
 
 interface ThemeOptions extends Record<string, unknown> {
   logo: {
@@ -71,6 +74,25 @@ interface ThemeOptions extends Record<string, unknown> {
       show_signup: boolean;
     };
   };
+  buttons: {
+    default_variant: ButtonVariant;
+    default_size: ButtonSize;
+    radius: number;
+    padding_x: number;
+    padding_y: number;
+    font_weight: number;
+    uppercase: boolean;
+    letter_spacing: number;
+  };
+  text_fields: {
+    style: InputStyle;
+    radius: number;
+    height: number;
+    border_width: number;
+    focus_ring: FocusRing;
+    focus_ring_width: number;
+    show_label_above: boolean;
+  };
 }
 
 const DEFAULTS: ThemeOptions = {
@@ -84,6 +106,25 @@ const DEFAULTS: ThemeOptions = {
     socials: { placement: "topbar", facebook: "", twitter: "", instagram: "", linkedin: "", youtube: "", email: "", size: 16 },
     signin: { enabled: true, signin_label_pl: "Zaloguj", signin_label_en: "Sign in", signup_label_pl: "Zarejestruj", signup_label_en: "Sign up", variant: "ghost", show_signup: true },
   },
+  buttons: {
+    default_variant: "solid",
+    default_size: "md",
+    radius: 8,
+    padding_x: 16,
+    padding_y: 10,
+    font_weight: 600,
+    uppercase: false,
+    letter_spacing: 0,
+  },
+  text_fields: {
+    style: "outline",
+    radius: 6,
+    height: 40,
+    border_width: 1,
+    focus_ring: "brand",
+    focus_ring_width: 2,
+    show_label_above: true,
+  },
 };
 
 const SECTIONS = [
@@ -96,6 +137,8 @@ const SECTIONS = [
   { id: "header.socials", label: "Social Icons", icon: Users },
   { id: "header.signin", label: "Sign In Buttons", icon: LogIn },
   { id: "header.mobile", label: "Mobile Header", icon: LayoutDashboard },
+  { id: "buttons", label: "Buttons", icon: MousePointerClick },
+  { id: "text_fields", label: "Text Fields", icon: Pencil },
 ] as const;
 
 const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
@@ -132,6 +175,10 @@ export function ThemeOptionsPane() {
     setDraft({ ...draft, header: { ...draft.header, signin: { ...draft.header.signin, ...p } } });
   const patchLayout = (layout: HeaderLayout) =>
     setDraft({ ...draft, header: { ...draft.header, layout } });
+  const patchButtons = (p: Partial<ThemeOptions["buttons"]>) =>
+    setDraft({ ...draft, buttons: { ...draft.buttons, ...p } });
+  const patchInputs = (p: Partial<ThemeOptions["text_fields"]>) =>
+    setDraft({ ...draft, text_fields: { ...draft.text_fields, ...p } });
 
   return (
     <ThemeOptionsBody
@@ -570,10 +617,179 @@ export function ThemeOptionsPane() {
             </Row>
           </div>
         )}
+
+        {active === "buttons" && (
+          <div className="space-y-4">
+            <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
+              Globalne ustawienia kształtu i typografii przycisków. Kolory (w tym hover) konfiguruj w <strong>Global Colors → Button</strong>.
+            </div>
+            <Row label="Domyślny wariant">
+              <Select value={draft.buttons.default_variant} onValueChange={(v) => patchButtons({ default_variant: v as ButtonVariant })}>
+                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="solid">Solid</SelectItem>
+                  <SelectItem value="outline">Outline</SelectItem>
+                  <SelectItem value="ghost">Ghost</SelectItem>
+                  <SelectItem value="pill">Pill</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label="Domyślny rozmiar">
+              <Select value={draft.buttons.default_size} onValueChange={(v) => patchButtons({ default_size: v as ButtonSize })}>
+                <SelectTrigger className="w-[160px] h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sm">Small</SelectItem>
+                  <SelectItem value="md">Medium</SelectItem>
+                  <SelectItem value="lg">Large</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label="Border radius (px)" hint="0 = ostre rogi, 999 = pigułka.">
+              <Input type="number" min={0} max={999} className="w-[120px] h-9 text-xs"
+                value={draft.buttons.radius}
+                onChange={(e) => patchButtons({ radius: Number(e.target.value) || 0 })} />
+            </Row>
+            <Row label="Padding poziomy (px)">
+              <Input type="number" min={0} max={64} className="w-[120px] h-9 text-xs"
+                value={draft.buttons.padding_x}
+                onChange={(e) => patchButtons({ padding_x: Number(e.target.value) || 0 })} />
+            </Row>
+            <Row label="Padding pionowy (px)">
+              <Input type="number" min={0} max={48} className="w-[120px] h-9 text-xs"
+                value={draft.buttons.padding_y}
+                onChange={(e) => patchButtons({ padding_y: Number(e.target.value) || 0 })} />
+            </Row>
+            <Row label="Grubość fontu" hint="400=regular, 600=semibold, 700=bold.">
+              <Select value={String(draft.buttons.font_weight)} onValueChange={(v) => patchButtons({ font_weight: Number(v) })}>
+                <SelectTrigger className="w-[160px] h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="400">400 — Regular</SelectItem>
+                  <SelectItem value="500">500 — Medium</SelectItem>
+                  <SelectItem value="600">600 — Semibold</SelectItem>
+                  <SelectItem value="700">700 — Bold</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label="WIELKIE LITERY" hint="Wymusza uppercase na tekście przycisków.">
+              <Switch checked={draft.buttons.uppercase} onCheckedChange={(v) => patchButtons({ uppercase: v })} />
+            </Row>
+            <Row label="Letter spacing (px)">
+              <Input type="number" min={-2} max={8} step={0.1} className="w-[120px] h-9 text-xs"
+                value={draft.buttons.letter_spacing}
+                onChange={(e) => patchButtons({ letter_spacing: Number(e.target.value) || 0 })} />
+            </Row>
+            <ButtonPreview opts={draft.buttons} />
+          </div>
+        )}
+
+        {active === "text_fields" && (
+          <div className="space-y-4">
+            <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
+              Globalne ustawienia kształtu pól tekstowych. Kolory (tło, tekst, placeholder, hover, focus) konfiguruj w <strong>Global Colors → Inputs / Text Fields</strong>.
+            </div>
+            <Row label="Styl pola">
+              <Select value={draft.text_fields.style} onValueChange={(v) => patchInputs({ style: v as InputStyle })}>
+                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="filled">Filled (z tłem)</SelectItem>
+                  <SelectItem value="outline">Outline (obramowane)</SelectItem>
+                  <SelectItem value="underline">Underline (tylko dolna linia)</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label="Border radius (px)">
+              <Input type="number" min={0} max={32} className="w-[120px] h-9 text-xs"
+                value={draft.text_fields.radius}
+                onChange={(e) => patchInputs({ radius: Number(e.target.value) || 0 })} />
+            </Row>
+            <Row label="Wysokość pola (px)">
+              <Input type="number" min={28} max={72} className="w-[120px] h-9 text-xs"
+                value={draft.text_fields.height}
+                onChange={(e) => patchInputs({ height: Number(e.target.value) || 40 })} />
+            </Row>
+            <Row label="Grubość obramowania (px)">
+              <Input type="number" min={0} max={4} className="w-[120px] h-9 text-xs"
+                value={draft.text_fields.border_width}
+                onChange={(e) => patchInputs({ border_width: Number(e.target.value) || 0 })} />
+            </Row>
+            <Row label="Focus ring" hint="Styl podświetlenia po fokusie.">
+              <Select value={draft.text_fields.focus_ring} onValueChange={(v) => patchInputs({ focus_ring: v as FocusRing })}>
+                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Brak</SelectItem>
+                  <SelectItem value="brand">Brand (highlight)</SelectItem>
+                  <SelectItem value="border">Border (pogrubienie)</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label="Grubość ringu (px)">
+              <Input type="number" min={0} max={6} className="w-[120px] h-9 text-xs"
+                value={draft.text_fields.focus_ring_width}
+                onChange={(e) => patchInputs({ focus_ring_width: Number(e.target.value) || 0 })} />
+            </Row>
+            <Row label="Pokaż label nad polem" hint="Jeśli wyłączone — label tylko jako placeholder.">
+              <Switch checked={draft.text_fields.show_label_above} onCheckedChange={(v) => patchInputs({ show_label_above: v })} />
+            </Row>
+            <InputPreview opts={draft.text_fields} />
+          </div>
+        )}
         </>
         )}
       </section>
     </ThemeOptionsBody>
+  );
+}
+
+function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
+  const radius = opts.default_variant === "pill" ? 999 : opts.radius;
+  const base: React.CSSProperties = {
+    borderRadius: radius,
+    paddingLeft: opts.padding_x,
+    paddingRight: opts.padding_x,
+    paddingTop: opts.padding_y,
+    paddingBottom: opts.padding_y,
+    fontWeight: opts.font_weight,
+    textTransform: opts.uppercase ? "uppercase" : "none",
+    letterSpacing: `${opts.letter_spacing}px`,
+    fontSize: opts.default_size === "sm" ? 12 : opts.default_size === "lg" ? 16 : 14,
+  };
+  return (
+    <div className="rounded-md border border-border bg-background/40 p-4">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Podgląd</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button style={{ ...base, background: "var(--gc-btn-bg, hsl(var(--primary)))", color: "var(--gc-btn-text, hsl(var(--primary-foreground)))" }}>Solid</button>
+        <button style={{ ...base, background: "transparent", color: "var(--gc-btn-bg, hsl(var(--primary)))", border: `2px solid var(--gc-btn-bg, hsl(var(--primary)))` }}>Outline</button>
+        <button style={{ ...base, background: "transparent", color: "var(--gc-btn-bg, hsl(var(--primary)))" }}>Ghost</button>
+      </div>
+    </div>
+  );
+}
+
+function InputPreview({ opts }: { opts: ThemeOptions["text_fields"] }) {
+  const isUnderline = opts.style === "underline";
+  const isFilled = opts.style === "filled";
+  const style: React.CSSProperties = {
+    height: opts.height,
+    borderRadius: isUnderline ? 0 : opts.radius,
+    borderWidth: isUnderline ? 0 : opts.border_width,
+    borderBottomWidth: isUnderline ? Math.max(1, opts.border_width) : opts.border_width,
+    borderStyle: "solid",
+    borderColor: "var(--gc-input-border, hsl(var(--border)))",
+    background: isFilled ? "var(--gc-input-bg, hsl(var(--muted)))" : isUnderline ? "transparent" : "var(--gc-input-bg, hsl(var(--background)))",
+    color: "var(--gc-input-text, inherit)",
+    paddingLeft: isUnderline ? 0 : 12,
+    paddingRight: isUnderline ? 0 : 12,
+    width: "100%",
+    fontSize: 14,
+    outline: "none",
+  };
+  return (
+    <div className="rounded-md border border-border bg-background/40 p-4 space-y-2">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Podgląd</div>
+      {opts.show_label_above && <Label className="text-xs">E-mail</Label>}
+      <input type="email" placeholder={opts.show_label_above ? "twoj@email.pl" : "E-mail"} style={style} />
+      <p className="text-[10px] text-muted-foreground">Hover / focus używają kolorów z Global Colors.</p>
+    </div>
   );
 }
 

@@ -66,6 +66,14 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultDark: "#fbbf24",
         overrides: ["--ring", "--brand"],
       },
+      {
+        key: "highlight-hover",
+        label: "Highlight — Hover",
+        description: "Kolor highlight po najechaniu kursorem.",
+        hasDark: true,
+        defaultLight: "#d97706",
+        defaultDark: "#fcd34d",
+      },
     ],
   },
   {
@@ -285,6 +293,19 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     ],
   },
   {
+    id: "input",
+    label: "Inputs / Text Fields",
+    slots: [
+      { key: "input-bg", label: "Input Background", description: "Tło pól tekstowych.", hasDark: true, defaultLight: "#ffffff", defaultDark: "#0f172a", overrides: ["--input-background"] },
+      { key: "input-text", label: "Input Text", description: "Kolor wpisywanego tekstu.", hasDark: true, defaultLight: "#0f172a", defaultDark: "#f1f5f9" },
+      { key: "input-placeholder", label: "Placeholder Text", description: "Kolor placeholdera.", hasDark: true, defaultLight: "#94a3b8", defaultDark: "#64748b" },
+      { key: "input-border", label: "Input Border", description: "Kolor obramowania.", hasDark: true, defaultLight: "#e2e8f0", defaultDark: "#1e293b", overrides: ["--input"] },
+      { key: "input-hover-bg", label: "Hover — Background", description: "Tło pola po najechaniu.", hasDark: true, defaultLight: "#f8fafc", defaultDark: "#1e293b" },
+      { key: "input-hover-border", label: "Hover — Border", description: "Obramowanie pola po najechaniu.", hasDark: true, defaultLight: "#cbd5e1", defaultDark: "#334155" },
+      { key: "input-focus-border", label: "Focus — Border / Ring", description: "Obramowanie i ring po fokusie.", hasDark: true, defaultLight: "#fa9346", defaultDark: "#fbbf24" },
+    ],
+  },
+  {
     id: "headings",
     label: "Headings (H1–H6)",
     slots: [
@@ -423,6 +444,12 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(main small, article small, section small, .text-muted, .muted){color:var(--gc-body-text-muted, inherit);}
     :where(main a:not(.btn):not([class*="button"]), article a:not(.btn):not([class*="button"]), section a:not(.btn):not([class*="button"])){color:var(--gc-link, var(--gc-highlight, inherit));}
     :where(main a:not(.btn):not([class*="button"]):hover, article a:not(.btn):not([class*="button"]):hover, section a:not(.btn):not([class*="button"]):hover){color:var(--gc-link-hover, var(--gc-link, inherit));}
+    :where(.highlight, .text-brand, [data-highlight]){color:var(--gc-highlight, inherit);}
+    :where(.highlight:hover, .text-brand:hover, [data-highlight]:hover){color:var(--gc-highlight-hover, var(--gc-highlight, inherit));}
+    :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select){background:var(--gc-input-bg, transparent);color:var(--gc-input-text, inherit);border-color:var(--gc-input-border, currentColor);}
+    :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"])::placeholder, textarea::placeholder){color:var(--gc-input-placeholder, currentColor);}
+    :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover, textarea:hover, select:hover){background:var(--gc-input-hover-bg, var(--gc-input-bg, transparent));border-color:var(--gc-input-hover-border, var(--gc-input-border, currentColor));}
+    :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus, input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible, textarea:focus, textarea:focus-visible, select:focus, select:focus-visible){border-color:var(--gc-input-focus-border, var(--gc-highlight, currentColor));outline-color:var(--gc-input-focus-border, var(--gc-highlight, currentColor));}
   `.replace(/\s+/g, " ").trim());
 
 
