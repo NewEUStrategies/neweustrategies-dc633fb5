@@ -28,7 +28,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const overlayOpacity = typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45;
   const source = (typeof c.source === "string" ? c.source : "manual") as "manual" | "posts";
   const limit = typeof c.limit === "number" ? c.limit : 5;
-  const categoryId = typeof c.categoryId === "string" ? c.categoryId : "";
+  const categorySlugs = typeof c.categorySlugs === "string" ? c.categorySlugs : "";
   const tagSlugs = typeof c.tagSlugs === "string" ? c.tagSlugs : "";
   const excludeIds = typeof c.excludeIds === "string" ? c.excludeIds : "";
   const orderBy = (typeof c.orderBy === "string" ? c.orderBy : "newest") as "newest" | "oldest" | "title";
