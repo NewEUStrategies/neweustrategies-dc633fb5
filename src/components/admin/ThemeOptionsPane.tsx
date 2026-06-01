@@ -475,6 +475,8 @@ export function ThemeOptionsPane() {
             </Row>
           </div>
         )}
+        </>
+        )}
       </section>
     </ThemeOptionsBody>
   );
