@@ -34,6 +34,9 @@ import {
 
 type Lang = "pl" | "en";
 
+const DEFAULT_WIDGET_BOX_WIDTH = 192;
+const DEFAULT_WIDGET_BOX_HEIGHT = 192;
+
 const pick = <T,>(
   rv: { desktop?: T; tablet?: T; mobile?: T } | undefined,
   device: Device,
@@ -80,6 +83,12 @@ export const styleToCSS = (
   }
   return css;
 };
+
+export const getWidgetFrameStyle = (node: WidgetNode): CSSProperties => ({
+  width: (node.advanced as { width?: number | string } | undefined)?.width ?? node.style?.maxWidth ?? DEFAULT_WIDGET_BOX_WIDTH,
+  minHeight: (node.advanced as { height?: number | string } | undefined)?.height ?? node.style?.minHeight ?? DEFAULT_WIDGET_BOX_HEIGHT,
+  maxWidth: "100%",
+});
 
 export const hiddenOnDevice = (a: AdvancedSettings | undefined, device: Device): boolean =>
   Boolean(a?.hideOn?.[device]);
@@ -306,7 +315,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       data-w-id={node.id}
       ref={motion ? motionRef : undefined}
       className={`${cls}`.trim()}
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", width: "100%", maxWidth: "100%", ...baseStyle, ...motionStyle }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", width: "100%", height: "100%", maxWidth: "100%", ...baseStyle, ...motionStyle }}
     >
       {children}
       {hover && <style dangerouslySetInnerHTML={{ __html: hover }} />}

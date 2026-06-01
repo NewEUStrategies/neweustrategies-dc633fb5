@@ -34,7 +34,7 @@ import { copyToClipboard, readClipboard, type ClipEnvelope } from "@/lib/builder
 import { useHistory } from "@/lib/builder/useHistory";
 import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
 import { buildHomepageDocument } from "@/lib/builder/homepageTemplate";
-import { WidgetView } from "./WidgetView";
+import { WidgetView, getWidgetFrameStyle } from "./WidgetView";
 import { SectionProperties } from "./SectionProperties";
 import { WidgetProperties } from "./WidgetProperties";
 import { ColumnProperties } from "./ColumnProperties";
@@ -1070,7 +1070,7 @@ function ColumnView({
         </div>
       )}
       <SortableContext items={column.children.map((w) => w.id)} strategy={verticalListSortingStrategy}>
-        <div className={`flex flex-wrap items-start content-start gap-2 ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"}`}>
+        <div className={`flex flex-wrap items-stretch content-start gap-2 ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"}`}>
           {column.children.map((w) => (
             <SortableWidget key={w.id} widget={w} lang={lang} device={device}
               selected={selection.kind === "widget" && selection.id === w.id}
@@ -1096,9 +1096,9 @@ function SortableWidget({
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   const hidden = !!widget.advanced?.hideOn?.[device];
   return (
-    <div ref={setNodeRef} style={{ ...style, width: (widget.advanced as any)?.width ?? 192, maxWidth: "100%" }} {...attributes}
+    <div ref={setNodeRef} style={{ ...style, ...getWidgetFrameStyle(widget) }} {...attributes}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
-      className={`group/w relative flex flex-col items-center justify-start shrink-0 self-start rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} p-1 ${hidden ? "opacity-40" : ""}`}
+      className={`group/w relative flex flex-col items-stretch justify-start shrink-0 self-stretch rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} p-1 ${hidden ? "opacity-40" : ""}`}
     >
       <div className={`absolute -top-2.5 right-2 z-10 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] transition ${selected ? "opacity-100" : "opacity-0 group-hover/w:opacity-100"}`}>
         <span {...listeners} className="cursor-grab text-muted-foreground px-1" title="Przeciągnij">⋮⋮</span>
@@ -1106,7 +1106,7 @@ function SortableWidget({
         <IconBtn onClick={(e) => { e.stopPropagation(); onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
       </div>
       {/* Allow pointer events when selected so inline-editable text fields are usable. */}
-      <div className={selected ? "" : "pointer-events-none"}>
+      <div className={selected ? "h-full w-full" : "pointer-events-none h-full w-full"}>
         <WidgetView
           node={widget}
           lang={lang}
