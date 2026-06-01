@@ -26,6 +26,8 @@ export const GAP_PX: Record<ColumnsGap, number> = {
 export const SECTION_SAFE_AREA_PX = 16;
 export const INNER_SECTION_SAFE_AREA_PX = 12;
 export const COLUMN_SAFE_AREA_PX = 12;
+/** Domyślna i minimalna wysokość każdej sekcji (zgodna z wysokością kompaktowych widgetów). */
+export const SECTION_DEFAULT_MIN_HEIGHT_PX = 40;
 
 export function columnsGapPx(layout?: SectionLayout): number {
   const g = layout?.columnsGap ?? "default";
