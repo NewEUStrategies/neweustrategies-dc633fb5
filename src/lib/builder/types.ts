@@ -88,7 +88,7 @@ export interface AdvancedSettings {
 // ---------- Section-specific settings (Elementor-style) ----------
 
 export type ContentWidth = "boxed" | "full";
-export type SectionHeight = "default" | "fit-screen" | "min-height";
+export type SectionHeight = "default" | "fit-screen" | "min-height" | "fixed";
 export type VerticalAlign =
   | "default" | "top" | "middle" | "bottom"
   | "space-between" | "space-around" | "space-evenly";
