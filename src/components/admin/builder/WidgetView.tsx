@@ -110,7 +110,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       id={htmlId}
       data-w-id={node.id}
       ref={motion ? motionRef : undefined}
-      className={`${cls}`.trim()}
+      className={`text-foreground ${cls}`.trim()}
       style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", width: "100%", minWidth: 0, height: "100%", maxWidth: isImage ? "none" : "100%", boxSizing: "border-box", overflow: isImage ? "visible" : "hidden", ...baseStyle, ...motionStyle }}
     >
       {children}
@@ -127,7 +127,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
   };
 
   // Read-only widgets without inline editing — short-circuit via dispatcher.
-  const simple = renderSimpleWidget(node, lang, theme, editable, onContentChange);
+  const simple = renderSimpleWidget(node, lang, effectiveMode, editable, onContentChange);
   if (simple !== undefined) return wrap(simple);
 
   switch (node.type) {
@@ -437,7 +437,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       return wrap(<TabsBlock tabs={tabs} lang={lang} nodeId={node.id} />);
     }
     case "rated-list":
-      return wrap(<RatedListView c={c} lang={lang} />);
+      return wrap(<RatedListView c={c} lang={lang} mode={effectiveMode} />);
 
 
     case "dark-featured-card": {
