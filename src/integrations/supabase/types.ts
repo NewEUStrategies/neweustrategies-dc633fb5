@@ -639,6 +639,7 @@ export type Database = {
         Row: {
           colors: Json
           fonts: Json
+          global_colors: Json
           scale: Json
           tenant_id: string
           updated_at: string
@@ -647,6 +648,7 @@ export type Database = {
         Insert: {
           colors?: Json
           fonts?: Json
+          global_colors?: Json
           scale?: Json
           tenant_id?: string
           updated_at?: string
@@ -655,6 +657,7 @@ export type Database = {
         Update: {
           colors?: Json
           fonts?: Json
+          global_colors?: Json
           scale?: Json
           tenant_id?: string
           updated_at?: string
