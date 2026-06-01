@@ -112,7 +112,7 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Wymiary</h4>
           <div className="grid grid-cols-2 gap-2">
-            <PropField label="Border radius">
+            <PropField label="Zaokrąglenie rogów">
               <Input
                 value={widget.style?.borderRadius ?? ""}
                 placeholder="8px"
@@ -120,7 +120,7 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
                 className="h-8 text-xs"
               />
             </PropField>
-            <PropField label="Max width">
+            <PropField label="Maks. szerokość">
               <Input
                 value={widget.style?.maxWidth ?? ""}
                 placeholder="600px"
@@ -128,7 +128,7 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
                 className="h-8 text-xs"
               />
             </PropField>
-            <PropField label="Min height">
+            <PropField label="Min. wysokość">
               <Input
                 value={widget.style?.minHeight ?? ""}
                 placeholder="120px"
@@ -161,8 +161,14 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
               >
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {["none","solid","dashed","dotted","double"].map((v) => (
-                    <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>
+                  {[
+                    { v: "none", label: "Brak" },
+                    { v: "solid", label: "Ciągła" },
+                    { v: "dashed", label: "Kreskowana" },
+                    { v: "dotted", label: "Kropkowana" },
+                    { v: "double", label: "Podwójna" },
+                  ].map((o) => (
+                    <SelectItem key={o.v} value={o.v} className="text-xs">{o.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -186,7 +192,7 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
 
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Cień</h4>
-          <PropField label="Box shadow (CSS)">
+          <PropField label="Cień (CSS box-shadow)">
             <Input
               value={widget.style?.boxShadow ?? ""}
               placeholder="0 10px 30px rgba(0,0,0,.15)"
