@@ -641,6 +641,9 @@ export function renderSimpleWidget(
       );
     }
     case "slider": {
+      if (getStr(c, "source") === "posts") {
+        return <PostsSliderWidget c={c} lang={lang} />;
+      }
       const items = Array.isArray(c.items) ? (c.items as unknown[]).filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null) : [];
       const cfg = {
         variant: (getStr(c, "variant") || "classic") as SliderVariant,
