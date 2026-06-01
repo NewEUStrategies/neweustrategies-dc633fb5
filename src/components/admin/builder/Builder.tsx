@@ -95,6 +95,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   const history = useHistory(initial, onChange);
   const doc = history.doc;
   const [device, setDevice] = useState<Device>("desktop");
+  const [mode, setMode] = useState<Mode>("light");
   const [selection, setSelection] = useState<Selection>({ kind: null, id: null });
   const [showNavigator, setShowNavigator] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ kind: "section" | "column" | "widget"; id: string } | null>(null);
