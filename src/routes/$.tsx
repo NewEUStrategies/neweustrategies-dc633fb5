@@ -4,9 +4,9 @@
 //   /<page-path>/<post-slug>
 // Static routes (/, /blog, /login, /post/$slug, /admin/*, /api/*) match first.
 import { createFileRoute, notFound, Link, useRouter } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -15,7 +15,7 @@ import { parseBuilderDoc } from "@/lib/builder/parse";
 import { sanitizeMarkdownHtml } from "@/lib/sanitize";
 import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
-import { fetchPageBreadcrumbs, buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
+import { buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
 import { useContentAccess } from "@/hooks/useContentAccess";
 import { Paywall } from "@/components/Paywall";
 import { PostLayoutRenderer } from "@/components/PostLayoutRenderer";
@@ -24,61 +24,22 @@ import { PostContentStyle } from "@/components/PostContentStyle";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { mergeOverrides, pickLayoutId, type LayoutOverrides, type PostFormat } from "@/lib/postLayouts";
+import { resolvedContentQueryOptions, type PostData } from "@/lib/queries/public";
 
-interface PageData {
-  id: string; slug: string;
-  title_pl: string; title_en: string;
-  content_pl: string | null; content_en: string | null;
-  editor: "richtext" | "markdown" | "builder";
-  builder_data: unknown;
-  cover_image_url: string | null;
-  published_at: string | null;
-}
-interface PostData extends PageData {
-  excerpt_pl: string | null; excerpt_en: string | null;
-  read_minutes: number | null;
-  post_format: PostFormat;
-  layout_overrides: LayoutOverrides | null;
+function splatToSegments(splat: string): string[] {
+  return splat.split("/").filter(Boolean);
 }
 
 export const Route = createFileRoute("/$")({
-  loader: async ({ params }) => {
+  loader: async ({ params, context }) => {
     const splat = (params as { _splat?: string })._splat ?? "";
-    const segments = splat.split("/").filter(Boolean);
+    const segments = splatToSegments(splat);
     if (segments.length === 0) throw notFound();
-
-    const { data: resolved, error: rErr } = await supabase
-      .rpc("resolve_path", { _segments: segments });
-    if (rErr) throw rErr;
-    const hit = (resolved ?? [])[0] as { page_id: string | null; post_id: string | null } | undefined;
-    if (!hit?.page_id) throw notFound();
-
-    if (hit.post_id) {
-      const { data, error } = await supabase
-        .from("posts")
-        .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at, read_minutes, post_format, layout_overrides")
-        .eq("id", hit.post_id).maybeSingle();
-      if (error) throw error;
-      if (!data) throw notFound();
-      const { data: tagRows } = await supabase
-        .from("post_tags")
-        .select("tags(slug, name)")
-        .eq("post_id", hit.post_id);
-      const tags = (tagRows ?? [])
-        .map((r) => (r as { tags: { slug: string; name: string } | null }).tags)
-        .filter((t): t is { slug: string; name: string } => !!t);
-      const crumbs = await fetchPageBreadcrumbs(hit.page_id);
-      return { kind: "post" as const, item: data as PostData, crumbs, parentPageId: hit.page_id, tags };
-    }
-
-    const { data, error } = await supabase
-      .from("pages")
-      .select("id, slug, title_pl, title_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at")
-      .eq("id", hit.page_id).maybeSingle();
-    if (error) throw error;
+    const data = await context.queryClient.ensureQueryData(
+      resolvedContentQueryOptions(segments),
+    );
     if (!data) throw notFound();
-    const crumbs = await fetchPageBreadcrumbs(hit.page_id);
-    return { kind: "page" as const, item: data as PageData, crumbs, parentPageId: hit.page_id };
+    return data;
   },
   head: ({ loaderData }) => {
     const it = loaderData?.item;
@@ -118,7 +79,11 @@ export const Route = createFileRoute("/$")({
 });
 
 function PublicPage() {
-  const data = Route.useLoaderData();
+  const params = Route.useParams() as { _splat?: string };
+  const segments = splatToSegments(params._splat ?? "");
+  const { data } = useSuspenseQuery(resolvedContentQueryOptions(segments));
+  if (!data) return <PublicNotFound />;
+
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const it = data.item;
