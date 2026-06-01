@@ -90,6 +90,8 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
                   key={to}
                   to={to}
                   title={label}
+                  data-sidebar="menu-button"
+                  data-active={active ? "true" : "false"}
                   className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm transition ${
                     active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted"
                   }`}
