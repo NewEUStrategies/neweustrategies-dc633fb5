@@ -653,6 +653,18 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
           </div>
         </div>
       </div>
+      <ConfirmDeleteDialog
+        pending={pendingDelete}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (!pendingDelete) return;
+          if (pendingDelete.kind === "section") removeSection(pendingDelete.id);
+          else if (pendingDelete.kind === "column") removeColumn(pendingDelete.id);
+          else if (pendingDelete.kind === "widget") removeWidget(pendingDelete.id);
+          setSelection({ kind: null, id: null });
+          setPendingDelete(null);
+        }}
+      />
     </div>
   );
 }
