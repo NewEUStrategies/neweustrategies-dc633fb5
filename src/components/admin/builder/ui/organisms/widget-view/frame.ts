@@ -98,9 +98,10 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
 
   const sj = node.style?.selfJustify;
   const saRaw = node.style?.selfAlign;
-  // Default: vertically center widgets in their column cell.
-  const sa = !saRaw || saRaw === "auto" ? "center" : saRaw;
+  // Default: no per-widget vertical anchor — column-level verticalAlign decides.
+  const sa = !saRaw || saRaw === "auto" ? undefined : saRaw;
   const horizontalAnchored = sj && sj !== "auto";
+
 
   // When user anchors the widget horizontally, it must shrink to its content
   // so the alignSelf has visible effect (otherwise width:100% fills the column).
