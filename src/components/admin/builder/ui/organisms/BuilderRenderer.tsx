@@ -65,14 +65,16 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
         <div className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(section, colsSum), paddingTop: `${INNER_SECTION_SAFE_AREA_PX}px`, paddingBottom: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
           {section.children.map((c) => {
             const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
+            const gridColumn = device === "mobile" ? "1 / -1" : `span ${span}`;
             return (
-              <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${span}` }}>
+              <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn }}>
                 {c.kind === "inner-section"
                   ? <RenderInner inner={c} lang={lang} device={device} />
                   : <RenderColumn column={c} lang={lang} device={device} />}
               </div>
             );
           })}
+
         </div>
       </div>
       {typoCss && <style dangerouslySetInnerHTML={{ __html: typoCss }} />}
