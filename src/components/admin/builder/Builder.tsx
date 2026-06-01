@@ -44,6 +44,8 @@ import {
 import { useBuilderClipboard } from "./ui/hooks/useBuilderClipboard";
 import { useBuilderShortcuts } from "./ui/hooks/useBuilderShortcuts";
 import { ConfirmDeleteDialog } from "./ui/molecules/ConfirmDeleteDialog";
+import { BuilderContextMenu, type CtxTarget } from "./ui/molecules/BuilderContextMenu";
+import { readClipboard } from "@/lib/builder/clipboard";
 
 
 
@@ -95,6 +97,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   const [selection, setSelection] = useState<Selection>({ kind: null, id: null });
   const [showNavigator, setShowNavigator] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ kind: "section" | "column" | "widget"; id: string } | null>(null);
+  const [ctx, setCtx] = useState<CtxTarget | null>(null);
 
   const askRemoveSection = useCallback((id: string) => setPendingDelete({ kind: "section", id }), []);
   const askRemoveColumn = useCallback((id: string) => setPendingDelete({ kind: "column", id }), []);
@@ -470,8 +473,127 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   const selectedInner = selection.kind === "inner-section" && selection.id ? findInner(doc, selection.id) : null;
   const hasSelection = !!(selectedWidget || selectedSection || selectedColumn || selectedInner);
 
+  // ---------- right-click context menu ----------
+  const onCanvasContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const t = e.target as HTMLElement | null;
+    if (!t) return;
+    const widgetEl = t.closest<HTMLElement>("[data-widget-id]");
+    const colEl = t.closest<HTMLElement>("[data-col-id]");
+    const innerEl = t.closest<HTMLElement>("[data-inner-id]");
+    const secEl = t.closest<HTMLElement>("[data-sec-id]");
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (widgetEl?.dataset.widgetId) {
+      setSelection({ kind: "widget", id: widgetEl.dataset.widgetId });
+      setCtx({ kind: "widget", id: widgetEl.dataset.widgetId, x: e.clientX, y: e.clientY });
+    } else if (colEl?.dataset.colId) {
+      setSelection({ kind: "column", id: colEl.dataset.colId });
+      setCtx({ kind: "column", id: colEl.dataset.colId, x: e.clientX, y: e.clientY });
+    } else if (innerEl?.dataset.innerId) {
+      setSelection({ kind: "inner-section", id: innerEl.dataset.innerId });
+      setCtx({ kind: "inner-section", id: innerEl.dataset.innerId, x: e.clientX, y: e.clientY });
+    } else if (secEl?.dataset.secId) {
+      setSelection({ kind: "section", id: secEl.dataset.secId });
+      setCtx({ kind: "section", id: secEl.dataset.secId, x: e.clientX, y: e.clientY });
+    } else {
+      setSelection({ kind: null, id: null });
+      setCtx({ kind: "empty", id: null, x: e.clientX, y: e.clientY });
+    }
+  }, []);
+
+  const ctxActions = useMemo(() => {
+    if (!ctx) return {};
+    const hasClipboard = !!readClipboard();
+    if (ctx.kind === "empty") {
+      return {
+        addSection: () => addSection(1),
+        paste: () => pasteFromClipboard(),
+        hasClipboard,
+      };
+    }
+    if (ctx.kind === "section" && ctx.id) {
+      const id = ctx.id;
+      const idx = doc.sections.findIndex((s) => s.id === id);
+      const target = doc.sections[idx];
+      const hidden = !!target?.advanced?.hideOn?.[device];
+      return {
+        openProperties: () => setSelection({ kind: "section", id }),
+        duplicate: () => duplicateSection(id),
+        copy: () => copySelection(),
+        cut: () => cutSelection(),
+        paste: () => pasteFromClipboard(),
+        hasClipboard,
+        moveUp: () => moveSection(id, -1),
+        moveDown: () => moveSection(id, 1),
+        canMoveUp: idx > 0,
+        canMoveDown: idx >= 0 && idx < doc.sections.length - 1,
+        addColumn: () => addColumn(id),
+        addInnerSection: () => addInnerSection(id),
+        saveAsTemplate: () => saveSectionAsTemplate(id),
+        toggleHidden: () => toggleHidden(id, "section"),
+        hiddenOnDevice: hidden,
+        remove: () => askRemoveSection(id),
+      };
+    }
+    if (ctx.kind === "inner-section" && ctx.id) {
+      const id = ctx.id;
+      const found = findInner(doc, id);
+      const hidden = !!found?.advanced?.hideOn?.[device];
+      return {
+        openProperties: () => setSelection({ kind: "inner-section", id }),
+        copy: () => copySelection(),
+        paste: () => pasteFromClipboard(),
+        hasClipboard,
+        toggleHidden: () => toggleHidden(id, "inner-section"),
+        hiddenOnDevice: hidden,
+      };
+    }
+    if (ctx.kind === "column" && ctx.id) {
+      const id = ctx.id;
+      const col = findColumn(doc, id);
+      const hidden = !!col?.advanced?.hideOn?.[device];
+      return {
+        openProperties: () => setSelection({ kind: "column", id }),
+        duplicate: () => duplicateColumn(id),
+        copy: () => copySelection(),
+        cut: () => cutSelection(),
+        paste: () => pasteFromClipboard(),
+        hasClipboard,
+        toggleHidden: () => toggleHidden(id, "column"),
+        hiddenOnDevice: hidden,
+        remove: () => askRemoveColumn(id),
+      };
+    }
+    if (ctx.kind === "widget" && ctx.id) {
+      const id = ctx.id;
+      const f = findWidget(doc, id);
+      const hidden = !!f?.widget.advanced?.hideOn?.[device];
+      return {
+        openProperties: () => setSelection({ kind: "widget", id }),
+        duplicate: () => duplicateWidget(id),
+        copy: () => copySelection(),
+        cut: () => cutSelection(),
+        paste: () => pasteFromClipboard(),
+        hasClipboard,
+        toggleHidden: () => toggleHidden(id, "widget"),
+        hiddenOnDevice: hidden,
+        remove: () => askRemoveWidget(id),
+      };
+    }
+    return {};
+  }, [
+    ctx, doc, device,
+    addSection, duplicateSection, moveSection, addColumn, addInnerSection,
+    saveSectionAsTemplate, askRemoveSection, askRemoveColumn, askRemoveWidget,
+    duplicateColumn, duplicateWidget, copySelection, cutSelection, pasteFromClipboard,
+    toggleHidden,
+  ]);
+
   return (
     <div className="grid grid-cols-[300px_1fr] gap-3 items-start">
+
 
       {/* LEFT PANEL */}
       <aside className="bg-card border border-border rounded-lg flex flex-col overflow-hidden sticky top-3 max-h-[calc(100vh-1.5rem)] self-start">
@@ -542,7 +664,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
           />
         </div>
 
-        <div className="bg-muted/30 p-4" onClick={() => setSelection({ kind: null, id: null })}>
+        <div className="bg-muted/30 p-4" onClick={() => setSelection({ kind: null, id: null })} onContextMenu={onCanvasContextMenu}>
 
           <div
             className={`mx-auto bg-background shadow-lg ring-1 ring-border transition-all ${
@@ -667,6 +789,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
           setPendingDelete(null);
         }}
       />
+      <BuilderContextMenu target={ctx} actions={ctxActions} onClose={() => setCtx(null)} />
     </div>
   );
 }
