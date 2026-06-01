@@ -2,7 +2,7 @@
 // "Z tego materiału dowiesz się, że ..." / "From this material you will learn that ..."
 // Max 6 bullet points, bilingual. Atomic-design "molecule".
 import { useTranslation } from "react-i18next";
-import { CheckCircle2 } from "@/lib/lucide-shim";
+import { Check } from "@/lib/lucide-shim";
 
 interface KeyTakeawaysProps {
   items: readonly string[];
