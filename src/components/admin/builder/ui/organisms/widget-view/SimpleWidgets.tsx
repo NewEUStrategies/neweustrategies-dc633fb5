@@ -56,6 +56,7 @@ export function renderSimpleWidget(
       return <div style={{ height: `${getNum(c, "height", 32)}px` }} />;
     case "social-icons": {
       const size = getNum(c, "size", 16);
+      const box = Math.max(size + 16, 32);
       const items: Array<{ k: string; Cmp: LucideIcons.LucideIcon; label: string }> = [
         { k: "facebook",  Cmp: LucideIcons.Facebook,  label: "Facebook" },
         { k: "twitter",   Cmp: LucideIcons.Twitter,   label: "X" },
@@ -64,14 +65,16 @@ export function renderSimpleWidget(
         { k: "linkedin",  Cmp: LucideIcons.Linkedin,  label: "LinkedIn" },
       ];
       const email = getStr(c, "email");
+      const linkCls = "inline-flex items-center justify-center rounded-md hover:text-brand hover:bg-muted/40 transition-colors shrink-0";
+      const linkStyle: React.CSSProperties = { width: box, height: box, lineHeight: 0 };
       return (
-        <div className="flex items-center gap-3 text-muted-foreground">
+        <div className="flex items-center gap-1 text-muted-foreground">
           {items.map(({ k, Cmp, label }) => {
             const href = getStr(c, k);
             if (!href) return null;
-            return <a key={k} href={safeUrl(href)} aria-label={label} className="hover:text-brand"><Cmp size={size} /></a>;
+            return <a key={k} href={safeUrl(href)} aria-label={label} className={linkCls} style={linkStyle}><Cmp size={size} /></a>;
           })}
-          {email && <a href={`mailto:${email}`} aria-label="Email" className="hover:text-brand"><LucideIcons.Mail size={size} /></a>}
+          {email && <a href={`mailto:${email}`} aria-label="Email" className={linkCls} style={linkStyle}><LucideIcons.Mail size={size} /></a>}
         </div>
       );
     }
