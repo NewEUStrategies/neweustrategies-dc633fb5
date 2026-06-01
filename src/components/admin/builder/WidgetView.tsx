@@ -37,6 +37,7 @@ type Lang = "pl" | "en";
 import {
   styleToCSS, getWidgetFrameStyle, hiddenOnDevice,
   DEFAULT_WIDGET_WIDTH_BY_DEVICE, DEFAULT_WIDGET_MIN_HEIGHT, AUTO_SIZE_WIDGETS,
+  COMPACT_WIDGET_MIN_HEIGHT,
   getStr, getNum, getStrArr, normalizeNewsletterVariant,
 } from "./ui/organisms/widget-view/frame";
 import { MOTION_INITIAL, MOTION_FINAL } from "./ui/organisms/widget-view/motion";
@@ -298,7 +299,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       // Public render → realny <NewsletterForm/> z RLS-insert.
       if (!editable) {
         if (variant === "minimal") {
-          return wrap(<span className="text-sm font-medium border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
+          return wrap(<span className="inline-flex min-h-10 items-center text-sm font-medium border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
         }
         if (variant === "icon-only") {
           return wrap(
@@ -309,7 +310,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         }
         if (variant === "icon") {
           return wrap(
-            <a href="#newsletter" className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors" title={title}>
+            <a href="#newsletter" className="inline-flex min-h-10 items-center gap-2 text-foreground/80 hover:text-brand transition-colors" title={title}>
               {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
               <span className="text-sm font-medium">{title}</span>
             </a>,
@@ -345,7 +346,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         );
       }
       if (variant === "minimal") {
-        return wrap(<span className="text-sm font-medium border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
+        return wrap(<span className="inline-flex min-h-10 items-center text-sm font-medium border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
       }
       if (variant === "icon-only") {
         return wrap(
@@ -355,7 +356,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         );
       }
       return wrap(
-        <div className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors cursor-pointer" title={title}>
+        <div className="inline-flex min-h-10 items-center gap-2 text-foreground/80 hover:text-brand transition-colors cursor-pointer" title={title}>
           {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
           <span className="text-sm font-medium">{title}</span>
         </div>,
