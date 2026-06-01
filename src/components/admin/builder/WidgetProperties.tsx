@@ -41,13 +41,20 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
     w.advanced = w.advanced ?? {}; mut(w.advanced);
   });
 
+  const widgetLabel = WIDGETS.find((w) => w.type === widget.type)?.label ?? widget.type;
+
   return (
     <Tabs defaultValue="content">
+      <div className="mb-2 px-0.5">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Widget</div>
+        <div className="text-sm font-medium truncate">{widgetLabel}</div>
+      </div>
       <TabsList className="grid grid-cols-3 w-full h-8">
         <TabsTrigger value="content" className="text-xs">Treść</TabsTrigger>
         <TabsTrigger value="style" className="text-xs">Styl</TabsTrigger>
         <TabsTrigger value="advanced" className="text-xs">Zaawans.</TabsTrigger>
       </TabsList>
+
 
       <TabsContent value="content" className="space-y-3 mt-3">
         <ContentFields widget={widget} lang={lang} setContent={setContent} />
