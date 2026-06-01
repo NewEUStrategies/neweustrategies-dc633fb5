@@ -89,8 +89,10 @@ const SECTIONS = [
 ] as const;
 
 export function ThemeOptionsPane() {
-  const { query, save } = useSettings("theme_options", DEFAULTS as unknown as Record<string, unknown>);
-  const [draft, setDraft] = useDraft(query.data as unknown as ThemeOptions | undefined);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { query, save } = useSettings<any>("theme_options", DEFAULTS as any);
+  const [draft, setDraft] = useState<ThemeOptions | null>(null);
+  useEffect(() => { if (query.data && !draft) setDraft(query.data as ThemeOptions); }, [query.data, draft]);
   const [active, setActive] = useState<(typeof SECTIONS)[number]["id"]>("logo");
   const [logoTab, setLogoTab] = useState<"default" | "mobile" | "transparent" | "organization" | "bookmark">("default");
 
