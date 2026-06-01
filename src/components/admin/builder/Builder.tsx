@@ -50,13 +50,13 @@ import {
   Eye, Save as SaveIcon, ClipboardCopy, ClipboardPaste, Move,
   Columns2,
 } from "@/lib/lucide-shim";
-import { safeImageUrl } from "@/lib/sanitize";
-import { IconBtn } from "./ui/atoms/IconBtn";
+import {
   sectionWrapperStyle, sectionContainerStyle, columnsRowStyle,
   backgroundLayerStyle, overlayLayerStyle, borderStyle,
   ShapeDivider, typographyCss, typographyAlign,
 } from "@/lib/builder/sectionStyles";
 import { safeImageUrl } from "@/lib/sanitize";
+import { IconBtn } from "./ui/atoms/IconBtn";
 
 type SelectionKind = "section" | "column" | "widget" | "inner-section" | null;
 interface Selection { kind: SelectionKind; id: string | null; }
