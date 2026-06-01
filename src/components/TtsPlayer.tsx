@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Loader2 } from "@/lib/lucide-shim";
+import { Loader2 } from "@/lib/lucide-shim";
+
+const PlayIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M8 5v14l11-7z" />
+  </svg>
+);
+const PauseIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M6 5h4v14H6zM14 5h4v14h-4z" />
+  </svg>
+);
 
 interface TtsPlayerProps {
   text: string;
