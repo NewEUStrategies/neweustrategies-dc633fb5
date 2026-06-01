@@ -152,6 +152,7 @@ function Media() {
           ))}
         </div>
       )}
+      <MediaPreviewDialog item={preview} open={!!preview} onOpenChange={(o) => !o && setPreview(null)} gated={false} />
     </div>
   );
 }
