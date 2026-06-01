@@ -14,6 +14,7 @@ import {
   type AnimatedHeadingMode, type AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
 import { COMPACT_ICON_BOX_SIZE, COMPACT_WIDGET_MIN_HEIGHT, getStr, getNum, getStrArr } from "./frame";
+import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -678,6 +679,11 @@ export function renderSimpleWidget(
         : typeof rotateRaw === "string"
           ? rotateRaw.split("\n").map((s) => s.trim()).filter(Boolean)
           : [];
+      const rawColor = getStr(c, "color") || undefined;
+      const rawAccent = getStr(c, "accentColor") || undefined;
+      // Auto-invert when rendering in dark mode and the user set a single
+      // (light-mode) color — so headings stay readable on dark backgrounds.
+      const isDark = theme === "dark";
       const ahCfg: AnimatedHeadingConfig = {
         mode: (getStr(c, "mode") || "highlight") as AnimatedHeadingMode,
         shape: (getStr(c, "shape") || "underline") as AnimatedHeadingShape,
@@ -687,8 +693,8 @@ export function renderSimpleWidget(
         textAfter:  getStr(c, `textAfter_${lang}`)  || getStr(c, "textAfter_pl"),
         highlight:  getStr(c, `highlight_${lang}`)  || getStr(c, "highlight_pl"),
         rotateWords,
-        color: getStr(c, "color") || undefined,
-        accentColor: getStr(c, "accentColor") || undefined,
+        color: isDark && rawColor ? autoInvertColor(rawColor, "dark") : rawColor,
+        accentColor: isDark && rawAccent ? autoInvertColor(rawAccent, "dark") : rawAccent,
         durationMs: getNum(c, "durationMs", 1600),
         delayMs: getNum(c, "delayMs", 200),
         loop: c.loop !== false,
