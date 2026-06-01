@@ -106,7 +106,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       data-w-id={node.id}
       ref={motion ? motionRef : undefined}
       className={`${cls}`.trim()}
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", width: "100%", height: "100%", maxWidth: "100%", ...baseStyle, ...motionStyle }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", width: "100%", minWidth: 0, height: "100%", maxWidth: "100%", boxSizing: "border-box", overflow: "hidden", ...baseStyle, ...motionStyle }}
     >
       {children}
       {hover && <style dangerouslySetInnerHTML={{ __html: hover }} />}
