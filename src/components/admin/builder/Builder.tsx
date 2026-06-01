@@ -617,7 +617,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
             </div>
             <div className="flex-1 overflow-y-auto p-3">
               {selectedWidget && (
-                <WidgetProperties widget={selectedWidget} lang={lang} device={device}
+                <WidgetProperties widget={selectedWidget} lang={lang} device={device} mode={mode} onModeChange={setMode}
                   onChange={(mut) => updateWidget(selectedWidget.id, mut)} />
               )}
               {selectedSection && (
