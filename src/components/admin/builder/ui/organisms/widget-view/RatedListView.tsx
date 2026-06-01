@@ -49,8 +49,9 @@ export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   const categoryUppercase = c.categoryUppercase !== false;
 
   const titleColor = getStr(c, "titleColor");
-  const titleColorDark = getStr(c, "titleColorDark");
+  const titleColorDark = autoDark(titleColor, getStr(c, "titleColorDark"));
   const titleHoverColor = getStr(c, "titleHoverColor");
+  const titleHoverColorDark = titleHoverColor ? autoInvertColor(titleHoverColor, "dark") : "";
   const titleSize = typeof c.titleSizePx === "number" ? c.titleSizePx : 18;
   const titleWeight = getStr(c, "titleWeight") || "700";
   const titleFont = getStr(c, "titleFont") || "display";
@@ -58,19 +59,19 @@ export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   const showAuthor = c.showAuthor !== false;
   const showDate = c.showDate === true;
   const metaColor = getStr(c, "metaColor");
-  const metaColorDark = getStr(c, "metaColorDark");
+  const metaColorDark = autoDark(metaColor, getStr(c, "metaColorDark"));
   const metaSize = typeof c.metaSizePx === "number" ? c.metaSizePx : 12;
 
   const showExcerpt = c.showExcerpt !== false;
   const excerptColor = getStr(c, "excerptColor");
-  const excerptColorDark = getStr(c, "excerptColorDark");
+  const excerptColorDark = autoDark(excerptColor, getStr(c, "excerptColorDark"));
   const excerptSize = typeof c.excerptSizePx === "number" ? c.excerptSizePx : 13;
   const excerptLines = typeof c.excerptLines === "number" ? c.excerptLines : 3;
 
   const showReadMore = c.showReadMore === true;
   const readMoreText = getStr(c, `readMoreText_${lang}`) || (lang === "pl" ? "Czytaj więcej" : "Read more");
   const readMoreColor = getStr(c, "readMoreColor");
-  const readMoreColorDark = getStr(c, "readMoreColorDark");
+  const readMoreColorDark = autoDark(readMoreColor, getStr(c, "readMoreColorDark"));
 
   const showBookmark = c.showBookmark === true;
   const bookmarkColor = getStr(c, "bookmarkColor");
