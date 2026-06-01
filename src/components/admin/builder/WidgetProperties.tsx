@@ -390,7 +390,7 @@ function ThemedColorField({
               <RotateCcw className="w-3 h-3" />
             </button>
           )}
-        </span> as unknown as string
+        </span>
       }
     >
       <ColorField
