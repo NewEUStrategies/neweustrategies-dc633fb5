@@ -379,9 +379,30 @@ export type GlobalColorsValue = Record<
 export const EMPTY_GLOBAL_COLORS: GlobalColorsValue = {};
 
 /**
+ * Czy dany slot powinien mieć dodatkową parę pickerów Hover (light + dark).
+ * Domyślnie TAK — pomijamy tylko sloty, które same są wariantem hover
+ * (klucz kończy się na `-hover`) lub mają już siostrzany slot `<key>-hover`
+ * w tej samej grupie, albo zostały jawnie wyłączone (`hoverable: false`).
+ */
+export function isSlotHoverable(slot: GlobalColorSlot, group: GlobalColorGroup): boolean {
+  if (slot.hoverable === false) return false;
+  if (slot.hoverable === true) return true;
+  if (slot.key.endsWith("-hover")) return false;
+  const keys = new Set(group.slots.map((s) => s.key));
+  if (keys.has(`${slot.key}-hover`)) return false;
+  // Sloty z dedykowanymi parami hover w obrębie grupy (button / input / sidebar btn).
+  const exempt = new Set([
+    "btn-bg", "btn-text",
+    "input-bg", "input-text", "input-placeholder", "input-border",
+    "sidebar-btn-bg", "sidebar-btn-text",
+  ]);
+  return !exempt.has(slot.key);
+}
+
+/**
  * Buduje CSS dla globalnych kolorów — emituje:
  *  1) `--gc-<key>` na :root (light) i .dark (dark),
- *  2) `--gc-<key>-hover` dla slotów `hoverable`,
+ *  2) `--gc-<key>-hover` dla slotów hoverable,
  *  3) nadpisania semantycznych tokenów shadcn (np. --primary, --background).
  */
 export function globalColorsToCss(value: GlobalColorsValue): string {
@@ -401,7 +422,7 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
         darkLines.push(`--gc-${slot.key}: ${dark};`);
         for (const o of slot.overrides ?? []) darkLines.push(`${o}: ${dark};`);
       }
-      if (slot.hoverable) {
+      if (isSlotHoverable(slot, group)) {
         const hLight = v?.hoverLight || slot.defaultHoverLight || light;
         const hDark = v?.hoverDark || slot.defaultHoverDark || dark || hLight;
         if (hLight) rootLines.push(`--gc-${slot.key}-hover: ${hLight};`);
