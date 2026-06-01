@@ -1070,14 +1070,16 @@ function ColumnView({
         </div>
       )}
       <SortableContext items={column.children.map((w) => w.id)} strategy={verticalListSortingStrategy}>
-        {column.children.map((w) => (
-          <SortableWidget key={w.id} widget={w} lang={lang} device={device}
-            selected={selection.kind === "widget" && selection.id === w.id}
-            onSelect={() => setSelection({ kind: "widget", id: w.id })}
-            onDuplicate={() => onDuplicateWidget(w.id)}
-            onRemove={() => onRemoveWidget(w.id)}
-            onUpdateContent={(k, v) => onUpdateWidgetContent(w.id, k, v)} />
-        ))}
+        <div className="flex flex-wrap items-start gap-2">
+          {column.children.map((w) => (
+            <SortableWidget key={w.id} widget={w} lang={lang} device={device}
+              selected={selection.kind === "widget" && selection.id === w.id}
+              onSelect={() => setSelection({ kind: "widget", id: w.id })}
+              onDuplicate={() => onDuplicateWidget(w.id)}
+              onRemove={() => onRemoveWidget(w.id)}
+              onUpdateContent={(k, v) => onUpdateWidgetContent(w.id, k, v)} />
+          ))}
+        </div>
       </SortableContext>
     </div>
   );
