@@ -29,7 +29,8 @@ interface ThemeOptions extends Record<string, unknown> {
     organization: string; organization_dark: string;
     sidebar_icon: string; sidebar_icon_dark: string;
     sidebar_expanded: string; sidebar_expanded_dark: string;
-    bookmark_ios: string; bookmark_windows: string;
+    bookmark_ios: string; bookmark_ios_dark: string;
+    bookmark_windows: string; bookmark_windows_dark: string;
     add_to_home_screen: boolean;
   };
   header: {
@@ -73,7 +74,7 @@ interface ThemeOptions extends Record<string, unknown> {
 }
 
 const DEFAULTS: ThemeOptions = {
-  logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", transparent_dark: "", organization: "", organization_dark: "", sidebar_icon: "", sidebar_icon_dark: "", sidebar_expanded: "", sidebar_expanded_dark: "", bookmark_ios: "", bookmark_windows: "", add_to_home_screen: true },
+  logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", transparent_dark: "", organization: "", organization_dark: "", sidebar_icon: "", sidebar_icon_dark: "", sidebar_expanded: "", sidebar_expanded_dark: "", bookmark_ios: "", bookmark_ios_dark: "", bookmark_windows: "", bookmark_windows_dark: "", add_to_home_screen: true },
   header: {
     layout: "layout-1",
     main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
@@ -293,29 +294,51 @@ export function ThemeOptionsPane() {
             )}
 
             {logoTab === "bookmark" && (
-              <div className="space-y-4">
-                <ImageSlot
-                  label="iOS Touch Icon"
-                  icon={<Globe className="w-3.5 h-3.5" />}
-                  value={draft.logo.bookmark_ios}
-                  onChange={(v) => patchLogo({ bookmark_ios: v })}
-                  hint="Zalecany rozmiar 180×180px."
-                  folder="theme/icons"
-                />
+              <div className="space-y-5">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">iOS Touch Icon · 180×180px</div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <ImageSlot
+                      label="iOS Touch Icon"
+                      icon={<Sun className="w-3.5 h-3.5" />}
+                      value={draft.logo.bookmark_ios}
+                      onChange={(v) => patchLogo({ bookmark_ios: v })}
+                      folder="theme/icons"
+                    />
+                    <ImageSlot
+                      label="Dark Mode — iOS Touch Icon"
+                      icon={<Moon className="w-3.5 h-3.5" />}
+                      value={draft.logo.bookmark_ios_dark}
+                      onChange={(v) => patchLogo({ bookmark_ios_dark: v })}
+                      folder="theme/icons"
+                    />
+                  </div>
+                </div>
                 <Row label="Add to Home Screen" hint="Wymaga ustawionego iOS Touch Icon.">
                   <Switch
                     checked={draft.logo.add_to_home_screen}
                     onCheckedChange={(v) => patchLogo({ add_to_home_screen: v })}
                   />
                 </Row>
-                <ImageSlot
-                  label="Windows Metro Tile Icon"
-                  icon={<Globe className="w-3.5 h-3.5" />}
-                  value={draft.logo.bookmark_windows}
-                  onChange={(v) => patchLogo({ bookmark_windows: v })}
-                  hint="Zalecany rozmiar 144×144px."
-                  folder="theme/icons"
-                />
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">Windows Metro Tile · 144×144px</div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <ImageSlot
+                      label="Windows Metro Tile Icon"
+                      icon={<Sun className="w-3.5 h-3.5" />}
+                      value={draft.logo.bookmark_windows}
+                      onChange={(v) => patchLogo({ bookmark_windows: v })}
+                      folder="theme/icons"
+                    />
+                    <ImageSlot
+                      label="Dark Mode — Windows Metro Tile"
+                      icon={<Moon className="w-3.5 h-3.5" />}
+                      value={draft.logo.bookmark_windows_dark}
+                      onChange={(v) => patchLogo({ bookmark_windows_dark: v })}
+                      folder="theme/icons"
+                    />
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -719,7 +742,7 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
     if (tab === "transparent") return { l: logo.transparent || logo.main || "", d: logo.transparent_dark || logo.transparent || logo.main_dark || logo.main || "" };
     if (tab === "organization") return { l: logo.organization || logo.main || "", d: logo.organization_dark || logo.organization || logo.main_dark || logo.main || "" };
     if (tab === "sidebar") return { l: logo.sidebar_expanded || logo.main || "", d: logo.sidebar_expanded_dark || logo.sidebar_expanded || logo.main_dark || logo.main || "" };
-    if (tab === "bookmark") return { l: logo.bookmark_ios || "", d: logo.bookmark_windows || logo.bookmark_ios || "" };
+    if (tab === "bookmark") return { l: logo.bookmark_ios || "", d: logo.bookmark_ios_dark || logo.bookmark_ios || "" };
     return pick(logo.main, logo.main_dark);
   })();
 
