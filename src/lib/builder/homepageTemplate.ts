@@ -100,7 +100,7 @@ export function buildHomepageDocument(): BuilderDocument {
       section([
         column(6, [
           widget("section-label", {
-            label_pl: "Wywiady i podcasty", text_en: "Interviews & podcasts",
+            label_pl: "Wywiady i podcasty",
             label_en: "Interviews & podcasts",
             color: "brand", variant: "rect-bg",
             action_pl: "Zobacz więcej", action_en: "See more",
