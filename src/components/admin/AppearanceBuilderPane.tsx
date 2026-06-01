@@ -12,7 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Save, RotateCcw } from "@/lib/lucide-shim";
+import { Save, Undo as RotateCcw } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { ThemeOptionsPane } from "@/components/admin/ThemeOptionsPane";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
