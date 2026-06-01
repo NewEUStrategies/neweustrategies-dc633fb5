@@ -1,6 +1,6 @@
 // Theme Options panel (Foxiz-style) — Logo + Header sections.
 // Stores everything under site_settings.theme_options.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSettings } from "@/lib/admin/useSettings";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,6 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers } from "@/lib/lucide-shim";
-import { useRegisterAdminSidebarExtras } from "@/components/admin/AdminSidebarExtras";
 
 
 // ---------- Defaults ----------
