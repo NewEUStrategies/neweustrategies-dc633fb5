@@ -1,22 +1,36 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Layers, Star, Mail, Bookmark } from "@/lib/lucide-shim";
+import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Layers, Star, Mail, Bookmark, ChevronRight } from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
+import { AdminSidebarExtrasProvider, useAdminSidebarExtrasSlot } from "@/components/admin/AdminSidebarExtras";
+
 
 export function AdminShell({ children, hideSidebar }: { children: ReactNode; hideSidebar?: boolean }) {
+  return (
+    <AdminSidebarExtrasProvider>
+      <AdminShellInner hideSidebar={hideSidebar}>{children}</AdminShellInner>
+    </AdminSidebarExtrasProvider>
+  );
+}
+
+function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideSidebar?: boolean }) {
+
   const { t, i18n } = useTranslation();
   const { signOut, user, isAdmin } = useAuth();
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const lang = i18n.language ?? "pl";
+  const { extras } = useAdminSidebarExtrasSlot();
+
 
   const isEditRoute = /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
   const [forceCompact, setForceCompact] = useState(false);
-  const compact = isEditRoute || forceCompact;
+  const compact = (isEditRoute || forceCompact) && !extras;
+
 
   const items = [
     { to: "/admin", icon: LayoutDashboard, label: t("admin.nav.dashboard") },
@@ -65,7 +79,7 @@ export function AdminShell({ children, hideSidebar }: { children: ReactNode; hid
             </div>
             {!compact && <p className="text-xs text-muted-foreground mt-1 truncate">{user?.email}</p>}
           </div>
-          <nav className="flex-1 p-2 space-y-1">
+          <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
             {items.map(({ to, icon: Icon, label }) => {
               const active = path === to || (to !== "/admin" && path.startsWith(to));
               return (
@@ -82,7 +96,38 @@ export function AdminShell({ children, hideSidebar }: { children: ReactNode; hid
                 </Link>
               );
             })}
+
+            {extras && !compact && (
+              <div className="mt-4 pt-3 border-t border-border space-y-0.5">
+                {extras.title && (
+                  <div className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                    {extras.title}
+                  </div>
+                )}
+                {extras.items.map((it) => {
+                  const Icon = it.icon;
+                  const isActive = extras.activeId === it.id;
+                  return (
+                    <button
+                      key={it.id}
+                      type="button"
+                      onClick={() => extras.onSelect(it.id)}
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left border-l-2 transition ${
+                        isActive
+                          ? "border-brand bg-brand/10 text-brand font-medium"
+                          : "border-transparent hover:bg-muted text-foreground"
+                      }`}
+                    >
+                      {Icon && <Icon className="w-4 h-4 shrink-0" />}
+                      <span className="flex-1 truncate">{it.label}</span>
+                      {isActive && <ChevronRight className="w-3 h-3" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </nav>
+
           <div className="p-2 border-t border-border space-y-1">
             <Link
               to="/"

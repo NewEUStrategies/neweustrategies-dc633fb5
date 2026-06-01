@@ -1,6 +1,6 @@
 // Theme Options panel (Foxiz-style) — Logo + Header sections.
 // Stores everything under site_settings.theme_options.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSettings } from "@/lib/admin/useSettings";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers } from "@/lib/lucide-shim";
+import { useRegisterAdminSidebarExtras } from "@/components/admin/AdminSidebarExtras";
+
 
 // ---------- Defaults ----------
 type HoverEffect = "color-border" | "underline" | "background" | "scale" | "none";
@@ -126,36 +128,12 @@ export function ThemeOptionsPane() {
     setDraft({ ...draft, header: { ...draft.header, layout } });
 
   return (
-    <div className="grid grid-cols-[220px_1fr] gap-4 min-h-[600px]">
-      {/* Sidebar nav */}
-      <aside className="border border-border rounded-lg overflow-hidden bg-card">
-        <div className="px-3 py-2 border-b border-border text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
-          Opcje motywu
-        </div>
-        <nav className="flex flex-col">
-          {SECTIONS.map((s) => {
-            const Icon = s.icon;
-            const isActive = active === s.id;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setActive(s.id)}
-                className={`flex items-center gap-2 px-3 py-2 text-sm text-left border-l-2 transition ${
-                  isActive
-                    ? "border-brand bg-brand/10 text-brand font-medium"
-                    : "border-transparent hover:bg-muted text-foreground"
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span className="flex-1">{s.label}</span>
-                {isActive && <ChevronRight className="w-3 h-3" />}
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
-
+    <ThemeOptionsBody
+      draft={draft}
+      active={active}
+      setActive={(id) => setActive(id as typeof active)}
+      save={save}
+    >
       {/* Panel */}
       <section className="border border-border rounded-lg bg-card p-5 space-y-5">
         <div className="flex items-center justify-between">
@@ -164,6 +142,7 @@ export function ThemeOptionsPane() {
             <Save className="w-4 h-4 mr-2" /> {save.isPending ? "Zapisywanie…" : "Zapisz"}
           </Button>
         </div>
+
 
         {active === "logo" && (
           <div className="space-y-5">
@@ -492,9 +471,37 @@ export function ThemeOptionsPane() {
           </div>
         )}
       </section>
-    </div>
+    </ThemeOptionsBody>
   );
 }
+
+function ThemeOptionsBody({
+  draft,
+  active,
+  setActive,
+  save,
+  children,
+}: {
+  draft: ThemeOptions;
+  active: string;
+  setActive: (id: string) => void;
+  save: ReturnType<typeof useSettings>["save"];
+  children: React.ReactNode;
+}) {
+  void draft; void save;
+  const nav = useMemo(
+    () => ({
+      title: "Opcje motywu",
+      items: SECTIONS.map((s) => ({ id: s.id, label: s.label, icon: s.icon })),
+      activeId: active,
+      onSelect: setActive,
+    }),
+    [active, setActive],
+  );
+  useRegisterAdminSidebarExtras(nav);
+  return <div className="min-h-[600px]">{children}</div>;
+}
+
 
 function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" | "mobile" | "transparent" | "organization" | "bookmark") => void }) {
   const tabs: { id: "default" | "mobile" | "transparent" | "organization" | "bookmark"; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
