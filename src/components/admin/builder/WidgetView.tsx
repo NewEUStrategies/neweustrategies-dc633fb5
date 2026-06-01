@@ -62,6 +62,16 @@ const EASING_MAP: Record<string, string> = {
   bounce: "cubic-bezier(0.68, -0.55, 0.27, 1.55)",
 };
 
+interface ViewProps {
+  node: WidgetNode;
+  lang: Lang;
+  device: Device;
+  /** When true, click-to-edit text fields are enabled in canvas. */
+  editable?: boolean;
+  /** Commit a single content field. Called on blur / Enter. */
+  onContentChange?: (key: string, value: string) => void;
+}
+
 export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
   const { theme } = useTheme();
   const baseStyle = styleToCSS(node.style, device);
