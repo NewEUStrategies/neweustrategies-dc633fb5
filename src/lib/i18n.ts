@@ -482,6 +482,7 @@ const resources = {
           users: "Users",
           paywall: "Paywall",
           appearance: "Appearance",
+          themeOptions: "Theme Options",
           postLayouts: "Post layouts",
           contentArea: "Content Area",
           newsletter: "Newsletter",
