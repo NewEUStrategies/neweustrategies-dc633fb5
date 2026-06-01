@@ -80,7 +80,7 @@ function Page() {
   };
 
   return (
-    <AdminShell>
+    <AdminShell hideSidebar>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl">Newsletter</h1>

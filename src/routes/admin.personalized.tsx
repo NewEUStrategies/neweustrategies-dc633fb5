@@ -38,10 +38,10 @@ function PersonalizedAdmin() {
   const updateSection = (k: "saved" | "followed" | "recommended", patch: Partial<PersonalizedSectionConfig>) =>
     setS({ ...s, sections: { ...s.sections, [k]: { ...s.sections[k], ...patch } } });
 
-  if (!loaded) return <AdminShell><p>Ładowanie…</p></AdminShell>;
+  if (!loaded) return <AdminShell hideSidebar><p>Ładowanie…</p></AdminShell>;
 
   return (
-    <AdminShell>
+    <AdminShell hideSidebar>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display text-2xl">Personalized System</h1>
