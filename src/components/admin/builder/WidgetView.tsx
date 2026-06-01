@@ -18,6 +18,7 @@ import {
 import { useInView } from "@/hooks/use-in-view";
 import { hoverCss } from "@/lib/builder/hoverCss";
 import { TtsPlayer } from "@/components/TtsPlayer";
+import { useTheme } from "@/components/ThemeProvider";
 import { NewsletterForm as NewsletterFormLive } from "@/components/NewsletterForm";
 import {
   SectionLabelRender,
@@ -284,6 +285,7 @@ function TtsPlayerHost({
 }
 
 export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
+  const { theme } = useTheme();
   const baseStyle = styleToCSS(node.style, device);
   const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
   const htmlId = sanitizeHtmlId(node.advanced?.htmlId);
@@ -423,13 +425,9 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         height: "auto",
       };
       if (!src && !srcDark) return wrap(<div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>);
-      const imgEl = srcDark && src && srcDark !== src ? (
-        <picture>
-          <source srcSet={srcDark} media="(prefers-color-scheme: dark)" />
-          <img src={src} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
-        </picture>
-      ) : (
-        <img src={src || srcDark} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
+      const activeSrc = theme === "dark" ? (srcDark || src) : (src || srcDark);
+      const imgEl = (
+        <img src={activeSrc} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
       );
       return wrap(
         <figure className="space-y-2">
