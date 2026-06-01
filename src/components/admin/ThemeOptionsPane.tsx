@@ -83,6 +83,10 @@ export function ThemeOptionsPane() {
     setDraft({ ...draft, header: { ...draft.header, main_menu: { ...draft.header.main_menu, ...p } } });
   const patchSearch = (p: Partial<ThemeOptions["header"]["search"]>) =>
     setDraft({ ...draft, header: { ...draft.header, search: { ...draft.header.search, ...p } } });
+  const patchAlert = (p: Partial<ThemeOptions["header"]["alert_bar"]>) =>
+    setDraft({ ...draft, header: { ...draft.header, alert_bar: { ...draft.header.alert_bar, ...p } } });
+  const patchMobile = (p: Partial<ThemeOptions["header"]["mobile"]>) =>
+    setDraft({ ...draft, header: { ...draft.header, mobile: { ...draft.header.mobile, ...p } } });
 
   return (
     <div className="grid grid-cols-[220px_1fr] gap-4 min-h-[600px]">
