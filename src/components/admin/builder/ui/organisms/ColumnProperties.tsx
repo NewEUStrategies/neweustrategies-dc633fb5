@@ -38,10 +38,28 @@ export function ColumnProperties({ column, device, onChange }: Props) {
         <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
           Edytujesz: {device}
         </div>
-        <PropField label="Szerokość (1–12)">
+        <PropField
+          label="Szerokość (1–12)"
+          hint="Szerokość kolumny w 12-kolumnowej siatce rzędu. Np. 6 = pół rzędu, 4 = 1/3, 12 = pełny rząd. Suma szerokości kolumn w rzędzie powinna wynosić 12. Ustawiana osobno dla każdego urządzenia."
+        >
           <Input
             type="number" min={1} max={12} value={currentSpan}
             onChange={(e) => setSpan(Math.max(1, Math.min(12, Number(e.target.value) || 12)))}
+            className="h-8 text-xs"
+          />
+        </PropField>
+        <PropField
+          label="Minimalna wysokość (px)"
+          hint="Puste = dopasuj do treści. Wpisz np. 200, aby kolumna była co najmniej tak wysoka."
+        >
+          <Input
+            type="number" min={0} max={2000}
+            value={column.style?.minHeight ? parseInt(String(column.style.minHeight), 10) || "" : ""}
+            placeholder="auto"
+            onChange={(e) => {
+              const v = e.target.value;
+              setStyle((s) => { s.minHeight = v === "" ? undefined : `${Math.max(0, Number(v) || 0)}px`; });
+            }}
             className="h-8 text-xs"
           />
         </PropField>
