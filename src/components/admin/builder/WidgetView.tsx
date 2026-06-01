@@ -298,12 +298,16 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const tag = (getStr(c, "tag") || "h2") as "h1"|"h2"|"h3"|"h4"|"h5"|"h6";
       const variant = getStr(c, "variant") || "default";
       const sizePreset = getStr(c, "sizePreset") || "md";
+      const sizePx = getNum(c, "sizePx", 0);
+      const sizePxMobile = getNum(c, "sizePxMobile", 0);
       const href = safeUrl(getStr(c, "href"));
       const target = getStr(c, "target") === "blank" ? "_blank" : undefined;
       const iconName = getStr(c, "iconName");
       const iconPos = getStr(c, "iconPosition") || "left";
-      const sizeCls =
-        sizePreset === "sm" ? "text-xl"
+      const usePx = sizePx > 0;
+      const sizeCls = usePx
+        ? ""
+        : sizePreset === "sm" ? "text-xl"
         : sizePreset === "lg" ? "text-4xl"
         : sizePreset === "xl" ? "text-5xl"
         : sizePreset === "display" ? "text-6xl md:text-7xl"
@@ -316,12 +320,23 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         : variant === "serif" ? "font-serif"
         : "";
       const headCls = `font-display ${sizeCls} ${variantCls}`.trim();
+      const headStyle: React.CSSProperties | undefined = usePx
+        ? { fontSize: `${sizePxMobile > 0 ? sizePxMobile : sizePx}px`, lineHeight: 1.1 }
+        : undefined;
+      // Desktop override via media query (inline style can't do MQ — use CSS var + class)
+      const mqStyle: React.CSSProperties | undefined = usePx && sizePxMobile > 0
+        ? ({ ["--h-px" as never]: `${sizePx}px` } as React.CSSProperties)
+        : undefined;
+      const finalStyle = mqStyle ? { ...headStyle, ...mqStyle } : headStyle;
+      const finalCls = usePx && sizePxMobile > 0
+        ? `${headCls} md:[font-size:var(--h-px)]`
+        : headCls;
       const reg: Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined>;
       const Icon = iconName ? (reg[iconName] ?? null) : null;
       const inner = canEdit
-        ? <Editable as={tag} value={text} onCommit={(v) => commit(key, v)} className={headCls} placeholder="Nagłówek…" />
-        : (() => { const Tag = tag as React.ElementType; return <Tag className={headCls}>{text}</Tag>; })();
+        ? <Editable as={tag} value={text} onCommit={(v) => commit(key, v)} className={finalCls} style={finalStyle} placeholder="Nagłówek…" />
+        : (() => { const Tag = tag as React.ElementType; return <Tag className={finalCls} style={finalStyle}>{text}</Tag>; })();
       const titleRow = (
         <span className={`inline-flex items-center gap-2 ${iconPos === "right" ? "flex-row-reverse" : ""}`}>
           {Icon && <Icon size={28} className="opacity-80" />}
