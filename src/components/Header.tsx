@@ -88,7 +88,19 @@ export function Header() {
   const setLang = (lng: "pl" | "en") => i18n.changeLanguage(lng);
 
   const menu = useSiteSetting<{ items: MenuItem[] }>("menu_primary", { items: [] });
-  const themeOpts = useSiteSetting<ThemeOptions>("theme_options", THEME_DEFAULTS);
+  const themeOptsRaw = useSiteSetting<Partial<ThemeOptions>>("theme_options", THEME_DEFAULTS);
+  const themeOpts: ThemeOptions = {
+    logo: { ...THEME_DEFAULTS.logo, ...(themeOptsRaw.logo ?? {}) },
+    header: {
+      ...THEME_DEFAULTS.header,
+      ...(themeOptsRaw.header ?? {}),
+      main_menu: { ...THEME_DEFAULTS.header.main_menu, ...(themeOptsRaw.header?.main_menu ?? {}) },
+      search: { ...THEME_DEFAULTS.header.search, ...(themeOptsRaw.header?.search ?? {}) },
+      mobile: { ...THEME_DEFAULTS.header.mobile, ...(themeOptsRaw.header?.mobile ?? {}) },
+      signin: { ...THEME_DEFAULTS.header.signin, ...(themeOptsRaw.header?.signin ?? {}) },
+      socials: { ...THEME_DEFAULTS.header.socials, ...(themeOptsRaw.header?.socials ?? {}) },
+    },
+  };
   const headerCfg = useSiteSetting<{
     show_newsletter: boolean; show_socials: boolean;
     social_facebook: string; social_twitter: string; social_youtube: string;
