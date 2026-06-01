@@ -68,8 +68,21 @@ export function renderSimpleWidget(
       const styleType = variant === "dashed" ? "dashed" : variant === "dotted" ? "dotted" : variant === "double" ? "double" : "solid";
       return <hr className="border-border" style={{ borderTopStyle: styleType, borderTopWidth: thickness }} />;
     }
-    case "spacer":
-      return <div style={{ height: `${getNum(c, "height", 32)}px` }} />;
+    case "spacer": {
+      const h = getNum(c, "height", 32);
+      if (editable) {
+        return (
+          <div
+            className="w-full flex items-center justify-center text-[10px] uppercase tracking-wider text-muted-foreground/70 border border-dashed border-border/70 rounded-sm bg-muted/30"
+            style={{ height: `${h}px`, minHeight: `${h}px` }}
+            aria-label="Spacer"
+          >
+            <span>↕ {h}px</span>
+          </div>
+        );
+      }
+      return <div style={{ height: `${h}px`, width: "100%" }} />;
+    }
     case "social-icons": {
       const size = getNum(c, "size", 16);
       const box = Math.max(size + 16, COMPACT_ICON_BOX_SIZE);
