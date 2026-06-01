@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Upload, X } from "@/lib/lucide-shim";
+import { useRequiredTenant } from "@/hooks/useAuth";
 
 export function ImageSlot({
   label,
