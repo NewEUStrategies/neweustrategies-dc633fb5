@@ -93,7 +93,7 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
       {column.children.map((w) => {
         if (hiddenOnDevice(w.advanced, device)) return null;
         return (
-          <div key={w.id} data-widget-id={w.id} className="flex flex-col items-stretch justify-start shrink-0 self-start max-w-full" style={getWidgetFrameStyle(w)}>
+          <div key={w.id} data-widget-id={w.id} className="flex flex-col items-stretch justify-start shrink-0 self-start max-w-full" style={getWidgetFrameStyle(w, device)}>
             <WidgetView node={w} lang={lang} device={device} />
           </div>
         );

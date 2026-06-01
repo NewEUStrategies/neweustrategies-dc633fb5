@@ -1096,7 +1096,7 @@ function SortableWidget({
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   const hidden = !!widget.advanced?.hideOn?.[device];
   return (
-    <div ref={setNodeRef} style={{ ...style, ...getWidgetFrameStyle(widget) }} {...attributes}
+    <div ref={setNodeRef} style={{ ...style, ...getWidgetFrameStyle(widget, device) }} {...attributes}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
       className={`group/w relative flex flex-col items-stretch justify-start shrink-0 self-start rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} p-1 ${hidden ? "opacity-40" : ""}`}
     >
