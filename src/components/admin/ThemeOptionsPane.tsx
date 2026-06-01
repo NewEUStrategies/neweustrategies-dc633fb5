@@ -25,7 +25,10 @@ interface ThemeOptions extends Record<string, unknown> {
   logo: {
     main: string; main_dark: string;
     mobile: string; mobile_dark: string;
-    transparent: string; organization: string;
+    transparent: string; transparent_dark: string;
+    organization: string; organization_dark: string;
+    sidebar_icon: string; sidebar_icon_dark: string;
+    sidebar_expanded: string; sidebar_expanded_dark: string;
     bookmark_ios: string; bookmark_windows: string;
     add_to_home_screen: boolean;
   };
@@ -70,7 +73,7 @@ interface ThemeOptions extends Record<string, unknown> {
 }
 
 const DEFAULTS: ThemeOptions = {
-  logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", organization: "", bookmark_ios: "", bookmark_windows: "", add_to_home_screen: true },
+  logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", transparent_dark: "", organization: "", organization_dark: "", sidebar_icon: "", sidebar_icon_dark: "", sidebar_expanded: "", sidebar_expanded_dark: "", bookmark_ios: "", bookmark_windows: "", add_to_home_screen: true },
   header: {
     layout: "layout-1",
     main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
@@ -108,7 +111,7 @@ export function ThemeOptionsPane() {
   const [draft, setDraft] = useState<ThemeOptions | null>(null);
   useEffect(() => { if (query.data && !draft) setDraft(query.data as ThemeOptions); }, [query.data, draft]);
   const [active, setActive] = useState<(typeof SECTIONS)[number]["id"]>("logo");
-  const [logoTab, setLogoTab] = useState<"default" | "mobile" | "transparent" | "organization" | "bookmark">("default");
+  const [logoTab, setLogoTab] = useState<"default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark">("default");
 
   if (!draft) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
 
@@ -197,14 +200,24 @@ export function ThemeOptionsPane() {
             )}
 
             {logoTab === "transparent" && (
-              <ImageSlot
-                label="Transparent Logo"
-                icon={<Eye className="w-3.5 h-3.5" />}
-                value={draft.logo.transparent}
-                onChange={(v) => patchLogo({ transparent: v })}
-                hint="Logo dla nagłówków z przezroczystym tłem."
-                folder="theme/logo"
-              />
+              <div className="grid md:grid-cols-2 gap-4">
+                <ImageSlot
+                  label="Transparent Logo"
+                  icon={<Sun className="w-3.5 h-3.5" />}
+                  value={draft.logo.transparent}
+                  onChange={(v) => patchLogo({ transparent: v })}
+                  hint="Logo dla nagłówków z przezroczystym tłem."
+                  folder="theme/logo"
+                />
+                <ImageSlot
+                  label="Dark Mode — Transparent"
+                  icon={<Moon className="w-3.5 h-3.5" />}
+                  value={draft.logo.transparent_dark}
+                  onChange={(v) => patchLogo({ transparent_dark: v })}
+                  hint="Wariant dla ciemnego motywu."
+                  folder="theme/logo"
+                />
+              </div>
             )}
 
             {logoTab === "organization" && (
@@ -212,13 +225,70 @@ export function ThemeOptionsPane() {
                 <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
                   Logo dla schema markup (social media, wyniki wyszukiwania). Zostaw puste, by użyć Main Logo.
                 </div>
-                <ImageSlot
-                  label="Organization Logo"
-                  icon={<Star className="w-3.5 h-3.5" />}
-                  value={draft.logo.organization}
-                  onChange={(v) => patchLogo({ organization: v })}
-                  folder="theme/logo"
-                />
+                <div className="grid md:grid-cols-2 gap-4">
+                  <ImageSlot
+                    label="Organization Logo"
+                    icon={<Sun className="w-3.5 h-3.5" />}
+                    value={draft.logo.organization}
+                    onChange={(v) => patchLogo({ organization: v })}
+                    folder="theme/logo"
+                  />
+                  <ImageSlot
+                    label="Dark Mode — Organization"
+                    icon={<Moon className="w-3.5 h-3.5" />}
+                    value={draft.logo.organization_dark}
+                    onChange={(v) => patchLogo({ organization_dark: v })}
+                    folder="theme/logo"
+                  />
+                </div>
+              </div>
+            )}
+
+            {logoTab === "sidebar" && (
+              <div className="space-y-4">
+                <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
+                  Logo sidebaru. <strong>Kwadrat</strong> pokazywany po zwinięciu, <strong>podłużne logo</strong> po rozwinięciu sidebaru.
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">Zwinięty sidebar — ikona (kwadrat)</div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <ImageSlot
+                      label="Sidebar Icon"
+                      icon={<Sun className="w-3.5 h-3.5" />}
+                      value={draft.logo.sidebar_icon}
+                      onChange={(v) => patchLogo({ sidebar_icon: v })}
+                      hint="Kwadratowa ikona (np. 64×64px)."
+                      folder="theme/logo"
+                    />
+                    <ImageSlot
+                      label="Dark Mode — Sidebar Icon"
+                      icon={<Moon className="w-3.5 h-3.5" />}
+                      value={draft.logo.sidebar_icon_dark}
+                      onChange={(v) => patchLogo({ sidebar_icon_dark: v })}
+                      folder="theme/logo"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">Rozwinięty sidebar — podłużne logo</div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <ImageSlot
+                      label="Sidebar Expanded Logo"
+                      icon={<Sun className="w-3.5 h-3.5" />}
+                      value={draft.logo.sidebar_expanded}
+                      onChange={(v) => patchLogo({ sidebar_expanded: v })}
+                      hint="Podłużne logo (np. 200×48px)."
+                      folder="theme/logo"
+                    />
+                    <ImageSlot
+                      label="Dark Mode — Sidebar Expanded"
+                      icon={<Moon className="w-3.5 h-3.5" />}
+                      value={draft.logo.sidebar_expanded_dark}
+                      onChange={(v) => patchLogo({ sidebar_expanded_dark: v })}
+                      folder="theme/logo"
+                    />
+                  </div>
+                </div>
               </div>
             )}
 
@@ -533,12 +603,13 @@ function ThemeOptionsBody({
 }
 
 
-function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" | "mobile" | "transparent" | "organization" | "bookmark") => void }) {
-  const tabs: { id: "default" | "mobile" | "transparent" | "organization" | "bookmark"; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark") => void }) {
+  const tabs: { id: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark"; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: "default", label: "Default Logos", icon: ImageIcon },
     { id: "mobile", label: "Mobile Logos", icon: Smartphone },
     { id: "transparent", label: "Transparent", icon: Eye },
     { id: "organization", label: "Organization", icon: Star },
+    { id: "sidebar", label: "Sidebar", icon: LayoutDashboard },
     { id: "bookmark", label: "Globelet", icon: Globe },
   ];
   return (
@@ -626,6 +697,14 @@ const LOGO_LOCATIONS: Record<string, { title: string; locations: string[] }> = {
       "Favicon na pulpitach mobilnych",
     ],
   },
+  sidebar: {
+    title: "Sidebar Logo",
+    locations: [
+      "Panel boczny — wariant zwinięty (kwadratowa ikona)",
+      "Panel boczny — wariant rozwinięty (podłużne logo)",
+      "Automatyczna zmiana przy collapse / expand sidebaru",
+    ],
+  },
 };
 
 function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
@@ -637,8 +716,9 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
   };
   const sources = (() => {
     if (tab === "mobile") return pick(logo.mobile, logo.mobile_dark);
-    if (tab === "transparent") return { l: logo.transparent || logo.main || "", d: logo.transparent || logo.main_dark || logo.main || "" };
-    if (tab === "organization") return { l: logo.organization || logo.main || "", d: logo.organization || logo.main_dark || logo.main || "" };
+    if (tab === "transparent") return { l: logo.transparent || logo.main || "", d: logo.transparent_dark || logo.transparent || logo.main_dark || logo.main || "" };
+    if (tab === "organization") return { l: logo.organization || logo.main || "", d: logo.organization_dark || logo.organization || logo.main_dark || logo.main || "" };
+    if (tab === "sidebar") return { l: logo.sidebar_expanded || logo.main || "", d: logo.sidebar_expanded_dark || logo.sidebar_expanded || logo.main_dark || logo.main || "" };
     if (tab === "bookmark") return { l: logo.bookmark_ios || "", d: logo.bookmark_windows || logo.bookmark_ios || "" };
     return pick(logo.main, logo.main_dark);
   })();
