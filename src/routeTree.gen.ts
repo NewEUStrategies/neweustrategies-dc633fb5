@@ -41,6 +41,7 @@ import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
 import { Route as AdminPagesIdRouteImport } from './routes/admin.pages.$id'
 import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearance.menu'
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
+import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.appearance.global-colors'
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
 
 const LoginRoute = LoginRouteImport.update({
@@ -203,6 +204,12 @@ const AdminAppearanceHeaderRoute = AdminAppearanceHeaderRouteImport.update({
   path: '/header',
   getParentRoute: () => AdminAppearanceRoute,
 } as any)
+const AdminAppearanceGlobalColorsRoute =
+  AdminAppearanceGlobalColorsRouteImport.update({
+    id: '/global-colors',
+    path: '/global-colors',
+    getParentRoute: () => AdminAppearanceRoute,
+  } as any)
 const AdminAppearanceFooterRoute = AdminAppearanceFooterRouteImport.update({
   id: '/footer',
   path: '/footer',
@@ -227,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
+  '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/pages/$id': typeof AdminPagesIdRoute
@@ -260,6 +268,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
+  '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/pages/$id': typeof AdminPagesIdRoute
@@ -296,6 +305,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
+  '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/pages/$id': typeof AdminPagesIdRoute
@@ -333,6 +343,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/admin/appearance/footer'
+    | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/pages/$id'
@@ -366,6 +377,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/blog'
     | '/admin/appearance/footer'
+    | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/pages/$id'
@@ -401,6 +413,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/admin/appearance/footer'
+    | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/pages/$id'
@@ -656,6 +669,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppearanceHeaderRouteImport
       parentRoute: typeof AdminAppearanceRoute
     }
+    '/admin/appearance/global-colors': {
+      id: '/admin/appearance/global-colors'
+      path: '/global-colors'
+      fullPath: '/admin/appearance/global-colors'
+      preLoaderRoute: typeof AdminAppearanceGlobalColorsRouteImport
+      parentRoute: typeof AdminAppearanceRoute
+    }
     '/admin/appearance/footer': {
       id: '/admin/appearance/footer'
       path: '/footer'
@@ -668,12 +688,14 @@ declare module '@tanstack/react-router' {
 
 interface AdminAppearanceRouteChildren {
   AdminAppearanceFooterRoute: typeof AdminAppearanceFooterRoute
+  AdminAppearanceGlobalColorsRoute: typeof AdminAppearanceGlobalColorsRoute
   AdminAppearanceHeaderRoute: typeof AdminAppearanceHeaderRoute
   AdminAppearanceMenuRoute: typeof AdminAppearanceMenuRoute
 }
 
 const AdminAppearanceRouteChildren: AdminAppearanceRouteChildren = {
   AdminAppearanceFooterRoute: AdminAppearanceFooterRoute,
+  AdminAppearanceGlobalColorsRoute: AdminAppearanceGlobalColorsRoute,
   AdminAppearanceHeaderRoute: AdminAppearanceHeaderRoute,
   AdminAppearanceMenuRoute: AdminAppearanceMenuRoute,
 }
