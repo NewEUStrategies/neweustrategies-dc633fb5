@@ -45,6 +45,27 @@ export function ColumnProperties({ column, device, onChange }: Props) {
             className="h-8 text-xs"
           />
         </PropField>
+        <PropField label="Wyrównanie w rzędzie">
+          <div className="flex gap-1">
+            {([
+              { v: "start", label: "Start" },
+              { v: "center", label: "Środek" },
+              { v: "end", label: "Koniec" },
+            ] as const).map((o) => {
+              const active = (column.contentAlign ?? "start") === o.v;
+              return (
+                <button
+                  key={o.v}
+                  type="button"
+                  onClick={() => onChange((c) => { c.contentAlign = o.v; })}
+                  className={`flex-1 h-8 text-xs rounded border ${active ? "bg-brand text-brand-foreground border-brand" : "border-border hover:bg-muted"}`}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </PropField>
       </TabsContent>
 
       <TabsContent value="style" className="space-y-4 mt-3">
