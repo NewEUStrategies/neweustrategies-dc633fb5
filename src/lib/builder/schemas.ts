@@ -456,7 +456,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   ],
   "social-icons": [
     { key: "facebook", type: "url", label: "Facebook URL", placeholder: "https://facebook.com/..." },
-    { key: "twitter", type: "url", label: "X / Twitter URL", placeholder: "https://x.com/..." },
+    { key: "x", type: "url", label: "X (dawniej Twitter) URL", placeholder: "https://x.com/..." },
     { key: "youtube", type: "url", label: "YouTube URL", placeholder: "https://youtube.com/..." },
     { key: "instagram", type: "url", label: "Instagram URL", placeholder: "https://instagram.com/..." },
     { key: "linkedin", type: "url", label: "LinkedIn URL", placeholder: "https://linkedin.com/in/..." },
