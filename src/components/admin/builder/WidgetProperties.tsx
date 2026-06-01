@@ -260,6 +260,8 @@ function ContentFields({ widget, lang, setContent }: {
       return <PricingEditor c={c} lang={lang} setContent={setContent} />;
     case "image":
       return <ImageEditor c={c} lang={lang} setContent={setContent} />;
+    case "rated-list":
+      return <RatedListEditor c={c} lang={lang} setContent={setContent} />;
   }
 
   // Schema-driven render for simple widgets.
