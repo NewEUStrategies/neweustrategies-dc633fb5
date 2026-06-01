@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
+import { AlertBar } from "@/components/AlertBar";
 import logo from "@/assets/logo.png";
 
 type ThemeOptions = {
