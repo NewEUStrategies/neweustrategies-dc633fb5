@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Sun, Moon, Image as ImageIcon } from "lucide-react";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
 import { PropField } from "../../atoms";
 import { ImageSlot } from "./ImageSlot";
 
