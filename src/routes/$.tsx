@@ -110,6 +110,8 @@ function PublicPage() {
   const title = lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en;
   const excerpt = data.kind === "post" ? (lang === "en" ? (it as PostData).excerpt_en : (it as PostData).excerpt_pl) : null;
 
+  const access = useContentAccess(data.kind === "post" ? "post" : "page", it.id);
+
   const rawDoc = parseBuilderDoc(it.builder_data);
   const isBuilder = it.editor === "builder" && rawDoc.sections.length > 0;
   const rawHtml = lang === "en" ? it.content_en || it.content_pl : it.content_pl || it.content_en;
