@@ -147,6 +147,7 @@ function InnerSectionView({
   };
   return (
     <div
+      data-inner-id={inner.id}
       className={`min-w-0 max-w-full overflow-hidden border rounded ${selected ? "border-brand" : "border-dashed border-border"}`}
       style={skin}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "inner-section", id: inner.id }); }}
