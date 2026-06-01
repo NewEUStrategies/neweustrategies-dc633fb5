@@ -111,6 +111,74 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         </div>
       </div>
 
+      {/* Source */}
+      <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Źródło slajdów</div>
+        <PropField label="Źródło">
+          <Select value={source} onValueChange={(v) => setContent("source", v)}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="manual">Ręcznie (slajdy poniżej)</SelectItem>
+              <SelectItem value="posts">Wpisy z bazy (filtry poniżej)</SelectItem>
+            </SelectContent>
+          </Select>
+        </PropField>
+        {source === "posts" && (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <PropField label="Liczba slajdów">
+                <Input type="number" min={1} max={20} value={limit}
+                  onChange={(e) => setContent("limit", Math.max(1, Math.min(20, Number(e.target.value) || 5)))}
+                  className="h-8 text-xs" />
+              </PropField>
+              <PropField label="Sortowanie">
+                <Select value={orderBy} onValueChange={(v) => setContent("orderBy", v)}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">Najnowsze</SelectItem>
+                    <SelectItem value="oldest">Najstarsze</SelectItem>
+                    <SelectItem value="title">Tytuł A→Z</SelectItem>
+                  </SelectContent>
+                </Select>
+              </PropField>
+            </div>
+            <PropField label="ID kategorii (opcjonalnie)">
+              <Input value={categoryId}
+                onChange={(e) => setContent("categoryId", e.target.value)}
+                className="h-8 text-xs font-mono" placeholder="np. 8b3c…-uuid" />
+            </PropField>
+            <PropField label="Tagi (slug, po przecinku)">
+              <Input value={tagSlugs}
+                onChange={(e) => setContent("tagSlugs", e.target.value)}
+                className="h-8 text-xs" placeholder="geopolityka, raporty" />
+            </PropField>
+            <PropField label="Wyklucz ID wpisów (po przecinku)">
+              <Input value={excludeIds}
+                onChange={(e) => setContent("excludeIds", e.target.value)}
+                className="h-8 text-xs font-mono" placeholder="uuid1, uuid2" />
+            </PropField>
+            <div className="grid grid-cols-2 gap-2">
+              <PropField label="Pokaż zajawkę">
+                <Select value={showExcerpt ? "on" : "off"} onValueChange={(v) => setContent("showExcerpt", v === "on")}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="on">tak</SelectItem>
+                    <SelectItem value="off">nie</SelectItem>
+                  </SelectContent>
+                </Select>
+              </PropField>
+              <PropField label={`Tekst CTA (${lang.toUpperCase()})`}>
+                <Input value={ctaValue}
+                  onChange={(e) => setContent(ctaKey, e.target.value)}
+                  className="h-8 text-xs" placeholder="Czytaj więcej" />
+              </PropField>
+            </div>
+          </>
+        )}
+      </div>
+
+
+
       {/* Settings */}
       <div className="grid grid-cols-2 gap-2">
         <PropField label="Proporcje">
