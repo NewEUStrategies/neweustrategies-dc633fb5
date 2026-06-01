@@ -33,6 +33,7 @@ import {
 import { copyToClipboard, readClipboard, type ClipEnvelope } from "@/lib/builder/clipboard";
 import { useHistory } from "@/lib/builder/useHistory";
 import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
+import { buildHomepageDocument } from "@/lib/builder/homepageTemplate";
 import { WidgetView } from "./WidgetView";
 import { SectionProperties } from "./SectionProperties";
 import { WidgetProperties } from "./WidgetProperties";
