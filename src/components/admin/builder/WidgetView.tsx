@@ -36,7 +36,7 @@ import {
 type Lang = "pl" | "en";
 
 const DEFAULT_WIDGET_BOX_WIDTH = 192;
-const DEFAULT_WIDGET_BOX_HEIGHT = 192;
+const DEFAULT_WIDGET_MIN_HEIGHT = 48;
 
 const pick = <T,>(
   rv: { desktop?: T; tablet?: T; mobile?: T } | undefined,
@@ -85,11 +85,23 @@ export const styleToCSS = (
   return css;
 };
 
-export const getWidgetFrameStyle = (node: WidgetNode): CSSProperties => ({
-  width: (node.advanced as { width?: number | string } | undefined)?.width ?? node.style?.maxWidth ?? DEFAULT_WIDGET_BOX_WIDTH,
-  minHeight: (node.advanced as { height?: number | string } | undefined)?.height ?? node.style?.minHeight ?? DEFAULT_WIDGET_BOX_HEIGHT,
-  maxWidth: "100%",
-});
+export const getWidgetFrameStyle = (node: WidgetNode): CSSProperties => {
+  const adv = node.advanced as { width?: number | string; height?: number | string } | undefined;
+  const style: CSSProperties = {
+    width: adv?.width ?? node.style?.maxWidth ?? DEFAULT_WIDGET_BOX_WIDTH,
+    maxWidth: "100%",
+  };
+  // Honor explicit height only when set by user (advanced.height or style.minHeight).
+  // Otherwise keep a small minHeight so the box hugs its content (e.g. image height).
+  if (adv?.height !== undefined) {
+    style.height = adv.height;
+  } else if (node.style?.minHeight) {
+    style.minHeight = node.style.minHeight;
+  } else {
+    style.minHeight = DEFAULT_WIDGET_MIN_HEIGHT;
+  }
+  return style;
+};
 
 export const hiddenOnDevice = (a: AdvancedSettings | undefined, device: Device): boolean =>
   Boolean(a?.hideOn?.[device]);
