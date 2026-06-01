@@ -86,19 +86,37 @@ export const styleToCSS = (
   return css;
 };
 
-export const getWidgetFrameStyle = (node: WidgetNode): CSSProperties => {
-  const adv = node.advanced as { width?: number | string; height?: number | string } | undefined;
-  const style: CSSProperties = {
-    width: adv?.width ?? node.style?.maxWidth ?? DEFAULT_WIDGET_BOX_WIDTH,
-    maxWidth: "100%",
-  };
-  // Honor explicit height only when set by user (advanced.height or style.minHeight).
-  // Otherwise keep a small minHeight so the box hugs its content (e.g. image height).
-  if (adv?.height !== undefined) {
-    style.height = adv.height;
+type ResponsiveSize = number | "auto" | { desktop?: number | "auto"; tablet?: number | "auto"; mobile?: number | "auto" } | undefined;
+
+function pickSize(value: ResponsiveSize, device: Device): number | "auto" | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number" || value === "auto") return value;
+  return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
+}
+
+function toCssSize(value: number | "auto" | undefined): string | number | undefined {
+  if (value === undefined) return undefined;
+  return value === "auto" ? "auto" : value;
+}
+
+export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"): CSSProperties => {
+  const adv = node.advanced as { width?: ResponsiveSize; height?: ResponsiveSize } | undefined;
+  const wRaw = pickSize(adv?.width, device);
+  const hRaw = pickSize(adv?.height, device);
+  const autoFit = AUTO_SIZE_WIDGETS.has(node.type);
+
+  const style: CSSProperties = { maxWidth: "100%" };
+
+  // Width: user value > maxWidth style > default (or auto for auto-fit widgets)
+  const w = toCssSize(wRaw) ?? node.style?.maxWidth ?? (autoFit ? "auto" : DEFAULT_WIDGET_BOX_WIDTH);
+  style.width = w;
+
+  // Height: user value wins; otherwise hug content (intrinsic, e.g. image ratio).
+  if (hRaw !== undefined) {
+    style.height = toCssSize(hRaw);
   } else if (node.style?.minHeight) {
     style.minHeight = node.style.minHeight;
-  } else {
+  } else if (!autoFit) {
     style.minHeight = DEFAULT_WIDGET_MIN_HEIGHT;
   }
   return style;
