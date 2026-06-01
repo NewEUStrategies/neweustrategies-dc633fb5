@@ -89,7 +89,7 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
 
 function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   return (
-    <div data-col-id={column.id} className={`flex flex-wrap items-start content-start gap-2 ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()}>
+    <div data-col-id={column.id} className={`flex flex-wrap items-start content-start gap-2 ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()}>
       {column.children.map((w) => {
         if (hiddenOnDevice(w.advanced, device)) return null;
         return (
