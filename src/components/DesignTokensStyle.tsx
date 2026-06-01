@@ -1,12 +1,15 @@
-// Injects brand design tokens as :root CSS variables so authored values like
-// `var(--brand-primary)` resolve everywhere — builder canvas, admin UI, and
-// the live published page. Mount once near the app root.
+// Injects brand design tokens AND global colors as CSS variables on :root / .dark
+// so values like `var(--brand-primary)` and overrides of semantic shadcn tokens
+// (--primary, --background, …) take effect on every page. Mount once near the app root.
 import { useDesignTokens, tokensToCss } from "@/lib/builder/designTokens";
+import { useGlobalColors, globalColorsToCss } from "@/hooks/useGlobalColors";
 
 export function DesignTokensStyle() {
-  const { data } = useDesignTokens();
-  if (!data) return null;
-  const css = tokensToCss(data);
+  const { data: tokens } = useDesignTokens();
+  const { data: globals } = useGlobalColors();
+  const css =
+    (tokens ? tokensToCss(tokens) : "") +
+    (globals ? globalColorsToCss(globals) : "");
   if (!css) return null;
   // eslint-disable-next-line react/no-danger
   return <style data-brand-tokens dangerouslySetInnerHTML={{ __html: css }} />;
