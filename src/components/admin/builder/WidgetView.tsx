@@ -167,6 +167,22 @@ function getStr(c: WidgetContent, k: string): string {
   const v = c[k];
   return typeof v === "string" ? v : "";
 }
+
+function normalizeNewsletterVariant(value: string): string {
+  switch (value) {
+    case "sama ikona":
+      return "icon-only";
+    case "ikona + tekst":
+      return "icon";
+    case "inline (email + przycisk)":
+      return "inline";
+    case "karta z formularzem":
+      return "card";
+    default:
+      return value;
+  }
+}
+
 function getNum(c: WidgetContent, k: string, dflt: number): number {
   const v = c[k];
   return typeof v === "number" ? v : dflt;
@@ -732,7 +748,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     case "newsletter": {
       const tKey = `title_${lang}`;
       const title = getStr(c, tKey) || getStr(c, "title_pl") || "Newsletter";
-      const variant = getStr(c, "variant") || "icon";
+      const variant = normalizeNewsletterVariant(getStr(c, "variant") || "icon");
       const placeholder = getStr(c, `placeholder_${lang}`) || getStr(c, "placeholder_pl") || "Twój email";
       const ctaLabel = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || "Zapisz";
       const iconName = getStr(c, "iconName") || "Mail";
