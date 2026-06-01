@@ -489,17 +489,38 @@ function ThemeOptionsBody({
   children: React.ReactNode;
 }) {
   void draft; void save;
-  const nav = useMemo(
-    () => ({
-      title: "Opcje motywu",
-      items: SECTIONS.map((s) => ({ id: s.id, label: s.label, icon: s.icon })),
-      activeId: active,
-      onSelect: setActive,
-    }),
-    [active, setActive],
+  return (
+    <div className="flex gap-4 min-h-[600px]">
+      <aside className="w-60 shrink-0 border border-border rounded-lg bg-card p-2 self-start">
+        <div className="px-2 pb-2 pt-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+          Opcje motywu
+        </div>
+        <nav className="space-y-0.5">
+          {SECTIONS.map((s) => {
+            const Icon = s.icon;
+            const isActive = active === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setActive(s.id)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left border-l-2 transition ${
+                  isActive
+                    ? "border-brand bg-brand/10 text-brand font-medium"
+                    : "border-transparent hover:bg-muted text-foreground"
+                }`}
+              >
+                {Icon && <Icon className="w-4 h-4 shrink-0" />}
+                <span className="flex-1 truncate">{s.label}</span>
+                {isActive && <ChevronRight className="w-3 h-3" />}
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+      <div className="flex-1 min-w-0">{children}</div>
+    </div>
   );
-  useRegisterAdminSidebarExtras(nav);
-  return <div className="min-h-[600px]">{children}</div>;
 }
 
 
