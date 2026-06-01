@@ -43,6 +43,7 @@ import {
 } from "./ui/organisms/builder";
 import { useBuilderClipboard } from "./ui/hooks/useBuilderClipboard";
 import { useBuilderShortcuts } from "./ui/hooks/useBuilderShortcuts";
+import { ConfirmDeleteDialog } from "./ui/molecules/ConfirmDeleteDialog";
 
 
 
@@ -93,6 +94,11 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   const [device, setDevice] = useState<Device>("desktop");
   const [selection, setSelection] = useState<Selection>({ kind: null, id: null });
   const [showNavigator, setShowNavigator] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ kind: "section" | "column" | "widget"; id: string } | null>(null);
+
+  const askRemoveSection = useCallback((id: string) => setPendingDelete({ kind: "section", id }), []);
+  const askRemoveColumn = useCallback((id: string) => setPendingDelete({ kind: "column", id }), []);
+  const askRemoveWidget = useCallback((id: string) => setPendingDelete({ kind: "widget", id }), []);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -438,12 +444,22 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   });
 
   // ---------- keyboard shortcuts ----------
+  const cutSelection = useCallback(() => {
+    if (!selection.id || !selection.kind) return;
+    copySelection();
+    if (selection.kind === "section") askRemoveSection(selection.id);
+    else if (selection.kind === "column") askRemoveColumn(selection.id);
+    else if (selection.kind === "widget") askRemoveWidget(selection.id);
+  }, [selection, copySelection, askRemoveSection, askRemoveColumn, askRemoveWidget]);
+
   useBuilderShortcuts({
     selection, setSelection,
     undo: history.undo, redo: history.redo,
-    copySelection, pasteFromClipboard,
+    copySelection, cutSelection, pasteFromClipboard,
     duplicateSection, duplicateColumn, duplicateWidget,
-    removeSection, removeColumn, removeWidget,
+    askRemoveSection, askRemoveColumn, askRemoveWidget,
+    moveSection,
+    onToggleNavigator: () => setShowNavigator((v) => !v),
   });
 
 
@@ -557,10 +573,9 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                 selection={selection}
                 onDelete={() => {
                   if (!selection.id) return;
-                  if (selection.kind === "section") removeSection(selection.id);
-                  else if (selection.kind === "column") removeColumn(selection.id);
-                  else if (selection.kind === "widget") removeWidget(selection.id);
-                  setSelection({ kind: null, id: null });
+                  if (selection.kind === "section") askRemoveSection(selection.id);
+                  else if (selection.kind === "column") askRemoveColumn(selection.id);
+                  else if (selection.kind === "widget") askRemoveWidget(selection.id);
                 }}
               />
 
@@ -569,7 +584,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                   doc={doc} lang={lang} device={device}
                   selection={selection} setSelection={setSelection}
                   onInsertSection={insertSectionAt}
-                  onRemoveSection={removeSection}
+                  onRemoveSection={askRemoveSection}
                   onMoveWidget={moveWidgetTo}
                   onMoveWidgetToColumn={moveWidgetToColumn}
                   onMoveWidgetToSection={moveWidgetToSection}
@@ -600,14 +615,14 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                         selection={selection} setSelection={setSelection}
                         isFirst={idx === 0} isLast={idx === doc.sections.length - 1}
                         onMove={(dir) => moveSection(s.id, dir)}
-                        onRemove={() => removeSection(s.id)}
+                        onRemove={() => askRemoveSection(s.id)}
                         onDuplicate={() => duplicateSection(s.id)}
                         onSaveTemplate={() => saveSectionAsTemplate(s.id)}
                         onAddInnerSection={() => addInnerSection(s.id)}
                         onAddColumn={() => addColumn(s.id)}
-                        onRemoveColumn={removeColumn}
+                        onRemoveColumn={askRemoveColumn}
                         onDuplicateColumn={duplicateColumn}
-                        onRemoveWidget={removeWidget}
+                        onRemoveWidget={askRemoveWidget}
                         onDuplicateWidget={duplicateWidget}
                         onDropWidget={addWidgetToColumn}
                         onUpdateWidgetContent={(id, k, v) =>
@@ -619,7 +634,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                         index={idx + 1}
                         prominent={idx === doc.sections.length - 1}
                         label={idx === doc.sections.length - 1 ? copy.last : undefined}
-                        onRemoveAdjacent={() => removeSection(s.id)}
+                        onRemoveAdjacent={() => askRemoveSection(s.id)}
                         removeLabel="Usuń sekcję powyżej"
                       />
                     </div>
@@ -638,6 +653,18 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
           </div>
         </div>
       </div>
+      <ConfirmDeleteDialog
+        pending={pendingDelete}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (!pendingDelete) return;
+          if (pendingDelete.kind === "section") removeSection(pendingDelete.id);
+          else if (pendingDelete.kind === "column") removeColumn(pendingDelete.id);
+          else if (pendingDelete.kind === "widget") removeWidget(pendingDelete.id);
+          setSelection({ kind: null, id: null });
+          setPendingDelete(null);
+        }}
+      />
     </div>
   );
 }
