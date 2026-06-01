@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ function emptyPlan(): Partial<AccessPlan> {
 }
 
 function PaywallAdmin() {
+  const { t } = useTranslation();
   const [plans, setPlans] = useState<AccessPlan[]>([]);
   const [draft, setDraft] = useState<Partial<AccessPlan>>(emptyPlan());
   const [busy, setBusy] = useState(false);
@@ -38,23 +40,22 @@ function PaywallAdmin() {
       : await supabase.from("access_plans").insert(draft);
     setBusy(false);
     if (error) toast.error(error.message);
-    else { toast.success("Zapisano plan"); setDraft(emptyPlan()); load(); }
+    else { toast.success(t("admin.paywall.savedPlan")); setDraft(emptyPlan()); load(); }
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Usunąć plan?")) return;
+    if (!confirm(t("admin.paywall.confirmRemove"))) return;
     const { error } = await supabase.from("access_plans").delete().eq("id", id);
-    if (error) toast.error(error.message); else { toast.success("Usunięto"); load(); }
+    if (error) toast.error(error.message); else { toast.success(t("admin.paywall.removed")); load(); }
   };
 
   return (
     <AdminShell hideSidebar>
       <div className="p-6 max-w-5xl mx-auto space-y-6">
         <header>
-          <h1 className="font-display text-2xl font-bold">Paywall — plany dostępu</h1>
+          <h1 className="font-display text-2xl font-bold">{t("admin.paywall.title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Twórz plany subskrypcyjne. Następnie w edytorze wpisu / strony przypisz tryb dostępu i wybrane plany.
-            Płatności online zostaną podłączone w kolejnym kroku — póki co system zbiera „zainteresowanie" i obsługuje członkostwo.
+            {t("admin.paywall.subtitle")}
           </p>
         </header>
 
@@ -62,10 +63,10 @@ function PaywallAdmin() {
           <table className="w-full text-sm">
             <thead className="text-xs text-muted-foreground border-b border-border">
               <tr>
-                <th className="text-left p-3">Nazwa</th>
-                <th className="text-left p-3">Cena</th>
-                <th className="text-left p-3">Interwał</th>
-                <th className="text-left p-3">Aktywny</th>
+                <th className="text-left p-3">{t("admin.paywall.colName")}</th>
+                <th className="text-left p-3">{t("admin.paywall.colPrice")}</th>
+                <th className="text-left p-3">{t("admin.paywall.colInterval")}</th>
+                <th className="text-left p-3">{t("admin.paywall.colActive")}</th>
                 <th className="p-3"></th>
               </tr>
             </thead>
@@ -78,50 +79,50 @@ function PaywallAdmin() {
                   </td>
                   <td className="p-3">{formatMoney(p.price_cents, p.currency)}</td>
                   <td className="p-3">{p.interval}</td>
-                  <td className="p-3">{p.active ? "✓" : "—"}</td>
+                  <td className="p-3">{p.active ? "✓" : "-"}</td>
                   <td className="p-3 text-right space-x-2">
-                    <Button size="sm" variant="outline" onClick={() => setDraft(p)}>Edytuj</Button>
+                    <Button size="sm" variant="outline" onClick={() => setDraft(p)}>{t("admin.paywall.edit")}</Button>
                     <Button size="sm" variant="ghost" onClick={() => remove(p.id)}><Trash className="w-4 h-4" /></Button>
                   </td>
                 </tr>
               ))}
               {plans.length === 0 && (
-                <tr><td colSpan={5} className="p-6 text-center text-muted-foreground text-sm">Brak planów</td></tr>
+                <tr><td colSpan={5} className="p-6 text-center text-muted-foreground text-sm">{t("admin.paywall.empty")}</td></tr>
               )}
             </tbody>
           </table>
         </section>
 
         <section className="border border-border rounded-lg bg-card p-5">
-          <h2 className="font-semibold mb-4">{draft.id ? "Edytuj plan" : "Nowy plan"}</h2>
+          <h2 className="font-semibold mb-4">{draft.id ? t("admin.paywall.editPlan") : t("admin.paywall.newPlan")}</h2>
           <div className="grid sm:grid-cols-2 gap-4">
-            <div><Label>Nazwa PL</Label><Input value={draft.name_pl ?? ""} onChange={(e) => setDraft({ ...draft, name_pl: e.target.value })} /></div>
-            <div><Label>Nazwa EN</Label><Input value={draft.name_en ?? ""} onChange={(e) => setDraft({ ...draft, name_en: e.target.value })} /></div>
-            <div className="sm:col-span-2"><Label>Opis PL</Label><Textarea rows={2} value={draft.description_pl ?? ""} onChange={(e) => setDraft({ ...draft, description_pl: e.target.value })} /></div>
-            <div className="sm:col-span-2"><Label>Opis EN</Label><Textarea rows={2} value={draft.description_en ?? ""} onChange={(e) => setDraft({ ...draft, description_en: e.target.value })} /></div>
-            <div><Label>Cena (w groszach/centach)</Label><Input type="number" value={draft.price_cents ?? 0} onChange={(e) => setDraft({ ...draft, price_cents: Number(e.target.value) })} /></div>
-            <div><Label>Waluta</Label><Input value={draft.currency ?? "PLN"} onChange={(e) => setDraft({ ...draft, currency: e.target.value })} /></div>
+            <div><Label>{t("admin.paywall.namePl")}</Label><Input value={draft.name_pl ?? ""} onChange={(e) => setDraft({ ...draft, name_pl: e.target.value })} /></div>
+            <div><Label>{t("admin.paywall.nameEn")}</Label><Input value={draft.name_en ?? ""} onChange={(e) => setDraft({ ...draft, name_en: e.target.value })} /></div>
+            <div className="sm:col-span-2"><Label>{t("admin.paywall.descPl")}</Label><Textarea rows={2} value={draft.description_pl ?? ""} onChange={(e) => setDraft({ ...draft, description_pl: e.target.value })} /></div>
+            <div className="sm:col-span-2"><Label>{t("admin.paywall.descEn")}</Label><Textarea rows={2} value={draft.description_en ?? ""} onChange={(e) => setDraft({ ...draft, description_en: e.target.value })} /></div>
+            <div><Label>{t("admin.paywall.priceCents")}</Label><Input type="number" value={draft.price_cents ?? 0} onChange={(e) => setDraft({ ...draft, price_cents: Number(e.target.value) })} /></div>
+            <div><Label>{t("admin.paywall.currency")}</Label><Input value={draft.currency ?? "PLN"} onChange={(e) => setDraft({ ...draft, currency: e.target.value })} /></div>
             <div>
-              <Label>Interwał</Label>
+              <Label>{t("admin.paywall.interval")}</Label>
               <Select value={draft.interval ?? "month"} onValueChange={(v) => setDraft({ ...draft, interval: v as AccessPlan["interval"] })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="month">Miesięcznie</SelectItem>
-                  <SelectItem value="year">Rocznie</SelectItem>
-                  <SelectItem value="one_time">Jednorazowo</SelectItem>
+                  <SelectItem value="month">{t("admin.paywall.intervalMonth")}</SelectItem>
+                  <SelectItem value="year">{t("admin.paywall.intervalYear")}</SelectItem>
+                  <SelectItem value="one_time">{t("admin.paywall.intervalOnce")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="flex items-end gap-3">
               <label className="flex items-center gap-2 text-sm">
-                <Switch checked={!!draft.active} onCheckedChange={(v) => setDraft({ ...draft, active: v })} /> Aktywny
+                <Switch checked={!!draft.active} onCheckedChange={(v) => setDraft({ ...draft, active: v })} /> {t("admin.paywall.active")}
               </label>
-              <div className="ml-auto"><Label>Kolejność</Label><Input type="number" value={draft.sort_order ?? 0} onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value) })} className="w-24" /></div>
+              <div className="ml-auto"><Label>{t("admin.paywall.sort")}</Label><Input type="number" value={draft.sort_order ?? 0} onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value) })} className="w-24" /></div>
             </div>
           </div>
           <div className="flex gap-2 mt-5">
-            <Button onClick={save} disabled={busy}><Plus className="w-4 h-4 mr-2" />{draft.id ? "Zapisz" : "Dodaj plan"}</Button>
-            {draft.id && <Button variant="outline" onClick={() => setDraft(emptyPlan())}>Anuluj</Button>}
+            <Button onClick={save} disabled={busy}><Plus className="w-4 h-4 mr-2" />{draft.id ? t("admin.save") : t("admin.paywall.addPlan")}</Button>
+            {draft.id && <Button variant="outline" onClick={() => setDraft(emptyPlan())}>{t("admin.cancel")}</Button>}
           </div>
         </section>
       </div>

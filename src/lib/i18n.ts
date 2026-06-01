@@ -126,7 +126,11 @@ const resources = {
         theme: "Motyw",
         signout: "Wyloguj",
         save: "Zapisz",
+        saving: "Zapisywanie…",
+        saveSettings: "Zapisz ustawienia",
         saved: "Zapisano",
+        cancel: "Anuluj",
+        loading: "Ładowanie…",
         new: "Dodaj",
         edit: "Edytuj",
         delete: "Usuń",
@@ -136,6 +140,7 @@ const resources = {
         confirmDelete: "Na pewno usunąć?",
         published: "opublikowanych",
         drafts: "szkiców",
+        language: "Język panelu",
         status: { draft: "Szkic", published: "Opublikowany", archived: "Zarchiwizowany" },
         posts: {
           title: "Wpisy", new: "Nowy wpis", count: "wpisów",
@@ -148,11 +153,115 @@ const resources = {
           title: "Strony", new: "Nowa strona", count: "stron", empty: "Brak stron",
         },
         tags: { placeholder: "Nazwa tagu i Enter" },
-        users: { name: "Imię", role: "Rola", created: "Dołączył" },
+        users: {
+          title: "Użytkownicy",
+          name: "Imię", role: "Rola", created: "Dołączył",
+        },
         media: { upload: "Wgraj", uploaded: "Wgrano" },
+        personalized: {
+          title: "Personalized System",
+          subtitle: "Bookmarks, follows, reading list i rekomendacje",
+          tabs: { global: "Globalne", saved: "Zapisane", followed: "Obserwowane", recommended: "Rekomendacje" },
+          enabled: "System włączony",
+          enabledHint: "Główny włącznik bookmarks/follows/recommendations",
+          allowGuests: "Pozwól gościom",
+          allowGuestsHint: "Niezalogowani mogą zapisywać (cookie). Inaczej: popup logowania",
+          popup: "Popup po dodaniu do listy",
+          popupHint: "Toast z linkiem do listy po kliknięciu Zapisz",
+          guestExpiration: "Wygaśnięcie cookie gościa (dni)",
+          userExpiration: "Wygaśnięcie zapisów użytkownika (dni)",
+          restricted: "Restricted (dla gości próbujących zapisać)",
+          restrictedTitle: "Tytuł",
+          restrictedDesc: "Opis",
+          followHeaders: "Przyciski Follow w nagłówkach archiwów",
+          followCategory: "W headerze kategorii",
+          followTag: "W headerze tagu",
+          followAuthor: "W headerze autora",
+          readingListUrl: "URL strony Reading List",
+          sectionEnabled: "Sekcja włączona",
+          sectionHeading: "Nagłówek sekcji",
+          sectionDescription: "Opis sekcji",
+          sectionColumns: "Kolumny na desktopie (2-4)",
+          recommendedCount: "Liczba propozycji",
+        },
+        general: {
+          title: "Ustawienia ogólne",
+          siteName: "Nazwa witryny",
+          tagline: "Slogan",
+          taglineHint: "W kilku słowach wyjaśnij, o czym jest ta witryna.",
+          siteIcon: "Ikona witryny (favicon)",
+          siteIconHint: "URL obrazu, kwadrat min. 512x512 px.",
+          siteLogo: "Logo witryny",
+          siteUrl: "Adres witryny (URL)",
+          adminEmail: "Adres e-mail administratora",
+          siteLanguage: "Język witryny",
+          timezone: "Strefa czasowa",
+          dateFormat: "Format daty",
+          dateFormatHint: "Składnia jak w PHP date(): d.m.Y, Y-m-d, m/d/Y …",
+          timeFormat: "Format godziny",
+          weekStart: "Pierwszy dzień tygodnia",
+          monday: "poniedziałek",
+          sunday: "niedziela",
+          iconPack: "Zestaw ikon",
+          iconPackHint: "Lucide jest domyślny i zalecany. Font Awesome dostępny jako wariant rezerwowy.",
+          iconLucide: "Lucide (domyślnie)",
+          iconFA: "Font Awesome (rezerwowy)",
+        },
+        newsletter: {
+          title: "Newsletter",
+          formSettings: "Ustawienia formularza",
+          show: "Pokaż formularz newslettera",
+          doubleOptIn: "Double opt-in (zapisuje status „pending\" do potwierdzenia)",
+          heading: "Nagłówek",
+          description: "Opis",
+          policyHtml: "Klauzula (HTML)",
+          successMsg: "Komunikat sukcesu",
+          subscribers: "Subskrybenci",
+          exportCsv: "↓ Eksportuj CSV",
+          colEmail: "E-mail", colName: "Imię", colLang: "Język", colStatus: "Status",
+          colSource: "Źródło", colDate: "Data",
+          empty: "Brak subskrybentów.",
+          confirmRemove: "Usunąć subskrybenta?",
+        },
+        contentArea: {
+          title: "Post Content Area",
+          subtitle: "Typografia, szerokości i hiperłącza w treści wpisu.",
+          width: "Szerokość treści",
+          withSidebar: "Z sidebarem (px)",
+          noSidebar: "Bez sidebara (px)",
+          wideMax: "Wide image max (px)",
+          paragraphs: "Akapity i listy",
+          paragraphSpacing: "Odstęp akapitów (rem)",
+          listStyle: "Styl list (ul)",
+          hyperlinks: "Hiperłącza",
+          style: "Styl",
+          underline: "Podkreślenie",
+          on: "Włącz", off: "Wyłącz",
+          linkColorLight: "Kolor linku (light)",
+          linkColorDark: "Kolor linku (dark)",
+          underlineColorLight: "Kolor podkreślenia (light)",
+          underlineColorDark: "Kolor podkreślenia (dark)",
+          imageCaption: "Image caption",
+          imageCaptionToggle: "Pokaż lewy border przed podpisem obrazu",
+          quickView: "Quick View Info",
+          quickViewToggle: "Pokaż pasek meta (review/sponsor) na górze treści",
+        },
+        paywall: {
+          title: "Paywall - plany dostępu",
+          subtitle: "Twórz plany subskrypcyjne. Następnie w edytorze wpisu / strony przypisz tryb dostępu i wybrane plany.",
+          colName: "Nazwa", colPrice: "Cena", colInterval: "Interwał", colActive: "Aktywny",
+          empty: "Brak planów",
+          edit: "Edytuj", newPlan: "Nowy plan", editPlan: "Edytuj plan", addPlan: "Dodaj plan",
+          namePl: "Nazwa PL", nameEn: "Nazwa EN", descPl: "Opis PL", descEn: "Opis EN",
+          priceCents: "Cena (w groszach/centach)", currency: "Waluta", interval: "Interwał",
+          intervalMonth: "Miesięcznie", intervalYear: "Rocznie", intervalOnce: "Jednorazowo",
+          active: "Aktywny", sort: "Kolejność",
+          savedPlan: "Zapisano plan", removed: "Usunięto", confirmRemove: "Usunąć plan?",
+        },
       },
     },
   },
+
   en: {
     translation: {
       nav: {
@@ -277,7 +386,11 @@ const resources = {
         theme: "Theme",
         signout: "Sign out",
         save: "Save",
+        saving: "Saving…",
+        saveSettings: "Save settings",
         saved: "Saved",
+        cancel: "Cancel",
+        loading: "Loading…",
         new: "Add",
         edit: "Edit",
         delete: "Delete",
@@ -287,6 +400,7 @@ const resources = {
         confirmDelete: "Delete this item?",
         published: "published",
         drafts: "drafts",
+        language: "Panel language",
         status: { draft: "Draft", published: "Published", archived: "Archived" },
         posts: {
           title: "Posts", new: "New post", count: "posts",
@@ -299,24 +413,156 @@ const resources = {
           title: "Pages", new: "New page", count: "pages", empty: "No pages yet",
         },
         tags: { placeholder: "Tag name + Enter" },
-        users: { name: "Name", role: "Role", created: "Joined" },
+        users: {
+          title: "Users",
+          name: "Name", role: "Role", created: "Joined",
+        },
         media: { upload: "Upload", uploaded: "Uploaded" },
+        personalized: {
+          title: "Personalized System",
+          subtitle: "Bookmarks, follows, reading list and recommendations",
+          tabs: { global: "Global", saved: "Saved", followed: "Followed", recommended: "Recommended" },
+          enabled: "System enabled",
+          enabledHint: "Main switch for bookmarks/follows/recommendations",
+          allowGuests: "Allow guests",
+          allowGuestsHint: "Anonymous users can save (cookie). Otherwise: login popup",
+          popup: "Popup after adding",
+          popupHint: "Toast with link to the list after pressing Save",
+          guestExpiration: "Guest cookie expiration (days)",
+          userExpiration: "Signed-in user expiration (days)",
+          restricted: "Restricted (for guests trying to save)",
+          restrictedTitle: "Title",
+          restrictedDesc: "Description",
+          followHeaders: "Follow buttons in archive headers",
+          followCategory: "In category header",
+          followTag: "In tag header",
+          followAuthor: "In author header",
+          readingListUrl: "Reading List page URL",
+          sectionEnabled: "Section enabled",
+          sectionHeading: "Section heading",
+          sectionDescription: "Section description",
+          sectionColumns: "Desktop columns (2-4)",
+          recommendedCount: "Suggestions count",
+        },
+        general: {
+          title: "General settings",
+          siteName: "Site name",
+          tagline: "Tagline",
+          taglineHint: "In a few words, explain what this site is about.",
+          siteIcon: "Site icon (favicon)",
+          siteIconHint: "Image URL, square at least 512x512 px.",
+          siteLogo: "Site logo",
+          siteUrl: "Site URL",
+          adminEmail: "Administrator e-mail",
+          siteLanguage: "Site language",
+          timezone: "Timezone",
+          dateFormat: "Date format",
+          dateFormatHint: "PHP date() syntax: d.m.Y, Y-m-d, m/d/Y …",
+          timeFormat: "Time format",
+          weekStart: "First day of the week",
+          monday: "Monday",
+          sunday: "Sunday",
+          iconPack: "Icon pack",
+          iconPackHint: "Lucide is default and recommended. Font Awesome is available as a fallback.",
+          iconLucide: "Lucide (default)",
+          iconFA: "Font Awesome (fallback)",
+        },
+        newsletter: {
+          title: "Newsletter",
+          formSettings: "Form settings",
+          show: "Show newsletter form",
+          doubleOptIn: "Double opt-in (saves status „pending\" until confirmed)",
+          heading: "Heading",
+          description: "Description",
+          policyHtml: "Policy text (HTML)",
+          successMsg: "Success message",
+          subscribers: "Subscribers",
+          exportCsv: "↓ Export CSV",
+          colEmail: "E-mail", colName: "Name", colLang: "Language", colStatus: "Status",
+          colSource: "Source", colDate: "Date",
+          empty: "No subscribers.",
+          confirmRemove: "Remove subscriber?",
+        },
+        contentArea: {
+          title: "Post Content Area",
+          subtitle: "Typography, widths and hyperlinks inside post content.",
+          width: "Content width",
+          withSidebar: "With sidebar (px)",
+          noSidebar: "No sidebar (px)",
+          wideMax: "Wide image max (px)",
+          paragraphs: "Paragraphs and lists",
+          paragraphSpacing: "Paragraph spacing (rem)",
+          listStyle: "List style (ul)",
+          hyperlinks: "Hyperlinks",
+          style: "Style",
+          underline: "Underline",
+          on: "On", off: "Off",
+          linkColorLight: "Link color (light)",
+          linkColorDark: "Link color (dark)",
+          underlineColorLight: "Underline color (light)",
+          underlineColorDark: "Underline color (dark)",
+          imageCaption: "Image caption",
+          imageCaptionToggle: "Show left border before image caption",
+          quickView: "Quick View Info",
+          quickViewToggle: "Show meta bar (review/sponsor) above content",
+        },
+        paywall: {
+          title: "Paywall - access plans",
+          subtitle: "Create subscription plans. Then, in post/page editor, assign an access mode and selected plans.",
+          colName: "Name", colPrice: "Price", colInterval: "Interval", colActive: "Active",
+          empty: "No plans",
+          edit: "Edit", newPlan: "New plan", editPlan: "Edit plan", addPlan: "Add plan",
+          namePl: "Name PL", nameEn: "Name EN", descPl: "Description PL", descEn: "Description EN",
+          priceCents: "Price (in cents)", currency: "Currency", interval: "Interval",
+          intervalMonth: "Monthly", intervalYear: "Yearly", intervalOnce: "One-time",
+          active: "Active", sort: "Sort order",
+          savedPlan: "Plan saved", removed: "Removed", confirmRemove: "Remove plan?",
+        },
       },
     },
   },
 };
+
+const STORAGE_KEY = "lovable.lang";
+
+function readStoredLang(): "pl" | "en" {
+  if (typeof window === "undefined") return "pl";
+  try {
+    const v = window.localStorage.getItem(STORAGE_KEY);
+    return v === "en" ? "en" : "pl";
+  } catch {
+    return "pl";
+  }
+}
 
 if (!i18n.isInitialized) {
   i18n
     .use(initReactI18next)
     .init({
       resources,
-      lng: "pl",
+      lng: readStoredLang(),
       fallbackLng: "pl",
       supportedLngs: ["pl", "en"],
       interpolation: { escapeValue: false },
       react: { useSuspense: false },
     });
+
+  if (typeof window !== "undefined") {
+    i18n.on("languageChanged", (lng) => {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, lng);
+        document.documentElement.setAttribute("lang", lng);
+      } catch {
+        /* ignore */
+      }
+    });
+    try {
+      document.documentElement.setAttribute("lang", i18n.language);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 export default i18n;
+

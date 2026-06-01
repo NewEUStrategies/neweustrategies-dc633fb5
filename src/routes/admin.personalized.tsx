@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { DEFAULT_PERSONALIZED_SETTINGS, type PersonalizedSettings, type Personal
 export const Route = createFileRoute("/admin/personalized")({ component: PersonalizedAdmin });
 
 function PersonalizedAdmin() {
+  const { t } = useTranslation();
   const [s, setS] = useState<PersonalizedSettings>(DEFAULT_PERSONALIZED_SETTINGS);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -32,93 +34,93 @@ function PersonalizedAdmin() {
       .upsert({ key: "personalized_system", value: s as never }, { onConflict: "key" });
     setBusy(false);
     if (error) toast.error(error.message);
-    else toast.success("Zapisano");
+    else toast.success(t("admin.saved"));
   };
 
   const updateSection = (k: "saved" | "followed" | "recommended", patch: Partial<PersonalizedSectionConfig>) =>
     setS({ ...s, sections: { ...s.sections, [k]: { ...s.sections[k], ...patch } } });
 
-  if (!loaded) return <AdminShell hideSidebar><p>Ładowanie…</p></AdminShell>;
+  if (!loaded) return <AdminShell hideSidebar><p>{t("admin.loading")}</p></AdminShell>;
 
   return (
     <AdminShell hideSidebar>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-display text-2xl">Personalized System</h1>
-          <p className="text-sm text-muted-foreground">Bookmarks, follows, reading list i rekomendacje</p>
+          <h1 className="font-display text-2xl">{t("admin.personalized.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("admin.personalized.subtitle")}</p>
         </div>
-        <Button onClick={save} disabled={busy}>{busy ? "…" : "Zapisz"}</Button>
+        <Button onClick={save} disabled={busy}>{busy ? t("admin.saving") : t("admin.save")}</Button>
       </div>
 
       <Tabs defaultValue="global">
         <TabsList>
-          <TabsTrigger value="global">Global</TabsTrigger>
-          <TabsTrigger value="saved">Saved</TabsTrigger>
-          <TabsTrigger value="followed">Followed</TabsTrigger>
-          <TabsTrigger value="recommended">Recommended</TabsTrigger>
+          <TabsTrigger value="global">{t("admin.personalized.tabs.global")}</TabsTrigger>
+          <TabsTrigger value="saved">{t("admin.personalized.tabs.saved")}</TabsTrigger>
+          <TabsTrigger value="followed">{t("admin.personalized.tabs.followed")}</TabsTrigger>
+          <TabsTrigger value="recommended">{t("admin.personalized.tabs.recommended")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="global" className="space-y-6 mt-6">
-          <Row label="System włączony" hint="Główny włącznik bookmarks/follows/recommendations">
+          <Row label={t("admin.personalized.enabled")} hint={t("admin.personalized.enabledHint")}>
             <Switch checked={s.enabled} onCheckedChange={(v) => setS({ ...s, enabled: v })} />
           </Row>
-          <Row label="Pozwól gościom" hint="Niezalogowani mogą zapisywać (cookie). Inaczej: popup logowania">
+          <Row label={t("admin.personalized.allowGuests")} hint={t("admin.personalized.allowGuestsHint")}>
             <Switch checked={s.allowGuests} onCheckedChange={(v) => setS({ ...s, allowGuests: v })} />
           </Row>
-          <Row label="Popup po dodaniu do listy" hint="Toast z linkiem do listy po kliknięciu Zapisz">
+          <Row label={t("admin.personalized.popup")} hint={t("admin.personalized.popupHint")}>
             <Switch checked={s.popupNotification} onCheckedChange={(v) => setS({ ...s, popupNotification: v })} />
           </Row>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Expiration guest (dni)</Label>
+              <Label>{t("admin.personalized.guestExpiration")}</Label>
               <Input type="number" value={s.guestExpirationDays} onChange={(e) => setS({ ...s, guestExpirationDays: Number(e.target.value) })} />
             </div>
             <div>
-              <Label>Expiration logged user (dni)</Label>
+              <Label>{t("admin.personalized.userExpiration")}</Label>
               <Input type="number" value={s.userExpirationDays} onChange={(e) => setS({ ...s, userExpirationDays: Number(e.target.value) })} />
             </div>
           </div>
           <div className="border-t border-border pt-6 space-y-4">
-            <h3 className="font-medium">Restricted (dla gości próbujących zapisać)</h3>
+            <h3 className="font-medium">{t("admin.personalized.restricted")}</h3>
             <div>
-              <Label>Tytuł</Label>
+              <Label>{t("admin.personalized.restrictedTitle")}</Label>
               <Input value={s.restrictedTitle} onChange={(e) => setS({ ...s, restrictedTitle: e.target.value })} />
             </div>
             <div>
-              <Label>Opis</Label>
+              <Label>{t("admin.personalized.restrictedDesc")}</Label>
               <Textarea value={s.restrictedDescription} onChange={(e) => setS({ ...s, restrictedDescription: e.target.value })} />
             </div>
           </div>
           <div className="border-t border-border pt-6 space-y-4">
-            <h3 className="font-medium">Follow buttons w nagłówkach archives</h3>
-            <Row label="W headerze kategorii"><Switch checked={s.followInCategoryHeader} onCheckedChange={(v) => setS({ ...s, followInCategoryHeader: v })} /></Row>
-            <Row label="W headerze tagu"><Switch checked={s.followInTagHeader} onCheckedChange={(v) => setS({ ...s, followInTagHeader: v })} /></Row>
-            <Row label="W headerze autora"><Switch checked={s.followInAuthorHeader} onCheckedChange={(v) => setS({ ...s, followInAuthorHeader: v })} /></Row>
+            <h3 className="font-medium">{t("admin.personalized.followHeaders")}</h3>
+            <Row label={t("admin.personalized.followCategory")}><Switch checked={s.followInCategoryHeader} onCheckedChange={(v) => setS({ ...s, followInCategoryHeader: v })} /></Row>
+            <Row label={t("admin.personalized.followTag")}><Switch checked={s.followInTagHeader} onCheckedChange={(v) => setS({ ...s, followInTagHeader: v })} /></Row>
+            <Row label={t("admin.personalized.followAuthor")}><Switch checked={s.followInAuthorHeader} onCheckedChange={(v) => setS({ ...s, followInAuthorHeader: v })} /></Row>
           </div>
           <div className="border-t border-border pt-6">
-            <Label>URL strony Reading List</Label>
+            <Label>{t("admin.personalized.readingListUrl")}</Label>
             <Input value={s.readingListPath} onChange={(e) => setS({ ...s, readingListPath: e.target.value })} />
           </div>
         </TabsContent>
 
         {(["saved", "followed", "recommended"] as const).map((key) => (
           <TabsContent key={key} value={key} className="space-y-4 mt-6">
-            <Row label="Sekcja włączona"><Switch checked={s.sections[key].enabled} onCheckedChange={(v) => updateSection(key, { enabled: v })} /></Row>
+            <Row label={t("admin.personalized.sectionEnabled")}><Switch checked={s.sections[key].enabled} onCheckedChange={(v) => updateSection(key, { enabled: v })} /></Row>
             <div>
-              <Label>Nagłówek sekcji</Label>
+              <Label>{t("admin.personalized.sectionHeading")}</Label>
               <Input value={s.sections[key].heading} onChange={(e) => updateSection(key, { heading: e.target.value })} />
             </div>
             <div>
-              <Label>Opis sekcji</Label>
+              <Label>{t("admin.personalized.sectionDescription")}</Label>
               <Textarea value={s.sections[key].description} onChange={(e) => updateSection(key, { description: e.target.value })} />
             </div>
             <div>
-              <Label>Kolumny na desktopie (2-4)</Label>
+              <Label>{t("admin.personalized.sectionColumns")}</Label>
               <Input type="number" min={2} max={4} value={s.sections[key].columns} onChange={(e) => updateSection(key, { columns: Number(e.target.value) })} />
             </div>
             {key === "recommended" && (
               <div>
-                <Label>Liczba propozycji</Label>
+                <Label>{t("admin.personalized.recommendedCount")}</Label>
                 <Input type="number" min={3} max={30} value={s.sections.recommended.postsPerPage ?? 9} onChange={(e) => updateSection("recommended", { postsPerPage: Number(e.target.value) })} />
               </div>
             )}

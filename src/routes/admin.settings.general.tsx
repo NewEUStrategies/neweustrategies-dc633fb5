@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, Select, SaveBar } from "@/components/admin/settings/fields";
 import { setIconPack, type IconPack } from "@/lib/iconPack";
@@ -39,43 +40,41 @@ export const Route = createFileRoute("/admin/settings/general")({
 });
 
 function GeneralSettings() {
+  const { t } = useTranslation();
   const { query, save } = useSettings<General>("general", DEFAULTS);
   const [draft, setDraft] = useDraft(query.data);
 
-  // Live preview: switching the dropdown updates icons immediately.
   useEffect(() => {
     if (draft?.icon_pack) setIconPack(draft.icon_pack);
   }, [draft?.icon_pack]);
 
-  if (!draft) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
+  if (!draft) return <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>;
 
   const set = <K extends keyof General>(k: K, v: General[K]) => setDraft({ ...draft, [k]: v });
 
   return (
     <div>
-      <h2 className="font-display text-xl mb-4">Ustawienia ogólne</h2>
+      <h2 className="font-display text-xl mb-4">{t("admin.general.title")}</h2>
 
-
-
-      <Field label="Nazwa witryny">
+      <Field label={t("admin.general.siteName")}>
         <Text value={draft.site_name} onChange={(e) => set("site_name", e.target.value)} />
       </Field>
-      <Field label="Slogan" hint="W kilku słowach wyjaśnij, o czym jest ta witryna.">
+      <Field label={t("admin.general.tagline")} hint={t("admin.general.taglineHint")}>
         <Text value={draft.tagline} onChange={(e) => set("tagline", e.target.value)} />
       </Field>
-      <Field label="Ikona witryny (favicon)" hint="URL obrazu, kwadrat min. 512×512 px.">
+      <Field label={t("admin.general.siteIcon")} hint={t("admin.general.siteIconHint")}>
         <Text value={draft.site_icon_url} onChange={(e) => set("site_icon_url", e.target.value)} placeholder="https://…" />
       </Field>
-      <Field label="Logo witryny">
+      <Field label={t("admin.general.siteLogo")}>
         <Text value={draft.site_logo_url} onChange={(e) => set("site_logo_url", e.target.value)} placeholder="https://…" />
       </Field>
-      <Field label="Adres witryny (URL)">
+      <Field label={t("admin.general.siteUrl")}>
         <Text value={draft.site_url} onChange={(e) => set("site_url", e.target.value)} placeholder="https://example.com" />
       </Field>
-      <Field label="Adres e-mail administratora">
+      <Field label={t("admin.general.adminEmail")}>
         <Text type="email" value={draft.admin_email} onChange={(e) => set("admin_email", e.target.value)} />
       </Field>
-      <Field label="Język witryny">
+      <Field label={t("admin.general.siteLanguage")}>
         <Select
           value={draft.default_language}
           onChange={(e) => set("default_language", e.target.value as "pl" | "en")}
@@ -84,34 +83,34 @@ function GeneralSettings() {
           <option value="en">English</option>
         </Select>
       </Field>
-      <Field label="Strefa czasowa">
+      <Field label={t("admin.general.timezone")}>
         <Text value={draft.timezone} onChange={(e) => set("timezone", e.target.value)} placeholder="Europe/Warsaw" />
       </Field>
-      <Field label="Format daty" hint="Składnia jak w PHP date(): d.m.Y, Y-m-d, m/d/Y …">
+      <Field label={t("admin.general.dateFormat")} hint={t("admin.general.dateFormatHint")}>
         <Text value={draft.date_format} onChange={(e) => set("date_format", e.target.value)} className="w-40" />
       </Field>
-      <Field label="Format godziny">
+      <Field label={t("admin.general.timeFormat")}>
         <Text value={draft.time_format} onChange={(e) => set("time_format", e.target.value)} className="w-40" />
       </Field>
-      <Field label="Pierwszy dzień tygodnia">
+      <Field label={t("admin.general.weekStart")}>
         <Select
           value={String(draft.week_starts_on)}
           onChange={(e) => set("week_starts_on", Number(e.target.value))}
         >
-          <option value="1">poniedziałek</option>
-          <option value="0">niedziela</option>
+          <option value="1">{t("admin.general.monday")}</option>
+          <option value="0">{t("admin.general.sunday")}</option>
         </Select>
       </Field>
       <Field
-        label="Zestaw ikon"
-        hint="Lucide jest domyślny i zalecany. Font Awesome dostępny jako wariant rezerwowy."
+        label={t("admin.general.iconPack")}
+        hint={t("admin.general.iconPackHint")}
       >
         <Select
           value={draft.icon_pack}
           onChange={(e) => set("icon_pack", e.target.value as IconPack)}
         >
-          <option value="lucide">Lucide (domyślnie)</option>
-          <option value="fontawesome">Font Awesome (rezerwowy)</option>
+          <option value="lucide">{t("admin.general.iconLucide")}</option>
+          <option value="fontawesome">{t("admin.general.iconFA")}</option>
         </Select>
       </Field>
 
