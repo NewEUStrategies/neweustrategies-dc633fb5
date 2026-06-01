@@ -5,6 +5,15 @@ import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import type { WidgetContent } from "@/lib/builder/types";
 import { getStr } from "./frame";
+import { autoInvertColor } from "@/lib/builder/autoInvertColor";
+
+// Auto-derive a dark-mode color from the light value when the user hasn't
+// explicitly set one (and vice versa). Empty string === inherit/default.
+const autoDark = (light: string, dark: string): string =>
+  dark || (light ? autoInvertColor(light, "dark") : "");
+const autoLight = (dark: string, light: string): string =>
+  light || (dark ? autoInvertColor(dark, "light") : "");
+void autoLight;
 
 type Lang = "pl" | "en";
 
