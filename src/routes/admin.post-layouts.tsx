@@ -13,7 +13,7 @@ function Page() {
   const save = useSavePostLayoutSettings();
   const [local, setLocal] = useState<PostLayoutSettings | null>(null);
   useEffect(() => { if (data && !local) setLocal(data); }, [data, local]);
-  if (!local) return <AdminShell><div className="p-6">Ładowanie…</div></AdminShell>;
+  if (!local) return <AdminShell hideSidebar><div className="p-6">Ładowanie…</div></AdminShell>;
 
   const upd = (p: Partial<PostLayoutSettings>) => setLocal({ ...local, ...p });
   const onSave = async () => {
@@ -66,7 +66,7 @@ function Page() {
   };
 
   return (
-    <AdminShell>
+    <AdminShell hideSidebar>
       <div className="max-w-6xl mx-auto p-6 space-y-10">
         <header className="flex items-center justify-between">
           <div>
