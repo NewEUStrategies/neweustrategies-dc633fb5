@@ -495,11 +495,7 @@ export function renderSimpleWidget(
 
 
     case "theme-toggle":
-      return (
-        <button type="button" aria-label="Toggle theme" className="inline-flex items-center justify-center rounded-full hover:bg-muted transition" style={compactIconBoxStyle()}>
-          <LucideIcons.Moon className="w-4 h-4" />
-        </button>
-      );
+      return <ThemeToggleWidget />;
     case "account-link": {
       const signin = getStr(c, `signin_${lang}`) || getStr(c, "signin_pl") || "Zaloguj";
       const signup = getStr(c, `signup_${lang}`) || getStr(c, "signup_pl") || "Zarejestruj";
