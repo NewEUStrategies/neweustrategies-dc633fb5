@@ -17,6 +17,7 @@ type ThemeOptions = {
     bookmark_ios: string; bookmark_windows: string; add_to_home_screen: boolean;
   };
   header: {
+    layout: "layout-1" | "layout-2" | "layout-3" | "layout-4" | "layout-5";
     main_menu: {
       hover_effect: "color-border" | "underline" | "background" | "scale" | "none";
       sticky: boolean; smart_sticky: boolean; glass_effect: boolean;
@@ -44,6 +45,7 @@ type ThemeOptions = {
 const THEME_DEFAULTS: ThemeOptions = {
   logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", organization: "", bookmark_ios: "", bookmark_windows: "", add_to_home_screen: true },
   header: {
+    layout: "layout-1",
     main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
     search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
     mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
