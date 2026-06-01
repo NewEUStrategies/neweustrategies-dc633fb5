@@ -217,6 +217,73 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       { key: "verified-tick", label: "Color", description: "Kolor odznaki „zweryfikowany autor”.", hasDark: true, defaultLight: "#f59e0b" },
     ],
   },
+  {
+    id: "sidebar",
+    label: "Sidebar",
+    slots: [
+      {
+        key: "sidebar-bg",
+        label: "Sidebar Background",
+        description: "Tło sidebaru (panel boczny).",
+        hasDark: true,
+        defaultLight: "#f8f6f4",
+        defaultDark: "#01112f",
+        overrides: ["--sidebar-background", "--sidebar"],
+      },
+      {
+        key: "sidebar-text",
+        label: "Sidebar Text",
+        description: "Kolor tekstu/linków w sidebarze.",
+        hasDark: true,
+        defaultLight: "#1f2937",
+        defaultDark: "#e5e7eb",
+        overrides: ["--sidebar-foreground"],
+      },
+      {
+        key: "sidebar-btn-bg",
+        label: "Sidebar Button — Background",
+        description: "Tło przycisków / aktywnych elementów w sidebarze.",
+        hasDark: true,
+        defaultLight: "#fa9346",
+        defaultDark: "#fa9346",
+        overrides: ["--sidebar-primary", "--sidebar-accent"],
+      },
+      {
+        key: "sidebar-btn-text",
+        label: "Sidebar Button — Text",
+        description: "Kolor tekstu przycisków / aktywnych elementów w sidebarze.",
+        hasDark: true,
+        defaultLight: "#ffffff",
+        defaultDark: "#ffffff",
+        overrides: ["--sidebar-primary-foreground", "--sidebar-accent-foreground"],
+      },
+      {
+        key: "sidebar-btn-hover-bg",
+        label: "Sidebar Button — Hover BG",
+        description: "Tło przycisków sidebaru po najechaniu.",
+        hasDark: true,
+        defaultLight: "#fdb078",
+        defaultDark: "#fdb078",
+      },
+      {
+        key: "sidebar-btn-hover-text",
+        label: "Sidebar Button — Hover Text",
+        description: "Tekst przycisków sidebaru po najechaniu.",
+        hasDark: true,
+        defaultLight: "#ffffff",
+        defaultDark: "#ffffff",
+      },
+      {
+        key: "sidebar-border",
+        label: "Sidebar Border",
+        description: "Kolor obramowania sidebaru i separatorów.",
+        hasDark: true,
+        defaultLight: "#e5e7eb",
+        defaultDark: "#1f2a44",
+        overrides: ["--sidebar-border"],
+      },
+    ],
+  },
 ];
 
 export type GlobalColorsValue = Record<string, { light?: string; dark?: string }>;
@@ -279,6 +346,12 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(header svg){color:var(--gc-header-icon, currentColor);}
     :where(header a, header button){color:var(--gc-header-icon, inherit);}
     :where(header a:hover, header button:hover, header a:hover svg, header button:hover svg){color:var(--gc-header-icon-hover, var(--gc-header-icon, inherit));}
+    :where([data-sidebar="sidebar"], aside[data-sidebar], .sidebar-root){background:var(--gc-sidebar-bg, var(--sidebar-background, transparent));color:var(--gc-sidebar-text, var(--sidebar-foreground, inherit));border-color:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
+    :where([data-sidebar="sidebar"] a, [data-sidebar="sidebar"] button, [data-sidebar="menu-button"]){color:var(--gc-sidebar-text, inherit);}
+    :where([data-sidebar="menu-button"]:hover, [data-sidebar="sidebar"] a:hover, [data-sidebar="sidebar"] button:hover){background:var(--gc-sidebar-btn-hover-bg, transparent);color:var(--gc-sidebar-btn-hover-text, var(--gc-sidebar-text, inherit));}
+    :where([data-sidebar="menu-button"][data-active="true"], [data-sidebar="menu-button"].active, [data-sidebar="sidebar"] .active){background:var(--gc-sidebar-btn-bg, transparent);color:var(--gc-sidebar-btn-text, var(--gc-sidebar-text, inherit));}
+    :where([data-sidebar="sidebar"] svg){color:var(--gc-sidebar-text, currentColor);}
+    :where([data-sidebar="separator"]){background:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
   `.replace(/\s+/g, " ").trim());
 
 
