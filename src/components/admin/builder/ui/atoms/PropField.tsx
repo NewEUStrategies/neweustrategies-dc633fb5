@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Label } from "@/components/ui/label";
 
 interface Props {
-  label: string;
+  label: ReactNode;
   hint?: string;
   children: ReactNode;
   inline?: boolean;
