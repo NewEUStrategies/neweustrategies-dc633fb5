@@ -67,6 +67,8 @@ export function sectionWrapperStyle(node: SectionNode | InnerSectionNode): CSSPr
   } else {
     css.minHeight = `${SECTION_DEFAULT_MIN_HEIGHT_PX}px`;
   }
+  if (typeof L?.marginTop === "number") css.marginTop = `${L.marginTop}px`;
+  if (typeof L?.marginBottom === "number") css.marginBottom = `${L.marginBottom}px`;
   return css;
 }
 
