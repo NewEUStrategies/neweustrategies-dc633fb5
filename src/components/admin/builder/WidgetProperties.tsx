@@ -468,53 +468,121 @@ function RatedListEditor({ c, lang, setContent }: { c: WidgetNode["content"]; la
   const update = (next: Item[]) => setContent("items", next as unknown as Json);
   const upd = (i: number, patch: Partial<Item>) =>
     update(items.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+
+  const numFont = typeof c.numberFont === "string" ? c.numberFont : "display";
+  const numWeight = typeof c.numberWeight === "string" ? c.numberWeight : "700";
+  const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 48;
+  const numColor = typeof c.numberColor === "string" ? c.numberColor : "#000000";
+  const numColorDark = typeof c.numberColorDark === "string" ? c.numberColorDark : "#ffffff";
+  const numOpacity = typeof c.numberOpacity === "number" ? c.numberOpacity : 0.05;
+  const numPos = typeof c.numberPosition === "string" ? c.numberPosition : "behind";
+
   return (
-    <ListShell
-      title="Pozycje listy"
-      items={items}
-      onAdd={() => update([...items, { title_pl: "Nowa pozycja", title_en: "New item", excerpt_pl: "", excerpt_en: "", author: "", rating: 0 }])}
-    >
-      <div className="space-y-2">
-        {items.map((it, i) => (
-          <ItemFrame key={i} title={`Pozycja #${i + 1}`} onRemove={() => update(items.filter((_, j) => j !== i))}>
-            <PropField label={`Tytuł (${lang.toUpperCase()})`}>
-              <Input
-                value={typeof it[`title_${lang}`] === "string" ? (it[`title_${lang}`] as string) : ""}
-                onChange={(e) => upd(i, { [`title_${lang}`]: e.target.value })}
-                className="h-8 text-xs"
-              />
-            </PropField>
-            <PropField label={`Zajawka (${lang.toUpperCase()})`}>
-              <Textarea
-                rows={2}
-                value={typeof it[`excerpt_${lang}`] === "string" ? (it[`excerpt_${lang}`] as string) : ""}
-                onChange={(e) => upd(i, { [`excerpt_${lang}`]: e.target.value })}
-                className="text-xs"
-              />
-            </PropField>
-            <div className="grid grid-cols-2 gap-2">
-              <PropField label="Autor">
-                <Input
-                  value={typeof it.author === "string" ? it.author : ""}
-                  onChange={(e) => upd(i, { author: e.target.value })}
-                  className="h-8 text-xs"
-                />
-              </PropField>
-              <PropField label="Ocena (0–10)">
-                <Input
-                  type="number" min={0} max={10} step={0.1}
-                  value={typeof it.rating === "number" ? it.rating : 0}
-                  onChange={(e) => upd(i, { rating: Number(e.target.value) || 0 })}
-                  className="h-8 text-xs"
-                />
-              </PropField>
-            </div>
-          </ItemFrame>
-        ))}
+    <div className="space-y-4">
+      <div className="space-y-2 border border-border rounded-md p-2 bg-background">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Numeracja</div>
+        <div className="grid grid-cols-2 gap-2">
+          <PropField label="Font">
+            <Select value={numFont} onValueChange={(v) => setContent("numberFont", v as Json)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="display">Display</SelectItem>
+                <SelectItem value="sans">Sans</SelectItem>
+                <SelectItem value="serif">Serif</SelectItem>
+                <SelectItem value="mono">Mono</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+          <PropField label="Grubość">
+            <Select value={numWeight} onValueChange={(v) => setContent("numberWeight", v as Json)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {["300","400","500","600","700","800","900"].map((w) => (
+                  <SelectItem key={w} value={w}>{w}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </PropField>
+          <PropField label="Rozmiar (px)">
+            <Input type="number" min={12} max={240} step={1} value={numSize}
+              onChange={(e) => setContent("numberSizePx", (Number(e.target.value) || 0) as Json)}
+              className="h-8 text-xs" />
+          </PropField>
+          <PropField label="Pozycja">
+            <Select value={numPos} onValueChange={(v) => setContent("numberPosition", v as Json)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="behind">Za treścią (prawy róg)</SelectItem>
+                <SelectItem value="left">Z lewej obok</SelectItem>
+                <SelectItem value="top">Nad tytułem</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <PropField label="Kolor (light)">
+            <ColorField value={numColor} onChange={(v) => setContent("numberColor", (v ?? "") as Json)} />
+          </PropField>
+          <PropField label="Kolor (dark)">
+            <ColorField value={numColorDark} onChange={(v) => setContent("numberColorDark", (v ?? "") as Json)} />
+          </PropField>
+        </div>
+
+        <PropField label={`Przezroczystość (${Math.round(numOpacity * 100)}%)`}>
+          <Input type="range" min={0} max={1} step={0.01} value={numOpacity}
+            onChange={(e) => setContent("numberOpacity", (Number(e.target.value) || 0) as Json)}
+            className="h-6" />
+        </PropField>
       </div>
-    </ListShell>
+
+      <ListShell
+        title="Pozycje listy"
+        items={items}
+        onAdd={() => update([...items, { title_pl: "Nowa pozycja", title_en: "New item", excerpt_pl: "", excerpt_en: "", author: "", rating: 0 }])}
+      >
+        <div className="space-y-2">
+          {items.map((it, i) => (
+            <ItemFrame key={i} title={`Pozycja #${i + 1}`} onRemove={() => update(items.filter((_, j) => j !== i))}>
+              <PropField label={`Tytuł (${lang.toUpperCase()})`}>
+                <Input
+                  value={typeof it[`title_${lang}`] === "string" ? (it[`title_${lang}`] as string) : ""}
+                  onChange={(e) => upd(i, { [`title_${lang}`]: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </PropField>
+              <PropField label={`Zajawka (${lang.toUpperCase()})`}>
+                <Textarea
+                  rows={2}
+                  value={typeof it[`excerpt_${lang}`] === "string" ? (it[`excerpt_${lang}`] as string) : ""}
+                  onChange={(e) => upd(i, { [`excerpt_${lang}`]: e.target.value })}
+                  className="text-xs"
+                />
+              </PropField>
+              <div className="grid grid-cols-2 gap-2">
+                <PropField label="Autor">
+                  <Input
+                    value={typeof it.author === "string" ? it.author : ""}
+                    onChange={(e) => upd(i, { author: e.target.value })}
+                    className="h-8 text-xs"
+                  />
+                </PropField>
+                <PropField label="Ocena (0–10)">
+                  <Input
+                    type="number" min={0} max={10} step={0.1}
+                    value={typeof it.rating === "number" ? it.rating : 0}
+                    onChange={(e) => upd(i, { rating: Number(e.target.value) || 0 })}
+                    className="h-8 text-xs"
+                  />
+                </PropField>
+              </div>
+            </ItemFrame>
+          ))}
+        </div>
+      </ListShell>
+    </div>
   );
 }
+
 
 
 // ---------- Image editor (upload + light/dark variant + preview) ----------
