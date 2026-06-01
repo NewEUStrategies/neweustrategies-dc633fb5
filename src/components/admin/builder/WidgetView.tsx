@@ -946,72 +946,9 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         </div>,
       );
     }
-    case "rated-list": {
-      const items = Array.isArray(c.items) ? c.items as Array<Record<string, unknown>> : [];
-      const numFont = getStr(c, "numberFont") || "display";
-      const numWeight = getStr(c, "numberWeight") || "700";
-      const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 48;
-      const numColor = getStr(c, "numberColor") || "#000000";
-      const numColorDark = getStr(c, "numberColorDark") || "#ffffff";
-      const numOpacity = typeof c.numberOpacity === "number" ? c.numberOpacity : 0.05;
-      const numPos = getStr(c, "numberPosition") || "behind";
-      const fontCls =
-        numFont === "sans" ? "font-sans"
-        : numFont === "serif" ? "font-serif"
-        : numFont === "mono" ? "font-mono"
-        : "font-display";
-      const numStyle: React.CSSProperties = {
-        fontSize: `${numSize}px`,
-        fontWeight: numWeight as React.CSSProperties["fontWeight"],
-        opacity: numOpacity,
-        color: `var(--rl-num, ${numColor})`,
-        ["--rl-num" as never]: numColor,
-        ["--rl-num-dark" as never]: numColorDark,
-      };
-      return wrap(
-        <>
-          <style>{`.rl-num-wrap .rl-num{color:${numColor};}.dark .rl-num-wrap .rl-num{color:${numColorDark};}`}</style>
-          <ol className="space-y-7 rl-num-wrap">
-            {items.map((it, i) => {
-              const t = (it[`title_${lang}`] || it.title_pl || "") as string;
-              const d = (it[`excerpt_${lang}`] || it.excerpt_pl || "") as string;
-              const author = (it.author || "") as string;
-              const rating = typeof it.rating === "number" ? it.rating : 0;
-              const n = String(i + 1).padStart(2, "0");
-              const numCls = `rl-num ${fontCls} select-none leading-none`;
-              const isLeft = numPos === "left";
-              const isTop = numPos === "top";
-              return (
-                <li key={i} className={`relative ${isLeft ? "flex items-start gap-4" : ""}`}>
-                  {isLeft ? (
-                    <span className={numCls} style={numStyle}>{n}</span>
-                  ) : isTop ? (
-                    <span className={`block mb-2 ${numCls}`} style={numStyle}>{n}</span>
-                  ) : (
-                    <span className={`absolute -top-2 right-0 ${numCls}`} style={numStyle}>{n}</span>
-                  )}
-                  <div className={isLeft ? "flex-1 min-w-0" : ""}>
-                    <h3 className={`text-lg font-bold leading-snug ${isLeft || isTop ? "" : "pr-12"} hover:text-brand cursor-pointer`}>{t}</h3>
-                    {d && <p className="text-sm text-muted-foreground mt-2 line-clamp-3">{d}</p>}
-                    {rating > 0 && (
-                      <div className="mt-3 flex items-center gap-2">
-                        <div className="flex h-2 w-24 overflow-hidden rounded-full">
-                          {[0,1,2,3,4].map((k) => (
-                            <div key={k} className="flex-1" style={{ backgroundColor: ["#ef4444","#f97316","#facc15","#a3e635","#22c55e"][k] }} />
-                          ))}
-                        </div>
-                        <span className="text-xs font-semibold">{rating}</span>
-                      </div>
-                    )}
-                    {author && <p className="mt-2 text-xs text-muted-foreground">— <span className="font-semibold text-foreground/80">{author}</span></p>}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        </>,
-      );
-    }
+    case "rated-list":
+      return wrap(<RatedListView c={c} lang={lang} />);
+
 
     case "dark-featured-card": {
       const badgeKey = `badge_${lang}`;
