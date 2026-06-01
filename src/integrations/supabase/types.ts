@@ -388,6 +388,8 @@ export type Database = {
       }
       newsletter_subscribers: {
         Row: {
+          confirmation_expires_at: string | null
+          confirmation_token: string | null
           confirmed_at: string | null
           created_at: string
           display_name: string | null
@@ -404,6 +406,8 @@ export type Database = {
           user_agent: string | null
         }
         Insert: {
+          confirmation_expires_at?: string | null
+          confirmation_token?: string | null
           confirmed_at?: string | null
           created_at?: string
           display_name?: string | null
@@ -420,6 +424,8 @@ export type Database = {
           user_agent?: string | null
         }
         Update: {
+          confirmation_expires_at?: string | null
+          confirmation_token?: string | null
           confirmed_at?: string | null
           created_at?: string
           display_name?: string | null
