@@ -70,8 +70,8 @@ interface ViewProps {
   device: Device;
   /** When true, click-to-edit text fields are enabled in canvas. */
   editable?: boolean;
-  /** Commit a single content field. Called on blur / Enter. */
-  onContentChange?: (key: string, value: string) => void;
+  /** Commit a single content field. Called on blur / Enter / resize end. */
+  onContentChange?: (key: string, value: string | number) => void;
 }
 
 export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
