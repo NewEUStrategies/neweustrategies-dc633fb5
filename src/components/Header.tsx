@@ -8,6 +8,7 @@ import { useSiteSetting } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { AlertBar } from "@/components/AlertBar";
+import { SearchOverlay } from "@/components/SearchOverlay";
 import logo from "@/assets/logo.png";
 
 type ThemeOptions = {
@@ -39,6 +40,11 @@ type ThemeOptions = {
       variant: "solid" | "outline" | "ghost" | "pill";
       show_signup: boolean;
     };
+    socials: {
+      placement: "topbar" | "main" | "hidden";
+      facebook: string; twitter: string; instagram: string; linkedin: string; youtube: string; email: string;
+      size: number;
+    };
   };
 };
 
@@ -50,6 +56,7 @@ const THEME_DEFAULTS: ThemeOptions = {
     search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
     mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
     signin: { enabled: true, signin_label_pl: "Zaloguj", signin_label_en: "Sign in", signup_label_pl: "Zarejestruj", signup_label_en: "Sign up", variant: "ghost", show_signup: true },
+    socials: { placement: "topbar", facebook: "", twitter: "", instagram: "", linkedin: "", youtube: "", email: "", size: 16 },
   },
 };
 
@@ -75,6 +82,7 @@ export function Header() {
   const { theme, toggle } = useTheme();
   const { session, isStaff } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const lang = i18n.language ?? "pl";
 
   const setLang = (lng: "pl" | "en") => i18n.changeLanguage(lng);
@@ -132,7 +140,16 @@ export function Header() {
       <header className="bg-background border-b border-border">
         <AlertBar />
         <BuilderRenderer doc={headerCfg.builder_data} lang={lang.startsWith("pl") ? "pl" : "en"} />
-      </header>
+      <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          mode={themeOpts.header.search.mode}
+          heading={themeOpts.header.search.heading}
+          liveResults={themeOpts.header.search.live_results}
+          limit={themeOpts.header.search.live_limit}
+          lang={lang.startsWith("pl") ? "pl" : "en"}
+        />
+        </header>
     );
   }
 
@@ -180,7 +197,7 @@ export function Header() {
             </nav>
             <div className="flex items-center gap-3 shrink-0">
               {themeOpts.header.search.enabled && (
-                <button aria-label="Search" className="p-2 hover:text-brand transition">
+                <button aria-label="Search" onClick={() => setSearchOpen(true)} className="p-2 hover:text-brand transition">
                   <Search className="w-4 h-4" />
                 </button>
               )}
@@ -210,7 +227,16 @@ export function Header() {
             </div>
           )}
         </div>
-      </header>
+      <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          mode={themeOpts.header.search.mode}
+          heading={themeOpts.header.search.heading}
+          liveResults={themeOpts.header.search.live_results}
+          limit={themeOpts.header.search.live_limit}
+          lang={lang.startsWith("pl") ? "pl" : "en"}
+        />
+        </header>
     );
   }
 
@@ -255,7 +281,7 @@ export function Header() {
           </div>
           <div className="lg:hidden border-t border-border px-4 py-2 flex items-center justify-between">
             {themeOpts.header.search.enabled && (
-              <button aria-label="Search" className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
+              <button aria-label="Search" onClick={() => setSearchOpen(true)} className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
             )}
             <button onClick={toggle} aria-label="Toggle theme" className="p-2 rounded-full hover:bg-muted">
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -272,7 +298,16 @@ export function Header() {
             </div>
           )}
         </div>
-      </header>
+      <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          mode={themeOpts.header.search.mode}
+          heading={themeOpts.header.search.heading}
+          liveResults={themeOpts.header.search.live_results}
+          limit={themeOpts.header.search.live_limit}
+          lang={lang.startsWith("pl") ? "pl" : "en"}
+        />
+        </header>
     );
   }
 
@@ -321,7 +356,7 @@ export function Header() {
             </nav>
             <div className="flex items-center gap-2">
               {themeOpts.header.search.enabled && (
-                <button aria-label="Search" className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
+                <button aria-label="Search" onClick={() => setSearchOpen(true)} className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
               )}
               <button onClick={toggle} aria-label="Toggle theme" className="p-2 rounded-full hover:bg-muted">
                 {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -339,7 +374,16 @@ export function Header() {
             </div>
           )}
         </div>
-      </header>
+      <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          mode={themeOpts.header.search.mode}
+          heading={themeOpts.header.search.heading}
+          liveResults={themeOpts.header.search.live_results}
+          limit={themeOpts.header.search.live_limit}
+          lang={lang.startsWith("pl") ? "pl" : "en"}
+        />
+        </header>
     );
   }
 
@@ -362,7 +406,7 @@ export function Header() {
             </Link>
             <div className="flex items-center gap-2">
               {themeOpts.header.search.enabled && (
-                <button aria-label="Search" className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
+                <button aria-label="Search" onClick={() => setSearchOpen(true)} className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
               )}
               <button onClick={toggle} aria-label="Toggle theme" className="p-2 rounded-full hover:bg-muted">
                 {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -394,7 +438,16 @@ export function Header() {
             </nav>
           </div>
         )}
-      </header>
+      <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          mode={themeOpts.header.search.mode}
+          heading={themeOpts.header.search.heading}
+          liveResults={themeOpts.header.search.live_results}
+          limit={themeOpts.header.search.live_limit}
+          lang={lang.startsWith("pl") ? "pl" : "en"}
+        />
+        </header>
     );
   }
 
@@ -501,6 +554,7 @@ export function Header() {
           {themeOpts.header.search.enabled && (
             <button
               aria-label="Search"
+              onClick={() => setSearchOpen(true)}
               className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition"
             >
               <Search className="w-4 h-4" />
@@ -553,6 +607,15 @@ export function Header() {
           </div>
         )}
       </div>
-    </header>
+    <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          mode={themeOpts.header.search.mode}
+          heading={themeOpts.header.search.heading}
+          liveResults={themeOpts.header.search.live_results}
+          limit={themeOpts.header.search.live_limit}
+          lang={lang.startsWith("pl") ? "pl" : "en"}
+        />
+        </header>
   );
 }
