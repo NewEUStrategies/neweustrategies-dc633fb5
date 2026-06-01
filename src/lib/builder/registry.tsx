@@ -7,7 +7,7 @@ import {
   Minus, MoveVertical, Video, GalleryHorizontal, Star, MapPin,
   Newspaper, Rows, FolderTree, Tags, Mail, Send, Megaphone,
   List, PanelLeft, Quote, Check, Link as LinkIcon,
-  Globe, Sun, Search, User, Facebook, Volume2,
+  Globe, Sun, Search, User, Facebook,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
