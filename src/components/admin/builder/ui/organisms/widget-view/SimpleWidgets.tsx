@@ -17,6 +17,7 @@ import { COMPACT_ICON_BOX_SIZE, COMPACT_WIDGET_MIN_HEIGHT, getStr, getNum, getSt
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
+type Lang = "pl" | "en";
 
 function PostsSliderWidget({ c, lang }: { c: WidgetNode["content"]; lang: Lang }) {
   const limit = Math.max(1, Math.min(20, getNum(c, "limit", 5)));
