@@ -1,7 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Layers, Star } from "@/lib/lucide-shim";
+import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Layers, Star, Mail } from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
 import { useState, type ReactNode } from "react";
 
@@ -26,6 +26,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
     { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
     { to: "/admin/paywall", icon: Star, label: "Paywall" },
     { to: "/admin/appearance", icon: Layers, label: "Wygląd" },
+    { to: "/admin/post-layouts", icon: Layers, label: "Layouty wpisów" },
+    { to: "/admin/content-area", icon: FileText, label: "Content Area" },
+    { to: "/admin/newsletter", icon: Mail, label: "Newsletter" },
     ...(isAdmin ? [
       { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
       { to: "/admin/settings", icon: Settings, label: "Ustawienia" },
