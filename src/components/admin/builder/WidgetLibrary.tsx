@@ -18,6 +18,16 @@ interface Props {
 export function WidgetLibrary({ onPickStructure, onPickTemplate }: Props) {
   const [search, setSearch] = useState("");
   const [historyOf, setHistoryOf] = useState<SectionTemplate | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem("builder.lib.collapsed") || "{}"); } catch { return {}; }
+  });
+  const toggle = (key: string) => {
+    setCollapsed((p) => {
+      const next = { ...p, [key]: !p[key] };
+      try { localStorage.setItem("builder.lib.collapsed", JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
   const filtered = WIDGETS.filter((w) => w.label.toLowerCase().includes(search.toLowerCase()));
   const labels: Record<string, string> = {
     basic: "Podstawowe", media: "Media", dynamic: "Dynamiczne",
