@@ -9,9 +9,9 @@ export const DEFAULT_WIDGET_WIDTH_BY_DEVICE: Record<Device, string> = {
   tablet: "auto",
   mobile: "auto",
 };
-export const DEFAULT_WIDGET_MIN_HEIGHT = 40;
+export const DEFAULT_WIDGET_MIN_HEIGHT = 0;
 export const AUTO_SIZE_WIDGETS = new Set(["image", "icon", "button", "spacer", "divider"]);
-export const COMPACT_WIDGET_MIN_HEIGHT = 40;
+export const COMPACT_WIDGET_MIN_HEIGHT = 0;
 export const COMPACT_ICON_BOX_SIZE = 40;
 export const COMPACT_WIDGET_TYPES = new Set([
   "social-icons",
@@ -112,16 +112,8 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
     style.height = toCssSize(hRaw);
   } else if (node.style?.minHeight) {
     style.minHeight = node.style.minHeight;
-  } else if (COMPACT_WIDGET_TYPES.has(node.type)) {
-    style.minHeight = COMPACT_WIDGET_MIN_HEIGHT;
-    if (sa === "stretch") {
-      style.height = "auto";
-    } else {
-      style.height = COMPACT_WIDGET_MIN_HEIGHT;
-    }
-  } else if (!autoFit) {
-    style.minHeight = DEFAULT_WIDGET_MIN_HEIGHT;
   }
+  // No default min-height — widgets hug their content.
 
   // Horizontal alignment (cross axis in a flex-col column).
   if (horizontalAnchored) {
