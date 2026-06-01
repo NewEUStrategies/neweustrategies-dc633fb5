@@ -186,3 +186,21 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
     </div>
   );
 }
+
+function SidebarBrand({ compact }: { compact: boolean }) {
+  const cfg = useSiteSetting<SidebarLogoCfg>("theme_options", SIDEBAR_LOGO_DEFAULTS);
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const logo = cfg.logo ?? SIDEBAR_LOGO_DEFAULTS.logo;
+  const iconSrc = (isDark ? logo.sidebar_icon_dark : logo.sidebar_icon) || logo.sidebar_icon || logo.sidebar_icon_dark;
+  const expandedSrc = (isDark ? logo.sidebar_expanded_dark : logo.sidebar_expanded) || logo.sidebar_expanded || logo.sidebar_expanded_dark || (isDark ? logo.main_dark : logo.main) || logo.main;
+
+  if (compact) {
+    return iconSrc
+      ? <img src={iconSrc} alt="Logo" className="w-8 h-8 object-contain" />
+      : <span className="text-base">NES</span>;
+  }
+  return expandedSrc
+    ? <img src={expandedSrc} alt="Logo" className="max-h-9 max-w-full object-contain" />
+    : <span>NES <span className="text-brand">Admin</span></span>;
+}
