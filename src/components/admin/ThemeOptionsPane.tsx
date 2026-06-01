@@ -471,9 +471,37 @@ export function ThemeOptionsPane() {
           </div>
         )}
       </section>
-    </div>
+    </ThemeOptionsBody>
   );
 }
+
+function ThemeOptionsBody({
+  draft,
+  active,
+  setActive,
+  save,
+  children,
+}: {
+  draft: ThemeOptions;
+  active: string;
+  setActive: (id: string) => void;
+  save: ReturnType<typeof useSettings>["save"];
+  children: React.ReactNode;
+}) {
+  void draft; void save;
+  const nav = useMemo(
+    () => ({
+      title: "Opcje motywu",
+      items: SECTIONS.map((s) => ({ id: s.id, label: s.label, icon: s.icon })),
+      activeId: active,
+      onSelect: setActive,
+    }),
+    [active, setActive],
+  );
+  useRegisterAdminSidebarExtras(nav);
+  return <div className="min-h-[600px]">{children}</div>;
+}
+
 
 function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" | "mobile" | "transparent" | "organization" | "bookmark") => void }) {
   const tabs: { id: "default" | "mobile" | "transparent" | "organization" | "bookmark"; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
