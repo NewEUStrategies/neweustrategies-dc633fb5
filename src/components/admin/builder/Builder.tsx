@@ -43,6 +43,7 @@ import {
 } from "./ui/organisms/builder";
 import { useBuilderClipboard } from "./ui/hooks/useBuilderClipboard";
 import { useBuilderShortcuts } from "./ui/hooks/useBuilderShortcuts";
+import { ConfirmDeleteDialog } from "./ui/molecules/ConfirmDeleteDialog";
 
 
 
