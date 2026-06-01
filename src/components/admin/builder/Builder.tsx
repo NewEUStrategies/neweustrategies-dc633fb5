@@ -113,6 +113,10 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   // ---------- structural ops ----------
   const templates = useSectionTemplates();
   const addSection = (colsOrSpans: number | number[]) => update((d) => { d.sections.push(newSection(colsOrSpans)); });
+  const loadHomepage = useCallback(() => {
+    const tpl = buildHomepageDocument();
+    history.setDoc(tpl);
+  }, [history]);
   const insertTemplateSection = (tpl: SectionTemplate) => update((d) => {
     d.sections.push(cloneSection(tpl.data));
   });
