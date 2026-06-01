@@ -1,6 +1,6 @@
-// Appearance layout: spójny pasek nawigacji + Outlet dla pod-zakładek
-// (Nagłówek, Stopka, Menu, Global Colors).
+// Appearance layout: spójny pasek nawigacji + Outlet dla pod-zakładek.
 import { createFileRoute, Link, Outlet, redirect, useRouterState } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/admin/appearance")({
   component: AppearanceLayout,
@@ -11,31 +11,31 @@ export const Route = createFileRoute("/admin/appearance")({
   },
 });
 
-const TABS = [
-  { to: "/admin/appearance/header", label: "Nagłówek" },
-  { to: "/admin/appearance/footer", label: "Stopka" },
-  { to: "/admin/appearance/menu", label: "Menu" },
-  { to: "/admin/appearance/global-colors", label: "Global Colors" },
-] as const;
-
 function AppearanceLayout() {
+  const { t } = useTranslation();
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const tabs = [
+    { to: "/admin/appearance/header", label: t("admin.appearance.header") },
+    { to: "/admin/appearance/footer", label: t("admin.appearance.footer") },
+    { to: "/admin/appearance/menu", label: t("admin.appearance.menu") },
+    { to: "/admin/appearance/global-colors", label: t("admin.appearance.globalColors") },
+  ];
   return (
     <div className="space-y-4">
       <nav className="flex flex-wrap gap-1 border-b border-border">
-        {TABS.map((t) => {
-          const active = path.startsWith(t.to);
+        {tabs.map((tab) => {
+          const active = path.startsWith(tab.to);
           return (
             <Link
-              key={t.to}
-              to={t.to}
+              key={tab.to}
+              to={tab.to}
               className={`px-3 py-2 text-sm rounded-t-md border-b-2 -mb-px transition ${
                 active
                   ? "border-brand text-brand font-medium"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              {t.label}
+              {tab.label}
             </Link>
           );
         })}
