@@ -191,13 +191,11 @@ function ColumnView({
         if (t) { e.preventDefault(); onDropWidget(column.id, t); }
       }}
     >
-      {(selected || dragOver) && (
-        <div className="absolute -top-2.5 right-2 z-10 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px]">
-          <span className="text-muted-foreground px-1">KOLUMNA</span>
-          <IconBtn onClick={(e) => { e.stopPropagation(); onDuplicate(); }} title="Duplikuj"><Copy className="w-3 h-3" /></IconBtn>
-          <IconBtn onClick={(e) => { e.stopPropagation(); onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
-        </div>
-      )}
+      <div className={`absolute -top-2.5 right-2 z-10 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] transition ${selected || dragOver ? "opacity-100" : "opacity-0 group-hover/col:opacity-100"}`}>
+        <span className="text-muted-foreground px-1">KOLUMNA</span>
+        <IconBtn onClick={(e) => { e.stopPropagation(); onDuplicate(); }} title="Duplikuj"><Copy className="w-3 h-3" /></IconBtn>
+        <IconBtn onClick={(e) => { e.stopPropagation(); onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
+      </div>
       {column.children.length === 0 && (
         <div className="text-[10px] text-muted-foreground text-center py-6">
           {dragOver ? "Upuść widget tutaj" : "Przeciągnij lub kliknij widget z lewej kolumny"}
