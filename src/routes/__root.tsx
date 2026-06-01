@@ -19,6 +19,8 @@ import { IconPackSync } from "../components/IconPackSync";
 import { DesignTokensStyle } from "../components/DesignTokensStyle";
 import { ContentAreaStyle } from "../components/ContentAreaStyle";
 import { LoginPopup } from "../components/LoginPopup";
+import { ErrorBoundary } from "../components/ErrorBoundary";
+
 
 function NotFoundComponent() {
   return (
