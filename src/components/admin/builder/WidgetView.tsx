@@ -24,6 +24,7 @@ import {
   resolveAccentColor,
   type SectionLabelVariant,
 } from "@/lib/builder/sectionLabelVariants";
+import { SliderRender, type SliderVariant } from "@/lib/builder/sliderVariants";
 
 type Lang = "pl" | "en";
 
