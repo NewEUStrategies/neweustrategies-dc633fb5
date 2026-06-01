@@ -64,17 +64,25 @@ export function buildHomepageDocument(): BuilderDocument {
           widget("post-list", { limit: 2, columns: 1, variant: "list" }),
         ]),
         column(6, [
-          widget("heading", {
-            text_pl: "Geopolityczna gra mocarstw",
-            text_en: "The geopolitical game of powers",
-            tag: "h1", variant: "default", sizePreset: "display",
+          widget("slider", {
+            source: "posts",
+            variant: "hero-overlay",
+            ratio: "16/9",
+            rounded: "lg",
+            autoplay: true,
+            intervalMs: 5500,
+            overlayOpacity: 0.55,
+            limit: 5,
+            orderBy: "newest",
+            categoryId: "",
+            tagSlugs: "",
+            excludeIds: "",
+            showExcerpt: true,
+            cta_pl: "Czytaj więcej",
+            cta_en: "Read more",
           }),
-          widget("text", {
-            html_pl: "<p>Krótka zajawka centralnego artykułu, która zachęca do lektury i nadaje ton wydaniu.</p>",
-            html_en: "<p>A short hero excerpt that sets the tone of the issue and invites the reader in.</p>",
-          }),
-          widget("image", { src: "", alt_pl: "", alt_en: "", ratio: "16/9", variant: "rounded" }),
         ]),
+
         column(3, [
           widget("section-label", {
             label_pl: "Zdaniem ekspertów", label_en: "Expert opinions",
