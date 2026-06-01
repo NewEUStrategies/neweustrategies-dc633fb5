@@ -697,6 +697,14 @@ const LOGO_LOCATIONS: Record<string, { title: string; locations: string[] }> = {
       "Favicon na pulpitach mobilnych",
     ],
   },
+  sidebar: {
+    title: "Sidebar Logo",
+    locations: [
+      "Panel boczny — wariant zwinięty (kwadratowa ikona)",
+      "Panel boczny — wariant rozwinięty (podłużne logo)",
+      "Automatyczna zmiana przy collapse / expand sidebaru",
+    ],
+  },
 };
 
 function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
