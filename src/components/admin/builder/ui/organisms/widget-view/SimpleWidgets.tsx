@@ -16,6 +16,7 @@ import {
 import { COMPACT_ICON_BOX_SIZE, COMPACT_WIDGET_MIN_HEIGHT, getStr, getNum, getStrArr } from "./frame";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { supabase } from "@/integrations/supabase/client";
+import { useTheme } from "@/components/ThemeProvider";
 import { useQuery } from "@tanstack/react-query";
 
 type Lang = "pl" | "en";
