@@ -46,27 +46,28 @@ export interface HoverStyle {
 }
 
 export interface CommonStyle {
-  bgColor?: string;
-  textColor?: string;
-  padding?: ResponsiveValue<string>; // CSS shorthand e.g. "24px 16px"
-  margin?: ResponsiveValue<string>;
+  bgColor?: Themed<string>;
+  textColor?: Themed<string>;
+  padding?: Themed<ResponsiveValue<string>>; // CSS shorthand e.g. "24px 16px"
+  margin?: Themed<ResponsiveValue<string>>;
   align?: ResponsiveValue<Align>;
   /** Vertical alignment of this item within its parent column/row (alignSelf). */
   selfAlign?: "auto" | "start" | "center" | "end" | "stretch";
   /** Horizontal alignment of this item within its column line (via auto margins). */
   selfJustify?: "auto" | "start" | "center" | "end";
-  borderRadius?: string;
+  borderRadius?: Themed<string>;
   maxWidth?: string;
   minHeight?: string;
-  typography?: WidgetTypography;
-  hover?: HoverStyle;
+  typography?: Themed<WidgetTypography>;
+  hover?: Themed<HoverStyle>;
   // Border + shadow + opacity
-  borderStyle?: "none" | "solid" | "dashed" | "dotted" | "double";
-  borderWidth?: string;   // e.g. "1px" or "1px 2px"
-  borderColor?: string;
-  boxShadow?: string;     // raw css value
+  borderStyle?: Themed<"none" | "solid" | "dashed" | "dotted" | "double">;
+  borderWidth?: Themed<string>;   // e.g. "1px" or "1px 2px"
+  borderColor?: Themed<string>;
+  boxShadow?: Themed<string>;     // raw css value
   opacity?: number;       // 0..1
 }
+
 
 export type MotionPreset =
   | "none" | "fade" | "slide-up" | "slide-down" | "slide-left" | "slide-right"
