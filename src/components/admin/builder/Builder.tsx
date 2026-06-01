@@ -455,8 +455,11 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
             </div>
           </div>
         ) : (
-          <WidgetLibrary onPickWidget={addWidgetToFocused} onPickStructure={addSection} onPickTemplate={insertTemplateSection} />
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <WidgetLibrary onPickWidget={addWidgetToFocused} onPickStructure={addSection} onPickTemplate={insertTemplateSection} />
+          </div>
         )}
+
 
         <div className="border-t border-border">
           <button
