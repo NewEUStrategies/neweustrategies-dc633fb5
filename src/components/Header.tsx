@@ -76,6 +76,7 @@ export function Header() {
   const { theme, toggle } = useTheme();
   const { session, isStaff } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const lang = i18n.language ?? "pl";
 
   const setLang = (lng: "pl" | "en") => i18n.changeLanguage(lng);
