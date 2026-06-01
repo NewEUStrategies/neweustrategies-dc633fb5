@@ -175,6 +175,10 @@ export function ThemeOptionsPane() {
     setDraft({ ...draft, header: { ...draft.header, signin: { ...draft.header.signin, ...p } } });
   const patchLayout = (layout: HeaderLayout) =>
     setDraft({ ...draft, header: { ...draft.header, layout } });
+  const patchButtons = (p: Partial<ThemeOptions["buttons"]>) =>
+    setDraft({ ...draft, buttons: { ...draft.buttons, ...p } });
+  const patchInputs = (p: Partial<ThemeOptions["text_fields"]>) =>
+    setDraft({ ...draft, text_fields: { ...draft.text_fields, ...p } });
 
   return (
     <ThemeOptionsBody
