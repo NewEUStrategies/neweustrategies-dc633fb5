@@ -223,7 +223,10 @@ export function VisualCanvas({
     [data-visual-canvas] video,
     [data-visual-canvas] iframe,
     [data-visual-canvas] svg{max-width:100% !important;height:auto;}
-    [data-visual-canvas] *{max-width:100%;}
+    [data-visual-canvas] *{max-width:100%;min-width:0;}
+    [data-visual-canvas][data-device="mobile"] .flex{flex-wrap:wrap;}
+    [data-visual-canvas][data-device="mobile"] [data-widget-id]{width:100% !important;max-width:100% !important;}
+    [data-visual-canvas][data-device="mobile"] img{width:auto;max-width:100% !important;}
   `;
 
 
@@ -243,7 +246,7 @@ export function VisualCanvas({
     : { width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" };
 
   return (
-    <div data-visual-canvas onClick={onClick} ref={rootRef} style={{ width: "100%", overflowX: "hidden" }}>
+    <div data-visual-canvas data-device={device} onClick={onClick} ref={rootRef} style={{ width: "100%", overflowX: "hidden" }}>
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
       <div style={frameStyle}>
         <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} />
