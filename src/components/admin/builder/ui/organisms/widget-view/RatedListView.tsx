@@ -316,13 +316,14 @@ export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
                   }}>{it.excerpt}</p>
                 )}
                 {showRating && it.rating > 0 && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <div className="flex h-2 w-24 overflow-hidden rounded-full">
-                      {[0,1,2,3,4].map((k) => (
-                        <div key={k} className="flex-1" style={{ backgroundColor: ["#ef4444","#f97316","#facc15","#a3e635","#22c55e"][k] }} />
-                      ))}
+                  <div className="mt-3 flex items-center gap-3">
+                    <div className="relative h-1.5 w-32 overflow-hidden rounded-full">
+                      <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, #ef4444 0%, #f97316 25%, #facc15 50%, #a3e635 75%, #22c55e 100%)" }} />
+                      <div className="absolute top-0 bottom-0 bg-background/40" style={{ left: `${Math.min(100, Math.max(0, it.rating * 10))}%`, right: 0 }} />
                     </div>
-                    <span className="text-xs font-semibold">{it.rating}</span>
+                    <span className="text-xs font-semibold whitespace-nowrap">
+                      {it.rating} <span className="text-muted-foreground font-normal">{lang === "pl" ? "na 10" : "out of 10"}</span>
+                    </span>
                   </div>
                 )}
                 {(showAuthor && it.author) || (showDate && it.date) ? (
