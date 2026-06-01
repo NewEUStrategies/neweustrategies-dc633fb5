@@ -1,6 +1,7 @@
 // Read-only widget renderers (no inline editing). Returns null when the
 // widget type isn't handled here — caller falls through to the main switch.
-import type { CSSProperties, ReactElement, ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import type { WidgetNode } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
@@ -200,22 +201,13 @@ export function renderSimpleWidget(
 
     case "lang-switcher": {
       const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Zmień język";
-      const current = lang === "en" ? "EN" : "PL";
-      const flag = lang === "en" ? "🇬🇧" : "🇵🇱";
       return (
         <div className="inline-flex items-center text-xs leading-none" style={compactRowStyle}>
-          <button
-            type="button"
-            aria-label={label}
-            className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-border bg-background hover:bg-muted transition text-xs font-medium"
-          >
-            <span className="text-base leading-none">{flag}</span>
-            <span>{current}</span>
-            <LucideIcons.ChevronDown className="w-3.5 h-3.5 opacity-60" />
-          </button>
+          <LangSwitcherDropdown label={label} />
         </div>
       );
     }
+
 
 
     case "theme-toggle":
@@ -578,4 +570,71 @@ export function renderSimpleWidget(
     default:
       return undefined;
   }
+}
+
+function LangSwitcherDropdown({ label }: { label: string }) {
+  const { i18n } = useTranslation();
+  const current: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  const options: { code: "pl" | "en"; flag: string; label: string }[] = [
+    { code: "pl", flag: "🇵🇱", label: "PL" },
+    { code: "en", flag: "🇬🇧", label: "EN" },
+  ];
+  const cur = options.find((o) => o.code === current)!;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((s) => !s)}
+        className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-border bg-background hover:bg-muted transition text-xs font-medium"
+      >
+        <span className="text-base leading-none">{cur.flag}</span>
+        <span>{cur.label}</span>
+        <LucideIcons.ChevronDown className={`w-3.5 h-3.5 opacity-60 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          className="absolute right-0 top-full mt-1 z-50 min-w-[7rem] rounded-md border border-border bg-popover shadow-md py-1"
+        >
+          {options.map((o) => {
+            const active = o.code === current;
+            return (
+              <li key={o.code}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => {
+                    i18n.changeLanguage(o.code);
+                    setOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-left hover:bg-muted transition ${active ? "font-semibold" : ""}`}
+                >
+                  <span className="text-base leading-none">{o.flag}</span>
+                  <span className="flex-1">{o.label}</span>
+                  {active && <LucideIcons.Check className="w-3.5 h-3.5 opacity-70" />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
 }
