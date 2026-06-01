@@ -89,8 +89,8 @@ const SECTIONS = [
 ] as const;
 
 export function ThemeOptionsPane() {
-  const { query, save } = useSettings<ThemeOptions>("theme_options", DEFAULTS as unknown as ThemeOptions);
-  const [draft, setDraft] = useDraft<ThemeOptions>(query.data);
+  const { query, save } = useSettings("theme_options", DEFAULTS as unknown as Record<string, unknown>);
+  const [draft, setDraft] = useDraft(query.data as unknown as ThemeOptions | undefined);
   const [active, setActive] = useState<(typeof SECTIONS)[number]["id"]>("logo");
   const [logoTab, setLogoTab] = useState<"default" | "mobile" | "transparent" | "organization" | "bookmark">("default");
 
