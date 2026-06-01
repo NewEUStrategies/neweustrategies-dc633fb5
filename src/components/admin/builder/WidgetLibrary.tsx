@@ -1,7 +1,7 @@
 // Left-panel widget library: searchable grid of widgets grouped by category,
 // plus a structure picker to add a new section, plus a saved-section template list.
 import { useState } from "react";
-import { Search, Layers, Trash2, Save, Clock } from "@/lib/lucide-shim";
+import { Search, Layers, Trash2, Save, Clock, ChevronDown, ChevronRight } from "@/lib/lucide-shim";
 import { WIDGETS } from "@/lib/builder/registry";
 import type { WidgetType } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
