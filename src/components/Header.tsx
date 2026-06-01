@@ -58,6 +58,7 @@ export function Header() {
   const setLang = (lng: "pl" | "en") => i18n.changeLanguage(lng);
 
   const menu = useSiteSetting<{ items: MenuItem[] }>("menu_primary", { items: [] });
+  const themeOpts = useSiteSetting<ThemeOptions>("theme_options", THEME_DEFAULTS);
   const headerCfg = useSiteSetting<{
     show_newsletter: boolean; show_socials: boolean;
     social_facebook: string; social_twitter: string; social_youtube: string;
@@ -69,6 +70,25 @@ export function Header() {
     social_facebook: "#", social_twitter: "#", social_youtube: "#", social_instagram: "#", social_linkedin: "#",
     contact_email: "",
   });
+
+  // Smart-sticky: hide on scroll down, show on scroll up. Sticky: always fixed at top.
+  const [navHidden, setNavHidden] = useState(false);
+  const lastY = useRef(0);
+  const { sticky, smart_sticky, glass_effect, hover_effect, item_spacing } = themeOpts.header.main_menu;
+  useEffect(() => {
+    if (!smart_sticky) return;
+    const onScroll = () => {
+      const y = window.scrollY;
+      setNavHidden(y > 80 && y > lastY.current);
+      lastY.current = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [smart_sticky]);
+
+  const logoSrc = theme === "dark"
+    ? (themeOpts.logo.main_dark || themeOpts.logo.main || logo)
+    : (themeOpts.logo.main || logo);
 
   if (headerCfg.builder_data && headerCfg.builder_data.sections?.length) {
     return (
