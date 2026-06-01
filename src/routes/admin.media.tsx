@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { registerMediaUpload, deleteMedia } from "@/lib/media.functions";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { MediaPreviewDialog, type PreviewableMedia } from "@/components/MediaPreviewDialog";
 
 export const Route = createFileRoute("/admin/media")({
   component: Media,
@@ -33,6 +34,7 @@ function Media() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [preview, setPreview] = useState<PreviewableMedia | null>(null);
   const registerUpload = useServerFn(registerMediaUpload);
   const removeMedia = useServerFn(deleteMedia);
 
@@ -108,13 +110,21 @@ function Media() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {data.map((m) => (
             <div key={m.id} className="bg-card border border-border rounded-lg overflow-hidden group">
-              <div className="aspect-square bg-muted/30">
+              <button
+                type="button"
+                onClick={() => setPreview(m)}
+                className="block w-full aspect-square bg-muted/30 hover:bg-muted/50 transition-colors"
+                aria-label={`Podgląd ${m.filename}`}
+              >
                 {m.mime_type?.startsWith("image/") ? (
                   <img src={m.public_url} alt={m.filename} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="flex items-center justify-center h-full text-xs text-muted-foreground">{m.mime_type}</div>
+                  <div className="flex flex-col items-center justify-center h-full text-xs text-muted-foreground gap-1 p-2 text-center">
+                    <span className="text-2xl">📄</span>
+                    <span className="truncate w-full">{m.mime_type || m.filename.split('.').pop()?.toUpperCase()}</span>
+                  </div>
                 )}
-              </div>
+              </button>
               <div className="p-2 text-xs">
                 <div className="truncate font-medium" title={m.filename}>{m.filename}</div>
                 <div className="text-muted-foreground">{((m.size_bytes ?? 0) / 1024).toFixed(0)} KB</div>
@@ -142,6 +152,7 @@ function Media() {
           ))}
         </div>
       )}
+      <MediaPreviewDialog item={preview} open={!!preview} onOpenChange={(o) => !o && setPreview(null)} gated={false} />
     </div>
   );
 }
