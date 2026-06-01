@@ -47,6 +47,7 @@ import { RatedListView } from "./ui/organisms/widget-view/RatedListView";
 import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
 import { TagsView } from "./ui/organisms/widget-view/TagsView";
 import { TabsBlock } from "./ui/organisms/widget-view/TabsBlock";
+import { renderSimpleWidget } from "./ui/organisms/widget-view/SimpleWidgets";
 export {
   styleToCSS, getWidgetFrameStyle, hiddenOnDevice,
   DEFAULT_WIDGET_WIDTH_BY_DEVICE, DEFAULT_WIDGET_MIN_HEIGHT, AUTO_SIZE_WIDGETS,
