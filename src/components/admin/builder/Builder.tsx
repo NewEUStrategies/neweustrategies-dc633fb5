@@ -6,7 +6,7 @@
 // Persistence happens via onChange (called by the parent route on every doc
 // mutation; the parent debounces autosave). useHistory wraps onChange so we
 // get undo/redo without breaking it.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -23,10 +23,9 @@ import type {
 } from "@/lib/builder/types";
 import { emptyDocument, newId } from "@/lib/builder/types";
 import {
-  cloneSection, cloneColumn, cloneInner, cloneWidget,
+  cloneSection, cloneColumn,
   findWidget, findSection, findColumn, findInner,
 } from "@/lib/builder/operations";
-import { copyToClipboard, readClipboard, type ClipEnvelope } from "@/lib/builder/clipboard";
 import { useHistory } from "@/lib/builder/useHistory";
 import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
 import { buildHomepageDocument } from "@/lib/builder/homepageTemplate";
@@ -42,6 +41,9 @@ import {
   SectionView, VisualCanvas,
   type Selection, type SelectionKind,
 } from "./ui/organisms/builder";
+import { useBuilderClipboard } from "./ui/hooks/useBuilderClipboard";
+import { useBuilderShortcuts } from "./ui/hooks/useBuilderShortcuts";
+
 
 
 interface Props {
