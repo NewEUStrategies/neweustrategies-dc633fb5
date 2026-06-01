@@ -11,7 +11,7 @@ import type {
 } from "@/lib/builder/types";
 import { WIDGETS } from "@/lib/builder/registry";
 import { pickMode, setMode as setThemedMode, isModeOverridden, isThemedValue } from "@/lib/builder/themed";
-import { Sun, Moon, RotateCcw } from "@/lib/lucide-shim";
+import { Sun, Moon, Undo as RotateCcw } from "@/lib/lucide-shim";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
