@@ -255,7 +255,10 @@ function EditPage() {
               </div>
             </div>
           </div>
-          <aside className="space-y-5">{metaCard}</aside>
+          <aside className="space-y-5">
+            {metaCard}
+            <AccessSettingsPane entityType="page" entityId={id} />
+          </aside>
         </div>
       ) : (
         <div className="space-y-5">
