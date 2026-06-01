@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers } from "@/lib/lucide-shim";
+import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
 
 
 // ---------- Defaults ----------
@@ -82,6 +83,7 @@ const DEFAULTS: ThemeOptions = {
 
 const SECTIONS = [
   { id: "logo", label: "Logo", icon: ImageIcon },
+  { id: "global_colors", label: "Global Colors", icon: Eye },
   { id: "header.layout", label: "Header Layout", icon: Layers },
   { id: "header.main_menu", label: "Main Menu", icon: Menu },
   { id: "header.search", label: "Header Search", icon: Search },
@@ -135,6 +137,10 @@ export function ThemeOptionsPane() {
     >
       {/* Panel */}
       <section className="border border-border rounded-lg bg-card p-5 space-y-5">
+        {active === "global_colors" ? (
+          <GlobalColorsEditor />
+        ) : (
+        <>
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg">{SECTIONS.find((s) => s.id === active)?.label}</h3>
           <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
@@ -468,6 +474,8 @@ export function ThemeOptionsPane() {
               <Input value={draft.header.signin.signup_label_en} onChange={(e) => patchSignin({ signup_label_en: e.target.value })} className="w-[220px] h-9 text-xs" />
             </Row>
           </div>
+        )}
+        </>
         )}
       </section>
     </ThemeOptionsBody>
