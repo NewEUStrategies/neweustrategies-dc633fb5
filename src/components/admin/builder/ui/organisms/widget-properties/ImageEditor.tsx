@@ -81,7 +81,6 @@ export function ImageEditor({ c, lang, setContent }: Props) {
       />
 
       <div className="pt-2 border-t border-border space-y-2">
-      <div className="pt-2 border-t border-border space-y-2">
         <PropField label="Szerokość (px)" hint="0 lub puste = pełna szerokość kontenera. Wysokość dopasowuje się automatycznie (zachowane proporcje).">
           <div className="flex items-center gap-2">
             <Input
