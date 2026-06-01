@@ -182,7 +182,7 @@ export function Header() {
             </nav>
             <div className="flex items-center gap-3 shrink-0">
               {themeOpts.header.search.enabled && (
-                <button aria-label="Search" className="p-2 hover:text-brand transition">
+                <button aria-label="Search" onClick={() => setSearchOpen(true)} className="p-2 hover:text-brand transition">
                   <Search className="w-4 h-4" />
                 </button>
               )}
@@ -257,7 +257,7 @@ export function Header() {
           </div>
           <div className="lg:hidden border-t border-border px-4 py-2 flex items-center justify-between">
             {themeOpts.header.search.enabled && (
-              <button aria-label="Search" className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
+              <button aria-label="Search" onClick={() => setSearchOpen(true)} className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
             )}
             <button onClick={toggle} aria-label="Toggle theme" className="p-2 rounded-full hover:bg-muted">
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -323,7 +323,7 @@ export function Header() {
             </nav>
             <div className="flex items-center gap-2">
               {themeOpts.header.search.enabled && (
-                <button aria-label="Search" className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
+                <button aria-label="Search" onClick={() => setSearchOpen(true)} className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
               )}
               <button onClick={toggle} aria-label="Toggle theme" className="p-2 rounded-full hover:bg-muted">
                 {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -364,7 +364,7 @@ export function Header() {
             </Link>
             <div className="flex items-center gap-2">
               {themeOpts.header.search.enabled && (
-                <button aria-label="Search" className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
+                <button aria-label="Search" onClick={() => setSearchOpen(true)} className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
               )}
               <button onClick={toggle} aria-label="Toggle theme" className="p-2 rounded-full hover:bg-muted">
                 {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -503,6 +503,7 @@ export function Header() {
           {themeOpts.header.search.enabled && (
             <button
               aria-label="Search"
+              onClick={() => setSearchOpen(true)}
               className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition"
             >
               <Search className="w-4 h-4" />
