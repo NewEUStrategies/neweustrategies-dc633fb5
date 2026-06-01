@@ -25,6 +25,16 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const intervalMs = typeof c.intervalMs === "number" ? c.intervalMs : 4500;
   const rounded = (typeof c.rounded === "string" ? c.rounded : "md") as "none" | "sm" | "md" | "lg" | "xl" | "full";
   const overlayOpacity = typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45;
+  const source = (typeof c.source === "string" ? c.source : "manual") as "manual" | "posts";
+  const limit = typeof c.limit === "number" ? c.limit : 5;
+  const categoryId = typeof c.categoryId === "string" ? c.categoryId : "";
+  const tagSlugs = typeof c.tagSlugs === "string" ? c.tagSlugs : "";
+  const excludeIds = typeof c.excludeIds === "string" ? c.excludeIds : "";
+  const orderBy = (typeof c.orderBy === "string" ? c.orderBy : "newest") as "newest" | "oldest" | "title";
+  const showExcerpt = c.showExcerpt !== false;
+  const ctaKey = `cta_${lang}` as const;
+  const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
+
 
   const rawItems = Array.isArray(c.items) ? (c.items as unknown[]) : [];
   const items: SliderItem[] = rawItems
