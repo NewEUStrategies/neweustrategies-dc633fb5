@@ -356,6 +356,7 @@ export function renderSimpleWidget(
     }
     case "social-icons": {
       const size = getNum(c, "size", 14);
+      const gap = getNum(c, "gap", 4);
       const box = Math.max(size + 10, COMPACT_ICON_BOX_SIZE);
       const showEmpty = getStr(c, "showEmpty") === "show";
       const colorMode = getStr(c, "colorMode") || "inherit";
@@ -432,7 +433,7 @@ export function renderSimpleWidget(
       const linkStyle = compactIconBoxStyle(box);
 
       return (
-        <div className={`flex flex-wrap items-center gap-1 text-foreground ${themeCls}`} style={compactRowStyle}>
+        <div className={`flex flex-wrap items-center text-foreground ${themeCls}`} style={{ ...compactRowStyle, gap: `${gap}px` }}>
           {items.map(({ k, altKeys, Cmp, label }) => {
             const href = getStr(c, k) || (altKeys?.map((ak) => getStr(c, ak)).find(Boolean) ?? "");
             const active = !!href;
