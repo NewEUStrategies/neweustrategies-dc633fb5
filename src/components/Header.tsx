@@ -28,6 +28,9 @@ type ThemeOptions = {
       mode: "standalone" | "dropdown" | "fullscreen";
       live_results: boolean; live_limit: number; more_menu_search: boolean;
     };
+    mobile: {
+      breakpoint: number; use_mobile_logo: boolean; sticky: boolean; show_search: boolean;
+    };
   };
 };
 
@@ -36,6 +39,7 @@ const THEME_DEFAULTS: ThemeOptions = {
   header: {
     main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
     search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
+    mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
   },
 };
 
