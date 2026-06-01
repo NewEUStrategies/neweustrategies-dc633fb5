@@ -276,7 +276,7 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
   );
 }
 
-type Lang = "pl" | "en";
+
 
 const compactRowStyle: CSSProperties = {
   minHeight: COMPACT_WIDGET_MIN_HEIGHT,
