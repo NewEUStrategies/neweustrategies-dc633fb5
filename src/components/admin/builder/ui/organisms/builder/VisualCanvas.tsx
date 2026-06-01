@@ -233,6 +233,8 @@ export function VisualCanvas({
             index={idx + 1}
             prominent={idx === doc.sections.length - 1}
             label={idx === doc.sections.length - 1 ? lastLabel : undefined}
+            onRemoveAdjacent={onRemoveSection ? () => onRemoveSection(s.id) : undefined}
+            removeLabel="Usuń sekcję powyżej"
           />
         </div>
       ))}
