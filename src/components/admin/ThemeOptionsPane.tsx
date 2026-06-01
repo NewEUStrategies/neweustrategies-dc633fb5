@@ -13,72 +13,49 @@ import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu
 // ---------- Defaults ----------
 type HoverEffect = "color-border" | "underline" | "background" | "scale" | "none";
 type SearchMode = "standalone" | "dropdown" | "fullscreen";
+type AlertStyle = "info" | "warning" | "success" | "brand";
 
 interface ThemeOptions extends Record<string, unknown> {
   logo: {
-    main: string;
-    main_dark: string;
-    mobile: string;
-    mobile_dark: string;
-    transparent: string;
-    organization: string;
-    bookmark_ios: string;
-    bookmark_windows: string;
+    main: string; main_dark: string;
+    mobile: string; mobile_dark: string;
+    transparent: string; organization: string;
+    bookmark_ios: string; bookmark_windows: string;
     add_to_home_screen: boolean;
   };
   header: {
     main_menu: {
-      hover_effect: HoverEffect;
-      sticky: boolean;
-      smart_sticky: boolean;
-      glass_effect: boolean;
-      item_spacing: number;
-      icon_spacing: number;
-      submenu_bg_from: string;
-      submenu_bg_to: string;
+      hover_effect: HoverEffect; sticky: boolean; smart_sticky: boolean; glass_effect: boolean;
+      item_spacing: number; icon_spacing: number;
+      submenu_bg_from: string; submenu_bg_to: string;
     };
     search: {
+      enabled: boolean; heading: string; mode: SearchMode;
+      live_results: boolean; live_limit: number; more_menu_search: boolean;
+    };
+    alert_bar: {
       enabled: boolean;
-      heading: string;
-      mode: SearchMode;
-      live_results: boolean;
-      live_limit: number;
-      more_menu_search: boolean;
+      message_pl: string; message_en: string;
+      link_url: string;
+      style: AlertStyle;
+      dismissible: boolean;
+    };
+    mobile: {
+      breakpoint: number;
+      use_mobile_logo: boolean;
+      sticky: boolean;
+      show_search: boolean;
     };
   };
 }
 
 const DEFAULTS: ThemeOptions = {
-  logo: {
-    main: "",
-    main_dark: "",
-    mobile: "",
-    mobile_dark: "",
-    transparent: "",
-    organization: "",
-    bookmark_ios: "",
-    bookmark_windows: "",
-    add_to_home_screen: true,
-  },
+  logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", organization: "", bookmark_ios: "", bookmark_windows: "", add_to_home_screen: true },
   header: {
-    main_menu: {
-      hover_effect: "color-border",
-      sticky: true,
-      smart_sticky: false,
-      glass_effect: false,
-      item_spacing: 12,
-      icon_spacing: 5,
-      submenu_bg_from: "",
-      submenu_bg_to: "",
-    },
-    search: {
-      enabled: true,
-      heading: "Search",
-      mode: "standalone",
-      live_results: true,
-      live_limit: 5,
-      more_menu_search: true,
-    },
+    main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
+    search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
+    alert_bar: { enabled: false, message_pl: "", message_en: "", link_url: "", style: "brand", dismissible: true },
+    mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
   },
 };
 
@@ -86,6 +63,8 @@ const SECTIONS = [
   { id: "logo", label: "Logo", icon: ImageIcon },
   { id: "header.main_menu", label: "Main Menu", icon: Menu },
   { id: "header.search", label: "Header Search", icon: Search },
+  { id: "header.alert_bar", label: "Alert Bar", icon: Megaphone },
+  { id: "header.mobile", label: "Mobile Header", icon: LayoutDashboard },
 ] as const;
 
 export function ThemeOptionsPane() {
