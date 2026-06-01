@@ -3,7 +3,7 @@
 import { useEffect, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { Hash, Tag as TagIcon } from "@/components/lucide-shim";
+import { Hash, Tag as TagIcon } from "@/lib/lucide-shim";
 
 interface TocItem {
   id: string;
