@@ -11,6 +11,18 @@ export interface ResponsiveValue<T> {
   mobile?: T;
 }
 
+// ---------- Light/Dark mode overrides ----------
+// A widget style field may either hold a single value (applies to both modes,
+// typically a semantic CSS token like `var(--gc-body-bg)` that already swaps
+// itself), or a ThemedValue with separate `light`/`dark` overrides.
+export type Mode = "light" | "dark";
+export interface ThemedValue<T> {
+  light?: T;
+  dark?: T;
+}
+export type Themed<T> = T | ThemedValue<T>;
+
+
 export interface WidgetTypography {
   fontFamily?: string;
   fontSize?: ResponsiveValue<string>;     // e.g. "16px", "1.25rem"
