@@ -97,6 +97,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   const [selection, setSelection] = useState<Selection>({ kind: null, id: null });
   const [showNavigator, setShowNavigator] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ kind: "section" | "column" | "widget"; id: string } | null>(null);
+  const [ctx, setCtx] = useState<CtxTarget | null>(null);
 
   const askRemoveSection = useCallback((id: string) => setPendingDelete({ kind: "section", id }), []);
   const askRemoveColumn = useCallback((id: string) => setPendingDelete({ kind: "column", id }), []);
