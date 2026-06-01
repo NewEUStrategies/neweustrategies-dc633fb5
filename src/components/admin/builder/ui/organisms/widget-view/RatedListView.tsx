@@ -262,6 +262,7 @@ export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
         ${titleColor ? `.rl-wrap .rl-title{color:${titleColor};}` : ""}
         ${titleColorDark ? `.dark .rl-wrap .rl-title{color:${titleColorDark};}` : ""}
         ${titleHoverColor ? `.rl-wrap .rl-title:hover{color:${titleHoverColor};}` : ""}
+        ${titleHoverColorDark ? `.dark .rl-wrap .rl-title:hover{color:${titleHoverColorDark};}` : ""}
         ${metaColor ? `.rl-wrap .rl-meta{color:${metaColor};}` : ""}
         ${metaColorDark ? `.dark .rl-wrap .rl-meta{color:${metaColorDark};}` : ""}
         ${excerptColor ? `.rl-wrap .rl-exc{color:${excerptColor};}` : ""}
