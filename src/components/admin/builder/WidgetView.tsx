@@ -17,6 +17,7 @@ import {
 } from "@/lib/sanitize";
 import { useInView } from "@/hooks/use-in-view";
 import { hoverCss } from "@/lib/builder/hoverCss";
+import { TtsPlayer } from "@/components/TtsPlayer";
 
 type Lang = "pl" | "en";
 
