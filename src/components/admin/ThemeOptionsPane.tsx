@@ -564,7 +564,7 @@ function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" 
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-md bg-sky-500 text-white text-xs font-semibold px-3 py-2">
+    <div className="rounded-md text-white text-xs font-semibold px-3 py-2" style={{ background: "#FA9346" }}>
       {children}
     </div>
   );

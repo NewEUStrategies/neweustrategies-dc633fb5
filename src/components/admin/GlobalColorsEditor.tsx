@@ -206,7 +206,7 @@ export function GlobalColorsEditor() {
         {GLOBAL_COLOR_GROUPS.map((group) => (
           <TabsContent key={group.id} value={group.id} className="mt-4">
             <div className="rounded-lg border border-border bg-card/40">
-              <div className="rounded-t-lg bg-sky-500 text-white text-xs font-semibold px-3 py-2">
+              <div className="rounded-t-lg text-white text-xs font-semibold px-3 py-2" style={{ background: "#FA9346" }}>
                 {group.label}
               </div>
               <div className="p-4 space-y-5">
