@@ -471,6 +471,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       hint: "Czy pokazywać ikony bez linku.",
     },
     { key: "size", type: "number", label: "Rozmiar ikony (px)", min: 10, max: 64 },
+    { key: "gap", type: "number", label: "Odstęp między ikonami (px)", min: 0, max: 32, hint: "Odległość między poszczególnymi ikonami." },
     {
       key: "colorMode", type: "select", label: "Kolory ikon",
       options: [
