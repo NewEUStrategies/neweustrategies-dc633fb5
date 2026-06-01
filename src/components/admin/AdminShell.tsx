@@ -6,6 +6,18 @@ import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
 import { AdminSidebarExtrasProvider, useAdminSidebarExtrasSlot } from "@/components/admin/AdminSidebarExtras";
+import { useSiteSetting } from "@/lib/useSiteSetting";
+
+type SidebarLogoCfg = {
+  logo: {
+    sidebar_icon: string; sidebar_icon_dark: string;
+    sidebar_expanded: string; sidebar_expanded_dark: string;
+    main: string; main_dark: string;
+  };
+};
+const SIDEBAR_LOGO_DEFAULTS: SidebarLogoCfg = {
+  logo: { sidebar_icon: "", sidebar_icon_dark: "", sidebar_expanded: "", sidebar_expanded_dark: "", main: "", main_dark: "" },
+};
 
 
 export function AdminShell({ children, hideSidebar }: { children: ReactNode; hideSidebar?: boolean }) {
