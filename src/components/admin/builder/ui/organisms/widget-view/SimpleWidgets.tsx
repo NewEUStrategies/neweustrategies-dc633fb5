@@ -356,11 +356,16 @@ export function renderSimpleWidget(
         : variant === "frame" ? "rounded border-4 border-foreground/10"
         : variant === "zoom-hover" ? "rounded overflow-hidden transition-transform duration-500 hover:scale-105"
         : "rounded";
+      // Effective max-width: smaller of widthPx (preferred display width) and maxWidthPx (hard cap)
+      const caps: number[] = [];
+      if (widthPx > 0) caps.push(widthPx);
+      if (maxWidthPx > 0) caps.push(maxWidthPx);
+      const effectiveMaxPx = caps.length ? Math.min(...caps) : 0;
       const imgStyle: CSSProperties = {
         objectFit: fit,
         aspectRatio: ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined,
-        width: widthPx > 0 ? `${widthPx}px` : "100%",
-        maxWidth: maxWidthPx > 0 ? `${maxWidthPx}px` : "100%",
+        width: "100%",
+        maxWidth: effectiveMaxPx > 0 ? `min(100%, ${effectiveMaxPx}px)` : "100%",
         height: "auto",
       };
       if (!src && !srcDark) return <div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>;
