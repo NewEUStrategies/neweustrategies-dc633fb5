@@ -285,6 +285,7 @@ function TtsPlayerHost({
 }
 
 export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
+  const { theme } = useTheme();
   const baseStyle = styleToCSS(node.style, device);
   const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
   const htmlId = sanitizeHtmlId(node.advanced?.htmlId);
