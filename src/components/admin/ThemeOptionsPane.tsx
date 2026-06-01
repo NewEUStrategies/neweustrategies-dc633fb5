@@ -74,7 +74,7 @@ interface ThemeOptions extends Record<string, unknown> {
 }
 
 const DEFAULTS: ThemeOptions = {
-  logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", transparent_dark: "", organization: "", organization_dark: "", sidebar_icon: "", sidebar_icon_dark: "", sidebar_expanded: "", sidebar_expanded_dark: "", bookmark_ios: "", bookmark_windows: "", add_to_home_screen: true },
+  logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", transparent_dark: "", organization: "", organization_dark: "", sidebar_icon: "", sidebar_icon_dark: "", sidebar_expanded: "", sidebar_expanded_dark: "", bookmark_ios: "", bookmark_ios_dark: "", bookmark_windows: "", bookmark_windows_dark: "", add_to_home_screen: true },
   header: {
     layout: "layout-1",
     main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
