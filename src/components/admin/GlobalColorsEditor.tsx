@@ -216,6 +216,10 @@ export function GlobalColorsEditor() {
                         )}
                       </div>
 
+                      <SlotPreview slot={slot} draft={draft} />
+
+
+
                       <ColorRow
                         label="Light"
                         value={val.light ?? ""}
