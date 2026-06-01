@@ -224,20 +224,21 @@ export function VisualCanvas({
   return (
     <div data-visual-canvas onClick={onClick} ref={rootRef}>
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
-      <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} onRemoveBelow={onRemoveSection && doc.sections[0] ? () => onRemoveSection(doc.sections[0].id) : undefined} />
+      <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} />
       {doc.sections.map((s, idx) => (
         <div key={s.id}>
           <BuilderRenderer doc={{ ...doc, sections: [s] }} lang={lang} device={device} />
-          <SectionDropZone
-            onInsert={(cols) => onInsertSection(idx + 1, cols)}
-            index={idx + 1}
-            prominent={idx === doc.sections.length - 1}
-            label={idx === doc.sections.length - 1 ? lastLabel : undefined}
-            onRemoveAbove={onRemoveSection ? () => onRemoveSection(s.id) : undefined}
-            onRemoveBelow={onRemoveSection && doc.sections[idx + 1] ? () => onRemoveSection(doc.sections[idx + 1].id) : undefined}
-          />
+          {idx === doc.sections.length - 1 && (
+            <SectionDropZone
+              onInsert={(cols) => onInsertSection(idx + 1, cols)}
+              index={idx + 1}
+              prominent
+              label={lastLabel}
+            />
+          )}
         </div>
       ))}
+
 
     </div>
   );
