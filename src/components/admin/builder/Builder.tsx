@@ -444,12 +444,22 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   });
 
   // ---------- keyboard shortcuts ----------
+  const cutSelection = useCallback(() => {
+    if (!selection.id || !selection.kind) return;
+    copySelection();
+    if (selection.kind === "section") askRemoveSection(selection.id);
+    else if (selection.kind === "column") askRemoveColumn(selection.id);
+    else if (selection.kind === "widget") askRemoveWidget(selection.id);
+  }, [selection, copySelection, askRemoveSection, askRemoveColumn, askRemoveWidget]);
+
   useBuilderShortcuts({
     selection, setSelection,
     undo: history.undo, redo: history.redo,
-    copySelection, pasteFromClipboard,
+    copySelection, cutSelection, pasteFromClipboard,
     duplicateSection, duplicateColumn, duplicateWidget,
-    removeSection, removeColumn, removeWidget,
+    askRemoveSection, askRemoveColumn, askRemoveWidget,
+    moveSection,
+    onToggleNavigator: () => setShowNavigator((v) => !v),
   });
 
 
