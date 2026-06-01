@@ -18,8 +18,8 @@ type Lang = "pl" | "en";
 
 const compactRowStyle: CSSProperties = {
   minHeight: COMPACT_WIDGET_MIN_HEIGHT,
-  height: COMPACT_WIDGET_MIN_HEIGHT,
   boxSizing: "border-box",
+  maxWidth: "100%",
 };
 
 const compactIconBoxStyle = (size = COMPACT_ICON_BOX_SIZE): CSSProperties => ({
