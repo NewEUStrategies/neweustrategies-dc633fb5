@@ -661,6 +661,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
           <Toolbar
             lang={lang} onLangChange={onLangChange}
             device={device} setDevice={setDevice}
+            mode={mode} setMode={setMode}
             canUndo={history.canUndo} canRedo={history.canRedo}
             onUndo={history.undo} onRedo={history.redo}
           />
