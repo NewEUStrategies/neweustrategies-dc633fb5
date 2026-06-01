@@ -1110,7 +1110,7 @@ function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
 
       let q = supabase
         .from("posts")
-        .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, published_at, post_format, author_id, profiles:author_id(display_name)")
+        .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, published_at, post_format, author_id")
         .eq("status", "published");
 
       if (postFormat && postFormat !== "all") q = q.eq("post_format", postFormat);
@@ -1148,21 +1148,33 @@ function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
       let rows = (data ?? []) as Array<{
         id: string; slug: string; title_pl: string; title_en: string;
         excerpt_pl: string | null; excerpt_en: string | null;
-        profiles: { display_name: string | null } | null;
+        author_id: string | null;
       }>;
 
+      // Fetch author display names in one batch.
+      const authorIds = Array.from(new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x)));
+      const authorMap = new Map<string, string>();
+      if (authorIds.length) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", authorIds);
+        (profs ?? []).forEach((p) => { if (p.display_name) authorMap.set(p.id, p.display_name); });
+      }
+
       if (authors.length) {
-        rows = rows.filter((r) => r.profiles?.display_name && authors.includes(r.profiles.display_name));
+        rows = rows.filter((r) => r.author_id && authors.includes(authorMap.get(r.author_id) ?? ""));
       }
       if (orderBy === "random") rows = rows.sort(() => Math.random() - 0.5);
 
       return rows.map((r) => ({
         title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl,
         excerpt: ((lang === "pl" ? r.excerpt_pl : r.excerpt_en) || r.excerpt_pl || "") as string,
-        author: r.profiles?.display_name || "",
+        author: (r.author_id && authorMap.get(r.author_id)) || "",
         rating: 0,
         href: `/post/${r.slug}`,
       }));
+
     },
   });
 
