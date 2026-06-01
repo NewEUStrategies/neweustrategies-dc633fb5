@@ -99,7 +99,7 @@ function Media() {
         <Button onClick={() => inputRef.current?.click()} disabled={busy}>
           <Upload className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.media.upload")}
         </Button>
-        <input ref={inputRef} type="file" multiple accept="image/*" hidden onChange={onUpload} />
+        <input ref={inputRef} type="file" multiple hidden onChange={onUpload} />
       </div>
 
       {!data?.length ? (
