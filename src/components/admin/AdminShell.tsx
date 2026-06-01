@@ -58,7 +58,7 @@ export function AdminShell({ children, hideSidebar }: { children: ReactNode; hid
               <button
                 onClick={() => setForceCompact((s) => !s)}
                 className="ml-auto text-muted-foreground hover:text-foreground"
-                title={compact ? "Rozszerz" : "Zwiń"}
+                title={compact ? t("admin.sidebar.expand") : t("admin.sidebar.collapse")}
               >
                 <PanelLeft className={`w-4 h-4 transition-transform ${compact ? "" : "rotate-180"}`} />
               </button>
