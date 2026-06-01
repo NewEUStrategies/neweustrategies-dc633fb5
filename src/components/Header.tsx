@@ -40,6 +40,11 @@ type ThemeOptions = {
       variant: "solid" | "outline" | "ghost" | "pill";
       show_signup: boolean;
     };
+    socials: {
+      placement: "topbar" | "main" | "hidden";
+      facebook: string; twitter: string; instagram: string; linkedin: string; youtube: string; email: string;
+      size: number;
+    };
   };
 };
 
