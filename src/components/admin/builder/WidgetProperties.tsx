@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PropField, ColorField } from "./ui/atoms";
+import { PositionAnchor } from "./ui/atoms/PositionAnchor";
 import { SpacingControl } from "./ui/molecules/SpacingControl";
 import { TypographyControl } from "./ui/molecules/TypographyControl";
 import { MotionControl } from "./ui/molecules/MotionControl";
@@ -92,20 +93,15 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Odstępy</h4>
           <SpacingControl style={widget.style} device={device} onChange={setStyle} />
-          <PropField label="Wyrównanie pionowe (w kolumnie)">
-            <Select
-              value={widget.style?.selfAlign ?? "auto"}
-              onValueChange={(v) => setStyle((s) => { s.selfAlign = v === "auto" ? undefined : (v as NonNullable<CommonStyle["selfAlign"]>); })}
-            >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">Domyślnie</SelectItem>
-                <SelectItem value="start">Góra</SelectItem>
-                <SelectItem value="center">Środek</SelectItem>
-                <SelectItem value="end">Dół</SelectItem>
-                <SelectItem value="stretch">Rozciągnij</SelectItem>
-              </SelectContent>
-            </Select>
+          <PropField label="Pozycja w komórce">
+            <PositionAnchor
+              justify={widget.style?.selfJustify}
+              align={widget.style?.selfAlign}
+              onChange={({ justify, align }) => setStyle((s) => {
+                s.selfJustify = justify;
+                s.selfAlign = align;
+              })}
+            />
           </PropField>
         </section>
 
