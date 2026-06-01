@@ -696,7 +696,7 @@ function ResizableImageWrap({
   const wrapStyle: CSSProperties = {
     position: "relative",
     display: "inline-block",
-    maxWidth: "100%",
+    maxWidth: "none",
     width: displayPx ? `${displayPx}px` : "auto",
   };
   return (
