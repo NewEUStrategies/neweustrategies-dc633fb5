@@ -118,6 +118,12 @@ export function ThemeOptionsPane() {
     setDraft({ ...draft, header: { ...draft.header, alert_bar: { ...draft.header.alert_bar, ...p } } });
   const patchMobile = (p: Partial<ThemeOptions["header"]["mobile"]>) =>
     setDraft({ ...draft, header: { ...draft.header, mobile: { ...draft.header.mobile, ...p } } });
+  const patchSocials = (p: Partial<ThemeOptions["header"]["socials"]>) =>
+    setDraft({ ...draft, header: { ...draft.header, socials: { ...draft.header.socials, ...p } } });
+  const patchSignin = (p: Partial<ThemeOptions["header"]["signin"]>) =>
+    setDraft({ ...draft, header: { ...draft.header, signin: { ...draft.header.signin, ...p } } });
+  const patchLayout = (layout: HeaderLayout) =>
+    setDraft({ ...draft, header: { ...draft.header, layout } });
 
   return (
     <div className="grid grid-cols-[220px_1fr] gap-4 min-h-[600px]">
