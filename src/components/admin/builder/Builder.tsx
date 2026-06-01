@@ -629,14 +629,15 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                           updateWidget(id, (w) => { w.content = { ...w.content, [k]: v }; })
                         }
                       />
-                      <SectionDropZone
-                        onInsert={(spans) => insertSectionAt(idx + 1, spans)}
-                        index={idx + 1}
-                        prominent={idx === doc.sections.length - 1}
-                        label={idx === doc.sections.length - 1 ? copy.last : undefined}
-                        onRemoveAbove={() => askRemoveSection(s.id)}
-                        onRemoveBelow={doc.sections[idx + 1] ? () => askRemoveSection(doc.sections[idx + 1].id) : undefined}
-                      />
+                      {idx === doc.sections.length - 1 && (
+                        <SectionDropZone
+                          onInsert={(spans) => insertSectionAt(idx + 1, spans)}
+                          index={idx + 1}
+                          prominent
+                          label={copy.last}
+                        />
+                      )}
+
 
                     </div>
                   ))}
