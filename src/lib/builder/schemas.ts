@@ -454,6 +454,77 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "image", type: "url", label: "URL obrazka" },
     { key: "href", type: "url", label: "Link (opcjonalny)" },
   ],
+  "social-icons": [
+    { key: "facebook", type: "url", label: "Facebook URL", placeholder: "https://facebook.com/..." },
+    { key: "twitter", type: "url", label: "X / Twitter URL", placeholder: "https://x.com/..." },
+    { key: "youtube", type: "url", label: "YouTube URL", placeholder: "https://youtube.com/..." },
+    { key: "instagram", type: "url", label: "Instagram URL", placeholder: "https://instagram.com/..." },
+    { key: "linkedin", type: "url", label: "LinkedIn URL", placeholder: "https://linkedin.com/in/..." },
+    { key: "email", type: "text", label: "Email", placeholder: "kontakt@..." },
+    {
+      key: "showEmpty", type: "select", label: "Puste platformy",
+      options: [
+        { value: "hide", label: "ukryj (tylko z linkiem)" },
+        { value: "show", label: "pokaż wyszarzone" },
+      ],
+      hint: "Czy pokazywać ikony bez linku.",
+    },
+    { key: "size", type: "number", label: "Rozmiar ikony (px)", min: 10, max: 64 },
+    {
+      key: "colorMode", type: "select", label: "Kolory ikon",
+      options: [
+        { value: "inherit", label: "domyślne (dziedziczone)" },
+        { value: "brand", label: "kolor brand" },
+        { value: "official", label: "oficjalne kolory marek" },
+        { value: "custom", label: "własny kolor" },
+        { value: "dark", label: "ciemne (czarne)" },
+        { value: "light", label: "jasne (białe)" },
+      ],
+    },
+    {
+      key: "customColor", type: "text", label: "Własny kolor",
+      placeholder: "#1877F2 lub var(--brand)",
+      visibleWhen: (c) => c.colorMode === "custom",
+    },
+    {
+      key: "bgMode", type: "select", label: "Tło ikony",
+      options: [
+        { value: "none", label: "brak" },
+        { value: "subtle", label: "delikatne (muted)" },
+        { value: "brand", label: "brand" },
+        { value: "official", label: "oficjalne (marka)" },
+        { value: "contrast", label: "kontrastowe (fg/bg)" },
+        { value: "custom", label: "własne" },
+      ],
+    },
+    {
+      key: "customBgColor", type: "text", label: "Własny kolor tła",
+      placeholder: "#000000",
+      visibleWhen: (c) => c.bgMode === "custom",
+    },
+    {
+      key: "shape", type: "select", label: "Zaokrąglenie",
+      options: [
+        { value: "none", label: "brak (kant)" },
+        { value: "sm", label: "małe" },
+        { value: "md", label: "średnie" },
+        { value: "lg", label: "duże" },
+        { value: "full", label: "pełne (koło)" },
+        { value: "square", label: "kwadrat" },
+      ],
+    },
+    {
+      key: "themeAdapt", type: "select", label: "Adaptacja dark / light",
+      options: [
+        { value: "auto", label: "automatyczna (dostosuj się)" },
+        { value: "force-light", label: "wymuś jasny styl" },
+        { value: "force-dark", label: "wymuś ciemny styl" },
+        { value: "off", label: "wyłączona" },
+      ],
+      hint: "Jak ikony mają się zachowywać w dark / light mode.",
+    },
+  ],
   // `rated-list` has its own custom list editor in WidgetProperties.tsx.
 };
+
 
