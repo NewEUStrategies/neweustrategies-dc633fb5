@@ -180,7 +180,7 @@ export type WidgetType =
   // Basic
   | "heading" | "text" | "image" | "button" | "divider" | "spacer"
   // Media
-  | "video" | "gallery" | "icon" | "map"
+  | "video" | "gallery" | "icon" | "map" | "tts"
   // Dynamic
   | "post-list" | "carousel" | "categories" | "tags"
   // Forms

@@ -41,6 +41,16 @@ export const WIDGETS: WidgetDef[] = [
     defaults: () => ({ name: "Star", size: 32 }) },
   { type: "map", label: "Mapa Google", category: "media", icon: MapPin,
     defaults: () => ({ query: "Warszawa" }) },
+  { type: "tts", label: "Odsłuchaj (TTS)", category: "media", icon: Megaphone,
+    defaults: () => ({
+      source: "post",
+      text_pl: "",
+      text_en: "",
+      voiceId: "JBFqnCBsd6RMkjVDRZzb",
+      model: "eleven_multilingual_v2",
+      label_pl: "Odsłuchaj artykuł",
+      label_en: "Listen to article",
+    }) },
   // Dynamic
   { type: "post-list", label: "Lista wpisów", category: "dynamic", icon: Newspaper,
     defaults: () => ({ limit: 6, columns: 3, category: null as string | null }) },

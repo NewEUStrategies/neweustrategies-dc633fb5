@@ -264,6 +264,28 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       { value: "1/1", label: "1:1" },
     ]},
   ],
+  tts: [
+    { key: "source", type: "select", label: "Źródło tekstu", options: [
+      { value: "post", label: "Treść wpisu (automatycznie)" },
+      { value: "custom", label: "Własny tekst" },
+    ]},
+    { key: "text", type: "i18nText", label: "Własny tekst (jeśli wybrane)", visibleWhen: (c) => c.source === "custom" },
+    { key: "label", type: "i18nText", label: "Etykieta przycisku" },
+    { key: "voiceId", type: "select", label: "Głos", options: [
+      { value: "JBFqnCBsd6RMkjVDRZzb", label: "George (męski, EN)" },
+      { value: "EXAVITQu4vr4xnSDxMaL", label: "Sarah (kobiecy, EN)" },
+      { value: "FGY2WhTYpPnrIDTdsKH5", label: "Laura (kobiecy, EN)" },
+      { value: "TX3LPaxmHKxFdv7VOQHJ", label: "Liam (męski, EN)" },
+      { value: "XrExE9yKIg1WjnnlVkGX", label: "Matilda (kobiecy, EN)" },
+      { value: "pFZP5JQG7iQjIQuC4Bku", label: "Lily (kobiecy, EN)" },
+      { value: "onwK4e9ZLuTAKqWW03F9", label: "Daniel (męski, EN)" },
+      { value: "cgSgspJ2msm6clMCkdW9", label: "Jessica (kobiecy, EN)" },
+    ]},
+    { key: "model", type: "select", label: "Model", options: [
+      { value: "eleven_multilingual_v2", label: "Multilingual v2 (PL/EN, najlepsza jakość)" },
+      { value: "eleven_turbo_v2_5", label: "Turbo v2.5 (szybszy)" },
+    ]},
+  ],
   "post-list": [
     { key: "limit", type: "number", label: "Limit", min: 1, max: 50 },
     { key: "columns", type: "number", label: "Kolumny", min: 1, max: 6 },
