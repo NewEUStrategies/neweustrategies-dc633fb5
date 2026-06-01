@@ -133,6 +133,7 @@ function RootComponent() {
         <AuthProvider>
           <IconPackSync />
           <DesignTokensStyle />
+          <ContentAreaStyle />
           <Outlet />
           <LoginPopup />
           <Toaster />
