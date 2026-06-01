@@ -137,6 +137,8 @@ function EditPost() {
           read_minutes: snapshot.read_minutes,
           builder_data: snapshot.builder_data,
           parent_page_id: snapshot.parent_page_id,
+          post_format: snapshot.post_format,
+          layout_overrides: snapshot.layout_overrides,
         },
         categories: selectedCats,
         tags: selectedTags,
