@@ -402,9 +402,22 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const layoutCls = variant === "split"
         ? "flex flex-col items-start gap-4"
         : `flex flex-col sm:flex-row gap-4 ${align === "left" ? "items-start sm:items-center" : align === "center" ? "items-center justify-center text-center" : "items-center justify-between"}`;
-      const ctaBtn = canEdit
-        ? <Editable as="span" value={cta} onCommit={(v) => commit(cKey, v)} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium" placeholder="Etykieta…" />
-        : <a href={href} className="bg-brand-foreground text-brand px-5 py-2.5 rounded font-medium hover:opacity-90 transition">{cta}</a>;
+      const ctaWidthPx = getNum(c, "ctaWidthPx", 0);
+      const ctaHeightPx = getNum(c, "ctaHeightPx", 0);
+      const ctaBtnCls = "inline-flex items-center justify-center w-full h-full bg-brand-foreground text-brand px-3.5 py-2 rounded font-medium text-xs leading-none";
+      const ctaInner = canEdit
+        ? <Editable as="span" value={cta} onCommit={(v) => commit(cKey, v)} className={ctaBtnCls} placeholder="Etykieta…" />
+        : <a href={href} className={`${ctaBtnCls} hover:opacity-90 transition`}>{cta}</a>;
+      const ctaBtn = (
+        <ResizableBox
+          enabled={canEdit}
+          widthPx={ctaWidthPx > 0 ? ctaWidthPx : undefined}
+          heightPx={ctaHeightPx > 0 ? ctaHeightPx : undefined}
+          onCommit={(w, h) => { onContentChange?.("ctaWidthPx", w); onContentChange?.("ctaHeightPx", h); }}
+        >
+          {ctaInner}
+        </ResizableBox>
+      );
       return wrap(
         <div className={containerCls}>
           <div className={layoutCls}>
