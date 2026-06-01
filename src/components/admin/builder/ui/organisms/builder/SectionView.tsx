@@ -202,7 +202,7 @@ function ColumnView({
         </div>
       )}
       <SortableContext items={column.children.map((w) => w.id)} strategy={verticalListSortingStrategy}>
-        <div className={`flex flex-wrap items-start content-start gap-2 min-w-0 max-w-full overflow-hidden ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"}`}>
+        <div className={`flex flex-col h-full gap-2 min-w-0 max-w-full overflow-hidden ${column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : "items-start"}`}>
           {column.children.map((w) => (
             <SortableWidget key={w.id} widget={w} lang={lang} device={device}
               selected={selection.kind === "widget" && selection.id === w.id}
@@ -231,7 +231,7 @@ function SortableWidget({
   return (
     <div ref={setNodeRef} style={{ ...style, ...frameStyle, boxSizing: "border-box", padding: 0 }} {...attributes}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
-      className={`group/w relative flex flex-col items-stretch justify-start shrink min-w-0 self-start max-w-full overflow-hidden rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} ${hidden ? "opacity-40" : ""}`}
+      className={`group/w relative flex flex-col items-stretch justify-start shrink min-w-0 max-w-full overflow-hidden rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} ${hidden ? "opacity-40" : ""}`}
     >
       <div className={`absolute -top-2.5 right-2 z-10 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] transition ${selected ? "opacity-100" : "opacity-0 group-hover/w:opacity-100"}`}>
         <span {...listeners} className="cursor-grab text-muted-foreground px-1" title="Przeciągnij">⋮⋮</span>

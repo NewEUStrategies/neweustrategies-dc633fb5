@@ -109,19 +109,30 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
   } else if (!autoFit) {
     style.minHeight = DEFAULT_WIDGET_MIN_HEIGHT;
   }
+  // Vertical alignment inside the (flex-column) parent column.
+  // We use auto margins so the widget can be pushed top/center/bottom against
+  // the column's full height (which the surrounding grid row stretches).
   const sa = node.style?.selfAlign;
   if (sa && sa !== "auto") {
-    style.alignSelf =
-      sa === "start" ? "flex-start" :
-      sa === "end" ? "flex-end" :
-      sa; // "center" | "stretch"
+    if (sa === "stretch") {
+      style.flexGrow = 1;
+      style.alignSelf = "stretch";
+    } else if (sa === "center") {
+      style.marginTop = "auto";
+      style.marginBottom = "auto";
+    } else if (sa === "end") {
+      style.marginTop = "auto";
+    } else if (sa === "start") {
+      style.marginBottom = "auto";
+    }
   }
+  // Horizontal alignment inside the column line (alignSelf in flex-col = cross axis).
   const sj = node.style?.selfJustify;
   if (sj && sj !== "auto") {
-    // Use auto margins so the widget can be pushed left/center/right within its line.
-    if (sj === "start") { style.marginRight = "auto"; }
-    else if (sj === "end") { style.marginLeft = "auto"; }
-    else if (sj === "center") { style.marginLeft = "auto"; style.marginRight = "auto"; }
+    style.alignSelf =
+      sj === "start" ? "flex-start" :
+      sj === "end" ? "flex-end" :
+      "center";
   }
   return style;
 };
