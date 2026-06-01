@@ -45,12 +45,6 @@ import { BuilderRenderer } from "./BuilderRenderer";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import {
-  Plus, Trash2, ChevronUp, ChevronDown, Copy, Pencil, X, Save, Layout,
-  Layers as LayersIcon, Settings, Undo, Redo, Monitor, Tablet, Smartphone,
-  Eye, Save as SaveIcon, ClipboardCopy, ClipboardPaste, Move,
-  Columns2,
-} from "@/lib/lucide-shim";
-import {
   sectionWrapperStyle, sectionContainerStyle, columnsRowStyle,
   backgroundLayerStyle, overlayLayerStyle, borderStyle,
   ShapeDivider, typographyCss, typographyAlign,
