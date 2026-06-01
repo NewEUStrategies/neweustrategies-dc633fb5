@@ -1,6 +1,10 @@
 // Widget view helpers: style/frame computation + content getters.
 import type { CSSProperties } from "react";
-import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
+import type {
+  WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device, Mode,
+  WidgetTypography, HoverStyle,
+} from "@/lib/builder/types";
+import { pickMode } from "@/lib/builder/themed";
 
 // Default width: widgets hug their content so they sit side-by-side in a row (left-aligned).
 // Max-width still capped at 100% so nothing overflows. Override per-device via advanced.width.
@@ -34,28 +38,35 @@ const pick = <T,>(
 export const styleToCSS = (
   s: CommonStyle | undefined,
   device: Device,
+  mode: Mode = "light",
 ): CSSProperties => {
   if (!s) return {};
   const css: CSSProperties = {};
-  if (s.bgColor) css.background = s.bgColor;
-  if (s.textColor) css.color = s.textColor;
-  const padding = pick(s.padding, device);
+  const bgColor = pickMode(s.bgColor, mode);
+  if (bgColor) css.background = bgColor;
+  const textColor = pickMode(s.textColor, mode);
+  if (textColor) css.color = textColor;
+  const padding = pick(pickMode(s.padding, mode), device);
   if (padding) css.padding = padding;
-  const margin = pick(s.margin, device);
+  const margin = pick(pickMode(s.margin, mode), device);
   if (margin) css.margin = margin;
   const align = pick(s.align, device);
   if (align) css.textAlign = align;
-  if (s.borderRadius) css.borderRadius = s.borderRadius;
+  const borderRadius = pickMode(s.borderRadius, mode);
+  if (borderRadius) css.borderRadius = borderRadius;
   if (s.maxWidth) css.maxWidth = s.maxWidth;
   if (s.minHeight) css.minHeight = s.minHeight;
-  if (s.borderStyle && s.borderStyle !== "none") {
-    css.borderStyle = s.borderStyle;
-    css.borderWidth = s.borderWidth || "1px";
-    if (s.borderColor) css.borderColor = s.borderColor;
+  const borderStyle = pickMode(s.borderStyle, mode);
+  if (borderStyle && borderStyle !== "none") {
+    css.borderStyle = borderStyle;
+    css.borderWidth = pickMode(s.borderWidth, mode) || "1px";
+    const borderColor = pickMode(s.borderColor, mode);
+    if (borderColor) css.borderColor = borderColor;
   }
-  if (s.boxShadow) css.boxShadow = s.boxShadow;
+  const boxShadow = pickMode(s.boxShadow, mode);
+  if (boxShadow) css.boxShadow = boxShadow;
   if (typeof s.opacity === "number") css.opacity = s.opacity;
-  const t = s.typography;
+  const t = pickMode<WidgetTypography>(s.typography, mode);
   if (t) {
     if (t.fontFamily) css.fontFamily = t.fontFamily;
     const size = pick(t.fontSize, device);
@@ -69,6 +80,10 @@ export const styleToCSS = (
   }
   return css;
 };
+
+// Re-export so consumers don't need a separate import.
+export type { HoverStyle };
+
 
 type ResponsiveSize = number | "auto" | { desktop?: number | "auto"; tablet?: number | "auto"; mobile?: number | "auto" } | undefined;
 
