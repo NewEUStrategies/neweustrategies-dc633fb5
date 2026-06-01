@@ -14,6 +14,33 @@ import {
   type AnimatedHeadingMode, type AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
 import { COMPACT_ICON_BOX_SIZE, COMPACT_WIDGET_MIN_HEIGHT, getStr, getNum, getStrArr } from "./frame";
+import { SearchOverlay } from "@/components/SearchOverlay";
+
+function SearchButtonWidget({ label, mode, heading, liveResults, limit, lang }: {
+  label: string;
+  mode: "standalone" | "dropdown" | "fullscreen";
+  heading: string;
+  liveResults: boolean;
+  limit: number;
+  lang: Lang;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        aria-label="Search"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-2 text-xs font-semibold leading-none text-muted-foreground hover:text-foreground transition"
+        style={compactRowStyle}
+      >
+        <LucideIcons.Search className="w-4 h-4" />
+        <span className="hidden sm:inline">{label}</span>
+      </button>
+      <SearchOverlay open={open} onClose={() => setOpen(false)} mode={mode} heading={heading} liveResults={liveResults} limit={limit} lang={lang} />
+    </span>
+  );
+}
 
 type Lang = "pl" | "en";
 
@@ -232,13 +259,13 @@ export function renderSimpleWidget(
     }
     case "search-button": {
       const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Szukaj";
-      return (
-        <button type="button" aria-label="Search" className="inline-flex items-center gap-2 text-xs font-semibold leading-none text-muted-foreground hover:text-foreground transition" style={compactRowStyle}>
-          <LucideIcons.Search className="w-4 h-4" />
-          <span className="hidden sm:inline">{label}</span>
-        </button>
-      );
+      const mode = (getStr(c, "mode") || "dropdown") as "standalone" | "dropdown" | "fullscreen";
+      const heading = getStr(c, `heading_${lang}`) || getStr(c, "heading_pl") || "";
+      const liveResults = getStr(c, "liveResults") !== "off";
+      const limit = getNum(c, "limit", 8);
+      return <SearchButtonWidget label={label} mode={mode} heading={heading} liveResults={liveResults} limit={limit} lang={lang} />;
     }
+
     case "copyright": {
       const txt = getStr(c, `text_${lang}`) || getStr(c, "text_pl");
       const showYear = c.showYear !== false;
