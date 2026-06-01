@@ -216,6 +216,9 @@ export function renderSimpleWidget(
       const variant = getStr(c, "variant") || "default";
       const fit = (getStr(c, "objectFit") || "cover") as CSSProperties["objectFit"];
       const ratio = getStr(c, "ratio");
+      const widthPx = typeof c.widthPx === "number" ? c.widthPx : Number(c.widthPx) || 0;
+      const maxWidthPx = typeof c.maxWidthPx === "number" ? c.maxWidthPx : Number(c.maxWidthPx) || 0;
+      const align = (getStr(c, "align") || "center") as "left" | "center" | "right";
       const variantCls =
         variant === "rounded" ? "rounded-xl"
         : variant === "circle" ? "rounded-full aspect-square"
@@ -227,13 +230,15 @@ export function renderSimpleWidget(
       const imgStyle: CSSProperties = {
         objectFit: fit,
         aspectRatio: ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined,
-        width: "100%",
+        width: widthPx > 0 ? `${widthPx}px` : "100%",
+        maxWidth: maxWidthPx > 0 ? `${maxWidthPx}px` : "100%",
         height: "auto",
       };
       if (!src && !srcDark) return <div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>;
       const activeSrc = theme === "dark" ? (srcDark || src) : (src || srcDark);
+      const figureAlign = align === "left" ? "items-start" : align === "right" ? "items-end" : "items-center";
       return (
-        <figure className="space-y-2">
+        <figure className={`space-y-2 flex flex-col ${figureAlign}`}>
           <img src={activeSrc} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
           {caption && <figcaption className="text-xs text-muted-foreground text-center">{caption}</figcaption>}
         </figure>

@@ -18,6 +18,9 @@ export function ImageEditor({ c, lang, setContent }: Props) {
   const altPl = typeof c.alt_pl === "string" ? c.alt_pl : "";
   const altEn = typeof c.alt_en === "string" ? c.alt_en : "";
   const href = typeof c.href === "string" ? c.href : "";
+  const widthPx = typeof c.widthPx === "number" ? c.widthPx : Number(c.widthPx) || 0;
+  const maxWidthPx = typeof c.maxWidthPx === "number" ? c.maxWidthPx : Number(c.maxWidthPx) || 0;
+  const align = (typeof c.align === "string" ? c.align : "center") as "left" | "center" | "right";
   const [previewMode, setPreviewMode] = useState<"light" | "dark">("light");
 
   return (
@@ -76,6 +79,56 @@ export function ImageEditor({ c, lang, setContent }: Props) {
         onChange={(v) => setContent("srcDark", v)}
         hint="Jeśli puste – używany jest wariant Light."
       />
+
+      <div className="pt-2 border-t border-border space-y-2">
+        <PropField label="Szerokość (px)" hint="0 lub puste = pełna szerokość kontenera. Wysokość dopasowuje się automatycznie (zachowane proporcje).">
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              value={widthPx || ""}
+              placeholder="auto"
+              onChange={(e) => setContent("widthPx", e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)))}
+              className="h-8 text-xs"
+            />
+            <input
+              type="range"
+              min={0}
+              max={1200}
+              step={10}
+              value={widthPx || 0}
+              onChange={(e) => setContent("widthPx", Number(e.target.value))}
+              className="flex-1"
+            />
+          </div>
+        </PropField>
+        <PropField label="Maks. szerokość (px)" hint="Opcjonalny limit. 0 = brak limitu.">
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            value={maxWidthPx || ""}
+            placeholder="brak"
+            onChange={(e) => setContent("maxWidthPx", e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)))}
+            className="h-8 text-xs"
+          />
+        </PropField>
+        <PropField label="Wyrównanie">
+          <div className="inline-flex rounded-md border border-border overflow-hidden">
+            {(["left", "center", "right"] as const).map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => setContent("align", a)}
+                className={`px-2 py-1 text-[11px] ${align === a ? "bg-brand text-brand-foreground" : "bg-background hover:bg-muted"}`}
+              >
+                {a === "left" ? "Lewo" : a === "center" ? "Środek" : "Prawo"}
+              </button>
+            ))}
+          </div>
+        </PropField>
+      </div>
 
       <div className="pt-2 border-t border-border space-y-2">
         <PropField label="Alt (PL)">
