@@ -355,8 +355,8 @@ export function renderSimpleWidget(
       return <div style={{ height: `${h}px`, width: "100%" }} />;
     }
     case "social-icons": {
-      const size = getNum(c, "size", 16);
-      const box = Math.max(size + 16, COMPACT_ICON_BOX_SIZE);
+      const size = getNum(c, "size", 14);
+      const box = Math.max(size + 10, COMPACT_ICON_BOX_SIZE);
       const showEmpty = getStr(c, "showEmpty") === "show";
       const colorMode = getStr(c, "colorMode") || "inherit";
       const customColor = getStr(c, "customColor");
