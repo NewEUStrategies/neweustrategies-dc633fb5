@@ -89,7 +89,7 @@ export function SectionView(p: SectionViewProps) {
       </div>
 
       <div style={sectionContainerStyle(p.section)}>
-        <div className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(p.section, colsSum), paddingTop: `${INNER_SECTION_SAFE_AREA_PX}px`, paddingBottom: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
+        <div className="min-w-0 max-w-full overflow-hidden" style={columnsRowStyle(p.section, colsSum)}>
           {p.section.children.map((child) => {
             const span = child.kind === "column" ? resolveSpan(child.span, p.device, 12) : 12;
             const gridColumn = p.device === "mobile" ? "1 / -1" : `span ${span}`;
