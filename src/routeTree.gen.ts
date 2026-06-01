@@ -26,6 +26,7 @@ import { Route as AdminPaywallRouteImport } from './routes/admin.paywall'
 import { Route as AdminPagesRouteImport } from './routes/admin.pages'
 import { Route as AdminNewsletterRouteImport } from './routes/admin.newsletter'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
+import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
 import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
@@ -131,6 +132,11 @@ const AdminNewsletterRoute = AdminNewsletterRouteImport.update({
 const AdminMediaRoute = AdminMediaRouteImport.update({
   id: '/media',
   path: '/media',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminLoginSettingsRoute = AdminLoginSettingsRouteImport.update({
+  id: '/login-settings',
+  path: '/login-settings',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminContentAreaRoute = AdminContentAreaRouteImport.update({
@@ -248,6 +254,7 @@ export interface FileRoutesByFullPath {
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/newsletter': typeof AdminNewsletterRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
@@ -287,6 +294,7 @@ export interface FileRoutesByTo {
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/newsletter': typeof AdminNewsletterRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
@@ -327,6 +335,7 @@ export interface FileRoutesById {
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/newsletter': typeof AdminNewsletterRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
@@ -369,6 +378,7 @@ export interface FileRouteTypes {
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
+    | '/admin/login-settings'
     | '/admin/media'
     | '/admin/newsletter'
     | '/admin/pages'
@@ -408,6 +418,7 @@ export interface FileRouteTypes {
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
+    | '/admin/login-settings'
     | '/admin/media'
     | '/admin/newsletter'
     | '/admin/pages'
@@ -447,6 +458,7 @@ export interface FileRouteTypes {
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
+    | '/admin/login-settings'
     | '/admin/media'
     | '/admin/newsletter'
     | '/admin/pages'
@@ -611,6 +623,13 @@ declare module '@tanstack/react-router' {
       path: '/media'
       fullPath: '/admin/media'
       preLoaderRoute: typeof AdminMediaRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/login-settings': {
+      id: '/admin/login-settings'
+      path: '/login-settings'
+      fullPath: '/admin/login-settings'
+      preLoaderRoute: typeof AdminLoginSettingsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/content-area': {
@@ -839,6 +858,7 @@ interface AdminRouteChildren {
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminContentAreaRoute: typeof AdminContentAreaRoute
+  AdminLoginSettingsRoute: typeof AdminLoginSettingsRoute
   AdminMediaRoute: typeof AdminMediaRoute
   AdminNewsletterRoute: typeof AdminNewsletterRoute
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
@@ -855,6 +875,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminContentAreaRoute: AdminContentAreaRoute,
+  AdminLoginSettingsRoute: AdminLoginSettingsRoute,
   AdminMediaRoute: AdminMediaRoute,
   AdminNewsletterRoute: AdminNewsletterRoute,
   AdminPagesRoute: AdminPagesRouteWithChildren,
