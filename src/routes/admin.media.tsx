@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { registerMediaUpload, deleteMedia } from "@/lib/media.functions";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { MediaPreviewDialog, type PreviewableMedia } from "@/components/MediaPreviewDialog";
 
 export const Route = createFileRoute("/admin/media")({
   component: Media,
