@@ -406,6 +406,91 @@ export function ThemeOptionsPane() {
             </Row>
           </div>
         )}
+
+        {active === "header.layout" && (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Wybierz układ nagłówka. Wpływa na pozycję logo, menu i utility bar.</p>
+            <div className="grid md:grid-cols-2 gap-3">
+              {(Object.keys(LAYOUT_PREVIEWS) as HeaderLayout[]).map((id) => {
+                const meta = LAYOUT_PREVIEWS[id];
+                const active = draft.header.layout === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => patchLayout(id)}
+                    className={`text-left rounded-lg border-2 p-3 transition ${
+                      active ? "border-brand bg-brand/5" : "border-border hover:border-brand/40"
+                    }`}
+                  >
+                    <div className="text-sm font-medium">{meta.label}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">{meta.hint}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {active === "header.socials" && (
+          <div className="space-y-4">
+            <Row label="Placement" hint="Gdzie pokazywać ikony społecznościowe.">
+              <Select value={draft.header.socials.placement} onValueChange={(v) => patchSocials({ placement: v as SocialPlacement })}>
+                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="topbar">Utility bar (góra)</SelectItem>
+                  <SelectItem value="navbar">Nav bar</SelectItem>
+                  <SelectItem value="both">Oba paski</SelectItem>
+                  <SelectItem value="hidden">Ukryj</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label="Rozmiar ikon (px)">
+              <Input type="number" min={12} max={32} className="w-[120px] h-9 text-xs"
+                value={draft.header.socials.size}
+                onChange={(e) => patchSocials({ size: Number(e.target.value) || 16 })} />
+            </Row>
+            {(["facebook", "twitter", "instagram", "linkedin", "youtube", "email"] as const).map((k) => (
+              <Row key={k} label={k.charAt(0).toUpperCase() + k.slice(1)} hint={k === "email" ? "Adres e-mail (bez mailto:)" : "URL profilu"}>
+                <Input value={draft.header.socials[k]} onChange={(e) => patchSocials({ [k]: e.target.value } as Partial<ThemeOptions["header"]["socials"]>)} className="w-[320px] h-9 text-xs" placeholder={k === "email" ? "kontakt@example.com" : `https://${k}.com/...`} />
+              </Row>
+            ))}
+          </div>
+        )}
+
+        {active === "header.signin" && (
+          <div className="space-y-4">
+            <Row label="Pokaż przyciski auth" hint="Włącz/wyłącz przyciski logowania w nagłówku.">
+              <Switch checked={draft.header.signin.enabled} onCheckedChange={(v) => patchSignin({ enabled: v })} />
+            </Row>
+            <Row label="Pokaż przycisk rejestracji">
+              <Switch checked={draft.header.signin.show_signup} onCheckedChange={(v) => patchSignin({ show_signup: v })} />
+            </Row>
+            <Row label="Wariant przycisku">
+              <Select value={draft.header.signin.variant} onValueChange={(v) => patchSignin({ variant: v as ButtonVariant })}>
+                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="solid">Solid</SelectItem>
+                  <SelectItem value="outline">Outline</SelectItem>
+                  <SelectItem value="ghost">Ghost (tekst)</SelectItem>
+                  <SelectItem value="pill">Pill (zaokrąglony)</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label="Sign in (PL)">
+              <Input value={draft.header.signin.signin_label_pl} onChange={(e) => patchSignin({ signin_label_pl: e.target.value })} className="w-[220px] h-9 text-xs" />
+            </Row>
+            <Row label="Sign in (EN)">
+              <Input value={draft.header.signin.signin_label_en} onChange={(e) => patchSignin({ signin_label_en: e.target.value })} className="w-[220px] h-9 text-xs" />
+            </Row>
+            <Row label="Sign up (PL)">
+              <Input value={draft.header.signin.signup_label_pl} onChange={(e) => patchSignin({ signup_label_pl: e.target.value })} className="w-[220px] h-9 text-xs" />
+            </Row>
+            <Row label="Sign up (EN)">
+              <Input value={draft.header.signin.signup_label_en} onChange={(e) => patchSignin({ signup_label_en: e.target.value })} className="w-[220px] h-9 text-xs" />
+            </Row>
+          </div>
+        )}
       </section>
     </div>
   );
