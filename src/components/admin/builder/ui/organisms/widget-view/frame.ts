@@ -43,9 +43,9 @@ export const styleToCSS = (
 ): CSSProperties => {
   if (!s) return {};
   const css: CSSProperties = {};
-  const bgColor = pickMode(s.bgColor, mode);
+  const bgColor = resolveColorForMode(s.bgColor, mode);
   if (bgColor) css.background = bgColor;
-  const textColor = pickMode(s.textColor, mode);
+  const textColor = resolveColorForMode(s.textColor, mode);
   if (textColor) css.color = textColor;
   const padding = pick(pickMode(s.padding, mode), device);
   if (padding) css.padding = padding;
