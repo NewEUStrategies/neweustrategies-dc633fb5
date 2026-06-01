@@ -416,9 +416,10 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   const hasSelection = !!(selectedWidget || selectedSection || selectedColumn || selectedInner);
 
   return (
-    <div className="grid grid-cols-[300px_1fr] gap-3 h-[calc(100vh-220px)] min-h-[600px]">
+    <div className="grid grid-cols-[300px_1fr] gap-3 items-start">
+
       {/* LEFT PANEL */}
-      <aside className="bg-card border border-border rounded-lg flex flex-col overflow-hidden">
+      <aside className="bg-card border border-border rounded-lg flex flex-col overflow-hidden sticky top-3 max-h-[calc(100vh-1.5rem)] self-start">
         {hasSelection ? (
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="p-3 border-b border-border flex items-center justify-between gap-2">
@@ -473,15 +474,18 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
       </aside>
 
       {/* CANVAS */}
-      <div className="bg-muted/20 border border-border rounded-lg flex flex-col overflow-hidden">
-        <Toolbar
-          lang={lang} onLangChange={onLangChange}
-          device={device} setDevice={setDevice}
-          canUndo={history.canUndo} canRedo={history.canRedo}
-          onUndo={history.undo} onRedo={history.redo}
-        />
+      <div className="bg-muted/20 border border-border rounded-lg flex flex-col min-w-0">
+        <div className="sticky top-3 z-20">
+          <Toolbar
+            lang={lang} onLangChange={onLangChange}
+            device={device} setDevice={setDevice}
+            canUndo={history.canUndo} canRedo={history.canRedo}
+            onUndo={history.undo} onRedo={history.redo}
+          />
+        </div>
 
-        <div className="flex-1 overflow-y-auto bg-muted/30 p-4" onClick={() => setSelection({ kind: null, id: null })}>
+        <div className="bg-muted/30 p-4" onClick={() => setSelection({ kind: null, id: null })}>
+
           <div
             className={`mx-auto bg-background shadow-lg ring-1 ring-border transition-all ${
               device === "desktop" ? "max-w-[1440px]"
