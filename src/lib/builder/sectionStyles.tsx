@@ -60,8 +60,13 @@ export function sectionWrapperStyle(node: SectionNode | InnerSectionNode): CSSPr
     css.marginRight = "calc(50% - 50vw)";
   }
   if (L?.overflow === "hidden") css.overflow = "hidden";
-  if (L?.height === "fit-screen") css.minHeight = `${L.heightValue ?? 100}vh`;
-  else if (L?.height === "min-height") css.minHeight = `${L.heightValue ?? 400}px`;
+  if (L?.height === "fit-screen") {
+    css.minHeight = `${Math.max(SECTION_DEFAULT_MIN_HEIGHT_PX, (L.heightValue ?? 100))}vh`;
+  } else if (L?.height === "min-height") {
+    css.minHeight = `${Math.max(SECTION_DEFAULT_MIN_HEIGHT_PX, L.heightValue ?? SECTION_DEFAULT_MIN_HEIGHT_PX)}px`;
+  } else {
+    css.minHeight = `${SECTION_DEFAULT_MIN_HEIGHT_PX}px`;
+  }
   return css;
 }
 
