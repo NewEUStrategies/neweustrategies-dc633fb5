@@ -3,29 +3,41 @@ import { Plus, Trash2 } from "@/lib/lucide-shim";
 import { StructurePicker } from "../../../StructurePicker";
 
 export function SectionDropZone({
-  onInsert, index, prominent, label, onRemoveAdjacent, removeLabel,
+  onInsert, index, prominent, label,
+  onRemoveAbove, onRemoveBelow,
 }: {
   onInsert: (spans: number[]) => void; index: number;
   prominent?: boolean; label?: string;
-  onRemoveAdjacent?: () => void;
-  removeLabel?: string;
+  onRemoveAbove?: () => void;
+  onRemoveBelow?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   if (open) {
     return (
       <div data-section-inserter className="my-2 p-2 border border-brand/60 rounded bg-card shadow-sm" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2 gap-2">
           <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Wybierz strukturę</span>
           <div className="flex items-center gap-1">
-            {onRemoveAdjacent && (
+            {onRemoveAbove && (
               <button
                 type="button"
-                onClick={() => { onRemoveAdjacent(); setOpen(false); }}
-                title={removeLabel ?? "Usuń sąsiednią sekcję"}
+                onClick={() => { onRemoveAbove(); setOpen(false); }}
+                title="Usuń sekcję powyżej"
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-destructive hover:bg-destructive/10 rounded"
               >
                 <Trash2 className="w-3 h-3" />
-                Usuń sekcję
+                Usuń ↑ powyżej
+              </button>
+            )}
+            {onRemoveBelow && (
+              <button
+                type="button"
+                onClick={() => { onRemoveBelow(); setOpen(false); }}
+                title="Usuń sekcję poniżej"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-destructive hover:bg-destructive/10 rounded"
+              >
+                <Trash2 className="w-3 h-3" />
+                Usuń ↓ poniżej
               </button>
             )}
             <button type="button" onClick={() => setOpen(false)} className="px-1 text-[11px] text-muted-foreground hover:text-foreground">×</button>
@@ -53,3 +65,4 @@ export function SectionDropZone({
     </div>
   );
 }
+

@@ -606,7 +606,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                   )}
 
 
-                  <SectionDropZone onInsert={(s) => insertSectionAt(0, s)} index={0} prominent label={copy.first} />
+                  <SectionDropZone onInsert={(s) => insertSectionAt(0, s)} index={0} prominent label={copy.first} onRemoveBelow={doc.sections[0] ? () => askRemoveSection(doc.sections[0].id) : undefined} />
 
                   {doc.sections.map((s, idx) => (
                     <div key={s.id}>
@@ -634,9 +634,10 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                         index={idx + 1}
                         prominent={idx === doc.sections.length - 1}
                         label={idx === doc.sections.length - 1 ? copy.last : undefined}
-                        onRemoveAdjacent={() => askRemoveSection(s.id)}
-                        removeLabel="Usuń sekcję powyżej"
+                        onRemoveAbove={() => askRemoveSection(s.id)}
+                        onRemoveBelow={doc.sections[idx + 1] ? () => askRemoveSection(doc.sections[idx + 1].id) : undefined}
                       />
+
                     </div>
                   ))}
                 </DndContext>
