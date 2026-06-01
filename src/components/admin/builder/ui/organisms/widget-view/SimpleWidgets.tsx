@@ -356,6 +356,7 @@ export function renderSimpleWidget(
     }
     case "social-icons": {
       const size = getNum(c, "size", 14);
+      const gap = getNum(c, "gap", 4);
       const box = Math.max(size + 10, COMPACT_ICON_BOX_SIZE);
       const showEmpty = getStr(c, "showEmpty") === "show";
       const colorMode = getStr(c, "colorMode") || "inherit";
