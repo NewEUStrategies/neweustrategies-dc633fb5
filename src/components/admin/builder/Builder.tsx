@@ -416,7 +416,8 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   const hasSelection = !!(selectedWidget || selectedSection || selectedColumn || selectedInner);
 
   return (
-    <div className="grid grid-cols-[300px_1fr] gap-3 h-[calc(100vh-220px)] min-h-[600px]">
+    <div className="grid grid-cols-[300px_1fr] gap-3 items-start">
+
       {/* LEFT PANEL */}
       <aside className="bg-card border border-border rounded-lg flex flex-col overflow-hidden">
         {hasSelection ? (
