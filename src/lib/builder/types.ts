@@ -193,7 +193,9 @@ export type WidgetType =
   // Rich blocks
   | "accordion" | "tabs" | "testimonial" | "pricing"
   // Home-page building blocks
-  | "section-label" | "hot-topic-bar" | "rated-list" | "dark-featured-card";
+  | "section-label" | "hot-topic-bar" | "rated-list" | "dark-featured-card"
+  // Slider
+  | "slider";
 
 // JSON-safe primitives that may live inside a widget's content map.
 export type Json =
