@@ -1,0 +1,1 @@
+UPDATE public.pages SET builder_data = (SELECT builder_data FROM (VALUES ((pg_read_file('/dev/null'))::text)) AS t(x)) WHERE false;
