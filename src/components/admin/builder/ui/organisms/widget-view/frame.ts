@@ -11,6 +11,17 @@ export const DEFAULT_WIDGET_WIDTH_BY_DEVICE: Record<Device, string> = {
 };
 export const DEFAULT_WIDGET_MIN_HEIGHT = 32;
 export const AUTO_SIZE_WIDGETS = new Set(["image", "icon", "button", "spacer", "divider"]);
+export const COMPACT_WIDGET_MIN_HEIGHT = 40;
+export const COMPACT_ICON_BOX_SIZE = 40;
+export const COMPACT_WIDGET_TYPES = new Set([
+  "social-icons",
+  "lang-switcher",
+  "theme-toggle",
+  "account-link",
+  "search-button",
+  "nav-link",
+  "newsletter",
+]);
 
 const pick = <T,>(
   rv: { desktop?: T; tablet?: T; mobile?: T } | undefined,
@@ -92,6 +103,8 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
     style.height = toCssSize(hRaw);
   } else if (node.style?.minHeight) {
     style.minHeight = node.style.minHeight;
+  } else if (COMPACT_WIDGET_TYPES.has(node.type)) {
+    style.minHeight = COMPACT_WIDGET_MIN_HEIGHT;
   } else if (!autoFit) {
     style.minHeight = DEFAULT_WIDGET_MIN_HEIGHT;
   }
