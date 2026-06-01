@@ -96,19 +96,26 @@ export function renderSimpleWidget(
 
       const OFFICIAL: Record<string, string> = {
         facebook: "#1877F2",
-        twitter: "#000000",
+        x: "#000000",
         youtube: "#FF0000",
         instagram: "#E4405F",
         linkedin: "#0A66C2",
         email: "#6B7280",
       };
 
-      const items: Array<{ k: string; Cmp: LucideIcons.LucideIcon; label: string }> = [
-        { k: "facebook",  Cmp: LucideIcons.Facebook,  label: "Facebook" },
-        { k: "twitter",   Cmp: LucideIcons.Twitter,   label: "X" },
-        { k: "youtube",   Cmp: LucideIcons.Youtube,   label: "YouTube" },
-        { k: "instagram", Cmp: LucideIcons.Instagram, label: "Instagram" },
-        { k: "linkedin",  Cmp: LucideIcons.Linkedin,  label: "LinkedIn" },
+      const XIcon = ({ size: s = 16 }: { size?: number }) => (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M18.244 2H21.5l-7.5 8.57L23 22h-6.84l-5.36-6.86L4.6 22H1.34l8.02-9.16L1 2h7.02l4.84 6.27L18.244 2Zm-1.2 18h1.86L7.06 4H5.1l11.944 16Z" />
+        </svg>
+      );
+
+      type IconCmp = (props: { size?: number }) => JSX.Element;
+      const items: Array<{ k: string; altKeys?: string[]; Cmp: IconCmp; label: string }> = [
+        { k: "facebook",  Cmp: (p) => <LucideIcons.Facebook {...p} />,  label: "Facebook" },
+        { k: "x",         altKeys: ["twitter"], Cmp: (p) => <XIcon {...p} />, label: "X" },
+        { k: "youtube",   Cmp: (p) => <LucideIcons.Youtube {...p} />,   label: "YouTube" },
+        { k: "instagram", Cmp: (p) => <LucideIcons.Instagram {...p} />, label: "Instagram" },
+        { k: "linkedin",  Cmp: (p) => <LucideIcons.Linkedin {...p} />,  label: "LinkedIn" },
       ];
       const email = getStr(c, "email");
 
