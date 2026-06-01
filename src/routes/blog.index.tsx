@@ -1,37 +1,14 @@
 // Public blog list. URL: /blog
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { blogListQueryOptions } from "@/lib/queries/public";
 
 export const Route = createFileRoute("/blog/")({
-  loader: async () => {
-    const { data, error } = await supabase
-      .from("posts")
-      .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id")
-      .eq("status", "published")
-      .is("deleted_at", null)
-      .order("published_at", { ascending: false })
-      .limit(50);
-    if (error) throw error;
-    const rows = (data ?? []) as Array<{
-      id: string; slug: string;
-      title_pl: string; title_en: string;
-      excerpt_pl: string | null; excerpt_en: string | null;
-      cover_image_url: string | null; published_at: string | null;
-      parent_page_id: string;
-    }>;
-    // Resolve full parent paths in one go.
-    const parentIds = Array.from(new Set(rows.map((r) => r.parent_page_id)));
-    const paths = new Map<string, string>();
-    await Promise.all(parentIds.map(async (pid) => {
-      const { data: p } = await supabase.rpc("page_full_path", { _page_id: pid });
-      if (typeof p === "string") paths.set(pid, p);
-    }));
-    const posts = rows.map((r) => ({ ...r, href: `/${paths.get(r.parent_page_id) ?? "blog"}/${r.slug}` }));
-    return { posts };
-  },
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(blogListQueryOptions()),
 
   head: () => ({
     meta: [
@@ -59,7 +36,7 @@ export const Route = createFileRoute("/blog/")({
 });
 
 function BlogIndex() {
-  const { posts } = Route.useLoaderData();
+  const { data: { posts } } = useSuspenseQuery(blogListQueryOptions());
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
 
@@ -72,7 +49,7 @@ function BlogIndex() {
           <p className="text-muted-foreground">Brak opublikowanych wpisów.</p>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {posts.map((p: typeof posts[number]) => {
+            {posts.map((p) => {
               const title = lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
               const excerpt = lang === "en" ? p.excerpt_en : p.excerpt_pl;
               return (
