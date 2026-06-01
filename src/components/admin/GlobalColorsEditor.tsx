@@ -61,10 +61,22 @@ export function GlobalColorsEditor() {
             Ustaw kolory dla trybu jasnego i ciemnego. Zmiany wpływają na całą stronę.
           </p>
         </div>
-        <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
-          <Save className="w-4 h-4 mr-2" />
-          {save.isPending ? "Zapisywanie…" : "Zapisz"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setDraft({ ...EMPTY_GLOBAL_COLORS, ...(data ?? {}) })}
+            disabled={save.isPending || isDirty === false}
+          >
+            <X className="w-4 h-4 mr-2" />
+            Anuluj
+          </Button>
+          <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending || isDirty === false}>
+            <Save className="w-4 h-4 mr-2" />
+            {save.isPending ? "Zapisywanie…" : "Zapisz"}
+          </Button>
+        </div>
+
       </div>
 
       <Tabs defaultValue={GLOBAL_COLOR_GROUPS[0]?.id} className="w-full">
