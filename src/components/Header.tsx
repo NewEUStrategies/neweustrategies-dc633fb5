@@ -134,7 +134,16 @@ export function Header() {
       <header className="bg-background border-b border-border">
         <AlertBar />
         <BuilderRenderer doc={headerCfg.builder_data} lang={lang.startsWith("pl") ? "pl" : "en"} />
-      </header>
+      <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          mode={themeOpts.header.search.mode}
+          heading={themeOpts.header.search.heading}
+          liveResults={themeOpts.header.search.live_results}
+          limit={themeOpts.header.search.live_limit}
+          lang={lang.startsWith("pl") ? "pl" : "en"}
+        />
+        </header>
     );
   }
 
@@ -212,7 +221,16 @@ export function Header() {
             </div>
           )}
         </div>
-      </header>
+      <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          mode={themeOpts.header.search.mode}
+          heading={themeOpts.header.search.heading}
+          liveResults={themeOpts.header.search.live_results}
+          limit={themeOpts.header.search.live_limit}
+          lang={lang.startsWith("pl") ? "pl" : "en"}
+        />
+        </header>
     );
   }
 
@@ -274,7 +292,16 @@ export function Header() {
             </div>
           )}
         </div>
-      </header>
+      <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          mode={themeOpts.header.search.mode}
+          heading={themeOpts.header.search.heading}
+          liveResults={themeOpts.header.search.live_results}
+          limit={themeOpts.header.search.live_limit}
+          lang={lang.startsWith("pl") ? "pl" : "en"}
+        />
+        </header>
     );
   }
 
@@ -341,7 +368,16 @@ export function Header() {
             </div>
           )}
         </div>
-      </header>
+      <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          mode={themeOpts.header.search.mode}
+          heading={themeOpts.header.search.heading}
+          liveResults={themeOpts.header.search.live_results}
+          limit={themeOpts.header.search.live_limit}
+          lang={lang.startsWith("pl") ? "pl" : "en"}
+        />
+        </header>
     );
   }
 
@@ -396,7 +432,16 @@ export function Header() {
             </nav>
           </div>
         )}
-      </header>
+      <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          mode={themeOpts.header.search.mode}
+          heading={themeOpts.header.search.heading}
+          liveResults={themeOpts.header.search.live_results}
+          limit={themeOpts.header.search.live_limit}
+          lang={lang.startsWith("pl") ? "pl" : "en"}
+        />
+        </header>
     );
   }
 
@@ -556,6 +601,15 @@ export function Header() {
           </div>
         )}
       </div>
-    </header>
+    <SearchOverlay
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          mode={themeOpts.header.search.mode}
+          heading={themeOpts.header.search.heading}
+          liveResults={themeOpts.header.search.live_results}
+          limit={themeOpts.header.search.live_limit}
+          lang={lang.startsWith("pl") ? "pl" : "en"}
+        />
+        </header>
   );
 }
