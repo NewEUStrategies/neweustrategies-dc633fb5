@@ -582,3 +582,123 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
     </div>
   );
 }
+
+type LogoState = ThemeOptions["logo"];
+
+const LOGO_LOCATIONS: Record<string, { title: string; locations: string[] }> = {
+  default: {
+    title: "Main Logo",
+    locations: [
+      "Nagłówek strony (desktop) — lewy/centralny slot",
+      "Strona logowania i rejestracji",
+      "Stopka (jeśli nie ustawiono osobnego footer logo)",
+      "Meta tagi Open Graph (fallback)",
+    ],
+  },
+  mobile: {
+    title: "Mobile Logo",
+    locations: [
+      "Nagłówek na urządzeniach mobilnych (< 1024px)",
+      "Wymaga włączonej opcji „Użyj Mobile Logo” w sekcji Mobile Header",
+    ],
+  },
+  transparent: {
+    title: "Transparent Logo",
+    locations: [
+      "Nagłówki z przezroczystym tłem (np. hero pełnoekranowe)",
+      "Sekcje z tłem dark accent / obrazem",
+    ],
+  },
+  organization: {
+    title: "Organization Logo",
+    locations: [
+      "Schema.org / JSON-LD (Organization)",
+      "Podgląd linków w social media (gdy brak Open Graph image)",
+      "Wyniki wyszukiwania Google",
+    ],
+  },
+  bookmark: {
+    title: "Bookmark / Touch Icons",
+    locations: [
+      "Ikona „Dodaj do ekranu głównego” w iOS",
+      "Kafelek Windows Metro",
+      "Favicon na pulpitach mobilnych",
+    ],
+  },
+};
+
+function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
+  const meta = LOGO_LOCATIONS[tab] ?? LOGO_LOCATIONS.default;
+  const pick = (light: string | undefined, dark: string | undefined): { l: string; d: string } => {
+    const l = light || dark || "";
+    const d = dark || light || "";
+    return { l, d };
+  };
+  const sources = (() => {
+    if (tab === "mobile") return pick(logo.mobile, logo.mobile_dark);
+    if (tab === "transparent") return { l: logo.transparent || logo.main || "", d: logo.transparent || logo.main_dark || logo.main || "" };
+    if (tab === "organization") return { l: logo.organization || logo.main || "", d: logo.organization || logo.main_dark || logo.main || "" };
+    if (tab === "bookmark") return { l: logo.bookmark_ios || "", d: logo.bookmark_windows || logo.bookmark_ios || "" };
+    return pick(logo.main, logo.main_dark);
+  })();
+
+  const Panel = ({ mode, src }: { mode: "light" | "dark"; src: string }) => {
+    const isDark = mode === "dark";
+    return (
+      <div
+        className="rounded-md border p-4 flex flex-col gap-2 min-h-[110px]"
+        style={{
+          background: isDark ? "#01112F" : "#F8F6F4",
+          borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
+          color: isDark ? "#e5e7eb" : "#1f2937",
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] uppercase tracking-widest" style={{ opacity: 0.5 }}>
+            {isDark ? "Dark mode" : "Light mode"}
+          </span>
+          {isDark ? <Moon className="w-3 h-3 opacity-50" /> : <Sun className="w-3 h-3 opacity-50" />}
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          {src ? (
+            <img
+              src={src}
+              alt={`${meta.title} ${mode}`}
+              className="max-h-14 max-w-full object-contain"
+              style={tab === "bookmark" ? { borderRadius: 8 } : undefined}
+            />
+          ) : (
+            <span className="text-[11px]" style={{ opacity: 0.5 }}>brak grafiki</span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-card/40 overflow-hidden">
+      <div className="rounded-t-lg text-white text-xs font-semibold px-3 py-2" style={{ background: "#FA9346" }}>
+        Podgląd: {meta.title}
+      </div>
+      <div className="p-3 space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <Panel mode="light" src={sources.l} />
+          <Panel mode="dark" src={sources.d} />
+        </div>
+        <div className="rounded-md bg-muted/50 p-2.5">
+          <div className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">
+            Gdzie wykorzystywane
+          </div>
+          <ul className="text-[11px] space-y-0.5 text-foreground/80">
+            {meta.locations.map((l) => (
+              <li key={l} className="flex gap-1.5">
+                <span className="text-brand">•</span>
+                <span>{l}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
