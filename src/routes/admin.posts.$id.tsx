@@ -146,9 +146,12 @@ function EditPost() {
           parent_page_id: snapshot.parent_page_id,
           post_format: snapshot.post_format,
           layout_overrides: snapshot.layout_overrides,
+          takeaways_pl: snapshot.takeaways_pl ?? [],
+          takeaways_en: snapshot.takeaways_en ?? [],
         },
         categories: selectedCats,
         tags: selectedTags,
+
       },
     });
     qc.invalidateQueries({ queryKey: ["admin-posts"] });
