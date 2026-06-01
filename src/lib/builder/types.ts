@@ -225,6 +225,8 @@ export interface ColumnNode {
   span: ResponsiveValue<number>;
   style?: CommonStyle;
   advanced?: AdvancedSettings;
+  /** Horizontal alignment of widgets in the wrap row. Default: "start". */
+  contentAlign?: "start" | "center" | "end";
   children: Array<WidgetNode>;
 }
 
