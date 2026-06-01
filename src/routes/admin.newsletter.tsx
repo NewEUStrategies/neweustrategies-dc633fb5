@@ -122,7 +122,7 @@ function Page() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-display text-lg">Subskrybenci ({subs?.length ?? 0})</h2>
             <Button variant="outline" size="sm" onClick={exportCsv} disabled={!subs?.length}>
-              <Download className="w-4 h-4 mr-2" />Eksportuj CSV
+              ↓ Eksportuj CSV
             </Button>
           </div>
           <div className="overflow-auto">
