@@ -584,6 +584,23 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const src = `https://maps.google.com/maps?q=${encodeURIComponent(q)}&output=embed`;
       return wrap(<div style={{ aspectRatio: ratio.replace("/", " / ") }}><iframe src={src} title="map" className="w-full h-full rounded border-0" /></div>);
     }
+    case "tts": {
+      const source = getStr(c, "source") || "post";
+      const customText = getStr(c, `text_${lang}`) || getStr(c, "text_pl");
+      const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || (lang === "pl" ? "Odsłuchaj artykuł" : "Listen to article");
+      const voiceId = getStr(c, "voiceId") || "JBFqnCBsd6RMkjVDRZzb";
+      const model = getStr(c, "model") || "eleven_multilingual_v2";
+      return wrap(
+        <TtsPlayerHost
+          source={source}
+          customText={customText}
+          label={label}
+          voiceId={voiceId}
+          model={model}
+          nodeId={node.id}
+        />,
+      );
+    }
     case "post-list":
       return wrap(<PostListView c={c} lang={lang} />);
     case "carousel":
