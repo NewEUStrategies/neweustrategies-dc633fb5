@@ -7,8 +7,11 @@
 //   - ColorField         -> bg / text colors with native picker
 import type {
   WidgetNode, CommonStyle, AdvancedSettings, Device, Json, WidgetTypography,
+  Mode, Themed, HoverStyle,
 } from "@/lib/builder/types";
 import { WIDGETS } from "@/lib/builder/registry";
+import { pickMode, setMode as setThemedMode, isModeOverridden, isThemedValue } from "@/lib/builder/themed";
+import { Sun, Moon, RotateCcw } from "@/lib/lucide-shim";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -38,6 +41,8 @@ interface Props {
   widget: WidgetNode;
   lang: "pl" | "en";
   device: Device;
+  mode?: Mode;
+  onModeChange?: (m: Mode) => void;
   onChange: (mut: (w: WidgetNode) => void) => void;
 }
 
