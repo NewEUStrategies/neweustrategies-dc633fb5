@@ -46,13 +46,67 @@ interface Props {
   onChange: (mut: (w: WidgetNode) => void) => void;
 }
 
-export function WidgetProperties({ widget, lang, device, onChange }: Props) {
+export function WidgetProperties({ widget, lang, device, mode = "light", onModeChange, onChange }: Props) {
   const setContent = (k: string, v: Json) => onChange((w) => { w.content[k] = v; });
   const setStyle = (mut: (s: CommonStyle) => void) => onChange((w) => {
     w.style = w.style ?? {}; mut(w.style);
   });
   const setAdvanced = (mut: (a: AdvancedSettings) => void) => onChange((w) => {
     w.advanced = w.advanced ?? {}; mut(w.advanced);
+  });
+
+  // ---- Themed (light/dark) helpers for color-style fields ----
+  type ColorKey = "bgColor" | "textColor" | "borderColor";
+  const getColor = (key: ColorKey): string | undefined =>
+    pickMode<string>(widget.style?.[key] as Themed<string> | undefined, mode);
+  const setColor = (key: ColorKey, v: string | undefined) => setStyle((s) => {
+    const prev = s[key] as Themed<string> | undefined;
+    const next = setThemedMode<string>(prev, mode, v);
+    (s[key] as Themed<string> | undefined) = next;
+  });
+  const isOverridden = (key: ColorKey): boolean =>
+    isModeOverridden(widget.style?.[key] as Themed<string> | undefined, mode);
+  const resetColor = (key: ColorKey) => setStyle((s) => {
+    const prev = s[key] as Themed<string> | undefined;
+    if (prev == null) return;
+    if (isThemedValue<string>(prev)) {
+      const next = { ...prev };
+      delete next[mode];
+      if (next.light == null && next.dark == null) {
+        delete (s as Record<string, unknown>)[key];
+      } else {
+        (s[key] as Themed<string> | undefined) = next;
+      }
+    } else {
+      // Flat value applies to both modes — reset removes it entirely.
+      delete (s as Record<string, unknown>)[key];
+    }
+  });
+
+  // ---- Themed hover colors ----
+  const hoverValue: HoverStyle | undefined = (() => {
+    const h = widget.style?.hover;
+    if (!h) return undefined;
+    return {
+      ...h,
+      bgColor: pickMode<string>(h.bgColor as Themed<string> | undefined, mode),
+      textColor: pickMode<string>(h.textColor as Themed<string> | undefined, mode),
+    };
+  })();
+  const onHoverChange = (next: HoverStyle | undefined) => setStyle((s) => {
+    if (!next) { s.hover = undefined; return; }
+    const prev = s.hover ?? {};
+    const merged: HoverStyle = { ...prev, ...next };
+    // Re-wrap themed color fields so they preserve the other mode's value.
+    if ("bgColor" in next) {
+      const v = setThemedMode<string>(prev.bgColor as Themed<string> | undefined, mode, next.bgColor);
+      (merged.bgColor as Themed<string> | undefined) = v;
+    }
+    if ("textColor" in next) {
+      const v = setThemedMode<string>(prev.textColor as Themed<string> | undefined, mode, next.textColor);
+      (merged.textColor as Themed<string> | undefined) = v;
+    }
+    s.hover = merged;
   });
 
   const widgetLabel = WIDGETS.find((w) => w.type === widget.type)?.label ?? widget.type;
@@ -75,24 +129,46 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
       </TabsContent>
 
       <TabsContent value="style" className="space-y-4 mt-3">
-        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
-          Edytujesz: {device}
+        {/* Light / Dark mode tabs — synced with global preview switcher */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+            Edytujesz: {device}
+          </div>
+          <div className="inline-flex items-center rounded border border-border bg-muted p-0.5" role="group" aria-label="Tryb">
+            {([["light", Sun, "Jasny"], ["dark", Moon, "Ciemny"]] as const).map(([m, Icon, label]) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => onModeChange?.(m)}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-sm transition ${
+                  mode === m ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className="w-3 h-3" />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <section className="space-y-2">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Kolory</h4>
-          <PropField label="Tło">
-            <ColorField
-              value={widget.style?.bgColor}
-              onChange={(v) => setStyle((s) => { s.bgColor = v; })}
-            />
-          </PropField>
-          <PropField label="Tekst">
-            <ColorField
-              value={widget.style?.textColor}
-              onChange={(v) => setStyle((s) => { s.textColor = v; })}
-            />
-          </PropField>
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Kolory ({mode === "dark" ? "ciemny" : "jasny"})</h4>
+          <ThemedColorField
+            label="Tło"
+            value={getColor("bgColor")}
+            onChange={(v) => setColor("bgColor", v)}
+            overridden={isOverridden("bgColor")}
+            onReset={() => resetColor("bgColor")}
+            placeholderHint="dziedziczy z global colors"
+          />
+          <ThemedColorField
+            label="Tekst"
+            value={getColor("textColor")}
+            onChange={(v) => setColor("textColor", v)}
+            overridden={isOverridden("textColor")}
+            onReset={() => resetColor("textColor")}
+            placeholderHint="dziedziczy z global colors"
+          />
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
@@ -115,7 +191,7 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Zaokrąglenie rogów">
               <Input
-                value={widget.style?.borderRadius ?? ""}
+                value={typeof widget.style?.borderRadius === "string" ? widget.style.borderRadius : ""}
                 placeholder="8px"
                 onChange={(e) => setStyle((s) => { s.borderRadius = e.target.value || undefined; })}
                 className="h-8 text-xs"
@@ -153,11 +229,11 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Obramowanie</h4>
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Obramowanie ({mode === "dark" ? "ciemny" : "jasny"})</h4>
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Styl">
               <Select
-                value={widget.style?.borderStyle ?? "none"}
+                value={(typeof widget.style?.borderStyle === "string" ? widget.style.borderStyle : "none") as string}
                 onValueChange={(v) => setStyle((s) => { s.borderStyle = v === "none" ? undefined : (v as CommonStyle["borderStyle"]); })}
               >
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
@@ -176,26 +252,28 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
             </PropField>
             <PropField label="Grubość">
               <Input
-                value={widget.style?.borderWidth ?? ""}
+                value={typeof widget.style?.borderWidth === "string" ? widget.style.borderWidth : ""}
                 placeholder="1px"
                 onChange={(e) => setStyle((s) => { s.borderWidth = e.target.value || undefined; })}
                 className="h-8 text-xs"
               />
             </PropField>
           </div>
-          <PropField label="Kolor obramowania">
-            <ColorField
-              value={widget.style?.borderColor}
-              onChange={(v) => setStyle((s) => { s.borderColor = v; })}
-            />
-          </PropField>
+          <ThemedColorField
+            label="Kolor obramowania"
+            value={getColor("borderColor")}
+            onChange={(v) => setColor("borderColor", v)}
+            overridden={isOverridden("borderColor")}
+            onReset={() => resetColor("borderColor")}
+            placeholderHint="dziedziczy z global colors"
+          />
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Cień</h4>
           <PropField label="Cień (CSS box-shadow)">
             <Input
-              value={widget.style?.boxShadow ?? ""}
+              value={typeof widget.style?.boxShadow === "string" ? widget.style.boxShadow : ""}
               placeholder="0 10px 30px rgba(0,0,0,.15)"
               onChange={(e) => setStyle((s) => { s.boxShadow = e.target.value || undefined; })}
               className="h-8 text-xs"
@@ -229,13 +307,14 @@ export function WidgetProperties({ widget, lang, device, onChange }: Props) {
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Hover</h4>
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Hover ({mode === "dark" ? "ciemny" : "jasny"})</h4>
           <HoverControl
-            value={widget.style?.hover}
-            onChange={(hover) => setStyle((s) => { s.hover = hover; })}
+            value={hoverValue}
+            onChange={onHoverChange}
           />
         </section>
       </TabsContent>
+
 
 
       <TabsContent value="advanced" className="space-y-4 mt-3">
