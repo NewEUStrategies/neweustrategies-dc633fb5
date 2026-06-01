@@ -1,13 +1,50 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Moon, Sun, Search, Menu, X, Mail, Facebook, Twitter, Youtube, Instagram, Linkedin, Send, LogIn, LayoutDashboard } from "@/lib/lucide-shim";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "./ThemeProvider";
 import { useAuth } from "@/hooks/useAuth";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
 import logo from "@/assets/logo.png";
+
+type ThemeOptions = {
+  logo: {
+    main: string; main_dark: string; mobile: string; mobile_dark: string;
+    transparent: string; organization: string;
+    bookmark_ios: string; bookmark_windows: string; add_to_home_screen: boolean;
+  };
+  header: {
+    main_menu: {
+      hover_effect: "color-border" | "underline" | "background" | "scale" | "none";
+      sticky: boolean; smart_sticky: boolean; glass_effect: boolean;
+      item_spacing: number; icon_spacing: number;
+      submenu_bg_from: string; submenu_bg_to: string;
+    };
+    search: {
+      enabled: boolean; heading: string;
+      mode: "standalone" | "dropdown" | "fullscreen";
+      live_results: boolean; live_limit: number; more_menu_search: boolean;
+    };
+  };
+};
+
+const THEME_DEFAULTS: ThemeOptions = {
+  logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", organization: "", bookmark_ios: "", bookmark_windows: "", add_to_home_screen: true },
+  header: {
+    main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
+    search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
+  },
+};
+
+const HOVER_CLASS: Record<ThemeOptions["header"]["main_menu"]["hover_effect"], string> = {
+  "color-border": "border-b-2 border-transparent hover:border-brand hover:text-brand",
+  underline: "hover:underline underline-offset-8 decoration-2 hover:text-brand",
+  background: "rounded hover:bg-muted hover:text-brand",
+  scale: "hover:scale-110 hover:text-brand",
+  none: "hover:text-brand",
+};
 
 type MenuItem = { label_pl: string; label_en: string; url: string };
 
