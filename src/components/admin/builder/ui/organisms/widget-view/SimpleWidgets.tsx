@@ -15,6 +15,81 @@ import {
 } from "@/lib/builder/animatedHeadingVariants";
 import { COMPACT_ICON_BOX_SIZE, COMPACT_WIDGET_MIN_HEIGHT, getStr, getNum, getStrArr } from "./frame";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+
+type Lang = "pl" | "en";
+
+function PostsSliderWidget({ c, lang }: { c: WidgetNode["content"]; lang: Lang }) {
+  const limit = Math.max(1, Math.min(20, getNum(c, "limit", 5)));
+  const categoryId = getStr(c, "categoryId") || "";
+  const tagSlugsRaw = getStr(c, "tagSlugs") || "";
+  const excludeRaw = getStr(c, "excludeIds") || "";
+  const orderBy = getStr(c, "orderBy") || "newest";
+  const variant = (getStr(c, "variant") || "hero-overlay") as SliderVariant;
+  const ratio = (getStr(c, "ratio") || "16/9") as "16/9" | "4/3" | "1/1" | "21/9" | "3/2";
+  const autoplay = c.autoplay !== false;
+  const intervalMs = getNum(c, "intervalMs", 4500);
+  const rounded = (getStr(c, "rounded") || "md") as "none" | "sm" | "md" | "lg" | "xl" | "full";
+  const overlayOpacity = typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45;
+  const showExcerpt = c.showExcerpt !== false;
+  const ctaLabel = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || "";
+
+  const tagSlugs = tagSlugsRaw.split(",").map((s) => s.trim()).filter(Boolean);
+  const excludeIds = excludeRaw.split(",").map((s) => s.trim()).filter(Boolean);
+
+  const { data: items = [] } = useQuery({
+    queryKey: ["builder-slider-posts", { limit, categoryId, tagSlugs, excludeIds, orderBy }],
+    queryFn: async () => {
+      // Resolve post ids by category / tags first if filters are set
+      let allowedIds: string[] | null = null;
+      if (categoryId) {
+        const { data } = await supabase.from("post_categories").select("post_id").eq("category_id", categoryId);
+        allowedIds = (data ?? []).map((r) => r.post_id);
+      }
+      if (tagSlugs.length) {
+        const { data: tagRows } = await supabase.from("tags").select("id").in("slug", tagSlugs);
+        const tagIds = (tagRows ?? []).map((r) => r.id);
+        if (tagIds.length) {
+          const { data: ptRows } = await supabase.from("post_tags").select("post_id").in("tag_id", tagIds);
+          const ids = (ptRows ?? []).map((r) => r.post_id);
+          allowedIds = allowedIds ? allowedIds.filter((id) => ids.includes(id)) : ids;
+        } else {
+          allowedIds = [];
+        }
+      }
+      if (allowedIds && allowedIds.length === 0) return [];
+      let q = supabase
+        .from("posts")
+        .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at")
+        .eq("status", "published");
+      if (allowedIds) q = q.in("id", allowedIds);
+      if (excludeIds.length) q = q.not("id", "in", `(${excludeIds.join(",")})`);
+      const ascending = orderBy === "oldest";
+      const orderCol = orderBy === "title" ? (lang === "en" ? "title_en" : "title_pl") : "published_at";
+      q = q.order(orderCol, { ascending });
+      q = q.limit(limit);
+      const { data } = await q;
+      return data ?? [];
+    },
+  });
+
+  const cfg = {
+    variant, ratio, autoplay, intervalMs, rounded, overlayOpacity,
+    items: items
+      .filter((p) => p.cover_image_url)
+      .map((p) => ({
+        image: p.cover_image_url ?? "",
+        title_pl: p.title_pl ?? "",
+        title_en: p.title_en ?? p.title_pl ?? "",
+        subtitle_pl: showExcerpt ? (p.excerpt_pl ?? "") : "",
+        subtitle_en: showExcerpt ? (p.excerpt_en ?? p.excerpt_pl ?? "") : "",
+        href: `/post/${p.slug}`,
+        cta_pl: ctaLabel,
+        cta_en: ctaLabel,
+      })),
+  };
+  return <SliderRender config={cfg} lang={lang} />;
+}
 
 type SearchResult = { id: string; slug: string; title: string; excerpt: string | null };
 
@@ -202,7 +277,7 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
   );
 }
 
-type Lang = "pl" | "en";
+
 
 const compactRowStyle: CSSProperties = {
   minHeight: COMPACT_WIDGET_MIN_HEIGHT,
@@ -566,6 +641,9 @@ export function renderSimpleWidget(
       );
     }
     case "slider": {
+      if (getStr(c, "source") === "posts") {
+        return <PostsSliderWidget c={c} lang={lang} />;
+      }
       const items = Array.isArray(c.items) ? (c.items as unknown[]).filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null) : [];
       const cfg = {
         variant: (getStr(c, "variant") || "classic") as SliderVariant,
