@@ -979,15 +979,39 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       );
     }
     case "dark-featured-card": {
-      const badge = getStr(c, `badge_${lang}`) || getStr(c, "badge_pl");
+      const badgeKey = `badge_${lang}`;
+      const badge = getStr(c, badgeKey) || getStr(c, "badge_pl");
       const title = getStr(c, `title_${lang}`) || getStr(c, "title_pl");
       const excerpt = getStr(c, `excerpt_${lang}`) || getStr(c, "excerpt_pl");
       const img = safeImageUrl(getStr(c, "image"));
       const href = safeUrl(getStr(c, "href"));
+      const badgeVariant = getStr(c, "badgeVariant") || "solid-red";
+      const badgeRadius = getStr(c, "badgeRadius") || "none";
+      const badgeSize = getStr(c, "badgeSize") || "xs";
+      const radiusCls =
+        badgeRadius === "sm" ? "rounded-sm"
+        : badgeRadius === "md" ? "rounded-md"
+        : badgeRadius === "lg" ? "rounded-lg"
+        : badgeRadius === "full" ? "rounded-full"
+        : "rounded-none";
+      const sizeCls =
+        badgeSize === "sm" ? "text-sm px-3.5 py-1.5"
+        : badgeSize === "md" ? "text-base px-4 py-2"
+        : "text-xs px-3 py-1";
+      const variantCls =
+        badgeVariant === "solid-brand" ? "bg-brand text-brand-foreground"
+        : badgeVariant === "solid-dark" ? "bg-foreground text-background"
+        : badgeVariant === "outline" ? "border border-white/60 text-white bg-transparent"
+        : badgeVariant === "ghost" ? "bg-white/10 text-white backdrop-blur"
+        : badgeVariant === "gradient" ? "bg-gradient-to-r from-destructive to-brand text-white"
+        : "bg-destructive text-white";
+      const badgeCls = `inline-block font-bold uppercase tracking-wider mb-3 ${sizeCls} ${variantCls} ${radiusCls}`;
       const card = (
         <div className="relative bg-[oklch(0.18_0.02_260)] text-white p-6 rounded">
-          {badge && (
-            <div className="inline-block bg-destructive text-white text-xs font-bold px-3 py-1 mb-3">{badge}</div>
+          {(badge || canEdit) && (
+            canEdit
+              ? <Editable as="div" value={badge} onCommit={(v) => commit(badgeKey, v)} className={badgeCls} placeholder="Etykieta…" />
+              : <div className={badgeCls}>{badge}</div>
           )}
           {img && <img src={img} alt="" className="w-full h-72 object-cover rounded" loading="lazy" />}
           <h3 className="mt-4 font-display text-2xl font-bold">{title}</h3>
