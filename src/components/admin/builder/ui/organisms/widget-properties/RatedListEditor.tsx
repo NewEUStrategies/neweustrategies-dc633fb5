@@ -61,17 +61,17 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
       {source === "dynamic" && (
         <div className="space-y-2 border border-border rounded-md p-2 bg-background">
           <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Query Settings</div>
-          <PropField label="Categories Filter (slugi, np. raporty,analizy)">
-            <Input value={txt("categoriesFilter")} onChange={(e) => setContent("categoriesFilter", e.target.value as Json)} className="h-8 text-xs" placeholder="slug1,slug2" />
+          <PropField label="Categories Filter">
+            <TaxonomyPicker mode="categories" value={txt("categoriesFilter")} onChange={(v) => setContent("categoriesFilter", v as Json)} />
           </PropField>
-          <PropField label="Exclude Categories (slugi)">
-            <Input value={txt("excludeCategories")} onChange={(e) => setContent("excludeCategories", e.target.value as Json)} className="h-8 text-xs" placeholder="slug1,slug2" />
+          <PropField label="Exclude Categories">
+            <TaxonomyPicker mode="categories" value={txt("excludeCategories")} onChange={(v) => setContent("excludeCategories", v as Json)} placeholder="- Nic nie wykluczaj -" />
           </PropField>
-          <PropField label="Tags Filter (slugi)">
-            <Input value={txt("tagsFilter")} onChange={(e) => setContent("tagsFilter", e.target.value as Json)} className="h-8 text-xs" placeholder="tag1,tag2" />
+          <PropField label="Tags Filter">
+            <TaxonomyPicker mode="tags" value={txt("tagsFilter")} onChange={(v) => setContent("tagsFilter", v as Json)} />
           </PropField>
-          <PropField label="Exclude Tags (slugi)">
-            <Input value={txt("excludeTags")} onChange={(e) => setContent("excludeTags", e.target.value as Json)} className="h-8 text-xs" placeholder="tag1,tag2" />
+          <PropField label="Exclude Tags">
+            <TaxonomyPicker mode="tags" value={txt("excludeTags")} onChange={(v) => setContent("excludeTags", v as Json)} placeholder="- Nic nie wykluczaj -" />
           </PropField>
           <PropField label="Post Format">
             <Select value={txt("postFormatFilter") || "all"} onValueChange={(v) => setContent("postFormatFilter", v as Json)}>
