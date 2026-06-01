@@ -425,13 +425,9 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         height: "auto",
       };
       if (!src && !srcDark) return wrap(<div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>);
-      const imgEl = srcDark && src && srcDark !== src ? (
-        <picture>
-          <source srcSet={srcDark} media="(prefers-color-scheme: dark)" />
-          <img src={src} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
-        </picture>
-      ) : (
-        <img src={src || srcDark} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
+      const activeSrc = theme === "dark" ? (srcDark || src) : (src || srcDark);
+      const imgEl = (
+        <img src={activeSrc} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
       );
       return wrap(
         <figure className="space-y-2">
