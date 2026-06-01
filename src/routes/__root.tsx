@@ -138,11 +138,14 @@ function RootComponent() {
           <IconPackSync />
           <DesignTokensStyle />
           <ContentAreaStyle />
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
           <LoginPopup />
           <Toaster />
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
+
   );
 }
