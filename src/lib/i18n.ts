@@ -386,7 +386,11 @@ const resources = {
         theme: "Theme",
         signout: "Sign out",
         save: "Save",
+        saving: "Saving…",
+        saveSettings: "Save settings",
         saved: "Saved",
+        cancel: "Cancel",
+        loading: "Loading…",
         new: "Add",
         edit: "Edit",
         delete: "Delete",
@@ -396,6 +400,7 @@ const resources = {
         confirmDelete: "Delete this item?",
         published: "published",
         drafts: "drafts",
+        language: "Panel language",
         status: { draft: "Draft", published: "Published", archived: "Archived" },
         posts: {
           title: "Posts", new: "New post", count: "posts",
@@ -408,24 +413,156 @@ const resources = {
           title: "Pages", new: "New page", count: "pages", empty: "No pages yet",
         },
         tags: { placeholder: "Tag name + Enter" },
-        users: { name: "Name", role: "Role", created: "Joined" },
+        users: {
+          title: "Users",
+          name: "Name", role: "Role", created: "Joined",
+        },
         media: { upload: "Upload", uploaded: "Uploaded" },
+        personalized: {
+          title: "Personalized System",
+          subtitle: "Bookmarks, follows, reading list and recommendations",
+          tabs: { global: "Global", saved: "Saved", followed: "Followed", recommended: "Recommended" },
+          enabled: "System enabled",
+          enabledHint: "Main switch for bookmarks/follows/recommendations",
+          allowGuests: "Allow guests",
+          allowGuestsHint: "Anonymous users can save (cookie). Otherwise: login popup",
+          popup: "Popup after adding",
+          popupHint: "Toast with link to the list after pressing Save",
+          guestExpiration: "Guest cookie expiration (days)",
+          userExpiration: "Signed-in user expiration (days)",
+          restricted: "Restricted (for guests trying to save)",
+          restrictedTitle: "Title",
+          restrictedDesc: "Description",
+          followHeaders: "Follow buttons in archive headers",
+          followCategory: "In category header",
+          followTag: "In tag header",
+          followAuthor: "In author header",
+          readingListUrl: "Reading List page URL",
+          sectionEnabled: "Section enabled",
+          sectionHeading: "Section heading",
+          sectionDescription: "Section description",
+          sectionColumns: "Desktop columns (2-4)",
+          recommendedCount: "Suggestions count",
+        },
+        general: {
+          title: "General settings",
+          siteName: "Site name",
+          tagline: "Tagline",
+          taglineHint: "In a few words, explain what this site is about.",
+          siteIcon: "Site icon (favicon)",
+          siteIconHint: "Image URL, square at least 512x512 px.",
+          siteLogo: "Site logo",
+          siteUrl: "Site URL",
+          adminEmail: "Administrator e-mail",
+          siteLanguage: "Site language",
+          timezone: "Timezone",
+          dateFormat: "Date format",
+          dateFormatHint: "PHP date() syntax: d.m.Y, Y-m-d, m/d/Y …",
+          timeFormat: "Time format",
+          weekStart: "First day of the week",
+          monday: "Monday",
+          sunday: "Sunday",
+          iconPack: "Icon pack",
+          iconPackHint: "Lucide is default and recommended. Font Awesome is available as a fallback.",
+          iconLucide: "Lucide (default)",
+          iconFA: "Font Awesome (fallback)",
+        },
+        newsletter: {
+          title: "Newsletter",
+          formSettings: "Form settings",
+          show: "Show newsletter form",
+          doubleOptIn: "Double opt-in (saves status „pending\" until confirmed)",
+          heading: "Heading",
+          description: "Description",
+          policyHtml: "Policy text (HTML)",
+          successMsg: "Success message",
+          subscribers: "Subscribers",
+          exportCsv: "↓ Export CSV",
+          colEmail: "E-mail", colName: "Name", colLang: "Language", colStatus: "Status",
+          colSource: "Source", colDate: "Date",
+          empty: "No subscribers.",
+          confirmRemove: "Remove subscriber?",
+        },
+        contentArea: {
+          title: "Post Content Area",
+          subtitle: "Typography, widths and hyperlinks inside post content.",
+          width: "Content width",
+          withSidebar: "With sidebar (px)",
+          noSidebar: "No sidebar (px)",
+          wideMax: "Wide image max (px)",
+          paragraphs: "Paragraphs and lists",
+          paragraphSpacing: "Paragraph spacing (rem)",
+          listStyle: "List style (ul)",
+          hyperlinks: "Hyperlinks",
+          style: "Style",
+          underline: "Underline",
+          on: "On", off: "Off",
+          linkColorLight: "Link color (light)",
+          linkColorDark: "Link color (dark)",
+          underlineColorLight: "Underline color (light)",
+          underlineColorDark: "Underline color (dark)",
+          imageCaption: "Image caption",
+          imageCaptionToggle: "Show left border before image caption",
+          quickView: "Quick View Info",
+          quickViewToggle: "Show meta bar (review/sponsor) above content",
+        },
+        paywall: {
+          title: "Paywall - access plans",
+          subtitle: "Create subscription plans. Then, in post/page editor, assign an access mode and selected plans.",
+          colName: "Name", colPrice: "Price", colInterval: "Interval", colActive: "Active",
+          empty: "No plans",
+          edit: "Edit", newPlan: "New plan", editPlan: "Edit plan", addPlan: "Add plan",
+          namePl: "Name PL", nameEn: "Name EN", descPl: "Description PL", descEn: "Description EN",
+          priceCents: "Price (in cents)", currency: "Currency", interval: "Interval",
+          intervalMonth: "Monthly", intervalYear: "Yearly", intervalOnce: "One-time",
+          active: "Active", sort: "Sort order",
+          savedPlan: "Plan saved", removed: "Removed", confirmRemove: "Remove plan?",
+        },
       },
     },
   },
 };
+
+const STORAGE_KEY = "lovable.lang";
+
+function readStoredLang(): "pl" | "en" {
+  if (typeof window === "undefined") return "pl";
+  try {
+    const v = window.localStorage.getItem(STORAGE_KEY);
+    return v === "en" ? "en" : "pl";
+  } catch {
+    return "pl";
+  }
+}
 
 if (!i18n.isInitialized) {
   i18n
     .use(initReactI18next)
     .init({
       resources,
-      lng: "pl",
+      lng: readStoredLang(),
       fallbackLng: "pl",
       supportedLngs: ["pl", "en"],
       interpolation: { escapeValue: false },
       react: { useSuspense: false },
     });
+
+  if (typeof window !== "undefined") {
+    i18n.on("languageChanged", (lng) => {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, lng);
+        document.documentElement.setAttribute("lang", lng);
+      } catch {
+        /* ignore */
+      }
+    });
+    try {
+      document.documentElement.setAttribute("lang", i18n.language);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 export default i18n;
+
