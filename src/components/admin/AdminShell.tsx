@@ -41,6 +41,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
     { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
     { to: "/admin/paywall", icon: Star, label: t("admin.nav.paywall") },
     { to: "/admin/appearance", icon: Layers, label: t("admin.nav.appearance") },
+    { to: "/admin/theme-options", icon: Sun, label: t("admin.nav.themeOptions") },
     { to: "/admin/post-layouts", icon: Layers, label: t("admin.nav.postLayouts") },
     { to: "/admin/content-area", icon: FileText, label: t("admin.nav.contentArea") },
     { to: "/admin/newsletter", icon: Mail, label: t("admin.nav.newsletter") },

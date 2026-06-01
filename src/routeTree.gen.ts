@@ -22,6 +22,7 @@ import { Route as PostSlugRouteImport } from './routes/post.$slug'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as AdminThemeOptionsRouteImport } from './routes/admin.theme-options'
 import { Route as AdminTagsRouteImport } from './routes/admin.tags'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
@@ -118,6 +119,11 @@ const ApiTtsRoute = ApiTtsRouteImport.update({
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminThemeOptionsRoute = AdminThemeOptionsRouteImport.update({
+  id: '/theme-options',
+  path: '/theme-options',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminTagsRoute = AdminTagsRouteImport.update({
@@ -304,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
+  '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
@@ -349,6 +356,7 @@ export interface FileRoutesByTo {
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
+  '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
@@ -397,6 +405,7 @@ export interface FileRoutesById {
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
+  '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
@@ -446,6 +455,7 @@ export interface FileRouteTypes {
     | '/admin/posts'
     | '/admin/settings'
     | '/admin/tags'
+    | '/admin/theme-options'
     | '/admin/users'
     | '/api/tts'
     | '/newsletter/confirm'
@@ -491,6 +501,7 @@ export interface FileRouteTypes {
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/tags'
+    | '/admin/theme-options'
     | '/admin/users'
     | '/api/tts'
     | '/newsletter/confirm'
@@ -538,6 +549,7 @@ export interface FileRouteTypes {
     | '/admin/posts'
     | '/admin/settings'
     | '/admin/tags'
+    | '/admin/theme-options'
     | '/admin/users'
     | '/api/tts'
     | '/newsletter/confirm'
@@ -673,6 +685,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/theme-options': {
+      id: '/admin/theme-options'
+      path: '/theme-options'
+      fullPath: '/admin/theme-options'
+      preLoaderRoute: typeof AdminThemeOptionsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/tags': {
@@ -988,6 +1007,7 @@ interface AdminRouteChildren {
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
   AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
   AdminTagsRoute: typeof AdminTagsRoute
+  AdminThemeOptionsRoute: typeof AdminThemeOptionsRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -1006,6 +1026,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPostsRoute: AdminPostsRouteWithChildren,
   AdminSettingsRoute: AdminSettingsRouteWithChildren,
   AdminTagsRoute: AdminTagsRoute,
+  AdminThemeOptionsRoute: AdminThemeOptionsRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
