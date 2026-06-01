@@ -81,12 +81,13 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
 }
 
 function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "pl"|"en"; device: Device }) {
-  const colsSum = inner.columns.reduce((a, c) => a + (c.span.desktop ?? 6), 0) || 12;
+  const colsSum = inner.columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()} style={{ ...sectionWrapperStyle(inner), ...backgroundLayerStyle(inner.background), ...borderStyle(inner.border), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
       <div className="min-w-0 max-w-full overflow-hidden" style={columnsRowStyle(inner, colsSum)}>
         {inner.columns.map((c) => (
-          <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${c.span.desktop ?? 6}` }}>
+          <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${resolveSpan(c.span, device, 6)}` }}>
+
             <RenderColumn column={c} lang={lang} device={device} />
           </div>
         ))}
