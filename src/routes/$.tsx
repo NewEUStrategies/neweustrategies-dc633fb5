@@ -41,25 +41,32 @@ export const Route = createFileRoute("/$")({
     if (!data) throw notFound();
     return data;
   },
-  head: ({ loaderData }) => {
+  head: ({ loaderData, params }) => {
     const it = loaderData?.item;
     if (!it) return { meta: [] };
     const title = it.title_pl || it.title_en || "Strona";
     const desc = ("excerpt_pl" in it ? (it.excerpt_pl || it.excerpt_en) : null)
       || (it.content_pl || it.content_en || "").replace(/<[^>]+>/g, "").slice(0, 155);
+    const splat = (params as { _splat?: string })._splat ?? "";
+    const path = `/${splat}`;
     const meta: Array<Record<string, string>> = [
       { title },
       { name: "description", content: desc },
       { property: "og:title", content: title },
       { property: "og:description", content: desc },
       { property: "og:type", content: "article" },
+      { property: "og:url", content: path },
     ];
     if (it.cover_image_url) {
       meta.push({ property: "og:image", content: it.cover_image_url });
       meta.push({ name: "twitter:image", content: it.cover_image_url });
     }
-    return { meta };
+    return {
+      meta,
+      links: [{ rel: "canonical", href: path }],
+    };
   },
+
   component: PublicPage,
   notFoundComponent: PublicNotFound,
   errorComponent: ({ error, reset }) => {
