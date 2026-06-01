@@ -34,6 +34,7 @@ function Media() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [preview, setPreview] = useState<PreviewableMedia | null>(null);
   const registerUpload = useServerFn(registerMediaUpload);
   const removeMedia = useServerFn(deleteMedia);
 
