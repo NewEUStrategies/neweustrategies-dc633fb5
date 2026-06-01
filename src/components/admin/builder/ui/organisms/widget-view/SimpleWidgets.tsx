@@ -94,13 +94,11 @@ export function renderSimpleWidget(
       );
     }
     case "lang-switcher": {
-      const showLabel = c.showLabel !== false;
       const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Zmień język";
       const current = lang === "en" ? "EN" : "PL";
       const flag = lang === "en" ? "🇬🇧" : "🇵🇱";
       return (
-        <div className="inline-flex items-center gap-2 text-xs leading-none" style={compactRowStyle}>
-          {showLabel && <span className="hidden md:inline text-muted-foreground">{label}</span>}
+        <div className="inline-flex items-center text-xs leading-none" style={compactRowStyle}>
           <button
             type="button"
             aria-label={label}
@@ -113,6 +111,7 @@ export function renderSimpleWidget(
         </div>
       );
     }
+
 
     case "theme-toggle":
       return (
