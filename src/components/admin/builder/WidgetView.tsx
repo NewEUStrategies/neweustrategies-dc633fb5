@@ -257,7 +257,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         : variant === "outline" ? "inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-border hover:bg-muted"
         : variant === "pill" ? "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted hover:bg-muted/70"
         : variant === "underline" ? "inline-flex items-center gap-1.5 underline-offset-4 hover:underline"
-        : "inline-flex items-center gap-1.5 hover:text-brand";
+        : "inline-flex items-center gap-1.5 text-foreground hover:text-brand";
       const cls = `h-10 text-xs font-bold tracking-wider leading-none transition ${variantCls}`;
       const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
