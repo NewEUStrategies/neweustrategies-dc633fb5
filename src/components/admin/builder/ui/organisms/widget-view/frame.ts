@@ -5,6 +5,7 @@ import type {
   WidgetTypography, HoverStyle,
 } from "@/lib/builder/types";
 import { pickMode } from "@/lib/builder/themed";
+import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 
 // Default width: widgets hug their content so they sit side-by-side in a row (left-aligned).
 // Max-width still capped at 100% so nothing overflows. Override per-device via advanced.width.
@@ -42,9 +43,9 @@ export const styleToCSS = (
 ): CSSProperties => {
   if (!s) return {};
   const css: CSSProperties = {};
-  const bgColor = pickMode(s.bgColor, mode);
+  const bgColor = resolveColorForMode(s.bgColor, mode);
   if (bgColor) css.background = bgColor;
-  const textColor = pickMode(s.textColor, mode);
+  const textColor = resolveColorForMode(s.textColor, mode);
   if (textColor) css.color = textColor;
   const padding = pick(pickMode(s.padding, mode), device);
   if (padding) css.padding = padding;
@@ -60,7 +61,7 @@ export const styleToCSS = (
   if (borderStyle && borderStyle !== "none") {
     css.borderStyle = borderStyle;
     css.borderWidth = pickMode(s.borderWidth, mode) || "1px";
-    const borderColor = pickMode(s.borderColor, mode);
+    const borderColor = resolveColorForMode(s.borderColor, mode);
     if (borderColor) css.borderColor = borderColor;
   }
   const boxShadow = pickMode(s.boxShadow, mode);
