@@ -18,6 +18,7 @@ import {
 import { useInView } from "@/hooks/use-in-view";
 import { hoverCss } from "@/lib/builder/hoverCss";
 import { useTheme } from "@/components/ThemeProvider";
+import { useBuilderMode } from "@/lib/builder/modeContext";
 import { NewsletterForm as NewsletterFormLive } from "@/components/NewsletterForm";
 import {
   SectionLabelRender,
