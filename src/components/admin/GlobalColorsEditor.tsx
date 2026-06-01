@@ -122,13 +122,18 @@ export function GlobalColorsEditor() {
 
   if (isLoading || !draft) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
 
-  const setSlot = (key: string, mode: "light" | "dark", value: string) => {
+  const setSlot = (key: string, mode: "light" | "dark" | "hoverLight" | "hoverDark", value: string) => {
     applyDraft({ ...draft, [key]: { ...(draft[key] ?? {}), [mode]: value } });
   };
   const resetSlot = (slot: GlobalColorSlot) => {
     applyDraft({
       ...draft,
-      [slot.key]: { light: slot.defaultLight ?? "", dark: slot.defaultDark ?? "" },
+      [slot.key]: {
+        light: slot.defaultLight ?? "",
+        dark: slot.defaultDark ?? "",
+        hoverLight: slot.defaultHoverLight ?? "",
+        hoverDark: slot.defaultHoverDark ?? "",
+      },
     });
   };
 
