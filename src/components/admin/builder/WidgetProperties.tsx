@@ -8,6 +8,8 @@
 import type {
   WidgetNode, CommonStyle, AdvancedSettings, Device, Json, WidgetTypography,
 } from "@/lib/builder/types";
+import { WIDGETS } from "@/lib/builder/registry";
+
 import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Upload, Image as ImageIcon, Sun, Moon, X } from "lucide-react";
