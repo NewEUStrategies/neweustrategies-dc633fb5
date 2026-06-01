@@ -8,10 +8,24 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2 } from "@/lib/lucide-shim";
+import { Plus, Pencil, Trash2, Home } from "@/lib/lucide-shim";
 import { deletePage, bulkDeletePages, bulkUpdatePages } from "@/lib/content.functions";
 import { toast } from "sonner";
 import { BulkActionsBar, type BulkStatus } from "@/components/admin/BulkActionsBar";
+import { useSettings } from "@/lib/admin/useSettings";
+
+type Reading = {
+  posts_per_page: number;
+  homepage_mode: "latest_posts" | "static_page";
+  homepage_page_slug: string;
+  search_engine_visibility: boolean;
+};
+const READING_DEFAULTS: Reading = {
+  posts_per_page: 10,
+  homepage_mode: "latest_posts",
+  homepage_page_slug: "",
+  search_engine_visibility: true,
+};
 
 export const Route = createFileRoute("/admin/pages")({
   component: PagesLayout,
