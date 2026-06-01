@@ -121,6 +121,10 @@ const resources = {
           hint: "Krótkie, konkretne bullet pointy - max 6. Wyświetlane nad treścią wpisu w wybranym języku.",
           empty: "Brak punktów dla tego języka.",
         },
+        sidebar: {
+          toc: "Spis treści",
+          tags: "Tagi",
+        },
       },
       admin: {
 
@@ -459,6 +463,10 @@ const resources = {
           remove: "Remove",
           hint: "Short, concrete bullet points - max 6. Shown above the post content in the matching language.",
           empty: "No bullets for this language.",
+        },
+        sidebar: {
+          toc: "Table of contents",
+          tags: "Tags",
         },
       },
       admin: {

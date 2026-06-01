@@ -22,7 +22,7 @@ import { PostLayoutRenderer } from "@/components/PostLayoutRenderer";
 import { PostFooterBars } from "@/components/PostFooterBars";
 import { PostContentStyle } from "@/components/PostContentStyle";
 import { NewsletterForm } from "@/components/NewsletterForm";
-import { KeyTakeaways } from "@/components/molecules";
+import { KeyTakeaways, PostSidebar } from "@/components/molecules";
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { mergeOverrides, pickLayoutId, type LayoutOverrides, type PostFormat } from "@/lib/postLayouts";
 import { resolvedContentQueryOptions, type PostData } from "@/lib/queries/public";
@@ -174,6 +174,13 @@ function PublicPage() {
             coverImageUrl={it.cover_image_url}
             meta={post.read_minutes ? <span>{post.read_minutes} min</span> : null}
             content={contentBlock}
+            sidebar={
+              <PostSidebar
+                articleRef={articleRef}
+                tags={postTags}
+                scanKey={`${it.id}-${lang}`}
+              />
+            }
             footer={
               <>
                 <PostFooterBars
