@@ -716,8 +716,9 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
   };
   const sources = (() => {
     if (tab === "mobile") return pick(logo.mobile, logo.mobile_dark);
-    if (tab === "transparent") return { l: logo.transparent || logo.main || "", d: logo.transparent || logo.main_dark || logo.main || "" };
-    if (tab === "organization") return { l: logo.organization || logo.main || "", d: logo.organization || logo.main_dark || logo.main || "" };
+    if (tab === "transparent") return { l: logo.transparent || logo.main || "", d: logo.transparent_dark || logo.transparent || logo.main_dark || logo.main || "" };
+    if (tab === "organization") return { l: logo.organization || logo.main || "", d: logo.organization_dark || logo.organization || logo.main_dark || logo.main || "" };
+    if (tab === "sidebar") return { l: logo.sidebar_expanded || logo.main || "", d: logo.sidebar_expanded_dark || logo.sidebar_expanded || logo.main_dark || logo.main || "" };
     if (tab === "bookmark") return { l: logo.bookmark_ios || "", d: logo.bookmark_windows || logo.bookmark_ios || "" };
     return pick(logo.main, logo.main_dark);
   })();
