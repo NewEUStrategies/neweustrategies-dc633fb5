@@ -6,6 +6,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { PropField, ColorField, ItemFrame, CollapsibleSection as Collapsible } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
+import { TaxonomyPicker } from "./TaxonomyPicker";
 
 interface Props {
   c: WidgetNode["content"];
