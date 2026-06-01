@@ -17,6 +17,7 @@ import { AuthProvider } from "../hooks/useAuth";
 import { Toaster } from "../components/ui/sonner";
 import { IconPackSync } from "../components/IconPackSync";
 import { DesignTokensStyle } from "../components/DesignTokensStyle";
+import { ContentAreaStyle } from "../components/ContentAreaStyle";
 import { LoginPopup } from "../components/LoginPopup";
 
 function NotFoundComponent() {
@@ -132,6 +133,7 @@ function RootComponent() {
         <AuthProvider>
           <IconPackSync />
           <DesignTokensStyle />
+          <ContentAreaStyle />
           <Outlet />
           <LoginPopup />
           <Toaster />

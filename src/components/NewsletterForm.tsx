@@ -40,6 +40,10 @@ export function NewsletterForm({ lang = "pl", source = "post-bottom", variant = 
       return;
     }
 
+    const token = s.double_opt_in && typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, "")
+      : null;
+
     const { error } = await supabase.from("newsletter_subscribers").insert({
       tenant_id: site.tenant_id,
       email: trimmed,
@@ -48,6 +52,10 @@ export function NewsletterForm({ lang = "pl", source = "post-bottom", variant = 
       source,
       status: s.double_opt_in ? "pending" : "subscribed",
       confirmed_at: s.double_opt_in ? null : new Date().toISOString(),
+      confirmation_token: token,
+      confirmation_expires_at: s.double_opt_in
+        ? new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString()
+        : null,
     });
 
     if (error) {

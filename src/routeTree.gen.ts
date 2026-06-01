@@ -17,6 +17,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
+import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminTagsRouteImport } from './routes/admin.tags'
@@ -50,6 +51,7 @@ import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearan
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
 import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.appearance.global-colors'
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
+import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 
 const ReadingListRoute = ReadingListRouteImport.update({
   id: '/reading-list',
@@ -89,6 +91,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 const PostSlugRoute = PostSlugRouteImport.update({
   id: '/post/$slug',
   path: '/post/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NewsletterConfirmRoute = NewsletterConfirmRouteImport.update({
+  id: '/newsletter/confirm',
+  path: '/newsletter/confirm',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTtsRoute = ApiTtsRouteImport.update({
@@ -257,6 +264,12 @@ const AdminAppearanceFooterRoute = AdminAppearanceFooterRouteImport.update({
   path: '/footer',
   getParentRoute: () => AdminAppearanceRoute,
 } as any)
+const ApiPublicNewsletterConfirmRoute =
+  ApiPublicNewsletterConfirmRouteImport.update({
+    id: '/api/public/newsletter/confirm',
+    path: '/api/public/newsletter/confirm',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -279,6 +292,7 @@ export interface FileRoutesByFullPath {
   '/admin/tags': typeof AdminTagsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
+  '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
@@ -300,6 +314,7 @@ export interface FileRoutesByFullPath {
   '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
   '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
+  '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -320,6 +335,7 @@ export interface FileRoutesByTo {
   '/admin/tags': typeof AdminTagsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
+  '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
@@ -341,6 +357,7 @@ export interface FileRoutesByTo {
   '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
   '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
+  '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -364,6 +381,7 @@ export interface FileRoutesById {
   '/admin/tags': typeof AdminTagsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
+  '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
@@ -385,6 +403,7 @@ export interface FileRoutesById {
   '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
   '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
+  '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -409,6 +428,7 @@ export interface FileRouteTypes {
     | '/admin/tags'
     | '/admin/users'
     | '/api/tts'
+    | '/newsletter/confirm'
     | '/post/$slug'
     | '/admin/'
     | '/blog/'
@@ -430,6 +450,7 @@ export interface FileRouteTypes {
     | '/api/public/robots.txt'
     | '/api/public/sitemap.xml'
     | '/admin/settings/'
+    | '/api/public/newsletter/confirm'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -450,6 +471,7 @@ export interface FileRouteTypes {
     | '/admin/tags'
     | '/admin/users'
     | '/api/tts'
+    | '/newsletter/confirm'
     | '/post/$slug'
     | '/admin'
     | '/blog'
@@ -471,6 +493,7 @@ export interface FileRouteTypes {
     | '/api/public/robots.txt'
     | '/api/public/sitemap.xml'
     | '/admin/settings'
+    | '/api/public/newsletter/confirm'
   id:
     | '__root__'
     | '/'
@@ -493,6 +516,7 @@ export interface FileRouteTypes {
     | '/admin/tags'
     | '/admin/users'
     | '/api/tts'
+    | '/newsletter/confirm'
     | '/post/$slug'
     | '/admin/'
     | '/blog/'
@@ -514,6 +538,7 @@ export interface FileRouteTypes {
     | '/api/public/robots.txt'
     | '/api/public/sitemap.xml'
     | '/admin/settings/'
+    | '/api/public/newsletter/confirm'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -523,10 +548,12 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ReadingListRoute: typeof ReadingListRoute
   ApiTtsRoute: typeof ApiTtsRoute
+  NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   PostSlugRoute: typeof PostSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
   ApiPublicRobotsDottxtRoute: typeof ApiPublicRobotsDottxtRoute
   ApiPublicSitemapDotxmlRoute: typeof ApiPublicSitemapDotxmlRoute
+  ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -585,6 +612,13 @@ declare module '@tanstack/react-router' {
       path: '/post/$slug'
       fullPath: '/post/$slug'
       preLoaderRoute: typeof PostSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/newsletter/confirm': {
+      id: '/newsletter/confirm'
+      path: '/newsletter/confirm'
+      fullPath: '/newsletter/confirm'
+      preLoaderRoute: typeof NewsletterConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tts': {
@@ -818,6 +852,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppearanceFooterRouteImport
       parentRoute: typeof AdminAppearanceRoute
     }
+    '/api/public/newsletter/confirm': {
+      id: '/api/public/newsletter/confirm'
+      path: '/api/public/newsletter/confirm'
+      fullPath: '/api/public/newsletter/confirm'
+      preLoaderRoute: typeof ApiPublicNewsletterConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -938,10 +979,12 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ReadingListRoute: ReadingListRoute,
   ApiTtsRoute: ApiTtsRoute,
+  NewsletterConfirmRoute: NewsletterConfirmRoute,
   PostSlugRoute: PostSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
   ApiPublicRobotsDottxtRoute: ApiPublicRobotsDottxtRoute,
   ApiPublicSitemapDotxmlRoute: ApiPublicSitemapDotxmlRoute,
+  ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

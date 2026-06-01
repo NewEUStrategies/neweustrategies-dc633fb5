@@ -18,6 +18,7 @@ import {
 import { useInView } from "@/hooks/use-in-view";
 import { hoverCss } from "@/lib/builder/hoverCss";
 import { TtsPlayer } from "@/components/TtsPlayer";
+import { NewsletterForm as NewsletterFormLive } from "@/components/NewsletterForm";
 
 type Lang = "pl" | "en";
 
@@ -662,6 +663,31 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const placeholder = getStr(c, `placeholder_${lang}`) || getStr(c, "placeholder_pl") || "Twój email";
       const ctaLabel = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || "Zapisz";
       const MailIcon = (LucideIcons as Record<string, React.ComponentType<{ className?: string }>>).Mail;
+
+      // Builder canvas → statyczny podgląd (bez submitu do bazy).
+      // Public render → realny <NewsletterForm/> z RLS-insert.
+      if (!editable) {
+        if (variant === "minimal") {
+          return wrap(<span className="text-sm font-medium border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
+        }
+        if (variant === "icon") {
+          return wrap(
+            <a href="#newsletter" className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors" title={title}>
+              {MailIcon ? <MailIcon className="w-5 h-5" /> : <span>✉</span>}
+              <span className="text-sm font-medium">{title}</span>
+            </a>,
+          );
+        }
+        return wrap(
+          <NewsletterFormLive
+            lang={lang}
+            variant={variant === "inline" ? "inline" : "card"}
+            source={`widget:${node.id}`}
+          />,
+        );
+      }
+
+      // editable=true → builder preview (oryginalna statyczna grafika)
       if (variant === "inline") {
         return wrap(
           <form className="flex gap-2 w-full max-w-md" onSubmit={(e) => e.preventDefault()}>
