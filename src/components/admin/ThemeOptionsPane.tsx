@@ -316,6 +316,59 @@ export function ThemeOptionsPane() {
             </Row>
           </div>
         )}
+
+        {active === "header.alert_bar" && (
+          <div className="space-y-4">
+            <Row label="Włącz Alert Bar" hint="Pasek powiadomień nad nagłówkiem.">
+              <Switch checked={draft.header.alert_bar.enabled} onCheckedChange={(v) => patchAlert({ enabled: v })} />
+            </Row>
+            <Row label="Treść (PL)">
+              <Input value={draft.header.alert_bar.message_pl} onChange={(e) => patchAlert({ message_pl: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="Nowa publikacja dostępna…" />
+            </Row>
+            <Row label="Treść (EN)">
+              <Input value={draft.header.alert_bar.message_en} onChange={(e) => patchAlert({ message_en: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="New publication available…" />
+            </Row>
+            <Row label="Link (URL)" hint="Opcjonalny — całość paska klikalna.">
+              <Input value={draft.header.alert_bar.link_url} onChange={(e) => patchAlert({ link_url: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="/blog" />
+            </Row>
+            <Row label="Styl">
+              <Select value={draft.header.alert_bar.style} onValueChange={(v) => patchAlert({ style: v as AlertStyle })}>
+                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="brand">Brand</SelectItem>
+                  <SelectItem value="info">Info</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="success">Success</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label="Możliwość zamknięcia" hint="Użytkownik może ukryć pasek (zapamiętane w localStorage).">
+              <Switch checked={draft.header.alert_bar.dismissible} onCheckedChange={(v) => patchAlert({ dismissible: v })} />
+            </Row>
+          </div>
+        )}
+
+        {active === "header.mobile" && (
+          <div className="space-y-4">
+            <Row label="Mobile Breakpoint (px)" hint="Poniżej tej szerokości aktywuje się układ mobilny.">
+              <Input
+                type="number" min={480} max={1400}
+                className="w-[120px] h-9 text-xs"
+                value={draft.header.mobile.breakpoint}
+                onChange={(e) => patchMobile({ breakpoint: Number(e.target.value) || 1024 })}
+              />
+            </Row>
+            <Row label="Użyj Mobile Logo" hint="Zamiast głównego logo na mobile.">
+              <Switch checked={draft.header.mobile.use_mobile_logo} onCheckedChange={(v) => patchMobile({ use_mobile_logo: v })} />
+            </Row>
+            <Row label="Sticky na mobile">
+              <Switch checked={draft.header.mobile.sticky} onCheckedChange={(v) => patchMobile({ sticky: v })} />
+            </Row>
+            <Row label="Pokaż ikonę wyszukiwania">
+              <Switch checked={draft.header.mobile.show_search} onCheckedChange={(v) => patchMobile({ show_search: v })} />
+            </Row>
+          </div>
+        )}
       </section>
     </div>
   );
