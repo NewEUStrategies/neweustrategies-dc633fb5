@@ -49,6 +49,8 @@ export function GlobalColorsEditor() {
   // Live preview — natychmiast nadpisuje :root / .dark tokenami z draftu,
   // dzięki czemu builder po prawej widzi zmiany w czasie rzeczywistym.
   const liveCss = globalColorsToCss(draft);
+  const isDirty = JSON.stringify(draft) !== JSON.stringify({ ...EMPTY_GLOBAL_COLORS, ...(data ?? {}) });
+
 
   return (
     <div className="space-y-6">
