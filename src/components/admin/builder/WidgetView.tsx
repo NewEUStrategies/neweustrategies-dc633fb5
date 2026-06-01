@@ -372,7 +372,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       }
       if (variant === "icon-only") {
         return wrap(
-          <div className="inline-flex items-center justify-center rounded-full text-foreground/80 hover:text-brand hover:bg-foreground/5 transition-colors cursor-pointer" style={compactRowStyle} title={title} aria-label={title}>
+          <div className="inline-flex items-center justify-center rounded-full text-foreground hover:opacity-80 transition-colors cursor-pointer" style={compactRowStyle} title={title} aria-label={title}>
             {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
           </div>,
         );
