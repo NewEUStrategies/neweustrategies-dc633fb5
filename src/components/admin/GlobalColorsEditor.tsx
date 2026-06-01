@@ -294,22 +294,47 @@ function ColorRow({
           </button>
         )}
       </div>
-      <div className="flex flex-wrap gap-1">
-        {PALETTE.map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => onChange(c)}
-            className={`w-5 h-5 rounded border transition ${
-              value?.toLowerCase() === c.toLowerCase()
-                ? "border-foreground ring-2 ring-offset-1 ring-foreground/30"
-                : "border-border hover:scale-110"
-            }`}
-            style={{ background: c }}
-            title={c}
-          />
-        ))}
+      <div className="space-y-1.5">
+        <div>
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Marka</div>
+          <div className="flex flex-wrap gap-1">
+            {BRAND_PALETTE.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => onChange(c.value)}
+                className={`w-5 h-5 rounded border transition ${
+                  value?.toLowerCase() === c.value.toLowerCase()
+                    ? "border-foreground ring-2 ring-offset-1 ring-foreground/30"
+                    : "border-border hover:scale-110"
+                }`}
+                style={{ background: c.value }}
+                title={`${c.name} — ${c.value}`}
+              />
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Neutralne</div>
+          <div className="flex flex-wrap gap-1">
+            {NEUTRAL_PALETTE.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => onChange(c)}
+                className={`w-5 h-5 rounded border transition ${
+                  value?.toLowerCase() === c.toLowerCase()
+                    ? "border-foreground ring-2 ring-offset-1 ring-foreground/30"
+                    : "border-border hover:scale-110"
+                }`}
+                style={{ background: c }}
+                title={c}
+              />
+            ))}
+          </div>
+        </div>
       </div>
+
     </div>
   );
 }
