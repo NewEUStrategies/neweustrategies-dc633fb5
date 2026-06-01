@@ -954,7 +954,7 @@ function SectionView(p: SectionViewProps) {
             const span = child.kind === "column" ? (child.span.desktop ?? 12) : 12;
             if (child.kind === "inner-section") {
               return (
-                <div key={child.id} style={{ gridColumn: `span ${span}` }}>
+                <div key={child.id} className="min-w-0" style={{ gridColumn: `span ${span}` }}>
                   <InnerSectionView
                     inner={child} device={p.device} lang={p.lang}
                     selection={p.selection} setSelection={p.setSelection}
@@ -967,7 +967,7 @@ function SectionView(p: SectionViewProps) {
               );
             }
             return (
-              <div key={child.id} style={{ gridColumn: `span ${span}` }}>
+              <div key={child.id} className="min-w-0" style={{ gridColumn: `span ${span}` }}>
                 <ColumnView column={child} device={p.device} lang={p.lang}
                   selection={p.selection} setSelection={p.setSelection}
                   onRemove={() => p.onRemoveColumn(child.id)}
@@ -1012,7 +1012,7 @@ function InnerSectionView({
       <div className="text-[10px] text-muted-foreground mb-1 relative z-10">SEKCJA WEWNĘTRZNA</div>
       <div className="grid gap-2 relative z-10" style={columnsRowStyle(inner, colsSum)}>
         {inner.columns.map((c) => (
-          <div key={c.id} style={{ gridColumn: `span ${c.span.desktop ?? 6}` }}>
+          <div key={c.id} className="min-w-0" style={{ gridColumn: `span ${c.span.desktop ?? 6}` }}>
             <ColumnView column={c} device={device} lang={lang} selection={selection}
               setSelection={setSelection}
               onRemove={() => onRemoveColumn(c.id)} onDuplicate={() => onDuplicateColumn(c.id)}
@@ -1070,7 +1070,7 @@ function ColumnView({
         </div>
       )}
       <SortableContext items={column.children.map((w) => w.id)} strategy={verticalListSortingStrategy}>
-        <div className={`flex flex-wrap items-start content-start gap-2 ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"}`}>
+        <div className={`flex flex-wrap items-start content-start gap-2 min-w-0 ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"}`}>
           {column.children.map((w) => (
             <SortableWidget key={w.id} widget={w} lang={lang} device={device}
               selected={selection.kind === "widget" && selection.id === w.id}
@@ -1098,7 +1098,7 @@ function SortableWidget({
   return (
     <div ref={setNodeRef} style={{ ...style, ...getWidgetFrameStyle(widget, device) }} {...attributes}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
-      className={`group/w relative flex flex-col items-stretch justify-start shrink-0 self-start rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} p-1 ${hidden ? "opacity-40" : ""}`}
+      className={`group/w relative flex flex-col items-stretch justify-start shrink min-w-0 self-start max-w-full overflow-hidden rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} p-1 ${hidden ? "opacity-40" : ""}`}
     >
       <div className={`absolute -top-2.5 right-2 z-10 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] transition ${selected ? "opacity-100" : "opacity-0 group-hover/w:opacity-100"}`}>
         <span {...listeners} className="cursor-grab text-muted-foreground px-1" title="Przeciągnij">⋮⋮</span>
