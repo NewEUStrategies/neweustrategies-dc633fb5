@@ -466,9 +466,9 @@ export function renderSimpleWidget(
             };
             const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-80" : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
             return active ? (
-              <a href={`mailto:${email}`} aria-label="Email" className={cls} style={style}><LucideIcons.Mail size={size} /></a>
+              <a href={`mailto:${email}`} aria-label="Email" className={cls} style={style}><MailIcon size={size} /></a>
             ) : (
-              <span aria-label="Email (brak)" className={cls} style={style}><LucideIcons.Mail size={size} /></span>
+              <span aria-label="Email (brak)" className={cls} style={style}><MailIcon size={size} /></span>
             );
           })()}
         </div>
