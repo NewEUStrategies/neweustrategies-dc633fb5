@@ -1098,7 +1098,7 @@ function SortableWidget({
   return (
     <div ref={setNodeRef} style={style} {...attributes}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
-      className={`group/w relative my-1 rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} p-1 ${hidden ? "opacity-40" : ""}`}
+      className={`group/w relative inline-block max-w-full rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} p-1 ${hidden ? "opacity-40" : ""}`}
     >
       <div className={`absolute -top-2.5 right-2 z-10 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] transition ${selected ? "opacity-100" : "opacity-0 group-hover/w:opacity-100"}`}>
         <span {...listeners} className="cursor-grab text-muted-foreground px-1" title="Przeciągnij">⋮⋮</span>
