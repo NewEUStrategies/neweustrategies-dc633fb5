@@ -171,7 +171,7 @@ export function ThemeOptionsPane() {
                 </div>
                 <ImageSlot
                   label="Organization Logo"
-                  icon={<Award className="w-3.5 h-3.5" />}
+                  icon={<Star className="w-3.5 h-3.5" />}
                   value={draft.logo.organization}
                   onChange={(v) => patchLogo({ organization: v })}
                   folder="theme/logo"
@@ -183,7 +183,7 @@ export function ThemeOptionsPane() {
               <div className="space-y-4">
                 <ImageSlot
                   label="iOS Touch Icon"
-                  icon={<Bookmark className="w-3.5 h-3.5" />}
+                  icon={<Globe className="w-3.5 h-3.5" />}
                   value={draft.logo.bookmark_ios}
                   onChange={(v) => patchLogo({ bookmark_ios: v })}
                   hint="Zalecany rozmiar 180×180px."
@@ -197,7 +197,7 @@ export function ThemeOptionsPane() {
                 </Row>
                 <ImageSlot
                   label="Windows Metro Tile Icon"
-                  icon={<Bookmark className="w-3.5 h-3.5" />}
+                  icon={<Globe className="w-3.5 h-3.5" />}
                   value={draft.logo.bookmark_windows}
                   onChange={(v) => patchLogo({ bookmark_windows: v })}
                   hint="Zalecany rozmiar 144×144px."
@@ -306,8 +306,8 @@ function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" 
     { id: "default", label: "Default Logos", icon: ImageIcon },
     { id: "mobile", label: "Mobile Logos", icon: Smartphone },
     { id: "transparent", label: "Transparent", icon: Eye },
-    { id: "organization", label: "Organization", icon: Award },
-    { id: "bookmark", label: "Bookmarklet", icon: Bookmark },
+    { id: "organization", label: "Organization", icon: Star },
+    { id: "bookmark", label: "Globelet", icon: Globe },
   ];
   return (
     <div className="inline-flex flex-wrap gap-1 rounded-md border border-border p-1 bg-muted/30">
