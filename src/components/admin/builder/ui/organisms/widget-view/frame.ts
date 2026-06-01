@@ -109,6 +109,13 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
   } else if (!autoFit) {
     style.minHeight = DEFAULT_WIDGET_MIN_HEIGHT;
   }
+  const sa = node.style?.selfAlign;
+  if (sa && sa !== "auto") {
+    style.alignSelf =
+      sa === "start" ? "flex-start" :
+      sa === "end" ? "flex-end" :
+      sa; // "center" | "stretch"
+  }
   return style;
 };
 
