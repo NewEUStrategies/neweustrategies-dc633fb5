@@ -80,24 +80,35 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
         >
 
           <div className="p-3 border-b border-border">
-            <div className="flex items-center gap-2">
+            <div className={`flex items-center ${compact ? "justify-center" : "gap-2"}`}>
               <Link
                 to="/admin"
                 data-sidebar-brand
-                className="font-display font-bold text-base flex items-center min-w-0 flex-1 bg-transparent hover:bg-transparent"
+                className={`font-display font-bold text-base flex items-center justify-center min-w-0 ${compact ? "" : "flex-1"} bg-transparent hover:bg-transparent`}
                 style={{ background: "transparent" }}
                 title="Kokpit"
               >
                 <SidebarBrand compact={compact} />
               </Link>
+              {!compact && (
+                <button
+                  onClick={() => setForceCompact((s) => !s)}
+                  className="ml-auto text-muted-foreground hover:text-foreground shrink-0"
+                  title={t("admin.sidebar.collapse")}
+                >
+                  <PanelLeft className="w-4 h-4 rotate-180 transition-transform" />
+                </button>
+              )}
+            </div>
+            {compact && (
               <button
                 onClick={() => setForceCompact((s) => !s)}
-                className="ml-auto text-muted-foreground hover:text-foreground shrink-0"
-                title={compact ? t("admin.sidebar.expand") : t("admin.sidebar.collapse")}
+                className="mt-2 mx-auto flex text-muted-foreground hover:text-foreground"
+                title={t("admin.sidebar.expand")}
               >
-                <PanelLeft className={`w-4 h-4 transition-transform ${compact ? "" : "rotate-180"}`} />
+                <PanelLeft className="w-4 h-4" />
               </button>
-            </div>
+            )}
           </div>
           <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
             {items.map(({ to, icon: Icon, label }) => {
