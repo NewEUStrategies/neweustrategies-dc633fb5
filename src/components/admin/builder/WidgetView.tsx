@@ -19,6 +19,11 @@ import { useInView } from "@/hooks/use-in-view";
 import { hoverCss } from "@/lib/builder/hoverCss";
 import { TtsPlayer } from "@/components/TtsPlayer";
 import { NewsletterForm as NewsletterFormLive } from "@/components/NewsletterForm";
+import {
+  SectionLabelRender,
+  resolveAccentColor,
+  type SectionLabelVariant,
+} from "@/lib/builder/sectionLabelVariants";
 
 type Lang = "pl" | "en";
 
@@ -901,26 +906,18 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Sekcja";
       const action = getStr(c, `action_${lang}`) || getStr(c, "action_pl");
       const href = safeUrl(getStr(c, "href"));
-      const color = getStr(c, "color") || "brand";
-      const barCls = color === "military" ? "bg-[oklch(0.55_0.18_30)]"
-        : color === "finance" ? "bg-[oklch(0.55_0.18_140)]"
-        : color === "diplomacy" ? "bg-[oklch(0.55_0.18_260)]"
-        : color === "transport" ? "bg-[oklch(0.55_0.18_60)]"
-        : color === "cyber" ? "bg-[oklch(0.55_0.18_200)]"
-        : color === "neutral" ? "bg-foreground/40"
-        : "bg-brand";
+      const variant = (getStr(c, "variant") || "left-bar") as SectionLabelVariant;
+      const customAccent = getStr(c, "accentColor");
+      const color = customAccent || getStr(c, "color") || "brand";
+      const accent = resolveAccentColor(color);
       return wrap(
-        <div className="flex items-center justify-between mb-4 pb-2 border-b border-border">
-          <div className="inline-flex items-center gap-2">
-            <span className={`inline-block w-1 h-5 ${barCls}`} />
-            <span className="font-display text-sm font-bold uppercase tracking-wider">{label}</span>
-          </div>
-          {action && (
-            href
-              ? <a href={href} className="text-xs text-muted-foreground hover:text-brand transition">{action} →</a>
-              : <span className="text-xs text-muted-foreground">{action} →</span>
-          )}
-        </div>,
+        <SectionLabelRender
+          label={label}
+          action={action || undefined}
+          href={href || undefined}
+          accent={accent}
+          variant={variant}
+        />,
       );
     }
     case "hot-topic-bar": {
