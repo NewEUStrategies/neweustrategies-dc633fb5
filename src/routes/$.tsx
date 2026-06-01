@@ -56,12 +56,19 @@ export const Route = createFileRoute("/$")({
     if (hit.post_id) {
       const { data, error } = await supabase
         .from("posts")
-        .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at, read_minutes")
+        .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at, read_minutes, post_format, layout_overrides")
         .eq("id", hit.post_id).maybeSingle();
       if (error) throw error;
       if (!data) throw notFound();
+      const { data: tagRows } = await supabase
+        .from("post_tags")
+        .select("tags(slug, name)")
+        .eq("post_id", hit.post_id);
+      const tags = (tagRows ?? [])
+        .map((r) => (r as { tags: { slug: string; name: string } | null }).tags)
+        .filter((t): t is { slug: string; name: string } => !!t);
       const crumbs = await fetchPageBreadcrumbs(hit.page_id);
-      return { kind: "post" as const, item: data as PostData, crumbs, parentPageId: hit.page_id };
+      return { kind: "post" as const, item: data as PostData, crumbs, parentPageId: hit.page_id, tags };
     }
 
     const { data, error } = await supabase
