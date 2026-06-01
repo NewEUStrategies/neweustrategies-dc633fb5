@@ -37,7 +37,10 @@ export interface PostData extends PageData {
   read_minutes: number | null;
   post_format: PostFormat;
   layout_overrides: LayoutOverrides | null;
+  takeaways_pl: string[];
+  takeaways_en: string[];
 }
+
 
 export type ResolvedContent =
   | {
