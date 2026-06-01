@@ -80,6 +80,10 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, open, liveResults]);
 
+  const placeholder = heading || (lang === "pl" ? "Czego dzisiaj szukasz?" : "What are you searching for?");
+  const hasQuery = q.trim().length >= 2;
+  const showEmpty = hasQuery && !loading && searched && results.length === 0;
+
   return (
     <span ref={wrapRef} className="relative inline-flex">
       <button
@@ -87,68 +91,132 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
         aria-label="Search"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-2 text-xs font-semibold leading-none text-muted-foreground hover:text-foreground transition"
-        style={compactRowStyle}
+        className="group inline-flex items-center gap-3 px-3.5 py-2 rounded-full border border-zinc-800 bg-zinc-900 hover:border-zinc-700 transition-colors"
       >
-        <LucideIcons.Search className="w-4 h-4" />
-        <span className="hidden sm:inline">{label}</span>
+        <LucideIcons.Search className="w-4 h-4 text-zinc-400 group-hover:text-zinc-200 transition-colors" />
+        <span className="text-xs font-medium leading-none text-zinc-300 group-hover:text-white transition-colors hidden sm:inline">
+          {label}
+        </span>
+        <span className="hidden sm:flex items-center gap-1 pl-3 border-l border-zinc-800">
+          <kbd className="px-1.5 py-0.5 text-[10px] font-sans font-semibold text-zinc-500 bg-zinc-800 rounded">⌘</kbd>
+          <kbd className="px-1.5 py-0.5 text-[10px] font-sans font-semibold text-zinc-500 bg-zinc-800 rounded">K</kbd>
+        </span>
       </button>
 
       {open && (
         <div
-          className="absolute left-1/2 top-[calc(100%+10px)] z-50 w-[min(92vw,520px)] -translate-x-1/2 rounded-2xl bg-neutral-900 text-neutral-100 shadow-2xl ring-1 ring-black/40 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
+          className="absolute left-1/2 top-[calc(100%+12px)] z-50 w-[min(92vw,540px)] -translate-x-1/2 rounded-2xl bg-zinc-900 border border-zinc-800 ring-1 ring-white/5 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
           onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-label="Search"
         >
+          {/* Input */}
           <form
             onSubmit={(e) => { e.preventDefault(); runSearch(q); }}
-            className="flex items-center gap-3 px-4 h-12"
+            className="flex items-center gap-3 p-4 border-b border-zinc-800"
           >
-            <LucideIcons.Search className="w-4 h-4 text-neutral-400 shrink-0" />
+            <LucideIcons.Search className="w-5 h-5 text-zinc-500 shrink-0" />
             <input
               ref={inputRef}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder={heading || (lang === "pl" ? "Szukaj…" : "Search…")}
-              className="flex-1 bg-transparent outline-none text-sm placeholder:text-neutral-500"
+              placeholder={placeholder}
+              className="flex-1 bg-transparent border-none outline-none text-base text-zinc-100 placeholder:text-zinc-500"
             />
-            {loading && <LucideIcons.Loader2 className="w-4 h-4 animate-spin text-neutral-400" />}
-            <button
-              type="submit"
-              aria-label="Submit search"
-              className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-neutral-600 text-neutral-300 hover:bg-neutral-800 hover:text-white transition shrink-0"
-            >
-              <LucideIcons.ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            {loading && <LucideIcons.Loader2 className="w-4 h-4 animate-spin text-zinc-500" />}
+            {q.length > 0 ? (
+              <button
+                type="button"
+                aria-label="Clear"
+                onClick={() => { setQ(""); setResults([]); setSearched(false); inputRef.current?.focus(); }}
+                className="p-1 hover:bg-zinc-800 rounded-md transition-colors"
+              >
+                <LucideIcons.X className="w-4 h-4 text-zinc-500" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setOpen(false)}
+                className="p-1 hover:bg-zinc-800 rounded-md transition-colors"
+              >
+                <LucideIcons.X className="w-4 h-4 text-zinc-500" />
+              </button>
+            )}
           </form>
 
-          {q.trim().length >= 2 && (
-            <div className="border-t border-neutral-800 max-h-[60vh] overflow-y-auto">
-              {results.length === 0 ? (
-                (searched || liveResults) && !loading ? (
-                  <div className="px-4 py-5 text-sm text-neutral-400">
-                    {lang === "pl"
-                      ? "Brak wyników dla podanej frazy. Spróbuj innych słów."
-                      : "Sorry, but nothing matched your search terms. Please try again with different keywords."}
-                  </div>
-                ) : null
-              ) : (
-                <ul className="divide-y divide-neutral-800">
-                  {results.map((r) => (
-                    <li key={r.id}>
-                      <a
-                        href={`/posts/${r.slug}`}
-                        onClick={() => setOpen(false)}
-                        className="block px-4 py-3 hover:bg-neutral-800/70 transition"
-                      >
-                        <div className="text-sm font-semibold text-neutral-100">{r.title}</div>
-                        {r.excerpt && <div className="text-xs text-neutral-400 line-clamp-2 mt-1">{r.excerpt}</div>}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
+          {/* Results */}
+          <div className="max-h-[380px] overflow-y-auto p-2">
+            <div className="px-3 py-2 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
+              {hasQuery
+                ? (lang === "pl" ? "Wyniki" : "Results")
+                : (lang === "pl" ? "Zacznij pisać, aby wyszukać" : "Start typing to search")}
             </div>
-          )}
+
+            {!hasQuery && (
+              <div className="px-3 py-6 text-sm text-zinc-500">
+                {lang === "pl"
+                  ? "Wpisz co najmniej 2 znaki, aby zobaczyć wyniki."
+                  : "Type at least 2 characters to see results."}
+              </div>
+            )}
+
+            {showEmpty && (
+              <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+                <div className="p-3 rounded-full bg-zinc-800 mb-3">
+                  <LucideIcons.Search className="w-6 h-6 text-zinc-500" />
+                </div>
+                <div className="text-sm font-medium text-zinc-300">
+                  {lang === "pl" ? "Nie znaleziono wyników" : "No results found"}
+                </div>
+                <div className="text-xs text-zinc-500 mt-1">
+                  {lang === "pl" ? "Spróbuj wpisać inne słowo kluczowe." : "Try a different keyword."}
+                </div>
+              </div>
+            )}
+
+            {hasQuery && results.length > 0 && (
+              <div className="space-y-1">
+                {results.map((r) => (
+                  <a
+                    key={r.id}
+                    href={`/posts/${r.slug}`}
+                    onClick={() => setOpen(false)}
+                    className="w-full flex items-start gap-4 p-3 rounded-xl hover:bg-white/5 text-left transition-colors group cursor-pointer"
+                  >
+                    <div className="mt-0.5 p-2 rounded-lg bg-zinc-800 text-zinc-400 group-hover:bg-blue-500/10 group-hover:text-blue-400 transition-colors shrink-0">
+                      <LucideIcons.FileText className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-zinc-200 truncate">{r.title}</div>
+                      {r.excerpt && (
+                        <div className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{r.excerpt}</div>
+                      )}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Keyboard footer */}
+          <div className="flex items-center gap-4 px-4 py-3 bg-zinc-800/50 border-t border-zinc-800">
+            <div className="flex items-center gap-1.5">
+              <kbd className="px-1.5 py-0.5 text-[10px] font-sans font-semibold text-zinc-400 bg-zinc-800 border border-zinc-700 rounded">Enter</kbd>
+              <span className="text-[11px] text-zinc-500">{lang === "pl" ? "wybierz" : "select"}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <kbd className="px-1.5 py-0.5 text-[10px] font-sans font-semibold text-zinc-400 bg-zinc-800 border border-zinc-700 rounded">Esc</kbd>
+              <span className="text-[11px] text-zinc-500">{lang === "pl" ? "zamknij" : "close"}</span>
+            </div>
+            <div className="flex items-center gap-1.5 ml-auto">
+              <span className="text-[11px] text-zinc-500 hidden sm:inline">
+                {lang === "pl" ? "nawiguj" : "navigate"}
+              </span>
+              <kbd className="px-1.5 py-0.5 text-[10px] font-sans font-semibold text-zinc-400 bg-zinc-800 border border-zinc-700 rounded">↓</kbd>
+              <kbd className="px-1.5 py-0.5 text-[10px] font-sans font-semibold text-zinc-400 bg-zinc-800 border border-zinc-700 rounded">↑</kbd>
+            </div>
+          </div>
         </div>
       )}
     </span>
