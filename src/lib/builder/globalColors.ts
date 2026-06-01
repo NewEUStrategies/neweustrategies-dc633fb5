@@ -284,6 +284,64 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
     ],
   },
+  {
+    id: "headings",
+    label: "Headings (H1–H6)",
+    slots: [
+      { key: "h1", label: "H1 Color", description: "Kolor nagłówków H1.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff" },
+      { key: "h2", label: "H2 Color", description: "Kolor nagłówków H2.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff" },
+      { key: "h3", label: "H3 Color", description: "Kolor nagłówków H3.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6" },
+      { key: "h4", label: "H4 Color", description: "Kolor nagłówków H4.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6" },
+      { key: "h5", label: "H5 Color", description: "Kolor nagłówków H5.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb" },
+      { key: "h6", label: "H6 Color", description: "Kolor nagłówków H6.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb" },
+    ],
+  },
+  {
+    id: "body-text",
+    label: "Body Text",
+    slots: [
+      {
+        key: "body-text",
+        label: "Body Text Color",
+        description: "Kolor podstawowego tekstu (akapity, listy).",
+        hasDark: true,
+        defaultLight: "#374151",
+        defaultDark: "#d1d5db",
+        overrides: ["--foreground"],
+      },
+      {
+        key: "body-text-muted",
+        label: "Muted Text Color",
+        description: "Kolor tekstu drugorzędnego (podpisy, meta).",
+        hasDark: true,
+        defaultLight: "#6b7280",
+        defaultDark: "#9ca3af",
+        overrides: ["--muted-foreground"],
+      },
+    ],
+  },
+  {
+    id: "links",
+    label: "Links",
+    slots: [
+      {
+        key: "link",
+        label: "Link Color",
+        description: "Kolor linków w treści.",
+        hasDark: true,
+        defaultLight: "#fa9346",
+        defaultDark: "#fbbf24",
+      },
+      {
+        key: "link-hover",
+        label: "Link Hover Color",
+        description: "Kolor linków po najechaniu.",
+        hasDark: true,
+        defaultLight: "#01112F",
+        defaultDark: "#ffffff",
+      },
+    ],
+  },
 ];
 
 export type GlobalColorsValue = Record<string, { light?: string; dark?: string }>;
