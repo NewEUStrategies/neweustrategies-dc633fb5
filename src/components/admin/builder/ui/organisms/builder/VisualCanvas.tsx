@@ -224,7 +224,7 @@ export function VisualCanvas({
   return (
     <div data-visual-canvas onClick={onClick} ref={rootRef}>
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
-      <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} />
+      <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} onRemoveBelow={onRemoveSection && doc.sections[0] ? () => onRemoveSection(doc.sections[0].id) : undefined} />
       {doc.sections.map((s, idx) => (
         <div key={s.id}>
           <BuilderRenderer doc={{ ...doc, sections: [s] }} lang={lang} device={device} />
@@ -233,11 +233,12 @@ export function VisualCanvas({
             index={idx + 1}
             prominent={idx === doc.sections.length - 1}
             label={idx === doc.sections.length - 1 ? lastLabel : undefined}
-            onRemoveAdjacent={onRemoveSection ? () => onRemoveSection(s.id) : undefined}
-            removeLabel="Usuń sekcję powyżej"
+            onRemoveAbove={onRemoveSection ? () => onRemoveSection(s.id) : undefined}
+            onRemoveBelow={onRemoveSection && doc.sections[idx + 1] ? () => onRemoveSection(doc.sections[idx + 1].id) : undefined}
           />
         </div>
       ))}
+
     </div>
   );
 }
