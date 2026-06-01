@@ -487,6 +487,31 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"])::placeholder, textarea::placeholder){color:var(--gc-input-placeholder, currentColor);}
     :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover, textarea:hover, select:hover){background:var(--gc-input-hover-bg, var(--gc-input-bg, transparent));border-color:var(--gc-input-hover-border, var(--gc-input-border, currentColor));}
     :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus, input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible, textarea:focus, textarea:focus-visible, select:focus, select:focus-visible){border-color:var(--gc-input-focus-border, var(--gc-highlight, currentColor));outline-color:var(--gc-input-focus-border, var(--gc-highlight, currentColor));}
+
+    /* Per-element hover (auto z isSlotHoverable). */
+    :where(main h1:hover, article h1:hover, section h1:hover){color:var(--gc-h1-hover, var(--gc-h1, inherit));}
+    :where(main h2:hover, article h2:hover, section h2:hover){color:var(--gc-h2-hover, var(--gc-h2, inherit));}
+    :where(main h3:hover, article h3:hover, section h3:hover){color:var(--gc-h3-hover, var(--gc-h3, inherit));}
+    :where(main h4:hover, article h4:hover, section h4:hover){color:var(--gc-h4-hover, var(--gc-h4, inherit));}
+    :where(main h5:hover, article h5:hover, section h5:hover){color:var(--gc-h5-hover, var(--gc-h5, inherit));}
+    :where(main h6:hover, article h6:hover, section h6:hover){color:var(--gc-h6-hover, var(--gc-h6, inherit));}
+    :where(main p:hover, article p:hover, section p:hover, main li:hover, article li:hover, section li:hover){color:var(--gc-body-text-hover, var(--gc-body-text, inherit));}
+    :where(main small:hover, article small:hover, section small:hover, .text-muted:hover, .muted:hover){color:var(--gc-body-text-muted-hover, var(--gc-body-text-muted, inherit));}
+    :where(.sponsor-label:hover){color:var(--gc-sponsor-label-hover, var(--gc-sponsor-label, currentColor));}
+    :where(.popular-counter:hover){color:var(--gc-popular-counter-hover, var(--gc-popular-counter, currentColor));}
+    :where(.live-blog-dot:hover){color:var(--gc-live-blog-hover, var(--gc-live-blog, currentColor));background:var(--gc-live-blog-hover, var(--gc-live-blog, transparent));}
+    :where(.verified-tick:hover){color:var(--gc-verified-tick-hover, var(--gc-verified-tick, currentColor));}
+    :where(.toc-wrap:hover, .share-bar:hover){background:var(--gc-toc-bg-hover, var(--gc-toc-bg, transparent));}
+    :where(.review-star-bg:hover){background:var(--gc-review-bg-hover, var(--gc-review-bg, transparent));}
+    :where(.review-star-icon:hover){color:var(--gc-review-icon-hover, var(--gc-review-icon, currentColor));}
+    :where(.mode-switcher-light:hover){color:var(--gc-switcher-light-icon-hover, var(--gc-switcher-light-icon, currentColor));background:var(--gc-switcher-light-bg-hover, var(--gc-switcher-light-bg, transparent));}
+    :where(.mode-switcher-dark:hover){color:var(--gc-switcher-dark-icon-hover, var(--gc-switcher-dark-icon, currentColor));background:var(--gc-switcher-dark-bg-hover, var(--gc-switcher-dark-bg, transparent));}
+    :where(body:hover){background:var(--gc-body-bg-hover, var(--gc-body-bg, transparent));}
+    :where([data-single-post]:hover){background:var(--gc-body-bg-single-hover, var(--gc-body-bg-single, var(--gc-body-bg, transparent)));}
+    :where([data-dark-accent]:hover){background:var(--gc-dark-accent-hover, var(--gc-dark-accent, transparent));}
+    :where([data-sidebar="sidebar"]:hover){background:var(--gc-sidebar-bg-hover, var(--gc-sidebar-bg, var(--sidebar-background))) !important;border-color:var(--gc-sidebar-border-hover, var(--gc-sidebar-border, var(--sidebar-border))) !important;}
+    :where([data-sidebar="sidebar"]:hover){color:var(--gc-sidebar-text-hover, var(--gc-sidebar-text, var(--sidebar-foreground))) !important;}
+    :where(.bookmark-icon:hover){color:var(--gc-bookmark-hover-hover, var(--gc-bookmark-hover, currentColor));}
   `.replace(/\s+/g, " ").trim());
 
 
