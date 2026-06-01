@@ -19,9 +19,10 @@ import { WIDGETS as _WIDGETS, makeWidget } from "@/lib/builder/registry";
 void _WIDGETS;
 import type {
   BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode,
-  Device, WidgetType,
+  Device, WidgetType, Mode,
 } from "@/lib/builder/types";
 import { emptyDocument, newId } from "@/lib/builder/types";
+import { BuilderModeProvider } from "@/lib/builder/modeContext";
 import {
   cloneSection, cloneColumn, cloneWidget,
   findWidget, findSection, findColumn, findInner,
