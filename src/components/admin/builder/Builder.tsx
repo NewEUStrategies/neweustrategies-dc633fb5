@@ -1070,7 +1070,7 @@ function ColumnView({
         </div>
       )}
       <SortableContext items={column.children.map((w) => w.id)} strategy={verticalListSortingStrategy}>
-        <div className="flex flex-wrap items-start gap-2">
+        <div className="flex flex-wrap items-start content-start gap-2">
           {column.children.map((w) => (
             <SortableWidget key={w.id} widget={w} lang={lang} device={device}
               selected={selection.kind === "widget" && selection.id === w.id}
@@ -1096,9 +1096,9 @@ function SortableWidget({
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   const hidden = !!widget.advanced?.hideOn?.[device];
   return (
-    <div ref={setNodeRef} style={style} {...attributes}
+    <div ref={setNodeRef} style={{ ...style, width: "fit-content", maxWidth: "100%" }} {...attributes}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
-      className={`group/w relative inline-block max-w-full rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} p-1 ${hidden ? "opacity-40" : ""}`}
+      className={`group/w relative inline-flex w-fit max-w-full shrink-0 self-start rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} p-1 ${hidden ? "opacity-40" : ""}`}
     >
       <div className={`absolute -top-2.5 right-2 z-10 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] transition ${selected ? "opacity-100" : "opacity-0 group-hover/w:opacity-100"}`}>
         <span {...listeners} className="cursor-grab text-muted-foreground px-1" title="Przeciągnij">⋮⋮</span>
