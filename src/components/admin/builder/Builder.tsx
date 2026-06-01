@@ -569,6 +569,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                   doc={doc} lang={lang} device={device}
                   selection={selection} setSelection={setSelection}
                   onInsertSection={insertSectionAt}
+                  onRemoveSection={removeSection}
                   onMoveWidget={moveWidgetTo}
                   onMoveWidgetToColumn={moveWidgetToColumn}
                   onMoveWidgetToSection={moveWidgetToSection}
@@ -614,10 +615,12 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                         }
                       />
                       <SectionDropZone
-                        onInsert={(s) => insertSectionAt(idx + 1, s)}
+                        onInsert={(spans) => insertSectionAt(idx + 1, spans)}
                         index={idx + 1}
                         prominent={idx === doc.sections.length - 1}
                         label={idx === doc.sections.length - 1 ? copy.last : undefined}
+                        onRemoveAdjacent={() => removeSection(s.id)}
+                        removeLabel="Usuń sekcję powyżej"
                       />
                     </div>
                   ))}

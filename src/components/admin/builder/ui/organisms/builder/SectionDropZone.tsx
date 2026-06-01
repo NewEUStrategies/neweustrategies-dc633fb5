@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { Plus } from "@/lib/lucide-shim";
+import { Plus, Trash2 } from "@/lib/lucide-shim";
 import { StructurePicker } from "../../../StructurePicker";
 
 export function SectionDropZone({
-  onInsert, index, prominent, label,
+  onInsert, index, prominent, label, onRemoveAdjacent, removeLabel,
 }: {
   onInsert: (spans: number[]) => void; index: number;
   prominent?: boolean; label?: string;
+  onRemoveAdjacent?: () => void;
+  removeLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   if (open) {
@@ -14,7 +16,20 @@ export function SectionDropZone({
       <div data-section-inserter className="my-2 p-2 border border-brand/60 rounded bg-card shadow-sm" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Wybierz strukturę</span>
-          <button type="button" onClick={() => setOpen(false)} className="px-1 text-[11px] text-muted-foreground hover:text-foreground">×</button>
+          <div className="flex items-center gap-1">
+            {onRemoveAdjacent && (
+              <button
+                type="button"
+                onClick={() => { onRemoveAdjacent(); setOpen(false); }}
+                title={removeLabel ?? "Usuń sąsiednią sekcję"}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-destructive hover:bg-destructive/10 rounded"
+              >
+                <Trash2 className="w-3 h-3" />
+                Usuń sekcję
+              </button>
+            )}
+            <button type="button" onClick={() => setOpen(false)} className="px-1 text-[11px] text-muted-foreground hover:text-foreground">×</button>
+          </div>
         </div>
         <StructurePicker onPick={(s) => { onInsert(s); setOpen(false); }} cols={7} compact />
       </div>
