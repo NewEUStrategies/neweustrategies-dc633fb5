@@ -113,13 +113,9 @@ export function PostSidebar({ articleRef, tags, scanKey }: PostSidebarProps) {
           <ul className="flex flex-wrap gap-1.5">
             {tags.map((tg) => (
               <li key={tg.slug}>
-                <Link
-                  to="/tags/$slug"
-                  params={{ slug: tg.slug }}
-                  className="inline-block rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
-                >
+                <span className="inline-block rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground">
                   #{tg.name}
-                </Link>
+                </span>
               </li>
             ))}
           </ul>
