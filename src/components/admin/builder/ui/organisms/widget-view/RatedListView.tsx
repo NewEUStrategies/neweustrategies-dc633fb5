@@ -34,14 +34,16 @@ export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   const numWeight = getStr(c, "numberWeight") || "700";
   const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 48;
   const numColor = getStr(c, "numberColor") || "#000000";
-  const numColorDark = getStr(c, "numberColorDark") || "#ffffff";
+  const numColorDarkRaw = getStr(c, "numberColorDark");
+  const numColorDark = numColorDarkRaw || autoInvertColor(numColor, "dark");
   const numOpacity = typeof c.numberOpacity === "number" ? c.numberOpacity : 0.05;
   const numPos = getStr(c, "numberPosition") || "behind";
   const showRating = c.showRating !== false;
 
   const showCategory = c.showCategory === true;
   const categoryColor = getStr(c, "categoryColor") || "#dc2626";
-  const categoryColorDark = getStr(c, "categoryColorDark") || "#f87171";
+  const categoryColorDarkRaw = getStr(c, "categoryColorDark");
+  const categoryColorDark = categoryColorDarkRaw || autoInvertColor(categoryColor, "dark");
   const categorySize = typeof c.categorySizePx === "number" ? c.categorySizePx : 11;
   const categoryWeight = getStr(c, "categoryWeight") || "700";
   const categoryUppercase = c.categoryUppercase !== false;
