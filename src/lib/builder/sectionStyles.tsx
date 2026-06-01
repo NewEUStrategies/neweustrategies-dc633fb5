@@ -70,8 +70,9 @@ export function sectionWrapperStyle(node: SectionNode | InnerSectionNode): CSSPr
     css.minHeight = `${px}px`;
   }
   // "default" → no min-height: section is exactly as tall as its content.
-  css.marginTop = `${typeof L?.marginTop === "number" ? L.marginTop : 5}px`;
-  css.marginBottom = `${typeof L?.marginBottom === "number" ? L.marginBottom : 5}px`;
+  css.marginTop = `${typeof L?.marginTop === "number" ? L.marginTop : 0}px`;
+  css.marginBottom = `${typeof L?.marginBottom === "number" ? L.marginBottom : 0}px`;
+
   return css;
 }
 
