@@ -61,6 +61,26 @@ function PagesList() {
     },
   });
 
+  const reading = useSettings<Reading>("reading", READING_DEFAULTS);
+  const currentHome =
+    reading.query.data?.homepage_mode === "static_page"
+      ? reading.query.data?.homepage_page_slug ?? ""
+      : "";
+
+  const setAsHome = async (slug: string, title: string) => {
+    const next: Reading = {
+      ...(reading.query.data ?? READING_DEFAULTS),
+      homepage_mode: "static_page",
+      homepage_page_slug: slug,
+    };
+    try {
+      await reading.save.mutateAsync(next);
+      toast.success(`Ustawiono "${title || slug}" jako stronę główną`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const allIds = useMemo(() => pages?.map((p) => p.id) ?? [], [pages]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0 && !allSelected;
