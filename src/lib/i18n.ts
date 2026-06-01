@@ -690,15 +690,39 @@ const resources = {
 };
 
 const STORAGE_KEY = "lovable.lang";
+const COOKIE_KEY = "lovable_lang";
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 rok
+
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function writeCookie(name: string, value: string) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+}
+
+function detectBrowserLang(): "pl" | "en" {
+  if (typeof navigator === "undefined") return "pl";
+  const langs = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ""]) as string[];
+  for (const l of langs) {
+    const code = (l || "").toLowerCase().split("-")[0];
+    if (code === "pl" || code === "en") return code;
+  }
+  return "pl";
+}
 
 function readStoredLang(): "pl" | "en" {
   if (typeof window === "undefined") return "pl";
   try {
-    const v = window.localStorage.getItem(STORAGE_KEY);
-    return v === "en" ? "en" : "pl";
+    const stored = window.localStorage.getItem(STORAGE_KEY) || readCookie(COOKIE_KEY);
+    if (stored === "pl" || stored === "en") return stored;
   } catch {
-    return "pl";
+    /* ignore */
   }
+  return detectBrowserLang();
 }
 
 if (!i18n.isInitialized) {
@@ -717,6 +741,7 @@ if (!i18n.isInitialized) {
     i18n.on("languageChanged", (lng) => {
       try {
         window.localStorage.setItem(STORAGE_KEY, lng);
+        writeCookie(COOKIE_KEY, lng);
         document.documentElement.setAttribute("lang", lng);
       } catch {
         /* ignore */
@@ -724,11 +749,14 @@ if (!i18n.isInitialized) {
     });
     try {
       document.documentElement.setAttribute("lang", i18n.language);
+      // Backfill cookie if missing (np. ustawione tylko w localStorage wcześniej).
+      if (!readCookie(COOKIE_KEY)) writeCookie(COOKIE_KEY, i18n.language);
     } catch {
       /* ignore */
     }
   }
 }
+
 
 export default i18n;
 
