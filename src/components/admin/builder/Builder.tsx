@@ -33,6 +33,7 @@ import {
 import { copyToClipboard, readClipboard, type ClipEnvelope } from "@/lib/builder/clipboard";
 import { useHistory } from "@/lib/builder/useHistory";
 import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
+import { buildHomepageDocument } from "@/lib/builder/homepageTemplate";
 import { WidgetView } from "./WidgetView";
 import { SectionProperties } from "./SectionProperties";
 import { WidgetProperties } from "./WidgetProperties";
@@ -112,6 +113,10 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   // ---------- structural ops ----------
   const templates = useSectionTemplates();
   const addSection = (colsOrSpans: number | number[]) => update((d) => { d.sections.push(newSection(colsOrSpans)); });
+  const loadHomepage = useCallback(() => {
+    const tpl = buildHomepageDocument();
+    history.setDoc(tpl);
+  }, [history]);
   const insertTemplateSection = (tpl: SectionTemplate) => update((d) => {
     d.sections.push(cloneSection(tpl.data));
   });
@@ -528,8 +533,14 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
               ) : (
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                   {doc.sections.length === 0 && (
-                    <EmptyState onAdd={addSection} title={copy.title} hint={copy.hint} />
+                    <EmptyState
+                      onAdd={addSection}
+                      title={copy.title}
+                      hint={copy.hint}
+                      onLoadHomepage={scope === "page" ? loadHomepage : undefined}
+                    />
                   )}
+
 
                   <SectionDropZone onInsert={(s) => insertSectionAt(0, s)} index={0} prominent label={copy.first} />
 
@@ -664,7 +675,7 @@ function CanvasActionBar({
 }
 
 
-function EmptyState({ onAdd, title, hint }: { onAdd: (spans: number[]) => void; title?: string; hint?: string }) {
+function EmptyState({ onAdd, title, hint, onLoadHomepage }: { onAdd: (spans: number[]) => void; title?: string; hint?: string; onLoadHomepage?: () => void }) {
   return (
     <div data-section-inserter className="bg-card/60 border-2 border-dashed border-brand/40 rounded-lg p-8 my-4">
       <div className="text-center mb-5">
@@ -675,6 +686,16 @@ function EmptyState({ onAdd, title, hint }: { onAdd: (spans: number[]) => void; 
         <p className="text-xs text-muted-foreground">
           {hint ?? "Wybierz strukturę pierwszej sekcji."}
         </p>
+        {onLoadHomepage && (
+          <button
+            type="button"
+            onClick={onLoadHomepage}
+            className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-brand text-brand-foreground text-xs font-semibold hover:opacity-90 transition"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Wczytaj layout strony głównej
+          </button>
+        )}
       </div>
       <div className="max-w-3xl mx-auto">
         <StructurePicker onPick={onAdd} cols={4} />

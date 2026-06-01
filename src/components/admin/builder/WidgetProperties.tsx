@@ -260,6 +260,8 @@ function ContentFields({ widget, lang, setContent }: {
       return <PricingEditor c={c} lang={lang} setContent={setContent} />;
     case "image":
       return <ImageEditor c={c} lang={lang} setContent={setContent} />;
+    case "rated-list":
+      return <RatedListEditor c={c} lang={lang} setContent={setContent} />;
   }
 
   // Schema-driven render for simple widgets.
@@ -451,6 +453,60 @@ function PricingEditor({ c, lang, setContent }: { c: WidgetNode["content"]; lang
     </ListShell>
   );
 }
+
+function RatedListEditor({ c, lang, setContent }: { c: WidgetNode["content"]; lang: "pl"|"en"; setContent: (k: string, v: Json) => void }) {
+  const items = itemsOf(c, "items");
+  const update = (next: Item[]) => setContent("items", next as unknown as Json);
+  const upd = (i: number, patch: Partial<Item>) =>
+    update(items.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  return (
+    <ListShell
+      title="Pozycje listy"
+      items={items}
+      onAdd={() => update([...items, { title_pl: "Nowa pozycja", title_en: "New item", excerpt_pl: "", excerpt_en: "", author: "", rating: 0 }])}
+    >
+      <div className="space-y-2">
+        {items.map((it, i) => (
+          <ItemFrame key={i} title={`Pozycja #${i + 1}`} onRemove={() => update(items.filter((_, j) => j !== i))}>
+            <PropField label={`Tytuł (${lang.toUpperCase()})`}>
+              <Input
+                value={typeof it[`title_${lang}`] === "string" ? (it[`title_${lang}`] as string) : ""}
+                onChange={(e) => upd(i, { [`title_${lang}`]: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </PropField>
+            <PropField label={`Zajawka (${lang.toUpperCase()})`}>
+              <Textarea
+                rows={2}
+                value={typeof it[`excerpt_${lang}`] === "string" ? (it[`excerpt_${lang}`] as string) : ""}
+                onChange={(e) => upd(i, { [`excerpt_${lang}`]: e.target.value })}
+                className="text-xs"
+              />
+            </PropField>
+            <div className="grid grid-cols-2 gap-2">
+              <PropField label="Autor">
+                <Input
+                  value={typeof it.author === "string" ? it.author : ""}
+                  onChange={(e) => upd(i, { author: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </PropField>
+              <PropField label="Ocena (0–10)">
+                <Input
+                  type="number" min={0} max={10} step={0.1}
+                  value={typeof it.rating === "number" ? it.rating : 0}
+                  onChange={(e) => upd(i, { rating: Number(e.target.value) || 0 })}
+                  className="h-8 text-xs"
+                />
+              </PropField>
+            </div>
+          </ItemFrame>
+        ))}
+      </div>
+    </ListShell>
+  );
+}
+
 
 // ---------- Image editor (upload + light/dark variant + preview) ----------
 
