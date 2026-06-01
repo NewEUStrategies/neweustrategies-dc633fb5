@@ -25,17 +25,18 @@ export function AdminShell({ children, hideSidebar }: { children: ReactNode; hid
     { to: "/admin/media", icon: ImageIcon, label: t("admin.nav.media") },
     { to: "/admin/categories", icon: FolderTree, label: t("admin.nav.categories") },
     { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
-    { to: "/admin/paywall", icon: Star, label: "Paywall" },
-    { to: "/admin/appearance", icon: Layers, label: "Wygląd" },
-    { to: "/admin/post-layouts", icon: Layers, label: "Layouty wpisów" },
-    { to: "/admin/content-area", icon: FileText, label: "Content Area" },
-    { to: "/admin/newsletter", icon: Mail, label: "Newsletter" },
-    { to: "/admin/personalized", icon: Bookmark, label: "Personalized" },
+    { to: "/admin/paywall", icon: Star, label: t("admin.nav.paywall") },
+    { to: "/admin/appearance", icon: Layers, label: t("admin.nav.appearance") },
+    { to: "/admin/post-layouts", icon: Layers, label: t("admin.nav.postLayouts") },
+    { to: "/admin/content-area", icon: FileText, label: t("admin.nav.contentArea") },
+    { to: "/admin/newsletter", icon: Mail, label: t("admin.nav.newsletter") },
+    { to: "/admin/personalized", icon: Bookmark, label: t("admin.nav.personalized") },
     ...(isAdmin ? [
       { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
-      { to: "/admin/settings", icon: Settings, label: "Ustawienia" },
+      { to: "/admin/settings", icon: Settings, label: t("admin.nav.settings") },
     ] : []),
   ];
+
 
   const handleSignOut = async () => {
     await signOut();
