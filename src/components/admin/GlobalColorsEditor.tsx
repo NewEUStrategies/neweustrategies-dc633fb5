@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import {
   GLOBAL_COLOR_GROUPS,
   EMPTY_GLOBAL_COLORS,
+  globalColorsToCss,
   type GlobalColorsValue,
   type GlobalColorSlot,
 } from "@/lib/builder/globalColors";
