@@ -130,12 +130,17 @@ function PublicPage() {
 
   const maxW = isPost ? "max-w-[1200px]" : "max-w-[1200px]";
 
+  const takeaways: readonly string[] = post
+    ? (lang === "en" ? post.takeaways_en : post.takeaways_pl) ?? []
+    : [];
+
   const contentBlock = (
     <div ref={articleRef}>
       {access.rule && !access.hasAccess ? (
         <Paywall rule={access.rule} lang={lang} fallbackText={rawHtml} />
       ) : (
         <>
+          {isPost && takeaways.length > 0 && <KeyTakeaways items={takeaways} />}
           {isBuilder ? (
             <BuilderRenderer doc={doc} lang={lang} />
           ) : (
@@ -146,6 +151,7 @@ function PublicPage() {
       )}
     </div>
   );
+
 
   // Posts: render via PostLayoutRenderer with merged global+override settings.
   if (isPost && post && globalLayoutSettings) {
