@@ -77,7 +77,9 @@ interface ViewProps {
 
 export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
   const { theme } = useTheme();
-  const baseStyle = styleToCSS(node.style, device);
+  const builderMode = useBuilderMode();
+  const effectiveMode = builderMode ?? theme;
+  const baseStyle = styleToCSS(node.style, device, effectiveMode);
   const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
   const htmlId = sanitizeHtmlId(node.advanced?.htmlId);
   const motion = node.advanced?.animation && node.advanced.animation !== "none"
