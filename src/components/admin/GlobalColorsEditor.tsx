@@ -174,13 +174,18 @@ export function GlobalColorsEditor() {
 
 
       <Tabs defaultValue={GLOBAL_COLOR_GROUPS[0]?.id} className="w-full">
-        <TabsList className="w-full flex flex-wrap h-auto justify-start gap-1 bg-muted/50 p-1">
+        <TabsList className="w-full grid grid-cols-2 gap-1 h-auto bg-muted/50 p-1">
           {GLOBAL_COLOR_GROUPS.map((group) => (
-            <TabsTrigger key={group.id} value={group.id} className="text-xs">
+            <TabsTrigger
+              key={group.id}
+              value={group.id}
+              className="text-xs justify-start w-full"
+            >
               {group.label}
             </TabsTrigger>
           ))}
         </TabsList>
+
 
         {GLOBAL_COLOR_GROUPS.map((group) => (
           <TabsContent key={group.id} value={group.id} className="mt-4">
