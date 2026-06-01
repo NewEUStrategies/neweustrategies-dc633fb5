@@ -142,18 +142,9 @@ WHERE NOT EXISTS (SELECT 1 FROM pages WHERE tenant_id='${TENANT}' AND slug='${sq
     const cover = p.featured_image ? `'${sqlEscape(p.featured_image)}'` : "NULL";
     const status = p.status === "publish" ? "published" : "draft";
     const pubAt = p.date ? `'${p.date}'::timestamptz` : "NULL";
-    stmts.push(`
-WITH upd AS (
-  UPDATE posts SET builder_data='${docJson}'::jsonb, title_pl='${titleE}', title_en='${titleE}', excerpt_pl='${excE}', excerpt_en='${excE}', cover_image_url=COALESCE(cover_image_url, ${cover}), updated_at=now()
-  WHERE tenant_id='${TENANT}' AND slug='${sqlEscape(slug)}' AND builder_data IS NULL
-  RETURNING 'updated' AS k
-), ins AS (
-  INSERT INTO posts (tenant_id, slug, title_pl, title_en, excerpt_pl, excerpt_en, status, builder_data, cover_image_url, published_at, editor, parent_page_id, post_format)
-  SELECT '${TENANT}','${sqlEscape(slug)}','${titleE}','${titleE}','${excE}','${excE}','${status}'::post_status,'${docJson}'::jsonb, ${cover}, ${pubAt}, 'builder'::editor_type, '${BLOG_PAGE}', 'standard'
-  WHERE NOT EXISTS (SELECT 1 FROM posts WHERE tenant_id='${TENANT}' AND slug='${sqlEscape(slug)}')
-  RETURNING 'inserted' AS k
-)
-SELECT (SELECT k FROM upd) AS updated, (SELECT k FROM ins) AS inserted;`);
+    stmts.push(`INSERT INTO posts (tenant_id, slug, title_pl, title_en, excerpt_pl, excerpt_en, status, builder_data, cover_image_url, published_at, editor, parent_page_id, post_format)
+SELECT '${TENANT}','${sqlEscape(slug)}','${titleE}','${titleE}','${excE}','${excE}','${status}'::post_status,'${docJson}'::jsonb, ${cover}, ${pubAt}, 'builder'::editor_type, '${BLOG_PAGE}', 'standard'
+WHERE NOT EXISTS (SELECT 1 FROM posts WHERE tenant_id='${TENANT}' AND slug='${sqlEscape(slug)}');`);
   }
 
   require("fs").writeFileSync("/tmp/wp_import.sql", stmts.join("\n"));
