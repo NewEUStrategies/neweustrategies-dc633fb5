@@ -155,7 +155,7 @@ export function renderSimpleWidget(
       const linkStyle = compactIconBoxStyle(box);
 
       return (
-        <div className={`flex items-center gap-1 text-muted-foreground ${themeCls}`} style={compactRowStyle}>
+        <div className={`flex flex-wrap items-center gap-1 text-muted-foreground ${themeCls}`} style={compactRowStyle}>
           {items.map(({ k, altKeys, Cmp, label }) => {
             const href = getStr(c, k) || (altKeys?.map((ak) => getStr(c, ak)).find(Boolean) ?? "");
             const active = !!href;
