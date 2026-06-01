@@ -111,7 +111,19 @@ const resources = {
         signinOk: "Zalogowano",
         signupOk: "Konto utworzone",
       },
+      post: {
+        takeaways: {
+          title: "Z tego materiału dowiesz się, że ...",
+          adminTitle: "Z tego materiału dowiesz się, że ... (max 6 punktów)",
+          placeholder: "Punkt {{n}}",
+          add: "Dodaj punkt",
+          remove: "Usuń",
+          hint: "Krótkie, konkretne bullet pointy - max 6. Wyświetlane nad treścią wpisu w wybranym języku.",
+          empty: "Brak punktów dla tego języka.",
+        },
+      },
       admin: {
+
         nav: {
           dashboard: "Kokpit",
           posts: "Wpisy",
