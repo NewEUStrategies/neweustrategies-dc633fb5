@@ -11,7 +11,44 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight } from "@/lib/lucide-shim";
 
 // ---------- Defaults ----------
-const DEFAULTS = {
+type HoverEffect = "color-border" | "underline" | "background" | "scale" | "none";
+type SearchMode = "standalone" | "dropdown" | "fullscreen";
+
+interface ThemeOptions {
+  logo: {
+    main: string;
+    main_dark: string;
+    mobile: string;
+    mobile_dark: string;
+    transparent: string;
+    organization: string;
+    bookmark_ios: string;
+    bookmark_windows: string;
+    add_to_home_screen: boolean;
+  };
+  header: {
+    main_menu: {
+      hover_effect: HoverEffect;
+      sticky: boolean;
+      smart_sticky: boolean;
+      glass_effect: boolean;
+      item_spacing: number;
+      icon_spacing: number;
+      submenu_bg_from: string;
+      submenu_bg_to: string;
+    };
+    search: {
+      enabled: boolean;
+      heading: string;
+      mode: SearchMode;
+      live_results: boolean;
+      live_limit: number;
+      more_menu_search: boolean;
+    };
+  };
+}
+
+const DEFAULTS: ThemeOptions = {
   logo: {
     main: "",
     main_dark: "",
@@ -25,7 +62,7 @@ const DEFAULTS = {
   },
   header: {
     main_menu: {
-      hover_effect: "color-border" as "color-border" | "underline" | "background" | "scale" | "none",
+      hover_effect: "color-border",
       sticky: true,
       smart_sticky: false,
       glass_effect: false,
@@ -37,15 +74,13 @@ const DEFAULTS = {
     search: {
       enabled: true,
       heading: "Search",
-      mode: "standalone" as "standalone" | "dropdown" | "fullscreen",
+      mode: "standalone",
       live_results: true,
       live_limit: 5,
       more_menu_search: true,
     },
   },
-} as const;
-
-type ThemeOptions = typeof DEFAULTS;
+};
 
 const SECTIONS = [
   { id: "logo", label: "Logo", icon: ImageIcon },
