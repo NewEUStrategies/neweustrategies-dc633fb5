@@ -45,7 +45,7 @@ export function AdminShell({ children, hideSidebar }: { children: ReactNode; hid
 
   return (
     <div className={`min-h-screen bg-muted/30 ${hideSidebar ? "" : "flex"}`}>
-      <AdminLangBar />
+      {hideSidebar && <AdminLangBar />}
       {!hideSidebar && (
         <aside
           className={`${compact ? "w-14" : "w-64"} bg-card border-r border-border flex flex-col transition-all duration-200`}
