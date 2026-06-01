@@ -151,6 +151,7 @@ export function ThemeOptionsPane() {
 
         {active === "logo" && (
           <div className="space-y-5">
+            <LogoPreview logo={draft.logo} tab={logoTab} />
             <LogoTabs value={logoTab} onChange={setLogoTab} />
 
             {logoTab === "default" && (
