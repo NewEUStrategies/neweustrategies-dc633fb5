@@ -354,6 +354,7 @@ function EditPost() {
             {metaCard}
             {catsCard}
             {tagsCard}
+            <AccessSettingsPane entityType="post" entityId={id} />
           </aside>
         </div>
       ) : (
