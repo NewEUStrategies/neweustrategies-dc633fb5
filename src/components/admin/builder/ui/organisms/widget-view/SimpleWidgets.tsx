@@ -22,6 +22,7 @@ type Lang = "pl" | "en";
 function PostsSliderWidget({ c, lang }: { c: WidgetNode["content"]; lang: Lang }) {
   const limit = Math.max(1, Math.min(20, getNum(c, "limit", 5)));
   const categoryId = getStr(c, "categoryId") || "";
+  const categorySlugsRaw = getStr(c, "categorySlugs") || "";
   const tagSlugsRaw = getStr(c, "tagSlugs") || "";
   const excludeRaw = getStr(c, "excludeIds") || "";
   const orderBy = getStr(c, "orderBy") || "newest";
@@ -34,17 +35,22 @@ function PostsSliderWidget({ c, lang }: { c: WidgetNode["content"]; lang: Lang }
   const showExcerpt = c.showExcerpt !== false;
   const ctaLabel = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || "";
 
+  const categorySlugs = categorySlugsRaw.split(",").map((s) => s.trim()).filter(Boolean);
   const tagSlugs = tagSlugsRaw.split(",").map((s) => s.trim()).filter(Boolean);
   const excludeIds = excludeRaw.split(",").map((s) => s.trim()).filter(Boolean);
 
   const { data: items = [] } = useQuery({
-    queryKey: ["builder-slider-posts", { limit, categoryId, tagSlugs, excludeIds, orderBy }],
+    queryKey: ["builder-slider-posts", { limit, categoryId, categorySlugs, tagSlugs, excludeIds, orderBy }],
     queryFn: async () => {
-      // Resolve post ids by category / tags first if filters are set
       let allowedIds: string[] | null = null;
       if (categoryId) {
         const { data } = await supabase.from("post_categories").select("post_id").eq("category_id", categoryId);
         allowedIds = (data ?? []).map((r) => r.post_id);
+      }
+      if (categorySlugs.length) {
+        const { data } = await supabase.from("post_categories").select("post_id, categories!inner(slug)").in("categories.slug", categorySlugs);
+        const ids = (data ?? []).map((r: { post_id: string }) => r.post_id);
+        allowedIds = allowedIds ? allowedIds.filter((id) => ids.includes(id)) : ids;
       }
       if (tagSlugs.length) {
         const { data: tagRows } = await supabase.from("tags").select("id").in("slug", tagSlugs);
