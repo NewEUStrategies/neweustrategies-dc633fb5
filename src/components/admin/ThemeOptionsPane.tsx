@@ -137,6 +137,10 @@ export function ThemeOptionsPane() {
     >
       {/* Panel */}
       <section className="border border-border rounded-lg bg-card p-5 space-y-5">
+        {active === "global_colors" ? (
+          <GlobalColorsEditor />
+        ) : (
+        <>
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg">{SECTIONS.find((s) => s.id === active)?.label}</h3>
           <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
