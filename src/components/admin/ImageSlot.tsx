@@ -25,13 +25,16 @@ export function ImageSlot({
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const tenantId = useRequiredTenant();
 
   const handleFile = async (file: File) => {
     setError(null);
     setUploading(true);
     try {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id ?? "anon";
       const ext = file.name.split(".").pop()?.toLowerCase() || "png";
-      const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const path = `${tenantId}/${uid}/${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: upErr } = await supabase.storage.from(bucket).upload(path, file, {
         cacheControl: "3600", upsert: false, contentType: file.type,
       });
