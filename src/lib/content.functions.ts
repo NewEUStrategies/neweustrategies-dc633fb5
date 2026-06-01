@@ -111,6 +111,8 @@ const PostCore = z.object({
   builder_data: BuilderJsonValue.nullable().optional(),
   parent_page_id: UUID.optional(),
   template_id: UUID.nullable().optional(),
+  post_format: z.enum(["standard", "video", "audio", "gallery"]).optional(),
+  layout_overrides: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 async function resolveDefaultBlogPage(
