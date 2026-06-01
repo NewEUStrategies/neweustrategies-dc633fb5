@@ -8,6 +8,7 @@ import {
   Newspaper, Rows, FolderTree, Tags, Mail, Send, Megaphone,
   List, PanelLeft, Quote, Check, Link as LinkIcon,
   Globe, Sun, Search, User, Facebook,
+  Flame, BarChart3, Layout as LayoutIcon, Bookmark,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
