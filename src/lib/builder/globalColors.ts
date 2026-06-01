@@ -98,11 +98,11 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       {
         key: "dark-accent",
         label: "Dark Accent Color",
-        description: "Tło sekcji nagłówkowych pojedynczego wpisu, gradienty.",
+        description: "Wiodący ciemny kolor — tła sekcji nagłówkowych, gradienty, ORAZ kolor tekstu (nagłówki, akapity, tytuły kart) w trybie jasnym.",
         hasDark: true,
         defaultLight: "#01112F",
         defaultDark: "#01112F",
-        overrides: ["--accent"],
+        overrides: ["--accent", "--foreground", "--card-foreground", "--popover-foreground"],
       },
     ],
   },
