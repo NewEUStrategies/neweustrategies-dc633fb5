@@ -64,6 +64,10 @@ export function sectionWrapperStyle(node: SectionNode | InnerSectionNode): CSSPr
     css.minHeight = `${Math.max(SECTION_DEFAULT_MIN_HEIGHT_PX, (L.heightValue ?? 100))}vh`;
   } else if (L?.height === "min-height") {
     css.minHeight = `${Math.max(SECTION_DEFAULT_MIN_HEIGHT_PX, L.heightValue ?? SECTION_DEFAULT_MIN_HEIGHT_PX)}px`;
+  } else if (L?.height === "fixed") {
+    const px = Math.max(SECTION_DEFAULT_MIN_HEIGHT_PX, L.heightValue ?? 400);
+    css.height = `${px}px`;
+    css.minHeight = `${px}px`;
   } else {
     css.minHeight = `${SECTION_DEFAULT_MIN_HEIGHT_PX}px`;
   }

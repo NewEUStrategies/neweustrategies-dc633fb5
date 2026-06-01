@@ -88,7 +88,7 @@ export interface AdvancedSettings {
 // ---------- Section-specific settings (Elementor-style) ----------
 
 export type ContentWidth = "boxed" | "full";
-export type SectionHeight = "default" | "fit-screen" | "min-height";
+export type SectionHeight = "default" | "fit-screen" | "min-height" | "fixed";
 export type VerticalAlign =
   | "default" | "top" | "middle" | "bottom"
   | "space-between" | "space-around" | "space-evenly";
@@ -104,7 +104,7 @@ export interface SectionLayout {
   columnsGap?: ColumnsGap;
   columnsGapCustom?: number;         // px when columnsGap === "custom"
   height?: SectionHeight;
-  heightValue?: number;              // vh for fit-screen, px for min-height
+  heightValue?: number;              // vh for fit-screen, px for min-height / fixed
   marginTop?: number;                // px gap to previous element
   marginBottom?: number;             // px gap to next element
   verticalAlign?: VerticalAlign;
