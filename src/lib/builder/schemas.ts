@@ -389,5 +389,42 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       { value: "centered", label: "wycentrowany" },
     ]},
   ],
+
+  // ---------- Home-page building blocks ----------
+  "section-label": [
+    { key: "label", type: "i18nText", label: "Etykieta sekcji" },
+    {
+      key: "color", type: "select", label: "Kolor akcentu",
+      options: [
+        { value: "brand", label: "marka" },
+        { value: "military", label: "military" },
+        { value: "finance", label: "finance" },
+        { value: "transport", label: "transport" },
+        { value: "diplomacy", label: "diplomacy" },
+        { value: "cyber", label: "cyber" },
+        { value: "neutral", label: "neutralny" },
+      ],
+    },
+    { key: "action", type: "i18nText", label: "Tekst linku (opcjonalny)", placeholder: "więcej" },
+    { key: "href", type: "url", label: "URL linku (opcjonalny)", placeholder: "/kategoria/..." },
+  ],
+  "hot-topic-bar": [
+    { key: "badge", type: "i18nText", label: "Etykieta (badge)" },
+    { key: "title", type: "i18nText", label: "Tytuł" },
+    { key: "href", type: "url", label: "Link (opcjonalny)" },
+    {
+      key: "iconName", type: "text", label: "Ikona (Lucide)",
+      placeholder: "Flame, Zap, AlertTriangle…",
+      hint: "Nazwa ikony Lucide. Domyślnie: Flame.",
+    },
+  ],
+  "dark-featured-card": [
+    { key: "badge", type: "i18nText", label: "Etykieta (badge)" },
+    { key: "title", type: "i18nText", label: "Tytuł" },
+    { key: "excerpt", type: "i18nText", label: "Zajawka (opcjonalna)" },
+    { key: "image", type: "url", label: "URL obrazka" },
+    { key: "href", type: "url", label: "Link (opcjonalny)" },
+  ],
+  // `rated-list` has its own custom list editor in WidgetProperties.tsx.
 };
 
