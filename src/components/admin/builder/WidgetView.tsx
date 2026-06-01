@@ -118,6 +118,10 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
   const canEdit = editable && !!onContentChange;
   const commit = (k: string, v: string) => onContentChange?.(k, v);
 
+  // Read-only widgets without inline editing — short-circuit via dispatcher.
+  const simple = renderSimpleWidget(node, lang, theme);
+  if (simple !== undefined) return wrap(simple);
+
   switch (node.type) {
     case "heading": {
       const key = `text_${lang}`;
