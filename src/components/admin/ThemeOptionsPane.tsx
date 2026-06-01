@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Bell, Layout } from "@/lib/lucide-shim";
+import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard } from "@/lib/lucide-shim";
 
 // ---------- Defaults ----------
 type HoverEffect = "color-border" | "underline" | "background" | "scale" | "none";
