@@ -28,7 +28,7 @@ type RatedItem = {
   format?: string;
 };
 
-export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
+export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; lang: Lang; mode?: "light" | "dark" }) {
   const source = getStr(c, "source") || "manual";
   const numFont = getStr(c, "numberFont") || "display";
   const numWeight = getStr(c, "numberWeight") || "700";
@@ -75,10 +75,12 @@ export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
 
   const showBookmark = c.showBookmark === true;
   const bookmarkColor = getStr(c, "bookmarkColor");
+  const bookmarkColorDark = autoDark(bookmarkColor, getStr(c, "bookmarkColorDark"));
   const bookmarkSize = typeof c.bookmarkSizePx === "number" ? c.bookmarkSizePx : 16;
 
   const showPostFormat = c.showPostFormat === true;
   const postFormatColor = getStr(c, "postFormatColor");
+  const postFormatColorDark = autoDark(postFormatColor, getStr(c, "postFormatColorDark"));
 
   const colorScheme = getStr(c, "colorScheme") || "auto";
 
@@ -247,7 +249,7 @@ export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   };
   const BookmarkIcon = (LucideIcons as Record<string, React.ComponentType<{ className?: string; style?: CSSProperties }>>).Bookmark;
 
-  const schemeCls = colorScheme === "dark" ? "dark" : colorScheme === "light" ? "" : "";
+  const schemeCls = colorScheme === "dark" ? "dark" : colorScheme === "light" ? "" : mode === "dark" ? "dark" : "";
 
   // Mark unused locals (used in CSS template only)
   void colsT; void colsM;
@@ -269,6 +271,10 @@ export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
         ${excerptColorDark ? `.dark .rl-wrap .rl-exc{color:${excerptColorDark};}` : ""}
         ${readMoreColor ? `.rl-wrap .rl-more{color:${readMoreColor};}` : ""}
         ${readMoreColorDark ? `.dark .rl-wrap .rl-more{color:${readMoreColorDark};}` : ""}
+        ${bookmarkColor ? `.rl-wrap .rl-bookmark{color:${bookmarkColor};}` : ""}
+        ${bookmarkColorDark ? `.dark .rl-wrap .rl-bookmark{color:${bookmarkColorDark};}` : ""}
+        ${postFormatColor ? `.rl-wrap .rl-format{color:${postFormatColor};}` : ""}
+        ${postFormatColorDark ? `.dark .rl-wrap .rl-format{color:${postFormatColorDark};}` : ""}
         .rl-wrap .rl-item + .rl-item{${gridBorders === "between" && !isGrid ? `border-top:${gridBorderWidth}px solid ${gridBorderColor || "var(--border)"};padding-top:${itemSpacing}px;` : ""}}
       `}</style>
       <ol className="rl-wrap" style={{ ...containerStyle, ...gridStyle, listStyle: "none", margin: 0, padding: gridBorders === "full" ? 12 : 0 }}>
@@ -304,7 +310,7 @@ export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
               <div className={isLeft ? "flex-1 min-w-0" : ""}>
                 {showBookmark && BookmarkIcon && (
                   <div className="float-right ml-2">
-                    <BookmarkIcon style={{ width: bookmarkSize, height: bookmarkSize, color: bookmarkColor || undefined }} />
+                    <BookmarkIcon className="rl-bookmark" style={{ width: bookmarkSize, height: bookmarkSize }} />
                   </div>
                 )}
                 {showCategory && it.category && (
@@ -316,7 +322,7 @@ export function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
                   }}>{it.category}</div>
                 )}
                 <div className="flex items-center gap-1.5">
-                  {FmtIcon && <FmtIcon className="w-3.5 h-3.5" style={{ color: postFormatColor || undefined }} />}
+                  {FmtIcon && <FmtIcon className="rl-format w-3.5 h-3.5" />}
                   {it.href ? <a href={it.href} className="block flex-1">{titleEl}</a> : <div className="flex-1">{titleEl}</div>}
                 </div>
                 {showExcerpt && it.excerpt && (
