@@ -8,12 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard } from "@/lib/lucide-shim";
+import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers } from "@/lib/lucide-shim";
 
 // ---------- Defaults ----------
 type HoverEffect = "color-border" | "underline" | "background" | "scale" | "none";
 type SearchMode = "standalone" | "dropdown" | "fullscreen";
 type AlertStyle = "info" | "warning" | "success" | "brand";
+type HeaderLayout = "layout-1" | "layout-2" | "layout-3" | "layout-4" | "layout-5";
+type SocialPlacement = "topbar" | "navbar" | "both" | "hidden";
+type ButtonVariant = "solid" | "outline" | "ghost" | "pill";
 
 interface ThemeOptions extends Record<string, unknown> {
   logo: {
@@ -24,6 +27,7 @@ interface ThemeOptions extends Record<string, unknown> {
     add_to_home_screen: boolean;
   };
   header: {
+    layout: HeaderLayout;
     main_menu: {
       hover_effect: HoverEffect; sticky: boolean; smart_sticky: boolean; glass_effect: boolean;
       item_spacing: number; icon_spacing: number;
@@ -46,26 +50,53 @@ interface ThemeOptions extends Record<string, unknown> {
       sticky: boolean;
       show_search: boolean;
     };
+    socials: {
+      placement: SocialPlacement;
+      facebook: string; twitter: string; instagram: string;
+      linkedin: string; youtube: string; email: string;
+      size: number;
+    };
+    signin: {
+      enabled: boolean;
+      signin_label_pl: string; signin_label_en: string;
+      signup_label_pl: string; signup_label_en: string;
+      variant: ButtonVariant;
+      show_signup: boolean;
+    };
   };
 }
 
 const DEFAULTS: ThemeOptions = {
   logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", organization: "", bookmark_ios: "", bookmark_windows: "", add_to_home_screen: true },
   header: {
+    layout: "layout-1",
     main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
     search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
     alert_bar: { enabled: false, message_pl: "", message_en: "", link_url: "", style: "brand", dismissible: true },
     mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
+    socials: { placement: "topbar", facebook: "", twitter: "", instagram: "", linkedin: "", youtube: "", email: "", size: 16 },
+    signin: { enabled: true, signin_label_pl: "Zaloguj", signin_label_en: "Sign in", signup_label_pl: "Zarejestruj", signup_label_en: "Sign up", variant: "ghost", show_signup: true },
   },
 };
 
 const SECTIONS = [
   { id: "logo", label: "Logo", icon: ImageIcon },
+  { id: "header.layout", label: "Header Layout", icon: Layers },
   { id: "header.main_menu", label: "Main Menu", icon: Menu },
   { id: "header.search", label: "Header Search", icon: Search },
   { id: "header.alert_bar", label: "Alert Bar", icon: Megaphone },
+  { id: "header.socials", label: "Social Icons", icon: Users },
+  { id: "header.signin", label: "Sign In Buttons", icon: LogIn },
   { id: "header.mobile", label: "Mobile Header", icon: LayoutDashboard },
 ] as const;
+
+const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
+  "layout-1": { label: "Layout 1 — Classic Centered", hint: "Utility bar + centered logo + nav (current default)" },
+  "layout-2": { label: "Layout 2 — Logo Left", hint: "Logo po lewej, nav po prawej, jeden pasek" },
+  "layout-3": { label: "Layout 3 — Split Nav", hint: "Logo centralnie, menu po obu stronach" },
+  "layout-4": { label: "Layout 4 — Stacked", hint: "Utility bar + logo + nav (3 paski)" },
+  "layout-5": { label: "Layout 5 — Minimal", hint: "Tylko logo + menu, bez utility bar" },
+};
 
 export function ThemeOptionsPane() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,6 +118,12 @@ export function ThemeOptionsPane() {
     setDraft({ ...draft, header: { ...draft.header, alert_bar: { ...draft.header.alert_bar, ...p } } });
   const patchMobile = (p: Partial<ThemeOptions["header"]["mobile"]>) =>
     setDraft({ ...draft, header: { ...draft.header, mobile: { ...draft.header.mobile, ...p } } });
+  const patchSocials = (p: Partial<ThemeOptions["header"]["socials"]>) =>
+    setDraft({ ...draft, header: { ...draft.header, socials: { ...draft.header.socials, ...p } } });
+  const patchSignin = (p: Partial<ThemeOptions["header"]["signin"]>) =>
+    setDraft({ ...draft, header: { ...draft.header, signin: { ...draft.header.signin, ...p } } });
+  const patchLayout = (layout: HeaderLayout) =>
+    setDraft({ ...draft, header: { ...draft.header, layout } });
 
   return (
     <div className="grid grid-cols-[220px_1fr] gap-4 min-h-[600px]">
@@ -366,6 +403,91 @@ export function ThemeOptionsPane() {
             </Row>
             <Row label="Pokaż ikonę wyszukiwania">
               <Switch checked={draft.header.mobile.show_search} onCheckedChange={(v) => patchMobile({ show_search: v })} />
+            </Row>
+          </div>
+        )}
+
+        {active === "header.layout" && (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Wybierz układ nagłówka. Wpływa na pozycję logo, menu i utility bar.</p>
+            <div className="grid md:grid-cols-2 gap-3">
+              {(Object.keys(LAYOUT_PREVIEWS) as HeaderLayout[]).map((id) => {
+                const meta = LAYOUT_PREVIEWS[id];
+                const active = draft.header.layout === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => patchLayout(id)}
+                    className={`text-left rounded-lg border-2 p-3 transition ${
+                      active ? "border-brand bg-brand/5" : "border-border hover:border-brand/40"
+                    }`}
+                  >
+                    <div className="text-sm font-medium">{meta.label}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">{meta.hint}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {active === "header.socials" && (
+          <div className="space-y-4">
+            <Row label="Placement" hint="Gdzie pokazywać ikony społecznościowe.">
+              <Select value={draft.header.socials.placement} onValueChange={(v) => patchSocials({ placement: v as SocialPlacement })}>
+                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="topbar">Utility bar (góra)</SelectItem>
+                  <SelectItem value="navbar">Nav bar</SelectItem>
+                  <SelectItem value="both">Oba paski</SelectItem>
+                  <SelectItem value="hidden">Ukryj</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label="Rozmiar ikon (px)">
+              <Input type="number" min={12} max={32} className="w-[120px] h-9 text-xs"
+                value={draft.header.socials.size}
+                onChange={(e) => patchSocials({ size: Number(e.target.value) || 16 })} />
+            </Row>
+            {(["facebook", "twitter", "instagram", "linkedin", "youtube", "email"] as const).map((k) => (
+              <Row key={k} label={k.charAt(0).toUpperCase() + k.slice(1)} hint={k === "email" ? "Adres e-mail (bez mailto:)" : "URL profilu"}>
+                <Input value={draft.header.socials[k]} onChange={(e) => patchSocials({ [k]: e.target.value } as Partial<ThemeOptions["header"]["socials"]>)} className="w-[320px] h-9 text-xs" placeholder={k === "email" ? "kontakt@example.com" : `https://${k}.com/...`} />
+              </Row>
+            ))}
+          </div>
+        )}
+
+        {active === "header.signin" && (
+          <div className="space-y-4">
+            <Row label="Pokaż przyciski auth" hint="Włącz/wyłącz przyciski logowania w nagłówku.">
+              <Switch checked={draft.header.signin.enabled} onCheckedChange={(v) => patchSignin({ enabled: v })} />
+            </Row>
+            <Row label="Pokaż przycisk rejestracji">
+              <Switch checked={draft.header.signin.show_signup} onCheckedChange={(v) => patchSignin({ show_signup: v })} />
+            </Row>
+            <Row label="Wariant przycisku">
+              <Select value={draft.header.signin.variant} onValueChange={(v) => patchSignin({ variant: v as ButtonVariant })}>
+                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="solid">Solid</SelectItem>
+                  <SelectItem value="outline">Outline</SelectItem>
+                  <SelectItem value="ghost">Ghost (tekst)</SelectItem>
+                  <SelectItem value="pill">Pill (zaokrąglony)</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label="Sign in (PL)">
+              <Input value={draft.header.signin.signin_label_pl} onChange={(e) => patchSignin({ signin_label_pl: e.target.value })} className="w-[220px] h-9 text-xs" />
+            </Row>
+            <Row label="Sign in (EN)">
+              <Input value={draft.header.signin.signin_label_en} onChange={(e) => patchSignin({ signin_label_en: e.target.value })} className="w-[220px] h-9 text-xs" />
+            </Row>
+            <Row label="Sign up (PL)">
+              <Input value={draft.header.signin.signup_label_pl} onChange={(e) => patchSignin({ signup_label_pl: e.target.value })} className="w-[220px] h-9 text-xs" />
+            </Row>
+            <Row label="Sign up (EN)">
+              <Input value={draft.header.signin.signup_label_en} onChange={(e) => patchSignin({ signup_label_en: e.target.value })} className="w-[220px] h-9 text-xs" />
             </Row>
           </div>
         )}

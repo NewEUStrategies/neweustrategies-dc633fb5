@@ -31,6 +31,13 @@ type ThemeOptions = {
     mobile: {
       breakpoint: number; use_mobile_logo: boolean; sticky: boolean; show_search: boolean;
     };
+    signin: {
+      enabled: boolean;
+      signin_label_pl: string; signin_label_en: string;
+      signup_label_pl: string; signup_label_en: string;
+      variant: "solid" | "outline" | "ghost" | "pill";
+      show_signup: boolean;
+    };
   };
 };
 
@@ -40,7 +47,15 @@ const THEME_DEFAULTS: ThemeOptions = {
     main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
     search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
     mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
+    signin: { enabled: true, signin_label_pl: "Zaloguj", signin_label_en: "Sign in", signup_label_pl: "Zarejestruj", signup_label_en: "Sign up", variant: "ghost", show_signup: true },
   },
+};
+
+const SIGNIN_CLASS: Record<ThemeOptions["header"]["signin"]["variant"], string> = {
+  solid: "px-3 py-1.5 rounded bg-brand text-brand-foreground hover:opacity-90",
+  outline: "px-3 py-1.5 rounded border border-brand text-brand hover:bg-brand hover:text-brand-foreground",
+  ghost: "font-semibold text-muted-foreground hover:text-brand",
+  pill: "px-3 py-1.5 rounded-full bg-brand text-brand-foreground hover:opacity-90",
 };
 
 const HOVER_CLASS: Record<ThemeOptions["header"]["main_menu"]["hover_effect"], string> = {
@@ -166,17 +181,25 @@ export function Header() {
               <Link to="/admin" className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline">
                 <LayoutDashboard className="w-3.5 h-3.5" /> {lang.startsWith("pl") ? "Panel" : "Dashboard"}
               </Link>
-            ) : (
+            ) : themeOpts.header.signin.enabled ? (
               <span className="hidden sm:inline-flex items-center gap-2 text-xs">
-                <Link to="/login" className="inline-flex items-center gap-1 font-semibold text-muted-foreground hover:text-brand">
-                  <LogIn className="w-3.5 h-3.5" /> {lang.startsWith("pl") ? "Zaloguj" : "Sign in"}
+                <Link
+                  to="/login"
+                  className={`inline-flex items-center gap-1 ${SIGNIN_CLASS[themeOpts.header.signin.variant]}`}
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  {lang.startsWith("pl") ? themeOpts.header.signin.signin_label_pl : themeOpts.header.signin.signin_label_en}
                 </Link>
-                <span className="text-muted-foreground/40">|</span>
-                <Link to="/login" search={{ mode: "signup" }} className="font-semibold text-brand hover:underline">
-                  {lang.startsWith("pl") ? "Zarejestruj" : "Sign up"}
-                </Link>
+                {themeOpts.header.signin.show_signup && (
+                  <>
+                    <span className="text-muted-foreground/40">|</span>
+                    <Link to="/login" search={{ mode: "signup" }} className="font-semibold text-brand hover:underline">
+                      {lang.startsWith("pl") ? themeOpts.header.signin.signup_label_pl : themeOpts.header.signin.signup_label_en}
+                    </Link>
+                  </>
+                )}
               </span>
-            )}
+            ) : null}
             <span className="hidden md:inline text-muted-foreground">
               {lang.startsWith("pl") ? "Zmień język" : "Switch language"}
             </span>
