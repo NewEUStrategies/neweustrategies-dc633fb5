@@ -108,6 +108,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   ],
   image: [
     { key: "src", type: "url", label: "URL obrazka", placeholder: "https://..." },
+    { key: "srcDark", type: "url", label: "URL obrazka (dark mode)", placeholder: "opcjonalnie — pusty = używa głównej grafiki", hint: "Osobna grafika dla trybu ciemnego. Pozostaw puste, aby użyć tej samej." },
     { key: "alt", type: "i18nText", label: "Alt" },
     { key: "caption", type: "i18nText", label: "Podpis (opcjonalny)" },
     {
