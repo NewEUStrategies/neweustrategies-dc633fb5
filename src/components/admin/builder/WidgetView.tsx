@@ -35,7 +35,14 @@ import {
 
 type Lang = "pl" | "en";
 
-const DEFAULT_WIDGET_BOX_WIDTH = 192;
+// Default width per device — tiles are fluid and follow the column width on every breakpoint.
+// On desktop, when widgets share a row, the column grid already constrains width.
+// On tablet/mobile, columns wrap to full width so widgets naturally fill 100%.
+const DEFAULT_WIDGET_WIDTH_BY_DEVICE: Record<Device, string> = {
+  desktop: "100%",
+  tablet: "100%",
+  mobile: "100%",
+};
 const DEFAULT_WIDGET_MIN_HEIGHT = 32;
 const AUTO_SIZE_WIDGETS = new Set(["image", "icon", "button", "spacer", "divider"]);
 
