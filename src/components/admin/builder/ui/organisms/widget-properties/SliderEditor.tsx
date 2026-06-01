@@ -248,7 +248,8 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         </div>
       </div>
 
-      {/* Slides */}
+      {/* Slides (manual mode only) */}
+      {source !== "posts" && (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -264,7 +265,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         {items.map((it, i) => {
           const titleKey = `title_${lang}` as const;
           const subKey = `subtitle_${lang}` as const;
-          const ctaKey = `cta_${lang}` as const;
+          const itemCtaKey = `cta_${lang}` as const;
           return (
             <div key={i} className="rounded-md border border-border p-2 space-y-2 bg-background">
               <div className="flex items-center justify-between gap-1">
@@ -303,8 +304,8 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                     className="h-8 text-xs" placeholder="/post/..." />
                 </PropField>
                 <PropField label={`CTA (${lang.toUpperCase()})`}>
-                  <Input value={(it[ctaKey] as string) || ""}
-                    onChange={(e) => updateItem(i, { [ctaKey]: e.target.value })}
+                  <Input value={(it[itemCtaKey] as string) || ""}
+                    onChange={(e) => updateItem(i, { [itemCtaKey]: e.target.value })}
                     className="h-8 text-xs" placeholder="Czytaj więcej" />
                 </PropField>
               </div>
@@ -318,6 +319,8 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           </div>
         )}
       </div>
+      )}
+
     </div>
   );
 }
