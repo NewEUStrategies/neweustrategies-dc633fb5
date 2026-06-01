@@ -74,6 +74,25 @@ interface ThemeOptions extends Record<string, unknown> {
       show_signup: boolean;
     };
   };
+  buttons: {
+    default_variant: ButtonVariant;
+    default_size: ButtonSize;
+    radius: number;
+    padding_x: number;
+    padding_y: number;
+    font_weight: number;
+    uppercase: boolean;
+    letter_spacing: number;
+  };
+  text_fields: {
+    style: InputStyle;
+    radius: number;
+    height: number;
+    border_width: number;
+    focus_ring: FocusRing;
+    focus_ring_width: number;
+    show_label_above: boolean;
+  };
 }
 
 const DEFAULTS: ThemeOptions = {
