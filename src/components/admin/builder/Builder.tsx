@@ -954,7 +954,7 @@ function SectionView(p: SectionViewProps) {
             const span = child.kind === "column" ? (child.span.desktop ?? 12) : 12;
             if (child.kind === "inner-section") {
               return (
-                <div key={child.id} style={{ gridColumn: `span ${span}` }}>
+                <div key={child.id} className="min-w-0" style={{ gridColumn: `span ${span}` }}>
                   <InnerSectionView
                     inner={child} device={p.device} lang={p.lang}
                     selection={p.selection} setSelection={p.setSelection}
