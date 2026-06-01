@@ -51,8 +51,9 @@ function Users() {
 
   return (
     <div>
-      <h1 className="font-display text-3xl font-bold mb-6">{t("admin.nav.users")}</h1>
+      <h1 className="font-display text-3xl font-bold mb-6">{t("admin.users.title")}</h1>
       <div className="bg-card border border-border rounded-lg overflow-hidden">
+
         <table className="w-full text-sm">
           <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
             <tr>
