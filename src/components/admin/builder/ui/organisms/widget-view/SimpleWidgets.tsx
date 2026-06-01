@@ -631,9 +631,20 @@ export function renderSimpleWidget(
         height: "auto",
       };
       if (!src && !srcDark) return <div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>;
-      const activeSrc = theme === "dark" ? (srcDark || src) : (src || srcDark);
+      const lightSrc = src || srcDark;
+      const darkSrc = srcDark || src;
+      const hasBoth = !!src && !!srcDark && src !== srcDark;
       const figureAlign = align === "left" ? "items-start" : align === "right" ? "items-end" : "items-center";
       const showResize = editable && !!onContentChange;
+      const imgCls = `max-w-full h-auto ${variantCls}`;
+      const imgEl = hasBoth ? (
+        <>
+          <img src={lightSrc} alt={alt} className={`${imgCls} gc-img-light`} style={imgStyle} loading="lazy" />
+          <img src={darkSrc} alt={alt} className={`${imgCls} gc-img-dark`} style={imgStyle} loading="lazy" />
+        </>
+      ) : (
+        <img src={theme === "dark" ? darkSrc : lightSrc} alt={alt} className={imgCls} style={imgStyle} loading="lazy" />
+      );
       return (
         <figure className={`space-y-2 flex flex-col ${figureAlign}`}>
           <ResizableImageWrap
@@ -641,7 +652,7 @@ export function renderSimpleWidget(
             currentPx={widthPx > 0 ? widthPx : undefined}
             onCommit={(px) => onContentChange?.("widthPx", Math.round(px))}
           >
-            <img src={activeSrc} alt={alt} className={`max-w-full h-auto ${variantCls}`} style={imgStyle} loading="lazy" />
+            {imgEl}
           </ResizableImageWrap>
           {caption && <figcaption className="text-xs text-muted-foreground text-center">{caption}</figcaption>}
         </figure>
