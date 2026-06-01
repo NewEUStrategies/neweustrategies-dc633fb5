@@ -1,6 +1,6 @@
 // Read-only widget renderers (no inline editing). Returns null when the
 // widget type isn't handled here — caller falls through to the main switch.
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, ReactElement, ReactNode } from "react";
 import type { WidgetNode } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
