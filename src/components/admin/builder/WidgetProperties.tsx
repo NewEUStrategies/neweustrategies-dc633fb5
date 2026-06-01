@@ -478,19 +478,6 @@ function PricingEditor({ c, lang, setContent }: { c: WidgetNode["content"]; lang
   );
 }
 
-function Collapsible({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border border-border rounded-md bg-background">
-      <button type="button" onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-2 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground">
-        <span>{title}</span>
-        <span className="text-xs">{open ? "−" : "+"}</span>
-      </button>
-      {open && <div className="px-2 pb-2 pt-1 space-y-2">{children}</div>}
-    </div>
-  );
-}
 
 function RatedListEditor({ c, lang, setContent }: { c: WidgetNode["content"]; lang: "pl"|"en"; setContent: (k: string, v: Json) => void }) {
   const items = itemsOf(c, "items");
