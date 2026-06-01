@@ -18,6 +18,9 @@ export function ImageEditor({ c, lang, setContent }: Props) {
   const altPl = typeof c.alt_pl === "string" ? c.alt_pl : "";
   const altEn = typeof c.alt_en === "string" ? c.alt_en : "";
   const href = typeof c.href === "string" ? c.href : "";
+  const widthPx = typeof c.widthPx === "number" ? c.widthPx : Number(c.widthPx) || 0;
+  const maxWidthPx = typeof c.maxWidthPx === "number" ? c.maxWidthPx : Number(c.maxWidthPx) || 0;
+  const align = (typeof c.align === "string" ? c.align : "center") as "left" | "center" | "right";
   const [previewMode, setPreviewMode] = useState<"light" | "dark">("light");
 
   return (
