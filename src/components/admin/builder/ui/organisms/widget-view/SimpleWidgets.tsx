@@ -14,6 +14,7 @@ import {
   type AnimatedHeadingMode, type AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
 import { COMPACT_ICON_BOX_SIZE, COMPACT_WIDGET_MIN_HEIGHT, getStr, getNum, getStrArr } from "./frame";
+import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
