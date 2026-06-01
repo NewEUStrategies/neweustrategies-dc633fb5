@@ -19,8 +19,13 @@ import {
 } from "@/lib/builder/globalColors";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
 
-// Paleta presetów — kolory marki + neutralne.
-const BRAND_PALETTE: Array<{ name: string; value: string }> = [
+// Paleta marki — edytowalna przez użytkownika, trzymana w localStorage.
+type BrandColor = { name: string; value: string };
+const BRAND_STORAGE_KEY = "lovable.globalColors.brandPalette.v1";
+const RECENT_STORAGE_KEY = "lovable.globalColors.recentColors.v1";
+const RECENT_MAX = 10;
+
+const DEFAULT_BRAND_PALETTE: BrandColor[] = [
   { name: "Background Dark", value: "#01112F" },
   { name: "Background Light", value: "#F8F6F4" },
   { name: "Granat", value: "#15334D" },
@@ -36,11 +41,26 @@ const BRAND_PALETTE: Array<{ name: string; value: string }> = [
   { name: "Szary jasny", value: "#CCCCCC" },
 ];
 
-const NEUTRAL_PALETTE = [
-  "#000000", "#ffffff", "#1f2937", "#374151", "#6b7280", "#9ca3af", "#e5e7eb", "#f3f4f6",
-  "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16", "#22c55e", "#10b981", "#14b8a6",
-  "#06b6d4", "#0ea5e9", "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899",
-];
+function useLocalStorageState<T>(key: string, initial: T): [T, (v: T | ((p: T) => T)) => void] {
+  const [state, setState] = useState<T>(() => {
+    if (typeof window === "undefined") return initial;
+    try {
+      const raw = window.localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T) : initial;
+    } catch {
+      return initial;
+    }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem(key, JSON.stringify(state)); } catch { /* noop */ }
+  }, [key, state]);
+  return [state, setState];
+}
+
+function isHexColor(v: string): boolean {
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v.trim());
+}
+
 
 
 export function GlobalColorsEditor() {
@@ -52,6 +72,18 @@ export function GlobalColorsEditor() {
   const [future, setFuture] = useState<GlobalColorsValue[]>([]);
   // Flag, by zapobiec pushowaniu do historii przy undo/redo/cancel.
   const skipHistoryRef = useRef(false);
+
+  // Edytowalna paleta marki + ostatnio użyte kolory (per-przeglądarka).
+  const [brandPalette, setBrandPalette] = useLocalStorageState<BrandColor[]>(
+    BRAND_STORAGE_KEY,
+    DEFAULT_BRAND_PALETTE,
+  );
+  const [recentColors, setRecentColors] = useLocalStorageState<string[]>(RECENT_STORAGE_KEY, []);
+  const trackRecent = useCallback((v: string) => {
+    if (!v || !isHexColor(v)) return;
+    const norm = v.toLowerCase();
+    setRecentColors((prev) => [norm, ...prev.filter((c) => c.toLowerCase() !== norm)].slice(0, RECENT_MAX));
+  }, [setRecentColors]);
 
   useEffect(() => {
     if (data && draft === null) setDraft({ ...EMPTY_GLOBAL_COLORS, ...data });
@@ -195,6 +227,9 @@ export function GlobalColorsEditor() {
       </div>
 
 
+
+      <BrandPaletteEditor palette={brandPalette} onChange={setBrandPalette} />
+
       <Tabs defaultValue={GLOBAL_COLOR_GROUPS[0]?.id} className="w-full">
         <TabsList className="w-full grid grid-cols-2 gap-1 h-auto bg-muted/50 p-1">
           {GLOBAL_COLOR_GROUPS.map((group) => (
@@ -247,6 +282,9 @@ export function GlobalColorsEditor() {
                         value={val.light ?? ""}
                         defaultValue={slot.defaultLight}
                         onChange={(v) => setSlot(slot.key, "light", v)}
+                        onCommit={trackRecent}
+                        brandPalette={brandPalette}
+                        recentColors={recentColors}
                       />
                       {slot.hasDark && (
                         <ColorRow
@@ -254,6 +292,9 @@ export function GlobalColorsEditor() {
                           value={val.dark ?? ""}
                           defaultValue={slot.defaultDark}
                           onChange={(v) => setSlot(slot.key, "dark", v)}
+                          onCommit={trackRecent}
+                          brandPalette={brandPalette}
+                          recentColors={recentColors}
                         />
                       )}
                       {isSlotHoverable(slot, group) && (
@@ -266,12 +307,18 @@ export function GlobalColorsEditor() {
                             value={val.hoverLight ?? ""}
                             defaultValue={slot.defaultHoverLight ?? slot.defaultLight}
                             onChange={(v) => setSlot(slot.key, "hoverLight", v)}
+                            onCommit={trackRecent}
+                            brandPalette={brandPalette}
+                            recentColors={recentColors}
                           />
                           <ColorRow
                             label="Dark"
                             value={val.hoverDark ?? ""}
                             defaultValue={slot.defaultHoverDark ?? slot.defaultDark}
                             onChange={(v) => setSlot(slot.key, "hoverDark", v)}
+                            onCommit={trackRecent}
+                            brandPalette={brandPalette}
+                            recentColors={recentColors}
                           />
                         </div>
                       )}
@@ -289,9 +336,18 @@ export function GlobalColorsEditor() {
 }
 
 function ColorRow({
-  label, value, defaultValue, onChange,
-}: { label: string; value: string; defaultValue?: string; onChange: (v: string) => void }) {
+  label, value, defaultValue, onChange, onCommit, brandPalette, recentColors,
+}: {
+  label: string;
+  value: string;
+  defaultValue?: string;
+  onChange: (v: string) => void;
+  onCommit: (v: string) => void;
+  brandPalette: BrandColor[];
+  recentColors: string[];
+}) {
   const effective = value || defaultValue || "#ffffff";
+  const handlePick = (v: string) => { onChange(v); onCommit(v); };
   return (
     <div className="rounded-md border border-border bg-background/60 p-2.5 space-y-2">
       <div className="flex items-center gap-2">
@@ -300,6 +356,7 @@ function ColorRow({
           type="color"
           value={effective}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={(e) => onCommit(e.target.value)}
           className="w-12 h-8 p-1 cursor-pointer"
         />
         <Input
@@ -307,6 +364,7 @@ function ColorRow({
           value={value}
           placeholder={defaultValue || "#______"}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={(e) => onCommit(e.target.value)}
           className="h-8 text-xs font-mono w-[120px]"
         />
         {value && (
@@ -323,11 +381,14 @@ function ColorRow({
         <div>
           <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Marka</div>
           <div className="flex flex-wrap gap-1">
-            {BRAND_PALETTE.map((c) => (
+            {brandPalette.length === 0 && (
+              <span className="text-[10px] text-muted-foreground italic">Brak kolorów — dodaj w sekcji „Paleta marki" powyżej.</span>
+            )}
+            {brandPalette.map((c) => (
               <button
-                key={c.value}
+                key={`${c.value}-${c.name}`}
                 type="button"
-                onClick={() => onChange(c.value)}
+                onClick={() => handlePick(c.value)}
                 className={`w-5 h-5 rounded border transition ${
                   value?.toLowerCase() === c.value.toLowerCase()
                     ? "border-foreground ring-2 ring-offset-1 ring-foreground/30"
@@ -340,13 +401,18 @@ function ColorRow({
           </div>
         </div>
         <div>
-          <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Neutralne</div>
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">
+            Ostatnio użyte {recentColors.length > 0 && <span className="opacity-60">({recentColors.length}/{RECENT_MAX})</span>}
+          </div>
           <div className="flex flex-wrap gap-1">
-            {NEUTRAL_PALETTE.map((c) => (
+            {recentColors.length === 0 && (
+              <span className="text-[10px] text-muted-foreground italic">Wybrane kolory pojawią się tutaj.</span>
+            )}
+            {recentColors.map((c) => (
               <button
                 key={c}
                 type="button"
-                onClick={() => onChange(c)}
+                onClick={() => handlePick(c)}
                 className={`w-5 h-5 rounded border transition ${
                   value?.toLowerCase() === c.toLowerCase()
                     ? "border-foreground ring-2 ring-offset-1 ring-foreground/30"
@@ -359,7 +425,104 @@ function ColorRow({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
 
+function BrandPaletteEditor({
+  palette, onChange,
+}: { palette: BrandColor[]; onChange: (next: BrandColor[]) => void }) {
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [draftValue, setDraftValue] = useState("#000000");
+  const [adding, setAdding] = useState(false);
+
+  const startAdd = () => { setAdding(true); setEditingIdx(null); setDraftName(""); setDraftValue("#000000"); };
+  const startEdit = (i: number) => {
+    setAdding(false); setEditingIdx(i);
+    setDraftName(palette[i].name); setDraftValue(palette[i].value);
+  };
+  const cancel = () => { setAdding(false); setEditingIdx(null); };
+  const commit = () => {
+    const v = draftValue.trim();
+    if (!isHexColor(v)) return;
+    const name = draftName.trim() || v;
+    if (adding) onChange([...palette, { name, value: v }]);
+    else if (editingIdx !== null) {
+      const next = palette.slice();
+      next[editingIdx] = { name, value: v };
+      onChange(next);
+    }
+    cancel();
+  };
+  const remove = (i: number) => onChange(palette.filter((_, j) => j !== i));
+
+  return (
+    <div className="rounded-lg border border-border bg-card/40">
+      <div className="flex items-center justify-between px-3 py-2 rounded-t-lg text-white text-xs font-semibold" style={{ background: "#FA9346" }}>
+        <span>Paleta marki ({palette.length})</span>
+        <button
+          type="button"
+          onClick={startAdd}
+          className="text-[11px] bg-white/20 hover:bg-white/30 rounded px-2 py-0.5"
+        >
+          + Dodaj kolor
+        </button>
+      </div>
+      <div className="p-3 space-y-2">
+        {palette.length === 0 && !adding && (
+          <p className="text-xs text-muted-foreground italic">Brak kolorów w palecie marki. Dodaj swój pierwszy.</p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {palette.map((c, i) => (
+            <div key={`${c.value}-${i}`} className="group relative">
+              <button
+                type="button"
+                onClick={() => startEdit(i)}
+                className="w-8 h-8 rounded border border-border hover:scale-110 transition block"
+                style={{ background: c.value }}
+                title={`${c.name} — ${c.value} (kliknij aby edytować)`}
+              />
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[10px] leading-none opacity-0 group-hover:opacity-100 transition"
+                title="Usuń"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        {(adding || editingIdx !== null) && (
+          <div className="rounded-md border border-border bg-background/60 p-2 flex flex-wrap items-center gap-2">
+            <Input
+              type="color"
+              value={isHexColor(draftValue) ? draftValue : "#000000"}
+              onChange={(e) => setDraftValue(e.target.value)}
+              className="w-10 h-8 p-1 cursor-pointer"
+            />
+            <Input
+              type="text"
+              value={draftValue}
+              onChange={(e) => setDraftValue(e.target.value)}
+              placeholder="#______"
+              className="h-8 text-xs font-mono w-[110px]"
+            />
+            <Input
+              type="text"
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              placeholder="Nazwa (opcjonalna)"
+              className="h-8 text-xs flex-1 min-w-[140px]"
+            />
+            <Button size="sm" onClick={commit} disabled={!isHexColor(draftValue)}>
+              {adding ? "Dodaj" : "Zapisz"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={cancel}>Anuluj</Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
