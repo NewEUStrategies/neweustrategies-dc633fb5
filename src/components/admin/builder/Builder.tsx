@@ -533,8 +533,14 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
               ) : (
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                   {doc.sections.length === 0 && (
-                    <EmptyState onAdd={addSection} title={copy.title} hint={copy.hint} />
+                    <EmptyState
+                      onAdd={addSection}
+                      title={copy.title}
+                      hint={copy.hint}
+                      onLoadHomepage={scope === "page" ? loadHomepage : undefined}
+                    />
                   )}
+
 
                   <SectionDropZone onInsert={(s) => insertSectionAt(0, s)} index={0} prominent label={copy.first} />
 
