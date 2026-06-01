@@ -78,7 +78,12 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
   const hRaw = pickSize(adv?.height, device);
   const autoFit = AUTO_SIZE_WIDGETS.has(node.type);
 
-  const style: CSSProperties = { maxWidth: "100%" };
+  const style: CSSProperties = {
+    width: "100%",
+    minWidth: 0,
+    maxWidth: "100%",
+    boxSizing: "border-box",
+  };
 
   const w = toCssSize(wRaw) ?? node.style?.maxWidth ?? (autoFit ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
   style.width = w;
