@@ -239,6 +239,79 @@ function EditPost() {
     </div>
   );
 
+  const ov: LayoutOverrides = (form.layout_overrides ?? {}) as LayoutOverrides;
+  const setOv = (patch: Partial<LayoutOverrides>) => {
+    const next = { ...ov, ...patch };
+    // Drop empty object to null for cleanliness
+    const hasAny = Object.values(next).some((v) => v !== undefined && v !== null && v !== "");
+    set("layout_overrides", hasAny ? next : null);
+  };
+  const currentFormat: PostFormat = (ov.format ?? form.post_format ?? "standard") as PostFormat;
+  const layoutSet = getLayoutSet(currentFormat);
+
+  const layoutCard = (
+    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+      <h3 className="text-sm font-semibold inline-flex items-center gap-2 mb-1">
+        <Layers className="w-4 h-4" /> Layout wpisu
+      </h3>
+      <div>
+        <Label>Format wpisu</Label>
+        <Select value={form.post_format ?? "standard"} onValueChange={(v) => set("post_format", v as PostFormat)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="standard">Standard</SelectItem>
+            <SelectItem value="video">Video</SelectItem>
+            <SelectItem value="audio">Audio</SelectItem>
+            <SelectItem value="gallery">Gallery</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>Layout (override)</Label>
+        <Select
+          value={ov.layout ?? "__inherit__"}
+          onValueChange={(v) => setOv({ layout: v === "__inherit__" ? undefined : v })}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__inherit__">— Użyj globalnego —</SelectItem>
+            {layoutSet.map((l) => (
+              <SelectItem key={l.id} value={l.id}>{l.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5 pt-2 border-t border-border">
+        <p className="text-xs text-muted-foreground mb-1">Nadpisz sekcje stopki (puste = z globalnych):</p>
+        {([
+          ["center_header", "Wyśrodkuj nagłówek"],
+          ["show_post_tags_bar", "Pasek tagów"],
+          ["show_sources_bar", "Pasek źródeł"],
+          ["show_via_bar", "Pasek „via”"],
+          ["show_author_card", "Karta autora"],
+          ["show_prev_next", "Poprzedni / następny"],
+          ["show_bottom_newsletter", "Newsletter pod wpisem"],
+        ] as const).map(([key, label]) => {
+          const val = ov[key];
+          const tri = val === true ? "on" : val === false ? "off" : "inherit";
+          return (
+            <div key={key} className="flex items-center justify-between text-xs">
+              <span>{label}</span>
+              <Select value={tri} onValueChange={(v) => setOv({ [key]: v === "inherit" ? undefined : v === "on" } as Partial<LayoutOverrides>)}>
+                <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="inherit">Globalne</SelectItem>
+                  <SelectItem value="on">Włącz</SelectItem>
+                  <SelectItem value="off">Wyłącz</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   const catsCard = (
     <div className="bg-card border border-border rounded-lg p-4">
       <Label className="mb-2 block">{t("admin.nav.categories")}</Label>
