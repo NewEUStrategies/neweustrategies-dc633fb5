@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Upload, Trash2, Copy, Check, Lock } from "@/lib/lucide-shim";
+import { Upload, Trash2, Copy, Check, Settings as SettingsIcon } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { registerMediaUpload, deleteMedia } from "@/lib/media.functions";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
