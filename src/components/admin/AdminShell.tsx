@@ -5,7 +5,7 @@ import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as Imag
 import { useTheme } from "@/components/ThemeProvider";
 import { useState, type ReactNode } from "react";
 
-export function AdminShell({ children }: { children: ReactNode }) {
+export function AdminShell({ children, hideSidebar }: { children: ReactNode; hideSidebar?: boolean }) {
   const { t, i18n } = useTranslation();
   const { signOut, user, isAdmin } = useAuth();
   const { theme, toggle } = useTheme();
@@ -42,79 +42,81 @@ export function AdminShell({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen flex bg-muted/30">
-      <aside
-        className={`${compact ? "w-14" : "w-64"} bg-card border-r border-border flex flex-col transition-all duration-200`}
-      >
-        <div className="p-3 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Link to="/admin" className="font-display font-bold text-base">
-              {compact ? "NES" : <>NES <span className="text-brand">Admin</span></>}
+    <div className={`min-h-screen bg-muted/30 ${hideSidebar ? "" : "flex"}`}>
+      {!hideSidebar && (
+        <aside
+          className={`${compact ? "w-14" : "w-64"} bg-card border-r border-border flex flex-col transition-all duration-200`}
+        >
+          <div className="p-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <Link to="/admin" className="font-display font-bold text-base">
+                {compact ? "NES" : <>NES <span className="text-brand">Admin</span></>}
+              </Link>
+              <button
+                onClick={() => setForceCompact((s) => !s)}
+                className="ml-auto text-muted-foreground hover:text-foreground"
+                title={compact ? "Rozszerz" : "Zwiń"}
+              >
+                <PanelLeft className={`w-4 h-4 transition-transform ${compact ? "" : "rotate-180"}`} />
+              </button>
+            </div>
+            {!compact && <p className="text-xs text-muted-foreground mt-1 truncate">{user?.email}</p>}
+          </div>
+          <nav className="flex-1 p-2 space-y-1">
+            {items.map(({ to, icon: Icon, label }) => {
+              const active = path === to || (to !== "/admin" && path.startsWith(to));
+              return (
+                <Link
+                  key={to}
+                  to={to}
+                  title={label}
+                  className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm transition ${
+                    active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className={`truncate ${compact ? "hidden" : ""}`}>{label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="p-2 border-t border-border space-y-1">
+            <Link
+              to="/"
+              title={t("admin.viewSite")}
+              className="flex items-center gap-3 px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted"
+            >
+              <Home className="w-4 h-4 shrink-0" />
+              <span className={compact ? "hidden" : ""}>{t("admin.viewSite")}</span>
             </Link>
             <button
-              onClick={() => setForceCompact((s) => !s)}
-              className="ml-auto text-muted-foreground hover:text-foreground"
-              title={compact ? "Rozszerz" : "Zwiń"}
+              onClick={toggle}
+              title={t("admin.theme")}
+              className="w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted"
             >
-              <PanelLeft className={`w-4 h-4 transition-transform ${compact ? "" : "rotate-180"}`} />
+              {theme === "dark" ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
+              <span className={compact ? "hidden" : ""}>{t("admin.theme")}</span>
+            </button>
+            <button
+              onClick={() => i18n.changeLanguage(lang.startsWith("pl") ? "en" : "pl")}
+              title={lang.startsWith("pl") ? "PL" : "EN"}
+              className="w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted"
+            >
+              <Globe className="w-4 h-4 shrink-0" />
+              <span className={compact ? "hidden" : ""}>{lang.startsWith("pl") ? "PL" : "EN"}</span>
+            </button>
+            <button
+              onClick={handleSignOut}
+              title={t("admin.signout")}
+              className="w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm text-destructive hover:bg-destructive/10"
+            >
+              <LogOut className="w-4 h-4 shrink-0" />
+              <span className={compact ? "hidden" : ""}>{t("admin.signout")}</span>
             </button>
           </div>
-          {!compact && <p className="text-xs text-muted-foreground mt-1 truncate">{user?.email}</p>}
-        </div>
-        <nav className="flex-1 p-2 space-y-1">
-          {items.map(({ to, icon: Icon, label }) => {
-            const active = path === to || (to !== "/admin" && path.startsWith(to));
-            return (
-              <Link
-                key={to}
-                to={to}
-                title={label}
-                className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm transition ${
-                  active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted"
-                }`}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className={`truncate ${compact ? "hidden" : ""}`}>{label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="p-2 border-t border-border space-y-1">
-          <Link
-            to="/"
-            title={t("admin.viewSite")}
-            className="flex items-center gap-3 px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted"
-          >
-            <Home className="w-4 h-4 shrink-0" />
-            <span className={compact ? "hidden" : ""}>{t("admin.viewSite")}</span>
-          </Link>
-          <button
-            onClick={toggle}
-            title={t("admin.theme")}
-            className="w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted"
-          >
-            {theme === "dark" ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
-            <span className={compact ? "hidden" : ""}>{t("admin.theme")}</span>
-          </button>
-          <button
-            onClick={() => i18n.changeLanguage(lang.startsWith("pl") ? "en" : "pl")}
-            title={lang.startsWith("pl") ? "PL" : "EN"}
-            className="w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted"
-          >
-            <Globe className="w-4 h-4 shrink-0" />
-            <span className={compact ? "hidden" : ""}>{lang.startsWith("pl") ? "PL" : "EN"}</span>
-          </button>
-          <button
-            onClick={handleSignOut}
-            title={t("admin.signout")}
-            className="w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm text-destructive hover:bg-destructive/10"
-          >
-            <LogOut className="w-4 h-4 shrink-0" />
-            <span className={compact ? "hidden" : ""}>{t("admin.signout")}</span>
-          </button>
-        </div>
-      </aside>
-      <main className="flex-1 overflow-x-auto">
+        </aside>
+      )}
+      <main className={`overflow-x-auto ${hideSidebar ? "w-full" : "flex-1"}`}>
         <div className={isEditRoute ? "p-3" : "max-w-6xl mx-auto p-6 lg:p-10"}>{children}</div>
       </main>
     </div>

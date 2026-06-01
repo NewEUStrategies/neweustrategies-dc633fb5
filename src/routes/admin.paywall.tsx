@@ -48,7 +48,7 @@ function PaywallAdmin() {
   };
 
   return (
-    <AdminShell>
+    <AdminShell hideSidebar>
       <div className="p-6 max-w-5xl mx-auto space-y-6">
         <header>
           <h1 className="font-display text-2xl font-bold">Paywall — plany dostępu</h1>
