@@ -35,102 +35,12 @@ import {
 
 type Lang = "pl" | "en";
 
-// Default width: widgets hug their content so they sit side-by-side in a row (left-aligned),
-// rather than each one stretching to 100% of the column. Max-width is still capped at 100%
-// of the column so nothing overflows. Users can override per-device via advanced.width.
-const DEFAULT_WIDGET_WIDTH_BY_DEVICE: Record<Device, string> = {
-  desktop: "auto",
-  tablet: "auto",
-  mobile: "auto",
-};
-const DEFAULT_WIDGET_MIN_HEIGHT = 32;
-const AUTO_SIZE_WIDGETS = new Set(["image", "icon", "button", "spacer", "divider"]);
+export {
+  styleToCSS, getWidgetFrameStyle, hiddenOnDevice,
+  DEFAULT_WIDGET_WIDTH_BY_DEVICE, DEFAULT_WIDGET_MIN_HEIGHT, AUTO_SIZE_WIDGETS,
+} from "./ui/organisms/widget-view/frame";
+import { getStr, getNum, getStrArr, normalizeNewsletterVariant } from "./ui/organisms/widget-view/frame";
 
-const pick = <T,>(
-  rv: { desktop?: T; tablet?: T; mobile?: T } | undefined,
-  device: Device,
-): T | undefined => {
-  if (!rv) return undefined;
-  return rv[device] ?? rv.desktop ?? rv.tablet ?? rv.mobile;
-};
-
-export const styleToCSS = (
-  s: CommonStyle | undefined,
-  device: Device,
-): CSSProperties => {
-  if (!s) return {};
-  const css: CSSProperties = {};
-  if (s.bgColor) css.background = s.bgColor;
-  if (s.textColor) css.color = s.textColor;
-  const padding = pick(s.padding, device);
-  if (padding) css.padding = padding;
-  const margin = pick(s.margin, device);
-  if (margin) css.margin = margin;
-  const align = pick(s.align, device);
-  if (align) css.textAlign = align;
-  if (s.borderRadius) css.borderRadius = s.borderRadius;
-  if (s.maxWidth) css.maxWidth = s.maxWidth;
-  if (s.minHeight) css.minHeight = s.minHeight;
-  if (s.borderStyle && s.borderStyle !== "none") {
-    css.borderStyle = s.borderStyle;
-    css.borderWidth = s.borderWidth || "1px";
-    if (s.borderColor) css.borderColor = s.borderColor;
-  }
-  if (s.boxShadow) css.boxShadow = s.boxShadow;
-  if (typeof s.opacity === "number") css.opacity = s.opacity;
-  const t = s.typography;
-  if (t) {
-    if (t.fontFamily) css.fontFamily = t.fontFamily;
-    const size = pick(t.fontSize, device);
-    if (size) css.fontSize = size;
-    if (t.fontWeight) css.fontWeight = t.fontWeight;
-    if (t.fontStyle) css.fontStyle = t.fontStyle;
-    if (t.lineHeight) css.lineHeight = t.lineHeight;
-    if (t.letterSpacing) css.letterSpacing = t.letterSpacing;
-    if (t.textTransform) css.textTransform = t.textTransform;
-    if (t.textDecoration) css.textDecoration = t.textDecoration;
-  }
-  return css;
-};
-
-type ResponsiveSize = number | "auto" | { desktop?: number | "auto"; tablet?: number | "auto"; mobile?: number | "auto" } | undefined;
-
-function pickSize(value: ResponsiveSize, device: Device): number | "auto" | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value === "number" || value === "auto") return value;
-  return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
-}
-
-function toCssSize(value: number | "auto" | undefined): string | number | undefined {
-  if (value === undefined) return undefined;
-  return value === "auto" ? "auto" : value;
-}
-
-export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"): CSSProperties => {
-  const adv = node.advanced as { width?: ResponsiveSize; height?: ResponsiveSize } | undefined;
-  const wRaw = pickSize(adv?.width, device);
-  const hRaw = pickSize(adv?.height, device);
-  const autoFit = AUTO_SIZE_WIDGETS.has(node.type);
-
-  const style: CSSProperties = { maxWidth: "100%" };
-
-  // Width: user value > maxWidth style > default (fluid 100%, or auto for auto-fit widgets like images)
-  const w = toCssSize(wRaw) ?? node.style?.maxWidth ?? (autoFit ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
-  style.width = w;
-
-  // Height: user value wins; otherwise hug content (intrinsic, e.g. image ratio).
-  if (hRaw !== undefined) {
-    style.height = toCssSize(hRaw);
-  } else if (node.style?.minHeight) {
-    style.minHeight = node.style.minHeight;
-  } else if (!autoFit) {
-    style.minHeight = DEFAULT_WIDGET_MIN_HEIGHT;
-  }
-  return style;
-};
-
-export const hiddenOnDevice = (a: AdvancedSettings | undefined, device: Device): boolean =>
-  Boolean(a?.hideOn?.[device]);
 
 interface ViewProps {
   node: WidgetNode;
