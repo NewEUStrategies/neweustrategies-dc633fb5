@@ -121,6 +121,10 @@ const resources = {
           hint: "Krótkie, konkretne bullet pointy - max 6. Wyświetlane nad treścią wpisu w wybranym języku.",
           empty: "Brak punktów dla tego języka.",
         },
+        sidebar: {
+          toc: "Spis treści",
+          tags: "Tagi",
+        },
       },
       admin: {
 
