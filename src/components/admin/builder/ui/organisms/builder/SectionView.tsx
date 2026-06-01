@@ -81,7 +81,7 @@ export function SectionView(p: SectionViewProps) {
       </div>
 
       <div style={sectionContainerStyle(p.section)}>
-        <div style={{ ...columnsRowStyle(p.section, colsSum), padding: "12px" }}>
+        <div className="max-w-full overflow-hidden" style={{ ...columnsRowStyle(p.section, colsSum), padding: "16px" }}>
           {p.section.children.map((child) => {
             const span = child.kind === "column" ? (child.span.desktop ?? 12) : 12;
             if (child.kind === "inner-section") {
@@ -137,12 +137,12 @@ function InnerSectionView({
   };
   return (
     <div
-      className={`border rounded p-2 ${selected ? "border-brand" : "border-dashed border-border"}`}
+      className={`border rounded p-3 ${selected ? "border-brand" : "border-dashed border-border"}`}
       style={skin}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "inner-section", id: inner.id }); }}
     >
       <div className="text-[10px] text-muted-foreground mb-1 relative z-10">SEKCJA WEWNĘTRZNA</div>
-      <div className="grid gap-2 relative z-10" style={columnsRowStyle(inner, colsSum)}>
+      <div className="grid gap-2 relative z-10 max-w-full overflow-hidden" style={columnsRowStyle(inner, colsSum)}>
         {inner.columns.map((c) => (
           <div key={c.id} className="min-w-0" style={{ gridColumn: `span ${c.span.desktop ?? 6}` }}>
             <ColumnView column={c} device={device} lang={lang} selection={selection}
@@ -175,7 +175,7 @@ function ColumnView({
   return (
     <div
       ref={setDropRef}
-      className={`group/col relative min-h-[80px] rounded border-2 ${selected ? "border-brand bg-brand/5" : (dragOver || isOver) ? "border-brand/70 bg-brand/5" : "border-dashed border-border/60"} p-2 transition`}
+      className={`group/col relative min-h-[80px] rounded border-2 ${selected ? "border-brand bg-brand/5" : (dragOver || isOver) ? "border-brand/70 bg-brand/5" : "border-dashed border-border/60"} p-3 transition`}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "column", id: column.id }); }}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("application/x-widget-type")) {
@@ -202,7 +202,7 @@ function ColumnView({
         </div>
       )}
       <SortableContext items={column.children.map((w) => w.id)} strategy={verticalListSortingStrategy}>
-        <div className={`flex flex-wrap items-start content-start gap-2 min-w-0 ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"}`}>
+        <div className={`flex flex-wrap items-start content-start gap-2 min-w-0 max-w-full overflow-hidden ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"}`}>
           {column.children.map((w) => (
             <SortableWidget key={w.id} widget={w} lang={lang} device={device}
               selected={selection.kind === "widget" && selection.id === w.id}
