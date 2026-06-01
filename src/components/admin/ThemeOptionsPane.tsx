@@ -14,7 +14,7 @@ import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu
 type HoverEffect = "color-border" | "underline" | "background" | "scale" | "none";
 type SearchMode = "standalone" | "dropdown" | "fullscreen";
 
-interface ThemeOptions {
+interface ThemeOptions extends Record<string, unknown> {
   logo: {
     main: string;
     main_dark: string;
