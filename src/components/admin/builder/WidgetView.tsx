@@ -2,7 +2,7 @@
 // canvas via `editable` + `onContentChange`). Used in the live preview inside
 // the builder canvas and on public pages. All user-authored strings (custom
 // CSS, ids, classes, html, urls) go through src/lib/sanitize.ts.
-import { useEffect, useRef, useState, type CSSProperties, type ElementType, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
@@ -17,7 +17,6 @@ import {
 } from "@/lib/sanitize";
 import { useInView } from "@/hooks/use-in-view";
 import { hoverCss } from "@/lib/builder/hoverCss";
-import { TtsPlayer } from "@/components/TtsPlayer";
 import { useTheme } from "@/components/ThemeProvider";
 import { NewsletterForm as NewsletterFormLive } from "@/components/NewsletterForm";
 import {
@@ -38,145 +37,19 @@ type Lang = "pl" | "en";
 import {
   styleToCSS, getWidgetFrameStyle, hiddenOnDevice,
   DEFAULT_WIDGET_WIDTH_BY_DEVICE, DEFAULT_WIDGET_MIN_HEIGHT, AUTO_SIZE_WIDGETS,
+  getStr, getNum, getStrArr, normalizeNewsletterVariant,
 } from "./ui/organisms/widget-view/frame";
+import { MOTION_INITIAL, MOTION_FINAL } from "./ui/organisms/widget-view/motion";
+import { Editable } from "./ui/molecules/Editable";
+import { TtsPlayerHost } from "./ui/molecules/TtsPlayerHost";
+import { PostListView } from "./ui/organisms/widget-view/PostListView";
+import { RatedListView } from "./ui/organisms/widget-view/RatedListView";
+import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
+import { TagsView } from "./ui/organisms/widget-view/TagsView";
+import { TabsBlock } from "./ui/organisms/widget-view/TabsBlock";
 export {
   styleToCSS, getWidgetFrameStyle, hiddenOnDevice,
   DEFAULT_WIDGET_WIDTH_BY_DEVICE, DEFAULT_WIDGET_MIN_HEIGHT, AUTO_SIZE_WIDGETS,
-};
-
-
-interface ViewProps {
-  node: WidgetNode;
-  lang: Lang;
-  device: Device;
-  /** When true, click-to-edit text fields are enabled in canvas. */
-  editable?: boolean;
-  /** Commit a single content field. Called on blur / Enter. */
-  onContentChange?: (key: string, value: string) => void;
-}
-
-/** Inline-editable text node. Plain text by default; pass `html` to allow rich content. */
-function Editable({
-  as: As = "span",
-  value,
-  onCommit,
-  className,
-  style,
-  html = false,
-  multiline = false,
-  placeholder,
-}: {
-  as?: ElementType;
-  value: string;
-  onCommit: (next: string) => void;
-  className?: string;
-  style?: CSSProperties;
-  html?: boolean;
-  multiline?: boolean;
-  placeholder?: string;
-}) {
-  const ref = useRef<HTMLElement>(null);
-  // Sync DOM with prop only when not focused, so caret position is preserved.
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (document.activeElement === el) return;
-    if (html) {
-      if (el.innerHTML !== value) el.innerHTML = value;
-    } else if (el.textContent !== value) {
-      el.textContent = value;
-    }
-  }, [value, html]);
-  const commit = () => {
-    const el = ref.current;
-    if (!el) return;
-    const next = html ? sanitizeHtml(el.innerHTML) : (el.textContent ?? "");
-    if (next !== value) onCommit(next);
-  };
-  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
-    if (e.key === "Enter" && !multiline && !e.shiftKey) {
-      e.preventDefault();
-      (e.target as HTMLElement).blur();
-    }
-    if (e.key === "Escape") {
-      e.preventDefault();
-      const el = ref.current;
-      if (el) {
-        if (html) el.innerHTML = value;
-        else el.textContent = value;
-      }
-      (e.target as HTMLElement).blur();
-    }
-  };
-  return (
-    <As
-      ref={ref as never}
-      contentEditable
-      suppressContentEditableWarning
-      data-placeholder={placeholder}
-      onBlur={commit}
-      onKeyDown={onKeyDown}
-      onClick={(e: React.MouseEvent) => e.stopPropagation()}
-      onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
-      className={`${className ?? ""} outline-none focus:ring-2 focus:ring-brand/40 focus:rounded empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50`}
-      style={style}
-    />
-  );
-}
-
-function getStr(c: WidgetContent, k: string): string {
-  const v = c[k];
-  return typeof v === "string" ? v : "";
-}
-
-function normalizeNewsletterVariant(value: string): string {
-  switch (value) {
-    case "sama ikona":
-      return "icon-only";
-    case "ikona + tekst":
-      return "icon";
-    case "inline (email + przycisk)":
-      return "inline";
-    case "karta z formularzem":
-      return "card";
-    default:
-      return value;
-  }
-}
-
-function getNum(c: WidgetContent, k: string, dflt: number): number {
-  const v = c[k];
-  return typeof v === "number" ? v : dflt;
-}
-function getStrArr(c: WidgetContent, k: string): string[] {
-  const v = c[k];
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
-}
-
-const MOTION_INITIAL: Record<string, (d: number) => CSSProperties> = {
-  fade:          () => ({ opacity: 0 }),
-  "slide-up":    (d) => ({ opacity: 0, transform: `translateY(${d}px)` }),
-  "slide-down":  (d) => ({ opacity: 0, transform: `translateY(-${d}px)` }),
-  "slide-left":  (d) => ({ opacity: 0, transform: `translateX(${d}px)` }),
-  "slide-right": (d) => ({ opacity: 0, transform: `translateX(-${d}px)` }),
-  zoom:          () => ({ opacity: 0, transform: "scale(0.92)" }),
-  "zoom-out":    () => ({ opacity: 0, transform: "scale(1.08)" }),
-  bounce:        (d) => ({ opacity: 0, transform: `translateY(${d}px) scale(0.96)` }),
-  "flip-x":      () => ({ opacity: 0, transform: "perspective(800px) rotateX(70deg)" }),
-  "flip-y":      () => ({ opacity: 0, transform: "perspective(800px) rotateY(70deg)" }),
-  rotate:        () => ({ opacity: 0, transform: "rotate(-12deg) scale(0.96)" }),
-  skew:          () => ({ opacity: 0, transform: "skewY(6deg) translateY(16px)" }),
-  blur:          () => ({ opacity: 0, filter: "blur(12px)" }),
-  "reveal-up":   (d) => ({ opacity: 0, clipPath: "inset(100% 0 0 0)", transform: `translateY(${d / 2}px)` }),
-  "reveal-down": (d) => ({ opacity: 0, clipPath: "inset(0 0 100% 0)", transform: `translateY(-${d / 2}px)` }),
-  tilt:          () => ({ opacity: 0, transform: "rotate(4deg) translateY(20px)" }),
-  swing:         () => ({ opacity: 0, transform: "rotate(-6deg)" }),
-  pulse:         () => ({ opacity: 0, transform: "scale(1.06)" }),
-  rubber:        () => ({ opacity: 0, transform: "scale(1.1, 0.85)" }),
-};
-const MOTION_FINAL: CSSProperties = {
-  opacity: 1, transform: "translate(0,0) scale(1) rotate(0) skew(0) perspective(800px) rotateX(0) rotateY(0)",
-  filter: "blur(0)", clipPath: "inset(0 0 0 0)",
 };
 
 const EASING_MAP: Record<string, string> = {
@@ -188,52 +61,6 @@ const EASING_MAP: Record<string, string> = {
   spring: "cubic-bezier(0.34, 1.56, 0.64, 1)",
   bounce: "cubic-bezier(0.68, -0.55, 0.27, 1.55)",
 };
-
-function TtsPlayerHost({
-  source, customText, label, voiceId, model, nodeId,
-}: {
-  source: string;
-  customText: string;
-  label: string;
-  voiceId: string;
-  model: string;
-  nodeId: string;
-}) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const [text, setText] = useState(source === "custom" ? customText : "");
-
-  useEffect(() => {
-    if (source === "custom") {
-      setText(customText);
-      return;
-    }
-    const grab = () => {
-      const el = hostRef.current;
-      if (!el) return "";
-      const root =
-        el.closest("article") ||
-        el.closest("[data-post-body]") ||
-        el.closest("main") ||
-        document.querySelector("article") ||
-        document.querySelector("main");
-      if (!root) return "";
-      const clone = root.cloneNode(true) as HTMLElement;
-      const selfClone = clone.querySelector(`[data-w-id="${nodeId}"]`);
-      selfClone?.remove();
-      clone.querySelectorAll("script,style,nav,header,footer,button,iframe").forEach((n) => n.remove());
-      return (clone.textContent || "").replace(/\s+/g, " ").trim();
-    };
-    setText(grab());
-    const id = window.setTimeout(() => setText(grab()), 250);
-    return () => window.clearTimeout(id);
-  }, [source, customText, nodeId]);
-
-  return (
-    <div ref={hostRef}>
-      <TtsPlayer text={text} voiceId={voiceId} model={model} label={label} />
-    </div>
-  );
-}
 
 export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
   const { theme } = useTheme();
