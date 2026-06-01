@@ -62,7 +62,7 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
       <ShapeDivider s={section.shapeDividerTop} position="top" />
       <ShapeDivider s={section.shapeDividerBottom} position="bottom" />
       <div style={sectionContainerStyle(section)}>
-        <div className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(section, colsSum), paddingTop: `${INNER_SECTION_SAFE_AREA_PX}px`, paddingBottom: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
+        <div className="min-w-0 max-w-full overflow-hidden" style={columnsRowStyle(section, colsSum)}>
           {section.children.map((c) => {
             const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
             const gridColumn = device === "mobile" ? "1 / -1" : `span ${span}`;
