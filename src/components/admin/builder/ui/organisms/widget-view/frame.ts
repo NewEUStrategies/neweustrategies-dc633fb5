@@ -96,7 +96,13 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
     boxSizing: "border-box",
   };
 
-  const w = toCssSize(wRaw) ?? node.style?.maxWidth ?? (autoFit ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
+  const sj = node.style?.selfJustify;
+  const sa = node.style?.selfAlign;
+  const horizontalAnchored = sj && sj !== "auto";
+
+  // When user anchors the widget horizontally, it must shrink to its content
+  // so the alignSelf has visible effect (otherwise width:100% fills the column).
+  const w = toCssSize(wRaw) ?? node.style?.maxWidth ?? (autoFit || horizontalAnchored ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
   style.width = w;
 
   if (hRaw !== undefined) {
@@ -105,34 +111,37 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
     style.minHeight = node.style.minHeight;
   } else if (COMPACT_WIDGET_TYPES.has(node.type)) {
     style.minHeight = COMPACT_WIDGET_MIN_HEIGHT;
-    style.height = COMPACT_WIDGET_MIN_HEIGHT;
+    // Allow vertical anchoring to move the widget within the column height.
+    if (!sa || sa === "auto") style.height = COMPACT_WIDGET_MIN_HEIGHT;
   } else if (!autoFit) {
     style.minHeight = DEFAULT_WIDGET_MIN_HEIGHT;
   }
-  // Vertical alignment inside the (flex-column) parent column.
-  // We use auto margins so the widget can be pushed top/center/bottom against
-  // the column's full height (which the surrounding grid row stretches).
-  const sa = node.style?.selfAlign;
+
+  // Horizontal alignment (cross axis in a flex-col column).
+  if (horizontalAnchored) {
+    style.alignSelf =
+      sj === "start" ? "flex-start" :
+      sj === "end" ? "flex-end" :
+      "center";
+  }
+
+  // Vertical alignment inside the column (uses auto margins so it works in
+  // flex-col regardless of the column's align-items setting).
   if (sa && sa !== "auto") {
     if (sa === "stretch") {
       style.flexGrow = 1;
-      style.alignSelf = "stretch";
+      style.alignSelf = horizontalAnchored ? style.alignSelf : "stretch";
+      style.height = "auto";
     } else if (sa === "center") {
       style.marginTop = "auto";
       style.marginBottom = "auto";
     } else if (sa === "end") {
       style.marginTop = "auto";
+      style.marginBottom = 0;
     } else if (sa === "start") {
+      style.marginTop = 0;
       style.marginBottom = "auto";
     }
-  }
-  // Horizontal alignment inside the column line (alignSelf in flex-col = cross axis).
-  const sj = node.style?.selfJustify;
-  if (sj && sj !== "auto") {
-    style.alignSelf =
-      sj === "start" ? "flex-start" :
-      sj === "end" ? "flex-end" :
-      "center";
   }
   return style;
 };
