@@ -882,6 +882,105 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         </div>
       );
     }
+    case "section-label": {
+      const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Sekcja";
+      const action = getStr(c, `action_${lang}`) || getStr(c, "action_pl");
+      const href = safeUrl(getStr(c, "href"));
+      const color = getStr(c, "color") || "brand";
+      const barCls = color === "military" ? "bg-[oklch(0.55_0.18_30)]"
+        : color === "finance" ? "bg-[oklch(0.55_0.18_140)]"
+        : color === "diplomacy" ? "bg-[oklch(0.55_0.18_260)]"
+        : color === "transport" ? "bg-[oklch(0.55_0.18_60)]"
+        : color === "cyber" ? "bg-[oklch(0.55_0.18_200)]"
+        : color === "neutral" ? "bg-foreground/40"
+        : "bg-brand";
+      return wrap(
+        <div className="flex items-center justify-between mb-4 pb-2 border-b border-border">
+          <div className="inline-flex items-center gap-2">
+            <span className={`inline-block w-1 h-5 ${barCls}`} />
+            <span className="font-display text-sm font-bold uppercase tracking-wider">{label}</span>
+          </div>
+          {action && (
+            href
+              ? <a href={href} className="text-xs text-muted-foreground hover:text-brand transition">{action} →</a>
+              : <span className="text-xs text-muted-foreground">{action} →</span>
+          )}
+        </div>,
+      );
+    }
+    case "hot-topic-bar": {
+      const badge = getStr(c, `badge_${lang}`) || getStr(c, "badge_pl") || "Hot topic";
+      const title = getStr(c, `title_${lang}`) || getStr(c, "title_pl");
+      const href = safeUrl(getStr(c, "href"));
+      const iconName = getStr(c, "iconName") || "Flame";
+      const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
+      const Icon = Icons[iconName] || Icons.Flame;
+      const ArrowRight = Icons.ArrowRight;
+      const inner = (
+        <div className="flex items-center gap-4 text-sm">
+          <span className="inline-flex items-center gap-2 bg-brand text-brand-foreground font-bold px-3 py-1 rounded text-xs uppercase tracking-wider shrink-0">
+            {Icon && <Icon className="w-3.5 h-3.5" />} {badge}
+          </span>
+          <p className="truncate flex-1">{title}</p>
+          {ArrowRight && <ArrowRight className="w-4 h-4 text-brand shrink-0" />}
+        </div>
+      );
+      return wrap(
+        <div className="border-y border-border bg-muted/40 py-3 px-4">
+          {href ? <a href={href} className="block hover:opacity-90 transition">{inner}</a> : inner}
+        </div>,
+      );
+    }
+    case "rated-list": {
+      const items = Array.isArray(c.items) ? c.items as Array<Record<string, unknown>> : [];
+      return wrap(
+        <ol className="space-y-7">
+          {items.map((it, i) => {
+            const t = (it[`title_${lang}`] || it.title_pl || "") as string;
+            const d = (it[`excerpt_${lang}`] || it.excerpt_pl || "") as string;
+            const author = (it.author || "") as string;
+            const rating = typeof it.rating === "number" ? it.rating : 0;
+            const n = String(i + 1).padStart(2, "0");
+            return (
+              <li key={i} className="relative">
+                <span className="absolute -top-2 right-0 font-display text-5xl font-bold text-foreground/5 select-none">{n}</span>
+                <h3 className="text-lg font-bold leading-snug pr-12 hover:text-brand cursor-pointer">{t}</h3>
+                {d && <p className="text-sm text-muted-foreground mt-2 line-clamp-3">{d}</p>}
+                {rating > 0 && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <div className="flex h-2 w-24 overflow-hidden rounded-full">
+                      {[0,1,2,3,4].map((k) => (
+                        <div key={k} className="flex-1" style={{ backgroundColor: ["#ef4444","#f97316","#facc15","#a3e635","#22c55e"][k] }} />
+                      ))}
+                    </div>
+                    <span className="text-xs font-semibold">{rating}</span>
+                  </div>
+                )}
+                {author && <p className="mt-2 text-xs text-muted-foreground">— <span className="font-semibold text-foreground/80">{author}</span></p>}
+              </li>
+            );
+          })}
+        </ol>,
+      );
+    }
+    case "dark-featured-card": {
+      const badge = getStr(c, `badge_${lang}`) || getStr(c, "badge_pl");
+      const title = getStr(c, `title_${lang}`) || getStr(c, "title_pl");
+      const excerpt = getStr(c, `excerpt_${lang}`) || getStr(c, "excerpt_pl");
+      const img = safeImageUrl(getStr(c, "image"));
+      const href = safeUrl(getStr(c, "href"));
+      const card = (
+        <div className="relative bg-[oklch(0.18_0.02_260)] text-white p-6 rounded">
+          {badge && (
+            <div className="inline-block bg-destructive text-white text-xs font-bold px-3 py-1 mb-3">{badge}</div>
+          )}
+          {img && <img src={img} alt="" className="w-full h-72 object-cover rounded" loading="lazy" />}
+          <h3 className="mt-4 font-display text-2xl font-bold">{title}</h3>
+          {excerpt && <p className="text-sm text-white/70 mt-2">{excerpt}</p>}
+        </div>
+      );
+      return wrap(href ? <a href={href} className="block hover:opacity-95 transition">{card}</a> : card);
+    }
     default:
       return null;
   }

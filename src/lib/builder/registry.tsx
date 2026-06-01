@@ -8,6 +8,7 @@ import {
   Newspaper, Rows, FolderTree, Tags, Mail, Send, Megaphone,
   List, PanelLeft, Quote, Check, Link as LinkIcon,
   Globe, Sun, Search, User, Facebook,
+  Flame, Bookmark,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
@@ -135,6 +136,37 @@ export const WIDGETS: WidgetDef[] = [
           cta_pl: "Wybierz", cta_en: "Choose", href: "#", featured: true,
         },
       ],
+    }) },
+  // Home-page building blocks
+  { type: "section-label", label: "Etykieta sekcji", category: "blocks", icon: Bookmark,
+    defaults: () => ({
+      label_pl: "Najnowsze", label_en: "Latest",
+      color: "brand",
+      action_pl: "więcej", action_en: "more",
+      href: "",
+    }) },
+  { type: "hot-topic-bar", label: "Pasek hot topic", category: "blocks", icon: Flame,
+    defaults: () => ({
+      badge_pl: "Hot topic", badge_en: "Hot topic",
+      title_pl: "Najważniejszy temat dnia", title_en: "Today's top story",
+      href: "",
+      iconName: "Flame",
+    }) },
+  { type: "rated-list", label: "Lista z oceną", category: "blocks", icon: Star,
+    defaults: () => ({
+      items: [
+        { title_pl: "Pierwszy temat", title_en: "First topic", excerpt_pl: "", excerpt_en: "", author: "", rating: 8.3 },
+        { title_pl: "Drugi temat",   title_en: "Second topic", excerpt_pl: "", excerpt_en: "", author: "", rating: 0 },
+        { title_pl: "Trzeci temat",  title_en: "Third topic",  excerpt_pl: "", excerpt_en: "", author: "", rating: 0 },
+      ],
+    }) },
+  { type: "dark-featured-card", label: "Karta wyróżniona (dark)", category: "blocks", icon: Newspaper,
+    defaults: () => ({
+      badge_pl: "WYRÓŻNIONE", badge_en: "FEATURED",
+      title_pl: "Tytuł wyróżnionego artykułu", title_en: "Featured article title",
+      excerpt_pl: "", excerpt_en: "",
+      image: "",
+      href: "",
     }) },
 ];
 
