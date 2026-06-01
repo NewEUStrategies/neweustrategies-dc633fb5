@@ -135,7 +135,7 @@ export function Paywall({ rule, lang, fallbackText }: Props) {
                   return (
                     <div key={p.id} className="border border-border rounded-lg p-4 bg-background hover:border-brand transition">
                       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand mb-1">
-                        <Sparkles className="w-3.5 h-3.5" /> {name}
+                        <Star className="w-3.5 h-3.5" /> {name}
                       </div>
                       <div className="text-2xl font-bold">
                         {formatMoney(p.price_cents, p.currency)}
