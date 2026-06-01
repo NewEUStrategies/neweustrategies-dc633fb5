@@ -946,72 +946,9 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         </div>,
       );
     }
-    case "rated-list": {
-      const items = Array.isArray(c.items) ? c.items as Array<Record<string, unknown>> : [];
-      const numFont = getStr(c, "numberFont") || "display";
-      const numWeight = getStr(c, "numberWeight") || "700";
-      const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 48;
-      const numColor = getStr(c, "numberColor") || "#000000";
-      const numColorDark = getStr(c, "numberColorDark") || "#ffffff";
-      const numOpacity = typeof c.numberOpacity === "number" ? c.numberOpacity : 0.05;
-      const numPos = getStr(c, "numberPosition") || "behind";
-      const fontCls =
-        numFont === "sans" ? "font-sans"
-        : numFont === "serif" ? "font-serif"
-        : numFont === "mono" ? "font-mono"
-        : "font-display";
-      const numStyle: React.CSSProperties = {
-        fontSize: `${numSize}px`,
-        fontWeight: numWeight as React.CSSProperties["fontWeight"],
-        opacity: numOpacity,
-        color: `var(--rl-num, ${numColor})`,
-        ["--rl-num" as never]: numColor,
-        ["--rl-num-dark" as never]: numColorDark,
-      };
-      return wrap(
-        <>
-          <style>{`.rl-num-wrap .rl-num{color:${numColor};}.dark .rl-num-wrap .rl-num{color:${numColorDark};}`}</style>
-          <ol className="space-y-7 rl-num-wrap">
-            {items.map((it, i) => {
-              const t = (it[`title_${lang}`] || it.title_pl || "") as string;
-              const d = (it[`excerpt_${lang}`] || it.excerpt_pl || "") as string;
-              const author = (it.author || "") as string;
-              const rating = typeof it.rating === "number" ? it.rating : 0;
-              const n = String(i + 1).padStart(2, "0");
-              const numCls = `rl-num ${fontCls} select-none leading-none`;
-              const isLeft = numPos === "left";
-              const isTop = numPos === "top";
-              return (
-                <li key={i} className={`relative ${isLeft ? "flex items-start gap-4" : ""}`}>
-                  {isLeft ? (
-                    <span className={numCls} style={numStyle}>{n}</span>
-                  ) : isTop ? (
-                    <span className={`block mb-2 ${numCls}`} style={numStyle}>{n}</span>
-                  ) : (
-                    <span className={`absolute -top-2 right-0 ${numCls}`} style={numStyle}>{n}</span>
-                  )}
-                  <div className={isLeft ? "flex-1 min-w-0" : ""}>
-                    <h3 className={`text-lg font-bold leading-snug ${isLeft || isTop ? "" : "pr-12"} hover:text-brand cursor-pointer`}>{t}</h3>
-                    {d && <p className="text-sm text-muted-foreground mt-2 line-clamp-3">{d}</p>}
-                    {rating > 0 && (
-                      <div className="mt-3 flex items-center gap-2">
-                        <div className="flex h-2 w-24 overflow-hidden rounded-full">
-                          {[0,1,2,3,4].map((k) => (
-                            <div key={k} className="flex-1" style={{ backgroundColor: ["#ef4444","#f97316","#facc15","#a3e635","#22c55e"][k] }} />
-                          ))}
-                        </div>
-                        <span className="text-xs font-semibold">{rating}</span>
-                      </div>
-                    )}
-                    {author && <p className="mt-2 text-xs text-muted-foreground">— <span className="font-semibold text-foreground/80">{author}</span></p>}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        </>,
-      );
-    }
+    case "rated-list":
+      return wrap(<RatedListView c={c} lang={lang} />);
+
 
     case "dark-featured-card": {
       const badgeKey = `badge_${lang}`;
@@ -1091,6 +1028,202 @@ function PostListView({ c, lang, carousel = false }: { c: WidgetContent; lang: L
     </div>
   );
 }
+
+type RatedItem = {
+  title: string;
+  excerpt: string;
+  author: string;
+  rating: number;
+  href?: string;
+};
+
+function RatedListView({ c, lang }: { c: WidgetContent; lang: Lang }) {
+  const source = getStr(c, "source") || "manual";
+  const numFont = getStr(c, "numberFont") || "display";
+  const numWeight = getStr(c, "numberWeight") || "700";
+  const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 48;
+  const numColor = getStr(c, "numberColor") || "#000000";
+  const numColorDark = getStr(c, "numberColorDark") || "#ffffff";
+  const numOpacity = typeof c.numberOpacity === "number" ? c.numberOpacity : 0.05;
+  const numPos = getStr(c, "numberPosition") || "behind";
+  const showRating = c.showRating !== false;
+  const fontCls =
+    numFont === "sans" ? "font-sans"
+    : numFont === "serif" ? "font-serif"
+    : numFont === "mono" ? "font-mono"
+    : "font-display";
+  const numStyle: CSSProperties = {
+    fontSize: `${numSize}px`,
+    fontWeight: numWeight as CSSProperties["fontWeight"],
+    opacity: numOpacity,
+  };
+
+  const manualItems: RatedItem[] = (Array.isArray(c.items) ? c.items as Array<Record<string, unknown>> : []).map((it) => ({
+    title: (it[`title_${lang}`] || it.title_pl || "") as string,
+    excerpt: (it[`excerpt_${lang}`] || it.excerpt_pl || "") as string,
+    author: (it.author || "") as string,
+    rating: typeof it.rating === "number" ? it.rating : 0,
+  }));
+
+  const csv = (k: string) => (getStr(c, k) || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const cats = csv("categoriesFilter");
+  const excludeCats = csv("excludeCategories");
+  const tagSlugs = csv("tagsFilter");
+  const excludeTagSlugs = csv("excludeTags");
+  const postFormat = getStr(c, "postFormatFilter");
+  const authors = csv("authorFilter");
+  const postIds = csv("postIdsFilter");
+  const excludePostIds = csv("excludePostIds");
+  const orderBy = getStr(c, "orderBy") || "last_published";
+  const limit = typeof c.numberOfPosts === "number" ? c.numberOfPosts : 4;
+  const offset = typeof c.postOffset === "number" ? c.postOffset : 0;
+
+  const queryKey = ["rated-list-dyn", { cats, excludeCats, tagSlugs, excludeTagSlugs, postFormat, authors, postIds, excludePostIds, orderBy, limit, offset }];
+  const { data: dynItems } = useQuery({
+    queryKey,
+    enabled: source === "dynamic",
+    queryFn: async (): Promise<RatedItem[]> => {
+      // Resolve include/exclude post-ids from category/tag filters.
+      const resolveByCategory = async (slugs: string[]) => {
+        if (!slugs.length) return null;
+        const { data } = await supabase
+          .from("post_categories")
+          .select("post_id, categories!inner(slug)")
+          .in("categories.slug", slugs);
+        return new Set((data ?? []).map((r: { post_id: string }) => r.post_id));
+      };
+      const resolveByTag = async (slugs: string[]) => {
+        if (!slugs.length) return null;
+        const { data } = await supabase
+          .from("post_tags")
+          .select("post_id, tags!inner(slug)")
+          .in("tags.slug", slugs);
+        return new Set((data ?? []).map((r: { post_id: string }) => r.post_id));
+      };
+
+      const [incCat, excCat, incTag, excTag] = await Promise.all([
+        resolveByCategory(cats),
+        resolveByCategory(excludeCats),
+        resolveByTag(tagSlugs),
+        resolveByTag(excludeTagSlugs),
+      ]);
+
+      let q = supabase
+        .from("posts")
+        .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, published_at, post_format, author_id")
+        .eq("status", "published");
+
+      if (postFormat && postFormat !== "all") q = q.eq("post_format", postFormat);
+      if (postIds.length) q = q.in("id", postIds);
+
+      const includeIds = new Set<string>();
+      let haveInclude = false;
+      if (incCat) { haveInclude = true; incCat.forEach((id) => includeIds.add(id)); }
+      if (incTag) {
+        if (haveInclude) {
+          for (const id of Array.from(includeIds)) if (!incTag.has(id)) includeIds.delete(id);
+        } else {
+          haveInclude = true; incTag.forEach((id) => includeIds.add(id));
+        }
+      }
+      if (haveInclude) {
+        if (includeIds.size === 0) return [];
+        q = q.in("id", Array.from(includeIds));
+      }
+
+      const excludeIds = new Set<string>([...excludePostIds]);
+      excCat?.forEach((id) => excludeIds.add(id));
+      excTag?.forEach((id) => excludeIds.add(id));
+      if (excludeIds.size) q = q.not("id", "in", `(${Array.from(excludeIds).join(",")})`);
+
+      if (orderBy === "title_asc") q = q.order(lang === "pl" ? "title_pl" : "title_en", { ascending: true });
+      else if (orderBy === "title_desc") q = q.order(lang === "pl" ? "title_pl" : "title_en", { ascending: false });
+      else q = q.order("published_at", { ascending: false });
+
+      const from = Math.max(0, offset);
+      const to = from + Math.max(1, limit) - 1;
+      q = q.range(from, to);
+
+      const { data } = await q;
+      let rows = (data ?? []) as Array<{
+        id: string; slug: string; title_pl: string; title_en: string;
+        excerpt_pl: string | null; excerpt_en: string | null;
+        author_id: string | null;
+      }>;
+
+      // Fetch author display names in one batch.
+      const authorIds = Array.from(new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x)));
+      const authorMap = new Map<string, string>();
+      if (authorIds.length) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", authorIds);
+        (profs ?? []).forEach((p) => { if (p.display_name) authorMap.set(p.id, p.display_name); });
+      }
+
+      if (authors.length) {
+        rows = rows.filter((r) => r.author_id && authors.includes(authorMap.get(r.author_id) ?? ""));
+      }
+      if (orderBy === "random") rows = rows.sort(() => Math.random() - 0.5);
+
+      return rows.map((r) => ({
+        title: (lang === "pl" ? r.title_pl : r.title_en) || r.title_pl,
+        excerpt: ((lang === "pl" ? r.excerpt_pl : r.excerpt_en) || r.excerpt_pl || "") as string,
+        author: (r.author_id && authorMap.get(r.author_id)) || "",
+        rating: 0,
+        href: `/post/${r.slug}`,
+      }));
+
+    },
+  });
+
+  const items: RatedItem[] = source === "dynamic" ? (dynItems ?? []) : manualItems;
+
+  return (
+    <>
+      <style>{`.rl-num-wrap .rl-num{color:${numColor};}.dark .rl-num-wrap .rl-num{color:${numColorDark};}`}</style>
+      <ol className="space-y-7 rl-num-wrap">
+        {items.map((it, i) => {
+          const n = String(i + 1).padStart(2, "0");
+          const numCls = `rl-num ${fontCls} select-none leading-none`;
+          const isLeft = numPos === "left";
+          const isTop = numPos === "top";
+          const titleEl = (
+            <h3 className={`text-lg font-bold leading-snug ${isLeft || isTop ? "" : "pr-12"} hover:text-brand cursor-pointer`}>{it.title}</h3>
+          );
+          return (
+            <li key={i} className={`relative ${isLeft ? "flex items-start gap-4" : ""}`}>
+              {isLeft ? (
+                <span className={numCls} style={numStyle}>{n}</span>
+              ) : isTop ? (
+                <span className={`block mb-2 ${numCls}`} style={numStyle}>{n}</span>
+              ) : (
+                <span className={`absolute -top-2 right-0 ${numCls}`} style={numStyle}>{n}</span>
+              )}
+              <div className={isLeft ? "flex-1 min-w-0" : ""}>
+                {it.href ? <a href={it.href} className="block">{titleEl}</a> : titleEl}
+                {it.excerpt && <p className="text-sm text-muted-foreground mt-2 line-clamp-3">{it.excerpt}</p>}
+                {showRating && it.rating > 0 && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <div className="flex h-2 w-24 overflow-hidden rounded-full">
+                      {[0,1,2,3,4].map((k) => (
+                        <div key={k} className="flex-1" style={{ backgroundColor: ["#ef4444","#f97316","#facc15","#a3e635","#22c55e"][k] }} />
+                      ))}
+                    </div>
+                    <span className="text-xs font-semibold">{it.rating}</span>
+                  </div>
+                )}
+                {it.author && <p className="mt-2 text-xs text-muted-foreground">— <span className="font-semibold text-foreground/80">{it.author}</span></p>}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </>
+  );
+}
+
 
 function CategoriesView({ lang }: { lang: Lang }) {
   const { data } = useQuery({
