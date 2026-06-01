@@ -227,14 +227,6 @@ function StylePane({ section, device, onChange }: { section: SectionNode; device
   );
 }
 
-function Collapsible({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <details className="border border-border rounded bg-muted/20 open:bg-card transition" open>
-      <summary className="cursor-pointer text-xs font-medium px-3 py-2 select-none">{title}</summary>
-      <div className="px-3 py-3 space-y-3 border-t border-border">{children}</div>
-    </details>
-  );
-}
 
 // ---- background editor ----
 
