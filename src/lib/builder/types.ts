@@ -39,6 +39,8 @@ export interface CommonStyle {
   padding?: ResponsiveValue<string>; // CSS shorthand e.g. "24px 16px"
   margin?: ResponsiveValue<string>;
   align?: ResponsiveValue<Align>;
+  /** Vertical alignment of this item within its parent column/row (alignSelf). */
+  selfAlign?: "auto" | "start" | "center" | "end" | "stretch";
   borderRadius?: string;
   maxWidth?: string;
   minHeight?: string;
