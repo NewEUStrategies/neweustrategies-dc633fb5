@@ -80,7 +80,22 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
           <Save className="w-4 h-4 mr-2" /> {save.isPending ? "..." : "Zapisz"}
         </Button>
       </div>
-      <Builder value={doc} onChange={onChange} lang={lang} onLangChange={setLang} hideChrome scope={scope} />
+      {scope === "header" ? (
+        <Tabs defaultValue="builder">
+          <TabsList>
+            <TabsTrigger value="builder">Builder</TabsTrigger>
+            <TabsTrigger value="options">Opcje motywu</TabsTrigger>
+          </TabsList>
+          <TabsContent value="builder" className="mt-3">
+            <Builder value={doc} onChange={onChange} lang={lang} onLangChange={setLang} hideChrome scope={scope} />
+          </TabsContent>
+          <TabsContent value="options" className="mt-3">
+            <ThemeOptionsPane />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <Builder value={doc} onChange={onChange} lang={lang} onLangChange={setLang} hideChrome scope={scope} />
+      )}
     </div>
   );
 }
