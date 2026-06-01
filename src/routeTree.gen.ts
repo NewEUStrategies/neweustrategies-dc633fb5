@@ -16,6 +16,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
+import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminTagsRouteImport } from './routes/admin.tags'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
@@ -77,6 +78,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 const PostSlugRoute = PostSlugRouteImport.update({
   id: '/post/$slug',
   path: '/post/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTtsRoute = ApiTtsRouteImport.update({
+  id: '/api/tts',
+  path: '/api/tts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
@@ -230,6 +236,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/api/tts': typeof ApiTtsRoute
   '/post/$slug': typeof PostSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
@@ -264,6 +271,7 @@ export interface FileRoutesByTo {
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/api/tts': typeof ApiTtsRoute
   '/post/$slug': typeof PostSlugRoute
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
@@ -301,6 +309,7 @@ export interface FileRoutesById {
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/api/tts': typeof ApiTtsRoute
   '/post/$slug': typeof PostSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
@@ -339,6 +348,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/tags'
     | '/admin/users'
+    | '/api/tts'
     | '/post/$slug'
     | '/admin/'
     | '/blog/'
@@ -373,6 +383,7 @@ export interface FileRouteTypes {
     | '/admin/posts'
     | '/admin/tags'
     | '/admin/users'
+    | '/api/tts'
     | '/post/$slug'
     | '/admin'
     | '/blog'
@@ -409,6 +420,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/tags'
     | '/admin/users'
+    | '/api/tts'
     | '/post/$slug'
     | '/admin/'
     | '/blog/'
@@ -437,6 +449,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiTtsRoute: typeof ApiTtsRoute
   PostSlugRoute: typeof PostSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
   ApiPublicRobotsDottxtRoute: typeof ApiPublicRobotsDottxtRoute
@@ -492,6 +505,13 @@ declare module '@tanstack/react-router' {
       path: '/post/$slug'
       fullPath: '/post/$slug'
       preLoaderRoute: typeof PostSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tts': {
+      id: '/api/tts'
+      path: '/api/tts'
+      fullPath: '/api/tts'
+      preLoaderRoute: typeof ApiTtsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/users': {
@@ -791,6 +811,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AdminRoute: AdminRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiTtsRoute: ApiTtsRoute,
   PostSlugRoute: PostSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
   ApiPublicRobotsDottxtRoute: ApiPublicRobotsDottxtRoute,
