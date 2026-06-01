@@ -24,22 +24,46 @@ function Page() {
   };
 
   const LayoutGrid = ({ value, onChange, presets, title, hint }: {
-    value: string; onChange: (id: string) => void; presets: typeof STANDARD_LAYOUTS; title: string; hint?: string;
-  }) => (
-    <section className="space-y-3">
-      <h2 className="font-display text-lg">{title}</h2>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        {presets.map((p) => (
-          <button key={p.id} type="button" onClick={() => onChange(p.id)}
-            className={`text-left p-3 border rounded-lg transition ${value === p.id ? "border-brand ring-2 ring-brand/30" : "border-border hover:bg-muted/40"}`}>
-            <div className="h-16 bg-muted/60 rounded mb-2 flex items-center justify-center text-[10px] text-muted-foreground">{p.id}</div>
-            <p className="text-xs font-medium">{p.label}</p>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
+    value: string; onChange: (id: string) => void; presets: LayoutPreset[]; title: string; hint?: string;
+  }) => {
+    const selected = presets.find((p) => p.id === value) ?? presets[0];
+    return (
+      <section className="space-y-3">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-display text-lg">{title}</h2>
+          <span className="text-xs text-muted-foreground">Wybrany: <b>{selected.label}</b></span>
+        </div>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+
+        {/* Duży podgląd wybranego presetu */}
+        <div className="grid md:grid-cols-[1fr_280px] gap-4 items-start">
+          <div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {presets.map((p) => (
+                <button key={p.id} type="button" onClick={() => onChange(p.id)}
+                  className={`text-left p-2 border rounded-lg transition group ${value === p.id ? "border-brand ring-2 ring-brand/30" : "border-border hover:bg-muted/40"}`}>
+                  <LayoutPreview preset={p} settings={local} className="mb-2" />
+                  <p className="text-[11px] font-medium truncate">{p.label}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+          <aside className="sticky top-4 space-y-2 border border-border rounded-lg p-3 bg-muted/30">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Live preview</div>
+            <LayoutPreview preset={selected} settings={local} />
+            <ul className="text-[11px] text-muted-foreground space-y-0.5 pt-2">
+              <li>Nagłówek: <b>{selected.header}</b></li>
+              <li>Cover: <b>{selected.cover}</b></li>
+              <li>Sidebar: <b>{selected.hasSidebar ? "tak" : "nie"}</b></li>
+              {selected.featuredRatioKey && (
+                <li>Featured ratio: <b>{local[selected.featuredRatioKey]}%</b></li>
+              )}
+            </ul>
+          </aside>
+        </div>
+      </section>
+    );
+  };
 
   return (
     <AdminShell>
