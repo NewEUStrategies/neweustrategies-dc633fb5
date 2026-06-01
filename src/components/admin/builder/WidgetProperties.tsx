@@ -18,8 +18,10 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { PropField } from "./ui/atoms/PropField";
-import { ColorField } from "./ui/atoms/ColorField";
+import {
+  PropField, ColorField, ItemFrame,
+  CollapsibleSection as Collapsible,
+} from "./ui/atoms";
 import { SpacingControl } from "./ui/molecules/SpacingControl";
 import { TypographyControl } from "./ui/molecules/TypographyControl";
 import { MotionControl } from "./ui/molecules/MotionControl";
@@ -331,17 +333,6 @@ function ListShell({
   );
 }
 
-function ItemFrame({ title, onRemove, children }: { title: string; onRemove: () => void; children: React.ReactNode }) {
-  return (
-    <div className="border border-border rounded-md p-2 space-y-1.5 bg-background">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{title}</span>
-        <button type="button" onClick={onRemove} className="text-[10px] text-muted-foreground hover:text-destructive">Usuń</button>
-      </div>
-      {children}
-    </div>
-  );
-}
 
 function AccordionEditor({ c, lang, setContent }: { c: WidgetNode["content"]; lang: "pl"|"en"; setContent: (k: string, v: Json) => void }) {
   const items = itemsOf(c, "items");
@@ -476,19 +467,6 @@ function PricingEditor({ c, lang, setContent }: { c: WidgetNode["content"]; lang
   );
 }
 
-function Collapsible({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border border-border rounded-md bg-background">
-      <button type="button" onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-2 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground">
-        <span>{title}</span>
-        <span className="text-xs">{open ? "−" : "+"}</span>
-      </button>
-      {open && <div className="px-2 pb-2 pt-1 space-y-2">{children}</div>}
-    </div>
-  );
-}
 
 function RatedListEditor({ c, lang, setContent }: { c: WidgetNode["content"]; lang: "pl"|"en"; setContent: (k: string, v: Json) => void }) {
   const items = itemsOf(c, "items");
