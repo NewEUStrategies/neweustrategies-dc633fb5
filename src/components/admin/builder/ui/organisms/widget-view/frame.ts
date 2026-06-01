@@ -116,6 +116,13 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
       sa === "end" ? "flex-end" :
       sa; // "center" | "stretch"
   }
+  const sj = node.style?.selfJustify;
+  if (sj && sj !== "auto") {
+    // Use auto margins so the widget can be pushed left/center/right within its line.
+    if (sj === "start") { style.marginRight = "auto"; }
+    else if (sj === "end") { style.marginLeft = "auto"; }
+    else if (sj === "center") { style.marginLeft = "auto"; style.marginRight = "auto"; }
+  }
   return style;
 };
 
