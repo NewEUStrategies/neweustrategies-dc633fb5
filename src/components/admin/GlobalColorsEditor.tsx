@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-import { Save, Undo } from "@/lib/lucide-shim";
+import { Save, Undo, X } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,6 +49,8 @@ export function GlobalColorsEditor() {
   // Live preview — natychmiast nadpisuje :root / .dark tokenami z draftu,
   // dzięki czemu builder po prawej widzi zmiany w czasie rzeczywistym.
   const liveCss = globalColorsToCss(draft);
+  const isDirty = JSON.stringify(draft) !== JSON.stringify({ ...EMPTY_GLOBAL_COLORS, ...(data ?? {}) });
+
 
   return (
     <div className="space-y-6">
@@ -61,10 +63,22 @@ export function GlobalColorsEditor() {
             Ustaw kolory dla trybu jasnego i ciemnego. Zmiany wpływają na całą stronę.
           </p>
         </div>
-        <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
-          <Save className="w-4 h-4 mr-2" />
-          {save.isPending ? "Zapisywanie…" : "Zapisz"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setDraft({ ...EMPTY_GLOBAL_COLORS, ...(data ?? {}) })}
+            disabled={save.isPending || isDirty === false}
+          >
+            <X className="w-4 h-4 mr-2" />
+            Anuluj
+          </Button>
+          <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending || isDirty === false}>
+            <Save className="w-4 h-4 mr-2" />
+            {save.isPending ? "Zapisywanie…" : "Zapisz"}
+          </Button>
+        </div>
+
       </div>
 
       <Tabs defaultValue={GLOBAL_COLOR_GROUPS[0]?.id} className="w-full">
