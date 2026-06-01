@@ -188,6 +188,7 @@ function ColumnView({
   return (
     <div
       ref={setDropRef}
+      data-col-id={column.id}
       className={`group/col relative min-w-0 max-w-full overflow-hidden rounded border-2 ${selected ? "border-brand bg-brand/5" : (dragOver || isOver) ? "border-brand/70 bg-brand/5" : "border-dashed border-border/60"} transition`}
       style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight ?? 80, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius }}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "column", id: column.id }); }}
