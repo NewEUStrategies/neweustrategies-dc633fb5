@@ -294,29 +294,51 @@ export function ThemeOptionsPane() {
             )}
 
             {logoTab === "bookmark" && (
-              <div className="space-y-4">
-                <ImageSlot
-                  label="iOS Touch Icon"
-                  icon={<Globe className="w-3.5 h-3.5" />}
-                  value={draft.logo.bookmark_ios}
-                  onChange={(v) => patchLogo({ bookmark_ios: v })}
-                  hint="Zalecany rozmiar 180×180px."
-                  folder="theme/icons"
-                />
+              <div className="space-y-5">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">iOS Touch Icon · 180×180px</div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <ImageSlot
+                      label="iOS Touch Icon"
+                      icon={<Sun className="w-3.5 h-3.5" />}
+                      value={draft.logo.bookmark_ios}
+                      onChange={(v) => patchLogo({ bookmark_ios: v })}
+                      folder="theme/icons"
+                    />
+                    <ImageSlot
+                      label="Dark Mode — iOS Touch Icon"
+                      icon={<Moon className="w-3.5 h-3.5" />}
+                      value={draft.logo.bookmark_ios_dark}
+                      onChange={(v) => patchLogo({ bookmark_ios_dark: v })}
+                      folder="theme/icons"
+                    />
+                  </div>
+                </div>
                 <Row label="Add to Home Screen" hint="Wymaga ustawionego iOS Touch Icon.">
                   <Switch
                     checked={draft.logo.add_to_home_screen}
                     onCheckedChange={(v) => patchLogo({ add_to_home_screen: v })}
                   />
                 </Row>
-                <ImageSlot
-                  label="Windows Metro Tile Icon"
-                  icon={<Globe className="w-3.5 h-3.5" />}
-                  value={draft.logo.bookmark_windows}
-                  onChange={(v) => patchLogo({ bookmark_windows: v })}
-                  hint="Zalecany rozmiar 144×144px."
-                  folder="theme/icons"
-                />
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">Windows Metro Tile · 144×144px</div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <ImageSlot
+                      label="Windows Metro Tile Icon"
+                      icon={<Sun className="w-3.5 h-3.5" />}
+                      value={draft.logo.bookmark_windows}
+                      onChange={(v) => patchLogo({ bookmark_windows: v })}
+                      folder="theme/icons"
+                    />
+                    <ImageSlot
+                      label="Dark Mode — Windows Metro Tile"
+                      icon={<Moon className="w-3.5 h-3.5" />}
+                      value={draft.logo.bookmark_windows_dark}
+                      onChange={(v) => patchLogo({ bookmark_windows_dark: v })}
+                      folder="theme/icons"
+                    />
+                  </div>
+                </div>
               </div>
             )}
           </div>
