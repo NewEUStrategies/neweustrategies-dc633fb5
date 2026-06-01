@@ -5,3 +5,8 @@ export { SpacingControl } from "./SpacingControl";
 export { TypographyControl } from "./TypographyControl";
 export { VisibilityControl } from "./VisibilityControl";
 export { SchemaFieldControl } from "./SchemaFieldControl";
+export { BackgroundEditor } from "./BackgroundEditor";
+export { OverlayEditor } from "./OverlayEditor";
+export { BorderEditor } from "./BorderEditor";
+export { ShapeEditor } from "./ShapeEditor";
+export { TypographyEditor } from "./TypographyEditor";
