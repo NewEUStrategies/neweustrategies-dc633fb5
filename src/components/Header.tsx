@@ -214,6 +214,190 @@ export function Header() {
     );
   }
 
+  // ---------- Layout 3: Split Nav (logo center, nav split left/right) ----------
+  if (themeOpts.header.layout === "layout-3") {
+    const half = Math.ceil(nav.length / 2);
+    const leftNav = nav.slice(0, half);
+    const rightNav = nav.slice(half);
+    return (
+      <header className="bg-background border-b border-border">
+        <AlertBar />
+        <div
+          className={[
+            "bg-background transition-transform duration-300",
+            sticky ? "sticky top-0 z-40" : "",
+            glass_effect ? "backdrop-blur-md bg-background/70" : "",
+            navHidden ? "-translate-y-full" : "translate-y-0",
+          ].filter(Boolean).join(" ")}
+        >
+          <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-20 grid grid-cols-3 items-center gap-4">
+            <nav className="hidden lg:flex items-center justify-end gap-1">
+              {leftNav.map((item) => (
+                <a key={item.label} href={item.url || "#"}
+                  style={{ paddingLeft: item_spacing, paddingRight: item_spacing }}
+                  className={`py-2 text-xs font-bold tracking-wider text-foreground transition ${HOVER_CLASS[hover_effect]}`}>
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+            <Link to="/" className="flex items-center justify-center gap-2">
+              <img src={logoSrc} alt="Logo" className="h-12 w-auto object-contain" />
+            </Link>
+            <nav className="hidden lg:flex items-center justify-start gap-1">
+              {rightNav.map((item) => (
+                <a key={item.label} href={item.url || "#"}
+                  style={{ paddingLeft: item_spacing, paddingRight: item_spacing }}
+                  className={`py-2 text-xs font-bold tracking-wider text-foreground transition ${HOVER_CLASS[hover_effect]}`}>
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+          </div>
+          <div className="lg:hidden border-t border-border px-4 py-2 flex items-center justify-between">
+            {themeOpts.header.search.enabled && (
+              <button aria-label="Search" className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
+            )}
+            <button onClick={toggle} aria-label="Toggle theme" className="p-2 rounded-full hover:bg-muted">
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+            <button onClick={() => setMobileOpen((o) => !o)} className="p-2 rounded-full hover:bg-muted" aria-label="Menu">
+              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
+          {mobileOpen && (
+            <div className="lg:hidden border-t border-border py-4 px-4 flex flex-col gap-3">
+              {nav.map((item) => (
+                <a key={item.label} href={item.url || "#"} className="text-left text-sm font-semibold tracking-wider text-foreground/80">{item.label}</a>
+              ))}
+            </div>
+          )}
+        </div>
+      </header>
+    );
+  }
+
+  // ---------- Layout 4: Stacked Compact (top-bar utilities + logo+nav row) ----------
+  if (themeOpts.header.layout === "layout-4") {
+    return (
+      <header className="bg-background border-b border-border">
+        <AlertBar />
+        <div className="border-b border-border">
+          <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-9 flex items-center justify-end gap-3 text-xs">
+            {headerCfg.show_socials && (
+              <div className="hidden sm:flex items-center gap-2 text-muted-foreground">
+                <a href={headerCfg.social_facebook || "#"} aria-label="Facebook" className="hover:text-brand"><Facebook className="w-3.5 h-3.5" /></a>
+                <a href={headerCfg.social_twitter || "#"} aria-label="X" className="hover:text-brand"><Twitter className="w-3.5 h-3.5" /></a>
+                <a href={headerCfg.social_linkedin || "#"} aria-label="LinkedIn" className="hover:text-brand"><Linkedin className="w-3.5 h-3.5" /></a>
+              </div>
+            )}
+            {themeOpts.header.signin.enabled && !session && (
+              <Link to="/login" className={`inline-flex items-center gap-1 text-xs ${SIGNIN_CLASS[themeOpts.header.signin.variant]}`}>
+                <LogIn className="w-3.5 h-3.5" />
+                {lang.startsWith("pl") ? themeOpts.header.signin.signin_label_pl : themeOpts.header.signin.signin_label_en}
+              </Link>
+            )}
+          </div>
+        </div>
+        <div
+          className={[
+            "bg-background transition-transform duration-300",
+            sticky ? "sticky top-0 z-40" : "",
+            glass_effect ? "backdrop-blur-md bg-background/70" : "",
+            navHidden ? "-translate-y-full" : "translate-y-0",
+          ].filter(Boolean).join(" ")}
+        >
+          <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-4 flex items-center justify-between gap-6">
+            <Link to="/" className="flex items-center gap-2">
+              <img src={logoSrc} alt="Logo" className="h-10 w-auto object-contain" />
+            </Link>
+            <nav className="hidden lg:flex items-center gap-1">
+              {nav.map((item) => (
+                <a key={item.label} href={item.url || "#"}
+                  style={{ paddingLeft: item_spacing, paddingRight: item_spacing }}
+                  className={`py-2 text-xs font-bold tracking-wider text-foreground transition ${HOVER_CLASS[hover_effect]}`}>
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+            <div className="flex items-center gap-2">
+              {themeOpts.header.search.enabled && (
+                <button aria-label="Search" className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
+              )}
+              <button onClick={toggle} aria-label="Toggle theme" className="p-2 rounded-full hover:bg-muted">
+                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+              <button onClick={() => setMobileOpen((o) => !o)} className="lg:hidden p-2 rounded-full hover:bg-muted" aria-label="Menu">
+                {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+          {mobileOpen && (
+            <div className="lg:hidden border-t border-border py-4 px-4 flex flex-col gap-3">
+              {nav.map((item) => (
+                <a key={item.label} href={item.url || "#"} className="text-left text-sm font-semibold tracking-wider text-foreground/80">{item.label}</a>
+              ))}
+            </div>
+          )}
+        </div>
+      </header>
+    );
+  }
+
+  // ---------- Layout 5: Minimal (logo left, hamburger overlay menu) ----------
+  if (themeOpts.header.layout === "layout-5") {
+    return (
+      <header className="bg-background border-b border-border">
+        <AlertBar />
+        <div
+          className={[
+            "bg-background transition-transform duration-300",
+            sticky ? "sticky top-0 z-40" : "",
+            glass_effect ? "backdrop-blur-md bg-background/70" : "",
+            navHidden ? "-translate-y-full" : "translate-y-0",
+          ].filter(Boolean).join(" ")}
+        >
+          <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-16 flex items-center justify-between">
+            <Link to="/" className="flex items-center gap-2">
+              <img src={logoSrc} alt="Logo" className="h-9 w-auto object-contain" />
+            </Link>
+            <div className="flex items-center gap-2">
+              {themeOpts.header.search.enabled && (
+                <button aria-label="Search" className="p-2 hover:text-brand"><Search className="w-4 h-4" /></button>
+              )}
+              <button onClick={toggle} aria-label="Toggle theme" className="p-2 rounded-full hover:bg-muted">
+                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+              <button onClick={() => setMobileOpen((o) => !o)} className="p-2 rounded-full hover:bg-muted inline-flex items-center gap-2" aria-label="Menu">
+                {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                <span className="text-xs font-bold tracking-wider hidden sm:inline">MENU</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        {mobileOpen && (
+          <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-md flex flex-col">
+            <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-16 flex items-center justify-between w-full">
+              <Link to="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2">
+                <img src={logoSrc} alt="Logo" className="h-9 w-auto object-contain" />
+              </Link>
+              <button onClick={() => setMobileOpen(false)} className="p-2 rounded-full hover:bg-muted" aria-label="Close">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <nav className="flex-1 flex flex-col items-center justify-center gap-6">
+              {nav.map((item) => (
+                <a key={item.label} href={item.url || "#"} onClick={() => setMobileOpen(false)}
+                  className={`text-2xl md:text-4xl font-display font-bold tracking-tight transition ${HOVER_CLASS[hover_effect]}`}>
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+          </div>
+        )}
+      </header>
+    );
+  }
+
   // ---------- Layout 1 (default): Classic Centered ----------
   return (
     <header className="bg-background border-b border-border">
