@@ -254,7 +254,7 @@ function SortableWidget({
   const hidden = !!widget.advanced?.hideOn?.[device];
   const frameStyle = getWidgetFrameStyle(widget, device);
   return (
-    <div ref={setNodeRef} style={{ ...style, ...frameStyle, boxSizing: "border-box", padding: 0 }} {...attributes}
+    <div ref={setNodeRef} data-widget-id={widget.id} style={{ ...style, ...frameStyle, boxSizing: "border-box", padding: 0 }} {...attributes}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
       className={`group/w relative flex flex-col items-stretch justify-start shrink min-w-0 max-w-full overflow-hidden rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} ${hidden ? "opacity-40" : ""}`}
     >
