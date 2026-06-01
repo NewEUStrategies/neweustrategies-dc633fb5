@@ -20,39 +20,39 @@ const section = (children: ColumnNode[], opts: Partial<SectionNode> = {}): Secti
 export const defaultHeaderDoc = (): BuilderDocument => ({
   version: 1,
   sections: [
-    // Utility bar: newsletter + social + auth + language
+    // Row 1 — utility bar: newsletter + socials | logo (center) | language switcher
     section(
       [
-        col(6, [
-          widget("newsletter", { title_pl: "Newsletter", title_en: "Newsletter" }),
+        col(4, [
+          widget("newsletter", { title_pl: "Newsletter", title_en: "Newsletter", variant: "link" }),
           widget("social-icons", {
-            facebook: "#", twitter: "#", youtube: "#", instagram: "#", linkedin: "#",
-            email: "", size: 16,
+            facebook: "#", twitter: "#", youtube: "#", instagram: "#",
+            linkedin: "#", spotify: "#", email: "", size: 16,
           }),
         ]),
-        col(6, [
-          widget("account-link", {
-            signin_pl: "Zaloguj", signin_en: "Sign in",
-            signup_pl: "Zarejestruj", signup_en: "Sign up",
-            panel_pl: "Panel", panel_en: "Dashboard",
+        col(4, [
+          widget("image", {
+            src: "", alt_pl: "Logo", alt_en: "Logo", href: "/", maxWidth: "200px",
           }),
-          widget("lang-switcher", { showLabel: true, label_pl: "Zmień język", label_en: "Switch language" }),
+        ]),
+        col(4, [
+          widget("lang-switcher", {
+            showLabel: true,
+            label_pl: "Zmień język",
+            label_en: "Switch language",
+          }),
         ]),
       ],
-      { layout: { contentWidth: "boxed", width: 1400, htmlTag: "div" } },
+      {
+        layout: { contentWidth: "boxed", width: 1400, htmlTag: "div", verticalAlign: "middle" },
+        style: { padding: { desktop: "16px 24px" }, align: { desktop: "center" } },
+      },
     ),
-    // Centered logo
-    section(
-      [col(12, [widget("image", {
-        src: "", alt_pl: "Logo", alt_en: "Logo", href: "/", maxWidth: "180px",
-      })])],
-      { layout: { contentWidth: "boxed", width: 1400, htmlTag: "div" }, style: { align: { desktop: "center" } } },
-    ),
-    // Nav bar: search + menu + theme toggle
+    // Row 2 — nav bar: search | menu (center) | account + theme toggle
     section(
       [
-        col(3, [widget("search-button", { label_pl: "Szukaj", label_en: "Search" })]),
-        col(7, [
+        col(3, [widget("search-button", { label_pl: "Szukaj", label_en: "Search", variant: "input" })]),
+        col(6, [
           widget("nav-link", { label_pl: "Analizy",       label_en: "Analyses",      href: "#", variant: "text" }),
           widget("nav-link", { label_pl: "Wywiady",       label_en: "Interviews",    href: "#", variant: "text" }),
           widget("nav-link", { label_pl: "Policy Papers", label_en: "Policy Papers", href: "#", variant: "text" }),
@@ -60,9 +60,24 @@ export const defaultHeaderDoc = (): BuilderDocument => ({
           widget("nav-link", { label_pl: "Wydarzenia",    label_en: "Events",        href: "#", variant: "text" }),
           widget("nav-link", { label_pl: "O nas",         label_en: "About",         href: "#", variant: "text" }),
         ]),
-        col(2, [widget("theme-toggle", {})]),
+        col(3, [
+          widget("account-link", {
+            signin_pl: "Zaloguj", signin_en: "Sign in",
+            signup_pl: "Zarejestruj", signup_en: "Sign up",
+            panel_pl: "Witaj", panel_en: "Welcome",
+          }),
+          widget("theme-toggle", {}),
+        ]),
       ],
-      { layout: { contentWidth: "boxed", width: 1400, htmlTag: "nav" } },
+      {
+        layout: { contentWidth: "boxed", width: 1400, htmlTag: "nav", verticalAlign: "middle" },
+        style: { padding: { desktop: "12px 24px" } },
+        border: {
+          style: "solid",
+          width: { top: 1, bottom: 1 },
+          color: "color-mix(in oklab, currentColor 10%, transparent)",
+        },
+      },
     ),
   ],
 });
