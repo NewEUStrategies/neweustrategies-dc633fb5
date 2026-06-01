@@ -62,6 +62,8 @@ export type MotionEasing =
   | "ease" | "ease-in" | "ease-out" | "ease-in-out" | "linear"
   | "spring" | "bounce";
 
+export type WidgetSize = number | "auto";
+
 export interface AdvancedSettings {
   cssClass?: string;
   customCss?: string;
@@ -73,6 +75,10 @@ export interface AdvancedSettings {
   animationDistance?: number;    // px — for slide/reveal presets
   hideOn?: { desktop?: boolean; tablet?: boolean; mobile?: boolean };
   htmlId?: string;
+  // Per-breakpoint widget frame size. `number` = px, "auto" = hug content.
+  // Legacy projects may still use a flat number — read with `pickWidgetSize`.
+  width?: ResponsiveValue<WidgetSize> | number;
+  height?: ResponsiveValue<WidgetSize> | number;
 }
 
 // ---------- Section-specific settings (Elementor-style) ----------
