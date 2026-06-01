@@ -61,7 +61,7 @@ export const styleToCSS = (
   if (borderStyle && borderStyle !== "none") {
     css.borderStyle = borderStyle;
     css.borderWidth = pickMode(s.borderWidth, mode) || "1px";
-    const borderColor = pickMode(s.borderColor, mode);
+    const borderColor = resolveColorForMode(s.borderColor, mode);
     if (borderColor) css.borderColor = borderColor;
   }
   const boxShadow = pickMode(s.boxShadow, mode);
