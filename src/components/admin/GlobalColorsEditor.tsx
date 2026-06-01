@@ -216,6 +216,10 @@ export function GlobalColorsEditor() {
                         )}
                       </div>
 
+                      <SlotPreview slot={slot} draft={draft} />
+
+
+
                       <ColorRow
                         label="Light"
                         value={val.light ?? ""}
@@ -293,3 +297,159 @@ function ColorRow({
     </div>
   );
 }
+
+// Pobiera aktualny kolor (light) dla danego klucza — z draftu lub defaultu.
+function getColor(draft: GlobalColorsValue, key: string): string {
+  const v = draft[key]?.light;
+  if (v) return v;
+  for (const g of GLOBAL_COLOR_GROUPS) {
+    const s = g.slots.find((x) => x.key === key);
+    if (s?.defaultLight) return s.defaultLight;
+  }
+  return "#999999";
+}
+
+/**
+ * Mini-podgląd dla każdego slotu — pokazuje na żywo, co dany kolor zmienia
+ * w UI strony (przyciski, ikony, nagłówki, etykiety, etc.).
+ */
+function SlotPreview({ slot, draft }: { slot: GlobalColorSlot; draft: GlobalColorsValue }) {
+  const c = getColor(draft, slot.key);
+  const wrap = (children: React.ReactNode) => (
+    <div className="rounded-md border border-dashed border-border bg-background/40 p-3 flex items-center justify-center min-h-[64px]">
+      {children}
+    </div>
+  );
+
+  switch (slot.key) {
+    case "header-icon":
+    case "header-icon-hover": {
+      const base = getColor(draft, "header-icon");
+      const hover = getColor(draft, "header-icon-hover");
+      const isHover = slot.key === "header-icon-hover";
+      return wrap(
+        <div className="flex items-center gap-4 text-xs font-medium">
+          <span style={{ color: isHover ? base : c }}>Strona główna</span>
+          <span style={{ color: isHover ? hover : c, textDecoration: isHover ? "underline" : "none" }}>
+            Aktualności
+          </span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isHover ? hover : c} strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </div>,
+      );
+    }
+    case "highlight":
+      return wrap(
+        <div className="flex items-center gap-3 text-xs">
+          <a style={{ color: c }} className="font-medium underline">Link tekstowy</a>
+          <span style={{ color: c }} className="uppercase tracking-wider font-bold">Kategoria</span>
+        </div>,
+      );
+    case "dark-accent":
+      return wrap(
+        <div style={{ background: c }} className="w-full h-12 rounded flex items-center px-3 text-white text-xs font-semibold">
+          Hero / nagłówek pojedynczego wpisu
+        </div>,
+      );
+    case "body-bg":
+    case "body-bg-single":
+      return wrap(
+        <div style={{ background: c }} className="w-full h-12 rounded border border-border flex items-center justify-center text-xs text-foreground/70">
+          Tło strony
+        </div>,
+      );
+    case "btn-bg":
+    case "btn-text":
+    case "btn-hover-bg":
+    case "btn-hover-text": {
+      const bg = getColor(draft, "btn-bg");
+      const text = getColor(draft, "btn-text");
+      const hBg = getColor(draft, "btn-hover-bg");
+      const hText = getColor(draft, "btn-hover-text");
+      return wrap(
+        <div className="flex items-center gap-2">
+          <button style={{ background: bg, color: text }} className="text-xs font-semibold px-3 py-1.5 rounded">Normalny</button>
+          <button style={{ background: hBg, color: hText }} className="text-xs font-semibold px-3 py-1.5 rounded">Hover</button>
+        </div>,
+      );
+    }
+    case "switcher-light-icon":
+    case "switcher-light-bg":
+    case "switcher-dark-icon":
+    case "switcher-dark-bg": {
+      const li = getColor(draft, "switcher-light-icon");
+      const lb = getColor(draft, "switcher-light-bg");
+      const di = getColor(draft, "switcher-dark-icon");
+      const db = getColor(draft, "switcher-dark-bg");
+      return wrap(
+        <div className="flex items-center gap-2">
+          <span style={{ background: lb, color: li }} className="inline-flex w-8 h-8 rounded-full items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          </span>
+          <span style={{ background: db, color: di }} className="inline-flex w-8 h-8 rounded-full items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </span>
+        </div>,
+      );
+    }
+    case "bookmark-hover":
+      return wrap(
+        <div className="flex items-center gap-2 text-xs">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill={c} stroke={c} strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          <span className="text-muted-foreground">Zakładka po najechaniu</span>
+        </div>,
+      );
+    case "review-bg":
+    case "review-icon": {
+      const bg = getColor(draft, "review-bg");
+      const ic = getColor(draft, "review-icon");
+      return wrap(
+        <div className="flex items-center gap-1">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <span key={i} style={{ background: bg }} className="w-6 h-6 rounded inline-flex items-center justify-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={ic} stroke="none"><polygon points="12 2 15 9 22 9.3 17 14 18.5 21 12 17.5 5.5 21 7 14 2 9.3 9 9 12 2"/></svg>
+            </span>
+          ))}
+        </div>,
+      );
+    }
+    case "sponsor-label":
+      return wrap(
+        <span style={{ color: c }} className="text-[10px] uppercase tracking-widest font-bold">Sponsored</span>,
+      );
+    case "popular-counter":
+      return wrap(
+        <div className="flex items-baseline gap-2">
+          <span style={{ color: c }} className="text-3xl font-black leading-none">1</span>
+          <span className="text-xs text-muted-foreground">Popularny artykuł</span>
+        </div>,
+      );
+    case "live-blog":
+      return wrap(
+        <div className="flex items-center gap-2 text-xs">
+          <span style={{ background: c }} className="w-2 h-2 rounded-full animate-pulse" />
+          <span style={{ color: c }} className="font-bold uppercase tracking-wider">Live</span>
+        </div>,
+      );
+    case "toc-bg":
+      return wrap(
+        <div style={{ background: c }} className="w-full p-2 rounded text-[11px] space-y-1">
+          <div className="font-semibold">Spis treści</div>
+          <div className="text-muted-foreground">1. Wprowadzenie</div>
+          <div className="text-muted-foreground">2. Główna część</div>
+        </div>,
+      );
+    case "verified-tick":
+      return wrap(
+        <div className="flex items-center gap-2 text-xs">
+          <span style={{ color: c }} className="inline-flex items-center justify-center">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill={c}><path d="M12 2l2.4 1.8 3 .2.2 3L19.4 9.6l-1.8 2.4 1.8 2.4-1.8 3-3 .2L12 19.4l-2.4-1.8-3-.2-.2-3L4.6 12 6.4 9.6 4.6 7.2l1.8-3 3-.2z" fill={c}/><path d="M9 12.5l2 2 4-4.5" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </span>
+          <span className="text-muted-foreground">Zweryfikowany autor</span>
+        </div>,
+      );
+    default:
+      return wrap(<div style={{ background: c }} className="w-12 h-8 rounded border border-border" />);
+  }
+}
+
