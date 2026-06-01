@@ -92,9 +92,10 @@ export function SectionView(p: SectionViewProps) {
         <div className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(p.section, colsSum), paddingTop: `${INNER_SECTION_SAFE_AREA_PX}px`, paddingBottom: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
           {p.section.children.map((child) => {
             const span = child.kind === "column" ? resolveSpan(child.span, p.device, 12) : 12;
+            const gridColumn = p.device === "mobile" ? "1 / -1" : `span ${span}`;
             if (child.kind === "inner-section") {
               return (
-                <div key={child.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${span}` }}>
+                <div key={child.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn }}>
                   <InnerSectionView
                     inner={child} device={p.device} lang={p.lang}
                     selection={p.selection} setSelection={p.setSelection}
@@ -107,7 +108,7 @@ export function SectionView(p: SectionViewProps) {
               );
             }
             return (
-              <div key={child.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${span}` }}>
+              <div key={child.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn }}>
                 <ColumnView column={child} device={p.device} lang={p.lang}
                   selection={p.selection} setSelection={p.setSelection}
                   onRemove={() => p.onRemoveColumn(child.id)}
@@ -118,6 +119,7 @@ export function SectionView(p: SectionViewProps) {
               </div>
             );
           })}
+
         </div>
       </div>
       {typoCss && <style dangerouslySetInnerHTML={{ __html: typoCss }} />}
