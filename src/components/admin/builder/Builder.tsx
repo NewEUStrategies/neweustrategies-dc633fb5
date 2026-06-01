@@ -625,7 +625,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                   onChange={(mut) => updateSection(selectedSection.id, mut)} />
               )}
               {selectedColumn && (
-                <ColumnProperties column={selectedColumn} device={device}
+                <ColumnProperties column={selectedColumn} device={device} mode={mode} onModeChange={setMode}
                   onChange={(mut) => updateColumn(selectedColumn.id, mut)} />
               )}
               {selectedInner && (
