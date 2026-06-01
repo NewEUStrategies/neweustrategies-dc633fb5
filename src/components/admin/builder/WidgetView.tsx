@@ -25,6 +25,12 @@ import {
   type SectionLabelVariant,
 } from "@/lib/builder/sectionLabelVariants";
 import { SliderRender, type SliderVariant } from "@/lib/builder/sliderVariants";
+import {
+  AnimatedHeadingRender,
+  type AnimatedHeadingConfig,
+  type AnimatedHeadingMode,
+  type AnimatedHeadingShape,
+} from "@/lib/builder/animatedHeadingVariants";
 
 type Lang = "pl" | "en";
 
@@ -650,6 +656,30 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         })),
       };
       return wrap(<SliderRender config={cfg} lang={lang} />);
+    }
+    case "animated-heading": {
+      const rotateRaw = c[`rotateWords_${lang}`] ?? c.rotateWords_pl;
+      const rotateWords = Array.isArray(rotateRaw)
+        ? rotateRaw.filter((x): x is string => typeof x === "string")
+        : typeof rotateRaw === "string"
+          ? rotateRaw.split("\n").map((s) => s.trim()).filter(Boolean)
+          : [];
+      const ahCfg: AnimatedHeadingConfig = {
+        mode: (getStr(c, "mode") || "highlight") as AnimatedHeadingMode,
+        shape: (getStr(c, "shape") || "underline") as AnimatedHeadingShape,
+        tag: (getStr(c, "tag") || "h2") as AnimatedHeadingConfig["tag"],
+        align: (getStr(c, "align") || "left") as "left" | "center" | "right",
+        textBefore: getStr(c, `textBefore_${lang}`) || getStr(c, "textBefore_pl"),
+        textAfter:  getStr(c, `textAfter_${lang}`)  || getStr(c, "textAfter_pl"),
+        highlight:  getStr(c, `highlight_${lang}`)  || getStr(c, "highlight_pl"),
+        rotateWords,
+        color: getStr(c, "color") || undefined,
+        accentColor: getStr(c, "accentColor") || undefined,
+        durationMs: getNum(c, "durationMs", 1600),
+        delayMs: getNum(c, "delayMs", 200),
+        loop: c.loop !== false,
+      };
+      return wrap(<AnimatedHeadingRender config={ahCfg} />);
     }
     case "icon": {
       const name = getStr(c, "name") || "Star";
