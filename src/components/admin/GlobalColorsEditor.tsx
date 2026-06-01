@@ -18,13 +18,29 @@ import {
 } from "@/lib/builder/globalColors";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
 
-// Paleta presetów — szybkie wybory.
-const PALETTE = [
+// Paleta presetów — kolory marki + neutralne.
+const BRAND_PALETTE: Array<{ name: string; value: string }> = [
+  { name: "Background Dark", value: "#01112F" },
+  { name: "Background Light", value: "#F8F6F4" },
+  { name: "Granat", value: "#15334D" },
+  { name: "Pomarańcz", value: "#FA9346" },
+  { name: "Pomarańcz Light", value: "#FDB078" },
+  { name: "Pomarańcz Very Light", value: "#FFF4ED" },
+  { name: "Złoty", value: "#E1B076" },
+  { name: "Czerwień", value: "#CD393B" },
+  { name: "Czerwony przycisk", value: "#CA4343" },
+  { name: "Czerwień wykres", value: "#EF5454" },
+  { name: "Czerwień video", value: "#FF0000" },
+  { name: "Szary ciemny", value: "#333333" },
+  { name: "Szary jasny", value: "#CCCCCC" },
+];
+
+const NEUTRAL_PALETTE = [
   "#000000", "#ffffff", "#1f2937", "#374151", "#6b7280", "#9ca3af", "#e5e7eb", "#f3f4f6",
   "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16", "#22c55e", "#10b981", "#14b8a6",
   "#06b6d4", "#0ea5e9", "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899",
-  "#fbbf24", "#fde68a", "#bbf7d0", "#bae6fd", "#c7d2fe", "#fbcfe8", "#fecaca", "#0f172a",
 ];
+
 
 export function GlobalColorsEditor() {
   const { data, isLoading } = useGlobalColors();
@@ -278,22 +294,47 @@ function ColorRow({
           </button>
         )}
       </div>
-      <div className="flex flex-wrap gap-1">
-        {PALETTE.map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => onChange(c)}
-            className={`w-5 h-5 rounded border transition ${
-              value?.toLowerCase() === c.toLowerCase()
-                ? "border-foreground ring-2 ring-offset-1 ring-foreground/30"
-                : "border-border hover:scale-110"
-            }`}
-            style={{ background: c }}
-            title={c}
-          />
-        ))}
+      <div className="space-y-1.5">
+        <div>
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Marka</div>
+          <div className="flex flex-wrap gap-1">
+            {BRAND_PALETTE.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => onChange(c.value)}
+                className={`w-5 h-5 rounded border transition ${
+                  value?.toLowerCase() === c.value.toLowerCase()
+                    ? "border-foreground ring-2 ring-offset-1 ring-foreground/30"
+                    : "border-border hover:scale-110"
+                }`}
+                style={{ background: c.value }}
+                title={`${c.name} — ${c.value}`}
+              />
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Neutralne</div>
+          <div className="flex flex-wrap gap-1">
+            {NEUTRAL_PALETTE.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => onChange(c)}
+                className={`w-5 h-5 rounded border transition ${
+                  value?.toLowerCase() === c.toLowerCase()
+                    ? "border-foreground ring-2 ring-offset-1 ring-foreground/30"
+                    : "border-border hover:scale-110"
+                }`}
+                style={{ background: c }}
+                title={c}
+              />
+            ))}
+          </div>
+        </div>
       </div>
+
     </div>
   );
 }
