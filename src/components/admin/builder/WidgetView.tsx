@@ -18,6 +18,7 @@ import {
 import { useInView } from "@/hooks/use-in-view";
 import { hoverCss } from "@/lib/builder/hoverCss";
 import { useTheme } from "@/components/ThemeProvider";
+import { useBuilderMode } from "@/lib/builder/modeContext";
 import { NewsletterForm as NewsletterFormLive } from "@/components/NewsletterForm";
 import {
   SectionLabelRender,
@@ -76,7 +77,9 @@ interface ViewProps {
 
 export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
   const { theme } = useTheme();
-  const baseStyle = styleToCSS(node.style, device);
+  const builderMode = useBuilderMode();
+  const effectiveMode = builderMode ?? theme;
+  const baseStyle = styleToCSS(node.style, device, effectiveMode);
   const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
   const htmlId = sanitizeHtmlId(node.advanced?.htmlId);
   const motion = node.advanced?.animation && node.advanced.animation !== "none"

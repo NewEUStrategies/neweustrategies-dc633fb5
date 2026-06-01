@@ -19,9 +19,10 @@ import { WIDGETS as _WIDGETS, makeWidget } from "@/lib/builder/registry";
 void _WIDGETS;
 import type {
   BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode,
-  Device, WidgetType,
+  Device, WidgetType, Mode,
 } from "@/lib/builder/types";
 import { emptyDocument, newId } from "@/lib/builder/types";
+import { BuilderModeProvider } from "@/lib/builder/modeContext";
 import {
   cloneSection, cloneColumn, cloneWidget,
   findWidget, findSection, findColumn, findInner,
@@ -94,6 +95,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   const history = useHistory(initial, onChange);
   const doc = history.doc;
   const [device, setDevice] = useState<Device>("desktop");
+  const [mode, setMode] = useState<Mode>("light");
   const [selection, setSelection] = useState<Selection>({ kind: null, id: null });
   const [showNavigator, setShowNavigator] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ kind: "section" | "column" | "widget"; id: string } | null>(null);
@@ -615,7 +617,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
             </div>
             <div className="flex-1 overflow-y-auto p-3">
               {selectedWidget && (
-                <WidgetProperties widget={selectedWidget} lang={lang} device={device}
+                <WidgetProperties widget={selectedWidget} lang={lang} device={device} mode={mode} onModeChange={setMode}
                   onChange={(mut) => updateWidget(selectedWidget.id, mut)} />
               )}
               {selectedSection && (
@@ -659,13 +661,14 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
           <Toolbar
             lang={lang} onLangChange={onLangChange}
             device={device} setDevice={setDevice}
+            mode={mode} setMode={setMode}
             canUndo={history.canUndo} canRedo={history.canRedo}
             onUndo={history.undo} onRedo={history.redo}
           />
         </div>
 
-        <div className="bg-muted/30 p-4" onClick={() => setSelection({ kind: null, id: null })} onContextMenu={onCanvasContextMenu}>
-
+        <div className={`bg-muted/30 p-4 ${mode === "dark" ? "dark" : ""}`} onClick={() => setSelection({ kind: null, id: null })} onContextMenu={onCanvasContextMenu}>
+          <BuilderModeProvider mode={mode}>
           <div
             className={`mx-auto bg-background shadow-lg ring-1 ring-border transition-all ${
               device === "desktop" ? "max-w-[1440px]"
@@ -775,6 +778,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
             )}
 
           </div>
+          </BuilderModeProvider>
         </div>
       </div>
       <ConfirmDeleteDialog
