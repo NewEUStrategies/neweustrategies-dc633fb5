@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Save } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { ThemeOptionsPane } from "@/components/admin/ThemeOptionsPane";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface Props {
   settingsKey: string;
