@@ -96,14 +96,24 @@ export function renderSimpleWidget(
     case "lang-switcher": {
       const showLabel = c.showLabel !== false;
       const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Zmień język";
+      const current = lang === "en" ? "EN" : "PL";
+      const flag = lang === "en" ? "🇬🇧" : "🇵🇱";
       return (
-        <div className="inline-flex items-center gap-3 text-xs leading-none" style={compactRowStyle}>
+        <div className="inline-flex items-center gap-2 text-xs leading-none" style={compactRowStyle}>
           {showLabel && <span className="hidden md:inline text-muted-foreground">{label}</span>}
-          <button type="button" aria-label="English" className="inline-flex items-center justify-center text-base leading-none opacity-60 hover:opacity-100" style={compactIconBoxStyle()}>🇬🇧</button>
-          <button type="button" aria-label="Polski" className="inline-flex items-center justify-center text-base leading-none opacity-60 hover:opacity-100" style={compactIconBoxStyle()}>🇵🇱</button>
+          <button
+            type="button"
+            aria-label={label}
+            className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-border bg-background hover:bg-muted transition text-xs font-medium"
+          >
+            <span className="text-base leading-none">{flag}</span>
+            <span>{current}</span>
+            <LucideIcons.ChevronDown className="w-3.5 h-3.5 opacity-60" />
+          </button>
         </div>
       );
     }
+
     case "theme-toggle":
       return (
         <button type="button" aria-label="Toggle theme" className="inline-flex items-center justify-center rounded-full hover:bg-muted transition" style={compactIconBoxStyle()}>
