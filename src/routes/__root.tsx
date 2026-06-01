@@ -131,6 +131,10 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    void import("../lib/webVitals").then((m) => m.initWebVitals());
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
@@ -149,3 +153,4 @@ function RootComponent() {
 
   );
 }
+
