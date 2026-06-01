@@ -818,7 +818,7 @@ export function renderSimpleWidget(
       const variant = (getStr(c, "variant") || "left-bar") as SectionLabelVariant;
       const customAccent = getStr(c, "accentColor");
       const color = customAccent || getStr(c, "color") || "brand";
-      const accent = resolveAccentColor(color);
+      const accent = resolveAccentColor(theme === "dark" ? autoInvertColor(color, "dark") : color);
       return (
         <SectionLabelRender
           label={label}
