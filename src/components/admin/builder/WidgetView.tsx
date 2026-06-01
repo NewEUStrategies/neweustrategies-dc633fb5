@@ -325,14 +325,14 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         }
         if (variant === "icon-only") {
           return wrap(
-            <a href="#newsletter" className="inline-flex items-center justify-center rounded-full text-foreground/80 hover:text-brand hover:bg-foreground/5 transition-colors" style={compactRowStyle} title={title} aria-label={title}>
+            <a href="#newsletter" className="inline-flex items-center justify-center rounded-full text-foreground hover:opacity-80 transition-colors" style={compactRowStyle} title={title} aria-label={title}>
               {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
             </a>,
           );
         }
         if (variant === "icon") {
           return wrap(
-            <a href="#newsletter" style={compactRowStyle} className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors" title={title}>
+            <a href="#newsletter" style={compactRowStyle} className="inline-flex items-center gap-2 text-foreground hover:opacity-80 transition-colors" title={title}>
               {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
               <span className="text-sm font-medium">{title}</span>
             </a>,
@@ -372,13 +372,13 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       }
       if (variant === "icon-only") {
         return wrap(
-          <div className="inline-flex items-center justify-center rounded-full text-foreground/80 hover:text-brand hover:bg-foreground/5 transition-colors cursor-pointer" style={compactRowStyle} title={title} aria-label={title}>
+          <div className="inline-flex items-center justify-center rounded-full text-foreground hover:opacity-80 transition-colors cursor-pointer" style={compactRowStyle} title={title} aria-label={title}>
             {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
           </div>,
         );
       }
       return wrap(
-        <div style={compactRowStyle} className="inline-flex items-center gap-2 text-foreground/80 hover:text-brand transition-colors cursor-pointer" title={title}>
+        <div style={compactRowStyle} className="inline-flex items-center gap-2 text-foreground hover:opacity-80 transition-colors cursor-pointer" title={title}>
           {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
           <span className="text-sm font-medium">{title}</span>
         </div>,
