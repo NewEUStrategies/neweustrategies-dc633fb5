@@ -1,9 +1,16 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Download, FileText } from "@/lib/lucide-shim";
-import { useContentAccess } from "@/hooks/useContentAccess";
+import { FileText } from "@/lib/lucide-shim";
+import { useContentAccess, type AccessEntityType } from "@/hooks/useContentAccess";
 import { Paywall } from "@/components/Paywall";
+import { useTranslation } from "react-i18next";
+
+const DownloadIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" />
+  </svg>
+);
 
 export interface PreviewableMedia {
   id: string;
@@ -22,9 +29,12 @@ interface Props {
 }
 
 export function MediaPreviewDialog({ item, open, onOpenChange, gated = true }: Props) {
-  const { hasAccess, loading, rule } = useContentAccess(gated ? "media" : null, item?.id ?? null);
+  const { i18n } = useTranslation();
+  const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
+  // Hook needs a stable entity type; pass id only when gated + open
+  const entityId = gated && open && item ? item.id : null;
+  const { hasAccess, loading, rule } = useContentAccess("media" as AccessEntityType, entityId);
 
-  // Pre-fetch as blob for safer downloads with the original filename
   const [downloading, setDownloading] = useState(false);
   const download = async () => {
     if (!item) return;
@@ -74,20 +84,22 @@ export function MediaPreviewDialog({ item, open, onOpenChange, gated = true }: P
             </span>
             {!blocked && (
               <Button size="sm" onClick={download} disabled={downloading}>
-                <Download className="w-4 h-4 mr-2" />
-                {downloading ? "..." : "Pobierz"}
+                <DownloadIcon className="w-4 h-4 mr-2" />
+                {downloading ? "..." : lang === "pl" ? "Pobierz" : "Download"}
               </Button>
             )}
           </div>
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-auto bg-muted/30">
-          {blocked ? (
+          {blocked && rule ? (
             <div className="p-6">
-              <Paywall entityType="media" entityId={item.id} rule={rule ?? undefined} title={item.filename} />
+              <Paywall rule={rule} lang={lang} fallbackText={null} />
             </div>
           ) : loading && gated ? (
-            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Sprawdzanie dostępu…</div>
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+              {lang === "pl" ? "Sprawdzanie dostępu…" : "Checking access…"}
+            </div>
           ) : isImage ? (
             <div className="h-full w-full flex items-center justify-center p-4">
               <img src={item.public_url} alt={item.filename} className="max-h-full max-w-full object-contain" />
@@ -111,9 +123,11 @@ export function MediaPreviewDialog({ item, open, onOpenChange, gated = true }: P
           ) : (
             <div className="h-full flex flex-col items-center justify-center gap-3 text-center p-8 text-muted-foreground">
               <FileText className="w-12 h-12 opacity-60" />
-              <p className="text-sm">Podgląd nie jest dostępny dla tego typu pliku.</p>
+              <p className="text-sm">
+                {lang === "pl" ? "Podgląd nie jest dostępny dla tego typu pliku." : "Preview not available for this file type."}
+              </p>
               <Button onClick={download} disabled={downloading}>
-                <Download className="w-4 h-4 mr-2" /> Pobierz plik
+                <DownloadIcon className="w-4 h-4 mr-2" /> {lang === "pl" ? "Pobierz plik" : "Download file"}
               </Button>
             </div>
           )}
