@@ -603,12 +603,13 @@ function ThemeOptionsBody({
 }
 
 
-function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" | "mobile" | "transparent" | "organization" | "bookmark") => void }) {
-  const tabs: { id: "default" | "mobile" | "transparent" | "organization" | "bookmark"; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark") => void }) {
+  const tabs: { id: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark"; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: "default", label: "Default Logos", icon: ImageIcon },
     { id: "mobile", label: "Mobile Logos", icon: Smartphone },
     { id: "transparent", label: "Transparent", icon: Eye },
     { id: "organization", label: "Organization", icon: Star },
+    { id: "sidebar", label: "Sidebar", icon: LayoutDashboard },
     { id: "bookmark", label: "Globelet", icon: Globe },
   ];
   return (
