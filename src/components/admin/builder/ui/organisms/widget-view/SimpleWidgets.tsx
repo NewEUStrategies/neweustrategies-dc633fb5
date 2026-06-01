@@ -86,6 +86,23 @@ export function renderSimpleWidget(
     case "social-icons": {
       const size = getNum(c, "size", 16);
       const box = Math.max(size + 16, COMPACT_ICON_BOX_SIZE);
+      const showEmpty = getStr(c, "showEmpty") === "show";
+      const colorMode = getStr(c, "colorMode") || "inherit";
+      const customColor = getStr(c, "customColor");
+      const bgMode = getStr(c, "bgMode") || "none";
+      const customBgColor = getStr(c, "customBgColor");
+      const shape = getStr(c, "shape") || "md";
+      const themeAdapt = getStr(c, "themeAdapt") || "auto";
+
+      const OFFICIAL: Record<string, string> = {
+        facebook: "#1877F2",
+        twitter: "#000000",
+        youtube: "#FF0000",
+        instagram: "#E4405F",
+        linkedin: "#0A66C2",
+        email: "#6B7280",
+      };
+
       const items: Array<{ k: string; Cmp: LucideIcons.LucideIcon; label: string }> = [
         { k: "facebook",  Cmp: LucideIcons.Facebook,  label: "Facebook" },
         { k: "twitter",   Cmp: LucideIcons.Twitter,   label: "X" },
@@ -94,19 +111,86 @@ export function renderSimpleWidget(
         { k: "linkedin",  Cmp: LucideIcons.Linkedin,  label: "LinkedIn" },
       ];
       const email = getStr(c, "email");
-      const linkCls = "inline-flex items-center justify-center rounded-md hover:text-brand hover:bg-muted/40 transition-colors shrink-0";
+
+      const radiusCls =
+        shape === "none" ? "rounded-none"
+        : shape === "sm" ? "rounded-sm"
+        : shape === "lg" ? "rounded-lg"
+        : shape === "full" ? "rounded-full"
+        : shape === "square" ? "rounded-none"
+        : "rounded-md";
+
+      const themeCls =
+        themeAdapt === "force-light" ? "[color-scheme:light]"
+        : themeAdapt === "force-dark" ? "[color-scheme:dark]"
+        : "";
+
+      const resolveColor = (k: string): string | undefined => {
+        if (colorMode === "official") return OFFICIAL[k];
+        if (colorMode === "custom") return customColor || undefined;
+        if (colorMode === "brand") return "var(--brand, currentColor)";
+        if (colorMode === "dark") return themeAdapt === "auto" ? "currentColor" : "#0a0a0a";
+        if (colorMode === "light") return themeAdapt === "auto" ? "currentColor" : "#ffffff";
+        return undefined;
+      };
+
+      const resolveBg = (k: string, active: boolean): string | undefined => {
+        if (!active && showEmpty) return undefined;
+        if (bgMode === "none") return undefined;
+        if (bgMode === "subtle") return "hsl(var(--muted))";
+        if (bgMode === "brand") return "var(--brand, currentColor)";
+        if (bgMode === "official") return OFFICIAL[k];
+        if (bgMode === "contrast") return "hsl(var(--foreground))";
+        if (bgMode === "custom") return customBgColor || undefined;
+        return undefined;
+      };
+
       const linkStyle = compactIconBoxStyle(box);
+
       return (
-        <div className="flex items-center gap-1 text-muted-foreground" style={compactRowStyle}>
+        <div className={`flex items-center gap-1 text-muted-foreground ${themeCls}`} style={compactRowStyle}>
           {items.map(({ k, Cmp, label }) => {
             const href = getStr(c, k);
-            if (!href) return null;
-            return <a key={k} href={safeUrl(href)} aria-label={label} className={linkCls} style={linkStyle}><Cmp size={size} /></a>;
+            const active = !!href;
+            if (!active && !showEmpty) return null;
+            const color = active ? resolveColor(k) : undefined;
+            const bg = resolveBg(k, active);
+            const onContrast = bgMode === "official" && active;
+            const style: CSSProperties = {
+              ...linkStyle,
+              color: onContrast ? "#fff" : color,
+              backgroundColor: bg,
+              opacity: active ? 1 : 0.35,
+            };
+            const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-80" : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
+            return active ? (
+              <a key={k} href={safeUrl(href)} aria-label={label} className={cls} style={style}><Cmp size={size} /></a>
+            ) : (
+              <span key={k} aria-label={`${label} (brak linku)`} className={cls} style={style}><Cmp size={size} /></span>
+            );
           })}
-          {email && <a href={`mailto:${email}`} aria-label="Email" className={linkCls} style={linkStyle}><LucideIcons.Mail size={size} /></a>}
+          {(email || showEmpty) && (() => {
+            const active = !!email;
+            const color = active ? resolveColor("email") : undefined;
+            const bg = resolveBg("email", active);
+            const onContrast = bgMode === "official" && active;
+            const style: CSSProperties = {
+              ...linkStyle,
+              color: onContrast ? "#fff" : color,
+              backgroundColor: bg,
+              opacity: active ? 1 : 0.35,
+            };
+            const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-80" : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
+            return active ? (
+              <a href={`mailto:${email}`} aria-label="Email" className={cls} style={style}><LucideIcons.Mail size={size} /></a>
+            ) : (
+              <span aria-label="Email (brak)" className={cls} style={style}><LucideIcons.Mail size={size} /></span>
+            );
+          })()}
         </div>
       );
     }
+
     case "lang-switcher": {
       const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Zmień język";
       const current = lang === "en" ? "EN" : "PL";
