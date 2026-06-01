@@ -478,6 +478,19 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
           <span style={{ opacity: 0.7 }}>Zweryfikowany autor</span>
         </div>
       );
+    case "icon":
+    case "icon-hover": {
+      const base = get("icon");
+      const hover = get("icon-hover");
+      return (
+        <div className="flex items-center gap-4">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={base} strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={base} strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={hover} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span className="text-[10px]" style={{ opacity: 0.6 }}>base / hover</span>
+        </div>
+      );
+    }
     default:
       return <div style={{ background: c }} className="w-12 h-8 rounded border border-black/10" />;
   }
