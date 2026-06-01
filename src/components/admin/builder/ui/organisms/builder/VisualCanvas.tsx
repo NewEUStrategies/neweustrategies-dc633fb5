@@ -221,25 +221,41 @@ export function VisualCanvas({
     [data-visual-canvas] [data-section-inserter] a{pointer-events:auto}
   `;
 
+  const deviceWidth =
+    device === "mobile" ? 390
+    : device === "tablet" ? 820
+    : undefined;
+
+  const frameStyle: React.CSSProperties = deviceWidth
+    ? {
+        width: `${deviceWidth}px`,
+        maxWidth: "100%",
+        margin: "0 auto",
+        overflowX: "hidden",
+        boxSizing: "border-box",
+      }
+    : { width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" };
+
   return (
-    <div data-visual-canvas onClick={onClick} ref={rootRef}>
+    <div data-visual-canvas onClick={onClick} ref={rootRef} style={{ width: "100%", overflowX: "hidden" }}>
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
-      <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} />
-      {doc.sections.map((s, idx) => (
-        <div key={s.id}>
-          <BuilderRenderer doc={{ ...doc, sections: [s] }} lang={lang} device={device} />
-          {idx === doc.sections.length - 1 && (
-            <SectionDropZone
-              onInsert={(cols) => onInsertSection(idx + 1, cols)}
-              index={idx + 1}
-              prominent
-              label={lastLabel}
-            />
-          )}
-        </div>
-      ))}
-
-
+      <div style={frameStyle}>
+        <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} />
+        {doc.sections.map((s, idx) => (
+          <div key={s.id} style={{ minWidth: 0, maxWidth: "100%", overflowX: "hidden" }}>
+            <BuilderRenderer doc={{ ...doc, sections: [s] }} lang={lang} device={device} />
+            {idx === doc.sections.length - 1 && (
+              <SectionDropZone
+                onInsert={(cols) => onInsertSection(idx + 1, cols)}
+                index={idx + 1}
+                prominent
+                label={lastLabel}
+              />
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
+
