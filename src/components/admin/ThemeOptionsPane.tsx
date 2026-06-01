@@ -29,7 +29,8 @@ interface ThemeOptions extends Record<string, unknown> {
     organization: string; organization_dark: string;
     sidebar_icon: string; sidebar_icon_dark: string;
     sidebar_expanded: string; sidebar_expanded_dark: string;
-    bookmark_ios: string; bookmark_windows: string;
+    bookmark_ios: string; bookmark_ios_dark: string;
+    bookmark_windows: string; bookmark_windows_dark: string;
     add_to_home_screen: boolean;
   };
   header: {
