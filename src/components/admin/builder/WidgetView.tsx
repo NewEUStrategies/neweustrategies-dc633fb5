@@ -628,6 +628,28 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         {imgs.map((src, i) => <img key={i} src={src} alt="" className="w-full h-32 object-cover rounded" loading="lazy" />)}
       </div>);
     }
+    case "slider": {
+      const items = Array.isArray(c.items) ? (c.items as unknown[]).filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null) : [];
+      const cfg = {
+        variant: (getStr(c, "variant") || "classic") as SliderVariant,
+        ratio: (getStr(c, "ratio") || "16/9") as "16/9" | "4/3" | "1/1" | "21/9" | "3/2",
+        autoplay: c.autoplay !== false,
+        intervalMs: getNum(c, "intervalMs", 4500),
+        rounded: (getStr(c, "rounded") || "md") as "none" | "sm" | "md" | "lg" | "xl" | "full",
+        overlayOpacity: typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45,
+        items: items.map((it) => ({
+          image: typeof it.image === "string" ? it.image : "",
+          title_pl: typeof it.title_pl === "string" ? it.title_pl : "",
+          title_en: typeof it.title_en === "string" ? it.title_en : "",
+          subtitle_pl: typeof it.subtitle_pl === "string" ? it.subtitle_pl : "",
+          subtitle_en: typeof it.subtitle_en === "string" ? it.subtitle_en : "",
+          href: typeof it.href === "string" ? it.href : "",
+          cta_pl: typeof it.cta_pl === "string" ? it.cta_pl : "",
+          cta_en: typeof it.cta_en === "string" ? it.cta_en : "",
+        })),
+      };
+      return wrap(<SliderRender config={cfg} lang={lang} />);
+    }
     case "icon": {
       const name = getStr(c, "name") || "Star";
       const size = getNum(c, "size", 32);
