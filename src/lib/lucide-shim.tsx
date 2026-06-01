@@ -13,7 +13,7 @@ import {
   faGripVertical, faHeading, faHouse, faImage, faItalic, faLayerGroup,
   faGauge, faLink, faListUl, faListOl, faRightToBracket, faRightFromBracket,
   faEnvelope, faLocationDot, faBullhorn, faBars, faMinus, faDesktop, faMoon,
-  faEllipsis, faHandPointer, faUpDown, faNewspaper, faPencil, faPlus,
+  faEllipsis, faHandPointer, faUpDown, faNewspaper, faPencil, faPlus, faBookmark, faBookOpen,
   faQuoteRight, faRotateRight, faGripLines, faFloppyDisk, faMagnifyingGlass,
   faPaperPlane, faGear, faMobileScreen, faStar, faSun, faTabletScreenButton,
   faTags, faTrashCan, faFont, faRotateLeft, faUpload, faUser, faUsers,
@@ -36,6 +36,7 @@ import {
   Monitor as LMonitor, Moon as LMoon, MoreHorizontal as LMoreHorizontal,
   MousePointerClick as LMousePointerClick, MoveVertical as LMoveVertical,
   Newspaper as LNewspaper, PanelLeft as LPanelLeft, Pencil as LPencil, Plus as LPlus,
+  Bookmark as LBookmark, BookmarkCheck as LBookmarkCheck, BookOpen as LBookOpen,
   Quote as LQuote, Redo as LRedo, Loader2 as LLoader2, AlertTriangle as LAlertTriangle,
   Rows as LRows, Save as LSave, Search as LSearch, Send as LSend, Settings as LSettings,
   Smartphone as LSmartphone, Star as LStar, Sun as LSun, Tablet as LTablet, Tags as LTags,
@@ -104,6 +105,9 @@ function makeIcon(faDef: IconDefinition, LucideComp: LucideIconImpl): LucideIcon
 export const ArrowLeft = makeIcon(faArrowLeft, LArrowLeft);
 export const ArrowRight = makeIcon(faArrowRight, LArrowRight);
 export const Bold = makeIcon(faBold, LBold);
+export const Bookmark = makeIcon(faBookmark, LBookmark);
+export const BookmarkCheck = makeIcon(faBookmark, LBookmarkCheck);
+export const BookOpen = makeIcon(faBookOpen, LBookOpen);
 export const Check = makeIcon(faCheck, LCheck);
 export const ChevronDown = makeIcon(faChevronDown, LChevronDown);
 export const ChevronDownIcon = ChevronDown;

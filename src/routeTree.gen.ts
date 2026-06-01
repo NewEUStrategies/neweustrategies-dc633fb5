@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ReadingListRouteImport } from './routes/reading-list'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
@@ -22,6 +23,7 @@ import { Route as AdminTagsRouteImport } from './routes/admin.tags'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
 import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layouts'
+import { Route as AdminPersonalizedRouteImport } from './routes/admin.personalized'
 import { Route as AdminPaywallRouteImport } from './routes/admin.paywall'
 import { Route as AdminPagesRouteImport } from './routes/admin.pages'
 import { Route as AdminNewsletterRouteImport } from './routes/admin.newsletter'
@@ -49,6 +51,11 @@ import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appear
 import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.appearance.global-colors'
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
 
+const ReadingListRoute = ReadingListRouteImport.update({
+  id: '/reading-list',
+  path: '/reading-list',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -112,6 +119,11 @@ const AdminPostsRoute = AdminPostsRouteImport.update({
 const AdminPostLayoutsRoute = AdminPostLayoutsRouteImport.update({
   id: '/post-layouts',
   path: '/post-layouts',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPersonalizedRoute = AdminPersonalizedRouteImport.update({
+  id: '/personalized',
+  path: '/personalized',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminPaywallRoute = AdminPaywallRouteImport.update({
@@ -251,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/login': typeof LoginRoute
+  '/reading-list': typeof ReadingListRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
@@ -259,6 +272,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter': typeof AdminNewsletterRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
+  '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
@@ -291,6 +305,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/login': typeof LoginRoute
+  '/reading-list': typeof ReadingListRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
@@ -299,6 +314,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter': typeof AdminNewsletterRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
+  '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
@@ -332,6 +348,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/login': typeof LoginRoute
+  '/reading-list': typeof ReadingListRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
@@ -340,6 +357,7 @@ export interface FileRoutesById {
   '/admin/newsletter': typeof AdminNewsletterRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
+  '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
@@ -375,6 +393,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/login'
+    | '/reading-list'
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
@@ -383,6 +402,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter'
     | '/admin/pages'
     | '/admin/paywall'
+    | '/admin/personalized'
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/settings'
@@ -415,6 +435,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/login'
+    | '/reading-list'
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
@@ -423,6 +444,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter'
     | '/admin/pages'
     | '/admin/paywall'
+    | '/admin/personalized'
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/tags'
@@ -455,6 +477,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/login'
+    | '/reading-list'
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
@@ -463,6 +486,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter'
     | '/admin/pages'
     | '/admin/paywall'
+    | '/admin/personalized'
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/settings'
@@ -497,6 +521,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ReadingListRoute: typeof ReadingListRoute
   ApiTtsRoute: typeof ApiTtsRoute
   PostSlugRoute: typeof PostSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
@@ -506,6 +531,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/reading-list': {
+      id: '/reading-list'
+      path: '/reading-list'
+      fullPath: '/reading-list'
+      preLoaderRoute: typeof ReadingListRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -595,6 +627,13 @@ declare module '@tanstack/react-router' {
       path: '/post-layouts'
       fullPath: '/admin/post-layouts'
       preLoaderRoute: typeof AdminPostLayoutsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/personalized': {
+      id: '/admin/personalized'
+      path: '/personalized'
+      fullPath: '/admin/personalized'
+      preLoaderRoute: typeof AdminPersonalizedRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/paywall': {
@@ -863,6 +902,7 @@ interface AdminRouteChildren {
   AdminNewsletterRoute: typeof AdminNewsletterRoute
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
   AdminPaywallRoute: typeof AdminPaywallRoute
+  AdminPersonalizedRoute: typeof AdminPersonalizedRoute
   AdminPostLayoutsRoute: typeof AdminPostLayoutsRoute
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
   AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
@@ -880,6 +920,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminNewsletterRoute: AdminNewsletterRoute,
   AdminPagesRoute: AdminPagesRouteWithChildren,
   AdminPaywallRoute: AdminPaywallRoute,
+  AdminPersonalizedRoute: AdminPersonalizedRoute,
   AdminPostLayoutsRoute: AdminPostLayoutsRoute,
   AdminPostsRoute: AdminPostsRouteWithChildren,
   AdminSettingsRoute: AdminSettingsRouteWithChildren,
@@ -895,6 +936,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AdminRoute: AdminRouteWithChildren,
   LoginRoute: LoginRoute,
+  ReadingListRoute: ReadingListRoute,
   ApiTtsRoute: ApiTtsRoute,
   PostSlugRoute: PostSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
