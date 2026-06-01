@@ -19,8 +19,13 @@ import {
 } from "@/lib/builder/globalColors";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
 
-// Paleta presetów — kolory marki + neutralne.
-const BRAND_PALETTE: Array<{ name: string; value: string }> = [
+// Paleta marki — edytowalna przez użytkownika, trzymana w localStorage.
+type BrandColor = { name: string; value: string };
+const BRAND_STORAGE_KEY = "lovable.globalColors.brandPalette.v1";
+const RECENT_STORAGE_KEY = "lovable.globalColors.recentColors.v1";
+const RECENT_MAX = 10;
+
+const DEFAULT_BRAND_PALETTE: BrandColor[] = [
   { name: "Background Dark", value: "#01112F" },
   { name: "Background Light", value: "#F8F6F4" },
   { name: "Granat", value: "#15334D" },
@@ -36,11 +41,26 @@ const BRAND_PALETTE: Array<{ name: string; value: string }> = [
   { name: "Szary jasny", value: "#CCCCCC" },
 ];
 
-const NEUTRAL_PALETTE = [
-  "#000000", "#ffffff", "#1f2937", "#374151", "#6b7280", "#9ca3af", "#e5e7eb", "#f3f4f6",
-  "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16", "#22c55e", "#10b981", "#14b8a6",
-  "#06b6d4", "#0ea5e9", "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899",
-];
+function useLocalStorageState<T>(key: string, initial: T): [T, (v: T | ((p: T) => T)) => void] {
+  const [state, setState] = useState<T>(() => {
+    if (typeof window === "undefined") return initial;
+    try {
+      const raw = window.localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T) : initial;
+    } catch {
+      return initial;
+    }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem(key, JSON.stringify(state)); } catch { /* noop */ }
+  }, [key, state]);
+  return [state, setState];
+}
+
+function isHexColor(v: string): boolean {
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v.trim());
+}
+
 
 
 export function GlobalColorsEditor() {
