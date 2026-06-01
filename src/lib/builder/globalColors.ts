@@ -412,6 +412,16 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     [data-sidebar="menu-button"][data-active="true"] svg, [data-sidebar="sidebar"] .active svg{color:var(--gc-sidebar-btn-text, currentColor) !important;}
     [data-sidebar="separator"]{background:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
     :where(html:not(.dark) main h1, html:not(.dark) main h2, html:not(.dark) main h3, html:not(.dark) main h4, html:not(.dark) main h5, html:not(.dark) main h6, html:not(.dark) main p, html:not(.dark) article h1, html:not(.dark) article h2, html:not(.dark) article h3, html:not(.dark) article h4, html:not(.dark) article p, html:not(.dark) section h1, html:not(.dark) section h2, html:not(.dark) section h3, html:not(.dark) section h4, html:not(.dark) section p){color:var(--gc-dark-accent, inherit);}
+    :where(main h1, article h1, section h1){color:var(--gc-h1, inherit);}
+    :where(main h2, article h2, section h2){color:var(--gc-h2, inherit);}
+    :where(main h3, article h3, section h3){color:var(--gc-h3, inherit);}
+    :where(main h4, article h4, section h4){color:var(--gc-h4, inherit);}
+    :where(main h5, article h5, section h5){color:var(--gc-h5, inherit);}
+    :where(main h6, article h6, section h6){color:var(--gc-h6, inherit);}
+    :where(main p, article p, section p, main li, article li, section li){color:var(--gc-body-text, inherit);}
+    :where(main small, article small, section small, .text-muted, .muted){color:var(--gc-body-text-muted, inherit);}
+    :where(main a:not(.btn):not([class*="button"]), article a:not(.btn):not([class*="button"]), section a:not(.btn):not([class*="button"])){color:var(--gc-link, var(--gc-highlight, inherit));}
+    :where(main a:not(.btn):not([class*="button"]):hover, article a:not(.btn):not([class*="button"]):hover, section a:not(.btn):not([class*="button"]):hover){color:var(--gc-link-hover, var(--gc-link, inherit));}
   `.replace(/\s+/g, " ").trim());
 
 
