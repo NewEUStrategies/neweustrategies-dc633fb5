@@ -646,3 +646,104 @@ function LangSwitcherDropdown({ label }: { label: string }) {
     </div>
   );
 }
+
+function ResizableImageWrap({
+  enabled,
+  currentPx,
+  onCommit,
+  children,
+}: {
+  enabled: boolean;
+  currentPx: number | undefined;
+  onCommit: (px: number) => void;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [livePx, setLivePx] = useState<number | undefined>(undefined);
+  const dragRef = useRef<{ startX: number; startY: number; startW: number; startH: number; ratio: number } | null>(null);
+
+  if (!enabled) return <>{children}</>;
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = ref.current;
+    if (!el) return;
+    const img = el.querySelector("img") as HTMLImageElement | null;
+    const rect = (img ?? el).getBoundingClientRect();
+    const ratio = rect.height > 0 ? rect.width / rect.height : 1;
+    dragRef.current = { startX: e.clientX, startY: e.clientY, startW: rect.width, startH: rect.height, ratio };
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    // Use larger delta for natural feel; preserve aspect ratio.
+    const newW = Math.max(20, d.startW + Math.max(dx, dy * d.ratio));
+    setLivePx(newW);
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (d && livePx !== undefined) onCommit(livePx);
+    dragRef.current = null;
+    setLivePx(undefined);
+    (e.target as Element).releasePointerCapture?.(e.pointerId);
+  };
+
+  const displayPx = livePx ?? currentPx;
+  const wrapStyle: CSSProperties = {
+    position: "relative",
+    display: "inline-block",
+    maxWidth: "100%",
+    width: displayPx ? `${displayPx}px` : "auto",
+  };
+  return (
+    <div ref={ref} style={wrapStyle}>
+      {children}
+      <div
+        role="slider"
+        aria-label="Zmień rozmiar obrazka (zachowuje proporcje)"
+        title={`Przeciągnij aby zmienić rozmiar${livePx ? ` — ${Math.round(livePx)}px` : ""}`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: "absolute",
+          right: -6,
+          bottom: -6,
+          width: 14,
+          height: 14,
+          borderRadius: 3,
+          background: "hsl(var(--brand, 220 90% 56%))",
+          border: "2px solid white",
+          boxShadow: "0 1px 3px rgba(0,0,0,.3)",
+          cursor: "nwse-resize",
+          zIndex: 20,
+          touchAction: "none",
+        }}
+      />
+      {livePx !== undefined && (
+        <div
+          style={{
+            position: "absolute",
+            top: 4,
+            left: 4,
+            background: "rgba(0,0,0,.7)",
+            color: "white",
+            fontSize: 10,
+            padding: "2px 6px",
+            borderRadius: 3,
+            pointerEvents: "none",
+            zIndex: 20,
+          }}
+        >
+          {Math.round(livePx)}px
+        </div>
+      )}
+    </div>
+  );
+}
