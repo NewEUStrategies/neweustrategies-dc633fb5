@@ -2,6 +2,8 @@
 // dla każdego slotu z GLOBAL_COLOR_GROUPS. Wybór z palety presetów,
 // pełny color picker oraz przycisk przywracania domyślnych wartości.
 import { useEffect, useState } from "react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
 import { Save, Undo } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
