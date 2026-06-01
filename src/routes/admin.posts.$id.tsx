@@ -67,6 +67,7 @@ function EditPost() {
   const tenantId = useRequiredTenant();
   const update$ = useServerFn(updatePost);
   const delete$ = useServerFn(deletePost);
+  const { data: globalLayout } = usePostLayoutSettings();
 
   const { data: post, isLoading } = useQuery({
     queryKey: ["post", id],
