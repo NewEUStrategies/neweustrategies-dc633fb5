@@ -25,7 +25,8 @@ export function useSaveAuthSettings() {
     mutationFn: async (value: AuthSettings) => {
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key: AUTH_SETTINGS_KEY, value: value as unknown as Record<string, unknown> }, { onConflict: "key" });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .upsert({ key: AUTH_SETTINGS_KEY, value: value as any }, { onConflict: "key" });
       if (error) throw error;
     },
     onSuccess: () => {
