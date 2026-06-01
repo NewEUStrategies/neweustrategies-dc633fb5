@@ -281,6 +281,8 @@ function ContentFields({ widget, lang, setContent }: {
       return <SectionLabelEditor c={c} lang={lang} setContent={setContent} />;
     case "slider":
       return <SliderEditor c={c} lang={lang} setContent={setContent} />;
+    case "animated-heading":
+      return <AnimatedHeadingEditor c={c} lang={lang} setContent={setContent} />;
   }
 
   // Schema-driven render for simple widgets.
