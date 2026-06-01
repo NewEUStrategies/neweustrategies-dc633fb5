@@ -181,7 +181,14 @@ function PagesList() {
                     />
                   </td>
                   <td className="p-3">
-                    <div className="font-medium">{(lang === "en" ? p.title_en : p.title_pl) || <span className="italic text-muted-foreground">- bez tytułu -</span>}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium">{(lang === "en" ? p.title_en : p.title_pl) || <span className="italic text-muted-foreground">- bez tytułu -</span>}</div>
+                      {currentHome === p.slug && (
+                        <Badge variant="outline" className="gap-1 text-[10px]">
+                          <Home className="w-3 h-3" /> Strona główna
+                        </Badge>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground">/{p.slug}</div>
                   </td>
                   <td className="p-3">
@@ -194,6 +201,21 @@ function PagesList() {
                   </td>
                   <td className="p-3 text-right">
                     <div className="flex justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={currentHome === p.slug || reading.save.isPending || p.status !== "published"}
+                        title={
+                          p.status !== "published"
+                            ? "Opublikuj stronę, aby ustawić ją jako główną"
+                            : currentHome === p.slug
+                              ? "Już ustawiona jako strona główna"
+                              : "Ustaw jako stronę główną"
+                        }
+                        onClick={() => setAsHome(p.slug, (lang === "en" ? p.title_en : p.title_pl) ?? p.slug)}
+                      >
+                        <Home className={`w-4 h-4 ${currentHome === p.slug ? "text-primary" : ""}`} />
+                      </Button>
                       <Link to="/admin/pages/$id" params={{ id: p.id }}>
                         <Button size="sm" variant="ghost"><Pencil className="w-4 h-4" /></Button>
                       </Link>
