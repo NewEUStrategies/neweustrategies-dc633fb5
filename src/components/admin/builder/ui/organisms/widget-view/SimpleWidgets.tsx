@@ -232,13 +232,13 @@ export function renderSimpleWidget(
     }
     case "search-button": {
       const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Szukaj";
-      return (
-        <button type="button" aria-label="Search" className="inline-flex items-center gap-2 text-xs font-semibold leading-none text-muted-foreground hover:text-foreground transition" style={compactRowStyle}>
-          <LucideIcons.Search className="w-4 h-4" />
-          <span className="hidden sm:inline">{label}</span>
-        </button>
-      );
+      const mode = (getStr(c, "mode") || "dropdown") as "standalone" | "dropdown" | "fullscreen";
+      const heading = getStr(c, `heading_${lang}`) || getStr(c, "heading_pl") || "";
+      const liveResults = getStr(c, "liveResults") !== "off";
+      const limit = getNum(c, "limit", 8);
+      return <SearchButtonWidget label={label} mode={mode} heading={heading} liveResults={liveResults} limit={limit} lang={lang} />;
     }
+
     case "copyright": {
       const txt = getStr(c, `text_${lang}`) || getStr(c, "text_pl");
       const showYear = c.showYear !== false;
