@@ -37,6 +37,8 @@ interface PageData {
 interface PostData extends PageData {
   excerpt_pl: string | null; excerpt_en: string | null;
   read_minutes: number | null;
+  post_format: PostFormat;
+  layout_overrides: LayoutOverrides | null;
 }
 
 export const Route = createFileRoute("/$")({
