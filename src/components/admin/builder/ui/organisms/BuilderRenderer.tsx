@@ -1,7 +1,7 @@
 // Read-only renderer for public pages. Applies all Section settings
 // (layout, background layers, overlay, border, shape dividers, typography).
 import type { CSSProperties, ElementType } from "react";
-import type { BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, Device } from "@/lib/builder/types";
+import type { BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, Device, ResponsiveValue } from "@/lib/builder/types";
 import { WidgetView, getWidgetFrameStyle, hiddenOnDevice } from "@/components/admin/builder/WidgetView";
 import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl } from "@/lib/sanitize";
 import {
@@ -10,6 +10,13 @@ import {
   ShapeDivider, typographyCss, typographyAlign,
   INNER_SECTION_SAFE_AREA_PX, COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
+
+function resolveSpan(span: ResponsiveValue<number>, device: Device, deskDefault: number): number {
+  if (device === "mobile") return span.mobile ?? 12;
+  if (device === "tablet") return span.tablet ?? span.desktop ?? deskDefault;
+  return span.desktop ?? deskDefault;
+}
+
 
 interface Props {
   doc: BuilderDocument;
