@@ -23,7 +23,7 @@ import type {
 } from "@/lib/builder/types";
 import { emptyDocument, newId } from "@/lib/builder/types";
 import {
-  cloneSection, cloneColumn,
+  cloneSection, cloneColumn, cloneWidget,
   findWidget, findSection, findColumn, findInner,
 } from "@/lib/builder/operations";
 import { useHistory } from "@/lib/builder/useHistory";
@@ -422,48 +422,9 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
 
 
   // ---------- clipboard ----------
-  const copySelection = useCallback(() => {
-    if (!selection.id || !selection.kind) return;
-    const map = {
-      section: () => findSection(doc, selection.id!),
-      "inner-section": () => findInner(doc, selection.id!),
-      column: () => findColumn(doc, selection.id!),
-      widget: () => findWidget(doc, selection.id!)?.widget ?? null,
-    } as const;
-    const node = map[selection.kind]?.();
-    if (node) copyToClipboard({ kind: selection.kind, node } as ClipEnvelope);
-  }, [selection, doc]);
-
-  const pasteFromClipboard = useCallback(() => {
-    const env = readClipboard();
-    if (!env) return;
-    update((d) => {
-      if (env.kind === "section") {
-        const cloned = cloneSection(env.node as SectionNode);
-        const i = selection.kind === "section" && selection.id
-          ? d.sections.findIndex((s) => s.id === selection.id) : -1;
-        if (i >= 0) d.sections.splice(i + 1, 0, cloned); else d.sections.push(cloned);
-      } else if (env.kind === "widget") {
-        const cloned = cloneWidget(env.node as WidgetNode);
-        const colId = focusedColumn?.id;
-        if (!colId) return;
-        const col = findColumn(d, colId);
-        if (col) col.children.push(cloned);
-      } else if (env.kind === "column") {
-        const cloned = cloneColumn(env.node as ColumnNode);
-        if (selection.kind === "section" && selection.id) {
-          const s = d.sections.find((x) => x.id === selection.id);
-          if (s) s.children.push(cloned);
-        } else { d.sections.push({ id: newId(), kind: "section", children: [cloned] }); }
-      } else if (env.kind === "inner-section") {
-        const cloned = cloneInner(env.node as InnerSectionNode);
-        if (selection.kind === "section" && selection.id) {
-          const s = d.sections.find((x) => x.id === selection.id);
-          if (s) s.children.push(cloned);
-        }
-      }
-    });
-  }, [selection, focusedColumn, update]);
+  const { copySelection, pasteFromClipboard } = useBuilderClipboard({
+    doc, selection, focusedColumn, update,
+  });
 
   const toggleHidden = (id: string, kind: NonNullable<SelectionKind>) => update((d) => {
     const target =
@@ -477,31 +438,14 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   });
 
   // ---------- keyboard shortcuts ----------
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
-      const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) { e.preventDefault(); history.undo(); }
-      else if (mod && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) { e.preventDefault(); history.redo(); }
-      else if (mod && e.key.toLowerCase() === "c") { copySelection(); }
-      else if (mod && e.key.toLowerCase() === "v") { e.preventDefault(); pasteFromClipboard(); }
-      else if (mod && e.key.toLowerCase() === "d" && selection.id) {
-        e.preventDefault();
-        if (selection.kind === "section") duplicateSection(selection.id);
-        else if (selection.kind === "column") duplicateColumn(selection.id);
-        else if (selection.kind === "widget") duplicateWidget(selection.id);
-      }
-      else if (e.key === "Delete" && selection.id) {
-        if (selection.kind === "section") removeSection(selection.id);
-        else if (selection.kind === "column") removeColumn(selection.id);
-        else if (selection.kind === "widget") removeWidget(selection.id);
-      } else if (e.key === "Escape") setSelection({ kind: null, id: null });
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history.undo, history.redo, copySelection, pasteFromClipboard, selection]);
+  useBuilderShortcuts({
+    selection, setSelection,
+    undo: history.undo, redo: history.redo,
+    copySelection, pasteFromClipboard,
+    duplicateSection, duplicateColumn, duplicateWidget,
+    removeSection, removeColumn, removeWidget,
+  });
+
 
   // ---------- left panel content ----------
   const selectedWidget = selection.kind === "widget" && selection.id ? findWidget(doc, selection.id)?.widget ?? null : null;
