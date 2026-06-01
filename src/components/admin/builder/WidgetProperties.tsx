@@ -361,6 +361,47 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
   );
 }
 
+// ---- Themed color field: shows reset button + override dot when overridden ----
+function ThemedColorField({
+  label, value, onChange, overridden, onReset, placeholderHint,
+}: {
+  label: string;
+  value: string | undefined;
+  onChange: (v: string | undefined) => void;
+  overridden: boolean;
+  onReset: () => void;
+  placeholderHint?: string;
+}) {
+  return (
+    <PropField
+      label={
+        <span className="inline-flex items-center gap-1.5">
+          {label}
+          {overridden && (
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand" aria-label="Nadpisane" title="Nadpisane w tym trybie" />
+          )}
+          {overridden && (
+            <button
+              type="button"
+              onClick={onReset}
+              title="Przywróć z global colors"
+              className="inline-flex items-center text-muted-foreground hover:text-foreground"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          )}
+        </span> as unknown as string
+      }
+    >
+      <ColorField
+        value={value}
+        onChange={onChange}
+        placeholder={placeholderHint ?? "#000 / var(--brand) / transparent"}
+      />
+    </PropField>
+  );
+}
+
 function ContentFields({ widget, lang, setContent }: {
   widget: WidgetNode; lang: "pl" | "en"; setContent: (k: string, v: Json) => void;
 }) {
