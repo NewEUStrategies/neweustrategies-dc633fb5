@@ -143,6 +143,7 @@ function RootComponent() {
           <IconPackSync />
           <DesignTokensStyle />
           <ContentAreaStyle />
+          <ThemeOptionsStyle />
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>
