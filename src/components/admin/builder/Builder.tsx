@@ -44,6 +44,8 @@ import {
 import { useBuilderClipboard } from "./ui/hooks/useBuilderClipboard";
 import { useBuilderShortcuts } from "./ui/hooks/useBuilderShortcuts";
 import { ConfirmDeleteDialog } from "./ui/molecules/ConfirmDeleteDialog";
+import { BuilderContextMenu, type CtxTarget } from "./ui/molecules/BuilderContextMenu";
+import { readClipboard } from "@/lib/builder/clipboard";
 
 
 
