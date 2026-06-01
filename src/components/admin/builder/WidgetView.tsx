@@ -114,8 +114,8 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
 
   const style: CSSProperties = { maxWidth: "100%" };
 
-  // Width: user value > maxWidth style > default (or auto for auto-fit widgets)
-  const w = toCssSize(wRaw) ?? node.style?.maxWidth ?? (autoFit ? "auto" : DEFAULT_WIDGET_BOX_WIDTH);
+  // Width: user value > maxWidth style > default (fluid 100%, or auto for auto-fit widgets like images)
+  const w = toCssSize(wRaw) ?? node.style?.maxWidth ?? (autoFit ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
   style.width = w;
 
   // Height: user value wins; otherwise hug content (intrinsic, e.g. image ratio).
