@@ -56,6 +56,7 @@ const THEME_DEFAULTS: ThemeOptions = {
     search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
     mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
     signin: { enabled: true, signin_label_pl: "Zaloguj", signin_label_en: "Sign in", signup_label_pl: "Zarejestruj", signup_label_en: "Sign up", variant: "ghost", show_signup: true },
+    socials: { placement: "topbar", facebook: "", twitter: "", instagram: "", linkedin: "", youtube: "", email: "", size: 16 },
   },
 };
 
