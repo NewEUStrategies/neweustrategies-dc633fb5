@@ -123,9 +123,13 @@ function PublicPage() {
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const it = data.item;
   const title = lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en;
-  const excerpt = data.kind === "post" ? (lang === "en" ? (it as PostData).excerpt_en : (it as PostData).excerpt_pl) : null;
+  const isPost = data.kind === "post";
+  const post = isPost ? (it as PostData) : null;
+  const excerpt = post ? (lang === "en" ? post.excerpt_en : post.excerpt_pl) : null;
+  const postTags = isPost ? (data as { tags?: Array<{ slug: string; name: string }> }).tags : undefined;
 
-  const access = useContentAccess(data.kind === "post" ? "post" : "page", it.id);
+  const access = useContentAccess(isPost ? "post" : "page", it.id);
+  const { data: globalLayoutSettings } = usePostLayoutSettings();
 
   const rawDoc = parseBuilderDoc(it.builder_data);
   const isBuilder = it.editor === "builder" && rawDoc.sections.length > 0;
@@ -138,44 +142,88 @@ function PublicPage() {
 
   const [crumbs, setCrumbs] = useState<BreadcrumbItem[]>([]);
   useEffect(() => {
-    setCrumbs(buildBreadcrumbs(data.crumbs, lang, data.kind === "post" ? title : undefined));
-  }, [data, lang, title]);
+    setCrumbs(buildBreadcrumbs(data.crumbs, lang, isPost ? title : undefined));
+  }, [data, lang, title, isPost]);
 
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": data.kind === "post" ? "Article" : "WebPage",
+    "@type": isPost ? "Article" : "WebPage",
     headline: title, name: title,
     description: excerpt ?? "",
     image: it.cover_image_url ?? undefined,
     datePublished: it.published_at ?? undefined,
   };
 
-  const maxW = data.kind === "post" ? "max-w-[1000px]" : "max-w-[1200px]";
+  const maxW = isPost ? "max-w-[1200px]" : "max-w-[1200px]";
 
+  const contentBlock = (
+    <div ref={articleRef}>
+      {access.rule && !access.hasAccess ? (
+        <Paywall rule={access.rule} lang={lang} fallbackText={rawHtml} />
+      ) : (
+        <>
+          {isBuilder ? (
+            <BuilderRenderer doc={doc} lang={lang} />
+          ) : (
+            <article className="single-post-content prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(processedHtml) }} />
+          )}
+          <FootnotesList notes={notes} />
+        </>
+      )}
+    </div>
+  );
+
+  // Posts: render via PostLayoutRenderer with merged global+override settings.
+  if (isPost && post && globalLayoutSettings) {
+    const overrides = post.layout_overrides ?? null;
+    const format: PostFormat = (overrides?.format ?? post.post_format ?? "standard") as PostFormat;
+    const layoutId = pickLayoutId(globalLayoutSettings, format, overrides?.layout);
+    const merged = mergeOverrides(globalLayoutSettings, overrides);
+    return (
+      <div className="min-h-screen flex flex-col bg-background text-foreground">
+        <PostContentStyle />
+        <Header />
+        <main className={`flex-1 ${maxW} w-full mx-auto px-4 lg:px-8 py-10`}>
+          <Breadcrumbs items={crumbs} />
+          <PostLayoutRenderer
+            format={format}
+            layoutId={layoutId}
+            settings={merged}
+            title={title}
+            excerpt={excerpt}
+            coverImageUrl={it.cover_image_url}
+            meta={post.read_minutes ? <span>{post.read_minutes} min</span> : null}
+            content={contentBlock}
+            footer={
+              <>
+                <PostFooterBars
+                  settings={merged}
+                  lang={lang}
+                  tags={postTags}
+                  sources={null}
+                  via={null}
+                  author={null}
+                />
+                {merged.show_bottom_newsletter && <NewsletterForm lang={lang} source={`post:${post.slug}`} />}
+              </>
+            }
+          />
+          <FootnoteTooltips notes={notes} containerRef={articleRef} />
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Pages: keep original simple layout.
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Header />
       <main className={`flex-1 ${maxW} w-full mx-auto px-4 lg:px-8 py-10`}>
         <Breadcrumbs items={crumbs} />
         <h1 className="font-display text-4xl lg:text-5xl mb-4">{title}</h1>
-        {excerpt && <p className="text-lg text-muted-foreground mb-6">{excerpt}</p>}
-        {data.kind === "post" && it.cover_image_url && (
-          <img src={it.cover_image_url} alt={title} className="w-full rounded-lg mb-8 max-h-[480px] object-cover" loading="eager" />
-        )}
-        <div ref={articleRef}>
-          {access.rule && !access.hasAccess ? (
-            <Paywall rule={access.rule} lang={lang} fallbackText={rawHtml} />
-          ) : (
-            <>
-              {isBuilder ? (
-                <BuilderRenderer doc={doc} lang={lang} />
-              ) : (
-                <article className="prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(processedHtml) }} />
-              )}
-              <FootnotesList notes={notes} />
-            </>
-          )}
-        </div>
+        {contentBlock}
         <FootnoteTooltips notes={notes} containerRef={articleRef} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       </main>
