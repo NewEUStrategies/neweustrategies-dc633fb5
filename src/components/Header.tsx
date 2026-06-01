@@ -1,13 +1,50 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Moon, Sun, Search, Menu, X, Mail, Facebook, Twitter, Youtube, Instagram, Linkedin, Send, LogIn, LayoutDashboard } from "@/lib/lucide-shim";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "./ThemeProvider";
 import { useAuth } from "@/hooks/useAuth";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
 import logo from "@/assets/logo.png";
+
+type ThemeOptions = {
+  logo: {
+    main: string; main_dark: string; mobile: string; mobile_dark: string;
+    transparent: string; organization: string;
+    bookmark_ios: string; bookmark_windows: string; add_to_home_screen: boolean;
+  };
+  header: {
+    main_menu: {
+      hover_effect: "color-border" | "underline" | "background" | "scale" | "none";
+      sticky: boolean; smart_sticky: boolean; glass_effect: boolean;
+      item_spacing: number; icon_spacing: number;
+      submenu_bg_from: string; submenu_bg_to: string;
+    };
+    search: {
+      enabled: boolean; heading: string;
+      mode: "standalone" | "dropdown" | "fullscreen";
+      live_results: boolean; live_limit: number; more_menu_search: boolean;
+    };
+  };
+};
+
+const THEME_DEFAULTS: ThemeOptions = {
+  logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", organization: "", bookmark_ios: "", bookmark_windows: "", add_to_home_screen: true },
+  header: {
+    main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
+    search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
+  },
+};
+
+const HOVER_CLASS: Record<ThemeOptions["header"]["main_menu"]["hover_effect"], string> = {
+  "color-border": "border-b-2 border-transparent hover:border-brand hover:text-brand",
+  underline: "hover:underline underline-offset-8 decoration-2 hover:text-brand",
+  background: "rounded hover:bg-muted hover:text-brand",
+  scale: "hover:scale-110 hover:text-brand",
+  none: "hover:text-brand",
+};
 
 type MenuItem = { label_pl: string; label_en: string; url: string };
 
@@ -21,6 +58,7 @@ export function Header() {
   const setLang = (lng: "pl" | "en") => i18n.changeLanguage(lng);
 
   const menu = useSiteSetting<{ items: MenuItem[] }>("menu_primary", { items: [] });
+  const themeOpts = useSiteSetting<ThemeOptions>("theme_options", THEME_DEFAULTS);
   const headerCfg = useSiteSetting<{
     show_newsletter: boolean; show_socials: boolean;
     social_facebook: string; social_twitter: string; social_youtube: string;
@@ -32,6 +70,25 @@ export function Header() {
     social_facebook: "#", social_twitter: "#", social_youtube: "#", social_instagram: "#", social_linkedin: "#",
     contact_email: "",
   });
+
+  // Smart-sticky: hide on scroll down, show on scroll up. Sticky: always fixed at top.
+  const [navHidden, setNavHidden] = useState(false);
+  const lastY = useRef(0);
+  const { sticky, smart_sticky, glass_effect, hover_effect, item_spacing } = themeOpts.header.main_menu;
+  useEffect(() => {
+    if (!smart_sticky) return;
+    const onScroll = () => {
+      const y = window.scrollY;
+      setNavHidden(y > 80 && y > lastY.current);
+      lastY.current = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [smart_sticky]);
+
+  const logoSrc = theme === "dark"
+    ? (themeOpts.logo.main_dark || themeOpts.logo.main || logo)
+    : (themeOpts.logo.main || logo);
 
   if (headerCfg.builder_data && headerCfg.builder_data.sections?.length) {
     return (
@@ -122,32 +179,44 @@ export function Header() {
       {/* Centered logo */}
       <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-6 flex justify-center">
         <Link to="/" className="flex items-center gap-3">
-          <img src={logo} alt="New European Strategies" className="w-12 h-12 md:w-14 md:h-14" width={56} height={56} />
-          <div className="leading-[1.05]">
-            <div className="font-display font-bold text-xl md:text-2xl">New</div>
-            <div className="font-display font-bold text-xl md:text-2xl text-brand">European</div>
-            <div className="font-display font-bold text-xl md:text-2xl">Strategies</div>
-          </div>
+          <img src={logoSrc} alt="New European Strategies" className="w-12 h-12 md:w-14 md:h-14 object-contain" width={56} height={56} />
+          {!themeOpts.logo.main && (
+            <div className="leading-[1.05]">
+              <div className="font-display font-bold text-xl md:text-2xl">New</div>
+              <div className="font-display font-bold text-xl md:text-2xl text-brand">European</div>
+              <div className="font-display font-bold text-xl md:text-2xl">Strategies</div>
+            </div>
+          )}
         </Link>
       </div>
 
       {/* Nav bar */}
-      <div className="border-t border-border">
+      <div
+        className={[
+          "border-t border-border bg-background transition-transform duration-300",
+          sticky ? "sticky top-0 z-40" : "",
+          glass_effect ? "backdrop-blur-md bg-background/70" : "",
+          navHidden ? "-translate-y-full" : "translate-y-0",
+        ].filter(Boolean).join(" ")}
+      >
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-14 flex items-center justify-between gap-4">
-          <button
-            aria-label="Search"
-            className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition"
-          >
-            <Search className="w-4 h-4" />
-            <span className="hidden sm:inline">{t("nav.search")}</span>
-          </button>
+          {themeOpts.header.search.enabled && (
+            <button
+              aria-label="Search"
+              className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition"
+            >
+              <Search className="w-4 h-4" />
+              <span className="hidden sm:inline">{themeOpts.header.search.heading || t("nav.search")}</span>
+            </button>
+          )}
 
-          <nav className="hidden lg:flex items-center gap-7">
+          <nav className="hidden lg:flex items-center gap-2">
             {nav.map((item) => (
               <a
                 key={item.label}
                 href={item.url || "#"}
-                className="flex items-center gap-1 text-xs font-bold tracking-wider text-foreground hover:text-brand transition"
+                style={{ paddingLeft: item_spacing, paddingRight: item_spacing }}
+                className={`flex items-center gap-1 py-2 text-xs font-bold tracking-wider text-foreground transition ${HOVER_CLASS[hover_effect]}`}
               >
                 {item.label}
               </a>
