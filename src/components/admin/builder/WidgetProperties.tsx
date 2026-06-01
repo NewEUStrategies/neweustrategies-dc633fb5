@@ -26,6 +26,12 @@ import { VisibilityControl } from "./ui/molecules/VisibilityControl";
 import { HoverControl } from "./ui/molecules/HoverControl";
 import { SchemaFieldControl } from "./ui/molecules/SchemaFieldControl";
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
+import {
+  SECTION_LABEL_VARIANTS,
+  SectionLabelRender,
+  resolveAccentColor,
+  type SectionLabelVariant,
+} from "@/lib/builder/sectionLabelVariants";
 
 interface Props {
   widget: WidgetNode;
