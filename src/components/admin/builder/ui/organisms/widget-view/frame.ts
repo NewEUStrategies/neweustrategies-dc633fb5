@@ -133,20 +133,23 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
 
   // Vertical alignment inside the column (uses auto margins so it works in
   // flex-col regardless of the column's align-items setting).
-  if (sa === "stretch") {
-    style.flexGrow = 1;
-    style.alignSelf = horizontalAnchored ? style.alignSelf : "stretch";
-    style.height = "auto";
-  } else if (sa === "center") {
-    style.marginTop = "auto";
-    style.marginBottom = "auto";
-  } else if (sa === "end") {
-    style.marginTop = "auto";
-    style.marginBottom = 0;
-  } else if (sa === "start") {
-    style.marginTop = 0;
-    style.marginBottom = "auto";
+  if (sa) {
+    if (sa === "stretch") {
+      style.flexGrow = 1;
+      style.alignSelf = horizontalAnchored ? style.alignSelf : "stretch";
+      style.height = "auto";
+    } else if (sa === "center") {
+      style.marginTop = "auto";
+      style.marginBottom = "auto";
+    } else if (sa === "end") {
+      style.marginTop = "auto";
+      style.marginBottom = 0;
+    } else if (sa === "start") {
+      style.marginTop = 0;
+      style.marginBottom = "auto";
+    }
   }
+
 
   return style;
 };
