@@ -216,6 +216,8 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const iconName = getStr(c, "iconName");
       const iconPos = getStr(c, "iconPosition") || "left";
       const fullWidth = getStr(c, "fullWidth") === "full";
+      const widthPx = getNum(c, "widthPx", 0);
+      const heightPx = getNum(c, "heightPx", 0);
       const variantCls =
         variant === "outline" ? "border border-border hover:bg-muted"
         : variant === "ghost" ? "hover:bg-muted"
@@ -223,15 +225,25 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         : variant === "soft" ? "bg-brand/10 text-brand hover:bg-brand/20"
         : variant === "link" ? "underline-offset-4 hover:underline text-brand px-0"
         : "bg-brand text-brand-foreground hover:opacity-90";
-      const sizeCls = size === "sm" ? "px-3 py-1.5 text-xs" : size === "lg" ? "px-7 py-3 text-base" : "px-5 py-2.5 text-sm";
-      const cls = `inline-flex items-center gap-2 rounded-md font-medium transition ${sizeCls} ${variantCls} ${fullWidth ? "w-full justify-center" : ""} ${iconPos === "right" ? "flex-row-reverse" : ""}`;
+      // Default ("md") matches the search-widget closed pill height.
+      const sizeCls = size === "sm" ? "px-3 py-1.5 text-xs" : size === "lg" ? "px-7 py-3 text-base" : "px-3.5 py-2 text-xs";
+      const cls = `inline-flex items-center justify-center gap-2 rounded-md font-medium leading-none transition w-full h-full ${sizeCls} ${variantCls} ${fullWidth ? "justify-center" : ""} ${iconPos === "right" ? "flex-row-reverse" : ""}`;
       const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
       const Icon = iconName ? (reg[iconName] ?? null) : null;
-      if (canEdit) {
-        return wrap(<span className={cls}>{Icon && <Icon size={16} />}<Editable as="span" value={label} onCommit={(v) => commit(key, v)} placeholder="Etykieta…" /></span>);
-      }
-      return wrap(<a href={href} target={target} rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{Icon && <Icon size={16} />}{label}</a>);
+      const inner = canEdit
+        ? <span className={cls}>{Icon && <Icon size={14} />}<Editable as="span" value={label} onCommit={(v) => commit(key, v)} placeholder="Etykieta…" /></span>
+        : <a href={href} target={target} rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{Icon && <Icon size={14} />}{label}</a>;
+      return wrap(
+        <ResizableBox
+          enabled={canEdit}
+          widthPx={widthPx > 0 ? widthPx : undefined}
+          heightPx={heightPx > 0 ? heightPx : undefined}
+          onCommit={(w, h) => { onContentChange?.("widthPx", w); onContentChange?.("heightPx", h); }}
+        >
+          {inner}
+        </ResizableBox>,
+      );
     }
     case "nav-link": {
       const key = `label_${lang}`;
