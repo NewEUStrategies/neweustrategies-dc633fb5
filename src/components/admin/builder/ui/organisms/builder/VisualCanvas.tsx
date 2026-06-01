@@ -5,7 +5,7 @@ import { SectionDropZone } from "./SectionDropZone";
 import type { Selection } from "./types";
 
 export function VisualCanvas({
-  doc, lang, device, selection, setSelection, onInsertSection,
+  doc, lang, device, selection, setSelection, onInsertSection, onRemoveSection,
   onMoveWidget, onMoveWidgetToColumn, onMoveWidgetToSection, onMoveSection,
   onDropNewWidgetToColumn, onDropNewWidgetNear, onDropNewWidgetToSection,
   firstLabel, lastLabel,
@@ -13,6 +13,7 @@ export function VisualCanvas({
   doc: BuilderDocument; lang: "pl" | "en"; device: Device;
   selection: Selection; setSelection: (s: Selection) => void;
   onInsertSection: (index: number, colsOrSpans: number | number[]) => void;
+  onRemoveSection?: (id: string) => void;
   onMoveWidget: (srcId: string, targetId: string, pos: "before" | "after") => void;
   onMoveWidgetToColumn: (srcId: string, targetColId: string) => void;
   onMoveWidgetToSection: (srcId: string, targetSectionId: string) => void;
