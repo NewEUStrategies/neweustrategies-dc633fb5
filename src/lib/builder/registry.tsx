@@ -168,6 +168,19 @@ export const WIDGETS: WidgetDef[] = [
       image: "",
       href: "",
     }) },
+  { type: "slider", label: "Slider", category: "media", icon: GalleryHorizontal,
+    defaults: () => ({
+      variant: "classic",
+      ratio: "16/9",
+      autoplay: true,
+      intervalMs: 4500,
+      rounded: "md",
+      overlayOpacity: 0.45,
+      items: [
+        { image: "", title_pl: "Pierwszy slajd", title_en: "First slide", subtitle_pl: "", subtitle_en: "", href: "", cta_pl: "", cta_en: "" },
+        { image: "", title_pl: "Drugi slajd",   title_en: "Second slide", subtitle_pl: "", subtitle_en: "", href: "", cta_pl: "", cta_en: "" },
+      ],
+    }) },
 ];
 
 export const WIDGET_MAP: Record<WidgetType, WidgetDef> = WIDGETS.reduce(
