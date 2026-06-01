@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import {
   GLOBAL_COLOR_GROUPS,
   EMPTY_GLOBAL_COLORS,
+  globalColorsToCss,
   type GlobalColorsValue,
   type GlobalColorSlot,
 } from "@/lib/builder/globalColors";
@@ -43,8 +44,14 @@ export function GlobalColorsEditor() {
     });
   };
 
+  // Live preview — natychmiast nadpisuje :root / .dark tokenami z draftu,
+  // dzięki czemu builder po prawej widzi zmiany w czasie rzeczywistym.
+  const liveCss = globalColorsToCss(draft);
+
   return (
     <div className="space-y-6">
+      {/* eslint-disable-next-line react/no-danger */}
+      <style data-global-colors-preview dangerouslySetInnerHTML={{ __html: liveCss }} />
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-display text-lg">Global Colors</h3>
