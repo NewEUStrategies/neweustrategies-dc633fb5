@@ -368,6 +368,43 @@ export const deletePage = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+export const bulkDeletePages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    return guard("page.bulkDelete", userId, 20, async () => {
+      const tenantId = await resolveTenant(supabase, userId);
+      const { error } = await supabase.from("pages").delete().in("id", data.ids);
+      if (error) throw new Error(error.message);
+      await audit(supabase, tenantId, "page.delete", "page", null, { ids: data.ids, count: data.ids.length });
+      return { ok: true as const, count: data.ids.length };
+    });
+  });
+
+export const bulkUpdatePages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({
+    ids: z.array(UUID).min(1).max(200),
+    status: Status,
+  }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    return guard("page.bulkUpdate", userId, 20, async () => {
+      const tenantId = await resolveTenant(supabase, userId);
+      const updates: PageUpdateRow = { status: data.status };
+      if (data.status === "published") updates.published_at = new Date().toISOString();
+      const { error } = await supabase.from("pages").update(updates).in("id", data.ids);
+      if (error) throw new Error(error.message);
+      await audit(
+        supabase, tenantId,
+        data.status === "published" ? "page.publish" : "page.update",
+        "page", null, { ids: data.ids, status: data.status },
+      );
+      return { ok: true as const, count: data.ids.length };
+    });
+  });
+
 // ---------- CATEGORIES ----------
 
 const CategoryCore = z.object({
