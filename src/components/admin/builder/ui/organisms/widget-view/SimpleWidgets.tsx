@@ -1165,3 +1165,24 @@ export function ResizableBox({
     </div>
   );
 }
+
+function ThemeToggleWidget() {
+  const { theme, toggle } = useTheme();
+  const isDark = theme === "dark";
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={isDark ? "Przełącz na tryb jasny" : "Przełącz na tryb ciemny"}
+      title={isDark ? "Tryb ciemny (kliknij, aby zmienić)" : "Tryb jasny (kliknij, aby zmienić)"}
+      className="inline-flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+      style={{ width: 32, height: 32 }}
+    >
+      {isDark ? (
+        <LucideIcons.Sun className="w-4 h-4" style={{ color: "#FA9346" }} />
+      ) : (
+        <LucideIcons.Moon className="w-4 h-4" />
+      )}
+    </button>
+  );
+}
