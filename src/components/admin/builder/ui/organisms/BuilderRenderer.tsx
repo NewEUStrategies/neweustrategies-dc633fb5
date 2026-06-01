@@ -90,12 +90,18 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
 
 function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   const singleWidget = column.children.length <= 1;
+  const va = column.verticalAlign ?? "start";
   const axisClass = singleWidget
-    ? (column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : "items-start")
+    ? (column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : column.verticalAlign === "stretch" ? "items-stretch" : "items-start")
     : (column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start");
-  const layoutClass = singleWidget ? "flex-col" : "flex-row flex-wrap content-start";
+  // Vertical alignment: in flex-col (single) we use justify-content;
+  // in flex-row wrap (multi) we use align-content + items.
+  const vClass = singleWidget
+    ? (va === "center" ? "justify-center" : va === "end" ? "justify-end" : va === "stretch" ? "justify-stretch" : "justify-start")
+    : (va === "center" ? "content-center items-center" : va === "end" ? "content-end items-end" : va === "stretch" ? "content-stretch items-stretch" : "content-start items-start");
+  const layoutClass = singleWidget ? "flex-col" : "flex-row flex-wrap";
   return (
-    <div data-col-id={column.id} className={`flex ${layoutClass} gap-2 h-full min-w-0 max-w-full overflow-hidden ${axisClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: 40 }}>
+    <div data-col-id={column.id} className={`flex ${layoutClass} gap-2 h-full min-w-0 max-w-full overflow-hidden ${axisClass} ${vClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: 40 }}>
       {column.children.map((w) => {
         if (hiddenOnDevice(w.advanced, device)) return null;
         return (
@@ -107,3 +113,4 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
     </div>
   );
 }
+
