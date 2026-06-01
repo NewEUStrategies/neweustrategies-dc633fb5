@@ -520,9 +520,14 @@ function RatedListEditor({ c, lang, setContent }: { c: WidgetNode["content"]; la
           </PropField>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <ColorField label="Kolor (light)" value={numColor} onChange={(v) => setContent("numberColor", v as Json)} />
-          <ColorField label="Kolor (dark)" value={numColorDark} onChange={(v) => setContent("numberColorDark", v as Json)} />
+          <PropField label="Kolor (light)">
+            <ColorField value={numColor} onChange={(v) => setContent("numberColor", (v ?? "") as Json)} />
+          </PropField>
+          <PropField label="Kolor (dark)">
+            <ColorField value={numColorDark} onChange={(v) => setContent("numberColorDark", (v ?? "") as Json)} />
+          </PropField>
         </div>
+
         <PropField label={`Przezroczystość (${Math.round(numOpacity * 100)}%)`}>
           <Input type="range" min={0} max={1} step={0.01} value={numOpacity}
             onChange={(e) => setContent("numberOpacity", (Number(e.target.value) || 0) as Json)}
