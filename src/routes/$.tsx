@@ -174,6 +174,13 @@ function PublicPage() {
             coverImageUrl={it.cover_image_url}
             meta={post.read_minutes ? <span>{post.read_minutes} min</span> : null}
             content={contentBlock}
+            sidebar={
+              <PostSidebar
+                articleRef={articleRef}
+                tags={postTags}
+                scanKey={`${it.id}-${lang}`}
+              />
+            }
             footer={
               <>
                 <PostFooterBars
