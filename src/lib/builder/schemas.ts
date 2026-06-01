@@ -306,11 +306,21 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   newsletter: [
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "variant", type: "select", label: "Wariant", options: [
+      { value: "icon-only", label: "sama ikona" },
       { value: "icon", label: "ikona + tekst" },
       { value: "inline", label: "inline (email + przycisk)" },
       { value: "card", label: "karta z formularzem" },
       { value: "minimal", label: "minimalny" },
     ]},
+    {
+      key: "iconName", type: "text", label: "Ikona (Lucide)",
+      placeholder: "Mail, Send, BellRing, Inbox…",
+      hint: "Nazwa ikony Lucide. Domyślnie: Mail.",
+      visibleWhen: (c) => {
+        const v = typeof c.variant === "string" ? c.variant : "icon";
+        return v === "icon" || v === "icon-only";
+      },
+    },
     { key: "placeholder", type: "i18nText", label: "Placeholder pola email" },
     { key: "cta", type: "i18nText", label: "Etykieta przycisku" },
   ],
