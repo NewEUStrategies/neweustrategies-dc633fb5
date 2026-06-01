@@ -13,8 +13,10 @@ import {
   GLOBAL_COLOR_GROUPS,
   EMPTY_GLOBAL_COLORS,
   globalColorsToCss,
+  isSlotHoverable,
   type GlobalColorsValue,
   type GlobalColorSlot,
+  type GlobalColorGroup,
 } from "@/lib/builder/globalColors";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
 
