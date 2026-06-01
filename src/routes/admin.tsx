@@ -4,8 +4,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { AdminShell } from "@/components/admin/AdminShell";
 
 export const Route = createFileRoute("/admin")({
+  head: () => ({
+    meta: [
+      { name: "robots", content: "noindex, nofollow" },
+      { title: "Admin" },
+    ],
+  }),
   component: AdminLayout,
 });
+
 
 function AdminLayout() {
   const { loading, session, isStaff } = useAuth();
