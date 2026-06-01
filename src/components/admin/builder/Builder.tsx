@@ -664,7 +664,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
           />
         </div>
 
-        <div className="bg-muted/30 p-4" onClick={() => setSelection({ kind: null, id: null })}>
+        <div className="bg-muted/30 p-4" onClick={() => setSelection({ kind: null, id: null })} onContextMenu={onCanvasContextMenu}>
 
           <div
             className={`mx-auto bg-background shadow-lg ring-1 ring-border transition-all ${
