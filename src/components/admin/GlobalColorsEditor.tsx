@@ -30,27 +30,92 @@ export function GlobalColorsEditor() {
   const { data, isLoading } = useGlobalColors();
   const save = useSaveGlobalColors();
   const [draft, setDraft] = useState<GlobalColorsValue | null>(null);
+  // Stosy historii dla undo/redo. past = poprzednie stany, future = stany cofnięte.
+  const [past, setPast] = useState<GlobalColorsValue[]>([]);
+  const [future, setFuture] = useState<GlobalColorsValue[]>([]);
+  // Flag, by zapobiec pushowaniu do historii przy undo/redo/cancel.
+  const skipHistoryRef = useRef(false);
 
   useEffect(() => {
     if (data && draft === null) setDraft({ ...EMPTY_GLOBAL_COLORS, ...data });
   }, [data, draft]);
 
+  const baseline = { ...EMPTY_GLOBAL_COLORS, ...(data ?? {}) };
+  const isDirty = draft ? JSON.stringify(draft) !== JSON.stringify(baseline) : false;
+  const canUndo = past.length > 0;
+  const canRedo = future.length > 0;
+
+  // Centralna funkcja zmiany draftu — automatycznie zapisuje historię.
+  const applyDraft = useCallback((next: GlobalColorsValue) => {
+    setDraft((prev) => {
+      if (prev && !skipHistoryRef.current) {
+        setPast((p) => [...p, prev]);
+        setFuture([]);
+      }
+      skipHistoryRef.current = false;
+      return next;
+    });
+  }, []);
+
+  const undo = useCallback(() => {
+    setPast((p) => {
+      if (p.length === 0) return p;
+      const prev = p[p.length - 1];
+      setDraft((cur) => {
+        if (cur) setFuture((f) => [...f, cur]);
+        return prev;
+      });
+      return p.slice(0, -1);
+    });
+  }, []);
+
+  const redo = useCallback(() => {
+    setFuture((f) => {
+      if (f.length === 0) return f;
+      const next = f[f.length - 1];
+      setDraft((cur) => {
+        if (cur) setPast((p) => [...p, cur]);
+        return next;
+      });
+      return f.slice(0, -1);
+    });
+  }, []);
+
+  const handleSave = useCallback(() => {
+    if (!draft || !isDirty || save.isPending) return;
+    save.mutate(draft, {
+      onSuccess: () => { setPast([]); setFuture([]); },
+    });
+  }, [draft, isDirty, save]);
+
+  // Skróty klawiszowe: Cmd/Ctrl+Z = undo, Cmd/Ctrl+Shift+Z lub Ctrl+Y = redo, Cmd/Ctrl+S = save.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); redo(); }
+      else if (k === "s") { e.preventDefault(); handleSave(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo, handleSave]);
+
   if (isLoading || !draft) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
 
   const setSlot = (key: string, mode: "light" | "dark", value: string) => {
-    setDraft({ ...draft, [key]: { ...(draft[key] ?? {}), [mode]: value } });
+    applyDraft({ ...draft, [key]: { ...(draft[key] ?? {}), [mode]: value } });
   };
   const resetSlot = (slot: GlobalColorSlot) => {
-    setDraft({
+    applyDraft({
       ...draft,
       [slot.key]: { light: slot.defaultLight ?? "", dark: slot.defaultDark ?? "" },
     });
   };
 
-  // Live preview — natychmiast nadpisuje :root / .dark tokenami z draftu,
-  // dzięki czemu builder po prawej widzi zmiany w czasie rzeczywistym.
+  // Live preview — natychmiast nadpisuje :root / .dark tokenami z draftu.
   const liveCss = globalColorsToCss(draft);
-  const isDirty = JSON.stringify(draft) !== JSON.stringify({ ...EMPTY_GLOBAL_COLORS, ...(data ?? {}) });
 
 
   return (
@@ -61,26 +126,52 @@ export function GlobalColorsEditor() {
         <div>
           <h3 className="font-display text-lg">Global Colors</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Ustaw kolory dla trybu jasnego i ciemnego. Zmiany wpływają na całą stronę.
+            Ustaw kolory dla trybu jasnego i ciemnego. Skróty: ⌘/Ctrl+Z, ⌘/Ctrl+Shift+Z, ⌘/Ctrl+S.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setDraft({ ...EMPTY_GLOBAL_COLORS, ...(data ?? {}) })}
-            disabled={save.isPending || isDirty === false}
+            onClick={undo}
+            disabled={!canUndo}
+            title="Cofnij (⌘/Ctrl+Z)"
+          >
+            <Undo className="w-4 h-4 mr-2" />
+            Cofnij
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={redo}
+            disabled={!canRedo}
+            title="Ponów (⌘/Ctrl+Shift+Z)"
+          >
+            <Redo className="w-4 h-4 mr-2" />
+            Ponów
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              skipHistoryRef.current = true;
+              setPast([]);
+              setFuture([]);
+              setDraft(baseline);
+            }}
+            disabled={save.isPending || !isDirty}
           >
             <X className="w-4 h-4 mr-2" />
             Anuluj
           </Button>
-          <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending || isDirty === false}>
+          <Button size="sm" onClick={handleSave} disabled={save.isPending || !isDirty}>
             <Save className="w-4 h-4 mr-2" />
             {save.isPending ? "Zapisywanie…" : "Zapisz"}
           </Button>
         </div>
 
       </div>
+
 
       <Tabs defaultValue={GLOBAL_COLOR_GROUPS[0]?.id} className="w-full">
         <TabsList className="w-full flex flex-wrap h-auto justify-start gap-1 bg-muted/50 p-1">
