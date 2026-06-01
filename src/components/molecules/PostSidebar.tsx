@@ -79,7 +79,7 @@ export function PostSidebar({ articleRef, tags, scanKey }: PostSidebarProps) {
       {items.length > 0 && (
         <nav aria-label={t("post.sidebar.toc")} className="rounded-lg border border-border bg-card p-4">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 inline-flex items-center gap-1.5">
-            <Hash className="w-3.5 h-3.5" /> {t("post.sidebar.toc")}
+            <List className="w-3.5 h-3.5" /> {t("post.sidebar.toc")}
           </h2>
           <ul className="space-y-1.5 text-sm">
             {items.map((it) => (
