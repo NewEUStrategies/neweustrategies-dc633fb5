@@ -82,26 +82,37 @@ export function ImageEditor({ c, lang, setContent }: Props) {
       />
 
       <div className="pt-2 border-t border-border space-y-2">
-        <PropField label="Szerokość (px)" hint="0 lub puste = pełna szerokość kontenera. Wysokość dopasowuje się automatycznie (zachowane proporcje).">
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              min={0}
-              step={1}
-              value={widthPx || ""}
-              placeholder="auto"
-              onChange={(e) => setContent("widthPx", e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)))}
-              className="h-8 text-xs"
-            />
-            <input
-              type="range"
+        <PropField
+          label="Szerokość (px)"
+          hint="0 lub puste = pełna szerokość kontenera. Wysokość dopasowuje się automatycznie (zachowane proporcje)."
+        >
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={widthPx || ""}
+                placeholder="auto"
+                onChange={(e) => setContent("widthPx", e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)))}
+                className="h-8 text-xs w-24"
+              />
+              <span className="text-[10px] text-muted-foreground tabular-nums">
+                {widthPx > 0 ? `${widthPx}px` : "auto"}
+              </span>
+            </div>
+            <Slider
               min={0}
               max={1200}
               step={10}
-              value={widthPx || 0}
-              onChange={(e) => setContent("widthPx", Number(e.target.value))}
-              className="flex-1"
+              value={[widthPx || 0]}
+              onValueChange={(v) => setContent("widthPx", v[0] ?? 0)}
+              className="w-full"
             />
+            <div className="flex justify-between text-[9px] text-muted-foreground">
+              <span>0 (auto)</span>
+              <span>1200px</span>
+            </div>
           </div>
         </PropField>
         <PropField label="Maks. szerokość (px)" hint="Opcjonalny limit. 0 = brak limitu.">
