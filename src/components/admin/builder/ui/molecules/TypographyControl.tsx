@@ -18,7 +18,7 @@ export function TypographyControl({ value, device, onChange }: Props) {
 
   return (
     <div className="space-y-2">
-      <PropField label="Font family">
+      <PropField label="Krój pisma">
         <Input
           value={v.fontFamily ?? ""}
           placeholder="Inter, system-ui"
@@ -37,7 +37,7 @@ export function TypographyControl({ value, device, onChange }: Props) {
       </PropField>
 
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Weight">
+        <PropField label="Grubość">
           <Select
             value={v.fontWeight ?? ""}
             onValueChange={(w) => set({ fontWeight: w || undefined })}
@@ -58,14 +58,14 @@ export function TypographyControl({ value, device, onChange }: Props) {
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="normal">Normalny</SelectItem>
-              <SelectItem value="italic">Italic</SelectItem>
+              <SelectItem value="italic">Pochyły</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Line height">
+        <PropField label="Wysokość linii">
           <Input
             value={v.lineHeight ?? ""}
             placeholder="1.4"
@@ -73,7 +73,7 @@ export function TypographyControl({ value, device, onChange }: Props) {
             className="h-8 text-xs"
           />
         </PropField>
-        <PropField label="Letter spacing">
+        <PropField label="Odstęp znaków">
           <Input
             value={v.letterSpacing ?? ""}
             placeholder="0.02em"
@@ -84,7 +84,7 @@ export function TypographyControl({ value, device, onChange }: Props) {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Transform">
+        <PropField label="Wielkość liter">
           <Select
             value={v.textTransform ?? "none"}
             onValueChange={(t) => set({
@@ -93,14 +93,14 @@ export function TypographyControl({ value, device, onChange }: Props) {
           >
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">none</SelectItem>
-              <SelectItem value="uppercase">UPPERCASE</SelectItem>
-              <SelectItem value="lowercase">lowercase</SelectItem>
-              <SelectItem value="capitalize">Capitalize</SelectItem>
+              <SelectItem value="none">Bez zmian</SelectItem>
+              <SelectItem value="uppercase">WIELKIE LITERY</SelectItem>
+              <SelectItem value="lowercase">małe litery</SelectItem>
+              <SelectItem value="capitalize">Każde Słowo Wielką</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
-        <PropField label="Decoration">
+        <PropField label="Dekoracja">
           <Select
             value={v.textDecoration ?? "none"}
             onValueChange={(t) => set({
@@ -109,9 +109,9 @@ export function TypographyControl({ value, device, onChange }: Props) {
           >
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">none</SelectItem>
-              <SelectItem value="underline">underline</SelectItem>
-              <SelectItem value="line-through">line-through</SelectItem>
+              <SelectItem value="none">Brak</SelectItem>
+              <SelectItem value="underline">Podkreślenie</SelectItem>
+              <SelectItem value="line-through">Przekreślenie</SelectItem>
             </SelectContent>
           </Select>
         </PropField>
