@@ -35,6 +35,7 @@ export function renderSimpleWidget(
   node: WidgetNode,
   lang: Lang,
   theme: string | undefined,
+  editable: boolean = false,
 ): ReactNode | undefined {
   const c = node.content;
 
