@@ -32,6 +32,28 @@ export interface GlobalColorGroup {
 /** Pełna definicja paneli — odpowiada zakładce "Global Colors" w Foxiz. */
 export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   {
+    id: "header",
+    label: "Header — Icons & Menu",
+    slots: [
+      {
+        key: "header-icon",
+        label: "Header Icons & Menu Color",
+        description: "Kolor ikon (search, theme, social, account) oraz linków menu w nagłówku.",
+        hasDark: true,
+        defaultLight: "#374151",
+        defaultDark: "#e5e7eb",
+      },
+      {
+        key: "header-icon-hover",
+        label: "Header Icons & Menu — Hover",
+        description: "Kolor ikon i linków menu po najechaniu.",
+        hasDark: true,
+        defaultLight: "#111827",
+        defaultDark: "#ffffff",
+      },
+    ],
+  },
+  {
     id: "highlight",
     label: "Highlight Elements",
     slots: [
@@ -46,6 +68,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
     ],
   },
+
   {
     id: "dark-accent",
     label: "Dark Accent",
