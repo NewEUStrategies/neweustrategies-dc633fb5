@@ -29,7 +29,7 @@ function PersonalizedAdmin() {
     setBusy(true);
     const { error } = await supabase
       .from("site_settings")
-      .upsert({ key: "personalized_system", value: s as unknown as Record<string, unknown> }, { onConflict: "key" });
+      .upsert({ key: "personalized_system", value: s as never }, { onConflict: "key" });
     setBusy(false);
     if (error) toast.error(error.message);
     else toast.success("Zapisano");
