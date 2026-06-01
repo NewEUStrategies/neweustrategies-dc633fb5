@@ -20,6 +20,7 @@ import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon } from "@/lib/lucide-shim";
+import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/posts/$id")({
@@ -354,6 +355,7 @@ function EditPost() {
             {metaCard}
             {catsCard}
             {tagsCard}
+            <AccessSettingsPane entityType="post" entityId={id} />
           </aside>
         </div>
       ) : (

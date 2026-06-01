@@ -6,9 +6,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Upload, Trash2, Copy, Check } from "@/lib/lucide-shim";
+import { Upload, Trash2, Copy, Check, Settings as SettingsIcon } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { registerMediaUpload, deleteMedia } from "@/lib/media.functions";
+import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/admin/media")({
   component: Media,
@@ -97,7 +99,7 @@ function Media() {
         <Button onClick={() => inputRef.current?.click()} disabled={busy}>
           <Upload className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.media.upload")}
         </Button>
-        <input ref={inputRef} type="file" multiple accept="image/*" hidden onChange={onUpload} />
+        <input ref={inputRef} type="file" multiple hidden onChange={onUpload} />
       </div>
 
       {!data?.length ? (
@@ -120,6 +122,17 @@ function Media() {
                   <button type="button" onClick={() => copy(m.public_url)} aria-label="Copy URL" className="p-1 hover:text-brand">
                     {copied === m.public_url ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   </button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <button type="button" aria-label="Dostęp" className="p-1 hover:text-brand">
+                        <SettingsIcon className="w-4 h-4" />
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader><DialogTitle className="truncate">{m.filename}</DialogTitle></DialogHeader>
+                      <AccessSettingsPane entityType="media" entityId={m.id} />
+                    </DialogContent>
+                  </Dialog>
                   <button type="button" onClick={() => del(m)} aria-label={t("admin.delete")} className="p-1 hover:text-destructive">
                     <Trash2 className="w-4 h-4" />
                   </button>
