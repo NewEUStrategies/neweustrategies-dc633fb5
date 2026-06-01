@@ -100,6 +100,15 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
                 </button>
               )}
             </div>
+            {compact && (
+              <button
+                onClick={() => setForceCompact((s) => !s)}
+                className="mt-2 mx-auto flex text-muted-foreground hover:text-foreground"
+                title={t("admin.sidebar.expand")}
+              >
+                <PanelLeft className="w-4 h-4" />
+              </button>
+            )}
           </div>
           <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
             {items.map(({ to, icon: Icon, label }) => {
