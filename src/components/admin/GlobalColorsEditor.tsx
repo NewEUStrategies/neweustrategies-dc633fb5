@@ -526,6 +526,40 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
         </div>
       );
     }
+    case "h1":
+      return <h1 style={{ color: c }} className="text-2xl font-black leading-tight m-0">Nagłówek H1 — tytuł</h1>;
+    case "h2":
+      return <h2 style={{ color: c }} className="text-xl font-bold leading-tight m-0">Nagłówek H2 — sekcja</h2>;
+    case "h3":
+      return <h3 style={{ color: c }} className="text-lg font-bold leading-snug m-0">Nagłówek H3 — podsekcja</h3>;
+    case "h4":
+      return <h4 style={{ color: c }} className="text-base font-semibold leading-snug m-0">Nagłówek H4 — akapit</h4>;
+    case "h5":
+      return <h5 style={{ color: c }} className="text-sm font-semibold uppercase tracking-wide m-0">Nagłówek H5</h5>;
+    case "h6":
+      return <h6 style={{ color: c }} className="text-xs font-bold uppercase tracking-widest m-0">Nagłówek H6</h6>;
+    case "body-text":
+      return (
+        <p style={{ color: c }} className="text-xs leading-relaxed m-0">
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Treść akapitu na tle strony.
+        </p>
+      );
+    case "body-text-muted":
+      return (
+        <p style={{ color: c }} className="text-[11px] leading-relaxed m-0 italic">
+          Podpis pod obrazkiem · meta informacja · data publikacji
+        </p>
+      );
+    case "link":
+    case "link-hover": {
+      const base = get("link");
+      const hover = get("link-hover");
+      return (
+        <p className="text-xs leading-relaxed m-0" style={{ color: "inherit" }}>
+          To jest <a style={{ color: base, textDecoration: "underline" }}>link domyślny</a>, a to <a style={{ color: hover, textDecoration: "underline" }}>link po najechaniu</a>.
+        </p>
+      );
+    }
     default:
       return <div style={{ background: c }} className="w-12 h-8 rounded border border-black/10" />;
   }
