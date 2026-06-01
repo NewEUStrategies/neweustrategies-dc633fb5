@@ -7,7 +7,12 @@ import { Builder } from "@/components/admin/builder/Builder";
 import { emptyDocument, type BuilderDocument } from "@/lib/builder/types";
 import { defaultDocFor } from "@/lib/builder/chromeDefaults";
 import { Button } from "@/components/ui/button";
-import { Save } from "@/lib/lucide-shim";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Save, RotateCcw } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { ThemeOptionsPane } from "@/components/admin/ThemeOptionsPane";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
