@@ -81,7 +81,7 @@ export function GlobalColorsEditor() {
                           className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1 shrink-0"
                           title="Przywróć kolor domyślny"
                         >
-                          <RotateCcw className="w-3 h-3" />
+                          <Undo className="w-3 h-3" />
                           Domyślny
                         </button>
                       )}
