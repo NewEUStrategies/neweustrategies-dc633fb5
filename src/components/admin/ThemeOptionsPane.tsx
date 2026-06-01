@@ -200,14 +200,24 @@ export function ThemeOptionsPane() {
             )}
 
             {logoTab === "transparent" && (
-              <ImageSlot
-                label="Transparent Logo"
-                icon={<Eye className="w-3.5 h-3.5" />}
-                value={draft.logo.transparent}
-                onChange={(v) => patchLogo({ transparent: v })}
-                hint="Logo dla nagłówków z przezroczystym tłem."
-                folder="theme/logo"
-              />
+              <div className="grid md:grid-cols-2 gap-4">
+                <ImageSlot
+                  label="Transparent Logo"
+                  icon={<Sun className="w-3.5 h-3.5" />}
+                  value={draft.logo.transparent}
+                  onChange={(v) => patchLogo({ transparent: v })}
+                  hint="Logo dla nagłówków z przezroczystym tłem."
+                  folder="theme/logo"
+                />
+                <ImageSlot
+                  label="Dark Mode — Transparent"
+                  icon={<Moon className="w-3.5 h-3.5" />}
+                  value={draft.logo.transparent_dark}
+                  onChange={(v) => patchLogo({ transparent_dark: v })}
+                  hint="Wariant dla ciemnego motywu."
+                  folder="theme/logo"
+                />
+              </div>
             )}
 
             {logoTab === "organization" && (
@@ -215,13 +225,70 @@ export function ThemeOptionsPane() {
                 <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
                   Logo dla schema markup (social media, wyniki wyszukiwania). Zostaw puste, by użyć Main Logo.
                 </div>
-                <ImageSlot
-                  label="Organization Logo"
-                  icon={<Star className="w-3.5 h-3.5" />}
-                  value={draft.logo.organization}
-                  onChange={(v) => patchLogo({ organization: v })}
-                  folder="theme/logo"
-                />
+                <div className="grid md:grid-cols-2 gap-4">
+                  <ImageSlot
+                    label="Organization Logo"
+                    icon={<Sun className="w-3.5 h-3.5" />}
+                    value={draft.logo.organization}
+                    onChange={(v) => patchLogo({ organization: v })}
+                    folder="theme/logo"
+                  />
+                  <ImageSlot
+                    label="Dark Mode — Organization"
+                    icon={<Moon className="w-3.5 h-3.5" />}
+                    value={draft.logo.organization_dark}
+                    onChange={(v) => patchLogo({ organization_dark: v })}
+                    folder="theme/logo"
+                  />
+                </div>
+              </div>
+            )}
+
+            {logoTab === "sidebar" && (
+              <div className="space-y-4">
+                <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
+                  Logo sidebaru. <strong>Kwadrat</strong> pokazywany po zwinięciu, <strong>podłużne logo</strong> po rozwinięciu sidebaru.
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">Zwinięty sidebar — ikona (kwadrat)</div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <ImageSlot
+                      label="Sidebar Icon"
+                      icon={<Sun className="w-3.5 h-3.5" />}
+                      value={draft.logo.sidebar_icon}
+                      onChange={(v) => patchLogo({ sidebar_icon: v })}
+                      hint="Kwadratowa ikona (np. 64×64px)."
+                      folder="theme/logo"
+                    />
+                    <ImageSlot
+                      label="Dark Mode — Sidebar Icon"
+                      icon={<Moon className="w-3.5 h-3.5" />}
+                      value={draft.logo.sidebar_icon_dark}
+                      onChange={(v) => patchLogo({ sidebar_icon_dark: v })}
+                      folder="theme/logo"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">Rozwinięty sidebar — podłużne logo</div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <ImageSlot
+                      label="Sidebar Expanded Logo"
+                      icon={<Sun className="w-3.5 h-3.5" />}
+                      value={draft.logo.sidebar_expanded}
+                      onChange={(v) => patchLogo({ sidebar_expanded: v })}
+                      hint="Podłużne logo (np. 200×48px)."
+                      folder="theme/logo"
+                    />
+                    <ImageSlot
+                      label="Dark Mode — Sidebar Expanded"
+                      icon={<Moon className="w-3.5 h-3.5" />}
+                      value={draft.logo.sidebar_expanded_dark}
+                      onChange={(v) => patchLogo({ sidebar_expanded_dark: v })}
+                      folder="theme/logo"
+                    />
+                  </div>
+                </div>
               </div>
             )}
 
