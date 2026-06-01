@@ -138,6 +138,7 @@ const resources = {
           users: "Użytkownicy",
           paywall: "Paywall",
           appearance: "Wygląd",
+          themeOptions: "Opcje motywu",
           postLayouts: "Layouty wpisów",
           contentArea: "Content Area",
           newsletter: "Newsletter",
