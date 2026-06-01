@@ -505,3 +505,79 @@ function BuilderPane({ form, set }: { form: { builder_data: BuilderDocument | nu
   return <Builder value={form.builder_data} onChange={(v) => set("builder_data", v)} lang={lang} onLangChange={setLang} />;
 }
 
+const MAX_TAKEAWAYS = 6;
+const MAX_TAKEAWAY_LEN = 500;
+
+function TakeawaysEditor({
+  pl,
+  en,
+  onChange,
+}: {
+  pl: string[];
+  en: string[];
+  onChange: (lang: "pl" | "en", next: string[]) => void;
+}) {
+  const { t } = useTranslation();
+  const [active, setActive] = useState<"pl" | "en">("pl");
+  const current = active === "pl" ? pl : en;
+
+  const updateAt = (idx: number, value: string) => {
+    const next = [...current];
+    next[idx] = value.slice(0, MAX_TAKEAWAY_LEN);
+    onChange(active, next);
+  };
+  const removeAt = (idx: number) => {
+    const next = current.filter((_, i) => i !== idx);
+    onChange(active, next);
+  };
+  const add = () => {
+    if (current.length >= MAX_TAKEAWAYS) return;
+    onChange(active, [...current, ""]);
+  };
+
+  return (
+    <div className="border-t border-border pt-4 space-y-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="text-sm font-semibold">{t("post.takeaways.adminTitle")}</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">{t("post.takeaways.hint")}</p>
+        </div>
+        <Tabs value={active} onValueChange={(v) => setActive(v === "en" ? "en" : "pl")}>
+          <TabsList>
+            <TabsTrigger value="pl">PL ({pl.length}/{MAX_TAKEAWAYS})</TabsTrigger>
+            <TabsTrigger value="en">EN ({en.length}/{MAX_TAKEAWAYS})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      {current.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic">{t("post.takeaways.empty")}</p>
+      ) : (
+        <ul className="space-y-2">
+          {current.map((bullet, i) => (
+            <li key={i} className="flex items-start gap-2">
+              <span className="mt-2 text-xs text-muted-foreground w-5 text-right">{i + 1}.</span>
+              <Textarea
+                value={bullet}
+                rows={2}
+                maxLength={MAX_TAKEAWAY_LEN}
+                placeholder={t("post.takeaways.placeholder", { n: i + 1 })}
+                onChange={(e) => updateAt(i, e.target.value)}
+                className="flex-1"
+              />
+              <Button type="button" variant="ghost" size="sm" onClick={() => removeAt(i)} aria-label={t("post.takeaways.remove")}>
+                <Trash2 className="w-4 h-4 text-destructive" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Button type="button" variant="outline" size="sm" onClick={add} disabled={current.length >= MAX_TAKEAWAYS}>
+        + {t("post.takeaways.add")}
+      </Button>
+    </div>
+  );
+}
+
+
