@@ -91,7 +91,7 @@ export function SectionView(p: SectionViewProps) {
       <div style={sectionContainerStyle(p.section)}>
         <div className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(p.section, colsSum), paddingTop: `${INNER_SECTION_SAFE_AREA_PX}px`, paddingBottom: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
           {p.section.children.map((child) => {
-            const span = child.kind === "column" ? (child.span.desktop ?? 12) : 12;
+            const span = child.kind === "column" ? resolveSpan(child.span, p.device, 12) : 12;
             if (child.kind === "inner-section") {
               return (
                 <div key={child.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: `span ${span}` }}>
