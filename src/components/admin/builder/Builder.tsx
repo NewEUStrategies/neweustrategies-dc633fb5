@@ -569,6 +569,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                   doc={doc} lang={lang} device={device}
                   selection={selection} setSelection={setSelection}
                   onInsertSection={insertSectionAt}
+                  onRemoveSection={removeSection}
                   onMoveWidget={moveWidgetTo}
                   onMoveWidgetToColumn={moveWidgetToColumn}
                   onMoveWidgetToSection={moveWidgetToSection}
