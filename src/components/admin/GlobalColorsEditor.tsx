@@ -73,6 +73,18 @@ export function GlobalColorsEditor() {
   // Flag, by zapobiec pushowaniu do historii przy undo/redo/cancel.
   const skipHistoryRef = useRef(false);
 
+  // Edytowalna paleta marki + ostatnio użyte kolory (per-przeglądarka).
+  const [brandPalette, setBrandPalette] = useLocalStorageState<BrandColor[]>(
+    BRAND_STORAGE_KEY,
+    DEFAULT_BRAND_PALETTE,
+  );
+  const [recentColors, setRecentColors] = useLocalStorageState<string[]>(RECENT_STORAGE_KEY, []);
+  const trackRecent = useCallback((v: string) => {
+    if (!v || !isHexColor(v)) return;
+    const norm = v.toLowerCase();
+    setRecentColors((prev) => [norm, ...prev.filter((c) => c.toLowerCase() !== norm)].slice(0, RECENT_MAX));
+  }, [setRecentColors]);
+
   useEffect(() => {
     if (data && draft === null) setDraft({ ...EMPTY_GLOBAL_COLORS, ...data });
   }, [data, draft]);
