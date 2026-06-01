@@ -102,8 +102,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         hasDark: true,
         defaultLight: "#01112F",
         defaultDark: "#01112F",
-        overrides: ["--accent", "--foreground", "--card-foreground", "--popover-foreground"],
-      },
+        overrides: ["--accent"],
     ],
   },
   {
