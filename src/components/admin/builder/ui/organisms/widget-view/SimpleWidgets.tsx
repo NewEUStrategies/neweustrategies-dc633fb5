@@ -355,8 +355,8 @@ export function renderSimpleWidget(
       return <div style={{ height: `${h}px`, width: "100%" }} />;
     }
     case "social-icons": {
-      const size = getNum(c, "size", 16);
-      const box = Math.max(size + 16, COMPACT_ICON_BOX_SIZE);
+      const size = getNum(c, "size", 14);
+      const box = Math.max(size + 10, COMPACT_ICON_BOX_SIZE);
       const showEmpty = getStr(c, "showEmpty") === "show";
       const colorMode = getStr(c, "colorMode") || "inherit";
       const customColor = getStr(c, "customColor");
@@ -374,19 +374,25 @@ export function renderSimpleWidget(
         email: "#6B7280",
       };
 
-      const XIcon = ({ size: s = 16 }: { size?: number }) => (
+      const mkIcon = (path: string) => ({ size: s = 14 }: { size?: number }) => (
         <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M18.244 2H21.5l-7.5 8.57L23 22h-6.84l-5.36-6.86L4.6 22H1.34l8.02-9.16L1 2h7.02l4.84 6.27L18.244 2Zm-1.2 18h1.86L7.06 4H5.1l11.944 16Z" />
+          <path d={path} />
         </svg>
       );
+      const XIcon = mkIcon("M18.244 2H21.5l-7.5 8.57L23 22h-6.84l-5.36-6.86L4.6 22H1.34l8.02-9.16L1 2h7.02l4.84 6.27L18.244 2Zm-1.2 18h1.86L7.06 4H5.1l11.944 16Z");
+      const FacebookIcon = mkIcon("M13.5 21v-7.5h2.5l.4-3h-2.9V8.6c0-.9.3-1.5 1.5-1.5h1.6V4.4c-.3 0-1.2-.1-2.3-.1-2.3 0-3.8 1.4-3.8 3.9v2.3H8v3h2.5V21h3z");
+      const YoutubeIcon = mkIcon("M21.6 7.2c-.2-1-1-1.8-2-2C17.8 5 12 5 12 5s-5.8 0-7.6.2c-1 .2-1.8 1-2 2C2.2 9 2.2 12 2.2 12s0 3 .2 4.8c.2 1 1 1.8 2 2 1.8.2 7.6.2 7.6.2s5.8 0 7.6-.2c1-.2 1.8-1 2-2 .2-1.8.2-4.8.2-4.8s0-3-.2-4.8zM10 15.5v-7l6 3.5-6 3.5z");
+      const InstagramIcon = mkIcon("M12 2.2c3.2 0 3.6 0 4.8.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .4 2.2.1 1.2.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.4-1.2.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-1.2-.1-1.8-.2-2.2-.4-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.2-.4-.4-1-.4-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.8c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.4C8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.7.1-1.1.1-1.7.2-2.1.4-.5.2-.9.4-1.3.8-.4.4-.6.8-.8 1.3-.2.4-.3 1-.4 2.1C2.6 9.9 2.6 10.3 2.6 12s0 2.1.1 3.3c.1 1.1.2 1.7.4 2.1.2.5.4.9.8 1.3.4.4.8.6 1.3.8.4.2 1 .3 2.1.4 1.2.1 1.6.1 4.7.1s3.5 0 4.7-.1c1.1-.1 1.7-.2 2.1-.4.5-.2.9-.4 1.3-.8.4-.4.6-.8.8-1.3.2-.4.3-1 .4-2.1.1-1.2.1-1.6.1-3.3s0-2.1-.1-3.3c-.1-1.1-.2-1.7-.4-2.1-.2-.5-.4-.9-.8-1.3-.4-.4-.8-.6-1.3-.8-.4-.2-1-.3-2.1-.4-1.2-.1-1.6-.1-4.7-.1zm0 3.1a5 5 0 110 10 5 5 0 010-10zm0 1.8a3.2 3.2 0 100 6.4 3.2 3.2 0 000-6.4zm5.2-2.1a1.2 1.2 0 110 2.3 1.2 1.2 0 010-2.3z");
+      const LinkedinIcon = mkIcon("M4.98 3.5a2.5 2.5 0 11-.02 5.02A2.5 2.5 0 014.98 3.5zM3 9h4v12H3V9zm7.5 0h3.8v1.7h.1c.5-.9 1.8-1.9 3.7-1.9 4 0 4.7 2.6 4.7 6V21h-4v-5.4c0-1.3 0-3-1.8-3s-2.1 1.4-2.1 2.9V21h-4V9z");
+      const MailIcon = mkIcon("M3 5h18a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V6a1 1 0 011-1zm9 8.2L3.8 7H20.2L12 13.2z");
 
       type IconCmp = (props: { size?: number }) => ReactElement;
       const items: Array<{ k: string; altKeys?: string[]; Cmp: IconCmp; label: string }> = [
-        { k: "facebook",  Cmp: (p) => <LucideIcons.Facebook {...p} />,  label: "Facebook" },
-        { k: "x",         altKeys: ["twitter"], Cmp: (p) => <XIcon {...p} />, label: "X" },
-        { k: "youtube",   Cmp: (p) => <LucideIcons.Youtube {...p} />,   label: "YouTube" },
-        { k: "instagram", Cmp: (p) => <LucideIcons.Instagram {...p} />, label: "Instagram" },
-        { k: "linkedin",  Cmp: (p) => <LucideIcons.Linkedin {...p} />,  label: "LinkedIn" },
+        { k: "facebook",  Cmp: FacebookIcon,  label: "Facebook" },
+        { k: "x",         altKeys: ["twitter"], Cmp: XIcon, label: "X" },
+        { k: "youtube",   Cmp: YoutubeIcon,   label: "YouTube" },
+        { k: "instagram", Cmp: InstagramIcon, label: "Instagram" },
+        { k: "linkedin",  Cmp: LinkedinIcon,  label: "LinkedIn" },
       ];
       const email = getStr(c, "email");
 
@@ -460,9 +466,9 @@ export function renderSimpleWidget(
             };
             const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-80" : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
             return active ? (
-              <a href={`mailto:${email}`} aria-label="Email" className={cls} style={style}><LucideIcons.Mail size={size} /></a>
+              <a href={`mailto:${email}`} aria-label="Email" className={cls} style={style}><MailIcon size={size} /></a>
             ) : (
-              <span aria-label="Email (brak)" className={cls} style={style}><LucideIcons.Mail size={size} /></span>
+              <span aria-label="Email (brak)" className={cls} style={style}><MailIcon size={size} /></span>
             );
           })()}
         </div>
