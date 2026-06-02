@@ -87,7 +87,7 @@ function PagesList() {
     queryFn: async () => {
       let q = supabase
         .from("pages")
-        .select("id, slug, title_pl, title_en, status, updated_at, deleted_at")
+        .select("id, slug, title_pl, title_en, status, updated_at, deleted_at, author_id")
         .eq("tenant_id", tenantId!)
         .order(view === "trash" ? "deleted_at" : "updated_at", { ascending: false });
       q = view === "trash" ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
