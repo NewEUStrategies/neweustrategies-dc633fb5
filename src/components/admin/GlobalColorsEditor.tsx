@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-import { Save, Undo, Redo, X } from "@/lib/lucide-shim";
+import { Save, Undo, Redo, X, ChevronUp, ChevronDown } from "@/lib/lucide-shim";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -476,6 +476,17 @@ const FONT_PRESETS: { label: string; value: string }[] = [
   { label: "Inherit", value: "inherit" },
 ];
 
+/** Zwiększ/zmniejsz wartość rozmiaru fontu zachowując jednostkę (px/rem/em). */
+function bumpFontSize(current: string, delta: number): string {
+  const m = /^(-?\d*\.?\d+)\s*(px|rem|em|%)?$/i.exec((current || "").trim());
+  if (!m) return current;
+  const num = parseFloat(m[1]);
+  const unit = m[2] || "px";
+  const step = unit.toLowerCase() === "px" ? 1 : 0.125;
+  const next = Math.max(0, +(num + delta * step).toFixed(3));
+  return `${next}${unit}`;
+}
+
 function TypographyRow({
   fontFamily, fontSize, defaultFontFamily, defaultFontSize, onFontFamily, onFontSize,
 }: {
@@ -509,12 +520,32 @@ function TypographyRow({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Size</span>
-          <Input
-            value={fontSize}
-            placeholder={defaultFontSize || "16px"}
-            onChange={(e) => onFontSize(e.target.value)}
-            className="h-8 text-xs font-mono"
-          />
+          <div className="relative flex-1">
+            <Input
+              value={fontSize}
+              placeholder={defaultFontSize || "16px"}
+              onChange={(e) => onFontSize(e.target.value)}
+              className="h-8 text-xs font-mono pr-6"
+            />
+            <div className="absolute right-0 top-0 h-8 flex flex-col border-l border-border">
+              <button
+                type="button"
+                aria-label="Zwiększ rozmiar"
+                onClick={() => onFontSize(bumpFontSize(fontSize || defaultFontSize || "16px", +1))}
+                className="flex-1 px-1 hover:bg-muted/60 flex items-center justify-center"
+              >
+                <ChevronUp className="w-3 h-3" />
+              </button>
+              <button
+                type="button"
+                aria-label="Zmniejsz rozmiar"
+                onClick={() => onFontSize(bumpFontSize(fontSize || defaultFontSize || "16px", -1))}
+                className="flex-1 px-1 hover:bg-muted/60 flex items-center justify-center border-t border-border"
+              >
+                <ChevronDown className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
       {(fontFamily || fontSize) && (
