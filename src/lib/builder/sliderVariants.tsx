@@ -75,6 +75,32 @@ export const ANIM_DIRS: { value: AnimDir; label: string }[] = [
   { value: "down",  label: "↓ z dołu" },
 ];
 
+export interface AnimPreset {
+  value: string;
+  label: string;
+  description: string;
+  imageAnim: AnimType; imageDir: AnimDir;
+  textAnim: AnimType;  textDir: AnimDir;
+  ctaAnim: AnimType;   ctaDir: AnimDir;
+}
+
+export const ANIM_PRESETS: AnimPreset[] = [
+  { value: "smooth",     label: "Płynnie",       description: "Delikatny crossfade — uniwersalne",
+    imageAnim: "fade",   imageDir: "right", textAnim: "fade",   textDir: "up",   ctaAnim: "fade",  ctaDir: "up"   },
+  { value: "cinematic",  label: "Kinowo",        description: "Zoom obrazu + wjazd tekstu z dołu",
+    imageAnim: "zoom",   imageDir: "right", textAnim: "slide",  textDir: "up",   ctaAnim: "fade",  ctaDir: "up"   },
+  { value: "editorial",  label: "Magazynowo",    description: "Odsłonięcie obrazu + rozmycie tekstu",
+    imageAnim: "reveal", imageDir: "right", textAnim: "blur",   textDir: "up",   ctaAnim: "slide", ctaDir: "up"   },
+  { value: "dynamic",    label: "Dynamicznie",   description: "Mocny wjazd ze strzałkami w bok",
+    imageAnim: "slide",  imageDir: "right", textAnim: "slide",  textDir: "left", ctaAnim: "slide", ctaDir: "right"},
+  { value: "soft",       label: "Subtelnie",     description: "Tylko rozmycie i delikatne pojawianie",
+    imageAnim: "blur",   imageDir: "up",    textAnim: "fade",   textDir: "up",   ctaAnim: "fade",  ctaDir: "up"   },
+  { value: "bold",       label: "Wyraziście",    description: "Zoom + odsłonięcie + skok CTA",
+    imageAnim: "zoom",   imageDir: "right", textAnim: "reveal", textDir: "left", ctaAnim: "zoom",  ctaDir: "up"   },
+  { value: "minimal",    label: "Minimalnie",    description: "Tylko obraz, bez animacji tekstu",
+    imageAnim: "fade",   imageDir: "right", textAnim: "none",   textDir: "up",   ctaAnim: "none",  ctaDir: "up"   },
+];
+
 const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
   none: "0px", sm: "4px", md: "8px", lg: "16px", xl: "24px", full: "9999px",
 };

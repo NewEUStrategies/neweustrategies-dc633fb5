@@ -11,6 +11,7 @@ import {
   SliderRender,
   ANIM_TYPES,
   ANIM_DIRS,
+  ANIM_PRESETS,
   type SliderVariant,
   type SliderItem,
   type AnimType,
@@ -276,10 +277,55 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       </div>
 
       {/* Per-element animations */}
-      <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
+      <div className="space-y-3 rounded-md border border-border p-2 bg-muted/20">
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           Animacje elementów
         </div>
+
+        {/* Presets */}
+        <div className="space-y-1.5">
+          <div className="text-[11px] text-muted-foreground">Gotowe presety</div>
+          {(() => {
+            const activePreset = ANIM_PRESETS.find(
+              (p) =>
+                p.imageAnim === imageAnim && p.imageDir === imageDir &&
+                p.textAnim  === textAnim  && p.textDir  === textDir  &&
+                p.ctaAnim   === ctaAnim   && p.ctaDir   === ctaDir
+            )?.value;
+            return (
+              <div className="grid grid-cols-2 gap-1.5">
+                {ANIM_PRESETS.map((p) => {
+                  const active = activePreset === p.value;
+                  return (
+                    <button
+                      key={p.value}
+                      type="button"
+                      onClick={() => {
+                        setContent("imageAnim", p.imageAnim);
+                        setContent("imageDir",  p.imageDir);
+                        setContent("textAnim",  p.textAnim);
+                        setContent("textDir",   p.textDir);
+                        setContent("ctaAnim",   p.ctaAnim);
+                        setContent("ctaDir",    p.ctaDir);
+                      }}
+                      title={p.description}
+                      className={`text-left rounded-md border px-2 py-1.5 transition ${
+                        active
+                          ? "border-brand ring-1 ring-brand bg-background"
+                          : "border-border bg-background hover:border-brand/60"
+                      }`}
+                    >
+                      <div className={`text-xs font-medium ${active ? "text-brand" : "text-foreground"}`}>{p.label}</div>
+                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">{p.description}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+
+        <div className="text-[11px] text-muted-foreground pt-1 border-t border-border">Dostosuj ręcznie</div>
         {([
           { label: "Zdjęcie", animKey: "imageAnim", dirKey: "imageDir", anim: imageAnim, dir: imageDir },
           { label: "Tekst (tytuł/podtytuł)", animKey: "textAnim", dirKey: "textDir", anim: textAnim, dir: textDir },
