@@ -99,7 +99,7 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
 }
 
 function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
-  const singleWidget = column.children.length <= 1;
+  const va = column.verticalAlign ?? "start";
   const va = column.verticalAlign ?? "start";
   // Single widget → fill the column width by default (items-stretch), unless user
   // explicitly aligned it left/center/right. Multi widget → place items in a row.
