@@ -32,6 +32,7 @@ export interface WidgetTypography {
   letterSpacing?: string;                 // e.g. "0.02em"
   textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
   textDecoration?: "none" | "underline" | "line-through";
+  textAlign?: "left" | "center" | "right" | "justify";
 }
 
 export interface HoverStyle {
