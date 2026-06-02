@@ -194,6 +194,51 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
           {ActionEl && <div className={`${isSm ? "mt-0.5" : "mt-1"} truncate`}>{ActionEl}</div>}
         </div>
       );
+    case "slanted-ribbon-rule": {
+      const fg = labelColor || contrastOn(accent);
+      const cutW = isSm ? 10 : 28;
+      const lineH = isSm ? 2 : 3;
+      const ribbonPadX = isSm ? "pl-1.5" : "pl-4";
+      const ribbonPadY = isSm ? "py-0.5" : "py-2";
+      const labelCls = isSm
+        ? "text-[9px] font-bold uppercase tracking-wider truncate"
+        : "font-display text-sm sm:text-base font-bold uppercase tracking-wider truncate";
+      const actCls = isSm
+        ? "text-[8px] font-medium text-foreground/80 truncate"
+        : "text-xs sm:text-sm font-medium text-foreground/80 hover:opacity-80 transition truncate";
+      return (
+        <div className={`${wrapperBase} relative flex items-stretch w-full min-w-0`}>
+          <span
+            aria-hidden
+            className="absolute left-0 right-0 bottom-0 pointer-events-none"
+            style={{ height: `${lineH}px`, background: accent }}
+          />
+          <span
+            className={`relative inline-flex items-center min-w-0 max-w-[80%] ${ribbonPadX} ${ribbonPadY} ${labelCls}`}
+            style={{
+              background: accent,
+              color: fg,
+              clipPath: `polygon(0 0, calc(100% - ${cutW}px) 0, 100% 100%, 0 100%)`,
+              paddingRight: `${cutW + (isSm ? 4 : 14)}px`,
+              ...(labelSize && !isSm ? { fontSize: labelSize } : {}),
+            }}
+          >
+            <span className="truncate">{label}</span>
+          </span>
+          {action && (
+            <span
+              className="ml-auto flex items-center min-w-0 shrink"
+              style={{ paddingLeft: isSm ? 4 : 12, paddingRight: isSm ? 4 : 8, paddingBottom: lineH + 2 }}
+            >
+              {href && !isSm
+                ? <a href={href} className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</a>
+                : <span className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</span>}
+            </span>
+          )}
+        </div>
+      );
+    }
+  }
 }
 
 
