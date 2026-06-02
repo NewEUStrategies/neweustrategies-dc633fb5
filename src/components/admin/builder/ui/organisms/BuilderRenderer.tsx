@@ -100,33 +100,39 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
 }
 
 function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
-  const singleWidget = column.children.length <= 1;
   const va = column.verticalAlign ?? "start";
-  // Single widget → stack vertically and fill the column width by default.
-  // Multi widget → place items in a row (wraps when needed) so headers/toolbars
-  // render side-by-side (logo + menu + icons + newsletter + lang toggle).
-  const axisClass = singleWidget
+  // A column is treated as a "toolbar" (header/footer/menu strip) only when
+  // EVERY visible child is a compact widget (nav-link, social-icons,
+  // lang-switcher, theme-toggle, account-link, search-button, newsletter) or
+  // intrinsic (image/icon/button/spacer/divider). Then we lay items in a row.
+  // Otherwise widgets stack vertically and each fills the full column width.
+  const visibleChildren = column.children.filter((w) => !hiddenOnDevice(w.advanced, device));
+  const isToolbar =
+    visibleChildren.length > 1 &&
+    visibleChildren.every((w) => COMPACT_WIDGET_TYPES.has(w.type) || AUTO_SIZE_WIDGETS.has(w.type));
+  const stacked = !isToolbar;
+  const axisClass = stacked
     ? (column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : column.contentAlign === "start" ? "items-start" : "items-stretch")
     : (column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : column.contentAlign === "start" ? "justify-start" : "justify-between");
-  const vClass = singleWidget
+  const vClass = stacked
     ? (va === "center" ? "justify-center" : va === "end" ? "justify-end" : va === "stretch" ? "justify-stretch" : "justify-start")
     : (va === "center" ? "content-center items-center" : va === "end" ? "content-end items-end" : va === "stretch" ? "content-stretch items-stretch" : "content-start items-center");
-  const layoutClass = singleWidget ? "flex-col" : "flex-row flex-wrap";
+  const layoutClass = stacked ? "flex-col" : "flex-row flex-wrap";
+  const singleWidget = visibleChildren.length <= 1;
   return (
     <div data-col-id={column.id} className={`flex ${layoutClass} gap-2 h-full min-w-0 max-w-full overflow-hidden ${axisClass} ${vClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius }}>
       {column.children.map((w) => {
         if (hiddenOnDevice(w.advanced, device)) return null;
         const adv = w.advanced as { height?: { desktop?: unknown; tablet?: unknown; mobile?: unknown } } | undefined;
         const hasExplicitHeight = !!(adv?.height && (adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile));
-        // Fill column height by default for content widgets when no explicit
-        // height is set. Skip header/footer-style compact widgets and intrinsic
-        // ones (image/icon/button/spacer/divider) so they keep hugging content.
+        // Fill column height by default only when there is a single content
+        // widget in the column. Skip compact / intrinsic widgets.
         const shouldFillHeight =
           singleWidget &&
           !hasExplicitHeight &&
           !AUTO_SIZE_WIDGETS.has(w.type) &&
           !COMPACT_WIDGET_TYPES.has(w.type);
-        const itemClass = singleWidget
+        const itemClass = stacked
           ? `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-hidden${shouldFillHeight ? " flex-1" : ""}`
           : "flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-hidden";
         return (
