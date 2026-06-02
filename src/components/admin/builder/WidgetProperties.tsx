@@ -311,14 +311,15 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Wymiary ({mode === "dark" ? "ciemny" : "jasny"})</h4>
+          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Wymiary</h4>
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Zaokrąglenie rogów">
               <Input
-                value={getThemedStr("borderRadius")}
+                value={getFlatStr("borderRadius")}
                 placeholder="8px"
-                onChange={(e) => setThemedStr("borderRadius", e.target.value)}
+                onChange={(e) => setFlatStr("borderRadius", e.target.value)}
               />
+
             </PropField>
             <PropField label="Maks. szerokość">
               <Input
