@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   GLOBAL_COLOR_GROUPS,
+  GLOBAL_COLOR_CATEGORIES,
   EMPTY_GLOBAL_COLORS,
   globalColorsToCss,
   isSlotHoverable,
@@ -236,16 +237,38 @@ export function GlobalColorsEditor() {
       <BrandPaletteEditor palette={brandPalette} onChange={setBrandPalette} />
 
       <Tabs defaultValue={GLOBAL_COLOR_GROUPS[0]?.id} className="w-full">
-        <TabsList className="w-full grid grid-cols-2 gap-1 h-auto bg-muted/50 p-1">
-          {GLOBAL_COLOR_GROUPS.map((group) => (
-            <TabsTrigger
-              key={group.id}
-              value={group.id}
-              className="text-xs justify-start w-full"
-            >
-              {group.label}
-            </TabsTrigger>
-          ))}
+        <TabsList className="w-full flex flex-col gap-2 h-auto bg-muted/50 p-2 items-stretch">
+          {GLOBAL_COLOR_CATEGORIES.map((cat) => {
+            const groupsInCat = GLOBAL_COLOR_GROUPS.filter((g) => g.category === cat.id);
+            if (groupsInCat.length === 0) return null;
+            return (
+              <div key={cat.id} className="space-y-1">
+                <div className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground px-2 pt-1">
+                  {cat.label}
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  {groupsInCat.map((group) => (
+                    <TabsTrigger
+                      key={group.id}
+                      value={group.id}
+                      className="text-xs justify-start w-full"
+                    >
+                      {group.label}
+                    </TabsTrigger>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {GLOBAL_COLOR_GROUPS.filter((g) => !g.category).length > 0 && (
+            <div className="grid grid-cols-2 gap-1">
+              {GLOBAL_COLOR_GROUPS.filter((g) => !g.category).map((group) => (
+                <TabsTrigger key={group.id} value={group.id} className="text-xs justify-start w-full">
+                  {group.label}
+                </TabsTrigger>
+              ))}
+            </div>
+          )}
         </TabsList>
 
 
