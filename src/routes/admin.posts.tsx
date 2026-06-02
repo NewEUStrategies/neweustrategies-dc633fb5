@@ -64,12 +64,6 @@ function PostsList() {
   const [trashTo, setTrashTo] = useState("");
 
   const authorsQ = useTenantAuthors(tenantId);
-  const authorsById = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof authorsQ.data extends infer T ? () => T : never>>();
-    (authorsQ.data ?? []).forEach((a) => map.set(a.id, a));
-    return new Map((authorsQ.data ?? []).map((a) => [a.id, a]));
-  }, [authorsQ.data]);
-  void authorsById;
   const authorMap = useMemo(
     () => new Map((authorsQ.data ?? []).map((a) => [a.id, a])),
     [authorsQ.data],
