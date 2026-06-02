@@ -14,8 +14,10 @@ export interface FontOption {
 }
 
 /** Sample dla nagłówków + treści — pokrywa popularne kierunki. */
+export const DEFAULT_FONT_STACK = '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif';
+
 export const FONT_OPTIONS: FontOption[] = [
-  { label: "System UI", stack: "system-ui, -apple-system, Segoe UI, sans-serif", hint: "Domyślny systemowy" },
+  { label: "Red Hat Display", stack: DEFAULT_FONT_STACK, googleFamily: "Red+Hat+Display:wght@400;500;600;700;800", hint: "Domyślny / System UI" },
   { label: "Inter", stack: "Inter, system-ui, sans-serif", googleFamily: "Inter:wght@400;500;600;700", hint: "Neutralny, czytelny" },
   { label: "Manrope", stack: "Manrope, system-ui, sans-serif", googleFamily: "Manrope:wght@400;500;600;700", hint: "Geometryczny sans" },
   { label: "DM Sans", stack: "'DM Sans', system-ui, sans-serif", googleFamily: "DM+Sans:wght@400;500;700", hint: "Krągły, przyjazny" },
@@ -86,11 +88,11 @@ export function FontPicker({ value, onChange, sampleText = "Aa — The quick bro
       >
         <span className="flex flex-col items-start min-w-0">
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            {selected?.label ?? "Domyślny"}
+            {selected?.label ?? "Red Hat Display (domyślny)"}
           </span>
           <span
             className="truncate text-base"
-            style={{ fontFamily: value || "inherit" }}
+            style={{ fontFamily: value || DEFAULT_FONT_STACK }}
           >
             {sampleText}
           </span>
@@ -105,7 +107,7 @@ export function FontPicker({ value, onChange, sampleText = "Aa — The quick bro
             onClick={() => { onChange(undefined); setOpen(false); }}
             className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-muted/50"
           >
-            <span className="text-muted-foreground italic">Bez fontu (domyślny)</span>
+            <span className="text-muted-foreground italic">Red Hat Display (domyślny)</span>
             {!value && <Check className="w-4 h-4 text-brand" />}
           </button>
           <div className="border-t border-border" />
