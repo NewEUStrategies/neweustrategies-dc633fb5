@@ -595,11 +595,22 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   ]);
 
   return (
-    <div className="grid grid-cols-[300px_1fr] gap-3 items-start">
+    <div className={`grid ${sidebarCollapsed ? "grid-cols-[40px_1fr]" : "grid-cols-[300px_1fr]"} gap-3 items-start transition-[grid-template-columns] duration-200`}>
 
 
       {/* LEFT PANEL */}
       <aside className="bg-card border border-border rounded-lg flex flex-col overflow-hidden sticky top-3 max-h-[calc(100vh-1.5rem)] self-start">
+        {sidebarCollapsed ? (
+          <button
+            onClick={() => setSidebarCollapsed(false)}
+            className="flex-1 w-full flex flex-col items-center gap-2 py-3 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition"
+            title="Rozwiń panel"
+          >
+            <ChevronRight className="w-4 h-4" />
+            <span className="text-[10px] font-medium uppercase tracking-wider [writing-mode:vertical-rl] rotate-180">Widgety</span>
+          </button>
+        ) : (<></>)}
+        {!sidebarCollapsed && (<></>)}
         {hasSelection ? (
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="p-3 border-b border-border flex items-center justify-between gap-2">
