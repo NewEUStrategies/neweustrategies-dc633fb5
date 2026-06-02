@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function BlockSidebar({ activeBlock, onChangeBlock, documentPane }: Props) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<"block" | "document">("document");
 
   // Auto-switch to "block" when a block is selected
@@ -22,13 +24,13 @@ export function BlockSidebar({ activeBlock, onChangeBlock, documentPane }: Props
   return (
     <Tabs value={effectiveTab} onValueChange={(v) => setTab(v as "block" | "document")} className="h-full flex flex-col">
       <TabsList className="grid grid-cols-2 m-3 mb-0">
-        <TabsTrigger value="block" disabled={!activeBlock}>Blok</TabsTrigger>
-        <TabsTrigger value="document">Dokument</TabsTrigger>
+        <TabsTrigger value="block" disabled={!activeBlock}>{t("blocks.sidebar.block")}</TabsTrigger>
+        <TabsTrigger value="document">{t("blocks.sidebar.document")}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="block" className="flex-1 overflow-y-auto p-3 space-y-3 mt-0">
         {activeBlock ? <BlockSettings block={activeBlock} onChange={onChangeBlock} /> : (
-          <p className="text-xs text-muted-foreground italic">Wybierz blok, aby zobaczyć ustawienia.</p>
+          <p className="text-xs text-muted-foreground italic">{t("blocks.sidebar.selectBlock")}</p>
         )}
       </TabsContent>
 

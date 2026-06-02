@@ -586,6 +586,23 @@ const resources = {
           savedPlan: "Zapisano plan", removed: "Usunięto", confirmRemove: "Usunąć plan?",
         },
       },
+      blocks: {
+        addBlock: "Dodaj blok", search: "Szukaj bloku...", noResults: "Brak wyników",
+        firstBlock: "Dodaj pierwszy blok",
+        categories: { text: "Tekst", media: "Media", layout: "Layout", advanced: "Zaawansowane" },
+        actions: {
+          up: "W górę", down: "W dół", duplicate: "Duplikuj", remove: "Usuń",
+          drag: "Przeciągnij, aby przenieść", undo: "Cofnij", redo: "Ponów",
+          settings: "Ustawienia bloku",
+        },
+        sidebar: { block: "Blok", document: "Dokument", selectBlock: "Wybierz blok, aby zobaczyć ustawienia." },
+        slash: { hint: "Wpisz / aby wybrać blok" },
+        types: {
+          paragraph: "Akapit", heading: "Nagłówek", image: "Obraz", list: "Lista", quote: "Cytat",
+          code: "Kod", embed: "Embed", video: "Wideo", gallery: "Galeria", separator: "Separator",
+          callout: "Callout", table: "Tabela", button: "Przycisk", columns: "Kolumny", html: "HTML",
+        },
+      },
     },
   },
 
@@ -1171,6 +1188,23 @@ const resources = {
           intervalMonth: "Monthly", intervalYear: "Yearly", intervalOnce: "One-time",
           active: "Active", sort: "Sort order",
           savedPlan: "Plan saved", removed: "Removed", confirmRemove: "Remove plan?",
+        },
+      },
+      blocks: {
+        addBlock: "Add block", search: "Search block...", noResults: "No results",
+        firstBlock: "Add first block",
+        categories: { text: "Text", media: "Media", layout: "Layout", advanced: "Advanced" },
+        actions: {
+          up: "Move up", down: "Move down", duplicate: "Duplicate", remove: "Remove",
+          drag: "Drag to reorder", undo: "Undo", redo: "Redo",
+          settings: "Block settings",
+        },
+        sidebar: { block: "Block", document: "Document", selectBlock: "Select a block to see its settings." },
+        slash: { hint: "Type / to pick a block" },
+        types: {
+          paragraph: "Paragraph", heading: "Heading", image: "Image", list: "List", quote: "Quote",
+          code: "Code", embed: "Embed", video: "Video", gallery: "Gallery", separator: "Separator",
+          callout: "Callout", table: "Table", button: "Button", columns: "Columns", html: "HTML",
         },
       },
     },
