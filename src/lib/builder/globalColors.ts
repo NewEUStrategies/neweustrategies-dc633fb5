@@ -634,7 +634,7 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(header svg){color:var(--gc-header-icon, currentColor);}
     :where(header a, header button){color:var(--gc-header-icon, inherit);font-family:var(--gc-header-icon-font, inherit);font-size:var(--gc-header-icon-size, inherit);font-weight:var(--gc-header-icon-weight, inherit);font-style:var(--gc-header-icon-style, inherit);text-decoration:var(--gc-header-icon-decoration, inherit);}
     :where(header a:hover, header button:hover, header a:hover svg, header button:hover svg){color:var(--gc-header-icon-hover, var(--gc-header-icon, inherit));}
-    aside[data-sidebar="sidebar"], [data-sidebar="sidebar"]{background:var(--gc-sidebar-bg, var(--sidebar-background)) !important;color:var(--gc-sidebar-text, var(--sidebar-foreground)) !important;border-color:var(--gc-sidebar-border, var(--sidebar-border)) !important;}
+    aside[data-sidebar="sidebar"], [data-sidebar="sidebar"]{background-color:var(--gc-sidebar-bg, var(--sidebar-background)) !important;color:var(--gc-sidebar-text, var(--sidebar-foreground)) !important;border-color:var(--gc-sidebar-border, var(--sidebar-border)) !important;}
     [data-sidebar="sidebar"] a, [data-sidebar="sidebar"] button, [data-sidebar="menu-button"]{color:var(--gc-sidebar-text, inherit);font-family:var(--gc-sidebar-text-font, inherit);font-size:var(--gc-sidebar-text-size, inherit);font-weight:var(--gc-sidebar-text-weight, inherit);font-style:var(--gc-sidebar-text-style, inherit);text-decoration:var(--gc-sidebar-text-decoration, inherit);}
     [data-sidebar="sidebar"] svg{color:var(--gc-sidebar-text, currentColor);}
     [data-sidebar="menu-button"]:hover, [data-sidebar="sidebar"] a:hover:not([data-active="true"]):not([data-sidebar-brand]), [data-sidebar="sidebar"] button:hover:not([data-sidebar-brand]):not([data-sidebar-toggle]){background:var(--gc-sidebar-btn-hover-bg) !important;color:var(--gc-sidebar-btn-hover-text, var(--gc-sidebar-text)) !important;}
@@ -683,7 +683,7 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(body:hover){background:var(--gc-body-bg-hover, var(--gc-body-bg, transparent));}
     :where([data-single-post]:hover){background:var(--gc-body-bg-single-hover, var(--gc-body-bg-single, var(--gc-body-bg, transparent)));}
     :where([data-dark-accent]:hover){background:var(--gc-dark-accent-hover, var(--gc-dark-accent, transparent));}
-    :where([data-sidebar="sidebar"]:hover){background:var(--gc-sidebar-bg-hover, var(--gc-sidebar-bg, var(--sidebar-background))) !important;border-color:var(--gc-sidebar-border-hover, var(--gc-sidebar-border, var(--sidebar-border))) !important;}
+    :where([data-sidebar="sidebar"]:hover){background-color:var(--gc-sidebar-bg-hover, var(--gc-sidebar-bg, var(--sidebar-background))) !important;border-color:var(--gc-sidebar-border-hover, var(--gc-sidebar-border, var(--sidebar-border))) !important;}
     :where([data-sidebar="sidebar"]:hover){color:var(--gc-sidebar-text-hover, var(--gc-sidebar-text, var(--sidebar-foreground))) !important;}
     :where(.bookmark-icon:hover){color:var(--gc-bookmark-hover-hover, var(--gc-bookmark-hover, currentColor));}
     :where(sup.fn-ref, sup.fn-ref a){color:var(--gc-fn-ref, inherit);font-family:var(--gc-fn-ref-font, inherit);font-size:var(--gc-fn-ref-size, inherit);font-weight:var(--gc-fn-ref-weight, inherit);font-style:var(--gc-fn-ref-style, inherit);text-decoration:var(--gc-fn-ref-decoration, none);}
