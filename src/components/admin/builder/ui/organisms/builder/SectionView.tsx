@@ -258,17 +258,38 @@ function ColumnView({
           const vClass = stacked
             ? (va === "center" ? "justify-center" : va === "end" ? "justify-end" : va === "stretch" ? "justify-stretch" : "justify-start")
             : (va === "center" ? "content-center items-center" : va === "end" ? "content-end items-end" : va === "stretch" ? "content-stretch items-stretch" : "content-start items-center");
+          // Group consecutive inline widgets in stacked (non-toolbar) columns.
+          const groups: Array<{ inline: boolean; items: typeof column.children }> = [];
+          if (!stacked) {
+            groups.push({ inline: true, items: column.children });
+          } else {
+            for (const w of column.children) {
+              const inline = w.advanced?.layout === "inline";
+              const last = groups[groups.length - 1];
+              if (inline && last && last.inline) last.items.push(w);
+              else groups.push({ inline, items: [w] });
+            }
+          }
+          const renderItem = (w: typeof column.children[number]) => (
+            <SortableWidget key={w.id} widget={w} lang={lang} device={device}
+              selected={selection.kind === "widget" && selection.id === w.id}
+              onSelect={() => setSelection({ kind: "widget", id: w.id })}
+              onDuplicate={() => onDuplicateWidget(w.id)}
+              onRemove={() => onRemoveWidget(w.id)}
+              onToggleHidden={() => onToggleHidden("widget", w.id)}
+              onUpdateContent={(k, v) => onUpdateWidgetContent(w.id, k, v)} />
+          );
           return (
             <div className={`flex ${stacked ? "flex-col" : "flex-row flex-wrap"} gap-2 min-w-0 max-w-full ${hClass} ${vClass}`}>
-              {column.children.map((w) => (
-                <SortableWidget key={w.id} widget={w} lang={lang} device={device}
-                  selected={selection.kind === "widget" && selection.id === w.id}
-                  onSelect={() => setSelection({ kind: "widget", id: w.id })}
-                  onDuplicate={() => onDuplicateWidget(w.id)}
-                  onRemove={() => onRemoveWidget(w.id)}
-                  onToggleHidden={() => onToggleHidden("widget", w.id)}
-                  onUpdateContent={(k, v) => onUpdateWidgetContent(w.id, k, v)} />
-              ))}
+              {groups.map((g, gi) =>
+                g.inline && stacked ? (
+                  <div key={gi} className={`flex flex-row flex-wrap gap-2 min-w-0 max-w-full w-full ${column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start"} items-center`}>
+                    {g.items.map(renderItem)}
+                  </div>
+                ) : (
+                  g.items.map(renderItem)
+                )
+              )}
             </div>
           );
         })()}

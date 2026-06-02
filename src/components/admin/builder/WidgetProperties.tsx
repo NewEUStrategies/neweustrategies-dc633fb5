@@ -460,6 +460,29 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Pozycja względem innych widgetów</h4>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => setAdvanced((a) => { a.layout = undefined; })}
+              className={`flex-1 h-8 px-2 text-xs rounded border ${(widget.advanced?.layout ?? "block") === "block" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
+              title="Widget zajmuje cały wiersz (pod poprzednim)"
+            >
+              Pod (pełna szerokość)
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdvanced((a) => { a.layout = "inline"; })}
+              className={`flex-1 h-8 px-2 text-xs rounded border ${widget.advanced?.layout === "inline" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
+              title="Widget ustawia się obok poprzedniego inline-widgetu"
+            >
+              Obok (w wierszu)
+            </button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">Sąsiadujące widgety z opcją „Obok” łączą się w jeden wiersz.</p>
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Motion</h4>
           <MotionControl value={widget.advanced} onChange={setAdvanced} />
         </section>
