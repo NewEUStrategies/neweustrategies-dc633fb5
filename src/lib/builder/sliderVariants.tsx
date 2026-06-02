@@ -40,6 +40,9 @@ export const SLIDER_VARIANTS: { value: SliderVariant; label: string }[] = [
   { value: "thumbnail-strip", label: "Z miniaturkami" },
 ];
 
+export type AnimType = "fade" | "slide" | "zoom" | "blur" | "reveal" | "none";
+export type AnimDir = "left" | "right" | "up" | "down";
+
 export interface SliderConfig {
   variant?: SliderVariant;
   items: SliderItem[];
@@ -48,7 +51,29 @@ export interface SliderConfig {
   intervalMs?: number;
   rounded?: "none" | "sm" | "md" | "lg" | "xl" | "full";
   overlayOpacity?: number; // 0..1, for hero-overlay & fade
+  imageAnim?: AnimType;
+  imageDir?: AnimDir;
+  textAnim?: AnimType;
+  textDir?: AnimDir;
+  ctaAnim?: AnimType;
+  ctaDir?: AnimDir;
 }
+
+export const ANIM_TYPES: { value: AnimType; label: string }[] = [
+  { value: "fade",   label: "Pojawianie" },
+  { value: "slide",  label: "Wjazd" },
+  { value: "zoom",   label: "Zoom" },
+  { value: "blur",   label: "Rozmycie" },
+  { value: "reveal", label: "Odsłonięcie" },
+  { value: "none",   label: "Bez animacji" },
+];
+
+export const ANIM_DIRS: { value: AnimDir; label: string }[] = [
+  { value: "left",  label: "← z lewej" },
+  { value: "right", label: "z prawej →" },
+  { value: "up",    label: "↑ z góry" },
+  { value: "down",  label: "↓ z dołu" },
+];
 
 const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
   none: "0px", sm: "4px", md: "8px", lg: "16px", xl: "24px", full: "9999px",
