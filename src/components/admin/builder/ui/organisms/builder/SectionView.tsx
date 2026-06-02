@@ -5,7 +5,7 @@ import {
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  Plus, Trash2, ChevronUp, ChevronDown, Columns2, Copy, Save,
+  Plus, Trash2, ChevronUp, ChevronDown, Columns2, Copy, Save, Eye,
 } from "@/lib/lucide-shim";
 import type {
   SectionNode, ColumnNode, InnerSectionNode, WidgetNode,
@@ -45,6 +45,7 @@ export interface SectionViewProps {
   onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
   onUpdateWidgetContent: (id: string, key: string, value: string | number) => void;
+  onToggleHidden: (kind: "section" | "inner-section" | "column" | "widget", id: string) => void;
 }
 
 export function SectionView(p: SectionViewProps) {
@@ -86,6 +87,7 @@ export function SectionView(p: SectionViewProps) {
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onAddColumn(); }} title="Dodaj kolumnę"><Columns2 className="w-3 h-3" /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onAddInnerSection(); }} title="Sekcja wewn."><Plus className="w-3 h-3" /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onDuplicate(); }} title="Duplikuj"><Copy className="w-3 h-3" /></IconBtn>
+        <IconBtn onClick={(e) => { e.stopPropagation(); p.onToggleHidden("section", p.section.id); }} title={hidden ? `Pokaż na ${p.device}` : `Ukryj na ${p.device}`}><Eye className={`w-3 h-3 ${hidden ? "opacity-40" : ""}`} /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onSaveTemplate(); }} title="Zapisz jako szablon"><Save className="w-3 h-3" /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
       </div>
@@ -105,6 +107,7 @@ export function SectionView(p: SectionViewProps) {
                     onRemoveWidget={p.onRemoveWidget} onDuplicateWidget={p.onDuplicateWidget}
                     onDropWidget={p.onDropWidget}
                     onUpdateWidgetContent={p.onUpdateWidgetContent}
+                    onToggleHidden={p.onToggleHidden}
                   />
                 </div>
               );
@@ -117,7 +120,8 @@ export function SectionView(p: SectionViewProps) {
                   onDuplicate={() => p.onDuplicateColumn(child.id)}
                   onRemoveWidget={p.onRemoveWidget} onDuplicateWidget={p.onDuplicateWidget}
                   onDropWidget={p.onDropWidget}
-                  onUpdateWidgetContent={p.onUpdateWidgetContent} />
+                  onUpdateWidgetContent={p.onUpdateWidgetContent}
+                  onToggleHidden={p.onToggleHidden} />
               </div>
             );
           })}
@@ -131,7 +135,7 @@ export function SectionView(p: SectionViewProps) {
 
 function InnerSectionView({
   inner, device, lang, selection, setSelection, onRemoveColumn, onDuplicateColumn,
-  onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent,
+  onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent, onToggleHidden,
 }: {
   inner: InnerSectionNode; device: Device; lang: "pl" | "en"; selection: Selection;
   setSelection: (s: Selection) => void;
@@ -139,22 +143,28 @@ function InnerSectionView({
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
   onUpdateWidgetContent: (id: string, key: string, value: string | number) => void;
+  onToggleHidden: (kind: "section" | "inner-section" | "column" | "widget", id: string) => void;
 }) {
   const selected = selection.kind === "inner-section" && selection.id === inner.id;
   const colsSum = inner.columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
+  const hidden = !!inner.advanced?.hideOn?.[device];
   const skin: React.CSSProperties = {
     ...sectionWrapperStyle(inner),
     ...backgroundLayerStyle(inner.background),
     ...borderStyle(inner.border),
+    opacity: hidden ? 0.45 : undefined,
   };
   return (
     <div
       data-inner-id={inner.id}
-      className={`relative min-w-0 max-w-full border rounded ${selected ? "border-brand" : "border-dashed border-border"}`}
+      className={`group/inner relative min-w-0 max-w-full border rounded ${selected ? "border-brand" : "border-dashed border-border"}`}
       style={{ ...skin, overflow: "visible" }}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "inner-section", id: inner.id }); }}
     >
-      <div className="absolute -top-2.5 left-3 z-30 text-[9px] font-medium text-muted-foreground bg-background border border-border rounded px-1.5 py-0.5 shadow-sm">SEKCJA WEWNĘTRZNA</div>
+      <div className={`absolute -top-2.5 left-3 z-30 flex items-center gap-0.5 bg-background border border-border rounded px-1.5 py-0.5 text-[9px] font-medium shadow-sm transition ${selected ? "opacity-100" : "opacity-0 group-hover/inner:opacity-100"}`}>
+        <span className="text-muted-foreground uppercase tracking-wider">Sekcja wewn.</span>
+        <IconBtn onClick={(e) => { e.stopPropagation(); onToggleHidden("inner-section", inner.id); }} title={hidden ? `Pokaż na ${device}` : `Ukryj na ${device}`}><Eye className={`w-3 h-3 ${hidden ? "opacity-40" : ""}`} /></IconBtn>
+      </div>
       <div className="grid gap-2 relative z-10 min-w-0 max-w-full" style={{ ...columnsRowStyle(inner, colsSum), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
         {inner.columns.map((c) => (
           <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}` }}>
@@ -164,7 +174,8 @@ function InnerSectionView({
               onRemove={() => onRemoveColumn(c.id)} onDuplicate={() => onDuplicateColumn(c.id)}
               onRemoveWidget={onRemoveWidget} onDuplicateWidget={onDuplicateWidget}
               onDropWidget={onDropWidget}
-              onUpdateWidgetContent={onUpdateWidgetContent} />
+              onUpdateWidgetContent={onUpdateWidgetContent}
+              onToggleHidden={onToggleHidden} />
           </div>
         ))}
       </div>
@@ -174,7 +185,7 @@ function InnerSectionView({
 
 function ColumnView({
   column, device, lang, selection, setSelection, onRemove, onDuplicate,
-  onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent,
+  onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent, onToggleHidden,
 }: {
   column: ColumnNode; device: Device; lang: "pl" | "en"; selection: Selection;
   setSelection: (s: Selection) => void;
@@ -182,16 +193,18 @@ function ColumnView({
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
   onUpdateWidgetContent: (id: string, key: string, value: string | number) => void;
+  onToggleHidden: (kind: "section" | "inner-section" | "column" | "widget", id: string) => void;
 }) {
   const selected = selection.kind === "column" && selection.id === column.id;
   const singleWidget = column.children.length <= 1;
+  const hidden = !!column.advanced?.hideOn?.[device];
   const [dragOver, setDragOver] = useState(false);
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: "col:" + column.id });
   return (
     <div
       ref={setDropRef}
       data-col-id={column.id}
-      className={`group/col relative min-w-0 max-w-full rounded border-2 ${selected ? "border-brand bg-brand/5" : (dragOver || isOver) ? "border-brand/70 bg-brand/5" : "border-dashed border-border/60"} transition`}
+      className={`group/col relative min-w-0 max-w-full rounded border-2 ${selected ? "border-brand bg-brand/5" : (dragOver || isOver) ? "border-brand/70 bg-brand/5" : "border-dashed border-border/60"} transition ${hidden ? "opacity-45" : ""}`}
       style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight ?? 80, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius, overflow: "visible" }}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "column", id: column.id }); }}
       onDragOver={(e) => {
@@ -209,6 +222,7 @@ function ColumnView({
       <div className={`absolute -top-2.5 right-2 z-30 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] shadow-sm transition ${selected || dragOver ? "opacity-100" : "opacity-0 group-hover/col:opacity-100"}`}>
         <span className="text-muted-foreground px-1">KOLUMNA</span>
         <IconBtn onClick={(e) => { e.stopPropagation(); onDuplicate(); }} title="Duplikuj"><Copy className="w-3 h-3" /></IconBtn>
+        <IconBtn onClick={(e) => { e.stopPropagation(); onToggleHidden("column", column.id); }} title={hidden ? `Pokaż na ${device}` : `Ukryj na ${device}`}><Eye className={`w-3 h-3 ${hidden ? "opacity-40" : ""}`} /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
       </div>
       {column.children.length === 0 && (
@@ -226,13 +240,14 @@ function ColumnView({
             ? (va === "center" ? "justify-center" : va === "end" ? "justify-end" : va === "stretch" ? "justify-stretch" : "justify-start")
             : (va === "center" ? "content-center items-center" : va === "end" ? "content-end items-end" : va === "stretch" ? "content-stretch items-stretch" : "content-start items-start");
           return (
-            <div className={`flex ${singleWidget ? "flex-col" : "flex-row flex-wrap"} h-full gap-2 min-w-0 max-w-full overflow-hidden ${hClass} ${vClass}`}>
+            <div className={`flex ${singleWidget ? "flex-col" : "flex-row flex-wrap"} gap-2 min-w-0 max-w-full ${hClass} ${vClass}`}>
               {column.children.map((w) => (
                 <SortableWidget key={w.id} widget={w} lang={lang} device={device}
                   selected={selection.kind === "widget" && selection.id === w.id}
                   onSelect={() => setSelection({ kind: "widget", id: w.id })}
                   onDuplicate={() => onDuplicateWidget(w.id)}
                   onRemove={() => onRemoveWidget(w.id)}
+                  onToggleHidden={() => onToggleHidden("widget", w.id)}
                   onUpdateContent={(k, v) => onUpdateWidgetContent(w.id, k, v)} />
               ))}
             </div>
@@ -245,10 +260,10 @@ function ColumnView({
 }
 
 function SortableWidget({
-  widget, lang, device, selected, onSelect, onDuplicate, onRemove, onUpdateContent,
+  widget, lang, device, selected, onSelect, onDuplicate, onRemove, onToggleHidden, onUpdateContent,
 }: {
   widget: WidgetNode; lang: "pl" | "en"; device: Device; selected: boolean;
-  onSelect: () => void; onDuplicate: () => void; onRemove: () => void;
+  onSelect: () => void; onDuplicate: () => void; onRemove: () => void; onToggleHidden: () => void;
   onUpdateContent: (key: string, value: string | number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
@@ -256,13 +271,14 @@ function SortableWidget({
   const hidden = !!widget.advanced?.hideOn?.[device];
   const frameStyle = getWidgetFrameStyle(widget, device);
   return (
-    <div ref={setNodeRef} data-widget-id={widget.id} style={{ ...style, ...frameStyle, boxSizing: "border-box", padding: 0 }} {...attributes}
+    <div ref={setNodeRef} data-widget-id={widget.id} style={{ ...style, ...frameStyle, boxSizing: "border-box", padding: 0, overflow: "visible" }} {...attributes}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
-      className={`group/w relative flex flex-col items-stretch justify-start shrink min-w-0 max-w-full overflow-hidden rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} ${hidden ? "opacity-40" : ""}`}
+      className={`group/w relative flex flex-col items-stretch justify-start shrink min-w-0 max-w-full rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} ${hidden ? "opacity-40" : ""}`}
     >
-      <div className={`absolute -top-2.5 right-2 z-10 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] transition ${selected ? "opacity-100" : "opacity-0 group-hover/w:opacity-100"}`}>
+      <div className={`absolute -top-2.5 right-2 z-30 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] shadow-sm transition ${selected ? "opacity-100" : "opacity-0 group-hover/w:opacity-100"}`}>
         <span {...listeners} className="cursor-grab text-muted-foreground px-1" title="Przeciągnij">⋮⋮</span>
         <IconBtn onClick={(e) => { e.stopPropagation(); onDuplicate(); }} title="Duplikuj"><Copy className="w-3 h-3" /></IconBtn>
+        <IconBtn onClick={(e) => { e.stopPropagation(); onToggleHidden(); }} title={hidden ? `Pokaż na ${device}` : `Ukryj na ${device}`}><Eye className={`w-3 h-3 ${hidden ? "opacity-40" : ""}`} /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
       </div>
       <div className={selected ? "h-full w-full" : "pointer-events-none h-full w-full"}>
