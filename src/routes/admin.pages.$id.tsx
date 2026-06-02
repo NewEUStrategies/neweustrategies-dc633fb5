@@ -259,6 +259,20 @@ function EditPage() {
                   <Input value={form.title_en} onChange={(e) => set("title_en", e.target.value)} className="text-lg font-display" placeholder="Title in English" />
                 </div>
               </div>
+
+              <SeoDescriptionField
+                lang="pl"
+                value={form.excerpt_pl ?? ""}
+                onChange={(v) => set("excerpt_pl", v || null)}
+                titleFallback={form.title_pl}
+              />
+              <SeoDescriptionField
+                lang="en"
+                value={form.excerpt_en ?? ""}
+                onChange={(v) => set("excerpt_en", v || null)}
+                titleFallback={form.title_en}
+              />
+
               <div className="flex justify-end pt-2 border-t border-border">
                 <Button onClick={() => setStep("content")} disabled={!form.title_pl.trim() && !form.title_en.trim()}>
                   Przejdź do edycji treści <ArrowRight className="w-4 h-4 ml-2" />
