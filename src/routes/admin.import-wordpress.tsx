@@ -208,6 +208,17 @@ function ImportWordpressPage() {
             />
           </div>
           <div className="md:col-span-1.5">
+            <Label className="text-[11px] text-muted-foreground">{isPL ? "Typ treści" : "Content type"}</Label>
+            <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="post">{isPL ? "Wpisy (domyślnie)" : "Posts (default)"}</SelectItem>
+                <SelectItem value="page">{isPL ? "Strony" : "Pages"}</SelectItem>
+                <SelectItem value="any">{isPL ? "Wpisy + strony" : "Posts + pages"}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-1.5">
             <Label className="text-[11px] text-muted-foreground">Status</Label>
             <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
