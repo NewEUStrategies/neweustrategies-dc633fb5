@@ -56,13 +56,29 @@ export function PostBlockEditor({ value, onChange, documentPane }: Props) {
     }
   }, [history.doc, lang]);
 
-  // Keyboard: Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z (or Y)
+  // Keyboard: Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z (or Y), Alt+ArrowUp/Down to move active block.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
-      if (!mod) return;
       const target = e.target as HTMLElement | null;
       const inEditable = !!target?.closest('[contenteditable="true"], input, textarea');
+
+      // Alt+Arrow to reorder the active block (works even inside editable text).
+      if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && activeId) {
+        const idx = history.doc.blocks.findIndex((b) => b.id === activeId);
+        if (idx < 0) return;
+        const dir = e.key === "ArrowUp" ? -1 : 1;
+        const j = idx + dir;
+        if (j < 0 || j >= history.doc.blocks.length) return;
+        e.preventDefault();
+        const next = [...history.doc.blocks];
+        const [moved] = next.splice(idx, 1);
+        next.splice(j, 0, moved);
+        history.setDoc({ ...history.doc, blocks: next }, true);
+        return;
+      }
+
+      if (!mod) return;
       if (e.key === "z" || e.key === "Z") {
         if (e.shiftKey) {
           e.preventDefault();
@@ -79,7 +95,7 @@ export function PostBlockEditor({ value, onChange, documentPane }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [history]);
+  }, [history, activeId]);
 
   const activeBlock: Block | null =
     activeId ? history.doc.blocks.find((b) => b.id === activeId) ?? null : null;
@@ -138,6 +154,8 @@ export function PostBlockEditor({ value, onChange, documentPane }: Props) {
         <BlockSidebar
           doc={history.doc}
           activeBlock={activeBlock}
+          activeId={activeId}
+          onSelect={setActiveId}
           onChangeBlock={updateActive}
           documentPane={documentPane}
         />
