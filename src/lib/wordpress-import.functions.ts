@@ -4,7 +4,20 @@
 // Public exports:
 //   - listWpComSites: returns the WP.com sites accessible to the connected account
 //   - previewWpComPosts: lists posts on a given site without writing anything
-//   - importWpComPosts: imports a batch of posts into our `posts` table
+//   - createWpImportJob: creates a tracked job row and returns its id immediately
+//   - runWpImportJob: executes a previously created job, streaming progress to DB
+//   - getWpImportJob: polls a job (progress, log, final report)
+//
+// Background pattern:
+//   client calls createWpImportJob (fast) -> gets jobId
+//   client calls runWpImportJob (long-running, no need to await result)
+//   client polls getWpImportJob during processing to render progress + log
+//
+// Sync mode (`sync_existing = true`) updates posts whose slug already exists
+// instead of skipping them. Media import (`import_media = true`) downloads
+// the featured image and every same-host <img> referenced in content,
+// uploads to the `media` bucket and rewrites URLs in the imported HTML
+// before parsing.
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -16,6 +29,11 @@ import { rateLimit } from "./server/rate-limit.server";
 import type { Json } from "@/integrations/supabase/types";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/wordpress_com";
+const MAX_LOG_ENTRIES = 500;
+const MAX_MEDIA_BYTES = 10 * 1024 * 1024;
+const ALLOWED_MEDIA_MIME = new Set([
+  "image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "image/avif",
+]);
 
 function authHeaders(): HeadersInit {
   const lovableKey = process.env.LOVABLE_API_KEY;
@@ -42,7 +60,7 @@ async function wpFetch<T>(path: string): Promise<T> {
   }
 }
 
-// ---------- shared helpers (kept local to avoid coupling with content.functions) ----------
+// ---------- shared helpers ----------
 
 function slugify(input: string): string {
   return input
@@ -82,13 +100,15 @@ async function resolveBlogPage(
 }
 
 async function ensureUniqueSlug(
-  supabase: SupabaseClient, tenantId: string, desired: string,
+  supabase: SupabaseClient, tenantId: string, desired: string, excludePostId?: string,
 ): Promise<string> {
   const base = slugify(desired) || `wp-${Date.now().toString(36)}`;
   let candidate = base;
   for (let i = 0; i < 50; i += 1) {
-    const { data, error } = await supabase
+    let q = supabase
       .from("posts").select("id").eq("tenant_id", tenantId).eq("slug", candidate).limit(1);
+    if (excludePostId) q = q.neq("id", excludePostId);
+    const { data, error } = await q;
     if (error) throw new Error(error.message);
     if (!data || data.length === 0) return candidate;
     candidate = `${base}-${i + 2}`;
@@ -96,27 +116,16 @@ async function ensureUniqueSlug(
   return `${base}-${Date.now().toString(36)}`;
 }
 
-// ---------- WP.com response shapes (typed subsets) ----------
+// ---------- WP.com response shapes ----------
 
 interface WpSite {
-  ID: number;
-  name: string;
-  description: string;
-  URL: string;
-  jetpack: boolean;
+  ID: number; name: string; description: string; URL: string; jetpack: boolean;
 }
 interface WpSitesResponse { sites: WpSite[] }
 
 interface WpPost {
-  ID: number;
-  slug: string;
-  title: string;
-  excerpt: string;
-  content: string;
-  status: string;
-  date: string;
-  modified: string;
-  URL: string;
+  ID: number; slug: string; title: string; excerpt: string; content: string;
+  status: string; date: string; modified: string; URL: string;
   featured_image: string | null;
 }
 interface WpPostsResponse { found: number; posts: WpPost[] }
@@ -140,6 +149,187 @@ function mapStatus(wp: string): "draft" | "published" | "archived" {
   if (wp === "publish") return "published";
   if (wp === "trash") return "archived";
   return "draft";
+}
+
+// ---------- media import ----------
+
+const WP_HOST_RE = /(wp\.com|wordpress\.com|files\.wordpress\.com)$/i;
+
+function isLikelyWpMediaUrl(url: string, siteHost: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+    return (
+      u.host === siteHost ||
+      WP_HOST_RE.test(u.host) ||
+      /\.files\.wordpress\.com$/i.test(u.host)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function extName(url: string, mime: string): string {
+  const m = url.split("?")[0].match(/\.([a-z0-9]{2,5})$/i);
+  if (m) return m[1].toLowerCase();
+  if (mime === "image/jpeg") return "jpg";
+  if (mime === "image/png") return "png";
+  if (mime === "image/webp") return "webp";
+  if (mime === "image/gif") return "gif";
+  if (mime === "image/svg+xml") return "svg";
+  if (mime === "image/avif") return "avif";
+  return "bin";
+}
+
+async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+interface MediaImporter {
+  importUrl(url: string): Promise<string>;
+  count: number;
+}
+
+function createMediaImporter(opts: {
+  tenantId: string;
+  userId: string;
+  siteHost: string;
+}): MediaImporter {
+  const cache = new Map<string, string>(); // sourceUrl -> publicUrl
+  let count = 0;
+  return {
+    get count() { return count; },
+    async importUrl(sourceUrl: string): Promise<string> {
+      if (cache.has(sourceUrl)) return cache.get(sourceUrl)!;
+      if (!isLikelyWpMediaUrl(sourceUrl, opts.siteHost)) return sourceUrl;
+      // Lazy import of admin client (server-only).
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+      const res = await fetch(sourceUrl, { redirect: "follow" });
+      if (!res.ok) throw new Error(`fetch ${res.status} ${sourceUrl}`);
+      const ct = (res.headers.get("content-type") || "application/octet-stream").split(";")[0].trim();
+      if (!ALLOWED_MEDIA_MIME.has(ct)) throw new Error(`mime not allowed: ${ct}`);
+      const buf = await res.arrayBuffer();
+      if (buf.byteLength > MAX_MEDIA_BYTES) throw new Error(`file too large (${buf.byteLength} bytes)`);
+
+      const hash = (await sha256Hex(buf)).slice(0, 32);
+      const ext = extName(sourceUrl, ct);
+      const path = `${opts.tenantId}/wp-import/${hash}.${ext}`;
+
+      const { error: upErr } = await supabaseAdmin.storage
+        .from("media")
+        .upload(path, new Uint8Array(buf), { contentType: ct, upsert: true });
+      if (upErr) throw new Error(`storage upload: ${upErr.message}`);
+
+      const { data: pub } = supabaseAdmin.storage.from("media").getPublicUrl(path);
+      const publicUrl = pub.publicUrl;
+
+      // Best-effort row in `media`. Idempotent on path (unique not enforced, so we check).
+      const { data: existing } = await supabaseAdmin
+        .from("media").select("id").eq("storage_path", path).maybeSingle();
+      if (!existing?.id) {
+        const filename = sourceUrl.split("/").pop()?.split("?")[0]?.slice(0, 200) || `${hash}.${ext}`;
+        await supabaseAdmin.from("media").insert({
+          tenant_id: opts.tenantId,
+          uploader_id: opts.userId,
+          storage_path: path,
+          public_url: publicUrl,
+          filename,
+          mime_type: ct,
+          size_bytes: buf.byteLength,
+        });
+      }
+
+      cache.set(sourceUrl, publicUrl);
+      count += 1;
+      return publicUrl;
+    },
+  };
+}
+
+// Find all <img src="..."> and srcset entries that look like WP media for the site,
+// import them, then rewrite URLs in-place. Returns the rewritten HTML.
+async function rewriteHtmlMedia(
+  html: string, importer: MediaImporter, siteHost: string,
+  onError: (sourceUrl: string, err: unknown) => void,
+): Promise<string> {
+  const urls = new Set<string>();
+  const re = /(src|href|data-src|data-large-file|data-medium-file|data-orig-file|poster)\s*=\s*"([^"]+)"/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    if (isLikelyWpMediaUrl(m[2], siteHost)) urls.add(m[2]);
+  }
+  const reSrcset = /srcset\s*=\s*"([^"]+)"/gi;
+  while ((m = reSrcset.exec(html)) !== null) {
+    for (const part of m[1].split(",")) {
+      const url = part.trim().split(/\s+/)[0];
+      if (url && isLikelyWpMediaUrl(url, siteHost)) urls.add(url);
+    }
+  }
+
+  const map = new Map<string, string>();
+  for (const u of urls) {
+    try {
+      const next = await importer.importUrl(u);
+      if (next !== u) map.set(u, next);
+    } catch (e) {
+      onError(u, e);
+    }
+  }
+  if (map.size === 0) return html;
+  let out = html;
+  for (const [from, to] of map) {
+    // Global plain-string replace (avoid regex special chars).
+    out = out.split(from).join(to);
+  }
+  return out;
+}
+
+// ---------- job log helpers ----------
+
+type LogLevel = "info" | "warn" | "error";
+interface LogEntry { ts: string; level: LogLevel; msg: string; wp_id?: number }
+
+interface JobPatch {
+  log?: LogEntry[];
+  processed?: number;
+  imported?: number;
+  updated_count?: number;
+  skipped?: number;
+  failed?: number;
+  media_imported?: number;
+  status?: "running" | "completed" | "failed";
+  error?: string | null;
+  total?: number;
+  finished_at?: string | null;
+}
+
+async function patchJob(
+  supabase: SupabaseClient, jobId: string, patch: JobPatch,
+): Promise<void> {
+  const { error } = await supabase.from("wp_import_jobs").update(patch).eq("id", jobId);
+  if (error) console.warn("[wp-import] job patch failed:", error.message);
+}
+
+class JobLogger {
+  private buffer: LogEntry[] = [];
+  constructor(private supabase: SupabaseClient, private jobId: string) {}
+  async load(): Promise<void> {
+    const { data } = await this.supabase
+      .from("wp_import_jobs").select("log").eq("id", this.jobId).maybeSingle();
+    if (data?.log && Array.isArray(data.log)) {
+      this.buffer = (data.log as unknown as LogEntry[]).slice(-MAX_LOG_ENTRIES);
+    }
+  }
+  async push(level: LogLevel, msg: string, wp_id?: number): Promise<void> {
+    this.buffer.push({ ts: new Date().toISOString(), level, msg, wp_id });
+    if (this.buffer.length > MAX_LOG_ENTRIES) {
+      this.buffer = this.buffer.slice(-MAX_LOG_ENTRIES);
+    }
+    await patchJob(this.supabase, this.jobId, { log: this.buffer });
+  }
 }
 
 // ---------- public server functions ----------
@@ -189,110 +379,234 @@ export const previewWpComPosts = createServerFn({ method: "POST" })
     };
   });
 
-const ImportInput = ListInput.extend({
+// ---- jobs ----
+
+const JobInput = ListInput.extend({
   language: z.enum(["pl", "en"]).default("pl"),
-  // Optional whitelist to import only specific post IDs from the listing
   only_ids: z.array(z.number().int()).max(100).optional(),
+  sync_existing: z.boolean().default(false),
+  import_media: z.boolean().default(false),
 });
 
-interface ImportReport {
-  attempted: number;
-  imported: number;
-  skipped_existing: number;
-  errors: Array<{ id: number; message: string }>;
-  posts: Array<{ wp_id: number; id: string; slug: string }>;
-}
-
-export const importWpComPosts = createServerFn({ method: "POST" })
+export const createWpImportJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => ImportInput.parse(i))
-  .handler(async ({ data, context }): Promise<ImportReport> => {
+  .inputValidator((i: unknown) => JobInput.parse(i))
+  .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     if (!(await rateLimit({ scope: "wp.import", subjectId: userId, max: 10 }))) {
       throw new Error("Rate limit exceeded - please wait a minute before importing again");
     }
-
     const tenantId = await resolveTenant(supabase, userId);
-    const parentPageId = await resolveBlogPage(supabase, tenantId, userId);
-
-    const site = encodeURIComponent(data.site);
-    const qs = new URLSearchParams({
-      number: String(data.number),
-      offset: String(data.offset),
-      status: data.status,
-      fields: "ID,slug,title,excerpt,content,date,modified,URL,featured_image,status",
-    });
-    const res = await wpFetch<WpPostsResponse>(`/rest/v1.1/sites/${site}/posts?${qs.toString()}`);
-    const filtered = data.only_ids
-      ? res.posts.filter((p) => data.only_ids!.includes(p.ID))
-      : res.posts;
-
-    const report: ImportReport = {
-      attempted: filtered.length, imported: 0, skipped_existing: 0, errors: [], posts: [],
-    };
-
-    for (const wp of filtered) {
-      try {
-        const desiredSlug = wp.slug || slugify(stripTags(wp.title)) || `wp-${wp.ID}`;
-        // Skip if a post already exists with this slug for the tenant
-        const { data: existing } = await supabase
-          .from("posts").select("id").eq("tenant_id", tenantId).eq("slug", desiredSlug).maybeSingle();
-        if (existing?.id) {
-          report.skipped_existing += 1;
-          continue;
-        }
-        const slug = await ensureUniqueSlug(supabase, tenantId, desiredSlug);
-        const title = stripTags(wp.title);
-        const excerpt = stripTags(wp.excerpt).slice(0, 1000);
-        const doc = parseGutenberg(wp.content);
-
-        const blocksPayload = data.language === "pl"
-          ? { pl: doc, en: { version: 1, blocks: [] } }
-          : { pl: { version: 1, blocks: [] }, en: doc };
-        // Round-trip via JSON to satisfy the generated `Json` column type
-        // without resorting to `any` / `as any`.
-        const blocks_data = JSON.parse(JSON.stringify(blocksPayload)) as Json;
-
-        const titleField = data.language === "pl" ? { title_pl: title, title_en: "" } : { title_pl: "", title_en: title };
-        const excerptField = data.language === "pl"
-          ? { excerpt_pl: excerpt, excerpt_en: null }
-          : { excerpt_pl: null, excerpt_en: excerpt };
-
-        const status = mapStatus(wp.status);
-        const { data: inserted, error } = await supabase
-          .from("posts")
-          .insert({
-            tenant_id: tenantId, author_id: userId, slug,
-            parent_page_id: parentPageId,
-            editor: "blocks",
-            status,
-            published_at: status === "published" ? wp.date : null,
-            cover_image_url: wp.featured_image,
-            blocks_data,
-            ...titleField,
-            ...excerptField,
-          })
-          .select("id, slug").single();
-        if (error || !inserted) throw new Error(error?.message || "insert failed");
-        report.imported += 1;
-        report.posts.push({ wp_id: wp.ID, id: inserted.id as string, slug: inserted.slug as string });
-      } catch (e) {
-        report.errors.push({
-          id: wp.ID,
-          message: e instanceof Error ? e.message : "Unknown error",
-        });
-      }
-    }
-
-    await recordAudit(supabase, {
-      tenantId, action: "post.create", entityType: "post.import.wordpress_com",
-      entityId: null,
-      metadata: {
+    const { data: row, error } = await supabase
+      .from("wp_import_jobs")
+      .insert({
+        tenant_id: tenantId, actor_id: userId,
         site: data.site, language: data.language,
-        attempted: report.attempted, imported: report.imported,
-        skipped: report.skipped_existing, errors: report.errors.length,
-      },
-    });
+        status: "running",
+        options: {
+          number: data.number, offset: data.offset, status: data.status,
+          sync_existing: data.sync_existing, import_media: data.import_media,
+          only_ids: data.only_ids ?? null,
+        } as unknown as Json,
+        log: [{
+          ts: new Date().toISOString(), level: "info",
+          msg: `Job queued for ${data.site}`,
+        }] as unknown as Json,
+      })
+      .select("id").single();
+    if (error || !row) throw new Error(error?.message || "cannot create job");
+    return { jobId: row.id as string };
+  });
 
-    return report;
+const RunInput = JobInput.extend({ jobId: z.string().uuid() });
+
+export const runWpImportJob = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => RunInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const tenantId = await resolveTenant(supabase, userId);
+
+    // Verify job ownership (RLS already blocks cross-tenant reads, but be explicit).
+    const { data: job } = await supabase
+      .from("wp_import_jobs").select("id, status, tenant_id")
+      .eq("id", data.jobId).maybeSingle();
+    if (!job || job.tenant_id !== tenantId) throw new Error("Job not found");
+    if (job.status !== "running") throw new Error(`Job already ${job.status}`);
+
+    const logger = new JobLogger(supabase, data.jobId);
+    await logger.load();
+
+    let processed = 0;
+    let imported = 0;
+    let updated_count = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    try {
+      const parentPageId = await resolveBlogPage(supabase, tenantId, userId);
+
+      const site = encodeURIComponent(data.site);
+      const qs = new URLSearchParams({
+        number: String(data.number),
+        offset: String(data.offset),
+        status: data.status,
+        fields: "ID,slug,title,excerpt,content,date,modified,URL,featured_image,status",
+      });
+      await logger.push("info", `Fetching posts from ${data.site}…`);
+      const res = await wpFetch<WpPostsResponse>(`/rest/v1.1/sites/${site}/posts?${qs.toString()}`);
+      const filtered = data.only_ids
+        ? res.posts.filter((p) => data.only_ids!.includes(p.ID))
+        : res.posts;
+
+      await patchJob(supabase, data.jobId, { total: filtered.length });
+      await logger.push("info", `Got ${filtered.length} posts to process (sync=${data.sync_existing}, media=${data.import_media}).`);
+
+      let siteHost = data.site;
+      try { siteHost = new URL(data.site.startsWith("http") ? data.site : `https://${data.site}`).host; } catch { /* keep */ }
+
+      const importer = data.import_media
+        ? createMediaImporter({ tenantId, userId, siteHost })
+        : null;
+
+      for (const wp of filtered) {
+        try {
+          const desiredSlug = wp.slug || slugify(stripTags(wp.title)) || `wp-${wp.ID}`;
+
+          // Cover image (optional import).
+          let coverUrl: string | null = wp.featured_image ?? null;
+          if (coverUrl && importer) {
+            try {
+              coverUrl = await importer.importUrl(coverUrl);
+            } catch (e) {
+              await logger.push("warn", `Cover image failed: ${e instanceof Error ? e.message : "unknown"}`, wp.ID);
+            }
+          }
+
+          // Inline media (optional).
+          let html = wp.content || "";
+          if (importer && html) {
+            html = await rewriteHtmlMedia(html, importer, siteHost, (u, err) => {
+              void logger.push("warn", `Media skipped ${u}: ${err instanceof Error ? err.message : "unknown"}`, wp.ID);
+            });
+          }
+
+          const doc = parseGutenberg(html);
+          const title = stripTags(wp.title);
+          const excerpt = stripTags(wp.excerpt).slice(0, 1000);
+
+          const blocksPayload = data.language === "pl"
+            ? { pl: doc, en: { version: 1, blocks: [] } }
+            : { pl: { version: 1, blocks: [] }, en: doc };
+          const blocks_data = JSON.parse(JSON.stringify(blocksPayload)) as Json;
+
+          const titleField = data.language === "pl"
+            ? { title_pl: title, title_en: "" }
+            : { title_pl: "", title_en: title };
+          const excerptField = data.language === "pl"
+            ? { excerpt_pl: excerpt, excerpt_en: null }
+            : { excerpt_pl: null, excerpt_en: excerpt };
+
+          const status = mapStatus(wp.status);
+
+          // Existing post?
+          const { data: existing } = await supabase
+            .from("posts").select("id").eq("tenant_id", tenantId).eq("slug", desiredSlug).maybeSingle();
+
+          if (existing?.id && !data.sync_existing) {
+            skipped += 1;
+            await logger.push("info", `Skipped (slug exists): ${desiredSlug}`, wp.ID);
+          } else if (existing?.id && data.sync_existing) {
+            const { error: upErr } = await supabase
+              .from("posts")
+              .update({
+                editor: "blocks",
+                status,
+                published_at: status === "published" ? wp.date : null,
+                cover_image_url: coverUrl,
+                blocks_data,
+                ...titleField,
+                ...excerptField,
+              })
+              .eq("id", existing.id);
+            if (upErr) throw new Error(upErr.message);
+            updated_count += 1;
+            await logger.push("info", `Updated: ${desiredSlug}`, wp.ID);
+            await recordAudit(supabase, {
+              tenantId, action: "post.update", entityType: "post",
+              entityId: existing.id as string,
+              metadata: { source: "wordpress_com", wp_id: wp.ID },
+            });
+          } else {
+            const slug = await ensureUniqueSlug(supabase, tenantId, desiredSlug);
+            const { data: inserted, error } = await supabase
+              .from("posts")
+              .insert({
+                tenant_id: tenantId, author_id: userId, slug,
+                parent_page_id: parentPageId,
+                editor: "blocks",
+                status,
+                published_at: status === "published" ? wp.date : null,
+                cover_image_url: coverUrl,
+                blocks_data,
+                ...titleField,
+                ...excerptField,
+              })
+              .select("id, slug").single();
+            if (error || !inserted) throw new Error(error?.message || "insert failed");
+            imported += 1;
+            await logger.push("info", `Imported: ${inserted.slug as string}`, wp.ID);
+            await recordAudit(supabase, {
+              tenantId, action: "post.create", entityType: "post",
+              entityId: inserted.id as string,
+              metadata: { source: "wordpress_com", wp_id: wp.ID },
+            });
+          }
+        } catch (e) {
+          failed += 1;
+          await logger.push("error", e instanceof Error ? e.message : "unknown error", wp.ID);
+        } finally {
+          processed += 1;
+          await patchJob(supabase, data.jobId, {
+            processed, imported, updated_count, skipped, failed,
+            media_imported: importer?.count ?? 0,
+          });
+        }
+      }
+
+      await patchJob(supabase, data.jobId, {
+        status: "completed", finished_at: new Date().toISOString(),
+      });
+      await logger.push("info", `Done. imported=${imported}, updated=${updated_count}, skipped=${skipped}, failed=${failed}, media=${importer?.count ?? 0}`);
+
+      return {
+        jobId: data.jobId, status: "completed" as const,
+        processed, imported, updated_count, skipped, failed,
+        media_imported: importer?.count ?? 0,
+      };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unknown error";
+      await logger.push("error", `Job aborted: ${msg}`);
+      await patchJob(supabase, data.jobId, {
+        status: "failed", error: msg, finished_at: new Date().toISOString(),
+      });
+      throw e;
+    }
+  });
+
+const GetJobInput = z.object({ jobId: z.string().uuid() });
+
+export const getWpImportJob = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => GetJobInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: row, error } = await supabase
+      .from("wp_import_jobs")
+      .select("id, status, site, total, processed, imported, updated_count, skipped, failed, media_imported, log, error, created_at, finished_at")
+      .eq("id", data.jobId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("Job not found");
+    return row;
   });
