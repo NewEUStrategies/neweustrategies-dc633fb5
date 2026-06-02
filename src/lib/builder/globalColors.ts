@@ -55,6 +55,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         hasDark: true,
         defaultLight: "#374151",
         defaultDark: "#e5e7eb",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "16px"
       },
       {
         key: "header-icon-hover",
@@ -165,6 +168,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         label: "Accent Color (Text)",
         description: "Kolor tekstu przycisków.",
         overrides: ["--primary-foreground"],
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "16px"
       },
       {
         key: "btn-hover-bg",
@@ -273,6 +279,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#1f2937",
         defaultDark: "#e5e7eb",
         overrides: ["--sidebar-foreground"],
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "16px"
       },
       {
         key: "sidebar-btn-bg",
@@ -291,6 +300,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#ffffff",
         defaultDark: "#ffffff",
         overrides: ["--sidebar-primary-foreground", "--sidebar-accent-foreground"],
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "16px"
       },
       {
         key: "sidebar-btn-hover-bg",
