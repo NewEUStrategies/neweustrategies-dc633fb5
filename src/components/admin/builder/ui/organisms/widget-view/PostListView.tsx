@@ -8,7 +8,7 @@ import { getNum, getStr } from "./frame";
 
 type Lang = "pl" | "en";
 
-type Variant = "card" | "minimal" | "overlay" | "list";
+type Variant = "card" | "minimal" | "overlay" | "list" | "numbered";
 
 interface PostRow {
   id: string;
@@ -156,6 +156,37 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
       </div>
     );
   }
+
+  if (variant === "numbered") {
+    return (
+      <div className="flex flex-col divide-y divide-border">
+        {rows.map((p, i) => (
+          <a key={p.id} href={`/post/${p.slug}`} className="flex items-center gap-4 py-5 group relative">
+            <span
+              aria-hidden
+              className="font-display font-bold text-muted-foreground/20 leading-none select-none shrink-0 w-[1.6em] text-center"
+              style={{ fontSize: "clamp(2.5rem, 5vw, 4rem)" }}
+            >
+              {String(i + 1).padStart(2, "0")}
+            </span>
+            <div className="min-w-0 flex-1">
+              <h4 className="font-display text-lg md:text-xl leading-snug line-clamp-3 group-hover:text-brand transition">
+                {title(p)}
+              </h4>
+            </div>
+            {p.cover_image_url && (
+              <img
+                src={p.cover_image_url}
+                alt=""
+                className="w-28 h-28 md:w-36 md:h-28 object-cover rounded-sm shrink-0"
+              />
+            )}
+          </a>
+        ))}
+      </div>
+    );
+  }
+
 
   return (
     <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>

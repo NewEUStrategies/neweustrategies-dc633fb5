@@ -22,6 +22,7 @@ const VARIANTS = [
   { v: "minimal", l: "Minimalny" },
   { v: "overlay", l: "Overlay na okładce" },
   { v: "list", l: "Lista" },
+  { v: "numbered", l: "Numerowana (01, 02 + okładka)" },
 ] as const;
 
 const ORDER_BY = [
