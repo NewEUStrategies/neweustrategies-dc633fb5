@@ -39,15 +39,15 @@ function Dashboard() {
 
   return (
     <div>
-      <h1 className="font-display text-3xl font-bold mb-2">{t("admin.dashboard.title")}</h1>
-      <p className="text-muted-foreground mb-8">{t("admin.dashboard.subtitle")}</p>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <h1 className="font-display text-xl font-bold mb-1">{t("admin.dashboard.title")}</h1>
+      <p className="text-xs text-muted-foreground mb-4">{t("admin.dashboard.subtitle")}</p>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
         {cards.map((c) => (
-          <Link key={c.to} to={c.to} className="bg-card border border-border rounded-lg p-5 hover:border-brand transition">
-            <c.icon className="w-6 h-6 mb-3" style={{ color: "var(--gc-icon, var(--gc-highlight, hsl(var(--brand))))" }} />
-            <div className="text-3xl font-bold font-display">{c.value}</div>
-            <div className="text-sm font-medium mt-1">{c.label}</div>
-            {c.sub && <div className="text-xs text-muted-foreground mt-2">{c.sub}</div>}
+          <Link key={c.to} to={c.to} className="bg-card border border-border rounded-md p-3 hover:border-brand transition">
+            <c.icon className="w-4 h-4 mb-1.5" style={{ color: "var(--gc-icon, var(--gc-highlight, hsl(var(--brand))))" }} />
+            <div className="text-xl font-bold font-display leading-tight">{c.value}</div>
+            <div className="text-[12px] font-medium mt-0.5">{c.label}</div>
+            {c.sub && <div className="text-[10px] text-muted-foreground mt-1">{c.sub}</div>}
           </Link>
         ))}
       </div>
