@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PropField } from "../atoms/PropField";
+import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
+import { Image as ImageIcon } from "lucide-react";
 
 interface Props {
   field: SchemaFieldDef;
