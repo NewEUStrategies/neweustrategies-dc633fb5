@@ -453,6 +453,19 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "excerpt", type: "i18nText", label: "Zajawka (opcjonalna)" },
     { key: "image", type: "url", label: "URL obrazka" },
+    {
+      key: "imageHover", type: "select", label: "Animacja obrazka (hover)",
+      options: [
+        { value: "zoom-in", label: "Zoom in (przybliżenie)" },
+        { value: "zoom-out", label: "Zoom out (oddalenie)" },
+        { value: "fade", label: "Przyciemnienie" },
+        { value: "brighten", label: "Rozjaśnienie" },
+        { value: "tilt", label: "Lekkie przechylenie" },
+        { value: "none", label: "Brak" },
+      ],
+      hint: "Efekt po najechaniu kursorem na obrazek.",
+      visibleWhen: (c) => !!c.image,
+    },
     { key: "href", type: "url", label: "Link (opcjonalny)" },
   ],
   "social-icons": [
