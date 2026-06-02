@@ -36,6 +36,7 @@ import {
   SectionLabelEditor,
   SliderEditor,
   AnimatedHeadingEditor,
+  PostListEditor,
 } from "./ui/organisms/widget-properties";
 
 interface Props {
@@ -580,6 +581,9 @@ function ContentFields({ widget, lang, setContent }: {
       return <SliderEditor c={c} lang={lang} setContent={setContent} />;
     case "animated-heading":
       return <AnimatedHeadingEditor c={c} lang={lang} setContent={setContent} />;
+    case "post-list":
+    case "carousel":
+      return <PostListEditor c={c} lang={lang} setContent={setContent} />;
   }
 
   // Schema-driven render for simple widgets.
