@@ -145,26 +145,36 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         )}
       </div>
 
-      {/* Title + excerpt */}
-      <div key={safeIdx} className="px-4 pt-8 pb-2 text-center" style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}>
-        {title && (
-          href ? (
-            <a href={href} className="inline-block">
-              <h3 className="eh-title text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground">
-                {title}
-              </h3>
-            </a>
-          ) : (
-            <h3 className="eh-title text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground">
-              {title}
+      {/* Title + excerpt — stała wysokość (rezerwacja 2 linii tytułu + 3 linii excerptu) */}
+      <div
+        key={safeIdx}
+        className="px-4 pt-8 pb-2 text-center"
+        style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
+      >
+        {href ? (
+          <a href={href} className="inline-block w-full">
+            <h3
+              className="eh-title eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
+              style={{ minHeight: "calc(2 * 1.25em)" }}
+            >
+              {title || "\u00A0"}
             </h3>
-          )
+          </a>
+        ) : (
+          <h3
+            className="eh-title eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
+            style={{ minHeight: "calc(2 * 1.25em)" }}
+          >
+            {title || "\u00A0"}
+          </h3>
         )}
-        {sub && (
-          <p className="mt-4 text-sm md:text-base text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-            {sub}
-          </p>
-        )}
+
+        <p
+          className="eh-clamp-3 mt-4 text-sm md:text-base text-muted-foreground max-w-3xl mx-auto leading-relaxed"
+          style={{ minHeight: "calc(3 * 1.625em)" }}
+        >
+          {sub || "\u00A0"}
+        </p>
 
         {/* Meta */}
         {(cur.author || cur.readTime) && (
@@ -175,6 +185,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           </div>
         )}
       </div>
+
 
       {/* Nav: arrow • dots • arrow */}
       {items.length > 1 && (
