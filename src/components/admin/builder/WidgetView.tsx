@@ -17,6 +17,7 @@ import {
 } from "@/lib/sanitize";
 import { useInView } from "@/hooks/use-in-view";
 import { hoverCss } from "@/lib/builder/hoverCss";
+import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 import { useTheme } from "@/components/ThemeProvider";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { NewsletterForm as NewsletterFormLive } from "@/components/NewsletterForm";
@@ -447,6 +448,9 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const excerpt = getStr(c, `excerpt_${lang}`) || getStr(c, "excerpt_pl");
       const img = safeImageUrl(getStr(c, "image"));
       const href = safeUrl(getStr(c, "href"));
+      const cardBg = resolveColorForMode(node.style?.bgColor, effectiveMode) ?? "oklch(0.18 0.02 260)";
+      const cardText = resolveColorForMode(node.style?.textColor, effectiveMode) ?? "#ffffff";
+      const cardBorder = resolveColorForMode(node.style?.borderColor, effectiveMode);
       const badgeVariant = getStr(c, "badgeVariant") || "solid-red";
       const badgeRadius = getStr(c, "badgeRadius") || "none";
       const badgeSize = getStr(c, "badgeSize") || "xs";
@@ -469,7 +473,16 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         : "bg-destructive text-white";
       const badgeCls = `inline-block font-bold uppercase tracking-wider mb-3 ${sizeCls} ${variantCls} ${radiusCls}`;
       const card = (
-        <div className="relative bg-[oklch(0.18_0.02_260)] text-white p-6 rounded">
+        <div
+          className="relative p-6 rounded"
+          style={{
+            background: cardBg,
+            color: cardText,
+            borderColor: cardBorder,
+            borderStyle: cardBorder ? "solid" : undefined,
+            borderWidth: cardBorder ? "1px" : undefined,
+          }}
+        >
           {(badge || canEdit) && (
             canEdit
               ? <Editable as="div" value={badge} onCommit={(v) => commit(badgeKey, v)} className={badgeCls} placeholder="Etykieta…" />
@@ -477,7 +490,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
           )}
           {img && <img src={img} alt="" className="w-full h-72 object-cover rounded" loading="lazy" />}
           <h3 className="mt-4 font-display text-2xl font-bold">{title}</h3>
-          {excerpt && <p className="text-sm text-white/70 mt-2">{excerpt}</p>}
+          {excerpt && <p className="mt-2 text-sm opacity-70">{excerpt}</p>}
         </div>
       );
       return wrap(href ? <a href={href} className="block hover:opacity-95 transition">{card}</a> : card);
