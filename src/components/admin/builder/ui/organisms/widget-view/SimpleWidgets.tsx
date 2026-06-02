@@ -672,7 +672,28 @@ export function renderSimpleWidget(
       if (getStr(c, "source") === "posts") {
         return <PostsSliderWidget c={c} lang={lang} />;
       }
-      const items = Array.isArray(c.items) ? (c.items as unknown[]).filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null) : [];
+      const rawItems = Array.isArray(c.items) ? (c.items as unknown[]).filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null) : [];
+      const hasRealItems = rawItems.length > 0;
+      // In the builder canvas, fall back to demo slides so changing the
+      // variant on the left is immediately reflected on the right preview
+      // even before the user adds any images. On the published site
+      // (editable=false) we still show the empty placeholder.
+      const sampleItems = (!hasRealItems && editable)
+        ? [
+            { image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1200", title_pl: "Przykładowy slajd", title_en: "Sample slide", subtitle_pl: "Podgląd wariantu – dodaj własne slajdy poniżej", subtitle_en: "Variant preview – add your own slides below", href: "#", cta_pl: "Zobacz", cta_en: "View" },
+            { image: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1200", title_pl: "Drugi slajd", title_en: "Second slide", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
+            { image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=1200", title_pl: "Trzeci slajd", title_en: "Third slide", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
+          ]
+        : rawItems.map((it) => ({
+            image: typeof it.image === "string" ? it.image : "",
+            title_pl: typeof it.title_pl === "string" ? it.title_pl : "",
+            title_en: typeof it.title_en === "string" ? it.title_en : "",
+            subtitle_pl: typeof it.subtitle_pl === "string" ? it.subtitle_pl : "",
+            subtitle_en: typeof it.subtitle_en === "string" ? it.subtitle_en : "",
+            href: typeof it.href === "string" ? it.href : "",
+            cta_pl: typeof it.cta_pl === "string" ? it.cta_pl : "",
+            cta_en: typeof it.cta_en === "string" ? it.cta_en : "",
+          }));
       const cfg = {
         variant: (getStr(c, "variant") || "classic") as SliderVariant,
         ratio: (getStr(c, "ratio") || "16/9") as "16/9" | "4/3" | "1/1" | "21/9" | "3/2",
@@ -680,17 +701,18 @@ export function renderSimpleWidget(
         intervalMs: getNum(c, "intervalMs", 4500),
         rounded: (getStr(c, "rounded") || "md") as "none" | "sm" | "md" | "lg" | "xl" | "full",
         overlayOpacity: typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45,
-        items: items.map((it) => ({
-          image: typeof it.image === "string" ? it.image : "",
-          title_pl: typeof it.title_pl === "string" ? it.title_pl : "",
-          title_en: typeof it.title_en === "string" ? it.title_en : "",
-          subtitle_pl: typeof it.subtitle_pl === "string" ? it.subtitle_pl : "",
-          subtitle_en: typeof it.subtitle_en === "string" ? it.subtitle_en : "",
-          href: typeof it.href === "string" ? it.href : "",
-          cta_pl: typeof it.cta_pl === "string" ? it.cta_pl : "",
-          cta_en: typeof it.cta_en === "string" ? it.cta_en : "",
-        })),
+        items: sampleItems,
       };
+      if (!hasRealItems && editable) {
+        return (
+          <div className="relative w-full">
+            <SliderRender config={cfg} lang={lang} />
+            <div className="pointer-events-none absolute top-2 left-2 z-10 rounded-md bg-background/85 backdrop-blur px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground border border-border">
+              Podgląd · dodaj slajdy w panelu
+            </div>
+          </div>
+        );
+      }
       return <SliderRender config={cfg} lang={lang} />;
     }
     case "animated-heading": {
