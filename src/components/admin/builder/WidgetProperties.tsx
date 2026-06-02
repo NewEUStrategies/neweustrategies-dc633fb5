@@ -116,16 +116,18 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
   const widgetLabel = WIDGETS.find((w) => w.type === widget.type)?.label ?? widget.type;
 
   return (
+    <div className="wp-compact text-[11px] [&_label]:text-[10px] [&_label]:leading-tight [&_input]:!h-7 [&_input]:!text-[11px] [&_textarea]:!text-[11px] [&_textarea]:!leading-snug [&_button[role=combobox]]:!h-7 [&_button[role=combobox]]:!text-[11px] [&_[role=tab]]:!text-[11px] [&_summary]:!text-[11px] [&_p]:!text-[10px]">
     <Tabs defaultValue="content">
       <div className="mb-2 px-0.5">
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Widget</div>
-        <div className="text-sm font-medium truncate">{widgetLabel}</div>
+        <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Widget</div>
+        <div className="text-[12px] font-medium truncate">{widgetLabel}</div>
       </div>
-      <TabsList className="grid grid-cols-3 w-full h-8">
-        <TabsTrigger value="content" className="text-xs">Treść</TabsTrigger>
-        <TabsTrigger value="style" className="text-xs">Styl</TabsTrigger>
-        <TabsTrigger value="advanced" className="text-xs">Zaawans.</TabsTrigger>
+      <TabsList className="grid grid-cols-3 w-full h-7">
+        <TabsTrigger value="content" className="text-[11px]">Treść</TabsTrigger>
+        <TabsTrigger value="style" className="text-[11px]">Styl</TabsTrigger>
+        <TabsTrigger value="advanced" className="text-[11px]">Zaawans.</TabsTrigger>
       </TabsList>
+
 
 
       <TabsContent value="content" className="space-y-3 mt-3">
