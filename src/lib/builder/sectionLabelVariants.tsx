@@ -197,15 +197,15 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
     case "slanted-ribbon-rule": {
       const fg = labelColor || contrastOn(accent);
       const cutW = isSm ? 10 : 28;
-      const lineH = isSm ? 2 : 3;
-      const ribbonPadX = isSm ? "pl-1.5" : "pl-4";
-      const ribbonPadY = isSm ? "py-0.5" : "py-2";
+      const lineH = isSm ? 2 : 2;
+      const ribbonPadX = isSm ? "pl-1.5" : "pl-3";
+      const ribbonPadY = isSm ? "py-0.5" : "py-1";
       const labelCls = isSm
         ? "text-[9px] font-bold uppercase tracking-wider truncate"
-        : "font-display text-sm sm:text-base font-bold uppercase tracking-wider truncate";
+        : "font-display text-xs sm:text-sm font-bold uppercase tracking-wider truncate";
       const actCls = isSm
         ? "text-[8px] font-medium text-foreground/80 truncate"
-        : "text-xs sm:text-sm font-medium text-foreground/80 hover:opacity-80 transition truncate";
+        : "text-[11px] sm:text-xs font-medium text-foreground/80 hover:opacity-80 transition truncate";
       return (
         <div className={`${wrapperBase} relative flex items-stretch w-full min-w-0`}>
           <span
