@@ -8,15 +8,15 @@ import { useState, type ReactNode } from "react";
 import { AdminSidebarExtrasProvider, useAdminSidebarExtrasSlot } from "@/components/admin/AdminSidebarExtras";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 
+import type { SidebarStyle } from "@/lib/builder/sidebarStyles";
+
 type SidebarLogoCfg = {
   logo: {
     sidebar_icon: string; sidebar_icon_dark: string;
     sidebar_expanded: string; sidebar_expanded_dark: string;
     main: string; main_dark: string;
   };
-  sidebars?: {
-    style?: "style-1" | "style-2" | "style-3" | "style-4" | "style-5" | "style-6";
-  };
+  sidebars?: { style?: SidebarStyle };
 };
 const SIDEBAR_LOGO_DEFAULTS: SidebarLogoCfg = {
   logo: { sidebar_icon: "", sidebar_icon_dark: "", sidebar_expanded: "", sidebar_expanded_dark: "", main: "", main_dark: "" },
