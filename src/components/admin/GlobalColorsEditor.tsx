@@ -308,14 +308,24 @@ export function GlobalColorsEditor() {
                       <SlotPreview slot={slot} draft={draft} />
 
                       {slot.typography && (
-                        <TypographyRow
-                          fontFamily={val.fontFamily ?? ""}
-                          fontSize={val.fontSize ?? ""}
-                          defaultFontFamily={slot.defaultFontFamily}
-                          defaultFontSize={slot.defaultFontSize}
-                          onFontFamily={(v) => setSlotMeta(slot.key, "fontFamily", v)}
-                          onFontSize={(v) => setSlotMeta(slot.key, "fontSize", v)}
-                        />
+                        <>
+                          <TypographyRow
+                            fontFamily={val.fontFamily ?? ""}
+                            fontSize={val.fontSize ?? ""}
+                            defaultFontFamily={slot.defaultFontFamily}
+                            defaultFontSize={slot.defaultFontSize}
+                            onFontFamily={(v) => setSlotMeta(slot.key, "fontFamily", v)}
+                            onFontSize={(v) => setSlotMeta(slot.key, "fontSize", v)}
+                          />
+                          <FormatRow
+                            fontWeight={val.fontWeight ?? ""}
+                            fontStyle={val.fontStyle ?? ""}
+                            textDecoration={val.textDecoration ?? ""}
+                            onWeight={(v) => setSlotMeta(slot.key, "fontWeight", v)}
+                            onStyle={(v) => setSlotMeta(slot.key, "fontStyle", v)}
+                            onDecoration={(v) => setSlotMeta(slot.key, "textDecoration", v)}
+                          />
+                        </>
                       )}
 
                       <ColorRow
