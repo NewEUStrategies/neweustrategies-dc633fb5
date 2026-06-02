@@ -163,58 +163,49 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, open, liveResults]);
 
-  const placeholder = heading || (lang === "pl" ? "Czego dzisiaj szukasz?" : "What are you searching for?");
+  const placeholder = label || heading || (lang === "pl" ? "Szukaj" : "Search");
   const hasQuery = q.trim().length >= 2;
   const showEmpty = hasQuery && !loading && searched && results.length === 0;
 
   return (
     <span ref={wrapRef} className="relative flex w-[min(88vw,420px)] max-w-full min-w-0">
-      {/* Trigger: closed = pill with icon + label; open = inline input with icon */}
       <div
         style={{ borderRadius: 4, direction: "ltr" }}
-        className={`flex w-[min(88vw,420px)] max-w-full min-w-0 items-center gap-2 border border-border bg-background transition-colors duration-150 px-3.5 h-10 ${
-          open ? "" : "hover:opacity-80 cursor-pointer"
-        }`}
-
-        onClick={() => { if (!open) setOpen(true); }}
-        role={open ? undefined : "button"}
-        aria-label={open ? undefined : "Search"}
-        aria-expanded={open}
+        className="flex w-[min(88vw,420px)] max-w-full min-w-0 items-center gap-2 border border-border bg-background transition-colors duration-150 px-3.5 h-10"
       >
-        <LucideIcons.Search className="w-4 h-4 text-muted-foreground shrink-0" />
-        {open ? (
-          <>
-            <input
-              ref={inputRef}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); runSearch(q); } }}
-              placeholder={placeholder}
-              aria-label={label}
-              dir="ltr"
-              style={{ textAlign: "left", direction: "ltr", unicodeBidi: "plaintext" }}
-              className="block w-full flex-1 min-w-0 bg-transparent border-none outline-none text-xs text-left text-foreground placeholder:text-muted-foreground"
-            />
-            {loading && <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />}
-            <button
-              type="button"
-              aria-label={q ? "Clear" : "Close"}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (q) { setQ(""); setResults([]); setSearched(false); inputRef.current?.focus(); }
-                else setOpen(false);
-              }}
-              className="p-1 -mr-1 rounded-sm hover:bg-accent transition-colors shrink-0"
-            >
-              <LucideIcons.X className="w-3.5 h-3.5 text-muted-foreground" />
-            </button>
-          </>
-        ) : (
-          <span className="text-xs font-medium leading-none text-foreground hidden sm:inline">
-            {label}
-          </span>
+        <LucideIcons.Search
+          className="w-4 h-4 text-muted-foreground shrink-0 cursor-pointer"
+          onClick={() => { inputRef.current?.focus(); setOpen(true); }}
+        />
+        <input
+          ref={inputRef}
+          value={q}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => { setQ(e.target.value); if (!open) setOpen(true); }}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); runSearch(q); } }}
+          placeholder={placeholder}
+          aria-label={label}
+          dir="ltr"
+          style={{ textAlign: "left", direction: "ltr", unicodeBidi: "plaintext" }}
+          className="block w-full flex-1 min-w-0 bg-transparent border-none outline-none text-xs text-left text-foreground placeholder:text-muted-foreground"
+        />
+        {loading && <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />}
+        {(q || open) && (
+          <button
+            type="button"
+            aria-label={q ? "Clear" : "Close"}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (q) { setQ(""); setResults([]); setSearched(false); inputRef.current?.focus(); }
+              else setOpen(false);
+            }}
+            className="p-1 -mr-1 rounded-sm hover:bg-accent transition-colors shrink-0"
+          >
+            <LucideIcons.X className="w-3.5 h-3.5 text-muted-foreground" />
+          </button>
         )}
       </div>
+
 
       {open && (
         <div
