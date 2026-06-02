@@ -350,12 +350,24 @@ class JobLogger {
 export const listWpComSites = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
-    const res = await wpFetch<WpSitesResponse>("/rest/v1.1/me/sites?fields=ID,name,description,URL,jetpack");
-    return {
-      sites: (res.sites ?? []).map((s) => ({
-        id: s.ID, name: s.name, url: s.URL, description: s.description,
-      })),
-    };
+    try {
+      const res = await wpFetch<WpSitesResponse>("/rest/v1.1/me/sites?fields=ID,name,description,URL,jetpack");
+      return {
+        sites: (res.sites ?? []).map((s) => ({
+          id: s.ID, name: s.name, url: s.URL, description: s.description,
+        })),
+        warning: null as string | null,
+      };
+    } catch (e) {
+      // Site-scoped OAuth tokens (the common case when the connector was authorized
+      // for a single blog) cannot call /me/sites — WP.com returns 400
+      // "authorization_required". Degrade gracefully so the UI still works.
+      const msg = e instanceof Error ? e.message : String(e);
+      return {
+        sites: [] as Array<{ id: number; name: string; url: string; description: string }>,
+        warning: msg,
+      };
+    }
   });
 
 const ListInput = z.object({
