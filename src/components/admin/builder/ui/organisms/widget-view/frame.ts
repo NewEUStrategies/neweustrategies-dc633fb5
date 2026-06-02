@@ -100,9 +100,10 @@ function toCssSize(value: number | "auto" | undefined): string | number | undefi
 }
 
 export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"): CSSProperties => {
-  const adv = node.advanced as { width?: ResponsiveSize; height?: ResponsiveSize } | undefined;
+  const adv = node.advanced as { width?: ResponsiveSize; height?: ResponsiveSize; layout?: "block" | "inline" } | undefined;
   const wRaw = pickSize(adv?.width, device);
   const hRaw = pickSize(adv?.height, device);
+  const isInline = adv?.layout === "inline";
 
   const style: CSSProperties = {
     width: "100%",
@@ -118,13 +119,20 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
   const horizontalAnchored = sj && sj !== "auto";
 
 
-  // When user anchors the widget horizontally, it must shrink to its content
-  // so the alignSelf has visible effect (otherwise width:100% fills the column).
-  const sliderShouldFill = node.type === "slider" && wRaw === undefined && !node.style?.maxWidth && !horizontalAnchored;
+  // When user anchors the widget horizontally OR opted into inline flow, it
+  // must shrink to its content so siblings can sit next to it.
+  const shrinkToContent = horizontalAnchored || isInline;
+  const sliderShouldFill = node.type === "slider" && wRaw === undefined && !node.style?.maxWidth && !shrinkToContent;
   const w = sliderShouldFill
     ? "100%"
-    : toCssSize(wRaw) ?? node.style?.maxWidth ?? (horizontalAnchored ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
+    : toCssSize(wRaw) ?? node.style?.maxWidth ?? (shrinkToContent ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
   style.width = w;
+  if (isInline && wRaw === undefined && !node.style?.maxWidth) {
+    style.flex = "0 0 auto";
+  }
+  if (sliderShouldFill) {
+    style.flexBasis = "100%";
+  }
   if (sliderShouldFill) {
     style.flexBasis = "100%";
   }
