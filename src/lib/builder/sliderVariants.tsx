@@ -224,12 +224,14 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       return (
         <div className="relative w-full" style={wrapStyle}>
           <style>{`@keyframes kenburns{from{transform:scale(1) translate(0,0)}to{transform:scale(1.12) translate(-2%,-1%)}}`}</style>
+          {sharedKeyframes}
           <div className="relative w-full overflow-hidden" style={aspectStyle}>
-            <Img key={idx} src={cur.image} kenBurns />
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4 text-white z-10">
+            <Layers kenBurns />
+            <div key={idx} className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4 text-white z-10" style={captionAnim}>
               {title && <h3 className="text-base md:text-xl font-semibold">{title}</h3>}
               {sub && <p className="text-xs md:text-sm opacity-85 mt-0.5">{sub}</p>}
             </div>
+
             <Arrows />
             <Dots />
           </div>
