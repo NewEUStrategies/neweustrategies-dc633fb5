@@ -778,87 +778,8 @@ function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
   );
 }
 
-function SidebarStylePreview({ style }: { style: SidebarStyle }) {
-  // Visual mini-mockup of the sidebar style
-  const presets: Record<SidebarStyle, {
-    wrap: React.CSSProperties; aside: React.CSSProperties;
-    item: React.CSSProperties; itemActive: React.CSSProperties;
-    width: number; showLabels: boolean; brand: React.CSSProperties;
-  }> = {
-    "style-1": {
-      wrap: { background: "hsl(var(--muted) / 0.4)" },
-      aside: { background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" },
-      item: { color: "hsl(var(--foreground))" },
-      itemActive: { background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" },
-      width: 92, showLabels: true,
-      brand: { color: "hsl(var(--foreground))" },
-    },
-    "style-2": {
-      wrap: { background: "hsl(var(--background))" },
-      aside: { background: "transparent", borderRight: "1px solid hsl(var(--border))" },
-      item: { color: "hsl(var(--muted-foreground))" },
-      itemActive: { color: "hsl(var(--primary))", fontWeight: 600 },
-      width: 92, showLabels: true,
-      brand: { color: "hsl(var(--foreground))" },
-    },
-    "style-3": {
-      wrap: { background: "hsl(var(--muted) / 0.5)", padding: 8 },
-      aside: { background: "hsl(var(--card))", borderRadius: 10, boxShadow: "0 6px 20px -8px rgba(0,0,0,0.25)", border: "1px solid hsl(var(--border))" },
-      item: { color: "hsl(var(--foreground))", borderRadius: 6 },
-      itemActive: { background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", borderRadius: 6 },
-      width: 92, showLabels: true,
-      brand: { color: "hsl(var(--foreground))" },
-    },
-    "style-4": {
-      wrap: { background: "hsl(var(--muted) / 0.4)" },
-      aside: { background: "hsl(var(--card))", borderRight: "1px solid hsl(var(--border))" },
-      item: { color: "hsl(var(--muted-foreground))", justifyContent: "center" },
-      itemActive: { background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", justifyContent: "center" },
-      width: 36, showLabels: false,
-      brand: { color: "hsl(var(--foreground))", justifyContent: "center" },
-    },
-    "style-5": {
-      wrap: { background: "linear-gradient(135deg, hsl(var(--primary) / 0.15), hsl(var(--muted)))" },
-      aside: { background: "hsl(var(--card) / 0.5)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", border: "1px solid hsl(var(--border) / 0.5)" },
-      item: { color: "hsl(var(--foreground))" },
-      itemActive: { background: "hsl(var(--primary) / 0.85)", color: "hsl(var(--primary-foreground))" },
-      width: 92, showLabels: true,
-      brand: { color: "hsl(var(--foreground))" },
-    },
-    "style-6": {
-      wrap: { background: "hsl(var(--muted) / 0.4)" },
-      aside: { background: "#0b0b10", border: "1px solid #1f1f29" },
-      item: { color: "#c7c9d1" },
-      itemActive: { background: "hsl(var(--brand, var(--primary)))", color: "hsl(var(--primary-foreground))" },
-      width: 92, showLabels: true,
-      brand: { color: "#ffffff" },
-    },
-  };
-  const p = presets[style];
-  const items = ["Kokpit", "Wpisy", "Strony"];
-  return (
-    <div style={{ ...p.wrap, height: 110, borderRadius: 6 }} className="flex overflow-hidden">
-      <div style={{ width: p.width, padding: 6, ...p.aside }} className="flex flex-col gap-1">
-        <div style={{ fontSize: 9, fontWeight: 700, padding: "4px 6px", display: "flex", alignItems: "center", ...p.brand }}>
-          {p.showLabels ? "NES" : "N"}
-        </div>
-        {items.map((label, i) => (
-          <div
-            key={label}
-            style={{
-              ...(i === 0 ? p.itemActive : p.item),
-              fontSize: 9, padding: "4px 6px", display: "flex", alignItems: "center", gap: 4, borderRadius: 4,
-            }}
-          >
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: "currentColor", opacity: 0.7 }} />
-            {p.showLabels && <span>{label}</span>}
-          </div>
-        ))}
-      </div>
-      <div className="flex-1" />
-    </div>
-  );
-}
+
+
 
 
 function InputPreview({ opts }: { opts: ThemeOptions["text_fields"] }) {
