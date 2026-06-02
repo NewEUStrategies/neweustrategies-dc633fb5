@@ -516,8 +516,8 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
               : <div className={badgeCls}>{badge}</div>
           )}
           {img && (
-            <div className="group/dfcimg relative w-full h-72 overflow-hidden rounded">
-              <img src={img} alt="" className={`w-full h-full object-cover ${imgAnimCls}`} loading="lazy" />
+            <div className="group/dfcimg relative w-full overflow-hidden rounded bg-black/20" style={{ aspectRatio: "16 / 9" }}>
+              <img src={img} alt="" className={`absolute inset-0 w-full h-full object-contain ${imgAnimCls}`} loading="lazy" />
             </div>
           )}
           <h3 className="mt-4 font-display text-2xl font-bold">{title}</h3>
