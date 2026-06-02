@@ -107,7 +107,7 @@ export function FontPicker({ value, onChange, sampleText = "Aa — The quick bro
             onClick={() => { onChange(undefined); setOpen(false); }}
             className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-muted/50"
           >
-            <span className="text-muted-foreground italic">Bez fontu (domyślny)</span>
+            <span className="text-muted-foreground italic">Red Hat Display (domyślny)</span>
             {!value && <Check className="w-4 h-4 text-brand" />}
           </button>
           <div className="border-t border-border" />
