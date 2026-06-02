@@ -27,8 +27,19 @@ export interface GlobalColorSlot {
 export interface GlobalColorGroup {
   id: string;
   label: string;
+  /** Kategoria nadrzędna grupująca powiązane sekcje w panelu. */
+  category?: string;
   slots: GlobalColorSlot[];
 }
+
+/** Kolejność kategorii w panelu Global Colors. */
+export const GLOBAL_COLOR_CATEGORIES: { id: string; label: string }[] = [
+  { id: "globals", label: "Globalne" },
+  { id: "typography", label: "Typografia" },
+  { id: "header-nav", label: "Nagłówek i nawigacja" },
+  { id: "forms", label: "Formularze i przyciski" },
+  { id: "widgets", label: "Widgety treści" },
+];
 
 /** Pełna definicja paneli — odpowiada zakładce "Global Colors" w Foxiz. */
 export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
