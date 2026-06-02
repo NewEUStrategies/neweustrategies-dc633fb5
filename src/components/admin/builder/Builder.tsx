@@ -13,7 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
-  Settings as SettingsIcon, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen,
+  Settings as SettingsIcon, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
 } from "@/lib/lucide-shim";
 import { WIDGETS as _WIDGETS, makeWidget } from "@/lib/builder/registry";
 void _WIDGETS;
