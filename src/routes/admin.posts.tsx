@@ -332,6 +332,7 @@ function PostsList() {
             onClear={clear}
             onApplyStatus={onBulkStatus}
             onDelete={onBulkDelete}
+            onMigrateToBlocks={onBulkMigrate}
           />
         )}
         {isLoading ? (
