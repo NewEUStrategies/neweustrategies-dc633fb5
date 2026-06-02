@@ -96,7 +96,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       `}</style>
 
       {/* Image */}
-      <div className="relative w-full overflow-hidden" style={{ ...aspectStyle, borderRadius: rounded }}>
+      <div className="relative w-full overflow-hidden" style={{ ...aspectStyle, borderRadius: 4 }}>
         {items.map((it, i) => (
           <img
             key={i}
