@@ -45,6 +45,7 @@ function PostsList() {
   const bulkUpd$ = useServerFn(bulkUpdatePosts);
   const restore$ = useServerFn(restorePosts);
   const purge$ = useServerFn(purgePosts);
+  const migrate$ = useServerFn(bulkMigratePostsToBlocks);
   const [view, setView] = useState<View>("active");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
