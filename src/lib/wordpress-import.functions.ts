@@ -483,25 +483,40 @@ export const runWpImportJob = createServerFn({ method: "POST" })
         : null;
 
       for (const wp of filtered) {
+        // Cooperative cancellation: re-check status each iteration.
+        const liveStatus = await readJobStatus(supabase, data.jobId);
+        if (liveStatus === "canceled") {
+          await logger.push("warn", "Import canceled by user.");
+          await patchJob(supabase, data.jobId, {
+            status: "canceled", finished_at: new Date().toISOString(),
+          });
+          return {
+            jobId: data.jobId, status: "canceled" as const,
+            processed, imported, updated_count, skipped, failed,
+            media_imported: importer?.count ?? 0,
+          };
+        }
+
         try {
           const desiredSlug = wp.slug || slugify(stripTags(wp.title)) || `wp-${wp.ID}`;
 
-          // Cover image (optional import).
-          let coverUrl: string | null = wp.featured_image ?? null;
+          // Inline media (optional) — rewrite first so we can pick a cover from content if needed.
+          let html = wp.content || "";
+          if (importer && html) {
+            html = await rewriteHtmlMedia(html, importer, siteHost, (u, err) => {
+              void logger.push("warn", `Media skipped ${u}: ${err instanceof Error ? err.message : "unknown"}`, wp.ID);
+            });
+          }
+
+          // Cover: normalize empty -> null, fallback to first content image.
+          const rawCover = (wp.featured_image ?? "").trim();
+          let coverUrl: string | null = rawCover.length > 0 ? rawCover : firstContentImage(html);
           if (coverUrl && importer) {
             try {
               coverUrl = await importer.importUrl(coverUrl);
             } catch (e) {
               await logger.push("warn", `Cover image failed: ${e instanceof Error ? e.message : "unknown"}`, wp.ID);
             }
-          }
-
-          // Inline media (optional).
-          let html = wp.content || "";
-          if (importer && html) {
-            html = await rewriteHtmlMedia(html, importer, siteHost, (u, err) => {
-              void logger.push("warn", `Media skipped ${u}: ${err instanceof Error ? err.message : "unknown"}`, wp.ID);
-            });
           }
 
           const doc = parseGutenberg(html);
@@ -524,12 +539,14 @@ export const runWpImportJob = createServerFn({ method: "POST" })
 
           // Existing post?
           const { data: existing } = await supabase
-            .from("posts").select("id").eq("tenant_id", tenantId).eq("slug", desiredSlug).maybeSingle();
+            .from("posts").select("id, cover_image_url")
+            .eq("tenant_id", tenantId).eq("slug", desiredSlug).maybeSingle();
 
           if (existing?.id && !data.sync_existing) {
             skipped += 1;
             await logger.push("info", `Skipped (slug exists): ${desiredSlug}`, wp.ID);
           } else if (existing?.id && data.sync_existing) {
+            const prevCover = (existing.cover_image_url as string | null) ?? null;
             const { error: upErr } = await supabase
               .from("posts")
               .update({
@@ -544,11 +561,18 @@ export const runWpImportJob = createServerFn({ method: "POST" })
               .eq("id", existing.id);
             if (upErr) throw new Error(upErr.message);
             updated_count += 1;
+            if (prevCover !== coverUrl) {
+              await logger.push(
+                "info",
+                coverUrl ? `Cover updated: ${desiredSlug}` : `Cover cleared: ${desiredSlug}`,
+                wp.ID,
+              );
+            }
             await logger.push("info", `Updated: ${desiredSlug}`, wp.ID);
             await recordAudit(supabase, {
               tenantId, action: "post.update", entityType: "post",
               entityId: existing.id as string,
-              metadata: { source: "wordpress_com", wp_id: wp.ID },
+              metadata: { source: "wordpress_com", wp_id: wp.ID, cover_changed: prevCover !== coverUrl },
             });
           } else {
             const slug = await ensureUniqueSlug(supabase, tenantId, desiredSlug);
