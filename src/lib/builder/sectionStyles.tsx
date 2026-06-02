@@ -76,13 +76,18 @@ export function sectionWrapperStyle(node: SectionNode | InnerSectionNode): CSSPr
   return css;
 }
 
-/** Style for the inner container — full width with 8px side padding. */
-export function sectionContainerStyle(_node: SectionNode | InnerSectionNode): CSSProperties {
+/** Style for the inner container — respects boxed/full content width from the builder. */
+export function sectionContainerStyle(node: SectionNode | InnerSectionNode): CSSProperties {
+  const contentWidth = node.layout?.contentWidth ?? "boxed";
+  const boxedWidth = node.layout?.width ?? 1140;
+
   return {
     position: "relative",
     zIndex: 1,
     width: "100%",
-    maxWidth: "100%",
+    maxWidth: contentWidth === "boxed" ? `${boxedWidth}px` : "100%",
+    marginLeft: contentWidth === "boxed" ? "auto" : undefined,
+    marginRight: contentWidth === "boxed" ? "auto" : undefined,
     boxSizing: "border-box",
     overflow: "hidden",
     paddingLeft: `${SECTION_SAFE_AREA_PX}px`,
