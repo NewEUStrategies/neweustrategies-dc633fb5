@@ -63,10 +63,10 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
   const isSm = size === "sm";
   const textCls = isSm
     ? "text-[9px] font-bold uppercase tracking-wider truncate"
-    : "font-display text-sm font-bold uppercase tracking-wider";
+    : "font-display text-sm font-bold uppercase tracking-wider truncate";
   const actionCls = isSm
     ? "text-[8px] text-muted-foreground truncate"
-    : "text-xs text-muted-foreground hover:opacity-80 transition";
+    : "text-xs text-muted-foreground hover:opacity-80 transition truncate";
   const wrapperBase = isSm ? "mb-1" : "mb-4";
 
   const labelStyle: React.CSSProperties = {};
@@ -79,20 +79,22 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
 
   const ActionEl = action ? (
     href && !isSm
-      ? <a href={href} className={actionCls} style={{ color: actionColor || accent, ...actionStyle }}>{action} →</a>
-      : <span className={actionCls} style={actionStyle}>{action} →</span>
+      ? <a href={href} className={`${actionCls} shrink-0`} style={{ color: actionColor || accent, ...actionStyle }}>{action} →</a>
+      : <span className={`${actionCls} shrink-0`} style={actionStyle}>{action} →</span>
   ) : null;
 
-  const labelEl = <span className={textCls} style={labelStyle}>{label}</span>;
+  const labelEl = <span className={`${textCls} min-w-0`} style={labelStyle}>{label}</span>;
   const padY = isSm ? "py-1" : "py-2";
 
+  // Common row wrapper — every variant must be width-fluid and never overflow.
+  const rowBase = `flex items-center justify-between gap-2 w-full min-w-0 ${wrapperBase} ${padY}`;
 
   switch (variant) {
     case "left-bar":
       return (
-        <div className={`flex items-center justify-between ${wrapperBase} ${padY} border-b border-border`}>
-          <span className="inline-flex items-center gap-2">
-            <span className={isSm ? "inline-block w-[3px] h-3" : "inline-block w-1 h-5"} style={{ background: accent }} />
+        <div className={`${rowBase} border-b border-border`}>
+          <span className="inline-flex items-center gap-2 min-w-0 flex-1">
+            <span className={isSm ? "inline-block w-[3px] h-3 shrink-0" : "inline-block w-1 h-5 shrink-0"} style={{ background: accent }} />
             {labelEl}
           </span>
           {ActionEl}
@@ -100,14 +102,14 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
       );
     case "left-border":
       return (
-        <div className={`flex items-center justify-between ${wrapperBase} ${padY} pl-2`} style={{ borderLeft: `${isSm ? 3 : 5}px solid ${accent}` }}>
+        <div className={`${rowBase} pl-2`} style={{ borderLeft: `${isSm ? 3 : 5}px solid ${accent}` }}>
           {labelEl}{ActionEl}
         </div>
       );
     case "small-corners":
       return (
-        <div className={`flex items-center justify-between ${wrapperBase} ${padY}`}>
-          <span className={isSm ? "relative px-1.5 py-0.5" : "relative px-2 py-1"}>
+        <div className={rowBase}>
+          <span className={`${isSm ? "relative px-1.5 py-0.5" : "relative px-2 py-1"} min-w-0 max-w-full`}>
             <Corners accent={accent} sm={isSm} />
             {labelEl}
           </span>
@@ -116,19 +118,18 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
       );
     case "only-text":
       return (
-        <div className={`flex items-center justify-between ${wrapperBase} ${padY}`}>
-          <span style={{ color: accent }}>{labelEl}</span>
+        <div className={rowBase}>
+          <span className="min-w-0 flex-1 truncate" style={{ color: accent }}>{labelEl}</span>
           {ActionEl}
         </div>
       );
     case "badge-filled": {
-      // Slanted ribbon: diagonal cut on the right edge, action sits outside on the right
       const cutW = isSm ? 10 : 22;
       const padR = isSm ? 14 : 32;
       return (
-        <div className={`flex items-stretch justify-between ${wrapperBase} gap-3`}>
+        <div className={`flex items-stretch justify-between gap-2 w-full min-w-0 ${wrapperBase}`}>
           <span
-            className={isSm ? "inline-flex items-center pl-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" : "inline-flex items-center pl-4 py-2 font-display text-base font-bold uppercase tracking-wider"}
+            className={`${isSm ? "inline-flex items-center pl-2 py-0.5 text-[9px]" : "inline-flex items-center pl-4 py-2 font-display text-sm sm:text-base"} font-bold uppercase tracking-wider min-w-0 max-w-[80%] truncate`}
             style={{
               background: accent,
               color: labelColor || contrastOn(accent),
@@ -137,48 +138,47 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
               ...(labelSize && !isSm ? { fontSize: labelSize } : {}),
             }}
           >
-            {label}
+            <span className="truncate">{label}</span>
           </span>
-          <span className="flex items-center">{ActionEl}</span>
+          <span className="flex items-center min-w-0 shrink">{ActionEl}</span>
         </div>
       );
     }
 
     case "centered-rule":
       return (
-        <div className={`${wrapperBase} ${padY} text-center`}>
-          <div className="flex items-center justify-center gap-3">
-            <span className="flex-1 h-px bg-border" />
-            <span className={isSm ? "text-[10px] font-semibold" : "font-display text-2xl font-semibold tracking-tight"} style={labelStyle}>{label}</span>
-            <span className="flex-1 h-px bg-border" />
+        <div className={`${wrapperBase} ${padY} text-center w-full min-w-0`}>
+          <div className="flex items-center justify-center gap-3 min-w-0">
+            <span className="flex-1 h-px bg-border min-w-[12px]" />
+            <span className={`${isSm ? "text-[10px]" : "font-display text-lg sm:text-2xl"} font-semibold tracking-tight truncate max-w-[70%]`} style={labelStyle}>{label}</span>
+            <span className="flex-1 h-px bg-border min-w-[12px]" />
           </div>
-          {ActionEl && <div className="mt-1">{ActionEl}</div>}
+          {ActionEl && <div className="mt-1 truncate">{ActionEl}</div>}
         </div>
       );
     case "centered-short-rule":
       return (
-        <div className={`${wrapperBase} ${padY} text-center`}>
-          <div className="flex items-center justify-center gap-3">
-            <span className={isSm ? "inline-block h-[2px] w-4" : "inline-block h-[2px] w-10"} style={{ background: accent }} />
-            <span className={isSm ? "text-[10px] font-semibold" : "font-display text-2xl font-semibold tracking-tight"} style={labelStyle}>{label}</span>
-            <span className={isSm ? "inline-block h-[2px] w-4" : "inline-block h-[2px] w-10"} style={{ background: accent }} />
+        <div className={`${wrapperBase} ${padY} text-center w-full min-w-0`}>
+          <div className="flex items-center justify-center gap-3 min-w-0">
+            <span className={`${isSm ? "inline-block h-[2px] w-4" : "inline-block h-[2px] w-6 sm:w-10"} shrink-0`} style={{ background: accent }} />
+            <span className={`${isSm ? "text-[10px]" : "font-display text-lg sm:text-2xl"} font-semibold tracking-tight truncate max-w-[70%]`} style={labelStyle}>{label}</span>
+            <span className={`${isSm ? "inline-block h-[2px] w-4" : "inline-block h-[2px] w-6 sm:w-10"} shrink-0`} style={{ background: accent }} />
           </div>
-          {ActionEl && <div className={isSm ? "mt-0.5 text-[8px] text-muted-foreground" : "mt-1 text-xs text-muted-foreground"} style={actionStyle}>{action}</div>}
+          {ActionEl && <div className={`${isSm ? "mt-0.5 text-[8px]" : "mt-1 text-xs"} text-muted-foreground truncate`} style={actionStyle}>{action}</div>}
         </div>
       );
     case "filled-bar": {
-      // Full-width filled colored bar (e.g. "NAJNOWSZY RAPORT" w/ "Więcej →" on right)
       const fg = labelColor || contrastOn(accent);
-      const padCls = isSm ? "px-2 py-1" : "px-4 py-3";
+      const padCls = isSm ? "px-2 py-1" : "px-3 sm:px-4 py-2 sm:py-3";
       const labelCls = isSm
-        ? "text-[9px] font-bold uppercase tracking-wider"
-        : "font-display text-base font-bold uppercase tracking-wider";
+        ? "text-[9px] font-bold uppercase tracking-wider truncate"
+        : "font-display text-sm sm:text-base font-bold uppercase tracking-wider truncate";
       const actCls = isSm
-        ? "text-[8px] font-medium"
-        : "text-xs font-medium hover:opacity-80 transition";
+        ? "text-[8px] font-medium truncate shrink-0"
+        : "text-xs sm:text-sm font-medium hover:opacity-80 transition truncate shrink-0";
       return (
-        <div className={`${wrapperBase} flex items-center justify-between ${padCls}`} style={{ background: accent, color: fg }}>
-          <span className={labelCls} style={labelSize && !isSm ? { fontSize: labelSize } : undefined}>{label}</span>
+        <div className={`${wrapperBase} flex items-center justify-between gap-2 w-full min-w-0 ${padCls}`} style={{ background: accent, color: fg }}>
+          <span className={`${labelCls} min-w-0 flex-1`} style={labelSize && !isSm ? { fontSize: labelSize } : undefined}>{label}</span>
           {action && (
             href && !isSm
               ? <a href={href} className={actCls} style={{ color: actionColor || fg, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action} →</a>
@@ -189,15 +189,12 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
     }
     case "centered-underline":
       return (
-        <div className={`${wrapperBase} ${padY} text-center border-b border-border`}>
-          <span className={isSm ? "text-[10px] font-semibold" : "font-display text-xl font-semibold tracking-tight"} style={labelStyle}>{label}</span>
-          {ActionEl && <div className={isSm ? "mt-0.5" : "mt-1"}>{ActionEl}</div>}
+        <div className={`${wrapperBase} ${padY} text-center border-b border-border w-full min-w-0`}>
+          <span className={`${isSm ? "text-[10px]" : "font-display text-base sm:text-xl"} font-semibold tracking-tight truncate inline-block max-w-full`} style={labelStyle}>{label}</span>
+          {ActionEl && <div className={`${isSm ? "mt-0.5" : "mt-1"} truncate`}>{ActionEl}</div>}
         </div>
       );
     case "slanted-ribbon-rule": {
-      // Red ribbon with diagonal right edge whose slant continues as a thin
-      // horizontal line all the way to the right, where the action sits.
-      // Fully responsive: ribbon shrinks/truncates, action stays visible, line spans full width.
       const fg = labelColor || contrastOn(accent);
       const cutW = isSm ? 10 : 28;
       const lineH = isSm ? 2 : 3;
@@ -211,13 +208,11 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
         : "text-xs sm:text-sm font-medium text-foreground/80 hover:opacity-80 transition truncate";
       return (
         <div className={`${wrapperBase} relative flex items-stretch w-full min-w-0`}>
-          {/* Continuous bottom line in accent color */}
           <span
             aria-hidden
             className="absolute left-0 right-0 bottom-0 pointer-events-none"
             style={{ height: `${lineH}px`, background: accent }}
           />
-          {/* Ribbon with diagonal cut on the right; shrinks but doesn't get clipped by parent */}
           <span
             className={`relative inline-flex items-center min-w-0 max-w-[80%] ${ribbonPadX} ${ribbonPadY} ${labelCls}`}
             style={{
@@ -230,7 +225,6 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
           >
             <span className="truncate">{label}</span>
           </span>
-          {/* Action on the far right, sits just above the line */}
           {action && (
             <span
               className="ml-auto flex items-center min-w-0 shrink"

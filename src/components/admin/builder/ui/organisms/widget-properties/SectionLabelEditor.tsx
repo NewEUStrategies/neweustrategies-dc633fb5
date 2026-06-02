@@ -125,8 +125,8 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                 title={v.label}
                 className={`text-left rounded-md border p-1.5 transition bg-background ${isActive ? "border-foreground ring-2 ring-foreground/30" : "border-border hover:border-foreground/40"}`}
               >
-                <div className="h-[34px] overflow-hidden flex items-center">
-                  <div className="w-full">
+                <div className="min-h-[34px] flex items-center w-full min-w-0 overflow-hidden">
+                  <div className="w-full min-w-0">
                     <SectionLabelRender
                       label={previewLabel}
                       action={action || "więcej"}
