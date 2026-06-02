@@ -83,6 +83,7 @@ export function FootnoteTooltips({
   return (
     <div
       role="tooltip"
+      data-footnote-tooltip
       className="pointer-events-none fixed z-50 max-w-sm rounded-md border border-border bg-popover text-popover-foreground text-xs leading-snug px-3 py-2 shadow-lg -translate-x-1/2 -translate-y-full"
       style={{ left: state.x, top: state.y - 8 }}
     >
