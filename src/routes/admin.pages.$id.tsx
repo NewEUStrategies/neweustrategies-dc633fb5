@@ -40,6 +40,8 @@ interface PageForm {
   title_en: string;
   content_pl: string | null;
   content_en: string | null;
+  excerpt_pl: string | null;
+  excerpt_en: string | null;
   cover_image_url: string | null;
   published_at: string | null;
   builder_data: BuilderDocument | null;
