@@ -149,14 +149,52 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     </div>
   );
 
-  const Img = ({ src, alt = "", kenBurns = false, fade = false }: { src: string; alt?: string; kenBurns?: boolean; fade?: boolean }) => (
+  // Layered renderer: all slides stacked, smooth crossfade + soft zoom/blur
+  // on the outgoing slide. Used by most variants for a modern transition.
+  const Layers = ({ kenBurns = false }: { kenBurns?: boolean }) => (
+    <>
+      {items.map((it, i) => {
+        const active = i === idx;
+        return (
+          <img
+            key={i}
+            src={safeImageUrl(it.image) || it.image}
+            alt=""
+            draggable={false}
+            className={`absolute inset-0 w-full h-full object-cover will-change-transform ${kenBurns && active ? "animate-[kenburns_8s_ease-in-out_infinite_alternate]" : ""}`}
+            style={{
+              opacity: active ? 1 : 0,
+              transform: active ? "scale(1)" : "scale(1.06)",
+              filter: active ? "blur(0px)" : "blur(8px)",
+              transition:
+                "opacity 900ms cubic-bezier(.22,.61,.36,1), transform 1400ms cubic-bezier(.22,.61,.36,1), filter 900ms cubic-bezier(.22,.61,.36,1)",
+            }}
+          />
+        );
+      })}
+    </>
+  );
+
+  const Img = ({ src, alt = "", kenBurns = false }: { src: string; alt?: string; kenBurns?: boolean; fade?: boolean }) => (
     <img
       src={safeImageUrl(src) || src}
       alt={alt}
-      className={`absolute inset-0 w-full h-full object-cover ${kenBurns ? "animate-[kenburns_8s_ease-in-out_infinite_alternate]" : ""} ${fade ? "transition-opacity duration-700" : ""}`}
+      className={`absolute inset-0 w-full h-full object-cover ${kenBurns ? "animate-[kenburns_8s_ease-in-out_infinite_alternate]" : ""}`}
       draggable={false}
     />
   );
+
+  // Shared keyframes for caption entrance + image reveal.
+  const sharedKeyframes = (
+    <style>{`
+      @keyframes slideCaptionIn { from { opacity: 0; transform: translateY(14px); filter: blur(4px); } to { opacity: 1; transform: none; filter: blur(0); } }
+      @keyframes slideRevealClip { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+    `}</style>
+  );
+  const captionAnim: CSSProperties = {
+    animation: "slideCaptionIn 700ms cubic-bezier(.22,.61,.36,1) both",
+  };
+
 
   switch (variant) {
     case "fade":
