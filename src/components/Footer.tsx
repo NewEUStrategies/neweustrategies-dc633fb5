@@ -25,7 +25,7 @@ export function Footer() {
         ? null
         : defaultDocFor("footer");
 
-  if (!doc.sections?.length) return null;
+  if (!doc?.sections?.length) return null;
 
   return (
     <footer className="builder-footer-public">
