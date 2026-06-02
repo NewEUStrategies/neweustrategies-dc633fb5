@@ -240,18 +240,18 @@ export function VisualCanvas({
         width: `${deviceWidth}px`,
         maxWidth: "100%",
         margin: "0 auto",
-        overflowX: "hidden",
+        overflowX: "clip",
         boxSizing: "border-box",
       }
-    : { width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" };
+    : { width: "100%", maxWidth: "100%", overflowX: "clip", boxSizing: "border-box" };
 
   return (
-    <div data-visual-canvas data-device={device} onClick={onClick} ref={rootRef} style={{ width: "100%", overflowX: "hidden" }}>
+    <div data-visual-canvas data-device={device} onClick={onClick} ref={rootRef} style={{ width: "100%", overflowX: "clip" }}>
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
       <div style={frameStyle}>
         <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} />
         {doc.sections.map((s, idx) => (
-          <div key={s.id} style={{ minWidth: 0, maxWidth: "100%", overflowX: "hidden" }}>
+          <div key={s.id} style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
             <BuilderRenderer doc={{ ...doc, sections: [s] }} lang={lang} device={device} />
             {idx === doc.sections.length - 1 && (
               <SectionDropZone

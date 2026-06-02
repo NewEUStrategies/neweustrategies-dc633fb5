@@ -780,6 +780,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                         onUpdateWidgetContent={(id, k, v) =>
                           updateWidget(id, (w) => { w.content = { ...w.content, [k]: v }; })
                         }
+                        onToggleHidden={(kind, id) => toggleHidden(id, kind as NonNullable<SelectionKind>)}
                       />
                       {idx === doc.sections.length - 1 && (
                         <SectionDropZone
