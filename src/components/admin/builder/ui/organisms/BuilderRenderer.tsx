@@ -100,9 +100,6 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
 
 function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   const va = column.verticalAlign ?? "start";
-  const va = column.verticalAlign ?? "start";
-  // Single widget → fill the column width by default (items-stretch), unless user
-  // explicitly aligned it left/center/right. Multi widget → place items in a row.
   const axisClass = (column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : column.contentAlign === "start" ? "items-start" : "items-stretch");
   const vClass = (va === "center" ? "justify-center" : va === "end" ? "justify-end" : va === "stretch" ? "justify-stretch" : "justify-start");
   const layoutClass = "flex-col";
