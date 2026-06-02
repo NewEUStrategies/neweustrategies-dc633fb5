@@ -68,3 +68,90 @@ describe("stripFoxizShortcodes", () => {
     expect(out).not.toContain("foxiz_ads");
   });
 });
+
+describe("parseGutenberg - extended blocks", () => {
+  it("unwraps core/group and core/columns into flat block list", () => {
+    const html = [
+      '<!-- wp:group --><div class="wp-block-group">',
+      '<!-- wp:heading --><h2>G</h2><!-- /wp:heading -->',
+      '<!-- wp:columns --><div class="wp-block-columns">',
+      '<!-- wp:column --><div class="wp-block-column">',
+      '<!-- wp:paragraph --><p>A</p><!-- /wp:paragraph -->',
+      '<!-- /wp:column -->',
+      '<!-- wp:column --><div class="wp-block-column">',
+      '<!-- wp:paragraph --><p>B</p><!-- /wp:paragraph -->',
+      '<!-- /wp:column -->',
+      '</div><!-- /wp:columns -->',
+      '</div><!-- /wp:group -->',
+    ].join("");
+    const doc = parseGutenberg(html);
+    expect(doc.blocks.map((b) => b.type)).toEqual(["heading", "paragraph", "paragraph"]);
+  });
+
+  it("expands core/gallery into multiple image blocks", () => {
+    const html = [
+      '<!-- wp:gallery --><figure class="wp-block-gallery">',
+      '<figure><img src="/a.jpg" alt="A"/></figure>',
+      '<figure><img src="/b.jpg" alt="B"/></figure>',
+      '</figure><!-- /wp:gallery -->',
+    ].join("");
+    const doc = parseGutenberg(html);
+    expect(doc.blocks).toHaveLength(2);
+    expect(doc.blocks[0].type).toBe("image");
+    expect(doc.blocks[0].data.url).toBe("/a.jpg");
+    expect(doc.blocks[1].data.alt).toBe("B");
+  });
+
+  it("maps core/video, core/audio, core/file and extra embed providers", () => {
+    const html = [
+      '<!-- wp:video --><figure><video src="/v.mp4"></video></figure><!-- /wp:video -->',
+      '<!-- wp:audio --><figure><audio src="/a.mp3"></audio></figure><!-- /wp:audio -->',
+      '<!-- wp:file {"href":"/x.pdf"} --><div><a href="/x.pdf">X</a></div><!-- /wp:file -->',
+      '<!-- wp:embed {"url":"https://instagram.com/p/x","providerNameSlug":"instagram"} --><figure></figure><!-- /wp:embed -->',
+    ].join("");
+    const doc = parseGutenberg(html);
+    expect(doc.blocks.every((b) => b.type === "embed")).toBe(true);
+    expect(doc.blocks).toHaveLength(4);
+  });
+
+  it("keeps unknown blocks lossless as html", () => {
+    const html = '<!-- wp:my-plugin/widget --><div data-x="1">Custom</div><!-- /wp:my-plugin/widget -->';
+    const doc = parseGutenberg(html);
+    expect(doc.blocks).toHaveLength(1);
+    expect(doc.blocks[0].type).toBe("html");
+    expect(String(doc.blocks[0].data.html)).toContain('data-x="1"');
+  });
+
+  it("maps core/spacer to separator and verse to quote", () => {
+    const html = [
+      '<!-- wp:spacer --><div style="height:60px"></div><!-- /wp:spacer -->',
+      '<!-- wp:verse --><pre class="wp-block-verse">Line</pre><!-- /wp:verse -->',
+    ].join("");
+    const doc = parseGutenberg(html);
+    expect(doc.blocks.map((b) => b.type)).toEqual(["separator", "quote"]);
+  });
+});
+
+describe("stripFoxizShortcodes - extended", () => {
+  it("converts su_button, su_youtube, su_divider, su_spoiler", () => {
+    const out = stripFoxizShortcodes([
+      '[su_button url="/x" target="blank"]Go[/su_button]',
+      '[su_youtube url="https://y.tube/v"]',
+      '[su_divider]',
+      '[su_spoiler title="More"]hidden[/su_spoiler]',
+    ].join(""));
+    expect(out).toContain('href="/x"');
+    expect(out).toContain('>Go<');
+    expect(out).toContain('<iframe src="https://y.tube/v"');
+    expect(out).toContain("<hr>");
+    expect(out).toContain("<details");
+    expect(out).toContain("More");
+  });
+
+  it("handles [caption] and [embed] WP core shortcodes", () => {
+    const out = stripFoxizShortcodes('[caption]<img src="/a.jpg"/>Hi[/caption][embed]https://y.tube/v[/embed]');
+    expect(out).toContain("<figure>");
+    expect(out).toContain("<figcaption>Hi</figcaption>");
+    expect(out).toContain('<iframe src="https://y.tube/v"');
+  });
+});

@@ -42,21 +42,82 @@ function stripTags(s: string): string {
   return s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
 }
 
-// ---------- Foxiz shortcodes ----------
+// ---------- Foxiz / Shortcodes Ultimate ----------
 
-// Foxiz ships dozens of shortcodes; we normalise the most common ones to
-// inline HTML so the regular HTML -> blocks pipeline can absorb them.
+// Helper for attribute extraction inside a single shortcode tag body.
+function scAttr(body: string, name: string): string {
+  const m = body.match(new RegExp(`${name}\\s*=\\s*"([^"]*)"`, "i"));
+  return m ? m[1] : "";
+}
+
+// Foxiz and Shortcodes Ultimate ship dozens of shortcodes; we normalise the
+// most common ones to inline HTML so the regular HTML -> blocks pipeline can
+// absorb them. Unknown shortcodes are left untouched (lossless).
 const SHORTCODE_RULES: Array<[RegExp, (m: RegExpMatchArray) => string]> = [
   // [su_quote cite="x"]text[/su_quote] -> blockquote
   [/\[su_quote(?:\s+cite="([^"]*)")?\]([\s\S]*?)\[\/su_quote\]/gi,
     (m) => `<blockquote><p>${m[2]}</p>${m[1] ? `<cite>${esc(m[1])}</cite>` : ""}</blockquote>`],
-  // [su_note] / [su_box] -> callout-like div
+  // [su_note] / [su_box] / [su_spoiler title="x"] -> callout-like wrapper
   [/\[su_(?:note|box)[^\]]*\]([\s\S]*?)\[\/su_(?:note|box)\]/gi,
     (m) => `<div class="callout">${m[1]}</div>`],
-  // [foxiz_ads] / [foxiz_*] standalone -> drop quietly
+  [/\[su_spoiler(?:\s+title="([^"]*)")?[^\]]*\]([\s\S]*?)\[\/su_spoiler\]/gi,
+    (m) => `<details class="callout"><summary>${esc(m[1] || "Details")}</summary>${m[2]}</details>`],
+  // [su_heading]Title[/su_heading] -> h2
+  [/\[su_heading[^\]]*\]([\s\S]*?)\[\/su_heading\]/gi,
+    (m) => `<h2>${esc(stripTags(m[1]))}</h2>`],
+  // [su_divider] -> hr
+  [/\[su_divider[^\]]*\]/gi, () => "<hr>"],
+  // [su_button url="x" target="blank"]Label[/su_button]
+  [/\[su_button\s+([^\]]*)\]([\s\S]*?)\[\/su_button\]/gi,
+    (m) => {
+      const href = scAttr(m[1], "url") || scAttr(m[1], "href") || "#";
+      return `<p><a class="wp-block-button__link" href="${esc(href)}">${esc(stripTags(m[2]))}</a></p>`;
+    }],
+  // [su_youtube|vimeo|video|audio url="x"] -> iframe-style embed
+  [/\[su_(?:youtube|vimeo|video|audio)\s+([^\]]*)\](?:\s*\[\/su_(?:youtube|vimeo|video|audio)\])?/gi,
+    (m) => {
+      const url = scAttr(m[1], "url") || scAttr(m[1], "src");
+      return url ? `<iframe src="${esc(url)}"></iframe>` : "";
+    }],
+  // [su_list]<ul>...</ul>[/su_list] -> unwrap
+  [/\[su_list[^\]]*\]([\s\S]*?)\[\/su_list\]/gi, (m) => m[1]],
+  // [su_highlight]text[/su_highlight] -> <mark>
+  [/\[su_highlight[^\]]*\]([\s\S]*?)\[\/su_highlight\]/gi,
+    (m) => `<mark>${m[1]}</mark>`],
+  // [su_table]...[/su_table] -> keep table-ish html
+  [/\[su_table[^\]]*\]([\s\S]*?)\[\/su_table\]/gi,
+    (m) => `<div class="wp-block-table">${m[1]}</div>`],
+  // [caption ...]<img>caption[/caption] -> figure
+  [/\[caption[^\]]*\]([\s\S]*?)\[\/caption\]/gi,
+    (m) => {
+      const img = m[1].match(/<img[^>]+>/i)?.[0] ?? "";
+      const cap = stripTags(m[1].replace(/<img[^>]+>/i, ""));
+      return `<figure>${img}${cap ? `<figcaption>${esc(cap)}</figcaption>` : ""}</figure>`;
+    }],
+  // [embed]url[/embed] / [video src=""] / [audio src=""]
+  [/\[embed[^\]]*\]([\s\S]*?)\[\/embed\]/gi,
+    (m) => `<iframe src="${esc(stripTags(m[1]))}"></iframe>`],
+  [/\[(?:video|audio)\s+([^\]]*)\](?:\s*\[\/(?:video|audio)\])?/gi,
+    (m) => {
+      const src = scAttr(m[1], "src") || scAttr(m[1], "url");
+      return src ? `<iframe src="${esc(src)}"></iframe>` : "";
+    }],
+  // Foxiz-specific: [ruby_button], [ruby_alert], [ruby_review] -> callout fallback
+  [/\[ruby_button\s+([^\]]*)\](?:([\s\S]*?)\[\/ruby_button\])?/gi,
+    (m) => {
+      const href = scAttr(m[1], "url") || scAttr(m[1], "href") || "#";
+      const label = stripTags(m[2] ?? scAttr(m[1], "label"));
+      return `<p><a class="wp-block-button__link" href="${esc(href)}">${esc(label)}</a></p>`;
+    }],
+  [/\[ruby_(?:alert|review|box|cta)[^\]]*\]([\s\S]*?)\[\/ruby_(?:alert|review|box|cta)\]/gi,
+    (m) => `<div class="callout">${m[1]}</div>`],
+  // [foxiz_ads], [foxiz_subscribe], etc. -> drop standalone widget shortcodes
   [/\[foxiz_[^\]]+\](?:[\s\S]*?\[\/foxiz_[^\]]+\])?/gi, () => ""],
-  // [ruby_toc] / [toc] -> marker; renderer can decide
+  // [ruby_toc] / [toc] / [su_table_of_contents] -> marker; renderer can decide
   [/\[(?:ruby_)?toc[^\]]*\]/gi, () => "<!-- toc -->"],
+  [/\[su_table_of_contents[^\]]*\]/gi, () => "<!-- toc -->"],
+  // [gallery ids="1,2,3"] -> drop (image refs unresolvable on import)
+  [/\[gallery[^\]]*\]/gi, () => ""],
 ];
 
 export function stripFoxizShortcodes(html: string): string {
@@ -130,14 +191,52 @@ function tokenize(html: string): GbToken[] {
   return tokens;
 }
 
-function tokenToBlock(tok: GbToken): Block | null {
+function tokenToBlocks(tok: GbToken): Block[] {
   const inner = tok.inner.trim();
-  switch (tok.name) {
+  const name = tok.name;
+
+  // Container blocks: recursively parse children, preserve order.
+  if (
+    name === "core/group" ||
+    name === "core/columns" ||
+    name === "core/column" ||
+    name === "core/cover" ||
+    name === "core/media-text" ||
+    name === "core/details" ||
+    name === "core/list-item"
+  ) {
+    const childTokens = tokenize(inner);
+    if (childTokens.length) return childTokens.flatMap(tokenToBlocks);
+    // No wp: children -> fall through to HTML parsing of inner so nothing is lost.
+    if (inner) return htmlToBlocks(inner).blocks;
+    return [];
+  }
+
+  // Gallery: produce multiple image blocks.
+  if (name === "core/gallery") {
+    const re = /<img[^>]+>/gi;
+    const out: Block[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(inner)) !== null) {
+      const tag = m[0];
+      const src = tag.match(/src="([^"]+)"/i)?.[1];
+      if (!src) continue;
+      const alt = tag.match(/alt="([^"]*)"/i)?.[1] ?? "";
+      out.push({
+        id: newBlockId(),
+        type: "image",
+        data: { url: src, alt, caption: "", href: "" },
+      });
+    }
+    if (out.length) return out;
+  }
+
+  switch (name) {
     case "core/paragraph":
-      return { id: newBlockId(), type: "paragraph", data: { html: inner.replace(/^<p[^>]*>|<\/p>$/g, "") } };
+      return [{ id: newBlockId(), type: "paragraph", data: { html: inner.replace(/^<p[^>]*>|<\/p>$/g, "") } }];
     case "core/heading": {
       const level = Number(tok.attrs.level ?? 2);
-      return {
+      return [{
         id: newBlockId(),
         type: "heading",
         data: {
@@ -145,7 +244,7 @@ function tokenToBlock(tok: GbToken): Block | null {
           text: stripTags(inner),
           anchor: typeof tok.attrs.anchor === "string" ? tok.attrs.anchor : "",
         },
-      };
+      }];
     }
     case "core/list": {
       const ordered = Boolean(tok.attrs.ordered);
@@ -153,55 +252,76 @@ function tokenToBlock(tok: GbToken): Block | null {
       const re = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;
       let li: RegExpExecArray | null;
       while ((li = re.exec(inner)) !== null) items.push(stripTags(li[1]));
-      return { id: newBlockId(), type: "list", data: { ordered, items: items as Json } };
+      return [{ id: newBlockId(), type: "list", data: { ordered, items: items as Json } }];
     }
     case "core/quote":
-    case "core/pullquote": {
+    case "core/pullquote":
+    case "core/verse": {
       const cite = (inner.match(/<cite[^>]*>([\s\S]*?)<\/cite>/i)?.[1] ?? "").trim();
       const text = stripTags(inner.replace(/<cite[\s\S]*?<\/cite>/i, ""));
-      return { id: newBlockId(), type: "quote", data: { text, cite } };
+      return [{ id: newBlockId(), type: "quote", data: { text, cite } }];
     }
     case "core/image": {
       const src = inner.match(/<img[^>]+src="([^"]+)"/i)?.[1] ?? String(tok.attrs.url ?? "");
-      if (!src) return null;
+      if (!src) return [];
       const alt = inner.match(/<img[^>]+alt="([^"]*)"/i)?.[1] ?? "";
       const cap = inner.match(/<figcaption[^>]*>([\s\S]*?)<\/figcaption>/i)?.[1] ?? "";
-      return {
+      return [{
         id: newBlockId(),
         type: "image",
-        data: { url: src, alt, caption: stripTags(cap), href: typeof tok.attrs.linkDestination === "string" ? String(tok.attrs.href ?? "") : "" },
-      };
+        data: {
+          url: src,
+          alt,
+          caption: stripTags(cap),
+          href: typeof tok.attrs.linkDestination === "string" ? String(tok.attrs.href ?? "") : "",
+        },
+      }];
     }
     case "core/code":
-    case "core/preformatted": {
+    case "core/preformatted":
+    case "core/syntaxhighlighter-code": {
       const code = stripTags(inner);
       const lang = typeof tok.attrs.language === "string" ? tok.attrs.language : "";
-      return { id: newBlockId(), type: "code", data: { code, language: lang } };
+      return [{ id: newBlockId(), type: "code", data: { code, language: lang } }];
     }
     case "core/separator":
-      return { id: newBlockId(), type: "separator", data: {} };
+    case "core/spacer":
+      return [{ id: newBlockId(), type: "separator", data: {} }];
     case "core/html":
-      return { id: newBlockId(), type: "html", data: { html: inner } };
+    case "core/shortcode":
+    case "core/freeform":
+      return inner ? [{ id: newBlockId(), type: "html", data: { html: inner } }] : [];
     case "core/embed":
     case "core-embed/youtube":
     case "core-embed/vimeo":
-    case "core-embed/twitter": {
-      const url = typeof tok.attrs.url === "string" ? tok.attrs.url : (inner.match(/https?:\/\/\S+/)?.[0] ?? "");
-      if (!url) return null;
-      return { id: newBlockId(), type: "embed", data: { url, provider: String(tok.attrs.providerNameSlug ?? "iframe"), html: "" } };
+    case "core-embed/twitter":
+    case "core-embed/instagram":
+    case "core-embed/facebook":
+    case "core-embed/tiktok":
+    case "core-embed/spotify":
+    case "core-embed/soundcloud":
+    case "core/video":
+    case "core/audio":
+    case "core/file": {
+      const url = typeof tok.attrs.url === "string"
+        ? tok.attrs.url
+        : (inner.match(/src="([^"]+)"/i)?.[1] ?? inner.match(/href="([^"]+)"/i)?.[1] ?? inner.match(/https?:\/\/\S+/)?.[0] ?? "");
+      if (!url) return [];
+      const provider = String(tok.attrs.providerNameSlug ?? name.replace(/^core-embed\//, "").replace(/^core\//, ""));
+      return [{ id: newBlockId(), type: "embed", data: { url, provider, html: "" } }];
     }
     case "core/table":
-      return { id: newBlockId(), type: "html", data: { html: inner } };
+      return inner ? [{ id: newBlockId(), type: "html", data: { html: inner } }] : [];
     case "core/buttons":
     case "core/button": {
       const href = inner.match(/href="([^"]+)"/i)?.[1] ?? "";
       const text = stripTags(inner);
-      return { id: newBlockId(), type: "button", data: { href, text, variant: "primary" } };
+      return [{ id: newBlockId(), type: "button", data: { href, text, variant: "primary" } }];
     }
     default: {
-      // Fallback: treat as raw HTML so nothing is lost.
-      if (!inner) return null;
-      return { id: newBlockId(), type: "html", data: { html: inner } };
+      // Lossless fallback: keep original markup so nothing is dropped.
+      if (!inner) return [];
+      return [{ id: newBlockId(), type: "html", data: { html: inner } }];
     }
   }
 }
@@ -219,13 +339,11 @@ export function parseGutenberg(html: string | null | undefined): BlocksDoc {
   }
   const tokens = tokenize(src);
   const out: Block[] = [];
-  for (const tok of tokens) {
-    const block = tokenToBlock(tok);
-    if (block) out.push(block);
-  }
+  for (const tok of tokens) out.push(...tokenToBlocks(tok));
   if (!out.length) return htmlToBlocks(src);
   return { version: 1, blocks: out, meta: { migratedFrom: "gutenberg" } };
 }
+
 
 // ---------- Gutenberg serializer ----------
 
