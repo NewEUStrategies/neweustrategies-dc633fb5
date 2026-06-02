@@ -1181,6 +1181,80 @@ export type Database = {
           },
         ]
       }
+      wp_import_jobs: {
+        Row: {
+          actor_id: string
+          created_at: string
+          error: string | null
+          failed: number
+          finished_at: string | null
+          id: string
+          imported: number
+          language: string
+          log: Json
+          media_imported: number
+          options: Json
+          processed: number
+          site: string
+          skipped: number
+          status: string
+          tenant_id: string
+          total: number
+          updated_at: string
+          updated_count: number
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          error?: string | null
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          imported?: number
+          language?: string
+          log?: Json
+          media_imported?: number
+          options?: Json
+          processed?: number
+          site: string
+          skipped?: number
+          status?: string
+          tenant_id: string
+          total?: number
+          updated_at?: string
+          updated_count?: number
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          error?: string | null
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          imported?: number
+          language?: string
+          log?: Json
+          media_imported?: number
+          options?: Json
+          processed?: number
+          site?: string
+          skipped?: number
+          status?: string
+          tenant_id?: string
+          total?: number
+          updated_at?: string
+          updated_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wp_import_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
