@@ -8,8 +8,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, Home } from "@/lib/lucide-shim";
-import { deletePage, bulkDeletePages, bulkUpdatePages } from "@/lib/content.functions";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Pencil, Trash2, Home, Undo2, X } from "@/lib/lucide-shim";
+import {
+  deletePage,
+  bulkDeletePages,
+  bulkUpdatePages,
+  restorePages,
+  purgePages,
+} from "@/lib/content.functions";
 import { toast } from "sonner";
 import { BulkActionsBar, type BulkStatus } from "@/components/admin/BulkActionsBar";
 import { useSettings } from "@/lib/admin/useSettings";
@@ -37,6 +44,8 @@ function PagesLayout() {
   return <PagesList />;
 }
 
+type View = "active" | "trash";
+
 function PagesList() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language ?? "pl";
@@ -45,19 +54,38 @@ function PagesList() {
   const del$ = useServerFn(deletePage);
   const bulkDel$ = useServerFn(bulkDeletePages);
   const bulkUpd$ = useServerFn(bulkUpdatePages);
+  const restore$ = useServerFn(restorePages);
+  const purge$ = useServerFn(purgePages);
+  const [view, setView] = useState<View>("active");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const { data: pages, isLoading } = useQuery({
     enabled: !!tenantId,
-    queryKey: ["admin-pages", tenantId],
+    queryKey: ["admin-pages", tenantId, view],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("pages")
-        .select("id, slug, title_pl, title_en, status, updated_at")
+        .select("id, slug, title_pl, title_en, status, updated_at, deleted_at")
         .eq("tenant_id", tenantId!)
         .order("updated_at", { ascending: false });
+      q = view === "trash" ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
+      const { data, error } = await q;
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: trashCount } = useQuery({
+    enabled: !!tenantId,
+    queryKey: ["admin-pages-trash-count", tenantId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("pages")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId!)
+        .not("deleted_at", "is", null);
+      if (error) throw error;
+      return count ?? 0;
     },
   });
 
@@ -95,12 +123,17 @@ function PagesList() {
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(allIds));
   const clear = () => setSelected(new Set());
 
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["admin-pages"] });
+    qc.invalidateQueries({ queryKey: ["admin-pages-trash-count"] });
+  };
+
   const del = async (id: string) => {
-    if (!confirm(t("admin.confirmDelete"))) return;
+    if (!confirm("Przenieść do kosza?")) return;
     try {
       await del$({ data: { id } });
-      toast.success(t("admin.deleted"));
-      qc.invalidateQueries({ queryKey: ["admin-pages"] });
+      toast.success("Przeniesiono do kosza");
+      invalidate();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     }
@@ -110,9 +143,9 @@ function PagesList() {
     try {
       const ids = [...selected];
       await bulkDel$({ data: { ids } });
-      toast.success(`Usunięto ${ids.length}`);
+      toast.success(`Przeniesiono do kosza: ${ids.length}`);
       clear();
-      qc.invalidateQueries({ queryKey: ["admin-pages"] });
+      invalidate();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     }
@@ -124,11 +157,56 @@ function PagesList() {
       await bulkUpd$({ data: { ids, status } });
       toast.success(`Zaktualizowano ${ids.length}`);
       clear();
-      qc.invalidateQueries({ queryKey: ["admin-pages"] });
+      invalidate();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     }
   };
+
+  const restoreOne = async (id: string) => {
+    try {
+      await restore$({ data: { ids: [id] } });
+      toast.success("Przywrócono");
+      invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const purgeOne = async (id: string) => {
+    if (!confirm("Usunąć trwale? Tej operacji nie można cofnąć.")) return;
+    try {
+      await purge$({ data: { ids: [id] } });
+      toast.success("Usunięto trwale");
+      invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const onBulkRestore = async () => {
+    try {
+      const ids = [...selected];
+      await restore$({ data: { ids } });
+      toast.success(`Przywrócono: ${ids.length}`);
+      clear();
+      invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const onBulkPurge = async () => {
+    if (!confirm(`Usunąć trwale ${selected.size}? Tej operacji nie można cofnąć.`)) return;
+    try {
+      const ids = [...selected];
+      await purge$({ data: { ids } });
+      toast.success(`Usunięto trwale: ${ids.length}`);
+      clear();
+      invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const isTrash = view === "trash";
 
   return (
     <div>
@@ -142,17 +220,45 @@ function PagesList() {
         </Link>
       </div>
 
+      <Tabs value={view} onValueChange={(v) => { setView(v as View); clear(); }} className="mb-4">
+        <TabsList>
+          <TabsTrigger value="active">Wszystkie</TabsTrigger>
+          <TabsTrigger value="trash">
+            Kosz{typeof trashCount === "number" && trashCount > 0 ? ` (${trashCount})` : ""}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <BulkActionsBar
-          count={selected.size}
-          onClear={clear}
-          onApplyStatus={onBulkStatus}
-          onDelete={onBulkDelete}
-        />
+        {isTrash ? (
+          selected.size > 0 ? (
+            <div className="flex items-center gap-2 p-2 border-b border-border bg-muted/30 text-sm">
+              <span className="px-2">Zaznaczono: {selected.size}</span>
+              <Button size="sm" variant="outline" onClick={onBulkRestore}>
+                <Undo2 className="w-4 h-4 mr-2" /> Przywróć
+              </Button>
+              <Button size="sm" variant="destructive" onClick={onBulkPurge}>
+                <Trash2 className="w-4 h-4 mr-2" /> Usuń trwale
+              </Button>
+              <Button size="sm" variant="ghost" onClick={clear} className="ml-auto">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : null
+        ) : (
+          <BulkActionsBar
+            count={selected.size}
+            onClear={clear}
+            onApplyStatus={onBulkStatus}
+            onDelete={onBulkDelete}
+          />
+        )}
         {isLoading ? (
           <div className="p-8 text-center text-muted-foreground text-sm">...</div>
         ) : !pages?.length ? (
-          <div className="p-12 text-center text-muted-foreground">{t("admin.pages.empty")}</div>
+          <div className="p-12 text-center text-muted-foreground">
+            {isTrash ? "Kosz jest pusty" : t("admin.pages.empty")}
+          </div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
@@ -166,7 +272,9 @@ function PagesList() {
                 </th>
                 <th className="text-left p-3">{t("admin.posts.titleCol")}</th>
                 <th className="text-left p-3">{t("admin.posts.status")}</th>
-                <th className="text-left p-3 hidden md:table-cell">{t("admin.posts.updated")}</th>
+                <th className="text-left p-3 hidden md:table-cell">
+                  {isTrash ? "Usunięto" : t("admin.posts.updated")}
+                </th>
                 <th className="p-3"></th>
               </tr>
             </thead>
@@ -183,7 +291,7 @@ function PagesList() {
                   <td className="p-3">
                     <div className="flex items-center gap-2">
                       <div className="font-medium">{(lang === "en" ? p.title_en : p.title_pl) || <span className="italic text-muted-foreground">- bez tytułu -</span>}</div>
-                      {currentHome === p.slug && (
+                      {!isTrash && currentHome === p.slug && (
                         <Badge variant="outline" className="gap-1 text-[10px]">
                           <Home className="w-3 h-3" /> Strona główna
                         </Badge>
@@ -197,31 +305,44 @@ function PagesList() {
                     </Badge>
                   </td>
                   <td className="p-3 hidden md:table-cell text-muted-foreground text-xs">
-                    {new Date(p.updated_at).toLocaleString(lang)}
+                    {new Date((isTrash && p.deleted_at) ? p.deleted_at : p.updated_at).toLocaleString(lang)}
                   </td>
                   <td className="p-3 text-right">
                     <div className="flex justify-end gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={currentHome === p.slug || reading.save.isPending || p.status !== "published"}
-                        title={
-                          p.status !== "published"
-                            ? "Opublikuj stronę, aby ustawić ją jako główną"
-                            : currentHome === p.slug
-                              ? "Już ustawiona jako strona główna"
-                              : "Ustaw jako stronę główną"
-                        }
-                        onClick={() => setAsHome(p.slug, (lang === "en" ? p.title_en : p.title_pl) ?? p.slug)}
-                      >
-                        <Home className={`w-4 h-4 ${currentHome === p.slug ? "text-primary" : ""}`} />
-                      </Button>
-                      <Link to="/admin/pages/$slug" params={{ slug: p.slug }}>
-                        <Button size="sm" variant="ghost"><Pencil className="w-4 h-4" /></Button>
-                      </Link>
-                      <Button size="sm" variant="ghost" onClick={() => del(p.id)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      {isTrash ? (
+                        <>
+                          <Button size="sm" variant="ghost" title="Przywróć" onClick={() => restoreOne(p.id)}>
+                            <Undo2 className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" title="Usuń trwale" onClick={() => purgeOne(p.id)}>
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={currentHome === p.slug || reading.save.isPending || p.status !== "published"}
+                            title={
+                              p.status !== "published"
+                                ? "Opublikuj stronę, aby ustawić ją jako główną"
+                                : currentHome === p.slug
+                                  ? "Już ustawiona jako strona główna"
+                                  : "Ustaw jako stronę główną"
+                            }
+                            onClick={() => setAsHome(p.slug, (lang === "en" ? p.title_en : p.title_pl) ?? p.slug)}
+                          >
+                            <Home className={`w-4 h-4 ${currentHome === p.slug ? "text-primary" : ""}`} />
+                          </Button>
+                          <Link to="/admin/pages/$slug" params={{ slug: p.slug }}>
+                            <Button size="sm" variant="ghost"><Pencil className="w-4 h-4" /></Button>
+                          </Link>
+                          <Button size="sm" variant="ghost" title="Do kosza" onClick={() => del(p.id)}>
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
