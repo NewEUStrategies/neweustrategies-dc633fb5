@@ -493,6 +493,8 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
     ],
   },
+];
+
 
 export type GlobalColorsValue = Record<
   string,
