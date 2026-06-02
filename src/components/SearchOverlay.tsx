@@ -170,7 +170,8 @@ function SearchBar({
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder={placeholder}
-        className={`flex-1 bg-transparent outline-none placeholder:text-muted-foreground/60 ${compact ? "text-sm" : "text-base"}`}
+        className={`flex-1 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 shadow-none placeholder:text-muted-foreground/60 text-foreground ${compact ? "text-sm" : "text-base"}`}
+        style={{ boxShadow: "none", WebkitTapHighlightColor: "transparent" }}
       />
       {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
       {q && !loading && (
