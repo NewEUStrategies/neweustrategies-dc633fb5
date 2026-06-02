@@ -11,7 +11,8 @@ export type SectionLabelVariant =
   | "centered-rule"
   | "centered-short-rule"
   | "filled-bar"
-  | "centered-underline";
+  | "centered-underline"
+  | "slanted-ribbon-rule";
 
 export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string }[] = [
   { value: "left-bar",            label: "01 — Pionowy pasek" },
@@ -23,6 +24,7 @@ export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string
   { value: "centered-short-rule", label: "08 — Wycentrowany z krótkimi liniami (np. Materiały partnerów)" },
   { value: "filled-bar",          label: "09 — Pełny pasek (np. Najnowszy raport)" },
   { value: "centered-underline",  label: "10 — Wycentrowany z podkreśleniem (np. Poznaj nasze raporty)" },
+  { value: "slanted-ribbon-rule", label: "11 — Wstęga ze spadem i linią (np. Najnowszy raport)" },
 ];
 
 
