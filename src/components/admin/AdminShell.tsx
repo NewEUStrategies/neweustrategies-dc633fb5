@@ -217,7 +217,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
         </aside>
       )}
       <main className={`${isEditRoute ? "min-w-0" : "overflow-x-auto"} ${hideSidebar ? "w-full" : "flex-1"}`}>
-        <div className={isEditRoute ? "p-3" : "max-w-6xl mx-auto p-6 lg:p-10"}>{children}</div>
+        <div className={isEditRoute ? "p-3" : isThemeOptions ? "max-w-6xl mr-auto ml-0 py-6 lg:py-10 pl-3 lg:pl-4 pr-6 lg:pr-10" : "max-w-6xl mx-auto p-6 lg:p-10"}>{children}</div>
       </main>
     </div>
   );
