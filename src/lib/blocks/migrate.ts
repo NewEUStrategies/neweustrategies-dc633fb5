@@ -12,6 +12,7 @@
 // block so no content is lost.
 
 import type { Block, BlocksDoc, Json } from "./types";
+import { parseGutenberg } from "./gutenberg";
 import { EMPTY_BLOCKS_DOC, newBlockId } from "./types";
 
 // ---------- shared helpers ----------
@@ -281,17 +282,18 @@ export interface LegacyPostContent {
 export interface MigrationResult {
   pl: BlocksDoc;
   en: BlocksDoc;
-  source: "html" | "builder" | "empty";
+  source: "html" | "gutenberg" | "builder" | "empty";
 }
 
 export function migratePostContent(input: LegacyPostContent): MigrationResult {
-  const hasHtml = Boolean((input.content_pl ?? "").trim() || (input.content_en ?? "").trim());
-  if (hasHtml) {
-    return {
-      pl: htmlToBlocks(input.content_pl ?? ""),
-      en: htmlToBlocks(input.content_en ?? ""),
-      source: "html",
-    };
+  const pl = (input.content_pl ?? "").trim();
+  const en = (input.content_en ?? "").trim();
+  if (pl || en) {
+    const isGb = /<!--\s*wp:[a-z]/i.test(pl) || /<!--\s*wp:[a-z]/i.test(en);
+    if (isGb) {
+      return { pl: parseGutenberg(pl), en: parseGutenberg(en), source: "gutenberg" };
+    }
+    return { pl: htmlToBlocks(pl), en: htmlToBlocks(en), source: "html" };
   }
   if (input.builder_data != null) {
     const doc = builderToBlocks(input.builder_data);
