@@ -524,8 +524,8 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         >
           {(badge || canEdit) && (
             canEdit
-              ? <Editable as="div" value={badge} onCommit={(v) => commit(badgeKey, v)} className={badgeCls} placeholder="Etykieta…" />
-              : <div className={badgeCls}>{badge}</div>
+              ? <Editable as="div" value={badge} onCommit={(v) => commit(badgeKey, v)} className={badgeCls} style={badgeStyle} placeholder="Etykieta…" />
+              : <div className={badgeCls} style={badgeStyle}>{badge}</div>
           )}
           {img && (
             <div className="group/dfcimg relative w-full overflow-hidden rounded bg-black/20" style={{ aspectRatio: "16 / 9" }}>
