@@ -40,6 +40,15 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const ctaKey = `cta_${lang}` as const;
   const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
 
+  const imageAnim = (typeof c.imageAnim === "string" ? c.imageAnim : "fade") as AnimType;
+  const imageDir  = (typeof c.imageDir  === "string" ? c.imageDir  : "right") as AnimDir;
+  const textAnim  = (typeof c.textAnim  === "string" ? c.textAnim  : "slide") as AnimType;
+  const textDir   = (typeof c.textDir   === "string" ? c.textDir   : "up") as AnimDir;
+  const ctaAnim   = (typeof c.ctaAnim   === "string" ? c.ctaAnim   : "fade") as AnimType;
+  const ctaDir    = (typeof c.ctaDir    === "string" ? c.ctaDir    : "up") as AnimDir;
+
+
+
 
   const rawItems = Array.isArray(c.items) ? (c.items as unknown[]) : [];
   const items: SliderItem[] = rawItems
