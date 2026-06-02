@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Search, X, Loader2, ArrowRight, CornerDownLeft } from "@/lib/lucide-shim";
+import { Search, X, Loader2, ArrowRight } from "@/lib/lucide-shim";
 import { supabase } from "@/integrations/supabase/client";
 
 type Mode = "standalone" | "dropdown" | "fullscreen";
