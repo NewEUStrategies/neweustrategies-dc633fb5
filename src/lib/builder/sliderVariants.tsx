@@ -175,14 +175,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     </>
   );
 
-  const Img = ({ src, alt = "", kenBurns = false }: { src: string; alt?: string; kenBurns?: boolean; fade?: boolean }) => (
-    <img
-      src={safeImageUrl(src) || src}
-      alt={alt}
-      className={`absolute inset-0 w-full h-full object-cover ${kenBurns ? "animate-[kenburns_8s_ease-in-out_infinite_alternate]" : ""}`}
-      draggable={false}
-    />
-  );
+
+
 
   // Shared keyframes for caption entrance + image reveal.
   const sharedKeyframes = (
