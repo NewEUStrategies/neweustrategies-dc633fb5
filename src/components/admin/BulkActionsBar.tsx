@@ -7,7 +7,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Trash2, X, Check } from "@/lib/lucide-shim";
+import { Trash2, X, Check, Layers } from "@/lib/lucide-shim";
 
 export type BulkStatus = "draft" | "published" | "archived";
 
@@ -16,6 +16,7 @@ interface Props {
   onClear: () => void;
   onApplyStatus: (status: BulkStatus) => Promise<void> | void;
   onDelete: () => Promise<void> | void;
+  onMigrateToBlocks?: () => Promise<void> | void;
 }
 
 export function BulkActionsBar({ count, onClear, onApplyStatus, onDelete }: Props) {
