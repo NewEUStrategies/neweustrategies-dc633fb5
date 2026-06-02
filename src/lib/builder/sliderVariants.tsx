@@ -102,6 +102,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           padding-bottom: 4px;
         }
         .eh-slider:hover .eh-title { background-size: 100% 2px; }
+        .eh-slider .eh-img { transition: transform 700ms cubic-bezier(.22,.61,.36,1); }
+        .eh-slider:hover .eh-img { transform: scale(1.06); }
       `}</style>
 
       {/* Image */}
@@ -113,7 +115,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
             alt=""
             draggable={false}
             data-fill-image
-            className="absolute inset-0 w-full h-full object-cover"
+            className="eh-img absolute inset-0 w-full h-full object-cover"
             style={{
               opacity: i === safeIdx ? 1 : 0,
               transition: "opacity 700ms cubic-bezier(.22,.61,.36,1)",
