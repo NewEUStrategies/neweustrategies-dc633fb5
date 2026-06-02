@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Home, RotateCcw, X } from "@/lib/lucide-shim";
+import { Plus, Pencil, Trash2, Home, Undo2, X } from "@/lib/lucide-shim";
 import {
   deletePage,
   bulkDeletePages,
@@ -235,7 +235,7 @@ function PagesList() {
             <div className="flex items-center gap-2 p-2 border-b border-border bg-muted/30 text-sm">
               <span className="px-2">Zaznaczono: {selected.size}</span>
               <Button size="sm" variant="outline" onClick={onBulkRestore}>
-                <RotateCcw className="w-4 h-4 mr-2" /> Przywróć
+                <Undo2 className="w-4 h-4 mr-2" /> Przywróć
               </Button>
               <Button size="sm" variant="destructive" onClick={onBulkPurge}>
                 <Trash2 className="w-4 h-4 mr-2" /> Usuń trwale
@@ -312,7 +312,7 @@ function PagesList() {
                       {isTrash ? (
                         <>
                           <Button size="sm" variant="ghost" title="Przywróć" onClick={() => restoreOne(p.id)}>
-                            <RotateCcw className="w-4 h-4" />
+                            <Undo2 className="w-4 h-4" />
                           </Button>
                           <Button size="sm" variant="ghost" title="Usuń trwale" onClick={() => purgeOne(p.id)}>
                             <Trash2 className="w-4 h-4 text-destructive" />
