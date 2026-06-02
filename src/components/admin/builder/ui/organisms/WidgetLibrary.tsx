@@ -110,7 +110,7 @@ export function WidgetLibrary({ onPickStructure, onPickTemplate }: Props) {
           ))}
         </section>
 
-        {(["basic", "media", "dynamic", "form", "navigation", "blocks"] as const).map((cat) => {
+        {(["basic", "blocks", "media", "dynamic", "form", "navigation"] as const).map((cat) => {
           const items = filtered.filter((w) => w.category === cat);
           if (!items.length) return null;
           const isCollapsed = !!collapsed[cat];
