@@ -127,7 +127,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
   if (carousel) {
     return (
-      <div className="flex gap-4 overflow-x-auto pb-2 snap-x">
+      <div className="w-full flex gap-4 overflow-x-auto pb-2 snap-x">
         {rows.map((p) => (
           <PostCard key={p.id} p={p} variant={variant} carousel title={title(p)} excerpt={excerpt(p)} />
         ))}
