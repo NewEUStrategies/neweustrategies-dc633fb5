@@ -16,7 +16,7 @@ export function BlocksRenderer({ doc }: Props) {
   if (!safe.blocks.length) return null;
   return (
     <article className="blocks-content prose prose-lg dark:prose-invert max-w-none">
-      {doc.blocks.map((b) => <BlockView key={b.id} block={b} />)}
+      {safe.blocks.map((b) => <BlockView key={b.id} block={b} />)}
     </article>
   );
 }
