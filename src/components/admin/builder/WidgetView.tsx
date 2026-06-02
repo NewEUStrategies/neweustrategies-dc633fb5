@@ -20,6 +20,7 @@ import { hoverCss } from "@/lib/builder/hoverCss";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 import { useTheme } from "@/components/ThemeProvider";
 import { useBuilderMode } from "@/lib/builder/modeContext";
+import { pickMode } from "@/lib/builder/themed";
 import { NewsletterForm as NewsletterFormLive } from "@/components/NewsletterForm";
 import {
   SectionLabelRender,
@@ -131,8 +132,8 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     return rules.join("\n");
   })();
   const typographyCss = useMemo(() => {
-    const typography = node.style?.typography;
-    if (!typography || typeof typography !== "object" || Array.isArray(typography)) return "";
+    const typography = pickMode(node.style?.typography, effectiveMode);
+    if (!typography) return "";
 
     const sel = `[data-w-id="${node.id}"]`;
     const descendants = `${sel}, ${sel} :is(p,span,a,strong,em,small,li,dt,dd,blockquote,cite,label,button,input,textarea,select,option,figcaption,legend,time,h1,h2,h3,h4,h5,h6,.prose,.prose *)`;
