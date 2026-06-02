@@ -332,7 +332,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       {
         key: "sidebar-title",
         label: "Sidebar Title (Menu / Section)",
-        description: 'Tytuł sekcji w sidebarze (np. „Menu", „Ustawienia") — z osobnym kolorem dla trybu jasnego i ciemnego.',
+        description: "Tytuł sekcji w sidebarze (np. Menu, Ustawienia) — z osobnym kolorem dla trybu jasnego i ciemnego.",
         hasDark: true,
         defaultLight: "#6b7280",
         defaultDark: "#9ca3af",
