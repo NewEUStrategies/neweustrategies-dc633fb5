@@ -922,7 +922,7 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
             <NavDot x={14} y={18} />
             <NavDot x={36} y={18} />
             <NavDot x={58} y={18} />
-            {Logo(100, 18, 32)}
+            <Logo cx={100} cy={18} w={32} />
             <NavDot x={134} y={18} />
             <NavDot x={156} y={18} />
             <NavDot x={178} y={18} />
