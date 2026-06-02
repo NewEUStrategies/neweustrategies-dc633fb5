@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-import { Save, Undo, Redo, X, ChevronUp, ChevronDown } from "@/lib/lucide-shim";
+import { Save, Undo, Redo, X, ChevronUp, ChevronDown, Moon, Sun } from "@/lib/lucide-shim";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,8 @@ import {
 } from "@/lib/builder/globalColors";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
 import { useSettings } from "@/lib/admin/useSettings";
-import { SIDEBAR_STYLES, SidebarStylePreview, type SidebarStyle } from "@/lib/builder/sidebarStyles";
+import { SIDEBAR_ICON_FIELDS, SIDEBAR_STYLES, SidebarStylePreview, type SidebarStyle } from "@/lib/builder/sidebarStyles";
+import { ImageSlot } from "@/components/admin/ImageSlot";
 
 // Paleta marki — edytowalna przez użytkownika, trzymana w localStorage.
 type BrandColor = { name: string; value: string };
@@ -71,9 +72,23 @@ function isHexColor(v: string): boolean {
  */
 type ThemeOptsLite = {
   sidebars?: { style?: SidebarStyle };
+  logo?: {
+    sidebar_icon?: string;
+    sidebar_icon_dark?: string;
+    sidebar_expanded?: string;
+    sidebar_expanded_dark?: string;
+  };
   [k: string]: any;
 };
-const THEME_OPTS_DEFAULTS: ThemeOptsLite = { sidebars: { style: "style-1" } };
+const THEME_OPTS_DEFAULTS: ThemeOptsLite = {
+  sidebars: { style: "style-1" },
+  logo: {
+    sidebar_icon: "",
+    sidebar_icon_dark: "",
+    sidebar_expanded: "",
+    sidebar_expanded_dark: "",
+  },
+};
 
 function SidebarStylePicker() {
   const { query, save } = useSettings<ThemeOptsLite>("theme_options", THEME_OPTS_DEFAULTS);
@@ -119,6 +134,52 @@ function SidebarStylePicker() {
             </button>
           );
         })}
+      </div>
+      <div className="grid md:grid-cols-2 gap-4 pt-1">
+        {SIDEBAR_ICON_FIELDS.map((field) => (
+          <div key={field.key} className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
+            <div>
+              <Label className="text-sm font-semibold">{field.label}</Label>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{field.hint}</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <ImageSlot
+                label="Light"
+                icon={<Sun className="w-3.5 h-3.5" />}
+                value={query.data?.logo?.[field.key] ?? ""}
+                onChange={(value) => {
+                  if (save.isPending || !query.data) return;
+                  save.mutate({
+                    ...query.data,
+                    logo: {
+                      ...(query.data.logo ?? {}),
+                      [field.key]: value,
+                    },
+                  });
+                }}
+                hint="Wariant dla jasnego motywu"
+                folder="theme/logo"
+              />
+              <ImageSlot
+                label="Dark"
+                icon={<Moon className="w-3.5 h-3.5" />}
+                value={query.data?.logo?.[field.darkKey] ?? ""}
+                onChange={(value) => {
+                  if (save.isPending || !query.data) return;
+                  save.mutate({
+                    ...query.data,
+                    logo: {
+                      ...(query.data.logo ?? {}),
+                      [field.darkKey]: value,
+                    },
+                  });
+                }}
+                hint="Wariant dla ciemnego motywu"
+                folder="theme/logo"
+              />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

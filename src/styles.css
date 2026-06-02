@@ -130,6 +130,10 @@
    Applied to both internal admin sidebar and global Layout 6 sidebar.
    Driven by [data-sidebar-style] on <aside data-sidebar="sidebar">. */
 
+aside[data-sidebar="sidebar"].sidebar-shell {
+  transition: width 180ms ease, margin 180ms ease, border-radius 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
 /* Style 1 — Solid Classic (default look, fully square menu items) */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-1"] [data-sidebar="menu-button"] {
   border-radius: 0 !important;
@@ -140,6 +144,9 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] {
   background: transparent !important;
   border-right: 1px dashed hsl(var(--border));
   box-shadow: none;
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-2"].sidebar-shell {
+  border-right-style: dashed;
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] [data-sidebar="menu-button"] {
   background: transparent !important;
@@ -177,7 +184,8 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-3"] [data-sidebar="menu-
 aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] {
   width: 3.5rem !important;
 }
-aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="menu-button"] > span:not(.shrink-0) {
+aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="menu-button"] > span:not(.shrink-0),
+aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="menu-button"] > svg:last-child {
   display: none !important;
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="menu-button"] {
@@ -188,6 +196,9 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="menu-
   height: 2.25rem;
   margin: 2px auto;
   border-radius: 0.5rem;
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] nav {
+  padding-inline: 0.375rem;
 }
 
 /* Style 5 — Glass / Frosted */
@@ -201,9 +212,11 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] {
 aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="menu-button"] {
   border-radius: 0.5rem;
   backdrop-filter: blur(4px);
+  border: 1px solid hsl(var(--border) / 0.22);
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="menu-button"][data-active="true"] {
   background: hsl(var(--primary) / 0.85) !important;
+  border-color: hsl(var(--primary) / 0.25);
 }
 
 /* Style 6 — Bold Dark (forces dark contrast in both modes) */

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
 type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
 export type SettingsRecord = { [k: string]: Json };
@@ -33,6 +34,13 @@ export function useSettings<T extends SettingsRecord>(key: string, defaults: T) 
     },
     onSuccess: (next) => {
       qc.setQueryData(["site_settings", key], next);
+      qc.setQueryData(
+        siteSettingsQueryOptions.queryKey,
+        (prev: Record<string, unknown> | undefined) => ({
+          ...(prev ?? {}),
+          [key]: next,
+        }),
+      );
       toast.success("Zapisano");
     },
     onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
