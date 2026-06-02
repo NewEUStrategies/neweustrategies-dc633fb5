@@ -1,6 +1,7 @@
 // Theme Options panel (Foxiz-style) — Logo + Header sections.
 // Stores everything under site_settings.theme_options.
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSettings } from "@/lib/admin/useSettings";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { Input } from "@/components/ui/input";
