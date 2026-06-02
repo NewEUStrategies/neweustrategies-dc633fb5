@@ -155,7 +155,7 @@ export const WIDGETS: WidgetDef[] = [
       ],
     }) },
   // Home-page building blocks
-  { type: "section-label", label: "Etykieta sekcji", category: "blocks", icon: Bookmark,
+  { type: "section-label", label: "Etykieta sekcji", category: "basic", icon: Bookmark,
     defaults: () => ({
       label_pl: "Najnowsze", label_en: "Latest",
       color: "brand",
