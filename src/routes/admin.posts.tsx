@@ -295,13 +295,13 @@ function PostsList() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="font-display text-3xl font-bold">{t("admin.posts.title")}</h1>
-          <p className="text-sm text-muted-foreground mt-1">{filteredPosts.length} {t("admin.posts.count")}</p>
+          <h1 className="font-display text-2xl font-bold">{t("admin.posts.title")}</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">{filteredPosts.length} {t("admin.posts.count")}</p>
         </div>
         <Link to="/admin/posts/new">
-          <Button><Plus className="w-4 h-4 mr-2" /> {t("admin.posts.new")}</Button>
+          <Button size="sm"><Plus className="w-4 h-4 mr-1.5" /> {t("admin.posts.new")}</Button>
         </Link>
       </div>
 
