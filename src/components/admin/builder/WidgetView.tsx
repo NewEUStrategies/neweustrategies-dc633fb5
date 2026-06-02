@@ -124,13 +124,14 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
   })();
 
   const isImage = node.type === "image";
+  const isMedia = isImage || node.type === "slider" || node.type === "video" || node.type === "gallery" || node.type === "map";
   const wrap = (children: React.ReactNode) => (
     <div
       id={htmlId}
       data-w-id={node.id}
       ref={motion ? motionRef : undefined}
       className={`text-foreground ${cls}`.trim()}
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", width: "100%", minWidth: 0, height: "100%", maxWidth: isImage ? "none" : "100%", boxSizing: "border-box", overflow: isImage ? "visible" : "hidden", ...baseStyle, ...motionStyle }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", width: "100%", minWidth: 0, height: isMedia ? "auto" : "100%", maxWidth: isImage ? "none" : "100%", boxSizing: "border-box", overflow: isImage ? "visible" : (isMedia ? "visible" : "hidden"), ...baseStyle, ...motionStyle }}
     >
       {children}
       {hover && <style dangerouslySetInnerHTML={{ __html: hover }} />}
