@@ -846,7 +846,7 @@ function ThemeOptionsBody({
         )}
       >
         <div data-sidebar="group-label" className="px-2 pb-2 pt-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-          Opcje motywu
+          {t("admin.nav.themeOptions")}
         </div>
         <nav className="space-y-0.5">
           {SECTIONS.map((s) => {
