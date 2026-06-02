@@ -36,6 +36,7 @@ import {
   SectionLabelEditor,
   SliderEditor,
   AnimatedHeadingEditor,
+  PostListEditor,
 } from "./ui/organisms/widget-properties";
 
 interface Props {
