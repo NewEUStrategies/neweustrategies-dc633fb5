@@ -101,7 +101,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const go = (delta: number) =>
     setIdx((i) => (i + delta + items.length) % items.length);
 
-  const aspectStyle: CSSProperties = { aspectRatio: ratio.replace("/", " / "), width: "100%" };
+  const aspectStyle: CSSProperties = { aspectRatio: ratio.replace("/", " / "), width: "100%", minHeight: 0 };
   const wrapStyle: CSSProperties = { borderRadius: rounded, overflow: "hidden", width: "100%", display: "block" };
 
   const Arrows = ({ size = "md" }: { size?: "sm" | "md" | "lg" }) => {
@@ -162,6 +162,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
             src={safeImageUrl(it.image) || it.image}
             alt=""
             draggable={false}
+            data-fill-image
             className={`absolute inset-0 w-full h-full object-cover will-change-transform ${kenBurns && active ? "animate-[kenburns_8s_ease-in-out_infinite_alternate]" : ""}`}
             style={{
               opacity: active ? 1 : 0,

@@ -121,8 +121,14 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
 
   // When user anchors the widget horizontally, it must shrink to its content
   // so the alignSelf has visible effect (otherwise width:100% fills the column).
-  const w = toCssSize(wRaw) ?? node.style?.maxWidth ?? (autoFit || horizontalAnchored ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
+  const sliderShouldFill = node.type === "slider" && wRaw === undefined && !node.style?.maxWidth && !horizontalAnchored;
+  const w = sliderShouldFill
+    ? "100%"
+    : toCssSize(wRaw) ?? node.style?.maxWidth ?? (autoFit || horizontalAnchored ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
   style.width = w;
+  if (sliderShouldFill) {
+    style.flexBasis = "100%";
+  }
 
   if (hRaw !== undefined) {
     style.height = toCssSize(hRaw);
