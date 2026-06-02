@@ -101,8 +101,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const go = (delta: number) =>
     setIdx((i) => (i + delta + items.length) % items.length);
 
-  const aspectStyle: CSSProperties = { aspectRatio: ratio.replace("/", " / ") };
-  const wrapStyle: CSSProperties = { borderRadius: rounded, overflow: "hidden" };
+  const aspectStyle: CSSProperties = { aspectRatio: ratio.replace("/", " / "), width: "100%" };
+  const wrapStyle: CSSProperties = { borderRadius: rounded, overflow: "hidden", width: "100%", display: "block" };
 
   const Arrows = ({ size = "md" }: { size?: "sm" | "md" | "lg" }) => {
     const cls =
