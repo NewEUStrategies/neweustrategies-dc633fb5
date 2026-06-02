@@ -9,17 +9,22 @@ export type SectionLabelVariant =
   | "only-text"
   | "badge-filled"
   | "centered-rule"
-  | "centered-short-rule";
+  | "centered-short-rule"
+  | "filled-bar"
+  | "centered-underline";
 
 export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string }[] = [
   { value: "left-bar",            label: "01 — Pionowy pasek" },
   { value: "left-border",         label: "02 — Lewa krawędź" },
   { value: "small-corners",       label: "04 — Narożniki" },
   { value: "only-text",           label: "05 — Tylko tekst" },
-  { value: "badge-filled",        label: "06 — Etykieta pełna (np. Najnowszy raport)" },
+  { value: "badge-filled",        label: "06 — Etykieta pełna" },
   { value: "centered-rule",       label: "07 — Wycentrowany z linią (np. Poznaj nasze raporty)" },
   { value: "centered-short-rule", label: "08 — Wycentrowany z krótkimi liniami (np. Materiały partnerów)" },
+  { value: "filled-bar",          label: "09 — Pełny pasek (np. Najnowszy raport)" },
+  { value: "centered-underline",  label: "10 — Wycentrowany z podkreśleniem (np. Poznaj nasze raporty)" },
 ];
+
 
 // Resolve preset color names to CSS color values (also supports raw hex/oklch).
 export function resolveAccentColor(color?: string): string {
@@ -148,8 +153,37 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
           {ActionEl && <div className={isSm ? "mt-0.5 text-[8px] text-muted-foreground" : "mt-1 text-xs text-muted-foreground"} style={actionStyle}>{action}</div>}
         </div>
       );
+    case "filled-bar": {
+      // Full-width filled colored bar (e.g. "NAJNOWSZY RAPORT" w/ "Więcej →" on right)
+      const fg = labelColor || contrastOn(accent);
+      const padCls = isSm ? "px-2 py-1" : "px-4 py-3";
+      const labelCls = isSm
+        ? "text-[9px] font-bold uppercase tracking-wider"
+        : "font-display text-base font-bold uppercase tracking-wider";
+      const actCls = isSm
+        ? "text-[8px] font-medium"
+        : "text-xs font-medium hover:opacity-80 transition";
+      return (
+        <div className={`${wrapperBase} flex items-center justify-between ${padCls}`} style={{ background: accent, color: fg }}>
+          <span className={labelCls} style={labelSize && !isSm ? { fontSize: labelSize } : undefined}>{label}</span>
+          {action && (
+            href && !isSm
+              ? <a href={href} className={actCls} style={{ color: actionColor || fg, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action} →</a>
+              : <span className={actCls} style={{ color: actionColor || fg, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action} →</span>
+          )}
+        </div>
+      );
+    }
+    case "centered-underline":
+      return (
+        <div className={`${wrapperBase} ${padY} text-center border-b border-border`}>
+          <span className={isSm ? "text-[10px] font-semibold" : "font-display text-xl font-semibold tracking-tight"} style={labelStyle}>{label}</span>
+          {ActionEl && <div className={isSm ? "mt-0.5" : "mt-1"}>{ActionEl}</div>}
+        </div>
+      );
   }
 }
+
 
 
 function Corners({ accent, sm }: { accent: string; sm: boolean }) {
