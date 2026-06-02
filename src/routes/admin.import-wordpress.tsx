@@ -89,7 +89,7 @@ function ImportWordpressPage() {
     mutationFn: async () => {
       if (!site.trim()) throw new Error(isPL ? "Podaj domenę witryny" : "Enter a site domain");
       setSelected(new Set());
-      return callPreview({ data: { site: site.trim(), number, offset, status } });
+      return callPreview({ data: { site: site.trim(), number, offset, status, type } });
     },
   });
 
