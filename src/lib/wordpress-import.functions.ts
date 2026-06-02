@@ -300,10 +300,23 @@ interface JobPatch {
   skipped?: number;
   failed?: number;
   media_imported?: number;
-  status?: "running" | "completed" | "failed";
+  status?: "running" | "completed" | "failed" | "canceled";
   error?: string | null;
   total?: number;
   finished_at?: string | null;
+}
+
+async function readJobStatus(
+  supabase: SupabaseClient, jobId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("wp_import_jobs").select("status").eq("id", jobId).maybeSingle();
+  return (data?.status as string | undefined) ?? null;
+}
+
+function firstContentImage(html: string): string | null {
+  const m = html.match(/<img[^>]+src\s*=\s*"([^"]+)"/i);
+  return m ? m[1] : null;
 }
 
 async function patchJob(
