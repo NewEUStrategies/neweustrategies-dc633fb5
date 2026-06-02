@@ -1,8 +1,66 @@
 // Organism: section-label widget visual editor (variant + accent color + link).
-import { X } from "lucide-react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { PropField } from "../../atoms";
+
+// Compact px-size stepper. Accepts/produces strings like "14px" / "1.5rem" / "".
+// Up/Down arrows step the numeric prefix by ±1; bare numbers get "px" on blur.
+function PxSizeInput({
+  value,
+  onChange,
+  placeholder,
+  min = 6,
+  max = 200,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  min?: number;
+  max?: number;
+}) {
+  const match = value.trim().match(/^(-?\d*\.?\d+)\s*([a-z%]*)$/i);
+  const num = match ? parseFloat(match[1]) : NaN;
+  const unit = match ? (match[2] || "px") : "px";
+  const setNum = (n: number) => {
+    const clamped = Math.max(min, Math.min(max, n));
+    onChange(`${clamped}${unit}`);
+  };
+  return (
+    <div className="flex items-stretch h-8">
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => {
+          const v = e.target.value.trim();
+          if (v && /^-?\d*\.?\d+$/.test(v)) onChange(`${v}px`);
+        }}
+        placeholder={placeholder ?? "auto"}
+        className="h-8 text-xs rounded-r-none border-r-0 flex-1 min-w-0"
+      />
+      <div className="flex flex-col border border-border rounded-r overflow-hidden">
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setNum((Number.isFinite(num) ? num : 12) + 1)}
+          className="flex-1 px-1 hover:bg-muted text-muted-foreground hover:text-foreground transition flex items-center justify-center"
+          aria-label="Zwiększ"
+        >
+          <ChevronUp className="w-3 h-3" />
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setNum((Number.isFinite(num) ? num : 12) - 1)}
+          className="flex-1 px-1 hover:bg-muted text-muted-foreground hover:text-foreground transition flex items-center justify-center border-t border-border"
+          aria-label="Zmniejsz"
+        >
+          <ChevronDown className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
 import {
   SECTION_LABEL_VARIANTS,
   SectionLabelRender,
@@ -191,11 +249,10 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
             </div>
           </PropField>
           <PropField label="Rozmiar (np. 16px)">
-            <Input
+            <PxSizeInput
               value={labelSize}
-              onChange={(e) => setContent("labelSize", e.target.value)}
+              onChange={(v) => setContent("labelSize", v)}
               placeholder="auto"
-              className="h-8 text-xs"
             />
           </PropField>
         </div>
@@ -226,11 +283,10 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
             </div>
           </PropField>
           <PropField label="Rozmiar (np. 12px)">
-            <Input
+            <PxSizeInput
               value={actionSize}
-              onChange={(e) => setContent("actionSize", e.target.value)}
+              onChange={(v) => setContent("actionSize", v)}
               placeholder="auto"
-              className="h-8 text-xs"
             />
           </PropField>
         </div>
