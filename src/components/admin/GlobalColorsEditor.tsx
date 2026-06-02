@@ -19,6 +19,8 @@ import {
   type GlobalColorSlot,
 } from "@/lib/builder/globalColors";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
+import { useSettings } from "@/lib/admin/useSettings";
+import { SIDEBAR_STYLES, SidebarStylePreview, type SidebarStyle } from "@/lib/builder/sidebarStyles";
 
 // Paleta marki — edytowalna przez użytkownika, trzymana w localStorage.
 type BrandColor = { name: string; value: string };
