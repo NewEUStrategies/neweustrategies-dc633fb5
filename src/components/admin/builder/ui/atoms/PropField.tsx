@@ -14,7 +14,7 @@ export function PropField({ label, hint, children, inline }: Props) {
     <div className={inline ? "flex items-center justify-between gap-2" : "space-y-1"}>
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <div className={inline ? "" : ""}>{children}</div>
-      {hint && <p className="text-[10px] text-muted-foreground/70">{hint}</p>}
+      {hint && <p className="text-[9px] leading-snug text-muted-foreground/60">{hint}</p>}
     </div>
   );
 }
