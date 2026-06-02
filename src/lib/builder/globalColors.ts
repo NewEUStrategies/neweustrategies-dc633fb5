@@ -45,6 +45,7 @@ export const GLOBAL_COLOR_CATEGORIES: { id: string; label: string }[] = [
 export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   {
     id: "header",
+    category: "header-nav",
     label: "Header — Icons & Menu",
     slots: [
       {
@@ -67,6 +68,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "highlight",
+    category: "globals",
     label: "Highlight Elements",
     slots: [
       {
@@ -90,6 +92,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "icons",
+    category: "globals",
     label: "Icons (SVG)",
     slots: [
       {
@@ -113,6 +116,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
 
   {
     id: "dark-accent",
+    category: "globals",
     label: "Dark Accent",
     slots: [
       {
@@ -128,6 +132,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "body",
+    category: "globals",
     label: "Body Background",
     slots: [
       {
@@ -146,6 +151,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "button",
+    category: "forms",
     label: "Button",
     slots: [
       {
@@ -174,6 +180,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "switcher",
+    category: "header-nav",
     label: "Mode Switcher",
     slots: [
       { key: "switcher-light-icon", label: "Light Switcher — Icon", description: "Kolor ikony słońca." },
@@ -184,6 +191,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "bookmark",
+    category: "widgets",
     label: "Bookmark Hovering",
     slots: [
       {
@@ -196,6 +204,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "review",
+    category: "widgets",
     label: "Review Stars",
     slots: [
       { key: "review-bg", label: "Background Color", description: "Tło dla gwiazdek recenzji.", hasDark: true, defaultLight: "#ffc300" },
@@ -204,6 +213,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "sponsor",
+    category: "widgets",
     label: "Sponsor Label",
     slots: [
       { key: "sponsor-label", label: "Sponsor Label Color", description: "Kolor etykiety „sponsored”.", hasDark: true },
@@ -211,6 +221,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "popular",
+    category: "widgets",
     label: "Popular Counter",
     slots: [
       { key: "popular-counter", label: "Popular Counter Color", description: "Kolor licznika popularnych wpisów.", hasDark: true },
@@ -218,6 +229,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "live",
+    category: "widgets",
     label: "Live Blogging",
     slots: [
       { key: "live-blog", label: "Color", description: "Kolor ikon live-blogging.", hasDark: true },
@@ -225,6 +237,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "toc",
+    category: "widgets",
     label: "TOC, Left Shares & Inline Related",
     slots: [
       { key: "toc-bg", label: "Background", description: "Tło table-of-contents i share-bara.", hasDark: true, overrides: ["--muted"] },
@@ -232,6 +245,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "verified",
+    category: "widgets",
     label: "Verified Tick",
     slots: [
       { key: "verified-tick", label: "Color", description: "Kolor odznaki „zweryfikowany autor”.", hasDark: true, defaultLight: "#f59e0b" },
@@ -239,6 +253,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "sidebar",
+    category: "header-nav",
     label: "Sidebar",
     slots: [
       {
@@ -306,6 +321,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "input",
+    category: "forms",
     label: "Inputs / Text Fields",
     slots: [
       { key: "input-bg", label: "Input Background", description: "Tło pól tekstowych.", hasDark: true, defaultLight: "#ffffff", defaultDark: "#0f172a", overrides: ["--input-background"] },
@@ -319,6 +335,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "headings",
+    category: "typography",
     label: "Headings (H1–H6)",
     slots: [
       { key: "h1", label: "H1 Color", description: "Kolor nagłówków H1.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "36px" },
@@ -331,6 +348,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "body-text",
+    category: "typography",
     label: "Body Text",
     slots: [
       {
@@ -361,6 +379,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
   {
     id: "links",
+    category: "typography",
     label: "Links",
     slots: [
       {
