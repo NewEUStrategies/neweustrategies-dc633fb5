@@ -191,14 +191,52 @@ function tokenize(html: string): GbToken[] {
   return tokens;
 }
 
-function tokenToBlock(tok: GbToken): Block | null {
+function tokenToBlocks(tok: GbToken): Block[] {
   const inner = tok.inner.trim();
-  switch (tok.name) {
+  const name = tok.name;
+
+  // Container blocks: recursively parse children, preserve order.
+  if (
+    name === "core/group" ||
+    name === "core/columns" ||
+    name === "core/column" ||
+    name === "core/cover" ||
+    name === "core/media-text" ||
+    name === "core/details" ||
+    name === "core/list-item"
+  ) {
+    const childTokens = tokenize(inner);
+    if (childTokens.length) return childTokens.flatMap(tokenToBlocks);
+    // No wp: children -> fall through to HTML parsing of inner so nothing is lost.
+    if (inner) return htmlToBlocks(inner).blocks;
+    return [];
+  }
+
+  // Gallery: produce multiple image blocks.
+  if (name === "core/gallery") {
+    const re = /<img[^>]+>/gi;
+    const out: Block[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(inner)) !== null) {
+      const tag = m[0];
+      const src = tag.match(/src="([^"]+)"/i)?.[1];
+      if (!src) continue;
+      const alt = tag.match(/alt="([^"]*)"/i)?.[1] ?? "";
+      out.push({
+        id: newBlockId(),
+        type: "image",
+        data: { url: src, alt, caption: "", href: "" },
+      });
+    }
+    if (out.length) return out;
+  }
+
+  switch (name) {
     case "core/paragraph":
-      return { id: newBlockId(), type: "paragraph", data: { html: inner.replace(/^<p[^>]*>|<\/p>$/g, "") } };
+      return [{ id: newBlockId(), type: "paragraph", data: { html: inner.replace(/^<p[^>]*>|<\/p>$/g, "") } }];
     case "core/heading": {
       const level = Number(tok.attrs.level ?? 2);
-      return {
+      return [{
         id: newBlockId(),
         type: "heading",
         data: {
@@ -206,7 +244,7 @@ function tokenToBlock(tok: GbToken): Block | null {
           text: stripTags(inner),
           anchor: typeof tok.attrs.anchor === "string" ? tok.attrs.anchor : "",
         },
-      };
+      }];
     }
     case "core/list": {
       const ordered = Boolean(tok.attrs.ordered);
@@ -214,55 +252,76 @@ function tokenToBlock(tok: GbToken): Block | null {
       const re = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;
       let li: RegExpExecArray | null;
       while ((li = re.exec(inner)) !== null) items.push(stripTags(li[1]));
-      return { id: newBlockId(), type: "list", data: { ordered, items: items as Json } };
+      return [{ id: newBlockId(), type: "list", data: { ordered, items: items as Json } }];
     }
     case "core/quote":
-    case "core/pullquote": {
+    case "core/pullquote":
+    case "core/verse": {
       const cite = (inner.match(/<cite[^>]*>([\s\S]*?)<\/cite>/i)?.[1] ?? "").trim();
       const text = stripTags(inner.replace(/<cite[\s\S]*?<\/cite>/i, ""));
-      return { id: newBlockId(), type: "quote", data: { text, cite } };
+      return [{ id: newBlockId(), type: "quote", data: { text, cite } }];
     }
     case "core/image": {
       const src = inner.match(/<img[^>]+src="([^"]+)"/i)?.[1] ?? String(tok.attrs.url ?? "");
-      if (!src) return null;
+      if (!src) return [];
       const alt = inner.match(/<img[^>]+alt="([^"]*)"/i)?.[1] ?? "";
       const cap = inner.match(/<figcaption[^>]*>([\s\S]*?)<\/figcaption>/i)?.[1] ?? "";
-      return {
+      return [{
         id: newBlockId(),
         type: "image",
-        data: { url: src, alt, caption: stripTags(cap), href: typeof tok.attrs.linkDestination === "string" ? String(tok.attrs.href ?? "") : "" },
-      };
+        data: {
+          url: src,
+          alt,
+          caption: stripTags(cap),
+          href: typeof tok.attrs.linkDestination === "string" ? String(tok.attrs.href ?? "") : "",
+        },
+      }];
     }
     case "core/code":
-    case "core/preformatted": {
+    case "core/preformatted":
+    case "core/syntaxhighlighter-code": {
       const code = stripTags(inner);
       const lang = typeof tok.attrs.language === "string" ? tok.attrs.language : "";
-      return { id: newBlockId(), type: "code", data: { code, language: lang } };
+      return [{ id: newBlockId(), type: "code", data: { code, language: lang } }];
     }
     case "core/separator":
-      return { id: newBlockId(), type: "separator", data: {} };
+    case "core/spacer":
+      return [{ id: newBlockId(), type: "separator", data: {} }];
     case "core/html":
-      return { id: newBlockId(), type: "html", data: { html: inner } };
+    case "core/shortcode":
+    case "core/freeform":
+      return inner ? [{ id: newBlockId(), type: "html", data: { html: inner } }] : [];
     case "core/embed":
     case "core-embed/youtube":
     case "core-embed/vimeo":
-    case "core-embed/twitter": {
-      const url = typeof tok.attrs.url === "string" ? tok.attrs.url : (inner.match(/https?:\/\/\S+/)?.[0] ?? "");
-      if (!url) return null;
-      return { id: newBlockId(), type: "embed", data: { url, provider: String(tok.attrs.providerNameSlug ?? "iframe"), html: "" } };
+    case "core-embed/twitter":
+    case "core-embed/instagram":
+    case "core-embed/facebook":
+    case "core-embed/tiktok":
+    case "core-embed/spotify":
+    case "core-embed/soundcloud":
+    case "core/video":
+    case "core/audio":
+    case "core/file": {
+      const url = typeof tok.attrs.url === "string"
+        ? tok.attrs.url
+        : (inner.match(/src="([^"]+)"/i)?.[1] ?? inner.match(/href="([^"]+)"/i)?.[1] ?? inner.match(/https?:\/\/\S+/)?.[0] ?? "");
+      if (!url) return [];
+      const provider = String(tok.attrs.providerNameSlug ?? name.replace(/^core-embed\//, "").replace(/^core\//, ""));
+      return [{ id: newBlockId(), type: "embed", data: { url, provider, html: "" } }];
     }
     case "core/table":
-      return { id: newBlockId(), type: "html", data: { html: inner } };
+      return inner ? [{ id: newBlockId(), type: "html", data: { html: inner } }] : [];
     case "core/buttons":
     case "core/button": {
       const href = inner.match(/href="([^"]+)"/i)?.[1] ?? "";
       const text = stripTags(inner);
-      return { id: newBlockId(), type: "button", data: { href, text, variant: "primary" } };
+      return [{ id: newBlockId(), type: "button", data: { href, text, variant: "primary" } }];
     }
     default: {
-      // Fallback: treat as raw HTML so nothing is lost.
-      if (!inner) return null;
-      return { id: newBlockId(), type: "html", data: { html: inner } };
+      // Lossless fallback: keep original markup so nothing is dropped.
+      if (!inner) return [];
+      return [{ id: newBlockId(), type: "html", data: { html: inner } }];
     }
   }
 }
@@ -280,13 +339,11 @@ export function parseGutenberg(html: string | null | undefined): BlocksDoc {
   }
   const tokens = tokenize(src);
   const out: Block[] = [];
-  for (const tok of tokens) {
-    const block = tokenToBlock(tok);
-    if (block) out.push(block);
-  }
+  for (const tok of tokens) out.push(...tokenToBlocks(tok));
   if (!out.length) return htmlToBlocks(src);
   return { version: 1, blocks: out, meta: { migratedFrom: "gutenberg" } };
 }
+
 
 // ---------- Gutenberg serializer ----------
 
