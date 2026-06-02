@@ -230,6 +230,18 @@ function PostsList() {
       },
     });
   };
+  const onBulkMigrate = async () => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    try {
+      const res = await migrate$({ data: { ids } });
+      toast.success(`Skonwertowano: ${res.migrated}/${res.total}`);
+      clear();
+      invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
   const onBulkPurge = () => {
     const ids = [...selected];
     setConfirmState({
