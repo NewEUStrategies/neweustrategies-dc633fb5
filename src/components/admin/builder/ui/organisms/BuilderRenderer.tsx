@@ -116,8 +116,18 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
     <div data-col-id={column.id} className={`flex ${layoutClass} gap-2 h-full min-w-0 max-w-full overflow-hidden ${axisClass} ${vClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius }}>
       {column.children.map((w) => {
         if (hiddenOnDevice(w.advanced, device)) return null;
+        const adv = w.advanced as { height?: { desktop?: unknown; tablet?: unknown; mobile?: unknown } } | undefined;
+        const hasExplicitHeight = !!(adv?.height && (adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile));
+        // Fill column height by default for content widgets when no explicit
+        // height is set. Skip header/footer-style compact widgets and intrinsic
+        // ones (image/icon/button/spacer/divider) so they keep hugging content.
+        const shouldFillHeight =
+          singleWidget &&
+          !hasExplicitHeight &&
+          !AUTO_SIZE_WIDGETS.has(w.type) &&
+          !COMPACT_WIDGET_TYPES.has(w.type);
         const itemClass = singleWidget
-          ? "flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-hidden"
+          ? `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-hidden${shouldFillHeight ? " flex-1" : ""}`
           : "flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-hidden";
         return (
           <div key={w.id} data-widget-id={w.id} className={itemClass} style={{ ...getWidgetFrameStyle(w, device), boxSizing: "border-box" }}>
