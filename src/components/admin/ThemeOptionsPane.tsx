@@ -95,6 +95,9 @@ interface ThemeOptions extends Record<string, unknown> {
     focus_ring_width: number;
     show_label_above: boolean;
   };
+  sidebars: {
+    style: SidebarStyle;
+  };
 }
 
 const DEFAULTS: ThemeOptions = {
