@@ -1,4 +1,8 @@
 // Molecule: padding + margin (per-side, responsive) + align (responsive).
+// Internal device tabs let the user edit desktop / tablet / mobile values
+// from one place; the `device` prop is just the initial active tab.
+import { useState } from "react";
+import { Monitor, Tablet, Smartphone } from "lucide-react";
 import type { Align, CommonStyle, Device, ResponsiveValue } from "@/lib/builder/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
