@@ -408,32 +408,32 @@ export function ThemeOptionsPane() {
 
         {active === "header.main_menu" && (
           <div className="space-y-4">
-            <SectionTitle>Navigation (Top Level)</SectionTitle>
-            <Row label="Menu Hover Effect" hint="Stosowane do elementów najwyższego poziomu.">
+            <SectionTitle>{t("themeOptions.mainMenu.navTopLevel")}</SectionTitle>
+            <Row label={t("themeOptions.mainMenu.hoverEffect")} hint={t("themeOptions.mainMenu.hoverEffectHint")}>
               <Select
                 value={draft.header.main_menu.hover_effect}
                 onValueChange={(v) => patchMenu({ hover_effect: v as ThemeOptions["header"]["main_menu"]["hover_effect"] })}
               >
                 <SelectTrigger className="w-[220px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="color-border">Default (Color Border)</SelectItem>
-                  <SelectItem value="underline">Underline</SelectItem>
-                  <SelectItem value="background">Background</SelectItem>
-                  <SelectItem value="scale">Scale</SelectItem>
-                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="color-border">{t("themeOptions.mainMenu.hoverColorBorder")}</SelectItem>
+                  <SelectItem value="underline">{t("themeOptions.mainMenu.hoverUnderline")}</SelectItem>
+                  <SelectItem value="background">{t("themeOptions.mainMenu.hoverBackground")}</SelectItem>
+                  <SelectItem value="scale">{t("themeOptions.mainMenu.hoverScale")}</SelectItem>
+                  <SelectItem value="none">{t("themeOptions.mainMenu.hoverNone")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Sticky Main Menu" hint="Utrzymuj pasek menu widoczny podczas przewijania.">
+            <Row label={t("themeOptions.mainMenu.sticky")} hint={t("themeOptions.mainMenu.stickyHint")}>
               <Switch checked={draft.header.main_menu.sticky} onCheckedChange={(v) => patchMenu({ sticky: v })} />
             </Row>
-            <Row label="Smart Sticky" hint="Pokazuj pasek tylko przy przewijaniu w górę.">
+            <Row label={t("themeOptions.mainMenu.smartSticky")} hint={t("themeOptions.mainMenu.smartStickyHint")}>
               <Switch checked={draft.header.main_menu.smart_sticky} onCheckedChange={(v) => patchMenu({ smart_sticky: v })} />
             </Row>
-            <Row label="Glass Effect" hint="Efekt szkła (frosted) na sticky nagłówku.">
+            <Row label={t("themeOptions.mainMenu.glass")} hint={t("themeOptions.mainMenu.glassHint")}>
               <Switch checked={draft.header.main_menu.glass_effect} onCheckedChange={(v) => patchMenu({ glass_effect: v })} />
             </Row>
-            <Row label="Item Spacing (px)" hint="Padding lewy/prawy pozycji menu.">
+            <Row label={t("themeOptions.mainMenu.itemSpacing")} hint={t("themeOptions.mainMenu.itemSpacingHint")}>
               <Input
                 type="number" min={0} max={64}
                 className="w-[120px] h-9 text-xs"
@@ -441,7 +441,7 @@ export function ThemeOptionsPane() {
                 onChange={(e) => patchMenu({ item_spacing: Number(e.target.value) || 0 })}
               />
             </Row>
-            <Row label="Menu Icon Spacing (px)" hint="Odstęp między tekstem a ikoną.">
+            <Row label={t("themeOptions.mainMenu.iconSpacing")} hint={t("themeOptions.mainMenu.iconSpacingHint")}>
               <Input
                 type="number" min={0} max={32}
                 className="w-[120px] h-9 text-xs"
@@ -450,11 +450,11 @@ export function ThemeOptionsPane() {
               />
             </Row>
 
-            <SectionTitle>Sub-Level Menus</SectionTitle>
-            <Row label="Tło submenu — From">
+            <SectionTitle>{t("themeOptions.mainMenu.subLevel")}</SectionTitle>
+            <Row label={t("themeOptions.mainMenu.submenuFrom")}>
               <Input type="color" className="w-[80px] h-9" value={draft.header.main_menu.submenu_bg_from || "#ffffff"} onChange={(e) => patchMenu({ submenu_bg_from: e.target.value })} />
             </Row>
-            <Row label="Tło submenu — To">
+            <Row label={t("themeOptions.mainMenu.submenuTo")}>
               <Input type="color" className="w-[80px] h-9" value={draft.header.main_menu.submenu_bg_to || "#ffffff"} onChange={(e) => patchMenu({ submenu_bg_to: e.target.value })} />
             </Row>
           </div>
