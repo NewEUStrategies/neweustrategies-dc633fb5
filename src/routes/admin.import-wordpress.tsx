@@ -50,9 +50,17 @@ function ImportWordpressPage() {
   const callCreate = useServerFn(createWpImportJob);
   const callRun = useServerFn(runWpImportJob);
   const callGet = useServerFn(getWpImportJob);
+  const callCancel = useServerFn(cancelWpImportJob);
 
   const sites = useMutation({
     mutationFn: async () => (await callListSites()).sites as SiteOption[],
+  });
+
+  const cancel = useMutation({
+    mutationFn: async () => {
+      if (!jobId) return null;
+      return callCancel({ data: { jobId } });
+    },
   });
 
   const preview = useMutation({
