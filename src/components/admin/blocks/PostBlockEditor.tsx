@@ -154,6 +154,8 @@ export function PostBlockEditor({ value, onChange, documentPane }: Props) {
         <BlockSidebar
           doc={history.doc}
           activeBlock={activeBlock}
+          activeId={activeId}
+          onSelect={setActiveId}
           onChangeBlock={updateActive}
           documentPane={documentPane}
         />
