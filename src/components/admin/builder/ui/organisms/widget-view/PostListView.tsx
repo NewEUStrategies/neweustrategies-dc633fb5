@@ -8,7 +8,7 @@ import { getNum, getStr } from "./frame";
 
 type Lang = "pl" | "en";
 
-type Variant = "card" | "minimal" | "overlay" | "list";
+type Variant = "card" | "minimal" | "overlay" | "list" | "numbered";
 
 interface PostRow {
   id: string;
