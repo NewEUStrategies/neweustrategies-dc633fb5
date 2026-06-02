@@ -69,9 +69,15 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     updateItems(next);
   };
 
+  const demoItems: SliderItem[] = [
+    { image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1200", title_pl: "Przykładowy slajd", title_en: "Sample slide", subtitle_pl: "Podgląd wariantu – dodaj własne slajdy poniżej", subtitle_en: "Variant preview – add your own slides below", href: "#", cta_pl: "Zobacz", cta_en: "View" },
+    { image: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1200", title_pl: "Drugi slajd", title_en: "Second slide", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
+    { image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=1200", title_pl: "Trzeci slajd", title_en: "Third slide", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
+  ];
+  const hasRealItems = items.some((it) => it.image);
   const previewCfg = {
-    variant, ratio, autoplay: false, intervalMs, rounded, overlayOpacity,
-    items: items.length ? items : [{ image: "" } as SliderItem],
+    variant, ratio, autoplay: true, intervalMs, rounded, overlayOpacity,
+    items: hasRealItems ? items : demoItems,
   };
 
   return (
@@ -261,7 +267,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           Podgląd na żywo
         </div>
         <div className="rounded-md border border-border p-2 bg-muted/20">
-          <SliderRender config={previewCfg} lang={lang} preview />
+          <SliderRender config={previewCfg} lang={lang} />
         </div>
       </div>
 
