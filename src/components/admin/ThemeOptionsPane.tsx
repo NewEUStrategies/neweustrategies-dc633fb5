@@ -944,7 +944,7 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
         {id === "layout-5" && (
           <>
             <Bar y={0} h={36} fill="transparent" />
-            {Logo(28, 18)}
+            <Logo cx={28} cy={18} />
             {navItems.map((i) => <NavDot key={i} x={110 + i * 22} y={18} />)}
             <Bar y={36} h={54} fill="transparent" />
           </>
