@@ -969,6 +969,7 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
 }
 
 
+function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark") => void }) {
   const tabs: { id: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark"; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: "default", label: "Default Logos", icon: ImageIcon },
     { id: "mobile", label: "Mobile Logos", icon: Smartphone },
