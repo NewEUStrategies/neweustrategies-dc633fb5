@@ -238,8 +238,7 @@ function EditPost() {
             className="mt-2 w-full"
             onClick={async () => {
               try {
-                const fn = migratePostToBlocks;
-                const res = await fn({ data: { id: form.id } });
+                const res = await migrate$({ data: { id: form.id } });
                 toast.success(
                   t("admin.posts.migrateOk", {
                     defaultValue: "Skonwertowano na bloki (źródło: {{src}})",
