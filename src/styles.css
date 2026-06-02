@@ -259,3 +259,30 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   padding-inline: 0.75rem;
 }
 
+
+/* -----------------------------------------------------------------------
+ * Widget Properties panel — compact density
+ * Scoped to `.wp-compact` so it doesn't bleed into the rest of the admin.
+ * Goal: small fonts, short rows, tight spacing so the panel surfaces more
+ * controls without scrolling. Every change still lives in design tokens.
+ * ----------------------------------------------------------------------- */
+.wp-compact { font-size: 11px; line-height: 1.35; }
+.wp-compact label { font-size: 10px; letter-spacing: 0.01em; }
+.wp-compact .text-xs { font-size: 11px; }
+.wp-compact input,
+.wp-compact textarea,
+.wp-compact select,
+.wp-compact button[role="combobox"] {
+  height: 26px;
+  font-size: 11px;
+  padding-block: 2px;
+  padding-inline: 6px;
+}
+.wp-compact textarea { height: auto; min-height: 56px; padding-block: 6px; }
+.wp-compact [data-radix-select-trigger] { height: 26px; font-size: 11px; padding-block: 2px; padding-inline: 6px; }
+.wp-compact h4 { font-size: 10px; letter-spacing: 0.06em; }
+.wp-compact .space-y-4 > * + * { margin-top: 0.6rem; }
+.wp-compact .space-y-3 > * + * { margin-top: 0.45rem; }
+.wp-compact .space-y-2 > * + * { margin-top: 0.3rem; }
+.wp-compact section { padding-top: 0.45rem; }
+.wp-compact .grid { gap: 0.4rem; }
