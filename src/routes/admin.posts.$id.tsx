@@ -223,12 +223,37 @@ function EditPost() {
         <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="blocks">Block editor (zalecane)</SelectItem>
-            <SelectItem value="builder">Visual Builder (Elementor)</SelectItem>
-            <SelectItem value="richtext">Rich text (legacy)</SelectItem>
-            <SelectItem value="markdown">Markdown (legacy)</SelectItem>
+            <SelectItem value="blocks">{t("admin.posts.editorBlocks", { defaultValue: "Block editor (zalecane)" })}</SelectItem>
+            <SelectItem value="builder">{t("admin.posts.editorBuilder", { defaultValue: "Visual Builder (Elementor)" })}</SelectItem>
+            <SelectItem value="richtext">{t("admin.posts.editorRichtext", { defaultValue: "Rich text (legacy)" })}</SelectItem>
+            <SelectItem value="markdown">{t("admin.posts.editorMarkdown", { defaultValue: "Markdown (legacy)" })}</SelectItem>
           </SelectContent>
         </Select>
+        {form.editor !== "blocks" && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-2 w-full"
+            onClick={async () => {
+              try {
+                const fn = migratePostToBlocks;
+                const res = await fn({ data: { id: form.id } });
+                toast.success(
+                  t("admin.posts.migrateOk", {
+                    defaultValue: "Skonwertowano na bloki (źródło: {{src}})",
+                    src: res.source,
+                  }),
+                );
+                await qc.invalidateQueries({ queryKey: ["admin", "post", form.id] });
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : String(e));
+              }
+            }}
+          >
+            {t("admin.posts.migrateToBlocks", { defaultValue: "Konwertuj na bloki" })}
+          </Button>
+        )}
       </div>
       <div>
         <Label>Slug</Label>
