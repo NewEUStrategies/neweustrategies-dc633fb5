@@ -65,9 +65,9 @@ export interface AnimatedHeadingConfig {
 const shapeStroke: Record<AnimatedHeadingShape, number> = {
   none: 0,
   underline: 3,
-  "double-underline": 2.5,
-  curly: 2.5,
-  zigzag: 2.5,
+  "double-underline": 4,
+  curly: 1.75,
+  zigzag: 1.75,
   circle: 3,
   diagonal: 3,
   strike: 3,
@@ -82,8 +82,8 @@ const shapePathLen: Record<AnimatedHeadingShape, number> = {
   none: 0,
   underline: 220,
   "double-underline": 460,
-  curly: 520,
-  zigzag: 380,
+  curly: 440,
+  zigzag: 320,
   circle: 520,
   diagonal: 220,
   strike: 220,
@@ -132,21 +132,21 @@ function ShapeSvg({
       body = <path d="M2 6 Q 100 2 198 6" />;
       break;
     case "double-underline":
-      viewBox = "0 0 200 14";
+      viewBox = "0 0 200 16";
       body = (
         <>
-          <path d="M2 4 Q 100 1 198 4" />
-          <path d="M2 11 Q 100 8 198 11" />
+          <path d="M2 5 Q 100 1 198 5" />
+          <path d="M3 12 Q 100 9 197 12" />
         </>
       );
       break;
     case "curly":
-      viewBox = "0 0 200 14";
-      body = <path d="M2 7 q 12.5 -7 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 23 0" />;
+      viewBox = "0 0 200 10";
+      body = <path d="M2 5 q 12.5 -3 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 23 0" />;
       break;
     case "zigzag":
-      viewBox = "0 0 200 14";
-      body = <path d="M2 11 L 22 3 L 42 11 L 62 3 L 82 11 L 102 3 L 122 11 L 142 3 L 162 11 L 182 3 L 198 11" />;
+      viewBox = "0 0 200 10";
+      body = <path d="M2 8 L 22 4 L 42 8 L 62 4 L 82 8 L 102 4 L 122 8 L 142 4 L 162 8 L 182 4 L 198 8" />;
       break;
     case "circle":
       body = <path d="M100 4 C 30 4, 4 12, 4 11.5 C 4 19, 30 19.5, 100 19.5 C 170 19.5, 196 19, 196 11.5 C 196 4, 170 4, 100 4 Z" />;
@@ -251,10 +251,20 @@ export function AnimatedHeadingRender({
       ? (words[wIdx] ?? "")
       : (config.highlight ?? "");
 
+  const isUnderlineLike =
+    shape === "underline" || shape === "double-underline" || shape === "curly" || shape === "zigzag";
+  const needsFrame = shape === "circle" || shape === "framed" || shape === "x";
+
   return (
     <Tag
       className="font-display text-3xl md:text-4xl leading-tight"
-      style={{ color, textAlign: align, margin: 0 }}
+      style={{
+        color,
+        textAlign: align,
+        margin: 0,
+        paddingBottom: isUnderlineLike ? "0.45em" : needsFrame ? "0.25em" : undefined,
+        paddingTop: needsFrame ? "0.15em" : undefined,
+      }}
     >
       {config.textBefore ? <span>{config.textBefore}{config.textBefore.endsWith(" ") ? "" : " "}</span> : null}
       <span
