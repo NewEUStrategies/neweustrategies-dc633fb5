@@ -163,6 +163,7 @@ const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
 
 
 export function ThemeOptionsPane() {
+  const { t } = useTranslation();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { query, save } = useSettings<any>("theme_options", DEFAULTS as any);
   const [draft, setDraft] = useState<ThemeOptions | null>(null);
@@ -171,6 +172,7 @@ export function ThemeOptionsPane() {
   const [logoTab, setLogoTab] = useState<"default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark">("default");
 
   if (!draft) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
+
 
   const patchLogo = (p: Partial<ThemeOptions["logo"]>) =>
     setDraft({ ...draft, logo: { ...draft.logo, ...p } });
