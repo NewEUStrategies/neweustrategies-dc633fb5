@@ -38,6 +38,7 @@ import {
   AnimatedHeadingEditor,
   PostListEditor,
 } from "./ui/organisms/widget-properties";
+import { ShadowEditor } from "./ui/molecules/ShadowEditor";
 
 interface Props {
   widget: WidgetNode;
@@ -415,29 +416,10 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
 
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Cień</h4>
-          <PropField label="Cień (CSS box-shadow)">
-            <Input
-              value={getFlatStr("boxShadow")}
-              placeholder="0 10px 30px rgba(0,0,0,.15)"
-              onChange={(e) => setFlatStr("boxShadow", e.target.value)}
-            />
-          </PropField>
-          <div className="flex flex-wrap gap-1">
-            {[
-              { label: "brak", v: "" },
-              { label: "sm", v: "0 1px 2px rgba(0,0,0,.08)" },
-              { label: "md", v: "0 4px 12px rgba(0,0,0,.12)" },
-              { label: "lg", v: "0 10px 30px rgba(0,0,0,.18)" },
-              { label: "xl", v: "0 24px 60px rgba(0,0,0,.25)" },
-            ].map((p) => (
-              <button
-                key={p.label}
-                type="button"
-                onClick={() => setFlatStr("boxShadow", p.v || undefined)}
-                className="px-2 py-0.5 text-[10px] rounded border border-border hover:bg-muted"
-              >{p.label}</button>
-            ))}
-          </div>
+          <ShadowEditor
+            value={getFlatStr("boxShadow")}
+            onChange={(v: string | undefined) => setFlatStr("boxShadow", v)}
+          />
         </section>
 
 
