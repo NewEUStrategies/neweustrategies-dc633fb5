@@ -133,10 +133,14 @@ function PagesList() {
 
   const isTrash = view === "trash";
 
+  const coverageOf = (p: { title_pl: string | null; title_en: string | null }) => ({
+    pl: !!(p.title_pl && p.title_pl.trim()),
+    en: !!(p.title_en && p.title_en.trim()),
+  });
+
   const filteredPages = useMemo(() => {
     if (!pages) return [];
-    if (!isTrash) return pages;
-    const q = trashSearch.trim().toLowerCase();
+    const q = search.trim().toLowerCase();
     const fromTs = trashFrom ? new Date(trashFrom).getTime() : null;
     const toTs = trashTo ? new Date(trashTo).getTime() + 24 * 60 * 60 * 1000 - 1 : null;
     return pages.filter((p) => {
@@ -146,14 +150,23 @@ function PagesList() {
         const s = (p.slug ?? "").toLowerCase();
         if (!t1.includes(q) && !t2.includes(q) && !s.includes(q)) return false;
       }
-      if (fromTs !== null || toTs !== null) {
+      if (!isTrash && statusFilter !== "all" && p.status !== statusFilter) return false;
+      if (authorFilter !== "all" && p.author_id !== authorFilter) return false;
+      if (langFilter !== "all") {
+        const c = coverageOf(p);
+        if (langFilter === "complete" && !(c.pl && c.en)) return false;
+        if (langFilter === "missing_any" && c.pl && c.en) return false;
+        if (langFilter === "pl_only" && !(c.pl && !c.en)) return false;
+        if (langFilter === "en_only" && !(c.en && !c.pl)) return false;
+      }
+      if (isTrash && (fromTs !== null || toTs !== null)) {
         const d = p.deleted_at ? new Date(p.deleted_at).getTime() : 0;
         if (fromTs !== null && d < fromTs) return false;
         if (toTs !== null && d > toTs) return false;
       }
       return true;
     });
-  }, [pages, isTrash, trashSearch, trashFrom, trashTo]);
+  }, [pages, isTrash, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo]);
 
   const allIds = useMemo(() => filteredPages.map((p) => p.id), [filteredPages]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
