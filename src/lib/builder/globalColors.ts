@@ -329,6 +329,17 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultDark: "#1f2a44",
         overrides: ["--sidebar-border"],
       },
+      {
+        key: "sidebar-title",
+        label: "Sidebar Title (Menu / Section)",
+        description: "Tytuł sekcji w sidebarze (np. „Menu", „Ustawienia") — z osobnym kolorem dla trybu jasnego i ciemnego.",
+        hasDark: true,
+        defaultLight: "#6b7280",
+        defaultDark: "#9ca3af",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "12px",
+      },
     ],
   },
   {
