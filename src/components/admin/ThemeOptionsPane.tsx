@@ -828,6 +828,7 @@ function ThemeOptionsBody({
   children: React.ReactNode;
 }) {
   void save;
+  const { t } = useTranslation();
   const sidebarStyle = draft.sidebars?.style ?? "style-1";
   const compact = sidebarStyle === "style-4";
   return (
