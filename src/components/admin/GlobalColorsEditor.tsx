@@ -286,6 +286,7 @@ export function GlobalColorsEditor() {
                 {group.label}
               </div>
               <div className="p-4 space-y-5">
+                {group.id === "sidebar" && <SidebarStylePicker />}
                 {group.slots.map((slot) => {
                   const val = draft[slot.key] ?? {};
                   return (
