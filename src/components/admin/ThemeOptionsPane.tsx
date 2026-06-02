@@ -163,7 +163,7 @@ const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
 
 
 export function ThemeOptionsPane() {
-  const { t } = useTranslation();
+  const { t } = useTranslation(undefined, { keyPrefix: "admin" });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { query, save } = useSettings<any>("theme_options", DEFAULTS as any);
   const [draft, setDraft] = useState<ThemeOptions | null>(null);
@@ -171,7 +171,7 @@ export function ThemeOptionsPane() {
   const [active, setActive] = useState<(typeof SECTIONS)[number]["id"]>("logo");
   const [logoTab, setLogoTab] = useState<"default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark">("default");
 
-  if (!draft) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
+  if (!draft) return <p className="text-sm text-muted-foreground">{t("themeOptions.loading")}</p>;
 
 
   const patchLogo = (p: Partial<ThemeOptions["logo"]>) =>
@@ -224,19 +224,19 @@ export function ThemeOptionsPane() {
             {logoTab === "default" && (
               <div className="grid md:grid-cols-2 gap-4">
                 <ImageSlot
-                  label="Main Logo"
+                  label={t("themeOptions.slots.main")}
                   icon={<Sun className="w-3.5 h-3.5" />}
                   value={draft.logo.main}
                   onChange={(v) => patchLogo({ main: v })}
-                  hint="Zalecana wysokość 120px (retina)."
+                  hint={t("themeOptions.hints.recommended120")}
                   folder="theme/logo"
                 />
                 <ImageSlot
-                  label="Dark Mode — Main Logo"
+                  label={t("themeOptions.slots.mainDark")}
                   icon={<Moon className="w-3.5 h-3.5" />}
                   value={draft.logo.main_dark}
                   onChange={(v) => patchLogo({ main_dark: v })}
-                  hint="Wariant dla ciemnego motywu."
+                  hint={t("themeOptions.hints.darkVariant")}
                   folder="theme/logo"
                 />
               </div>
@@ -245,15 +245,15 @@ export function ThemeOptionsPane() {
             {logoTab === "mobile" && (
               <div className="grid md:grid-cols-2 gap-4">
                 <ImageSlot
-                  label="Mobile Logo"
+                  label={t("themeOptions.slots.mobile")}
                   icon={<Smartphone className="w-3.5 h-3.5" />}
                   value={draft.logo.mobile}
                   onChange={(v) => patchLogo({ mobile: v })}
-                  hint="Zalecana wysokość 84px."
+                  hint={t("themeOptions.hints.recommended84")}
                   folder="theme/logo"
                 />
                 <ImageSlot
-                  label="Dark Mode — Mobile"
+                  label={t("themeOptions.slots.mobileDark")}
                   icon={<Moon className="w-3.5 h-3.5" />}
                   value={draft.logo.mobile_dark}
                   onChange={(v) => patchLogo({ mobile_dark: v })}
@@ -265,19 +265,19 @@ export function ThemeOptionsPane() {
             {logoTab === "transparent" && (
               <div className="grid md:grid-cols-2 gap-4">
                 <ImageSlot
-                  label="Transparent Logo"
+                  label={t("themeOptions.slots.transparent")}
                   icon={<Sun className="w-3.5 h-3.5" />}
                   value={draft.logo.transparent}
                   onChange={(v) => patchLogo({ transparent: v })}
-                  hint="Logo dla nagłówków z przezroczystym tłem."
+                  hint={t("themeOptions.hints.transparent")}
                   folder="theme/logo"
                 />
                 <ImageSlot
-                  label="Dark Mode — Transparent"
+                  label={t("themeOptions.slots.transparentDark")}
                   icon={<Moon className="w-3.5 h-3.5" />}
                   value={draft.logo.transparent_dark}
                   onChange={(v) => patchLogo({ transparent_dark: v })}
-                  hint="Wariant dla ciemnego motywu."
+                  hint={t("themeOptions.hints.darkVariant")}
                   folder="theme/logo"
                 />
               </div>
@@ -286,18 +286,18 @@ export function ThemeOptionsPane() {
             {logoTab === "organization" && (
               <div className="space-y-3">
                 <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
-                  Logo dla schema markup (social media, wyniki wyszukiwania). Zostaw puste, by użyć Main Logo.
+                  {t("themeOptions.banners.organization")}
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <ImageSlot
-                    label="Organization Logo"
+                    label={t("themeOptions.slots.organization")}
                     icon={<Sun className="w-3.5 h-3.5" />}
                     value={draft.logo.organization}
                     onChange={(v) => patchLogo({ organization: v })}
                     folder="theme/logo"
                   />
                   <ImageSlot
-                    label="Dark Mode — Organization"
+                    label={t("themeOptions.slots.organizationDark")}
                     icon={<Moon className="w-3.5 h-3.5" />}
                     value={draft.logo.organization_dark}
                     onChange={(v) => patchLogo({ organization_dark: v })}
@@ -310,21 +310,21 @@ export function ThemeOptionsPane() {
             {logoTab === "sidebar" && (
               <div className="space-y-4">
                 <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
-                  Logo sidebaru. <strong>Kwadrat</strong> pokazywany po zwinięciu, <strong>podłużne logo</strong> po rozwinięciu sidebaru.
+                  {t("themeOptions.banners.sidebar")}
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">Zwinięty sidebar — ikona (kwadrat)</div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">{t("themeOptions.headers.sidebarCollapsed")}</div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <ImageSlot
-                      label="Sidebar Icon"
+                      label={t("themeOptions.slots.sidebarIcon")}
                       icon={<Sun className="w-3.5 h-3.5" />}
                       value={draft.logo.sidebar_icon}
                       onChange={(v) => patchLogo({ sidebar_icon: v })}
-                      hint="Kwadratowa ikona (np. 64×64px)."
+                      hint={t("themeOptions.hints.sidebarSquare")}
                       folder="theme/logo"
                     />
                     <ImageSlot
-                      label="Dark Mode — Sidebar Icon"
+                      label={t("themeOptions.slots.sidebarIconDark")}
                       icon={<Moon className="w-3.5 h-3.5" />}
                       value={draft.logo.sidebar_icon_dark}
                       onChange={(v) => patchLogo({ sidebar_icon_dark: v })}
@@ -333,18 +333,18 @@ export function ThemeOptionsPane() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">Rozwinięty sidebar — podłużne logo</div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">{t("themeOptions.headers.sidebarExpanded")}</div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <ImageSlot
-                      label="Sidebar Expanded Logo"
+                      label={t("themeOptions.slots.sidebarExpanded")}
                       icon={<Sun className="w-3.5 h-3.5" />}
                       value={draft.logo.sidebar_expanded}
                       onChange={(v) => patchLogo({ sidebar_expanded: v })}
-                      hint="Podłużne logo (np. 200×48px)."
+                      hint={t("themeOptions.hints.sidebarOblong")}
                       folder="theme/logo"
                     />
                     <ImageSlot
-                      label="Dark Mode — Sidebar Expanded"
+                      label={t("themeOptions.slots.sidebarExpandedDark")}
                       icon={<Moon className="w-3.5 h-3.5" />}
                       value={draft.logo.sidebar_expanded_dark}
                       onChange={(v) => patchLogo({ sidebar_expanded_dark: v })}
@@ -358,17 +358,17 @@ export function ThemeOptionsPane() {
             {logoTab === "bookmark" && (
               <div className="space-y-5">
                 <div>
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">iOS Touch Icon · 180×180px</div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">{t("themeOptions.headers.iosTouchIcon")}</div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <ImageSlot
-                      label="iOS Touch Icon"
+                      label={t("themeOptions.slots.iosTouchIcon")}
                       icon={<Sun className="w-3.5 h-3.5" />}
                       value={draft.logo.bookmark_ios}
                       onChange={(v) => patchLogo({ bookmark_ios: v })}
                       folder="theme/icons"
                     />
                     <ImageSlot
-                      label="Dark Mode — iOS Touch Icon"
+                      label={t("themeOptions.slots.iosTouchIconDark")}
                       icon={<Moon className="w-3.5 h-3.5" />}
                       value={draft.logo.bookmark_ios_dark}
                       onChange={(v) => patchLogo({ bookmark_ios_dark: v })}
@@ -376,24 +376,24 @@ export function ThemeOptionsPane() {
                     />
                   </div>
                 </div>
-                <Row label="Add to Home Screen" hint="Wymaga ustawionego iOS Touch Icon.">
+                <Row label={t("themeOptions.addToHomeScreen")} hint={t("themeOptions.hints.addToHome")}>
                   <Switch
                     checked={draft.logo.add_to_home_screen}
                     onCheckedChange={(v) => patchLogo({ add_to_home_screen: v })}
                   />
                 </Row>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">Windows Metro Tile · 144×144px</div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">{t("themeOptions.headers.windowsTile")}</div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <ImageSlot
-                      label="Windows Metro Tile Icon"
+                      label={t("themeOptions.slots.windowsTile")}
                       icon={<Sun className="w-3.5 h-3.5" />}
                       value={draft.logo.bookmark_windows}
                       onChange={(v) => patchLogo({ bookmark_windows: v })}
                       folder="theme/icons"
                     />
                     <ImageSlot
-                      label="Dark Mode — Windows Metro Tile"
+                      label={t("themeOptions.slots.windowsTileDark")}
                       icon={<Moon className="w-3.5 h-3.5" />}
                       value={draft.logo.bookmark_windows_dark}
                       onChange={(v) => patchLogo({ bookmark_windows_dark: v })}
@@ -832,7 +832,7 @@ function ThemeOptionsBody({
   children: React.ReactNode;
 }) {
   void save;
-  const { t } = useTranslation();
+  const { t } = useTranslation(undefined, { keyPrefix: "admin" });
   const sidebarStyle = draft.sidebars?.style ?? "style-1";
   const compact = sidebarStyle === "style-4";
   return (
@@ -846,7 +846,7 @@ function ThemeOptionsBody({
         )}
       >
         <div data-sidebar="group-label" className="px-2 pb-2 pt-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-          {t("admin.nav.themeOptions")}
+          {t("nav.themeOptions")}
         </div>
         <nav className="space-y-0.5">
           {SECTIONS.map((s) => {
@@ -976,30 +976,31 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
 
 
 function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark") => void }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "admin" });
   const tabs: { id: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark"; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { id: "default", label: "Default Logos", icon: ImageIcon },
-    { id: "mobile", label: "Mobile Logos", icon: Smartphone },
-    { id: "transparent", label: "Transparent", icon: Eye },
-    { id: "organization", label: "Organization", icon: Star },
-    { id: "sidebar", label: "Sidebar", icon: LayoutDashboard },
-    { id: "bookmark", label: "Globelet", icon: Globe },
+    { id: "default", label: t("themeOptions.logoTabs.default"), icon: ImageIcon },
+    { id: "mobile", label: t("themeOptions.logoTabs.mobile"), icon: Smartphone },
+    { id: "transparent", label: t("themeOptions.logoTabs.transparent"), icon: Eye },
+    { id: "organization", label: t("themeOptions.logoTabs.organization"), icon: Star },
+    { id: "sidebar", label: t("themeOptions.logoTabs.sidebar"), icon: LayoutDashboard },
+    { id: "bookmark", label: t("themeOptions.logoTabs.bookmark"), icon: Globe },
   ];
   return (
     <div className="inline-flex flex-wrap gap-1 rounded-md border border-border p-1 bg-muted/30">
-      {tabs.map((t) => {
-        const Icon = t.icon;
-        const active = value === t.id;
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const active = value === tab.id;
         return (
           <button
-            key={t.id}
+            key={tab.id}
             type="button"
-            onClick={() => onChange(t.id)}
+            onClick={() => onChange(tab.id)}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs transition ${
               active ? "bg-brand text-brand-foreground" : "hover:bg-background text-muted-foreground"
             }`}
           >
             <Icon className="w-3.5 h-3.5" />
-            {t.label}
+            {tab.label}
           </button>
         );
       })}
@@ -1029,57 +1030,22 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 
 type LogoState = ThemeOptions["logo"];
 
-const LOGO_LOCATIONS: Record<string, { title: string; locations: string[] }> = {
-  default: {
-    title: "Main Logo",
-    locations: [
-      "Nagłówek strony (desktop) — lewy/centralny slot",
-      "Strona logowania i rejestracji",
-      "Stopka (jeśli nie ustawiono osobnego footer logo)",
-      "Meta tagi Open Graph (fallback)",
-    ],
-  },
-  mobile: {
-    title: "Mobile Logo",
-    locations: [
-      "Nagłówek na urządzeniach mobilnych (< 1024px)",
-      "Wymaga włączonej opcji „Użyj Mobile Logo” w sekcji Mobile Header",
-    ],
-  },
-  transparent: {
-    title: "Transparent Logo",
-    locations: [
-      "Nagłówki z przezroczystym tłem (np. hero pełnoekranowe)",
-      "Sekcje z tłem dark accent / obrazem",
-    ],
-  },
-  organization: {
-    title: "Organization Logo",
-    locations: [
-      "Schema.org / JSON-LD (Organization)",
-      "Podgląd linków w social media (gdy brak Open Graph image)",
-      "Wyniki wyszukiwania Google",
-    ],
-  },
-  bookmark: {
-    title: "Bookmark / Touch Icons",
-    locations: [
-      "Ikona „Dodaj do ekranu głównego” w iOS",
-      "Kafelek Windows Metro",
-      "Favicon na pulpitach mobilnych",
-    ],
-  },
-  sidebar: {
-    title: "Sidebar Logo",
-    locations: [
-      "Panel boczny — wariant zwinięty (kwadratowa ikona)",
-      "Panel boczny — wariant rozwinięty (podłużne logo)",
-      "Automatyczna zmiana przy collapse / expand sidebaru",
-    ],
-  },
-};
+function useLogoLocations(): Record<string, { title: string; locations: string[] }> {
+  const { t } = useTranslation(undefined, { keyPrefix: "admin" });
+  const arr = (k: string) => t(k, { returnObjects: true }) as unknown as string[];
+  return {
+    default: { title: t("themeOptions.locations.mainTitle"), locations: arr("themeOptions.locations.mainItems") },
+    mobile: { title: t("themeOptions.locations.mobileTitle"), locations: arr("themeOptions.locations.mobileItems") },
+    transparent: { title: t("themeOptions.locations.transparentTitle"), locations: arr("themeOptions.locations.transparentItems") },
+    organization: { title: t("themeOptions.locations.organizationTitle"), locations: arr("themeOptions.locations.organizationItems") },
+    bookmark: { title: t("themeOptions.locations.bookmarkTitle"), locations: arr("themeOptions.locations.bookmarkItems") },
+    sidebar: { title: t("themeOptions.locations.sidebarTitle"), locations: arr("themeOptions.locations.sidebarItems") },
+  };
+}
 
 function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "admin" });
+  const LOGO_LOCATIONS = useLogoLocations();
   const meta = LOGO_LOCATIONS[tab] ?? LOGO_LOCATIONS.default;
   const pick = (light: string | undefined, dark: string | undefined): { l: string; d: string } => {
     const l = light || dark || "";
@@ -1111,12 +1077,12 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
       >
         <div className="flex items-center justify-between">
           <span className="text-[9px] uppercase tracking-widest" style={{ opacity: 0.6 }}>
-            {isDark ? "Dark mode" : "Light mode"}{active ? " • aktywny" : ""}
+            {isDark ? t("themeOptions.preview.darkMode") : t("themeOptions.preview.lightMode")}{active ? ` • ${t("themeOptions.preview.activeSuffix")}` : ""}
           </span>
           <button
             type="button"
             onClick={() => { if (!active) toggle(); }}
-            title={active ? "Aktywny motyw" : `Przełącz na ${isDark ? "dark" : "light"} mode`}
+            title={active ? t("themeOptions.preview.activeTheme") : (isDark ? t("themeOptions.preview.switchToDark") : t("themeOptions.preview.switchToLight"))}
             aria-pressed={active}
             className="group relative w-9 h-9 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
             style={{
@@ -1162,7 +1128,7 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
               style={tab === "bookmark" ? { borderRadius: 8 } : undefined}
             />
           ) : (
-            <span className="text-[11px]" style={{ opacity: 0.5 }}>brak grafiki</span>
+            <span className="text-[11px]" style={{ opacity: 0.5 }}>{t("themeOptions.preview.noImage")}</span>
           )}
         </div>
       </div>
@@ -1172,7 +1138,7 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
   return (
     <div className="rounded-lg border border-border bg-card/40 overflow-hidden">
       <div className="rounded-t-lg text-white text-xs font-semibold px-3 py-2" style={{ background: "#FA9346" }}>
-        Podgląd: {meta.title}
+        {t("themeOptions.preview.previewOf")} {meta.title}
       </div>
       <div className="p-3 space-y-3">
         <div className="grid grid-cols-2 gap-2">
@@ -1181,7 +1147,7 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
         </div>
         <div className="rounded-md bg-muted/50 p-2.5">
           <div className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">
-            Gdzie wykorzystywane
+            {t("themeOptions.preview.locations")}
           </div>
           <ul className="text-[11px] space-y-0.5 text-foreground/80">
             {meta.locations.map((l) => (
