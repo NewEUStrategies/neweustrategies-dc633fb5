@@ -415,7 +415,86 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
     ],
   },
+  {
+    id: "footnotes",
+    category: "typography",
+    label: "Footnotes (Przypisy [fn])",
+    slots: [
+      {
+        key: "fn-ref",
+        label: "Inline Marker [N]",
+        description: "Kolor i typografia oznacznika przypisu w treści, np. [1].",
+        hasDark: true,
+        defaultLight: "#fa9346",
+        defaultDark: "#fbbf24",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "12px",
+      },
+      {
+        key: "fn-list-title",
+        label: "List Title",
+        description: 'Nagłówek listy „Przypisy źródłowe:".',
+        hasDark: true,
+        defaultLight: "#01112F",
+        defaultDark: "#ffffff",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "20px",
+      },
+      {
+        key: "fn-list-text",
+        label: "List Item Text",
+        description: "Kolor i typografia tekstu poszczególnych przypisów.",
+        hasDark: true,
+        defaultLight: "#374151",
+        defaultDark: "#d1d5db",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "14px",
+      },
+      {
+        key: "fn-list-marker",
+        label: "List Marker [N]",
+        description: "Numerek [N] na początku każdego przypisu w liście.",
+        hasDark: true,
+        defaultLight: "#01112F",
+        defaultDark: "#f3f4f6",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "14px",
+      },
+      {
+        key: "fn-backlink",
+        label: "Back Link (↩)",
+        description: "Kolor strzałki powrotu do odsyłacza.",
+        hasDark: true,
+        defaultLight: "#fa9346",
+        defaultDark: "#fbbf24",
+      },
+      {
+        key: "fn-tooltip-bg",
+        label: "Tooltip Background",
+        description: "Tło tooltipa pokazywanego po najechaniu na [N].",
+        hasDark: true,
+        defaultLight: "#ffffff",
+        defaultDark: "#1f2937",
+      },
+      {
+        key: "fn-tooltip-text",
+        label: "Tooltip Text",
+        description: "Kolor i typografia tekstu w tooltipie przypisu.",
+        hasDark: true,
+        defaultLight: "#0f172a",
+        defaultDark: "#f1f5f9",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "13px",
+      },
+    ],
+  },
 ];
+
 
 export type GlobalColorsValue = Record<
   string,
@@ -583,6 +662,12 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where([data-sidebar="sidebar"]:hover){background:var(--gc-sidebar-bg-hover, var(--gc-sidebar-bg, var(--sidebar-background))) !important;border-color:var(--gc-sidebar-border-hover, var(--gc-sidebar-border, var(--sidebar-border))) !important;}
     :where([data-sidebar="sidebar"]:hover){color:var(--gc-sidebar-text-hover, var(--gc-sidebar-text, var(--sidebar-foreground))) !important;}
     :where(.bookmark-icon:hover){color:var(--gc-bookmark-hover-hover, var(--gc-bookmark-hover, currentColor));}
+    :where(sup.fn-ref, sup.fn-ref a){color:var(--gc-fn-ref, inherit);font-family:var(--gc-fn-ref-font, inherit);font-size:var(--gc-fn-ref-size, inherit);font-weight:var(--gc-fn-ref-weight, inherit);font-style:var(--gc-fn-ref-style, inherit);text-decoration:var(--gc-fn-ref-decoration, none);}
+    :where([data-footnotes-title]){color:var(--gc-fn-list-title, inherit);font-family:var(--gc-fn-list-title-font, inherit);font-size:var(--gc-fn-list-title-size, inherit);font-weight:var(--gc-fn-list-title-weight, inherit);font-style:var(--gc-fn-list-title-style, inherit);text-decoration:var(--gc-fn-list-title-decoration, inherit);}
+    :where([data-footnotes-list] li){color:var(--gc-fn-list-text, inherit);font-family:var(--gc-fn-list-text-font, inherit);font-size:var(--gc-fn-list-text-size, inherit);font-weight:var(--gc-fn-list-text-weight, inherit);font-style:var(--gc-fn-list-text-style, inherit);text-decoration:var(--gc-fn-list-text-decoration, inherit);}
+    :where([data-footnotes-list] [data-fn-marker]){color:var(--gc-fn-list-marker, inherit);font-family:var(--gc-fn-list-marker-font, inherit);font-size:var(--gc-fn-list-marker-size, inherit);font-weight:var(--gc-fn-list-marker-weight, inherit);font-style:var(--gc-fn-list-marker-style, inherit);text-decoration:var(--gc-fn-list-marker-decoration, inherit);}
+    :where([data-footnote-backlink]){color:var(--gc-fn-backlink, inherit);}
+    :where([data-footnote-tooltip]){background:var(--gc-fn-tooltip-bg, inherit);color:var(--gc-fn-tooltip-text, inherit);font-family:var(--gc-fn-tooltip-text-font, inherit);font-size:var(--gc-fn-tooltip-text-size, inherit);font-weight:var(--gc-fn-tooltip-text-weight, inherit);font-style:var(--gc-fn-tooltip-text-style, inherit);text-decoration:var(--gc-fn-tooltip-text-decoration, inherit);}
   `.replace(/\s+/g, " ").trim());
 
 
