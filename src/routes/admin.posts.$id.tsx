@@ -6,6 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { updatePost, deletePost } from "@/lib/content.functions";
+import { migratePostToBlocks } from "@/lib/posts-migrate.functions";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import { useAutosave } from "@/hooks/useAutosave";
 import { AutosaveBar } from "@/components/admin/AutosaveBar";
