@@ -82,16 +82,17 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             Wariant slidera
           </div>
-          <div className="text-[10px] text-muted-foreground/70">Najedź, aby zobaczyć ruch</div>
+          <div className="text-[10px] text-muted-foreground/70">Animacja odtwarza się automatycznie</div>
         </div>
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 gap-3">
           {SLIDER_VARIANTS.map((v) => {
             const isActive = variant === v.value;
             const sample: SliderItem[] = items.length && items[0].image
-              ? items.slice(0, 2)
+              ? items.slice(0, 3)
               : [
-                  { image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=600", title_pl: "Przykład", title_en: "Sample", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
-                  { image: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=600", title_pl: "Drugi slajd", title_en: "Second", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
+                  { image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800", title_pl: "Przykład", title_en: "Sample", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
+                  { image: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800", title_pl: "Drugi slajd", title_en: "Second", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
+                  { image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800", title_pl: "Trzeci slajd", title_en: "Third", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
                 ];
             return (
               <button
@@ -99,31 +100,28 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                 type="button"
                 onClick={() => setContent("variant", v.value)}
                 title={v.label}
-                className={`group relative text-left rounded-lg overflow-hidden transition-all duration-200 bg-card
+                className={`group relative text-left rounded-lg overflow-hidden transition-all duration-200 bg-card w-full
                   ${isActive
                     ? "ring-2 ring-brand ring-offset-1 ring-offset-background shadow-md"
-                    : "ring-1 ring-border hover:ring-brand/60 hover:shadow-md hover:-translate-y-0.5"}`}
+                    : "ring-1 ring-border hover:ring-brand/60 hover:shadow-md"}`}
               >
-                {/* Fixed uniform preview frame */}
-                <div className="relative w-full aspect-[16/10] overflow-hidden bg-muted">
-                  <div className="absolute inset-0 [&>*]:!h-full [&>*]:!w-full [&_img]:transition-transform [&_img]:duration-[1200ms] [&_img]:ease-out group-hover:[&_img]:scale-110">
+                {/* Uniform preview frame — no cropping, autoplay enabled */}
+                <div className="relative w-full aspect-[16/9] overflow-hidden bg-muted">
+                  <div className="absolute inset-0 [&>*]:!h-full [&>*]:!w-full">
                     <SliderRender
-                      config={{ variant: v.value, ratio: "16/9", autoplay: false, rounded: "none", overlayOpacity, items: sample }}
+                      config={{ variant: v.value, ratio: "16/9", autoplay: true, intervalMs: 2400, rounded: "none", overlayOpacity, items: sample }}
                       lang={lang}
-                      preview
                     />
                   </div>
-                  {/* Subtle bottom gradient for label legibility */}
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/40 to-transparent" />
                   {isActive && (
-                    <div className="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-brand text-[10px] font-bold text-white shadow">
+                    <div className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-brand text-[10px] font-bold text-white shadow z-10">
                       ✓
                     </div>
                   )}
                 </div>
                 {/* Label bar */}
-                <div className="px-2.5 py-1.5 border-t border-border bg-background flex items-center justify-between gap-1">
-                  <span className={`text-[11px] font-medium truncate ${isActive ? "text-brand" : "text-foreground/80"}`}>
+                <div className="px-3 py-2 border-t border-border bg-background flex items-center justify-between gap-1">
+                  <span className={`text-xs font-medium truncate ${isActive ? "text-brand" : "text-foreground/80"}`}>
                     {v.label}
                   </span>
                 </div>
