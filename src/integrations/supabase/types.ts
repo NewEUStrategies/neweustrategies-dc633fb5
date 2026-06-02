@@ -701,6 +701,7 @@ export type Database = {
       posts: {
         Row: {
           author_id: string | null
+          blocks_data: Json | null
           builder_data: Json | null
           content_en: string | null
           content_pl: string | null
@@ -728,6 +729,7 @@ export type Database = {
         }
         Insert: {
           author_id?: string | null
+          blocks_data?: Json | null
           builder_data?: Json | null
           content_en?: string | null
           content_pl?: string | null
@@ -755,6 +757,7 @@ export type Database = {
         }
         Update: {
           author_id?: string | null
+          blocks_data?: Json | null
           builder_data?: Json | null
           content_en?: string | null
           content_pl?: string | null
@@ -1223,7 +1226,7 @@ export type Database = {
       access_entity_type: "post" | "page" | "media"
       access_mode: "public" | "members" | "paid"
       app_role: "admin" | "editor" | "author" | "user"
-      editor_type: "richtext" | "markdown" | "builder"
+      editor_type: "richtext" | "markdown" | "builder" | "blocks"
       plan_interval: "month" | "year" | "one_time"
       post_status: "draft" | "published" | "archived"
       purchase_status: "pending" | "active" | "refunded" | "canceled"
@@ -1357,7 +1360,7 @@ export const Constants = {
       access_entity_type: ["post", "page", "media"],
       access_mode: ["public", "members", "paid"],
       app_role: ["admin", "editor", "author", "user"],
-      editor_type: ["richtext", "markdown", "builder"],
+      editor_type: ["richtext", "markdown", "builder", "blocks"],
       plan_interval: ["month", "year", "one_time"],
       post_status: ["draft", "published", "archived"],
       purchase_status: ["pending", "active", "refunded", "canceled"],
