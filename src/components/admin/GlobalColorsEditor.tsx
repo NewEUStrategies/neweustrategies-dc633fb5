@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-import { Save, Undo, Redo, X } from "@/lib/lucide-shim";
+import { Save, Undo, Redo, X, ChevronUp, ChevronDown } from "@/lib/lucide-shim";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
