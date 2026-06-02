@@ -40,9 +40,6 @@ export const SLIDER_VARIANTS: { value: SliderVariant; label: string }[] = [
   { value: "thumbnail-strip", label: "Z miniaturkami" },
 ];
 
-export type AnimType = "fade" | "slide" | "zoom" | "blur" | "reveal" | "none";
-export type AnimDir = "left" | "right" | "up" | "down";
-
 export interface SliderConfig {
   variant?: SliderVariant;
   items: SliderItem[];
@@ -51,55 +48,7 @@ export interface SliderConfig {
   intervalMs?: number;
   rounded?: "none" | "sm" | "md" | "lg" | "xl" | "full";
   overlayOpacity?: number; // 0..1, for hero-overlay & fade
-  imageAnim?: AnimType;
-  imageDir?: AnimDir;
-  textAnim?: AnimType;
-  textDir?: AnimDir;
-  ctaAnim?: AnimType;
-  ctaDir?: AnimDir;
 }
-
-export const ANIM_TYPES: { value: AnimType; label: string }[] = [
-  { value: "fade",   label: "Pojawianie" },
-  { value: "slide",  label: "Wjazd" },
-  { value: "zoom",   label: "Zoom" },
-  { value: "blur",   label: "Rozmycie" },
-  { value: "reveal", label: "Odsłonięcie" },
-  { value: "none",   label: "Bez animacji" },
-];
-
-export const ANIM_DIRS: { value: AnimDir; label: string }[] = [
-  { value: "left",  label: "← z lewej" },
-  { value: "right", label: "z prawej →" },
-  { value: "up",    label: "↑ z góry" },
-  { value: "down",  label: "↓ z dołu" },
-];
-
-export interface AnimPreset {
-  value: string;
-  label: string;
-  description: string;
-  imageAnim: AnimType; imageDir: AnimDir;
-  textAnim: AnimType;  textDir: AnimDir;
-  ctaAnim: AnimType;   ctaDir: AnimDir;
-}
-
-export const ANIM_PRESETS: AnimPreset[] = [
-  { value: "smooth",     label: "Płynnie",       description: "Delikatny crossfade — uniwersalne",
-    imageAnim: "fade",   imageDir: "right", textAnim: "fade",   textDir: "up",   ctaAnim: "fade",  ctaDir: "up"   },
-  { value: "cinematic",  label: "Kinowo",        description: "Zoom obrazu + wjazd tekstu z dołu",
-    imageAnim: "zoom",   imageDir: "right", textAnim: "slide",  textDir: "up",   ctaAnim: "fade",  ctaDir: "up"   },
-  { value: "editorial",  label: "Magazynowo",    description: "Odsłonięcie obrazu + rozmycie tekstu",
-    imageAnim: "reveal", imageDir: "right", textAnim: "blur",   textDir: "up",   ctaAnim: "slide", ctaDir: "up"   },
-  { value: "dynamic",    label: "Dynamicznie",   description: "Mocny wjazd ze strzałkami w bok",
-    imageAnim: "slide",  imageDir: "right", textAnim: "slide",  textDir: "left", ctaAnim: "slide", ctaDir: "right"},
-  { value: "soft",       label: "Subtelnie",     description: "Tylko rozmycie i delikatne pojawianie",
-    imageAnim: "blur",   imageDir: "up",    textAnim: "fade",   textDir: "up",   ctaAnim: "fade",  ctaDir: "up"   },
-  { value: "bold",       label: "Wyraziście",    description: "Zoom + odsłonięcie + skok CTA",
-    imageAnim: "zoom",   imageDir: "right", textAnim: "reveal", textDir: "left", ctaAnim: "zoom",  ctaDir: "up"   },
-  { value: "minimal",    label: "Minimalnie",    description: "Tylko obraz, bez animacji tekstu",
-    imageAnim: "fade",   imageDir: "right", textAnim: "none",   textDir: "up",   ctaAnim: "none",  ctaDir: "up"   },
-];
 
 const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
   none: "0px", sm: "4px", md: "8px", lg: "16px", xl: "24px", full: "9999px",
@@ -119,12 +68,6 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const intervalMs = Math.max(1500, config.intervalMs ?? 4500);
   const rounded = radiusMap[config.rounded ?? "md"];
   const overlayOpacity = Math.min(1, Math.max(0, config.overlayOpacity ?? 0.45));
-  const imageAnim: AnimType = config.imageAnim ?? "fade";
-  const imageDir: AnimDir = config.imageDir ?? "right";
-  const textAnim: AnimType = config.textAnim ?? "slide";
-  const textDir: AnimDir = config.textDir ?? "up";
-  const ctaAnim: AnimType = config.ctaAnim ?? "fade";
-  const ctaDir: AnimDir = config.ctaDir ?? "up";
 
   const [idx, setIdx] = useState(0);
   useEffect(() => { setIdx(0); }, [items.length]);
@@ -206,39 +149,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     </div>
   );
 
-  // Helpers: build per-element animation styles
-  const dirOffset = (dir: AnimDir, dist: number): string => {
-    switch (dir) {
-      case "left":  return `translateX(-${dist}px)`;
-      case "right": return `translateX(${dist}px)`;
-      case "up":    return `translateY(-${dist}px)`;
-      case "down":  return `translateY(${dist}px)`;
-    }
-  };
-
-  // Image transition between slides
-  const imageStyle = (active: boolean): CSSProperties => {
-    const base: CSSProperties = {
-      transition:
-        "opacity 900ms cubic-bezier(.22,.61,.36,1), transform 1400ms cubic-bezier(.22,.61,.36,1), filter 900ms cubic-bezier(.22,.61,.36,1), clip-path 900ms cubic-bezier(.22,.61,.36,1)",
-    };
-    if (imageAnim === "none") return { ...base, opacity: 1 };
-    if (imageAnim === "fade") return { ...base, opacity: active ? 1 : 0 };
-    if (imageAnim === "zoom") return { ...base, opacity: active ? 1 : 0, transform: active ? "scale(1)" : "scale(1.08)" };
-    if (imageAnim === "blur") return { ...base, opacity: active ? 1 : 0, filter: active ? "blur(0px)" : "blur(10px)" };
-    if (imageAnim === "slide") return { ...base, opacity: active ? 1 : 0, transform: active ? "translate(0,0)" : dirOffset(imageDir, 60) };
-    if (imageAnim === "reveal") {
-      const hidden =
-        imageDir === "left"  ? "inset(0 0 0 100%)" :
-        imageDir === "right" ? "inset(0 100% 0 0)" :
-        imageDir === "up"    ? "inset(100% 0 0 0)" :
-                               "inset(0 0 100% 0)";
-      return { ...base, clipPath: active ? "inset(0 0 0 0)" : hidden };
-    }
-    return base;
-  };
-
-  // Layered renderer: all slides stacked, configurable transition.
+  // Layered renderer: all slides stacked, smooth crossfade + soft zoom/blur
+  // on the outgoing slide. Used by most variants for a modern transition.
   const Layers = ({ kenBurns = false }: { kenBurns?: boolean }) => (
     <>
       {items.map((it, i) => {
@@ -250,50 +162,32 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
             alt=""
             draggable={false}
             className={`absolute inset-0 w-full h-full object-cover will-change-transform ${kenBurns && active ? "animate-[kenburns_8s_ease-in-out_infinite_alternate]" : ""}`}
-            style={imageStyle(active)}
+            style={{
+              opacity: active ? 1 : 0,
+              transform: active ? "scale(1)" : "scale(1.06)",
+              filter: active ? "blur(0px)" : "blur(8px)",
+              transition:
+                "opacity 900ms cubic-bezier(.22,.61,.36,1), transform 1400ms cubic-bezier(.22,.61,.36,1), filter 900ms cubic-bezier(.22,.61,.36,1)",
+            }}
           />
         );
       })}
     </>
   );
 
-  // Build a keyframe name + style for an element entrance animation
-  const buildEntryAnim = (type: AnimType, dir: AnimDir, duration = 700): CSSProperties => {
-    if (type === "none") return {};
-    const name = `slideEl_${type}_${dir}`;
-    return { animation: `${name} ${duration}ms cubic-bezier(.22,.61,.36,1) both` };
-  };
 
-  // Generate keyframes for all combinations (kept minimal — only those used)
-  const entryKeyframes = (
+
+
+  // Shared keyframes for caption entrance + image reveal.
+  const sharedKeyframes = (
     <style>{`
-      @keyframes slideEl_fade_left { from { opacity: 0 } to { opacity: 1 } }
-      @keyframes slideEl_fade_right { from { opacity: 0 } to { opacity: 1 } }
-      @keyframes slideEl_fade_up { from { opacity: 0 } to { opacity: 1 } }
-      @keyframes slideEl_fade_down { from { opacity: 0 } to { opacity: 1 } }
-      @keyframes slideEl_slide_left  { from { opacity: 0; transform: translateX(-24px) } to { opacity: 1; transform: none } }
-      @keyframes slideEl_slide_right { from { opacity: 0; transform: translateX(24px) }  to { opacity: 1; transform: none } }
-      @keyframes slideEl_slide_up    { from { opacity: 0; transform: translateY(-18px) } to { opacity: 1; transform: none } }
-      @keyframes slideEl_slide_down  { from { opacity: 0; transform: translateY(18px) }  to { opacity: 1; transform: none } }
-      @keyframes slideEl_zoom_left   { from { opacity: 0; transform: scale(.92) } to { opacity: 1; transform: scale(1) } }
-      @keyframes slideEl_zoom_right  { from { opacity: 0; transform: scale(.92) } to { opacity: 1; transform: scale(1) } }
-      @keyframes slideEl_zoom_up     { from { opacity: 0; transform: scale(.92) } to { opacity: 1; transform: scale(1) } }
-      @keyframes slideEl_zoom_down   { from { opacity: 0; transform: scale(1.08) } to { opacity: 1; transform: scale(1) } }
-      @keyframes slideEl_blur_left   { from { opacity: 0; filter: blur(8px); transform: translateX(-12px) } to { opacity: 1; filter: blur(0); transform: none } }
-      @keyframes slideEl_blur_right  { from { opacity: 0; filter: blur(8px); transform: translateX(12px) }  to { opacity: 1; filter: blur(0); transform: none } }
-      @keyframes slideEl_blur_up     { from { opacity: 0; filter: blur(8px); transform: translateY(-10px) } to { opacity: 1; filter: blur(0); transform: none } }
-      @keyframes slideEl_blur_down   { from { opacity: 0; filter: blur(8px); transform: translateY(10px) }  to { opacity: 1; filter: blur(0); transform: none } }
-      @keyframes slideEl_reveal_left  { from { clip-path: inset(0 0 0 100%) } to { clip-path: inset(0 0 0 0) } }
-      @keyframes slideEl_reveal_right { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }
-      @keyframes slideEl_reveal_up    { from { clip-path: inset(100% 0 0 0) } to { clip-path: inset(0 0 0 0) } }
-      @keyframes slideEl_reveal_down  { from { clip-path: inset(0 0 100% 0) } to { clip-path: inset(0 0 0 0) } }
+      @keyframes slideCaptionIn { from { opacity: 0; transform: translateY(14px); filter: blur(4px); } to { opacity: 1; transform: none; filter: blur(0); } }
+      @keyframes slideRevealClip { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
     `}</style>
   );
-
-  const sharedKeyframes = entryKeyframes;
-  const captionAnim: CSSProperties = buildEntryAnim(textAnim, textDir, 700);
-  const ctaAnimStyle: CSSProperties = { ...buildEntryAnim(ctaAnim, ctaDir, 800), animationDelay: "120ms" };
-
+  const captionAnim: CSSProperties = {
+    animation: "slideCaptionIn 700ms cubic-bezier(.22,.61,.36,1) both",
+  };
 
 
   switch (variant) {
@@ -309,7 +203,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
                 {title && <h3 className="text-xl md:text-3xl font-bold drop-shadow">{title}</h3>}
                 {sub && <p className="mt-2 text-sm md:text-base opacity-90 max-w-2xl">{sub}</p>}
                 {cta && href && (
-                  <a key={`cta-${idx}`} style={ctaAnimStyle} href={href} className="mt-4 inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-white/95 text-black text-sm font-semibold tracking-wide shadow-sm hover:bg-white hover:shadow-md transition">{cta} <span aria-hidden>→</span></a>
+                  <a href={href} className="mt-4 inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-white/95 text-black text-sm font-semibold tracking-wide shadow-sm hover:bg-white hover:shadow-md transition">{cta} <span aria-hidden>→</span></a>
                 )}
               </div>
             )}
@@ -349,7 +243,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
               {title && <h2 className="text-2xl md:text-5xl font-bold leading-tight max-w-3xl">{title}</h2>}
               {sub && <p className="mt-2 md:mt-3 text-sm md:text-lg opacity-90 max-w-2xl">{sub}</p>}
               {cta && href && (
-                <a key={`cta-${idx}`} style={ctaAnimStyle} href={href} className="mt-4 self-start inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-white text-black text-sm font-semibold tracking-wide shadow-sm hover:shadow-md hover:bg-white/95 transition">{cta} <span aria-hidden>→</span></a>
+                <a href={href} className="mt-4 self-start inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-white text-black text-sm font-semibold tracking-wide shadow-sm hover:shadow-md hover:bg-white/95 transition">{cta} <span aria-hidden>→</span></a>
               )}
             </div>
             <Arrows size="lg" />
@@ -370,7 +264,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
               {title && <h3 className="text-lg md:text-2xl font-bold text-foreground">{title}</h3>}
               {sub && <p className="mt-2 text-sm md:text-base text-muted-foreground">{sub}</p>}
               {cta && href && (
-                <a key={`cta-${idx}`} style={ctaAnimStyle} href={href} className="mt-4 self-start inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-foreground text-background text-sm font-semibold tracking-wide hover:opacity-90 transition">{cta} <span aria-hidden>→</span></a>
+                <a href={href} className="mt-4 self-start inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-foreground text-background text-sm font-semibold tracking-wide hover:opacity-90 transition">{cta} <span aria-hidden>→</span></a>
               )}
               {items.length > 1 && (
                 <div className="mt-5 flex items-center gap-2">

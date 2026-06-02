@@ -8,7 +8,7 @@ import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
 import {
   SectionLabelRender, resolveAccentColor, type SectionLabelVariant,
 } from "@/lib/builder/sectionLabelVariants";
-import { SliderRender, type SliderVariant, type AnimType, type AnimDir } from "@/lib/builder/sliderVariants";
+import { SliderRender, type SliderVariant } from "@/lib/builder/sliderVariants";
 import {
   AnimatedHeadingRender, type AnimatedHeadingConfig,
   type AnimatedHeadingMode, type AnimatedHeadingShape,
@@ -701,12 +701,6 @@ export function renderSimpleWidget(
         intervalMs: getNum(c, "intervalMs", 4500),
         rounded: (getStr(c, "rounded") || "md") as "none" | "sm" | "md" | "lg" | "xl" | "full",
         overlayOpacity: typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45,
-        imageAnim: (getStr(c, "imageAnim") || "fade") as AnimType,
-        imageDir:  (getStr(c, "imageDir")  || "right") as AnimDir,
-        textAnim:  (getStr(c, "textAnim")  || "slide") as AnimType,
-        textDir:   (getStr(c, "textDir")   || "up") as AnimDir,
-        ctaAnim:   (getStr(c, "ctaAnim")   || "fade") as AnimType,
-        ctaDir:    (getStr(c, "ctaDir")    || "up") as AnimDir,
         items: sampleItems,
       };
       if (!hasRealItems && editable) {
