@@ -23,7 +23,7 @@ export const GAP_PX: Record<ColumnsGap, number> = {
   default: 20, no: 0, narrow: 10, extended: 15, wide: 30, wider: 40, custom: 20,
 };
 
-export const SECTION_SAFE_AREA_PX = 16;
+export const SECTION_SAFE_AREA_PX = 8;
 export const INNER_SECTION_SAFE_AREA_PX = 12;
 export const COLUMN_SAFE_AREA_PX = 12;
 /** Domyślna i minimalna wysokość każdej sekcji (zgodna z wysokością kompaktowych widgetów). */
