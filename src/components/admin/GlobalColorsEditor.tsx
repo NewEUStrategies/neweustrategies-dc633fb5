@@ -157,7 +157,11 @@ export function GlobalColorsEditor() {
   const setSlot = (key: string, mode: "light" | "dark" | "hoverLight" | "hoverDark", value: string) => {
     applyDraft({ ...draft, [key]: { ...(draft[key] ?? {}), [mode]: value } });
   };
-  const setSlotMeta = (key: string, field: "fontFamily" | "fontSize", value: string) => {
+  const setSlotMeta = (
+    key: string,
+    field: "fontFamily" | "fontSize" | "fontWeight" | "fontStyle" | "textDecoration",
+    value: string,
+  ) => {
     applyDraft({ ...draft, [key]: { ...(draft[key] ?? {}), [field]: value } });
   };
   const resetSlot = (slot: GlobalColorSlot) => {
@@ -170,6 +174,9 @@ export function GlobalColorsEditor() {
         hoverDark: slot.defaultHoverDark ?? "",
         fontFamily: slot.defaultFontFamily ?? "",
         fontSize: slot.defaultFontSize ?? "",
+        fontWeight: "",
+        fontStyle: "",
+        textDecoration: "",
       },
     });
   };
@@ -304,14 +311,24 @@ export function GlobalColorsEditor() {
                       <SlotPreview slot={slot} draft={draft} />
 
                       {slot.typography && (
-                        <TypographyRow
-                          fontFamily={val.fontFamily ?? ""}
-                          fontSize={val.fontSize ?? ""}
-                          defaultFontFamily={slot.defaultFontFamily}
-                          defaultFontSize={slot.defaultFontSize}
-                          onFontFamily={(v) => setSlotMeta(slot.key, "fontFamily", v)}
-                          onFontSize={(v) => setSlotMeta(slot.key, "fontSize", v)}
-                        />
+                        <>
+                          <TypographyRow
+                            fontFamily={val.fontFamily ?? ""}
+                            fontSize={val.fontSize ?? ""}
+                            defaultFontFamily={slot.defaultFontFamily}
+                            defaultFontSize={slot.defaultFontSize}
+                            onFontFamily={(v) => setSlotMeta(slot.key, "fontFamily", v)}
+                            onFontSize={(v) => setSlotMeta(slot.key, "fontSize", v)}
+                          />
+                          <FormatRow
+                            fontWeight={val.fontWeight ?? ""}
+                            fontStyle={val.fontStyle ?? ""}
+                            textDecoration={val.textDecoration ?? ""}
+                            onWeight={(v) => setSlotMeta(slot.key, "fontWeight", v)}
+                            onStyle={(v) => setSlotMeta(slot.key, "fontStyle", v)}
+                            onDecoration={(v) => setSlotMeta(slot.key, "textDecoration", v)}
+                          />
+                        </>
                       )}
 
                       <ColorRow
@@ -557,6 +574,64 @@ function TypographyRow({
           Wyczyść font/size
         </button>
       )}
+    </div>
+  );
+}
+
+function FormatRow({
+  fontWeight, fontStyle, textDecoration, onWeight, onStyle, onDecoration,
+}: {
+  fontWeight: string;
+  fontStyle: string;
+  textDecoration: string;
+  onWeight: (v: string) => void;
+  onStyle: (v: string) => void;
+  onDecoration: (v: string) => void;
+}) {
+  const weightOptions: { label: string; value: string }[] = [
+    { label: "Brak", value: "" },
+    { label: "Normal", value: "400" },
+    { label: "Semibold", value: "600" },
+    { label: "Bold", value: "700" },
+  ];
+  const Btn = ({ active, onClick, children, title }: { active: boolean; onClick: () => void; children: React.ReactNode; title: string }) => (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className={`h-7 px-2 text-[11px] rounded border transition ${active ? "bg-foreground text-background border-foreground" : "bg-muted/40 border-border hover:bg-muted/70"}`}
+    >
+      {children}
+    </button>
+  );
+  return (
+    <div className="rounded-md border border-dashed border-border/70 bg-muted/20 p-2 space-y-2">
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+        Formatowanie
+      </div>
+      <div className="flex flex-wrap items-center gap-1">
+        {weightOptions.map((w) => (
+          <Btn key={w.value || "none"} active={fontWeight === w.value} onClick={() => onWeight(w.value)} title={`Grubość: ${w.label}`}>
+            <span style={{ fontWeight: w.value || "inherit" }}>{w.label}</span>
+          </Btn>
+        ))}
+        <span className="w-px h-5 bg-border mx-1" />
+        <Btn active={fontStyle === "italic"} onClick={() => onStyle(fontStyle === "italic" ? "" : "italic")} title="Kursywa">
+          <span className="italic">I</span>
+        </Btn>
+        <Btn active={textDecoration === "underline"} onClick={() => onDecoration(textDecoration === "underline" ? "" : "underline")} title="Podkreślenie">
+          <span className="underline">U</span>
+        </Btn>
+        {(fontWeight || fontStyle || textDecoration) && (
+          <button
+            type="button"
+            onClick={() => { onWeight(""); onStyle(""); onDecoration(""); }}
+            className="text-[10px] text-muted-foreground hover:text-foreground ml-auto"
+          >
+            Wyczyść
+          </button>
+        )}
+      </div>
     </div>
   );
 }

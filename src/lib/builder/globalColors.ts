@@ -55,6 +55,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         hasDark: true,
         defaultLight: "#374151",
         defaultDark: "#e5e7eb",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "16px"
       },
       {
         key: "header-icon-hover",
@@ -165,6 +168,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         label: "Accent Color (Text)",
         description: "Kolor tekstu przycisków.",
         overrides: ["--primary-foreground"],
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "16px"
       },
       {
         key: "btn-hover-bg",
@@ -216,7 +222,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "widgets",
     label: "Sponsor Label",
     slots: [
-      { key: "sponsor-label", label: "Sponsor Label Color", description: "Kolor etykiety „sponsored”.", hasDark: true },
+      { key: "sponsor-label", label: "Sponsor Label Color", description: "Kolor etykiety „sponsored”.", hasDark: true, typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "12px" },
     ],
   },
   {
@@ -224,7 +230,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "widgets",
     label: "Popular Counter",
     slots: [
-      { key: "popular-counter", label: "Popular Counter Color", description: "Kolor licznika popularnych wpisów.", hasDark: true },
+      { key: "popular-counter", label: "Popular Counter Color", description: "Kolor licznika popularnych wpisów.", hasDark: true, typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "14px" },
     ],
   },
   {
@@ -273,6 +279,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#1f2937",
         defaultDark: "#e5e7eb",
         overrides: ["--sidebar-foreground"],
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "16px"
       },
       {
         key: "sidebar-btn-bg",
@@ -291,6 +300,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#ffffff",
         defaultDark: "#ffffff",
         overrides: ["--sidebar-primary-foreground", "--sidebar-accent-foreground"],
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "16px"
       },
       {
         key: "sidebar-btn-hover-bg",
@@ -325,8 +337,8 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     label: "Inputs / Text Fields",
     slots: [
       { key: "input-bg", label: "Input Background", description: "Tło pól tekstowych.", hasDark: true, defaultLight: "#ffffff", defaultDark: "#0f172a", overrides: ["--input-background"] },
-      { key: "input-text", label: "Input Text", description: "Kolor wpisywanego tekstu.", hasDark: true, defaultLight: "#0f172a", defaultDark: "#f1f5f9" },
-      { key: "input-placeholder", label: "Placeholder Text", description: "Kolor placeholdera.", hasDark: true, defaultLight: "#94a3b8", defaultDark: "#64748b" },
+      { key: "input-text", label: "Input Text", description: "Kolor wpisywanego tekstu.", hasDark: true, defaultLight: "#0f172a", defaultDark: "#f1f5f9", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "14px" },
+      { key: "input-placeholder", label: "Placeholder Text", description: "Kolor placeholdera.", hasDark: true, defaultLight: "#94a3b8", defaultDark: "#64748b", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "14px" },
       { key: "input-border", label: "Input Border", description: "Kolor obramowania.", hasDark: true, defaultLight: "#e2e8f0", defaultDark: "#1e293b", overrides: ["--input"] },
       { key: "input-hover-bg", label: "Hover — Background", description: "Tło pola po najechaniu.", hasDark: true, defaultLight: "#f8fafc", defaultDark: "#1e293b" },
       { key: "input-hover-border", label: "Hover — Border", description: "Obramowanie pola po najechaniu.", hasDark: true, defaultLight: "#cbd5e1", defaultDark: "#334155" },
@@ -414,6 +426,12 @@ export type GlobalColorsValue = Record<
     hoverDark?: string;
     fontFamily?: string;
     fontSize?: string;
+    /** "normal" | "500" | "600" | "700" */
+    fontWeight?: string;
+    /** "normal" | "italic" */
+    fontStyle?: string;
+    /** "none" | "underline" */
+    textDecoration?: string;
   }
 >;
 
@@ -472,8 +490,14 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
       if (slot.typography) {
         const ff = v?.fontFamily || slot.defaultFontFamily;
         const fs = v?.fontSize || slot.defaultFontSize;
+        const fw = v?.fontWeight;
+        const fst = v?.fontStyle;
+        const ftd = v?.textDecoration;
         if (ff) rootLines.push(`--gc-${slot.key}-font: ${ff};`);
         if (fs) rootLines.push(`--gc-${slot.key}-size: ${fs};`);
+        if (fw) rootLines.push(`--gc-${slot.key}-weight: ${fw};`);
+        if (fst) rootLines.push(`--gc-${slot.key}-style: ${fst};`);
+        if (ftd) rootLines.push(`--gc-${slot.key}-decoration: ${ftd};`);
       }
     }
   }
@@ -495,22 +519,22 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(a, .link){color:var(--gc-highlight, inherit);}
     :where(.review-star-bg){background:var(--gc-review-bg, transparent);}
     :where(.review-star-icon){color:var(--gc-review-icon, currentColor);}
-    :where(.sponsor-label){color:var(--gc-sponsor-label, currentColor);}
-    :where(.popular-counter){color:var(--gc-popular-counter, currentColor);}
+    :where(.sponsor-label){color:var(--gc-sponsor-label, currentColor);font-family:var(--gc-sponsor-label-font, inherit);font-size:var(--gc-sponsor-label-size, inherit);font-weight:var(--gc-sponsor-label-weight, inherit);font-style:var(--gc-sponsor-label-style, inherit);text-decoration:var(--gc-sponsor-label-decoration, inherit);}
+    :where(.popular-counter){color:var(--gc-popular-counter, currentColor);font-family:var(--gc-popular-counter-font, inherit);font-size:var(--gc-popular-counter-size, inherit);font-weight:var(--gc-popular-counter-weight, inherit);font-style:var(--gc-popular-counter-style, inherit);text-decoration:var(--gc-popular-counter-decoration, inherit);}
     :where(.live-blog-dot){color:var(--gc-live-blog, currentColor);background:var(--gc-live-blog, transparent);}
     :where(.toc-wrap, .share-bar){background:var(--gc-toc-bg, transparent);}
     :where(.verified-tick){color:var(--gc-verified-tick, currentColor);}
     :where(.mode-switcher-light){color:var(--gc-switcher-light-icon, currentColor);background:var(--gc-switcher-light-bg, transparent);}
     :where(.mode-switcher-dark){color:var(--gc-switcher-dark-icon, currentColor);background:var(--gc-switcher-dark-bg, transparent);}
-    :where(button.btn-primary, .btn-primary, button.bg-primary, .bg-primary){background:var(--gc-btn-bg, var(--primary));color:var(--gc-btn-text, var(--primary-foreground));}
+    :where(button.btn-primary, .btn-primary, button.bg-primary, .bg-primary){background:var(--gc-btn-bg, var(--primary));color:var(--gc-btn-text, var(--primary-foreground));font-family:var(--gc-btn-text-font, inherit);font-size:var(--gc-btn-text-size, inherit);font-weight:var(--gc-btn-text-weight, inherit);font-style:var(--gc-btn-text-style, inherit);text-decoration:var(--gc-btn-text-decoration, inherit);}
     :where(button.btn-primary:hover, .btn-primary:hover, button.bg-primary:hover, .bg-primary:hover){background:var(--gc-btn-hover-bg, var(--gc-btn-bg, var(--primary)));color:var(--gc-btn-hover-text, var(--gc-btn-text, var(--primary-foreground)));}
     :where(main svg, article svg, section svg, .content svg, .card svg, [class*="card"] svg, [data-card] svg){color:var(--gc-icon, var(--gc-highlight, currentColor));}
     :where(main a:hover svg, article a:hover svg, section a:hover svg, .content a:hover svg, main button:hover svg, article button:hover svg, .card a:hover svg, [class*="card"] a:hover svg){color:var(--gc-icon-hover, var(--gc-icon, var(--gc-highlight, currentColor)));}
     :where(header svg){color:var(--gc-header-icon, currentColor);}
-    :where(header a, header button){color:var(--gc-header-icon, inherit);}
+    :where(header a, header button){color:var(--gc-header-icon, inherit);font-family:var(--gc-header-icon-font, inherit);font-size:var(--gc-header-icon-size, inherit);font-weight:var(--gc-header-icon-weight, inherit);font-style:var(--gc-header-icon-style, inherit);text-decoration:var(--gc-header-icon-decoration, inherit);}
     :where(header a:hover, header button:hover, header a:hover svg, header button:hover svg){color:var(--gc-header-icon-hover, var(--gc-header-icon, inherit));}
     aside[data-sidebar="sidebar"], [data-sidebar="sidebar"]{background:var(--gc-sidebar-bg, var(--sidebar-background)) !important;color:var(--gc-sidebar-text, var(--sidebar-foreground)) !important;border-color:var(--gc-sidebar-border, var(--sidebar-border)) !important;}
-    [data-sidebar="sidebar"] a, [data-sidebar="sidebar"] button, [data-sidebar="menu-button"]{color:var(--gc-sidebar-text, inherit);}
+    [data-sidebar="sidebar"] a, [data-sidebar="sidebar"] button, [data-sidebar="menu-button"]{color:var(--gc-sidebar-text, inherit);font-family:var(--gc-sidebar-text-font, inherit);font-size:var(--gc-sidebar-text-size, inherit);font-weight:var(--gc-sidebar-text-weight, inherit);font-style:var(--gc-sidebar-text-style, inherit);text-decoration:var(--gc-sidebar-text-decoration, inherit);}
     [data-sidebar="sidebar"] svg{color:var(--gc-sidebar-text, currentColor);}
     [data-sidebar="menu-button"]:hover, [data-sidebar="sidebar"] a:hover:not([data-active="true"]):not([data-sidebar-brand]), [data-sidebar="sidebar"] button:hover:not([data-sidebar-brand]):not([data-sidebar-toggle]){background:var(--gc-sidebar-btn-hover-bg) !important;color:var(--gc-sidebar-btn-hover-text, var(--gc-sidebar-text)) !important;}
     [data-sidebar="sidebar"] a[data-sidebar-brand], [data-sidebar="sidebar"] a[data-sidebar-brand]:hover, [data-sidebar="sidebar"] button[data-sidebar-toggle], [data-sidebar="sidebar"] button[data-sidebar-toggle]:hover{background:transparent !important;}
@@ -518,20 +542,20 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     [data-sidebar="menu-button"][data-active="true"] svg, [data-sidebar="sidebar"] .active svg{color:var(--gc-sidebar-btn-text, currentColor) !important;}
     [data-sidebar="separator"]{background:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
     :where(html:not(.dark) main h1, html:not(.dark) main h2, html:not(.dark) main h3, html:not(.dark) main h4, html:not(.dark) main h5, html:not(.dark) main h6, html:not(.dark) main p, html:not(.dark) article h1, html:not(.dark) article h2, html:not(.dark) article h3, html:not(.dark) article h4, html:not(.dark) article p, html:not(.dark) section h1, html:not(.dark) section h2, html:not(.dark) section h3, html:not(.dark) section h4, html:not(.dark) section p){color:var(--gc-dark-accent, inherit);}
-    :where(main h1, article h1, section h1){color:var(--gc-h1, inherit);font-family:var(--gc-h1-font, inherit);font-size:var(--gc-h1-size, inherit);}
-    :where(main h2, article h2, section h2){color:var(--gc-h2, inherit);font-family:var(--gc-h2-font, inherit);font-size:var(--gc-h2-size, inherit);}
-    :where(main h3, article h3, section h3){color:var(--gc-h3, inherit);font-family:var(--gc-h3-font, inherit);font-size:var(--gc-h3-size, inherit);}
-    :where(main h4, article h4, section h4){color:var(--gc-h4, inherit);font-family:var(--gc-h4-font, inherit);font-size:var(--gc-h4-size, inherit);}
-    :where(main h5, article h5, section h5){color:var(--gc-h5, inherit);font-family:var(--gc-h5-font, inherit);font-size:var(--gc-h5-size, inherit);}
-    :where(main h6, article h6, section h6){color:var(--gc-h6, inherit);font-family:var(--gc-h6-font, inherit);font-size:var(--gc-h6-size, inherit);}
-    :where(main p, article p, section p, main li, article li, section li){color:var(--gc-body-text, inherit);font-family:var(--gc-body-text-font, inherit);font-size:var(--gc-body-text-size, inherit);}
-    :where(main small, article small, section small, .text-muted, .muted){color:var(--gc-body-text-muted, inherit);font-family:var(--gc-body-text-muted-font, inherit);font-size:var(--gc-body-text-muted-size, inherit);}
-    :where(main a:not(.btn):not([class*="button"]), article a:not(.btn):not([class*="button"]), section a:not(.btn):not([class*="button"])){color:var(--gc-link, var(--gc-highlight, inherit));font-family:var(--gc-link-font, inherit);font-size:var(--gc-link-size, inherit);}
+    :where(main h1, article h1, section h1){color:var(--gc-h1, inherit);font-family:var(--gc-h1-font, inherit);font-size:var(--gc-h1-size, inherit);font-weight:var(--gc-h1-weight, inherit);font-style:var(--gc-h1-style, inherit);text-decoration:var(--gc-h1-decoration, inherit);}
+    :where(main h2, article h2, section h2){color:var(--gc-h2, inherit);font-family:var(--gc-h2-font, inherit);font-size:var(--gc-h2-size, inherit);font-weight:var(--gc-h2-weight, inherit);font-style:var(--gc-h2-style, inherit);text-decoration:var(--gc-h2-decoration, inherit);}
+    :where(main h3, article h3, section h3){color:var(--gc-h3, inherit);font-family:var(--gc-h3-font, inherit);font-size:var(--gc-h3-size, inherit);font-weight:var(--gc-h3-weight, inherit);font-style:var(--gc-h3-style, inherit);text-decoration:var(--gc-h3-decoration, inherit);}
+    :where(main h4, article h4, section h4){color:var(--gc-h4, inherit);font-family:var(--gc-h4-font, inherit);font-size:var(--gc-h4-size, inherit);font-weight:var(--gc-h4-weight, inherit);font-style:var(--gc-h4-style, inherit);text-decoration:var(--gc-h4-decoration, inherit);}
+    :where(main h5, article h5, section h5){color:var(--gc-h5, inherit);font-family:var(--gc-h5-font, inherit);font-size:var(--gc-h5-size, inherit);font-weight:var(--gc-h5-weight, inherit);font-style:var(--gc-h5-style, inherit);text-decoration:var(--gc-h5-decoration, inherit);}
+    :where(main h6, article h6, section h6){color:var(--gc-h6, inherit);font-family:var(--gc-h6-font, inherit);font-size:var(--gc-h6-size, inherit);font-weight:var(--gc-h6-weight, inherit);font-style:var(--gc-h6-style, inherit);text-decoration:var(--gc-h6-decoration, inherit);}
+    :where(main p, article p, section p, main li, article li, section li){color:var(--gc-body-text, inherit);font-family:var(--gc-body-text-font, inherit);font-size:var(--gc-body-text-size, inherit);font-weight:var(--gc-body-text-weight, inherit);font-style:var(--gc-body-text-style, inherit);text-decoration:var(--gc-body-text-decoration, inherit);}
+    :where(main small, article small, section small, .text-muted, .muted){color:var(--gc-body-text-muted, inherit);font-family:var(--gc-body-text-muted-font, inherit);font-size:var(--gc-body-text-muted-size, inherit);font-weight:var(--gc-body-text-muted-weight, inherit);font-style:var(--gc-body-text-muted-style, inherit);text-decoration:var(--gc-body-text-muted-decoration, inherit);}
+    :where(main a:not(.btn):not([class*="button"]), article a:not(.btn):not([class*="button"]), section a:not(.btn):not([class*="button"])){color:var(--gc-link, var(--gc-highlight, inherit));font-family:var(--gc-link-font, inherit);font-size:var(--gc-link-size, inherit);font-weight:var(--gc-link-weight, inherit);font-style:var(--gc-link-style, inherit);text-decoration:var(--gc-link-decoration, inherit);}
     :where(main a:not(.btn):not([class*="button"]):hover, article a:not(.btn):not([class*="button"]):hover, section a:not(.btn):not([class*="button"]):hover){color:var(--gc-link-hover, var(--gc-link, inherit));}
     :where(.highlight, .text-brand, [data-highlight]){color:var(--gc-highlight, inherit);}
     :where(.highlight:hover, .text-brand:hover, [data-highlight]:hover){color:var(--gc-highlight-hover, var(--gc-highlight, inherit));}
-    :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select){background:var(--gc-input-bg, transparent);color:var(--gc-input-text, inherit);border-color:var(--gc-input-border, currentColor);}
-    :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"])::placeholder, textarea::placeholder){color:var(--gc-input-placeholder, currentColor);}
+    :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select){background:var(--gc-input-bg, transparent);color:var(--gc-input-text, inherit);border-color:var(--gc-input-border, currentColor);font-family:var(--gc-input-text-font, inherit);font-size:var(--gc-input-text-size, inherit);font-weight:var(--gc-input-text-weight, inherit);font-style:var(--gc-input-text-style, inherit);text-decoration:var(--gc-input-text-decoration, inherit);}
+    :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"])::placeholder, textarea::placeholder){color:var(--gc-input-placeholder, currentColor);font-family:var(--gc-input-placeholder-font, inherit);font-size:var(--gc-input-placeholder-size, inherit);font-weight:var(--gc-input-placeholder-weight, inherit);font-style:var(--gc-input-placeholder-style, inherit);text-decoration:var(--gc-input-placeholder-decoration, inherit);}
     :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover, textarea:hover, select:hover){background:var(--gc-input-hover-bg, var(--gc-input-bg, transparent));border-color:var(--gc-input-hover-border, var(--gc-input-border, currentColor));}
     :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus, input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible, textarea:focus, textarea:focus-visible, select:focus, select:focus-visible){border-color:var(--gc-input-focus-border, var(--gc-highlight, currentColor));outline-color:var(--gc-input-focus-border, var(--gc-highlight, currentColor));}
 
