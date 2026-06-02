@@ -5,6 +5,7 @@
 //   - MotionControl      -> enter animation preset + duration/delay
 //   - VisibilityControl  -> per-device hide
 //   - ColorField         -> bg / text colors with native picker
+import { useEffect, useState } from "react";
 import type {
   WidgetNode, CommonStyle, AdvancedSettings, Device, Json, WidgetTypography,
   Mode, Themed, HoverStyle,
