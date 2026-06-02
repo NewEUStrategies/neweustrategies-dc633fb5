@@ -38,6 +38,7 @@ import {
   AnimatedHeadingEditor,
   PostListEditor,
 } from "./ui/organisms/widget-properties";
+import { ShadowEditor } from "./ui/molecules/ShadowEditor";
 
 interface Props {
   widget: WidgetNode;
@@ -417,7 +418,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
           <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Cień</h4>
           <ShadowEditor
             value={getFlatStr("boxShadow")}
-            onChange={(v) => setFlatStr("boxShadow", v)}
+            onChange={(v: string | undefined) => setFlatStr("boxShadow", v)}
           />
         </section>
 
