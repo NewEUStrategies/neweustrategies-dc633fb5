@@ -26,6 +26,7 @@ type FocusRing = "none" | "brand" | "border";
 import type { SidebarStyle } from "@/lib/builder/sidebarStyles";
 
 
+
 interface ThemeOptions extends Record<string, unknown> {
   logo: {
     main: string; main_dark: string;
