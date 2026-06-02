@@ -160,6 +160,27 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Widget</div>
         <div className="text-[12px] font-medium truncate">{widgetLabel}</div>
       </div>
+      <div className="mb-2 px-0.5">
+        <div className="text-[9px] uppercase tracking-wide text-muted-foreground mb-1">Pozycja</div>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={() => setAdvanced((a) => { a.layout = undefined; })}
+            className={`flex-1 h-7 px-2 text-[11px] rounded border ${(widget.advanced?.layout ?? "block") === "block" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
+            title="Widget zajmuje cały wiersz (pod poprzednim)"
+          >
+            Pod
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdvanced((a) => { a.layout = "inline"; })}
+            className={`flex-1 h-7 px-2 text-[11px] rounded border ${widget.advanced?.layout === "inline" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
+            title="Widget ustawia się obok poprzedniego inline-widgetu"
+          >
+            Obok
+          </button>
+        </div>
+      </div>
       <TabsList className="grid grid-cols-3 w-full h-6">
         <TabsTrigger value="content" className="text-[11px]">Treść</TabsTrigger>
         <TabsTrigger value="style" className="text-[11px]">Styl</TabsTrigger>
