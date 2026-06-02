@@ -2,7 +2,7 @@
 import type { CSSProperties } from "react";
 import type {
   WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device, Mode,
-  WidgetTypography, HoverStyle,
+  WidgetTypography, HoverStyle, Themed,
 } from "@/lib/builder/types";
 import { pickMode } from "@/lib/builder/themed";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
