@@ -158,7 +158,7 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
 function SearchBar({
   inputRef, q, setQ, loading, onClose, placeholder, compact,
 }: {
-  inputRef: React.RefObject<HTMLInputElement>;
+  inputRef: React.RefObject<HTMLInputElement | null>;
   q: string; setQ: (v: string) => void; loading: boolean;
   onClose: () => void; placeholder: string; compact?: boolean;
 }) {
