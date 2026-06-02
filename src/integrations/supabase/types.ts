@@ -453,6 +453,8 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           editor: Database["public"]["Enums"]["editor_type"]
+          excerpt_en: string | null
+          excerpt_pl: string | null
           id: string
           layout_overrides: Json | null
           menu_order: number
@@ -475,6 +477,8 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           editor?: Database["public"]["Enums"]["editor_type"]
+          excerpt_en?: string | null
+          excerpt_pl?: string | null
           id?: string
           layout_overrides?: Json | null
           menu_order?: number
@@ -497,6 +501,8 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           editor?: Database["public"]["Enums"]["editor_type"]
+          excerpt_en?: string | null
+          excerpt_pl?: string | null
           id?: string
           layout_overrides?: Json | null
           menu_order?: number
