@@ -115,6 +115,86 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
         </div>
       )}
 
+      {block.type === "embed" && (
+        <div>
+          <Label className="text-xs">URL embed</Label>
+          <Input value={String(block.data.url ?? "")} onChange={(e) => set("url", e.target.value)} placeholder="https://youtube.com/…" />
+        </div>
+      )}
+
+      {block.type === "video" && (
+        <>
+          <div>
+            <Label className="text-xs">URL pliku</Label>
+            <Input value={String(block.data.url ?? "")} onChange={(e) => set("url", e.target.value)} placeholder="https://…/video.mp4" />
+          </div>
+          <div>
+            <Label className="text-xs">Poster (miniatura)</Label>
+            <Input value={String(block.data.poster ?? "")} onChange={(e) => set("poster", e.target.value)} placeholder="https://…/cover.jpg" />
+          </div>
+        </>
+      )}
+
+      {block.type === "callout" && (
+        <div>
+          <Label className="text-xs">Wariant</Label>
+          <Select value={String(block.data.variant ?? "info")} onValueChange={(v) => set("variant", v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="info">Info</SelectItem>
+              <SelectItem value="warning">Warning</SelectItem>
+              <SelectItem value="success">Success</SelectItem>
+              <SelectItem value="danger">Danger</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {block.type === "button" && (
+        <>
+          <div>
+            <Label className="text-xs">Etykieta</Label>
+            <Input value={String(block.data.label ?? "")} onChange={(e) => set("label", e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-xs">Link (href)</Label>
+            <Input value={String(block.data.href ?? "")} onChange={(e) => set("href", e.target.value)} placeholder="https://…" />
+          </div>
+          <div>
+            <Label className="text-xs">Wariant</Label>
+            <Select value={String(block.data.variant ?? "default")} onValueChange={(v) => set("variant", v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Wypełniony</SelectItem>
+                <SelectItem value="outline">Obrys</SelectItem>
+                <SelectItem value="ghost">Ghost</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </>
+      )}
+
+      {block.type === "separator" && (
+        <div>
+          <Label className="text-xs">Wariant</Label>
+          <Select value={String(block.data.variant ?? "line")} onValueChange={(v) => set("variant", v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="line">Linia</SelectItem>
+              <SelectItem value="wide">Gradient</SelectItem>
+              <SelectItem value="dots">Kropki</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {block.type === "code" && (
+        <div>
+          <Label className="text-xs">Język</Label>
+          <Input value={String(block.data.lang ?? "")} onChange={(e) => set("lang", e.target.value)} placeholder="ts, js, py, sh…" />
+        </div>
+      )}
+
       {/* Common style */}
       <div className="pt-2 border-t border-border">
         <Label className="text-xs">Wyrównanie</Label>
