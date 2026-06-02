@@ -68,6 +68,10 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["site_settings", settingsKey] });
+      // Frontend reads ALL site_settings via one bulk query keyed
+      // ["site_settings_public", "all"] (see useSiteSetting). Invalidate that
+      // exact key so Header/Footer/Menu refresh immediately after save.
+      qc.invalidateQueries({ queryKey: ["site_settings_public", "all"] });
       qc.invalidateQueries({ queryKey: ["site_settings_public", settingsKey] });
       toast.success("Zapisano");
     },
