@@ -14,8 +14,10 @@ export interface FontOption {
 }
 
 /** Sample dla nagłówków + treści — pokrywa popularne kierunki. */
+export const DEFAULT_FONT_STACK = '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif';
+
 export const FONT_OPTIONS: FontOption[] = [
-  { label: "System UI", stack: "system-ui, -apple-system, Segoe UI, sans-serif", hint: "Domyślny systemowy" },
+  { label: "Red Hat Display", stack: DEFAULT_FONT_STACK, googleFamily: "Red+Hat+Display:wght@400;500;600;700;800", hint: "Domyślny / System UI" },
   { label: "Inter", stack: "Inter, system-ui, sans-serif", googleFamily: "Inter:wght@400;500;600;700", hint: "Neutralny, czytelny" },
   { label: "Manrope", stack: "Manrope, system-ui, sans-serif", googleFamily: "Manrope:wght@400;500;600;700", hint: "Geometryczny sans" },
   { label: "DM Sans", stack: "'DM Sans', system-ui, sans-serif", googleFamily: "DM+Sans:wght@400;500;700", hint: "Krągły, przyjazny" },
