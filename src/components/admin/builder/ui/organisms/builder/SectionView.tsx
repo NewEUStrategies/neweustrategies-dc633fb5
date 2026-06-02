@@ -150,12 +150,12 @@ function InnerSectionView({
   return (
     <div
       data-inner-id={inner.id}
-      className={`min-w-0 max-w-full overflow-hidden border rounded ${selected ? "border-brand" : "border-dashed border-border"}`}
-      style={skin}
+      className={`relative min-w-0 max-w-full border rounded ${selected ? "border-brand" : "border-dashed border-border"}`}
+      style={{ ...skin, overflow: "visible" }}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "inner-section", id: inner.id }); }}
     >
-      <div className="text-[10px] text-muted-foreground mb-1 relative z-10">SEKCJA WEWNĘTRZNA</div>
-      <div className="grid gap-2 relative z-10 min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(inner, colsSum), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
+      <div className="absolute -top-2.5 left-3 z-30 text-[9px] font-medium text-muted-foreground bg-background border border-border rounded px-1.5 py-0.5 shadow-sm">SEKCJA WEWNĘTRZNA</div>
+      <div className="grid gap-2 relative z-10 min-w-0 max-w-full" style={{ ...columnsRowStyle(inner, colsSum), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
         {inner.columns.map((c) => (
           <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}` }}>
 
