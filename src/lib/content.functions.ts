@@ -78,7 +78,7 @@ type PageUpdateRow = Database["public"]["Tables"]["pages"]["Update"];
 
 const UUID = z.string().uuid();
 const Status = z.enum(["draft", "published", "archived"]);
-const Editor = z.enum(["richtext", "markdown", "builder"]);
+const Editor = z.enum(["blocks", "richtext", "markdown", "builder"]);
 const NullableStr = (max: number) => z.string().max(max).nullable().optional();
 const SlugInput = z.string().min(1).max(120).regex(SLUG_RE).optional();
 
@@ -109,6 +109,7 @@ const PostCore = z.object({
   cover_image_url: z.string().url().max(2048).nullable().optional(),
   read_minutes: z.number().int().min(0).max(999).nullable().optional(),
   builder_data: BuilderJsonValue.nullable().optional(),
+  blocks_data: BuilderJsonValue.nullable().optional(),
   parent_page_id: UUID.optional(),
   template_id: UUID.nullable().optional(),
   post_format: z.enum(["standard", "video", "audio", "gallery"]).optional(),
