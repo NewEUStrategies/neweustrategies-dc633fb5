@@ -102,15 +102,19 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       <style>{`
         @keyframes ehFadeImg { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: scale(1); } }
         @keyframes ehFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-        .eh-slider .eh-title {
+        .eh-slider .eh-title-text {
+          display: inline;
           background-image: linear-gradient(currentColor, currentColor);
           background-repeat: no-repeat;
           background-size: 0% 2px;
-          background-position: 50% 100%;
+          background-position: 0 100%;
           transition: background-size 500ms cubic-bezier(.22,.61,.36,1);
-          padding-bottom: 4px;
+          padding-bottom: 2px;
+          box-decoration-break: clone;
+          -webkit-box-decoration-break: clone;
         }
-        .eh-slider:hover .eh-title { background-size: 100% 2px; }
+        .eh-slider:hover .eh-title-text { background-size: 100% 2px; }
+
         .eh-slider .eh-img { transition: transform 3000ms cubic-bezier(.16,.84,.34,1); transform-origin: center center; will-change: transform; backface-visibility: hidden; }
         .eh-slider:hover .eh-img { transform: scale(1.06); }
         .eh-slider .eh-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
