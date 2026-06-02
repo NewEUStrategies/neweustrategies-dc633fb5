@@ -5,6 +5,16 @@ import { HeadingBlock } from "./edit/Heading";
 import { ImageBlock } from "./edit/Image";
 import { ListBlockEdit } from "./edit/ListBlock";
 import { QuoteBlock } from "./edit/Quote";
+import { CodeBlock } from "./edit/Code";
+import { EmbedBlock } from "./edit/Embed";
+import { VideoBlock } from "./edit/Video";
+import { GalleryBlock } from "./edit/Gallery";
+import { SeparatorBlock } from "./edit/Separator";
+import { CalloutBlock } from "./edit/Callout";
+import { TableBlockEdit } from "./edit/Table";
+import { ButtonBlock } from "./edit/Button";
+import { ColumnsBlock } from "./edit/Columns";
+import { HtmlBlock } from "./edit/Html";
 import { ChevronUp as ArrowUp, ChevronDown as ArrowDown, Copy, Trash2 } from "@/lib/lucide-shim";
 
 interface Props {
