@@ -976,30 +976,31 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
 
 
 function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark") => void }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "admin" });
   const tabs: { id: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark"; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { id: "default", label: "Default Logos", icon: ImageIcon },
-    { id: "mobile", label: "Mobile Logos", icon: Smartphone },
-    { id: "transparent", label: "Transparent", icon: Eye },
-    { id: "organization", label: "Organization", icon: Star },
-    { id: "sidebar", label: "Sidebar", icon: LayoutDashboard },
-    { id: "bookmark", label: "Globelet", icon: Globe },
+    { id: "default", label: t("themeOptions.logoTabs.default"), icon: ImageIcon },
+    { id: "mobile", label: t("themeOptions.logoTabs.mobile"), icon: Smartphone },
+    { id: "transparent", label: t("themeOptions.logoTabs.transparent"), icon: Eye },
+    { id: "organization", label: t("themeOptions.logoTabs.organization"), icon: Star },
+    { id: "sidebar", label: t("themeOptions.logoTabs.sidebar"), icon: LayoutDashboard },
+    { id: "bookmark", label: t("themeOptions.logoTabs.bookmark"), icon: Globe },
   ];
   return (
     <div className="inline-flex flex-wrap gap-1 rounded-md border border-border p-1 bg-muted/30">
-      {tabs.map((t) => {
-        const Icon = t.icon;
-        const active = value === t.id;
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const active = value === tab.id;
         return (
           <button
-            key={t.id}
+            key={tab.id}
             type="button"
-            onClick={() => onChange(t.id)}
+            onClick={() => onChange(tab.id)}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs transition ${
               active ? "bg-brand text-brand-foreground" : "hover:bg-background text-muted-foreground"
             }`}
           >
             <Icon className="w-3.5 h-3.5" />
-            {t.label}
+            {tab.label}
           </button>
         );
       })}
