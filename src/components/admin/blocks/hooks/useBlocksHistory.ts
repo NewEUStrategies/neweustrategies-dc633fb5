@@ -21,80 +21,87 @@ export interface BlocksHistory {
   canRedo: boolean;
 }
 
+interface InternalState {
+  doc: BlocksDoc;
+  past: BlocksDoc[];
+  future: BlocksDoc[];
+}
+
 export function useBlocksHistory(initial: BlocksDoc, opts: Options = {}): BlocksHistory {
   const { debounceMs = 400, limit = 100 } = opts;
-  const [doc, setDocState] = useState<BlocksDoc>(initial);
-  const pastRef = useRef<BlocksDoc[]>([]);
-  const futureRef = useRef<BlocksDoc[]>([]);
+  const [state, setState] = useState<InternalState>({ doc: initial, past: [], future: [] });
   const lastCommitRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [version, setVersion] = useState(0);
 
-  const commit = useCallback((prev: BlocksDoc) => {
-    pastRef.current.push(prev);
-    if (pastRef.current.length > limit) pastRef.current.shift();
-    futureRef.current = [];
-    lastCommitRef.current = Date.now();
-    setVersion((v) => v + 1);
-  }, [limit]);
+  const flushPending = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
 
   const setDoc = useCallback((next: BlocksDoc, immediate = false) => {
-    setDocState((prev) => {
-      if (prev === next) return prev;
+    setState((prev) => {
+      if (prev.doc === next) return prev;
       const now = Date.now();
       const elapsed = now - lastCommitRef.current;
-      if (immediate || elapsed > debounceMs) {
-        commit(prev);
-      } else {
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => commit(prev), debounceMs);
+      const shouldCommit = immediate || elapsed > debounceMs;
+      if (shouldCommit) {
+        const past = [...prev.past, prev.doc];
+        if (past.length > limit) past.shift();
+        lastCommitRef.current = now;
+        return { doc: next, past, future: [] };
       }
-      return next;
+      // Debounce: schedule a delayed commit if not pending.
+      if (!timerRef.current) {
+        const snapshot = prev.doc;
+        timerRef.current = setTimeout(() => {
+          timerRef.current = null;
+          lastCommitRef.current = Date.now();
+          setState((s) => {
+            const past = [...s.past, snapshot];
+            if (past.length > limit) past.shift();
+            return { ...s, past, future: [] };
+          });
+        }, debounceMs);
+      }
+      return { ...prev, doc: next };
     });
-  }, [commit, debounceMs]);
+  }, [debounceMs, limit]);
 
   const undo = useCallback(() => {
-    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
-    const prev = pastRef.current.pop();
-    if (!prev) return;
-    setDocState((current) => {
-      futureRef.current.push(current);
-      return prev;
+    flushPending();
+    setState((s) => {
+      const prev = s.past[s.past.length - 1];
+      if (!prev) return s;
+      return { doc: prev, past: s.past.slice(0, -1), future: [...s.future, s.doc] };
     });
-    setVersion((v) => v + 1);
-  }, []);
+  }, [flushPending]);
 
   const redo = useCallback(() => {
-    const next = futureRef.current.pop();
-    if (!next) return;
-    setDocState((current) => {
-      pastRef.current.push(current);
-      return next;
+    flushPending();
+    setState((s) => {
+      const next = s.future[s.future.length - 1];
+      if (!next) return s;
+      return { doc: next, past: [...s.past, s.doc], future: s.future.slice(0, -1) };
     });
-    setVersion((v) => v + 1);
-  }, []);
+  }, [flushPending]);
 
   const reset = useCallback((next: BlocksDoc) => {
-    pastRef.current = [];
-    futureRef.current = [];
-    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
-    setDocState(next);
-    setVersion((v) => v + 1);
-  }, []);
+    flushPending();
+    lastCommitRef.current = 0;
+    setState({ doc: next, past: [], future: [] });
+  }, [flushPending]);
 
-  useEffect(() => () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-  }, []);
+  useEffect(() => () => flushPending(), [flushPending]);
 
   return {
-    doc,
+    doc: state.doc,
     setDoc,
     reset,
     undo,
     redo,
-    canUndo: pastRef.current.length > 0,
-    canRedo: futureRef.current.length > 0,
-    // version forces re-render on undo/redo - intentionally referenced
-    ...({ _v: version } as unknown as Record<string, never>),
+    canUndo: state.past.length > 0,
+    canRedo: state.future.length > 0,
   };
 }
