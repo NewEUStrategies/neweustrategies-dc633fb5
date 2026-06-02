@@ -212,6 +212,85 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
           />
         </section>
 
+        {widget.type === "dark-featured-card" && (
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Etykieta (badge)</h4>
+            <div className="grid grid-cols-2 gap-2">
+              <PropField label="Wariant">
+                <Select
+                  value={(widget.content?.badgeVariant as string) || "solid-red"}
+                  onValueChange={(v) => setContent("badgeVariant", v)}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[
+                      { v: "solid-red", l: "Pełny — czerwony" },
+                      { v: "solid-brand", l: "Pełny — brand" },
+                      { v: "solid-dark", l: "Pełny — ciemny" },
+                      { v: "outline", l: "Obrysowany" },
+                      { v: "ghost", l: "Przezroczysty" },
+                      { v: "gradient", l: "Gradient" },
+                    ].map((o) => (
+                      <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </PropField>
+              <PropField label="Zaokrąglenie">
+                <Select
+                  value={(widget.content?.badgeRadius as string) || "none"}
+                  onValueChange={(v) => setContent("badgeRadius", v)}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[
+                      { v: "none", l: "Brak" },
+                      { v: "sm", l: "Małe" },
+                      { v: "md", l: "Średnie" },
+                      { v: "lg", l: "Duże" },
+                      { v: "full", l: "Pill" },
+                    ].map((o) => (
+                      <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </PropField>
+              <PropField label="Rozmiar">
+                <Select
+                  value={(widget.content?.badgeSize as string) || "xs"}
+                  onValueChange={(v) => setContent("badgeSize", v)}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[
+                      { v: "xs", l: "XS" },
+                      { v: "sm", l: "S" },
+                      { v: "md", l: "M" },
+                    ].map((o) => (
+                      <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </PropField>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <PropField label="Kolor tła etykiety">
+                <ColorField
+                  value={(widget.content?.badgeBg as string) || ""}
+                  onChange={(v) => setContent("badgeBg", v || "")}
+                />
+              </PropField>
+              <PropField label="Kolor tekstu etykiety">
+                <ColorField
+                  value={(widget.content?.badgeText as string) || ""}
+                  onChange={(v) => setContent("badgeText", v || "")}
+                />
+              </PropField>
+            </div>
+            <div className="text-[10px] text-muted-foreground">Własne kolory nadpisują wybrany wariant.</div>
+          </section>
+        )}
+
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Odstępy</h4>
           <SpacingControl style={widget.style} device={device} onChange={setStyle} />
@@ -350,84 +429,6 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
           />
         </section>
 
-        {widget.type === "dark-featured-card" && (
-          <section className="space-y-2 pt-2 border-t border-border">
-            <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Etykieta (badge)</h4>
-            <div className="grid grid-cols-2 gap-2">
-              <PropField label="Wariant">
-                <Select
-                  value={(widget.content?.badgeVariant as string) || "solid-red"}
-                  onValueChange={(v) => setContent("badgeVariant", v)}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {[
-                      { v: "solid-red", l: "Pełny — czerwony" },
-                      { v: "solid-brand", l: "Pełny — brand" },
-                      { v: "solid-dark", l: "Pełny — ciemny" },
-                      { v: "outline", l: "Obrysowany" },
-                      { v: "ghost", l: "Przezroczysty" },
-                      { v: "gradient", l: "Gradient" },
-                    ].map((o) => (
-                      <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </PropField>
-              <PropField label="Zaokrąglenie">
-                <Select
-                  value={(widget.content?.badgeRadius as string) || "none"}
-                  onValueChange={(v) => setContent("badgeRadius", v)}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {[
-                      { v: "none", l: "Brak" },
-                      { v: "sm", l: "Małe" },
-                      { v: "md", l: "Średnie" },
-                      { v: "lg", l: "Duże" },
-                      { v: "full", l: "Pill" },
-                    ].map((o) => (
-                      <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </PropField>
-              <PropField label="Rozmiar">
-                <Select
-                  value={(widget.content?.badgeSize as string) || "xs"}
-                  onValueChange={(v) => setContent("badgeSize", v)}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {[
-                      { v: "xs", l: "XS" },
-                      { v: "sm", l: "S" },
-                      { v: "md", l: "M" },
-                    ].map((o) => (
-                      <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </PropField>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <PropField label="Kolor tła etykiety">
-                <ColorField
-                  value={(widget.content?.badgeBg as string) || ""}
-                  onChange={(v) => setContent("badgeBg", v || "")}
-                />
-              </PropField>
-              <PropField label="Kolor tekstu etykiety">
-                <ColorField
-                  value={(widget.content?.badgeText as string) || ""}
-                  onChange={(v) => setContent("badgeText", v || "")}
-                />
-              </PropField>
-            </div>
-            <div className="text-[10px] text-muted-foreground">Własne kolory nadpisują wybrany wariant.</div>
-          </section>
-        )}
       </TabsContent>
 
 
