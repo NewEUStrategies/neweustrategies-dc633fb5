@@ -350,12 +350,12 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "typography",
     label: "Headings (H1–H6)",
     slots: [
-      { key: "h1", label: "H1 Color", description: "Kolor nagłówków H1.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "36px" },
-      { key: "h2", label: "H2 Color", description: "Kolor nagłówków H2.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "30px" },
-      { key: "h3", label: "H3 Color", description: "Kolor nagłówków H3.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "24px" },
-      { key: "h4", label: "H4 Color", description: "Kolor nagłówków H4.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "20px" },
-      { key: "h5", label: "H5 Color", description: "Kolor nagłówków H5.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "18px" },
-      { key: "h6", label: "H6 Color", description: "Kolor nagłówków H6.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "16px" },
+      { key: "h1", label: "H1 Color", description: "Kolor nagłówków H1.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "32px" },
+      { key: "h2", label: "H2 Color", description: "Kolor nagłówków H2.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "26px" },
+      { key: "h3", label: "H3 Color", description: "Kolor nagłówków H3.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "22px" },
+      { key: "h4", label: "H4 Color", description: "Kolor nagłówków H4.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "18px" },
+      { key: "h5", label: "H5 Color", description: "Kolor nagłówków H5.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "16px" },
+      { key: "h6", label: "H6 Color", description: "Kolor nagłówków H6.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "14px" },
     ],
   },
   {
