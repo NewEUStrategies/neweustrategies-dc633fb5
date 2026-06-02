@@ -222,7 +222,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "widgets",
     label: "Sponsor Label",
     slots: [
-      { key: "sponsor-label", label: "Sponsor Label Color", description: "Kolor etykiety „sponsored”.", hasDark: true },
+      { key: "sponsor-label", label: "Sponsor Label Color", description: "Kolor etykiety „sponsored”.", hasDark: true, typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "12px" },
     ],
   },
   {
