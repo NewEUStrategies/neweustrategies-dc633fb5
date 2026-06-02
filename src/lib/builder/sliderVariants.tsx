@@ -89,7 +89,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const aspectStyle: CSSProperties = { aspectRatio: ratio.replace("/", " / "), width: "100%", minHeight: 0 };
 
   return (
-    <div className="w-full">
+    <div className="w-full group/eh">
       <style>{`
         @keyframes ehFadeImg { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: scale(1); } }
         @keyframes ehFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
