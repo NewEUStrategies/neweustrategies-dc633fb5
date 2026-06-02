@@ -602,7 +602,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   ]);
 
   return (
-    <div className={`grid ${sidebarCollapsed ? "grid-cols-[40px_1fr]" : "grid-cols-[300px_1fr]"} gap-3 items-start transition-[grid-template-columns] duration-200`}>
+    <div className={`cms-builder-compact grid ${sidebarCollapsed ? "grid-cols-[40px_1fr]" : "grid-cols-[260px_1fr]"} gap-3 items-start transition-[grid-template-columns] duration-200`}>
 
 
       {/* LEFT PANEL */}
