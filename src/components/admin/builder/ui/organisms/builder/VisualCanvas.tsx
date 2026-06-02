@@ -219,7 +219,7 @@ export function VisualCanvas({
     [data-visual-canvas] button{pointer-events:none}
     [data-visual-canvas] [data-section-inserter] button,
     [data-visual-canvas] [data-section-inserter] a{pointer-events:auto}
-    [data-visual-canvas] img,
+    [data-visual-canvas] img:not([data-fill-image]),
     [data-visual-canvas] video,
     [data-visual-canvas] iframe,
     [data-visual-canvas] svg{max-width:100% !important;height:auto;}
