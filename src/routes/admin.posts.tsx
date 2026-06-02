@@ -18,6 +18,7 @@ import {
   restorePosts,
   purgePosts,
 } from "@/lib/content.functions";
+import { bulkMigratePostsToBlocks } from "@/lib/posts-migrate.functions";
 import { toast } from "sonner";
 import { BulkActionsBar, type BulkStatus } from "@/components/admin/BulkActionsBar";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
