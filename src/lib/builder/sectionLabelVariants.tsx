@@ -11,7 +11,8 @@ export type SectionLabelVariant =
   | "centered-rule"
   | "centered-short-rule"
   | "filled-bar"
-  | "centered-underline";
+  | "centered-underline"
+  | "slanted-ribbon-rule";
 
 export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string }[] = [
   { value: "left-bar",            label: "01 — Pionowy pasek" },
@@ -23,6 +24,7 @@ export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string
   { value: "centered-short-rule", label: "08 — Wycentrowany z krótkimi liniami (np. Materiały partnerów)" },
   { value: "filled-bar",          label: "09 — Pełny pasek (np. Najnowszy raport)" },
   { value: "centered-underline",  label: "10 — Wycentrowany z podkreśleniem (np. Poznaj nasze raporty)" },
+  { value: "slanted-ribbon-rule", label: "11 — Wstęga ze spadem i linią (np. Najnowszy raport)" },
 ];
 
 
@@ -192,6 +194,52 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
           {ActionEl && <div className={isSm ? "mt-0.5" : "mt-1"}>{ActionEl}</div>}
         </div>
       );
+    case "slanted-ribbon-rule": {
+      // Red ribbon with diagonal right edge whose slant continues as a thin
+      // horizontal line all the way to the right, where the action sits.
+      const fg = labelColor || contrastOn(accent);
+      const cutW = isSm ? 14 : 36;
+      const lineH = isSm ? 2 : 3;
+      const ribbonPadX = isSm ? "pl-2 pr-3" : "pl-4 pr-6";
+      const ribbonPadY = isSm ? "py-1" : "py-2.5";
+      const labelCls = isSm
+        ? "text-[9px] font-bold uppercase tracking-wider"
+        : "font-display text-base font-bold uppercase tracking-wider";
+      const actCls = isSm
+        ? "text-[8px] font-medium text-foreground/80"
+        : "text-sm font-medium text-foreground/80 hover:opacity-80 transition";
+      return (
+        <div className={`${wrapperBase} relative flex items-stretch`}>
+          {/* Continuous bottom line in accent color */}
+          <span
+            aria-hidden
+            className="absolute left-0 right-0 bottom-0"
+            style={{ height: `${lineH}px`, background: accent }}
+          />
+          {/* Ribbon with diagonal cut on the right; sits flush on top of the line */}
+          <span
+            className={`relative inline-flex items-center ${ribbonPadX} ${ribbonPadY} ${labelCls}`}
+            style={{
+              background: accent,
+              color: fg,
+              clipPath: `polygon(0 0, 100% 0, calc(100% - ${cutW}px) 100%, 0 100%)`,
+              paddingRight: `${cutW + (isSm ? 6 : 16)}px`,
+              ...(labelSize && !isSm ? { fontSize: labelSize } : {}),
+            }}
+          >
+            {label}
+          </span>
+          {/* Action on the far right, vertically centered, just above the line */}
+          {action && (
+            <span className="ml-auto flex items-center" style={{ paddingRight: isSm ? 4 : 8, paddingBottom: lineH + 2 }}>
+              {href && !isSm
+                ? <a href={href} className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</a>
+                : <span className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</span>}
+            </span>
+          )}
+        </div>
+      );
+    }
   }
 }
 
