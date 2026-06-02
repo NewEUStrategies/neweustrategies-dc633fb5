@@ -701,6 +701,12 @@ export function renderSimpleWidget(
         intervalMs: getNum(c, "intervalMs", 4500),
         rounded: (getStr(c, "rounded") || "md") as "none" | "sm" | "md" | "lg" | "xl" | "full",
         overlayOpacity: typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45,
+        imageAnim: (getStr(c, "imageAnim") || "fade") as never,
+        imageDir:  (getStr(c, "imageDir")  || "right") as never,
+        textAnim:  (getStr(c, "textAnim")  || "slide") as never,
+        textDir:   (getStr(c, "textDir")   || "up") as never,
+        ctaAnim:   (getStr(c, "ctaAnim")   || "fade") as never,
+        ctaDir:    (getStr(c, "ctaDir")    || "up") as never,
         items: sampleItems,
       };
       if (!hasRealItems && editable) {
