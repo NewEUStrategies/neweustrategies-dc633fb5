@@ -126,65 +126,111 @@
   clip-path: polygon(0 0, 100% 0, calc(100% - 16px) 100%, 0 100%);
 }
 
-/* ===== Sidebar Styles (Theme Options → Sidebars) =====
+/* ===== Sidebar Styles (Global Colors → Sidebar → Style) =====
    Applied to both internal admin sidebar and global Layout 6 sidebar.
-   Driven by [data-sidebar-style] on the <aside data-sidebar="sidebar"> root. */
+   Driven by [data-sidebar-style] on <aside data-sidebar="sidebar">. */
+
+/* Style 1 — Solid Classic (default look, fully square menu items) */
+aside[data-sidebar="sidebar"][data-sidebar-style="style-1"] [data-sidebar="menu-button"] {
+  border-radius: 0 !important;
+}
 
 /* Style 2 — Minimal Borderless */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] {
   background: transparent !important;
-  border-right: 1px solid hsl(var(--border));
+  border-right: 1px dashed hsl(var(--border));
   box-shadow: none;
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] [data-sidebar="menu-button"] {
   background: transparent !important;
   color: hsl(var(--muted-foreground));
+  border-left: 2px solid transparent;
+  border-radius: 0 !important;
+  padding-left: 0.75rem !important;
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] [data-sidebar="menu-button"]:hover {
+  background: transparent !important;
+  color: hsl(var(--foreground));
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] [data-sidebar="menu-button"][data-active="true"] {
   background: transparent !important;
   color: hsl(var(--primary));
-  font-weight: 600;
+  font-weight: 700;
+  border-left-color: hsl(var(--primary));
 }
 
 /* Style 3 — Floating Card */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-3"] {
-  margin: 0.5rem;
-  height: calc(100vh - 1rem) !important;
-  max-height: calc(100vh - 1rem) !important;
-  border-radius: 0.75rem;
+  margin: 0.75rem;
+  height: calc(100vh - 1.5rem) !important;
+  max-height: calc(100vh - 1.5rem) !important;
+  border-radius: 1rem;
   border: 1px solid hsl(var(--border));
-  box-shadow: 0 12px 32px -12px rgba(0,0,0,0.25);
+  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.35), 0 8px 16px -8px rgba(0, 0, 0, 0.15);
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-3"] [data-sidebar="menu-button"] {
+  border-radius: 0.625rem;
+  margin: 1px 4px;
 }
 
-/* Style 4 — Compact Rail (always collapsed to icons) */
+/* Style 4 — Compact Icon Rail (always collapsed) */
+aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] {
+  width: 3.5rem !important;
+}
 aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="menu-button"] > span:not(.shrink-0) {
   display: none !important;
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="menu-button"] {
   justify-content: center;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 2px auto;
+  border-radius: 0.5rem;
 }
 
-/* Style 5 — Glass */
+/* Style 5 — Glass / Frosted */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] {
-  background: hsl(var(--card) / 0.55) !important;
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  border-right: 1px solid hsl(var(--border) / 0.5);
+  background: linear-gradient(180deg, hsl(var(--card) / 0.55), hsl(var(--card) / 0.35)) !important;
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border-right: 1px solid hsl(var(--border) / 0.4);
+  box-shadow: inset -1px 0 0 hsl(var(--background) / 0.4);
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="menu-button"] {
+  border-radius: 0.5rem;
+  backdrop-filter: blur(4px);
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="menu-button"][data-active="true"] {
+  background: hsl(var(--primary) / 0.85) !important;
 }
 
 /* Style 6 — Bold Dark (forces dark contrast in both modes) */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] {
-  background: #0b0b10 !important;
-  border-right: 1px solid #1f1f29;
-  color: #e6e7eb;
+  background: #0b0b12 !important;
+  border-right: 1px solid #1f1f2b;
+  color: #e6e7eb !important;
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar="menu-button"] {
-  color: #c7c9d1;
+  color: #c7c9d1 !important;
+  border-radius: 0.5rem;
+  margin: 1px 6px;
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar="menu-button"]:hover {
   background: #1a1a24 !important;
-  color: #ffffff;
+  color: #ffffff !important;
 }
-aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar-brand] {
-  color: #ffffff;
+aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar="menu-button"][data-active="true"] {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  box-shadow: 0 6px 16px -6px hsl(var(--primary) / 0.6);
 }
+aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar-brand],
+aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar-toggle] {
+  color: #ffffff !important;
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar="group-label"] {
+  color: #8a8d99 !important;
+}
+
