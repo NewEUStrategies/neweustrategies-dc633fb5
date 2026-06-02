@@ -153,8 +153,37 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
           {ActionEl && <div className={isSm ? "mt-0.5 text-[8px] text-muted-foreground" : "mt-1 text-xs text-muted-foreground"} style={actionStyle}>{action}</div>}
         </div>
       );
+    case "filled-bar": {
+      // Full-width filled colored bar (e.g. "NAJNOWSZY RAPORT" w/ "Więcej →" on right)
+      const fg = labelColor || contrastOn(accent);
+      const padCls = isSm ? "px-2 py-1" : "px-4 py-3";
+      const labelCls = isSm
+        ? "text-[9px] font-bold uppercase tracking-wider"
+        : "font-display text-base font-bold uppercase tracking-wider";
+      const actCls = isSm
+        ? "text-[8px] font-medium"
+        : "text-xs font-medium hover:opacity-80 transition";
+      return (
+        <div className={`${wrapperBase} flex items-center justify-between ${padCls}`} style={{ background: accent, color: fg }}>
+          <span className={labelCls} style={labelSize && !isSm ? { fontSize: labelSize } : undefined}>{label}</span>
+          {action && (
+            href && !isSm
+              ? <a href={href} className={actCls} style={{ color: actionColor || fg, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action} →</a>
+              : <span className={actCls} style={{ color: actionColor || fg, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action} →</span>
+          )}
+        </div>
+      );
+    }
+    case "centered-underline":
+      return (
+        <div className={`${wrapperBase} ${padY} text-center border-b border-border`}>
+          <span className={isSm ? "text-[10px] font-semibold" : "font-display text-xl font-semibold tracking-tight"} style={labelStyle}>{label}</span>
+          {ActionEl && <div className={isSm ? "mt-0.5" : "mt-1"}>{ActionEl}</div>}
+        </div>
+      );
   }
 }
+
 
 
 function Corners({ accent, sm }: { accent: string; sm: boolean }) {
