@@ -97,7 +97,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           background-image: linear-gradient(currentColor, currentColor);
           background-repeat: no-repeat;
           background-size: 0% 2px;
-          background-position: 0 100%;
+          background-position: 50% 100%;
           transition: background-size 500ms cubic-bezier(.22,.61,.36,1);
           padding-bottom: 4px;
         }
