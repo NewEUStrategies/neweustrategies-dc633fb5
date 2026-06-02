@@ -14,9 +14,13 @@ type SidebarLogoCfg = {
     sidebar_expanded: string; sidebar_expanded_dark: string;
     main: string; main_dark: string;
   };
+  sidebars?: {
+    style?: "style-1" | "style-2" | "style-3" | "style-4" | "style-5" | "style-6";
+  };
 };
 const SIDEBAR_LOGO_DEFAULTS: SidebarLogoCfg = {
   logo: { sidebar_icon: "", sidebar_icon_dark: "", sidebar_expanded: "", sidebar_expanded_dark: "", main: "", main_dark: "" },
+  sidebars: { style: "style-1" },
 };
 
 
