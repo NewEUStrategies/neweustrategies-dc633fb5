@@ -137,7 +137,8 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
   if (variant === "list") {
     return (
-      <div className="flex flex-col divide-y divide-border">
+      <div className="w-full flex flex-col divide-y divide-border">
+
         {rows.map((p) => (
           <a key={p.id} href={`/post/${p.slug}`} className="flex gap-3 py-3 group">
             {p.cover_image_url && (
