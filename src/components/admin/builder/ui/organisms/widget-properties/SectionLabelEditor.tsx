@@ -11,7 +11,7 @@ import {
 } from "@/lib/builder/sectionLabelVariants";
 
 const PRESET_COLORS: { value: string; label: string; hex: string }[] = [
-  { value: "brand",     label: "Marka",     hex: "#e85d3a" },
+  { value: "brand",     label: "Marka",     hex: "#FA9346" },
   { value: "military",  label: "Military",  hex: "#9b4a2a" },
   { value: "finance",   label: "Finance",   hex: "#2d8a4e" },
   { value: "transport", label: "Transport", hex: "#c98a2a" },
@@ -133,6 +133,10 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                       accent={accent}
                       variant={v.value}
                       size="sm"
+                      labelColor={labelColor || undefined}
+                      labelSize={labelSize || undefined}
+                      actionColor={actionColor || undefined}
+                      actionSize={actionSize || undefined}
                     />
                   </div>
                 </div>
