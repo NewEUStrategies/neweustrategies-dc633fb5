@@ -790,6 +790,7 @@ function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
 
 
 function InputPreview({ opts }: { opts: ThemeOptions["text_fields"] }) {
+  const { t } = useTranslation();
   const isUnderline = opts.style === "underline";
   const isFilled = opts.style === "filled";
   const style: React.CSSProperties = {
@@ -809,10 +810,10 @@ function InputPreview({ opts }: { opts: ThemeOptions["text_fields"] }) {
   };
   return (
     <div className="rounded-md border border-border bg-background/40 p-4 space-y-2">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Podgląd</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("themeOptions.inputs.preview")}</div>
       {opts.show_label_above && <Label className="text-xs">E-mail</Label>}
       <input type="email" placeholder={opts.show_label_above ? "twoj@email.pl" : "E-mail"} style={style} />
-      <p className="text-[10px] text-muted-foreground">Hover / focus używają kolorów z Global Colors.</p>
+      <p className="text-[10px] text-muted-foreground">{t("themeOptions.inputs.hoverHint")}</p>
     </div>
   );
 }
