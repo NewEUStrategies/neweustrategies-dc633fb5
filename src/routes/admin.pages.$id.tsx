@@ -100,6 +100,8 @@ function EditPage() {
           title_en: snapshot.title_en,
           content_pl: snapshot.content_pl,
           content_en: snapshot.content_en,
+          excerpt_pl: snapshot.excerpt_pl,
+          excerpt_en: snapshot.excerpt_en,
           cover_image_url: snapshot.cover_image_url,
           builder_data: snapshot.builder_data,
           parent_id: snapshot.parent_id,
