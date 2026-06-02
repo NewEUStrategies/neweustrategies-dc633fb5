@@ -75,10 +75,19 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     );
   }
 
+  // System-wide limits — applied uniformly to every slide so layout height
+  // is stable regardless of content length. Counts include spaces.
+  const TITLE_MAX = 80;   // ~2 linie na desktopie
+  const EXCERPT_MAX = 160; // ~3 linie na desktopie
+  const truncate = (s: string, max: number) =>
+    s.length > max ? s.slice(0, Math.max(0, max - 1)).trimEnd() + "…" : s;
+
   const safeIdx = Math.min(Math.max(0, idx), items.length - 1);
   const cur = items[safeIdx] ?? items[0];
-  const title = (lang === "en" ? cur.title_en : cur.title_pl) || cur.title_pl || cur.title_en || "";
-  const sub   = (lang === "en" ? cur.subtitle_en : cur.subtitle_pl) || cur.subtitle_pl || "";
+  const rawTitle = (lang === "en" ? cur.title_en : cur.title_pl) || cur.title_pl || cur.title_en || "";
+  const rawSub   = (lang === "en" ? cur.subtitle_en : cur.subtitle_pl) || cur.subtitle_pl || "";
+  const title = truncate(rawTitle, TITLE_MAX);
+  const sub   = truncate(rawSub, EXCERPT_MAX);
   const cat   = (lang === "en" ? cur.category_en : cur.category_pl) || cur.category_pl || "";
   const href  = safeUrl(cur.href ?? "") || undefined;
   const catColor = cur.categoryColor || "#ef6c2e";
