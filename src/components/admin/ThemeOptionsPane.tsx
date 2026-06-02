@@ -550,7 +550,7 @@ export function ThemeOptionsPane() {
 
         {active === "header.layout" && (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">Wybierz układ nagłówka. Wpływa na pozycję logo, menu i utility bar.</p>
+            <p className="text-xs text-muted-foreground">{t("themeOptions.layout.description")}</p>
             <div className="grid md:grid-cols-2 gap-3">
               {(Object.keys(LAYOUT_PREVIEWS) as HeaderLayout[]).map((id) => {
                 const meta = LAYOUT_PREVIEWS[id];
@@ -576,24 +576,24 @@ export function ThemeOptionsPane() {
 
         {active === "header.socials" && (
           <div className="space-y-4">
-            <Row label="Placement" hint="Gdzie pokazywać ikony społecznościowe.">
+            <Row label={t("themeOptions.socials.placement")} hint={t("themeOptions.socials.placementHint")}>
               <Select value={draft.header.socials.placement} onValueChange={(v) => patchSocials({ placement: v as SocialPlacement })}>
                 <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="topbar">Utility bar (góra)</SelectItem>
-                  <SelectItem value="navbar">Nav bar</SelectItem>
-                  <SelectItem value="both">Oba paski</SelectItem>
-                  <SelectItem value="hidden">Ukryj</SelectItem>
+                  <SelectItem value="topbar">{t("themeOptions.socials.placementTopbar")}</SelectItem>
+                  <SelectItem value="navbar">{t("themeOptions.socials.placementNavbar")}</SelectItem>
+                  <SelectItem value="both">{t("themeOptions.socials.placementBoth")}</SelectItem>
+                  <SelectItem value="hidden">{t("themeOptions.socials.placementHidden")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Rozmiar ikon (px)">
+            <Row label={t("themeOptions.socials.size")}>
               <Input type="number" min={12} max={32} className="w-[120px] h-9 text-xs"
                 value={draft.header.socials.size}
                 onChange={(e) => patchSocials({ size: Number(e.target.value) || 16 })} />
             </Row>
             {(["facebook", "twitter", "instagram", "linkedin", "youtube", "email"] as const).map((k) => (
-              <Row key={k} label={k.charAt(0).toUpperCase() + k.slice(1)} hint={k === "email" ? "Adres e-mail (bez mailto:)" : "URL profilu"}>
+              <Row key={k} label={k.charAt(0).toUpperCase() + k.slice(1)} hint={k === "email" ? t("themeOptions.socials.emailHint") : t("themeOptions.socials.profileHint")}>
                 <Input value={draft.header.socials[k]} onChange={(e) => patchSocials({ [k]: e.target.value } as Partial<ThemeOptions["header"]["socials"]>)} className="w-[320px] h-9 text-xs" placeholder={k === "email" ? "kontakt@example.com" : `https://${k}.com/...`} />
               </Row>
             ))}
@@ -602,33 +602,33 @@ export function ThemeOptionsPane() {
 
         {active === "header.signin" && (
           <div className="space-y-4">
-            <Row label="Pokaż przyciski auth" hint="Włącz/wyłącz przyciski logowania w nagłówku.">
+            <Row label={t("themeOptions.signin.enable")} hint={t("themeOptions.signin.enableHint")}>
               <Switch checked={draft.header.signin.enabled} onCheckedChange={(v) => patchSignin({ enabled: v })} />
             </Row>
-            <Row label="Pokaż przycisk rejestracji">
+            <Row label={t("themeOptions.signin.showSignup")}>
               <Switch checked={draft.header.signin.show_signup} onCheckedChange={(v) => patchSignin({ show_signup: v })} />
             </Row>
-            <Row label="Wariant przycisku">
+            <Row label={t("themeOptions.signin.variant")}>
               <Select value={draft.header.signin.variant} onValueChange={(v) => patchSignin({ variant: v as ButtonVariant })}>
                 <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="solid">Solid</SelectItem>
-                  <SelectItem value="outline">Outline</SelectItem>
-                  <SelectItem value="ghost">Ghost (tekst)</SelectItem>
-                  <SelectItem value="pill">Pill (zaokrąglony)</SelectItem>
+                  <SelectItem value="solid">{t("themeOptions.signin.variantSolid")}</SelectItem>
+                  <SelectItem value="outline">{t("themeOptions.signin.variantOutline")}</SelectItem>
+                  <SelectItem value="ghost">{t("themeOptions.signin.variantGhost")}</SelectItem>
+                  <SelectItem value="pill">{t("themeOptions.signin.variantPill")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Sign in (PL)">
+            <Row label={t("themeOptions.signin.signinPl")}>
               <Input value={draft.header.signin.signin_label_pl} onChange={(e) => patchSignin({ signin_label_pl: e.target.value })} className="w-[220px] h-9 text-xs" />
             </Row>
-            <Row label="Sign in (EN)">
+            <Row label={t("themeOptions.signin.signinEn")}>
               <Input value={draft.header.signin.signin_label_en} onChange={(e) => patchSignin({ signin_label_en: e.target.value })} className="w-[220px] h-9 text-xs" />
             </Row>
-            <Row label="Sign up (PL)">
+            <Row label={t("themeOptions.signin.signupPl")}>
               <Input value={draft.header.signin.signup_label_pl} onChange={(e) => patchSignin({ signup_label_pl: e.target.value })} className="w-[220px] h-9 text-xs" />
             </Row>
-            <Row label="Sign up (EN)">
+            <Row label={t("themeOptions.signin.signupEn")}>
               <Input value={draft.header.signin.signup_label_en} onChange={(e) => patchSignin({ signup_label_en: e.target.value })} className="w-[220px] h-9 text-xs" />
             </Row>
           </div>
