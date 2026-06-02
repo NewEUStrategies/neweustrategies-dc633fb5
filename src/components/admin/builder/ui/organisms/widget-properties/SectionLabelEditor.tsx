@@ -133,6 +133,10 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                       accent={accent}
                       variant={v.value}
                       size="sm"
+                      labelColor={labelColor || undefined}
+                      labelSize={labelSize || undefined}
+                      actionColor={actionColor || undefined}
+                      actionSize={actionSize || undefined}
                     />
                   </div>
                 </div>
