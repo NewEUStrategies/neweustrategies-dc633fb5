@@ -283,11 +283,10 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
             </div>
           </PropField>
           <PropField label="Rozmiar (np. 12px)">
-            <Input
+            <PxSizeInput
               value={actionSize}
-              onChange={(e) => setContent("actionSize", e.target.value)}
+              onChange={(v) => setContent("actionSize", v)}
               placeholder="auto"
-              className="h-8 text-xs"
             />
           </PropField>
         </div>
