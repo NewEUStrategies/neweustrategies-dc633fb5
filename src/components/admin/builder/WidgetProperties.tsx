@@ -116,7 +116,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
   const widgetLabel = WIDGETS.find((w) => w.type === widget.type)?.label ?? widget.type;
 
   return (
-    <div className="wp-compact text-[11px] [&_label]:text-[10px] [&_label]:leading-tight [&_input]:!h-7 [&_input]:!text-[11px] [&_textarea]:!text-[11px] [&_textarea]:!leading-snug [&_button[role=combobox]]:!h-7 [&_button[role=combobox]]:!text-[11px] [&_[role=tab]]:!text-[11px] [&_summary]:!text-[11px] [&_p]:!text-[10px]">
+    <div className="wp-compact text-[11px]">
     <Tabs defaultValue="content">
       <div className="mb-2 px-0.5">
         <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Widget</div>
@@ -127,6 +127,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         <TabsTrigger value="style" className="text-[11px]">Styl</TabsTrigger>
         <TabsTrigger value="advanced" className="text-[11px]">Zaawans.</TabsTrigger>
       </TabsList>
+
 
 
 
