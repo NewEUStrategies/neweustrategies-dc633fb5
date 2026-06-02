@@ -1,6 +1,7 @@
 // Theme Options panel (Foxiz-style) — Logo + Header sections.
 // Stores everything under site_settings.theme_options.
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSettings } from "@/lib/admin/useSettings";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { Input } from "@/components/ui/input";
@@ -138,17 +139,17 @@ const DEFAULTS: ThemeOptions = {
 };
 
 const SECTIONS = [
-  { id: "logo", label: "Logo", icon: ImageIcon },
-  { id: "global_colors", label: "Global Colors", icon: Eye },
-  { id: "header.layout", label: "Header Layout", icon: Layers },
-  { id: "header.main_menu", label: "Main Menu", icon: Menu },
-  { id: "header.search", label: "Header Search", icon: Search },
-  { id: "header.alert_bar", label: "Alert Bar", icon: Megaphone },
-  { id: "header.socials", label: "Social Icons", icon: Users },
-  { id: "header.signin", label: "Sign In Buttons", icon: LogIn },
-  { id: "header.mobile", label: "Mobile Header", icon: LayoutDashboard },
-  { id: "buttons", label: "Buttons", icon: MousePointerClick },
-  { id: "text_fields", label: "Text Fields", icon: Pencil },
+  { id: "logo", labelKey: "themeOptions.sections.logo", icon: ImageIcon },
+  { id: "global_colors", labelKey: "themeOptions.sections.globalColors", icon: Eye },
+  { id: "header.layout", labelKey: "themeOptions.sections.headerLayout", icon: Layers },
+  { id: "header.main_menu", labelKey: "themeOptions.sections.mainMenu", icon: Menu },
+  { id: "header.search", labelKey: "themeOptions.sections.headerSearch", icon: Search },
+  { id: "header.alert_bar", labelKey: "themeOptions.sections.alertBar", icon: Megaphone },
+  { id: "header.socials", labelKey: "themeOptions.sections.socialIcons", icon: Users },
+  { id: "header.signin", labelKey: "themeOptions.sections.signinButtons", icon: LogIn },
+  { id: "header.mobile", labelKey: "themeOptions.sections.mobileHeader", icon: LayoutDashboard },
+  { id: "buttons", labelKey: "themeOptions.sections.buttons", icon: MousePointerClick },
+  { id: "text_fields", labelKey: "themeOptions.sections.textFields", icon: Pencil },
 ] as const;
 
 const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
@@ -162,6 +163,7 @@ const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
 
 
 export function ThemeOptionsPane() {
+  const { t } = useTranslation();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { query, save } = useSettings<any>("theme_options", DEFAULTS as any);
   const [draft, setDraft] = useState<ThemeOptions | null>(null);
@@ -170,6 +172,7 @@ export function ThemeOptionsPane() {
   const [logoTab, setLogoTab] = useState<"default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark">("default");
 
   if (!draft) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
+
 
   const patchLogo = (p: Partial<ThemeOptions["logo"]>) =>
     setDraft({ ...draft, logo: { ...draft.logo, ...p } });
@@ -206,9 +209,9 @@ export function ThemeOptionsPane() {
         ) : (
         <>
         <div className="flex items-center justify-between">
-          <h3 className="font-display text-lg">{SECTIONS.find((s) => s.id === active)?.label}</h3>
+          <h3 className="font-display text-lg">{(() => { const s = SECTIONS.find((x) => x.id === active); return s ? t(s.labelKey) : ""; })()}</h3>
           <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
-            <Save className="w-4 h-4 mr-2" /> {save.isPending ? "Zapisywanie…" : "Zapisz"}
+            <Save className="w-4 h-4 mr-2" /> {save.isPending ? t("themeOptions.saving") : t("themeOptions.save")}
           </Button>
         </div>
 
@@ -405,32 +408,32 @@ export function ThemeOptionsPane() {
 
         {active === "header.main_menu" && (
           <div className="space-y-4">
-            <SectionTitle>Navigation (Top Level)</SectionTitle>
-            <Row label="Menu Hover Effect" hint="Stosowane do elementów najwyższego poziomu.">
+            <SectionTitle>{t("themeOptions.mainMenu.navTopLevel")}</SectionTitle>
+            <Row label={t("themeOptions.mainMenu.hoverEffect")} hint={t("themeOptions.mainMenu.hoverEffectHint")}>
               <Select
                 value={draft.header.main_menu.hover_effect}
                 onValueChange={(v) => patchMenu({ hover_effect: v as ThemeOptions["header"]["main_menu"]["hover_effect"] })}
               >
                 <SelectTrigger className="w-[220px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="color-border">Default (Color Border)</SelectItem>
-                  <SelectItem value="underline">Underline</SelectItem>
-                  <SelectItem value="background">Background</SelectItem>
-                  <SelectItem value="scale">Scale</SelectItem>
-                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="color-border">{t("themeOptions.mainMenu.hoverColorBorder")}</SelectItem>
+                  <SelectItem value="underline">{t("themeOptions.mainMenu.hoverUnderline")}</SelectItem>
+                  <SelectItem value="background">{t("themeOptions.mainMenu.hoverBackground")}</SelectItem>
+                  <SelectItem value="scale">{t("themeOptions.mainMenu.hoverScale")}</SelectItem>
+                  <SelectItem value="none">{t("themeOptions.mainMenu.hoverNone")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Sticky Main Menu" hint="Utrzymuj pasek menu widoczny podczas przewijania.">
+            <Row label={t("themeOptions.mainMenu.sticky")} hint={t("themeOptions.mainMenu.stickyHint")}>
               <Switch checked={draft.header.main_menu.sticky} onCheckedChange={(v) => patchMenu({ sticky: v })} />
             </Row>
-            <Row label="Smart Sticky" hint="Pokazuj pasek tylko przy przewijaniu w górę.">
+            <Row label={t("themeOptions.mainMenu.smartSticky")} hint={t("themeOptions.mainMenu.smartStickyHint")}>
               <Switch checked={draft.header.main_menu.smart_sticky} onCheckedChange={(v) => patchMenu({ smart_sticky: v })} />
             </Row>
-            <Row label="Glass Effect" hint="Efekt szkła (frosted) na sticky nagłówku.">
+            <Row label={t("themeOptions.mainMenu.glass")} hint={t("themeOptions.mainMenu.glassHint")}>
               <Switch checked={draft.header.main_menu.glass_effect} onCheckedChange={(v) => patchMenu({ glass_effect: v })} />
             </Row>
-            <Row label="Item Spacing (px)" hint="Padding lewy/prawy pozycji menu.">
+            <Row label={t("themeOptions.mainMenu.itemSpacing")} hint={t("themeOptions.mainMenu.itemSpacingHint")}>
               <Input
                 type="number" min={0} max={64}
                 className="w-[120px] h-9 text-xs"
@@ -438,7 +441,7 @@ export function ThemeOptionsPane() {
                 onChange={(e) => patchMenu({ item_spacing: Number(e.target.value) || 0 })}
               />
             </Row>
-            <Row label="Menu Icon Spacing (px)" hint="Odstęp między tekstem a ikoną.">
+            <Row label={t("themeOptions.mainMenu.iconSpacing")} hint={t("themeOptions.mainMenu.iconSpacingHint")}>
               <Input
                 type="number" min={0} max={32}
                 className="w-[120px] h-9 text-xs"
@@ -447,11 +450,11 @@ export function ThemeOptionsPane() {
               />
             </Row>
 
-            <SectionTitle>Sub-Level Menus</SectionTitle>
-            <Row label="Tło submenu — From">
+            <SectionTitle>{t("themeOptions.mainMenu.subLevel")}</SectionTitle>
+            <Row label={t("themeOptions.mainMenu.submenuFrom")}>
               <Input type="color" className="w-[80px] h-9" value={draft.header.main_menu.submenu_bg_from || "#ffffff"} onChange={(e) => patchMenu({ submenu_bg_from: e.target.value })} />
             </Row>
-            <Row label="Tło submenu — To">
+            <Row label={t("themeOptions.mainMenu.submenuTo")}>
               <Input type="color" className="w-[80px] h-9" value={draft.header.main_menu.submenu_bg_to || "#ffffff"} onChange={(e) => patchMenu({ submenu_bg_to: e.target.value })} />
             </Row>
           </div>
@@ -459,26 +462,26 @@ export function ThemeOptionsPane() {
 
         {active === "header.search" && (
           <div className="space-y-4">
-            <Row label="Header Search Icon" hint="Włącz lub wyłącz ikonę wyszukiwarki w nagłówku.">
+            <Row label={t("themeOptions.search.icon")} hint={t("themeOptions.search.iconHint")}>
               <Switch checked={draft.header.search.enabled} onCheckedChange={(v) => patchSearch({ enabled: v })} />
             </Row>
-            <Row label="Search Heading" hint="Nagłówek nad formularzem wyszukiwania.">
+            <Row label={t("themeOptions.search.heading")} hint={t("themeOptions.search.headingHint")}>
               <Input value={draft.header.search.heading} onChange={(e) => patchSearch({ heading: e.target.value })} className="w-[260px] h-9 text-xs" />
             </Row>
-            <Row label="Search Form Appearance Mode" hint="Sposób pojawiania się formularza.">
+            <Row label={t("themeOptions.search.mode")} hint={t("themeOptions.search.modeHint")}>
               <Select value={draft.header.search.mode} onValueChange={(v) => patchSearch({ mode: v as ThemeOptions["header"]["search"]["mode"] })}>
                 <SelectTrigger className="w-[260px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="standalone">Standalone Search Form</SelectItem>
-                  <SelectItem value="dropdown">Dropdown</SelectItem>
-                  <SelectItem value="fullscreen">Fullscreen Overlay</SelectItem>
+                  <SelectItem value="standalone">{t("themeOptions.search.modeStandalone")}</SelectItem>
+                  <SelectItem value="dropdown">{t("themeOptions.search.modeDropdown")}</SelectItem>
+                  <SelectItem value="fullscreen">{t("themeOptions.search.modeFullscreen")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Live Search Result" hint="Wyświetlaj wyniki na żywo podczas pisania.">
+            <Row label={t("themeOptions.search.live")} hint={t("themeOptions.search.liveHint")}>
               <Switch checked={draft.header.search.live_results} onCheckedChange={(v) => patchSearch({ live_results: v })} />
             </Row>
-            <Row label="Live Search Limit Posts" hint="Maksymalnie 10 pozycji.">
+            <Row label={t("themeOptions.search.limit")} hint={t("themeOptions.search.limitHint")}>
               <Input
                 type="number" min={1} max={10}
                 className="w-[120px] h-9 text-xs"
@@ -486,7 +489,7 @@ export function ThemeOptionsPane() {
                 onChange={(e) => patchSearch({ live_limit: Math.min(10, Math.max(1, Number(e.target.value) || 1)) })}
               />
             </Row>
-            <Row label="More Menu — Search Form" hint="Pokaż formularz w sekcji „More”.">
+            <Row label={t("themeOptions.search.moreMenu")} hint={t("themeOptions.search.moreMenuHint")}>
               <Switch checked={draft.header.search.more_menu_search} onCheckedChange={(v) => patchSearch({ more_menu_search: v })} />
             </Row>
           </div>
@@ -494,30 +497,30 @@ export function ThemeOptionsPane() {
 
         {active === "header.alert_bar" && (
           <div className="space-y-4">
-            <Row label="Włącz Alert Bar" hint="Pasek powiadomień nad nagłówkiem.">
+            <Row label={t("themeOptions.alertBar.enable")} hint={t("themeOptions.alertBar.enableHint")}>
               <Switch checked={draft.header.alert_bar.enabled} onCheckedChange={(v) => patchAlert({ enabled: v })} />
             </Row>
-            <Row label="Treść (PL)">
+            <Row label={t("themeOptions.alertBar.messagePl")}>
               <Input value={draft.header.alert_bar.message_pl} onChange={(e) => patchAlert({ message_pl: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="Nowa publikacja dostępna…" />
             </Row>
-            <Row label="Treść (EN)">
+            <Row label={t("themeOptions.alertBar.messageEn")}>
               <Input value={draft.header.alert_bar.message_en} onChange={(e) => patchAlert({ message_en: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="New publication available…" />
             </Row>
-            <Row label="Link (URL)" hint="Opcjonalny — całość paska klikalna.">
+            <Row label={t("themeOptions.alertBar.link")} hint={t("themeOptions.alertBar.linkHint")}>
               <Input value={draft.header.alert_bar.link_url} onChange={(e) => patchAlert({ link_url: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="/blog" />
             </Row>
-            <Row label="Styl">
+            <Row label={t("themeOptions.alertBar.style")}>
               <Select value={draft.header.alert_bar.style} onValueChange={(v) => patchAlert({ style: v as AlertStyle })}>
                 <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="brand">Brand</SelectItem>
-                  <SelectItem value="info">Info</SelectItem>
-                  <SelectItem value="warning">Warning</SelectItem>
-                  <SelectItem value="success">Success</SelectItem>
+                  <SelectItem value="brand">{t("themeOptions.alertBar.styleBrand")}</SelectItem>
+                  <SelectItem value="info">{t("themeOptions.alertBar.styleInfo")}</SelectItem>
+                  <SelectItem value="warning">{t("themeOptions.alertBar.styleWarning")}</SelectItem>
+                  <SelectItem value="success">{t("themeOptions.alertBar.styleSuccess")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Możliwość zamknięcia" hint="Użytkownik może ukryć pasek (zapamiętane w localStorage).">
+            <Row label={t("themeOptions.alertBar.dismissible")} hint={t("themeOptions.alertBar.dismissibleHint")}>
               <Switch checked={draft.header.alert_bar.dismissible} onCheckedChange={(v) => patchAlert({ dismissible: v })} />
             </Row>
           </div>
@@ -525,7 +528,7 @@ export function ThemeOptionsPane() {
 
         {active === "header.mobile" && (
           <div className="space-y-4">
-            <Row label="Mobile Breakpoint (px)" hint="Poniżej tej szerokości aktywuje się układ mobilny.">
+            <Row label={t("themeOptions.mobile.breakpoint")} hint={t("themeOptions.mobile.breakpointHint")}>
               <Input
                 type="number" min={480} max={1400}
                 className="w-[120px] h-9 text-xs"
@@ -533,13 +536,13 @@ export function ThemeOptionsPane() {
                 onChange={(e) => patchMobile({ breakpoint: Number(e.target.value) || 1024 })}
               />
             </Row>
-            <Row label="Użyj Mobile Logo" hint="Zamiast głównego logo na mobile.">
+            <Row label={t("themeOptions.mobile.useMobileLogo")} hint={t("themeOptions.mobile.useMobileLogoHint")}>
               <Switch checked={draft.header.mobile.use_mobile_logo} onCheckedChange={(v) => patchMobile({ use_mobile_logo: v })} />
             </Row>
-            <Row label="Sticky na mobile">
+            <Row label={t("themeOptions.mobile.sticky")}>
               <Switch checked={draft.header.mobile.sticky} onCheckedChange={(v) => patchMobile({ sticky: v })} />
             </Row>
-            <Row label="Pokaż ikonę wyszukiwania">
+            <Row label={t("themeOptions.mobile.showSearch")}>
               <Switch checked={draft.header.mobile.show_search} onCheckedChange={(v) => patchMobile({ show_search: v })} />
             </Row>
           </div>
@@ -547,7 +550,7 @@ export function ThemeOptionsPane() {
 
         {active === "header.layout" && (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">Wybierz układ nagłówka. Wpływa na pozycję logo, menu i utility bar.</p>
+            <p className="text-xs text-muted-foreground">{t("themeOptions.layout.description")}</p>
             <div className="grid md:grid-cols-2 gap-3">
               {(Object.keys(LAYOUT_PREVIEWS) as HeaderLayout[]).map((id) => {
                 const meta = LAYOUT_PREVIEWS[id];
@@ -573,24 +576,24 @@ export function ThemeOptionsPane() {
 
         {active === "header.socials" && (
           <div className="space-y-4">
-            <Row label="Placement" hint="Gdzie pokazywać ikony społecznościowe.">
+            <Row label={t("themeOptions.socials.placement")} hint={t("themeOptions.socials.placementHint")}>
               <Select value={draft.header.socials.placement} onValueChange={(v) => patchSocials({ placement: v as SocialPlacement })}>
                 <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="topbar">Utility bar (góra)</SelectItem>
-                  <SelectItem value="navbar">Nav bar</SelectItem>
-                  <SelectItem value="both">Oba paski</SelectItem>
-                  <SelectItem value="hidden">Ukryj</SelectItem>
+                  <SelectItem value="topbar">{t("themeOptions.socials.placementTopbar")}</SelectItem>
+                  <SelectItem value="navbar">{t("themeOptions.socials.placementNavbar")}</SelectItem>
+                  <SelectItem value="both">{t("themeOptions.socials.placementBoth")}</SelectItem>
+                  <SelectItem value="hidden">{t("themeOptions.socials.placementHidden")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Rozmiar ikon (px)">
+            <Row label={t("themeOptions.socials.size")}>
               <Input type="number" min={12} max={32} className="w-[120px] h-9 text-xs"
                 value={draft.header.socials.size}
                 onChange={(e) => patchSocials({ size: Number(e.target.value) || 16 })} />
             </Row>
             {(["facebook", "twitter", "instagram", "linkedin", "youtube", "email"] as const).map((k) => (
-              <Row key={k} label={k.charAt(0).toUpperCase() + k.slice(1)} hint={k === "email" ? "Adres e-mail (bez mailto:)" : "URL profilu"}>
+              <Row key={k} label={k.charAt(0).toUpperCase() + k.slice(1)} hint={k === "email" ? t("themeOptions.socials.emailHint") : t("themeOptions.socials.profileHint")}>
                 <Input value={draft.header.socials[k]} onChange={(e) => patchSocials({ [k]: e.target.value } as Partial<ThemeOptions["header"]["socials"]>)} className="w-[320px] h-9 text-xs" placeholder={k === "email" ? "kontakt@example.com" : `https://${k}.com/...`} />
               </Row>
             ))}
@@ -599,33 +602,33 @@ export function ThemeOptionsPane() {
 
         {active === "header.signin" && (
           <div className="space-y-4">
-            <Row label="Pokaż przyciski auth" hint="Włącz/wyłącz przyciski logowania w nagłówku.">
+            <Row label={t("themeOptions.signin.enable")} hint={t("themeOptions.signin.enableHint")}>
               <Switch checked={draft.header.signin.enabled} onCheckedChange={(v) => patchSignin({ enabled: v })} />
             </Row>
-            <Row label="Pokaż przycisk rejestracji">
+            <Row label={t("themeOptions.signin.showSignup")}>
               <Switch checked={draft.header.signin.show_signup} onCheckedChange={(v) => patchSignin({ show_signup: v })} />
             </Row>
-            <Row label="Wariant przycisku">
+            <Row label={t("themeOptions.signin.variant")}>
               <Select value={draft.header.signin.variant} onValueChange={(v) => patchSignin({ variant: v as ButtonVariant })}>
                 <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="solid">Solid</SelectItem>
-                  <SelectItem value="outline">Outline</SelectItem>
-                  <SelectItem value="ghost">Ghost (tekst)</SelectItem>
-                  <SelectItem value="pill">Pill (zaokrąglony)</SelectItem>
+                  <SelectItem value="solid">{t("themeOptions.signin.variantSolid")}</SelectItem>
+                  <SelectItem value="outline">{t("themeOptions.signin.variantOutline")}</SelectItem>
+                  <SelectItem value="ghost">{t("themeOptions.signin.variantGhost")}</SelectItem>
+                  <SelectItem value="pill">{t("themeOptions.signin.variantPill")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Sign in (PL)">
+            <Row label={t("themeOptions.signin.signinPl")}>
               <Input value={draft.header.signin.signin_label_pl} onChange={(e) => patchSignin({ signin_label_pl: e.target.value })} className="w-[220px] h-9 text-xs" />
             </Row>
-            <Row label="Sign in (EN)">
+            <Row label={t("themeOptions.signin.signinEn")}>
               <Input value={draft.header.signin.signin_label_en} onChange={(e) => patchSignin({ signin_label_en: e.target.value })} className="w-[220px] h-9 text-xs" />
             </Row>
-            <Row label="Sign up (PL)">
+            <Row label={t("themeOptions.signin.signupPl")}>
               <Input value={draft.header.signin.signup_label_pl} onChange={(e) => patchSignin({ signup_label_pl: e.target.value })} className="w-[220px] h-9 text-xs" />
             </Row>
-            <Row label="Sign up (EN)">
+            <Row label={t("themeOptions.signin.signupEn")}>
               <Input value={draft.header.signin.signup_label_en} onChange={(e) => patchSignin({ signup_label_en: e.target.value })} className="w-[220px] h-9 text-xs" />
             </Row>
           </div>
@@ -634,45 +637,45 @@ export function ThemeOptionsPane() {
         {active === "buttons" && (
           <div className="space-y-4">
             <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
-              Globalne ustawienia kształtu i typografii przycisków. Kolory (w tym hover) konfiguruj w <strong>Global Colors → Button</strong>.
+              {t("themeOptions.buttons.hint")}
             </div>
-            <Row label="Domyślny wariant">
+            <Row label={t("themeOptions.buttons.defaultVariant")}>
               <Select value={draft.buttons.default_variant} onValueChange={(v) => patchButtons({ default_variant: v as ButtonVariant })}>
                 <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="solid">Solid</SelectItem>
-                  <SelectItem value="outline">Outline</SelectItem>
+                  <SelectItem value="solid">{t("themeOptions.signin.variantSolid")}</SelectItem>
+                  <SelectItem value="outline">{t("themeOptions.signin.variantOutline")}</SelectItem>
                   <SelectItem value="ghost">Ghost</SelectItem>
                   <SelectItem value="pill">Pill</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Domyślny rozmiar">
+            <Row label={t("themeOptions.buttons.defaultSize")}>
               <Select value={draft.buttons.default_size} onValueChange={(v) => patchButtons({ default_size: v as ButtonSize })}>
                 <SelectTrigger className="w-[160px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="sm">Small</SelectItem>
-                  <SelectItem value="md">Medium</SelectItem>
-                  <SelectItem value="lg">Large</SelectItem>
+                  <SelectItem value="sm">{t("themeOptions.buttons.sizeSm")}</SelectItem>
+                  <SelectItem value="md">{t("themeOptions.buttons.sizeMd")}</SelectItem>
+                  <SelectItem value="lg">{t("themeOptions.buttons.sizeLg")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Border radius (px)" hint="0 = ostre rogi, 999 = pigułka.">
+            <Row label={t("themeOptions.buttons.radius")} hint={t("themeOptions.buttons.radiusHint")}>
               <Input type="number" min={0} max={999} className="w-[120px] h-9 text-xs"
                 value={draft.buttons.radius}
                 onChange={(e) => patchButtons({ radius: Number(e.target.value) || 0 })} />
             </Row>
-            <Row label="Padding poziomy (px)">
+            <Row label={t("themeOptions.buttons.paddingX")}>
               <Input type="number" min={0} max={64} className="w-[120px] h-9 text-xs"
                 value={draft.buttons.padding_x}
                 onChange={(e) => patchButtons({ padding_x: Number(e.target.value) || 0 })} />
             </Row>
-            <Row label="Padding pionowy (px)">
+            <Row label={t("themeOptions.buttons.paddingY")}>
               <Input type="number" min={0} max={48} className="w-[120px] h-9 text-xs"
                 value={draft.buttons.padding_y}
                 onChange={(e) => patchButtons({ padding_y: Number(e.target.value) || 0 })} />
             </Row>
-            <Row label="Grubość fontu" hint="400=regular, 600=semibold, 700=bold.">
+            <Row label={t("themeOptions.buttons.fontWeight")} hint={t("themeOptions.buttons.fontWeightHint")}>
               <Select value={String(draft.buttons.font_weight)} onValueChange={(v) => patchButtons({ font_weight: Number(v) })}>
                 <SelectTrigger className="w-[160px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -683,10 +686,10 @@ export function ThemeOptionsPane() {
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="WIELKIE LITERY" hint="Wymusza uppercase na tekście przycisków.">
+            <Row label={t("themeOptions.buttons.uppercase")} hint={t("themeOptions.buttons.uppercaseHint")}>
               <Switch checked={draft.buttons.uppercase} onCheckedChange={(v) => patchButtons({ uppercase: v })} />
             </Row>
-            <Row label="Letter spacing (px)">
+            <Row label={t("themeOptions.buttons.letterSpacing")}>
               <Input type="number" min={-2} max={8} step={0.1} className="w-[120px] h-9 text-xs"
                 value={draft.buttons.letter_spacing}
                 onChange={(e) => patchButtons({ letter_spacing: Number(e.target.value) || 0 })} />
@@ -698,49 +701,49 @@ export function ThemeOptionsPane() {
         {active === "text_fields" && (
           <div className="space-y-4">
             <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
-              Globalne ustawienia kształtu pól tekstowych. Kolory (tło, tekst, placeholder, hover, focus) konfiguruj w <strong>Global Colors → Inputs / Text Fields</strong>.
+              {t("themeOptions.inputs.hint")}
             </div>
-            <Row label="Styl pola">
+            <Row label={t("themeOptions.inputs.style")}>
               <Select value={draft.text_fields.style} onValueChange={(v) => patchInputs({ style: v as InputStyle })}>
                 <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="filled">Filled (z tłem)</SelectItem>
-                  <SelectItem value="outline">Outline (obramowane)</SelectItem>
-                  <SelectItem value="underline">Underline (tylko dolna linia)</SelectItem>
+                  <SelectItem value="filled">{t("themeOptions.inputs.styleFilled")}</SelectItem>
+                  <SelectItem value="outline">{t("themeOptions.inputs.styleOutline")}</SelectItem>
+                  <SelectItem value="underline">{t("themeOptions.inputs.styleUnderline")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Border radius (px)">
+            <Row label={t("themeOptions.inputs.radius")}>
               <Input type="number" min={0} max={32} className="w-[120px] h-9 text-xs"
                 value={draft.text_fields.radius}
                 onChange={(e) => patchInputs({ radius: Number(e.target.value) || 0 })} />
             </Row>
-            <Row label="Wysokość pola (px)">
+            <Row label={t("themeOptions.inputs.height")}>
               <Input type="number" min={28} max={72} className="w-[120px] h-9 text-xs"
                 value={draft.text_fields.height}
                 onChange={(e) => patchInputs({ height: Number(e.target.value) || 40 })} />
             </Row>
-            <Row label="Grubość obramowania (px)">
+            <Row label={t("themeOptions.inputs.borderWidth")}>
               <Input type="number" min={0} max={4} className="w-[120px] h-9 text-xs"
                 value={draft.text_fields.border_width}
                 onChange={(e) => patchInputs({ border_width: Number(e.target.value) || 0 })} />
             </Row>
-            <Row label="Focus ring" hint="Styl podświetlenia po fokusie.">
+            <Row label={t("themeOptions.inputs.focusRing")} hint={t("themeOptions.inputs.focusRingHint")}>
               <Select value={draft.text_fields.focus_ring} onValueChange={(v) => patchInputs({ focus_ring: v as FocusRing })}>
                 <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Brak</SelectItem>
-                  <SelectItem value="brand">Brand (highlight)</SelectItem>
-                  <SelectItem value="border">Border (pogrubienie)</SelectItem>
+                  <SelectItem value="none">{t("themeOptions.inputs.focusNone")}</SelectItem>
+                  <SelectItem value="brand">{t("themeOptions.inputs.focusBrand")}</SelectItem>
+                  <SelectItem value="border">{t("themeOptions.inputs.focusBorder")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Grubość ringu (px)">
+            <Row label={t("themeOptions.inputs.ringWidth")}>
               <Input type="number" min={0} max={6} className="w-[120px] h-9 text-xs"
                 value={draft.text_fields.focus_ring_width}
                 onChange={(e) => patchInputs({ focus_ring_width: Number(e.target.value) || 0 })} />
             </Row>
-            <Row label="Pokaż label nad polem" hint="Jeśli wyłączone — label tylko jako placeholder.">
+            <Row label={t("themeOptions.inputs.showLabel")} hint={t("themeOptions.inputs.showLabelHint")}>
               <Switch checked={draft.text_fields.show_label_above} onCheckedChange={(v) => patchInputs({ show_label_above: v })} />
             </Row>
             <InputPreview opts={draft.text_fields} />
@@ -757,6 +760,7 @@ export function ThemeOptionsPane() {
 }
 
 function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
+  const { t } = useTranslation();
   const radius = opts.default_variant === "pill" ? 999 : opts.radius;
   const base: React.CSSProperties = {
     borderRadius: radius,
@@ -771,7 +775,7 @@ function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
   };
   return (
     <div className="rounded-md border border-border bg-background/40 p-4">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Podgląd</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{t("themeOptions.buttons.preview")}</div>
       <div className="flex flex-wrap items-center gap-2">
         <button style={{ ...base, background: "var(--gc-btn-bg, hsl(var(--primary)))", color: "var(--gc-btn-text, hsl(var(--primary-foreground)))" }}>Solid</button>
         <button style={{ ...base, background: "transparent", color: "var(--gc-btn-bg, hsl(var(--primary)))", border: `2px solid var(--gc-btn-bg, hsl(var(--primary)))` }}>Outline</button>
@@ -786,6 +790,7 @@ function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
 
 
 function InputPreview({ opts }: { opts: ThemeOptions["text_fields"] }) {
+  const { t } = useTranslation();
   const isUnderline = opts.style === "underline";
   const isFilled = opts.style === "filled";
   const style: React.CSSProperties = {
@@ -805,10 +810,10 @@ function InputPreview({ opts }: { opts: ThemeOptions["text_fields"] }) {
   };
   return (
     <div className="rounded-md border border-border bg-background/40 p-4 space-y-2">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Podgląd</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("themeOptions.inputs.preview")}</div>
       {opts.show_label_above && <Label className="text-xs">E-mail</Label>}
       <input type="email" placeholder={opts.show_label_above ? "twoj@email.pl" : "E-mail"} style={style} />
-      <p className="text-[10px] text-muted-foreground">Hover / focus używają kolorów z Global Colors.</p>
+      <p className="text-[10px] text-muted-foreground">{t("themeOptions.inputs.hoverHint")}</p>
     </div>
   );
 }
@@ -827,6 +832,7 @@ function ThemeOptionsBody({
   children: React.ReactNode;
 }) {
   void save;
+  const { t } = useTranslation();
   const sidebarStyle = draft.sidebars?.style ?? "style-1";
   const compact = sidebarStyle === "style-4";
   return (
@@ -840,7 +846,7 @@ function ThemeOptionsBody({
         )}
       >
         <div data-sidebar="group-label" className="px-2 pb-2 pt-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-          Opcje motywu
+          {t("admin.nav.themeOptions")}
         </div>
         <nav className="space-y-0.5">
           {SECTIONS.map((s) => {
@@ -853,7 +859,7 @@ function ThemeOptionsBody({
                 onClick={() => setActive(s.id)}
                 data-sidebar="menu-button"
                 data-active={isActive ? "true" : "false"}
-                title={s.label}
+                title={t(s.labelKey)}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left border-l-2 transition ${
                   isActive
                     ? "border-brand bg-brand/10 text-brand font-medium"
@@ -861,7 +867,7 @@ function ThemeOptionsBody({
                 }`}
               >
                 {Icon && <Icon className="w-4 h-4 shrink-0" />}
-                <span className={cn("flex-1 truncate", compact && "hidden")}>{s.label}</span>
+                <span className={cn("flex-1 truncate", compact && "hidden")}>{t(s.labelKey)}</span>
                 {isActive && !compact && <ChevronRight className="w-3 h-3" />}
               </button>
             );
