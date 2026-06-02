@@ -9,17 +9,22 @@ export type SectionLabelVariant =
   | "only-text"
   | "badge-filled"
   | "centered-rule"
-  | "centered-short-rule";
+  | "centered-short-rule"
+  | "filled-bar"
+  | "centered-underline";
 
 export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string }[] = [
   { value: "left-bar",            label: "01 — Pionowy pasek" },
   { value: "left-border",         label: "02 — Lewa krawędź" },
   { value: "small-corners",       label: "04 — Narożniki" },
   { value: "only-text",           label: "05 — Tylko tekst" },
-  { value: "badge-filled",        label: "06 — Etykieta pełna (np. Najnowszy raport)" },
+  { value: "badge-filled",        label: "06 — Etykieta pełna" },
   { value: "centered-rule",       label: "07 — Wycentrowany z linią (np. Poznaj nasze raporty)" },
   { value: "centered-short-rule", label: "08 — Wycentrowany z krótkimi liniami (np. Materiały partnerów)" },
+  { value: "filled-bar",          label: "09 — Pełny pasek (np. Najnowszy raport)" },
+  { value: "centered-underline",  label: "10 — Wycentrowany z podkreśleniem (np. Poznaj nasze raporty)" },
 ];
+
 
 // Resolve preset color names to CSS color values (also supports raw hex/oklch).
 export function resolveAccentColor(color?: string): string {
