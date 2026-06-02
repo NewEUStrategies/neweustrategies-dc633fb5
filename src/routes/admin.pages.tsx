@@ -68,9 +68,18 @@ function PagesList() {
   const [view, setView] = useState<View>("active");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
-  const [trashSearch, setTrashSearch] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [langFilter, setLangFilter] = useState<LangFilter>("all");
+  const [authorFilter, setAuthorFilter] = useState<string>("all");
   const [trashFrom, setTrashFrom] = useState("");
   const [trashTo, setTrashTo] = useState("");
+
+  const authorsQ = useTenantAuthors(tenantId);
+  const authorMap = useMemo(
+    () => new Map((authorsQ.data ?? []).map((a) => [a.id, a])),
+    [authorsQ.data],
+  );
 
   const { data: pages, isLoading } = useQuery({
     enabled: !!tenantId,
