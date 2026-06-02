@@ -84,18 +84,18 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       {
         key: "icon",
         label: "Global Icon Color",
-        description: "Domyślny kolor ikon SVG w treści strony (poza nagłówkiem i przyciskami).",
+        description: "Domyślny kolor ikon SVG w treści strony (poza nagłówkiem i przyciskami). Domyślnie używa Global Highlight Color.",
         hasDark: true,
-        defaultLight: "#374151",
-        defaultDark: "#e5e7eb",
+        defaultLight: "#fa9346",
+        defaultDark: "#fbbf24",
       },
       {
         key: "icon-hover",
         label: "Icon Hover Color",
-        description: "Kolor ikon SVG po najechaniu (linki, przyciski ikon).",
+        description: "Kolor ikon SVG po najechaniu.",
         hasDark: true,
-        defaultLight: "#111827",
-        defaultDark: "#ffffff",
+        defaultLight: "#d97706",
+        defaultDark: "#fcd34d",
       },
     ],
   },
@@ -474,8 +474,8 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(.mode-switcher-dark){color:var(--gc-switcher-dark-icon, currentColor);background:var(--gc-switcher-dark-bg, transparent);}
     :where(button.btn-primary, .btn-primary, button.bg-primary, .bg-primary){background:var(--gc-btn-bg, var(--primary));color:var(--gc-btn-text, var(--primary-foreground));}
     :where(button.btn-primary:hover, .btn-primary:hover, button.bg-primary:hover, .bg-primary:hover){background:var(--gc-btn-hover-bg, var(--gc-btn-bg, var(--primary)));color:var(--gc-btn-hover-text, var(--gc-btn-text, var(--primary-foreground)));}
-    :where(main svg, article svg, section svg, .content svg){color:var(--gc-icon, currentColor);}
-    :where(main a:hover svg, article a:hover svg, section a:hover svg, .content a:hover svg, main button:hover svg, article button:hover svg){color:var(--gc-icon-hover, var(--gc-icon, currentColor));}
+    :where(main svg, article svg, section svg, .content svg, .card svg, [class*="card"] svg, [data-card] svg){color:var(--gc-icon, var(--gc-highlight, currentColor));}
+    :where(main a:hover svg, article a:hover svg, section a:hover svg, .content a:hover svg, main button:hover svg, article button:hover svg, .card a:hover svg, [class*="card"] a:hover svg){color:var(--gc-icon-hover, var(--gc-icon, var(--gc-highlight, currentColor)));}
     :where(header svg){color:var(--gc-header-icon, currentColor);}
     :where(header a, header button){color:var(--gc-header-icon, inherit);}
     :where(header a:hover, header button:hover, header a:hover svg, header button:hover svg){color:var(--gc-header-icon-hover, var(--gc-header-icon, inherit));}
