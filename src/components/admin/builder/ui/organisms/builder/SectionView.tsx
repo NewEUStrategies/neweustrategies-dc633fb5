@@ -185,7 +185,7 @@ function InnerSectionView({
 
 function ColumnView({
   column, device, lang, selection, setSelection, onRemove, onDuplicate,
-  onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent,
+  onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent, onToggleHidden,
 }: {
   column: ColumnNode; device: Device; lang: "pl" | "en"; selection: Selection;
   setSelection: (s: Selection) => void;
@@ -193,16 +193,18 @@ function ColumnView({
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
   onUpdateWidgetContent: (id: string, key: string, value: string | number) => void;
+  onToggleHidden: (kind: "section" | "inner-section" | "column" | "widget", id: string) => void;
 }) {
   const selected = selection.kind === "column" && selection.id === column.id;
   const singleWidget = column.children.length <= 1;
+  const hidden = !!column.advanced?.hideOn?.[device];
   const [dragOver, setDragOver] = useState(false);
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: "col:" + column.id });
   return (
     <div
       ref={setDropRef}
       data-col-id={column.id}
-      className={`group/col relative min-w-0 max-w-full rounded border-2 ${selected ? "border-brand bg-brand/5" : (dragOver || isOver) ? "border-brand/70 bg-brand/5" : "border-dashed border-border/60"} transition`}
+      className={`group/col relative min-w-0 max-w-full rounded border-2 ${selected ? "border-brand bg-brand/5" : (dragOver || isOver) ? "border-brand/70 bg-brand/5" : "border-dashed border-border/60"} transition ${hidden ? "opacity-45" : ""}`}
       style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight ?? 80, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius, overflow: "visible" }}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "column", id: column.id }); }}
       onDragOver={(e) => {
@@ -220,6 +222,7 @@ function ColumnView({
       <div className={`absolute -top-2.5 right-2 z-30 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] shadow-sm transition ${selected || dragOver ? "opacity-100" : "opacity-0 group-hover/col:opacity-100"}`}>
         <span className="text-muted-foreground px-1">KOLUMNA</span>
         <IconBtn onClick={(e) => { e.stopPropagation(); onDuplicate(); }} title="Duplikuj"><Copy className="w-3 h-3" /></IconBtn>
+        <IconBtn onClick={(e) => { e.stopPropagation(); onToggleHidden("column", column.id); }} title={hidden ? `Pokaż na ${device}` : `Ukryj na ${device}`}><Eye className={`w-3 h-3 ${hidden ? "opacity-40" : ""}`} /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
       </div>
       {column.children.length === 0 && (
@@ -237,13 +240,14 @@ function ColumnView({
             ? (va === "center" ? "justify-center" : va === "end" ? "justify-end" : va === "stretch" ? "justify-stretch" : "justify-start")
             : (va === "center" ? "content-center items-center" : va === "end" ? "content-end items-end" : va === "stretch" ? "content-stretch items-stretch" : "content-start items-start");
           return (
-            <div className={`flex ${singleWidget ? "flex-col" : "flex-row flex-wrap"} h-full gap-2 min-w-0 max-w-full overflow-hidden ${hClass} ${vClass}`}>
+            <div className={`flex ${singleWidget ? "flex-col" : "flex-row flex-wrap"} gap-2 min-w-0 max-w-full ${hClass} ${vClass}`}>
               {column.children.map((w) => (
                 <SortableWidget key={w.id} widget={w} lang={lang} device={device}
                   selected={selection.kind === "widget" && selection.id === w.id}
                   onSelect={() => setSelection({ kind: "widget", id: w.id })}
                   onDuplicate={() => onDuplicateWidget(w.id)}
                   onRemove={() => onRemoveWidget(w.id)}
+                  onToggleHidden={() => onToggleHidden("widget", w.id)}
                   onUpdateContent={(k, v) => onUpdateWidgetContent(w.id, k, v)} />
               ))}
             </div>
