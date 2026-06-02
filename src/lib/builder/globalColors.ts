@@ -7,25 +7,20 @@
 // tło, ramki, itd.).
 
 export interface GlobalColorSlot {
-  /** Stabilny identyfikator (klucz w obiekcie i nazwa zmiennej `--gc-<key>`). */
+  /** Stabilny identyfikator. */
   key: string;
-  /** Etykieta wyświetlana w admin panelu. */
   label: string;
-  /** Krótki opis — gdzie kolor będzie użyty. */
   description: string;
-  /** Czy slot ma osobną wartość dla dark mode. */
   hasDark?: boolean;
-  /** Czy slot ma dodatkowe kolory hover (light + dark) edytowalne w UI. */
   hoverable?: boolean;
-  /** Sugerowana wartość domyślna (light). */
+  /** Czy slot reprezentuje element tekstowy z edytowalnym fontem i rozmiarem. */
+  typography?: boolean;
+  defaultFontFamily?: string;
+  defaultFontSize?: string;
   defaultLight?: string;
-  /** Sugerowana wartość domyślna (dark). */
   defaultDark?: string;
-  /** Sugerowana wartość domyślna dla hover (light). */
   defaultHoverLight?: string;
-  /** Sugerowana wartość domyślna dla hover (dark). */
   defaultHoverDark?: string;
-  /** Lista semantycznych tokenów shadcn, które ten slot ma nadpisać. */
   overrides?: string[];
 }
 
