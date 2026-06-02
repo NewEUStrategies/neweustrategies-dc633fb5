@@ -163,7 +163,7 @@ const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
 
 
 export function ThemeOptionsPane() {
-  const { t } = useTranslation();
+  const { t } = useTranslation(undefined, { keyPrefix: "admin" });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { query, save } = useSettings<any>("theme_options", DEFAULTS as any);
   const [draft, setDraft] = useState<ThemeOptions | null>(null);
