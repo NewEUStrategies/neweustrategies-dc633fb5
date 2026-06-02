@@ -132,7 +132,12 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     return rules.join("\n");
   })();
   const typographyCss = useMemo(() => {
-    const typography = pickMode(node.style?.typography, effectiveMode);
+    // Typography metrics (size, weight, family, spacing, etc.) must stay
+    // identical across light/dark — only color is mode-specific. Resolve a
+    // single shared value (light wins, dark fills in) regardless of mode.
+    const typography =
+      pickMode(node.style?.typography, "light") ??
+      pickMode(node.style?.typography, "dark");
     if (!typography) return "";
 
     const sel = `[data-w-id="${node.id}"]`;
