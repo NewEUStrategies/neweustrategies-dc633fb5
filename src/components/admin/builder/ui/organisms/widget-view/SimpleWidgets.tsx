@@ -172,11 +172,10 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
       {/* Trigger: closed = pill with icon + label; open = inline input with icon */}
       <div
         style={{ borderRadius: 4, direction: "ltr" }}
-        className={`flex w-[min(88vw,420px)] max-w-full min-w-0 items-center gap-2 border bg-background transition-colors duration-150 px-3.5 h-10 ${
-          open
-            ? "border-ring ring-2 ring-ring/30"
-            : "border-border hover:opacity-80 cursor-pointer"
+        className={`flex w-[min(88vw,420px)] max-w-full min-w-0 items-center gap-2 border border-border bg-background transition-colors duration-150 px-3.5 h-10 ${
+          open ? "" : "hover:opacity-80 cursor-pointer"
         }`}
+
         onClick={() => { if (!open) setOpen(true); }}
         role={open ? undefined : "button"}
         aria-label={open ? undefined : "Search"}
