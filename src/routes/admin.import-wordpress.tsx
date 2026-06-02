@@ -242,7 +242,14 @@ function ImportWordpressPage() {
       </div>
 
       {jobData && (
-        <JobPanel data={jobData} pct={pct} isPL={isPL} />
+        <JobPanel
+          data={jobData}
+          pct={pct}
+          isPL={isPL}
+          canCancel={isRunning}
+          onCancel={() => cancel.mutate()}
+          cancelPending={cancel.isPending}
+        />
       )}
 
       {posts.length > 0 && (
