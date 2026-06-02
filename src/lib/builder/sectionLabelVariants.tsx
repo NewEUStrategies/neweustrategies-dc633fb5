@@ -240,6 +240,24 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
         </div>
       );
     }
+    case "double-rule-centered": {
+      // Wycentrowany tytuł z dwiema subtelnymi liniami: cienka akcentowa nad,
+      // jeszcze cieńsza neutralna pod. Inspirowane prasowymi nagłówkami.
+      const titleCls = isSm
+        ? "text-[10px] font-semibold tracking-tight truncate"
+        : "font-display text-base sm:text-xl font-semibold tracking-tight truncate inline-block max-w-full";
+      const padBlock = isSm ? "py-1.5" : "py-3 sm:py-4";
+      return (
+        <div className={`${wrapperBase} w-full min-w-0 text-center`}>
+          <span aria-hidden className="block w-full" style={{ height: 1, background: accent, opacity: 0.85 }} />
+          <div className={`${padBlock} px-2`}>
+            <span className={titleCls} style={labelStyle}>{label}</span>
+            {ActionEl && <div className={`${isSm ? "mt-0.5" : "mt-1"} truncate`}>{ActionEl}</div>}
+          </div>
+          <span aria-hidden className="block w-full bg-border" style={{ height: 1 }} />
+        </div>
+      );
+    }
   }
 }
 
