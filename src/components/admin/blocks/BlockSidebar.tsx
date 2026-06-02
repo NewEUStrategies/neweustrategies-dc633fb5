@@ -4,17 +4,20 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import type { Block, BlocksDoc } from "@/lib/blocks/types";
+import type { Block, BlockStyle, BlocksDoc } from "@/lib/blocks/types";
 import { BLOCK_SPECS } from "@/lib/blocks/registry";
+import { DocumentOutline } from "./molecules/DocumentOutline";
 
 interface Props {
   doc: BlocksDoc;
   activeBlock: Block | null;
+  activeId: string | null;
+  onSelect: (id: string) => void;
   onChangeBlock: (next: Block) => void;
   documentPane: React.ReactNode;
 }
 
-export function BlockSidebar({ activeBlock, onChangeBlock, documentPane }: Props) {
+export function BlockSidebar({ doc, activeBlock, activeId, onSelect, onChangeBlock, documentPane }: Props) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<"block" | "document">("document");
 
@@ -34,19 +37,23 @@ export function BlockSidebar({ activeBlock, onChangeBlock, documentPane }: Props
         )}
       </TabsContent>
 
-      <TabsContent value="document" className="flex-1 overflow-y-auto p-3 space-y-3 mt-0">
-        {documentPane}
+      <TabsContent value="document" className="flex-1 overflow-y-auto p-3 space-y-4 mt-0">
+        <DocumentOutline doc={doc} activeId={activeId} onSelect={onSelect} />
+        <div className="pt-2 border-t border-border">{documentPane}</div>
       </TabsContent>
     </Tabs>
   );
 }
 
+type AlignValue = NonNullable<BlockStyle["align"]>;
+
 function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block) => void }) {
+  const { t } = useTranslation();
   const spec = BLOCK_SPECS[block.type];
   const Icon = spec.icon;
 
-  const set = (key: string, value: unknown) => {
-    onChange({ ...block, data: { ...block.data, [key]: value as never } });
+  const set = (key: string, value: string | number | boolean) => {
+    onChange({ ...block, data: { ...block.data, [key]: value } });
   };
 
   return (
@@ -59,11 +66,10 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
         </div>
       </div>
 
-      {/* Per-type fields */}
       {block.type === "heading" && (
         <>
           <div>
-            <Label className="text-xs">Poziom</Label>
+            <Label className="text-xs">{t("blocks.settings.level")}</Label>
             <Select value={String(block.data.level ?? 2)} onValueChange={(v) => set("level", Number(v))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -74,8 +80,8 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
             </Select>
           </div>
           <div>
-            <Label className="text-xs">Anchor (id)</Label>
-            <Input value={String(block.data.anchor ?? "")} onChange={(e) => set("anchor", e.target.value)} placeholder="moj-naglowek" />
+            <Label className="text-xs">{t("blocks.settings.anchor")}</Label>
+            <Input value={String(block.data.anchor ?? "")} onChange={(e) => set("anchor", e.target.value)} placeholder={t("blocks.settings.anchorPh")} />
           </div>
         </>
       )}
@@ -83,28 +89,28 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
       {block.type === "image" && (
         <>
           <div>
-            <Label className="text-xs">URL obrazu</Label>
-            <Input value={String(block.data.url ?? "")} onChange={(e) => set("url", e.target.value)} placeholder="https://…" />
+            <Label className="text-xs">{t("blocks.settings.imageUrl")}</Label>
+            <Input value={String(block.data.url ?? "")} onChange={(e) => set("url", e.target.value)} placeholder={t("blocks.settings.urlPh")} />
           </div>
           <div>
-            <Label className="text-xs">Alt</Label>
-            <Input value={String(block.data.alt ?? "")} onChange={(e) => set("alt", e.target.value)} placeholder="Opis obrazu" />
+            <Label className="text-xs">{t("blocks.settings.alt")}</Label>
+            <Input value={String(block.data.alt ?? "")} onChange={(e) => set("alt", e.target.value)} placeholder={t("blocks.settings.altPh")} />
           </div>
           <div>
-            <Label className="text-xs">Link (opcjonalnie)</Label>
-            <Input value={String(block.data.href ?? "")} onChange={(e) => set("href", e.target.value)} placeholder="https://…" />
+            <Label className="text-xs">{t("blocks.settings.link")}</Label>
+            <Input value={String(block.data.href ?? "")} onChange={(e) => set("href", e.target.value)} placeholder={t("blocks.settings.urlPh")} />
           </div>
         </>
       )}
 
       {block.type === "list" && (
         <div>
-          <Label className="text-xs">Typ listy</Label>
+          <Label className="text-xs">{t("blocks.settings.listType")}</Label>
           <Select value={block.data.ordered ? "ordered" : "unordered"} onValueChange={(v) => set("ordered", v === "ordered")}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="unordered">Punktowana</SelectItem>
-              <SelectItem value="ordered">Numerowana</SelectItem>
+              <SelectItem value="unordered">{t("blocks.settings.listUnordered")}</SelectItem>
+              <SelectItem value="ordered">{t("blocks.settings.listOrdered")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -112,41 +118,41 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
 
       {block.type === "quote" && (
         <div>
-          <Label className="text-xs">Cytowany (cite)</Label>
-          <Input value={String(block.data.cite ?? "")} onChange={(e) => set("cite", e.target.value)} placeholder="np. Jan Kowalski" />
+          <Label className="text-xs">{t("blocks.settings.cite")}</Label>
+          <Input value={String(block.data.cite ?? "")} onChange={(e) => set("cite", e.target.value)} placeholder={t("blocks.settings.citePh")} />
         </div>
       )}
 
       {block.type === "embed" && (
         <div>
-          <Label className="text-xs">URL embed</Label>
-          <Input value={String(block.data.url ?? "")} onChange={(e) => set("url", e.target.value)} placeholder="https://youtube.com/…" />
+          <Label className="text-xs">{t("blocks.settings.embedUrl")}</Label>
+          <Input value={String(block.data.url ?? "")} onChange={(e) => set("url", e.target.value)} placeholder={t("blocks.settings.embedUrlPh")} />
         </div>
       )}
 
       {block.type === "video" && (
         <>
           <div>
-            <Label className="text-xs">URL pliku</Label>
-            <Input value={String(block.data.url ?? "")} onChange={(e) => set("url", e.target.value)} placeholder="https://…/video.mp4" />
+            <Label className="text-xs">{t("blocks.settings.fileUrl")}</Label>
+            <Input value={String(block.data.url ?? "")} onChange={(e) => set("url", e.target.value)} placeholder={t("blocks.settings.fileUrlPh")} />
           </div>
           <div>
-            <Label className="text-xs">Poster (miniatura)</Label>
-            <Input value={String(block.data.poster ?? "")} onChange={(e) => set("poster", e.target.value)} placeholder="https://…/cover.jpg" />
+            <Label className="text-xs">{t("blocks.settings.poster")}</Label>
+            <Input value={String(block.data.poster ?? "")} onChange={(e) => set("poster", e.target.value)} placeholder={t("blocks.settings.posterPh")} />
           </div>
         </>
       )}
 
       {block.type === "callout" && (
         <div>
-          <Label className="text-xs">Wariant</Label>
+          <Label className="text-xs">{t("blocks.settings.variant")}</Label>
           <Select value={String(block.data.variant ?? "info")} onValueChange={(v) => set("variant", v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="info">Info</SelectItem>
-              <SelectItem value="warning">Warning</SelectItem>
-              <SelectItem value="success">Success</SelectItem>
-              <SelectItem value="danger">Danger</SelectItem>
+              <SelectItem value="info">{t("blocks.settings.calloutInfo")}</SelectItem>
+              <SelectItem value="warning">{t("blocks.settings.calloutWarning")}</SelectItem>
+              <SelectItem value="success">{t("blocks.settings.calloutSuccess")}</SelectItem>
+              <SelectItem value="danger">{t("blocks.settings.calloutDanger")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -155,21 +161,21 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
       {block.type === "button" && (
         <>
           <div>
-            <Label className="text-xs">Etykieta</Label>
+            <Label className="text-xs">{t("blocks.settings.label")}</Label>
             <Input value={String(block.data.label ?? "")} onChange={(e) => set("label", e.target.value)} />
           </div>
           <div>
-            <Label className="text-xs">Link (href)</Label>
-            <Input value={String(block.data.href ?? "")} onChange={(e) => set("href", e.target.value)} placeholder="https://…" />
+            <Label className="text-xs">{t("blocks.settings.href")}</Label>
+            <Input value={String(block.data.href ?? "")} onChange={(e) => set("href", e.target.value)} placeholder={t("blocks.settings.urlPh")} />
           </div>
           <div>
-            <Label className="text-xs">Wariant</Label>
+            <Label className="text-xs">{t("blocks.settings.variant")}</Label>
             <Select value={String(block.data.variant ?? "default")} onValueChange={(v) => set("variant", v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="default">Wypełniony</SelectItem>
-                <SelectItem value="outline">Obrys</SelectItem>
-                <SelectItem value="ghost">Ghost</SelectItem>
+                <SelectItem value="default">{t("blocks.settings.buttonFilled")}</SelectItem>
+                <SelectItem value="outline">{t("blocks.settings.buttonOutline")}</SelectItem>
+                <SelectItem value="ghost">{t("blocks.settings.buttonGhost")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -178,13 +184,13 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
 
       {block.type === "separator" && (
         <div>
-          <Label className="text-xs">Wariant</Label>
+          <Label className="text-xs">{t("blocks.settings.variant")}</Label>
           <Select value={String(block.data.variant ?? "line")} onValueChange={(v) => set("variant", v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="line">Linia</SelectItem>
-              <SelectItem value="wide">Gradient</SelectItem>
-              <SelectItem value="dots">Kropki</SelectItem>
+              <SelectItem value="line">{t("blocks.settings.sepLine")}</SelectItem>
+              <SelectItem value="wide">{t("blocks.settings.sepGradient")}</SelectItem>
+              <SelectItem value="dots">{t("blocks.settings.sepDots")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -192,22 +198,24 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
 
       {block.type === "code" && (
         <div>
-          <Label className="text-xs">Język</Label>
-          <Input value={String(block.data.lang ?? "")} onChange={(e) => set("lang", e.target.value)} placeholder="ts, js, py, sh…" />
+          <Label className="text-xs">{t("blocks.settings.codeLang")}</Label>
+          <Input value={String(block.data.lang ?? "")} onChange={(e) => set("lang", e.target.value)} placeholder={t("blocks.settings.codeLangPh")} />
         </div>
       )}
 
-      {/* Common style */}
       <div className="pt-2 border-t border-border">
-        <Label className="text-xs">Wyrównanie</Label>
-        <Select value={block.style?.align ?? "left"} onValueChange={(v) => onChange({ ...block, style: { ...block.style, align: v as "left" } })}>
+        <Label className="text-xs">{t("blocks.settings.align")}</Label>
+        <Select
+          value={block.style?.align ?? "left"}
+          onValueChange={(v) => onChange({ ...block, style: { ...block.style, align: v as AlignValue } })}
+        >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="left">Do lewej</SelectItem>
-            <SelectItem value="center">Wyśrodkuj</SelectItem>
-            <SelectItem value="right">Do prawej</SelectItem>
-            <SelectItem value="wide">Szerokie</SelectItem>
-            <SelectItem value="full">Pełna szerokość</SelectItem>
+            <SelectItem value="left">{t("blocks.settings.alignLeft")}</SelectItem>
+            <SelectItem value="center">{t("blocks.settings.alignCenter")}</SelectItem>
+            <SelectItem value="right">{t("blocks.settings.alignRight")}</SelectItem>
+            <SelectItem value="wide">{t("blocks.settings.alignWide")}</SelectItem>
+            <SelectItem value="full">{t("blocks.settings.alignFull")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
