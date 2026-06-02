@@ -855,7 +855,7 @@ function ThemeOptionsBody({
                 onClick={() => setActive(s.id)}
                 data-sidebar="menu-button"
                 data-active={isActive ? "true" : "false"}
-                title={s.label}
+                title={t(s.labelKey)}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left border-l-2 transition ${
                   isActive
                     ? "border-brand bg-brand/10 text-brand font-medium"
@@ -863,7 +863,7 @@ function ThemeOptionsBody({
                 }`}
               >
                 {Icon && <Icon className="w-4 h-4 shrink-0" />}
-                <span className={cn("flex-1 truncate", compact && "hidden")}>{s.label}</span>
+                <span className={cn("flex-1 truncate", compact && "hidden")}>{t(s.labelKey)}</span>
                 {isActive && !compact && <ChevronRight className="w-3 h-3" />}
               </button>
             );
