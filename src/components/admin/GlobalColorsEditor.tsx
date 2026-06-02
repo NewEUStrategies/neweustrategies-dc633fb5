@@ -156,6 +156,9 @@ export function GlobalColorsEditor() {
   const setSlot = (key: string, mode: "light" | "dark" | "hoverLight" | "hoverDark", value: string) => {
     applyDraft({ ...draft, [key]: { ...(draft[key] ?? {}), [mode]: value } });
   };
+  const setSlotMeta = (key: string, field: "fontFamily" | "fontSize", value: string) => {
+    applyDraft({ ...draft, [key]: { ...(draft[key] ?? {}), [field]: value } });
+  };
   const resetSlot = (slot: GlobalColorSlot) => {
     applyDraft({
       ...draft,
@@ -164,6 +167,8 @@ export function GlobalColorsEditor() {
         dark: slot.defaultDark ?? "",
         hoverLight: slot.defaultHoverLight ?? "",
         hoverDark: slot.defaultHoverDark ?? "",
+        fontFamily: slot.defaultFontFamily ?? "",
+        fontSize: slot.defaultFontSize ?? "",
       },
     });
   };
