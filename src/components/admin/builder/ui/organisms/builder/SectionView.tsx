@@ -29,6 +29,12 @@ import { WidgetView, getWidgetFrameStyle } from "../../../WidgetView";
 import { AUTO_SIZE_WIDGETS, COMPACT_WIDGET_TYPES, hiddenOnDevice } from "../../organisms/widget-view/frame";
 import { IconBtn } from "../../atoms/IconBtn";
 import type { Selection } from "./types";
+import type { HtmlTag } from "@/lib/builder/types";
+
+const TOOLBAR_TAGS = new Set<HtmlTag>(["header", "footer", "nav"]);
+function isToolbarTag(tag?: HtmlTag): boolean {
+  return !!tag && TOOLBAR_TAGS.has(tag);
+}
 
 export interface SectionViewProps {
   section: SectionNode; device: Device; lang: "pl" | "en";
@@ -98,12 +104,14 @@ export function SectionView(p: SectionViewProps) {
           {p.section.children.map((child) => {
             const span = child.kind === "column" ? resolveSpan(child.span, p.device, 12) : 12;
             const gridColumn = p.device === "mobile" ? "1 / -1" : `span ${span}`;
+            const sectionToolbar = isToolbarTag(p.section.layout?.htmlTag);
             if (child.kind === "inner-section") {
               return (
                 <div key={child.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn }}>
                   <InnerSectionView
                     inner={child} device={p.device} lang={p.lang}
                     selection={p.selection} setSelection={p.setSelection}
+                    forceToolbar={sectionToolbar || isToolbarTag(child.layout?.htmlTag)}
                     onRemoveColumn={p.onRemoveColumn} onDuplicateColumn={p.onDuplicateColumn}
                     onRemoveWidget={p.onRemoveWidget} onDuplicateWidget={p.onDuplicateWidget}
                     onDropWidget={p.onDropWidget}
@@ -117,6 +125,7 @@ export function SectionView(p: SectionViewProps) {
               <div key={child.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn }}>
                 <ColumnView column={child} device={p.device} lang={p.lang}
                   selection={p.selection} setSelection={p.setSelection}
+                  forceToolbar={sectionToolbar}
                   onRemove={() => p.onRemoveColumn(child.id)}
                   onDuplicate={() => p.onDuplicateColumn(child.id)}
                   onRemoveWidget={p.onRemoveWidget} onDuplicateWidget={p.onDuplicateWidget}
@@ -135,11 +144,12 @@ export function SectionView(p: SectionViewProps) {
 }
 
 function InnerSectionView({
-  inner, device, lang, selection, setSelection, onRemoveColumn, onDuplicateColumn,
+  inner, device, lang, selection, setSelection, forceToolbar, onRemoveColumn, onDuplicateColumn,
   onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent, onToggleHidden,
 }: {
   inner: InnerSectionNode; device: Device; lang: "pl" | "en"; selection: Selection;
   setSelection: (s: Selection) => void;
+  forceToolbar?: boolean;
   onRemoveColumn: (id: string) => void; onDuplicateColumn: (id: string) => void;
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
@@ -172,6 +182,7 @@ function InnerSectionView({
 
             <ColumnView column={c} device={device} lang={lang} selection={selection}
               setSelection={setSelection}
+              forceToolbar={forceToolbar}
               onRemove={() => onRemoveColumn(c.id)} onDuplicate={() => onDuplicateColumn(c.id)}
               onRemoveWidget={onRemoveWidget} onDuplicateWidget={onDuplicateWidget}
               onDropWidget={onDropWidget}
@@ -185,11 +196,12 @@ function InnerSectionView({
 }
 
 function ColumnView({
-  column, device, lang, selection, setSelection, onRemove, onDuplicate,
+  column, device, lang, selection, setSelection, forceToolbar, onRemove, onDuplicate,
   onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent, onToggleHidden,
 }: {
   column: ColumnNode; device: Device; lang: "pl" | "en"; selection: Selection;
   setSelection: (s: Selection) => void;
+  forceToolbar?: boolean;
   onRemove: () => void; onDuplicate: () => void;
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
@@ -202,9 +214,11 @@ function ColumnView({
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: "col:" + column.id });
   const visibleChildren = column.children.filter((w) => !hiddenOnDevice(w.advanced, device));
   const isToolbar =
-    visibleChildren.length > 1 &&
-    visibleChildren.every((w) => COMPACT_WIDGET_TYPES.has(w.type) || AUTO_SIZE_WIDGETS.has(w.type));
+    forceToolbar ||
+    (visibleChildren.length > 1 &&
+      visibleChildren.every((w) => COMPACT_WIDGET_TYPES.has(w.type) || AUTO_SIZE_WIDGETS.has(w.type)));
   const stacked = !isToolbar;
+
   return (
     <div
       ref={setDropRef}
