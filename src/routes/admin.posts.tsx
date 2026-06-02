@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Undo2, X, Search } from "@/lib/lucide-shim";
+import { Plus, Pencil, Trash2, Undo2, X } from "@/lib/lucide-shim";
 import {
   deletePost,
   bulkDeletePosts,
