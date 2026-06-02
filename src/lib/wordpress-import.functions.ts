@@ -363,6 +363,8 @@ const ListInput = z.object({
   number: z.number().int().min(1).max(100).default(20),
   offset: z.number().int().min(0).max(10_000).default(0),
   status: z.enum(["publish", "draft", "any"]).default("publish"),
+  // Content type filter — default to "post" so pages/attachments are never imported by accident.
+  type: z.enum(["post", "page", "any"]).default("post"),
 });
 
 export const previewWpComPosts = createServerFn({ method: "POST" })
