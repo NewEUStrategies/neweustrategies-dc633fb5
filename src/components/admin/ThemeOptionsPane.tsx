@@ -147,7 +147,6 @@ const SECTIONS = [
   { id: "header.mobile", label: "Mobile Header", icon: LayoutDashboard },
   { id: "buttons", label: "Buttons", icon: MousePointerClick },
   { id: "text_fields", label: "Text Fields", icon: Pencil },
-  { id: "sidebars", label: "Sidebars", icon: PanelLeft },
 ] as const;
 
 const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
