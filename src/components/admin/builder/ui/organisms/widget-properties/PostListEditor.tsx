@@ -173,11 +173,14 @@ export function PostListEditor({ c, lang, setContent }: Props) {
 
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Format wpisu">
-              <Select value={postFormat || ""} onValueChange={(v) => setContent("postFormat", v)}>
+              <Select
+                value={postFormat || "__all__"}
+                onValueChange={(v) => setContent("postFormat", v === "__all__" ? "" : v)}
+              >
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {POST_FORMATS.map((o) => (
-                    <SelectItem key={o.v || "all"} value={o.v || "__all__"} className="text-xs">
+                    <SelectItem key={o.v || "__all__"} value={o.v || "__all__"} className="text-xs">
                       {o.l}
                     </SelectItem>
                   ))}
