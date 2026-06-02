@@ -9,16 +9,17 @@ export function FootnotesList({ notes }: { notes: Footnote[] }) {
   if (!notes.length) return null;
   return (
     <section className="mt-12 pt-6 border-t border-border" aria-labelledby="footnotes-heading">
-      <h2 id="footnotes-heading" className="font-display text-xl mb-4">
+      <h2 id="footnotes-heading" data-footnotes-title className="font-display text-xl mb-4">
         Przypisy źródłowe:
       </h2>
-      <ol className="space-y-2 text-sm text-muted-foreground">
+      <ol data-footnotes-list className="space-y-2 text-sm text-muted-foreground">
         {notes.map((n) => (
           <li key={n.id} id={`fn-${n.id}`} className="leading-relaxed">
-            <span className="text-foreground/80 font-medium mr-1">[{n.id}]</span>
+            <span data-fn-marker className="text-foreground/80 font-medium mr-1">[{n.id}]</span>
             <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(n.html) }} />{" "}
             <a
               href={`#fnref-${n.id}`}
+              data-footnote-backlink
               className="text-brand hover:underline ml-1"
               aria-label={`Wróć do odsyłacza ${n.id}`}
               title="Wróć do odsyłacza"
