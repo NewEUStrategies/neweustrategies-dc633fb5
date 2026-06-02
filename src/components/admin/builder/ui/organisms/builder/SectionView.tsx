@@ -65,19 +65,21 @@ export function SectionView(p: SectionViewProps) {
   return (
     <div
       data-sec-id={p.section.id}
-      className={`group relative my-3 min-w-0 max-w-full overflow-hidden border-2 rounded-lg transition ${selected ? "border-brand" : "border-transparent hover:border-brand/40"}`}
-      style={skin}
+      className={`group relative my-3 min-w-0 max-w-full border-2 rounded-lg transition ${selected ? "border-brand" : "border-transparent hover:border-brand/40"}`}
+      style={{ ...skin, overflow: "visible" }}
       onClick={(e) => { e.stopPropagation(); p.setSelection({ kind: "section", id: p.section.id }); }}
     >
-      {p.section.background?.type === "video" && videoUrl && (
-        <video src={videoUrl} autoPlay muted loop playsInline
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }} />
-      )}
-      <div style={overlayLayerStyle(p.section.overlay)} aria-hidden />
-      <ShapeDivider s={p.section.shapeDividerTop} position="top" />
-      <ShapeDivider s={p.section.shapeDividerBottom} position="bottom" />
+      <div className="absolute inset-0 overflow-hidden rounded-lg pointer-events-none" aria-hidden>
+        {p.section.background?.type === "video" && videoUrl && (
+          <video src={videoUrl} autoPlay muted loop playsInline
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }} />
+        )}
+        <div style={overlayLayerStyle(p.section.overlay)} aria-hidden />
+        <ShapeDivider s={p.section.shapeDividerTop} position="top" />
+        <ShapeDivider s={p.section.shapeDividerBottom} position="bottom" />
+      </div>
 
-      <div className={`absolute -top-3 left-3 z-10 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] transition ${selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+      <div className={`absolute -top-3 left-3 z-30 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] shadow-sm transition ${selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
         <span className="font-medium text-muted-foreground px-1">SEKCJA</span>
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onMove(-1); }} disabled={p.isFirst} title="W górę"><ChevronUp className="w-3 h-3" /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); p.onMove(1); }} disabled={p.isLast} title="W dół"><ChevronDown className="w-3 h-3" /></IconBtn>
@@ -148,12 +150,12 @@ function InnerSectionView({
   return (
     <div
       data-inner-id={inner.id}
-      className={`min-w-0 max-w-full overflow-hidden border rounded ${selected ? "border-brand" : "border-dashed border-border"}`}
-      style={skin}
+      className={`relative min-w-0 max-w-full border rounded ${selected ? "border-brand" : "border-dashed border-border"}`}
+      style={{ ...skin, overflow: "visible" }}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "inner-section", id: inner.id }); }}
     >
-      <div className="text-[10px] text-muted-foreground mb-1 relative z-10">SEKCJA WEWNĘTRZNA</div>
-      <div className="grid gap-2 relative z-10 min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(inner, colsSum), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
+      <div className="absolute -top-2.5 left-3 z-30 text-[9px] font-medium text-muted-foreground bg-background border border-border rounded px-1.5 py-0.5 shadow-sm">SEKCJA WEWNĘTRZNA</div>
+      <div className="grid gap-2 relative z-10 min-w-0 max-w-full" style={{ ...columnsRowStyle(inner, colsSum), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
         {inner.columns.map((c) => (
           <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}` }}>
 
@@ -189,8 +191,8 @@ function ColumnView({
     <div
       ref={setDropRef}
       data-col-id={column.id}
-      className={`group/col relative min-w-0 max-w-full overflow-hidden rounded border-2 ${selected ? "border-brand bg-brand/5" : (dragOver || isOver) ? "border-brand/70 bg-brand/5" : "border-dashed border-border/60"} transition`}
-      style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight ?? 80, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius }}
+      className={`group/col relative min-w-0 max-w-full rounded border-2 ${selected ? "border-brand bg-brand/5" : (dragOver || isOver) ? "border-brand/70 bg-brand/5" : "border-dashed border-border/60"} transition`}
+      style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight ?? 80, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius, overflow: "visible" }}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "column", id: column.id }); }}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("application/x-widget-type")) {
@@ -204,7 +206,7 @@ function ColumnView({
         if (t) { e.preventDefault(); onDropWidget(column.id, t); }
       }}
     >
-      <div className={`absolute -top-2.5 right-2 z-10 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] transition ${selected || dragOver ? "opacity-100" : "opacity-0 group-hover/col:opacity-100"}`}>
+      <div className={`absolute -top-2.5 right-2 z-30 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] shadow-sm transition ${selected || dragOver ? "opacity-100" : "opacity-0 group-hover/col:opacity-100"}`}>
         <span className="text-muted-foreground px-1">KOLUMNA</span>
         <IconBtn onClick={(e) => { e.stopPropagation(); onDuplicate(); }} title="Duplikuj"><Copy className="w-3 h-3" /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
