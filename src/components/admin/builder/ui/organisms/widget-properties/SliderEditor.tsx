@@ -267,7 +267,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           Podgląd na żywo
         </div>
         <div className="rounded-md border border-border p-2 bg-muted/20">
-          <SliderRender config={previewCfg} lang={lang} preview />
+          <SliderRender config={previewCfg} lang={lang} />
         </div>
       </div>
 
