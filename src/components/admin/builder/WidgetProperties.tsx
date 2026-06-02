@@ -5,6 +5,7 @@
 //   - MotionControl      -> enter animation preset + duration/delay
 //   - VisibilityControl  -> per-device hide
 //   - ColorField         -> bg / text colors with native picker
+import { useEffect, useState } from "react";
 import type {
   WidgetNode, CommonStyle, AdvancedSettings, Device, Json, WidgetTypography,
   Mode, Themed, HoverStyle,
@@ -109,6 +110,9 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
     s.hover = merged;
   });
 
+  // Resolve inherited colors from the actually rendered widget DOM (global colors cascade).
+  const inherited = useInheritedColors(widget.id, mode, widget.style);
+
   const widgetLabel = WIDGETS.find((w) => w.type === widget.type)?.label ?? widget.type;
 
   return (
@@ -160,6 +164,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
             overridden={isOverridden("bgColor")}
             onReset={() => resetColor("bgColor")}
             placeholderHint="dziedziczy z global colors"
+            inheritedValue={inherited.bgColor}
           />
           <ThemedColorField
             label="Tekst"
@@ -168,6 +173,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
             overridden={isOverridden("textColor")}
             onReset={() => resetColor("textColor")}
             placeholderHint="dziedziczy z global colors"
+            inheritedValue={inherited.textColor}
           />
         </section>
 
@@ -266,6 +272,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
             overridden={isOverridden("borderColor")}
             onReset={() => resetColor("borderColor")}
             placeholderHint="dziedziczy z global colors"
+            inheritedValue={inherited.borderColor}
           />
         </section>
 
@@ -363,7 +370,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
 
 // ---- Themed color field: shows reset button + override dot when overridden ----
 function ThemedColorField({
-  label, value, onChange, overridden, onReset, placeholderHint,
+  label, value, onChange, overridden, onReset, placeholderHint, inheritedValue,
 }: {
   label: string;
   value: string | undefined;
@@ -371,6 +378,7 @@ function ThemedColorField({
   overridden: boolean;
   onReset: () => void;
   placeholderHint?: string;
+  inheritedValue?: string;
 }) {
   return (
     <PropField
@@ -397,10 +405,44 @@ function ThemedColorField({
         value={value}
         onChange={onChange}
         placeholder={placeholderHint ?? "#000 / var(--brand) / transparent"}
+        inheritedValue={inheritedValue}
       />
     </PropField>
   );
 }
+
+// Reads the actually-rendered widget element (data-widget-id="...") and returns
+// the inherited bg / text / border colors via getComputedStyle. Recomputes when
+// the widget id, mode or style changes (next animation frame, to let DOM update).
+function useInheritedColors(
+  widgetId: string,
+  mode: Mode,
+  style: CommonStyle | undefined,
+): { bgColor?: string; textColor?: string; borderColor?: string } {
+  const [v, setV] = useState<{ bgColor?: string; textColor?: string; borderColor?: string }>({});
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let raf = 0;
+    const measure = () => {
+      const el = document.querySelector<HTMLElement>(`[data-widget-id="${CSS.escape(widgetId)}"]`);
+      if (!el) {
+        setV({});
+        return;
+      }
+      const cs = window.getComputedStyle(el);
+      setV({
+        bgColor: cs.backgroundColor || undefined,
+        textColor: cs.color || undefined,
+        borderColor: cs.borderColor || cs.borderTopColor || undefined,
+      });
+    };
+    raf = window.requestAnimationFrame(measure);
+    return () => window.cancelAnimationFrame(raf);
+    // Re-run whenever style or mode changes so the preview reflects fresh cascade.
+  }, [widgetId, mode, style]);
+  return v;
+}
+
 
 function ContentFields({ widget, lang, setContent }: {
   widget: WidgetNode; lang: "pl" | "en"; setContent: (k: string, v: Json) => void;
