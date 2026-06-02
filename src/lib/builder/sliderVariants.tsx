@@ -241,10 +241,11 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     case "hero-overlay":
       return (
         <div className="relative w-full" style={wrapStyle}>
+          {sharedKeyframes}
           <div className="relative w-full" style={aspectStyle}>
-            <Img src={cur.image} />
+            <Layers />
             <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(0,0,0,${overlayOpacity*0.5}) 0%, rgba(0,0,0,${overlayOpacity}) 100%)` }} />
-            <div className="absolute inset-0 flex flex-col justify-end p-6 md:p-10 text-white z-10">
+            <div key={idx} className="absolute inset-0 flex flex-col justify-end p-6 md:p-10 text-white z-10" style={captionAnim}>
               {title && <h2 className="text-2xl md:text-5xl font-bold leading-tight max-w-3xl">{title}</h2>}
               {sub && <p className="mt-2 md:mt-3 text-sm md:text-lg opacity-90 max-w-2xl">{sub}</p>}
               {cta && href && (
@@ -260,11 +261,12 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     case "split": {
       return (
         <div className="relative w-full overflow-hidden border border-border" style={{ borderRadius: rounded }}>
+          {sharedKeyframes}
           <div className="grid grid-cols-1 md:grid-cols-2">
-            <div className="relative w-full" style={aspectStyle}>
-              <Img src={cur.image} />
+            <div className="relative w-full overflow-hidden" style={aspectStyle}>
+              <Layers />
             </div>
-            <div className="relative bg-card p-5 md:p-8 flex flex-col justify-center">
+            <div key={idx} className="relative bg-card p-5 md:p-8 flex flex-col justify-center" style={captionAnim}>
               {title && <h3 className="text-lg md:text-2xl font-bold text-foreground">{title}</h3>}
               {sub && <p className="mt-2 text-sm md:text-base text-muted-foreground">{sub}</p>}
               {cta && href && (
@@ -291,7 +293,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       return (
         <div className="relative w-full" style={wrapStyle}>
           <div className="relative w-full" style={aspectStyle}>
-            <Img src={cur.image} />
+            <Layers />
             <Dots />
           </div>
         </div>
@@ -300,10 +302,11 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     case "bold-arrows":
       return (
         <div className="relative w-full" style={wrapStyle}>
+          {sharedKeyframes}
           <div className="relative w-full" style={aspectStyle}>
-            <Img src={cur.image} />
+            <Layers />
             {(title || sub) && (
-              <div className="absolute inset-x-0 bottom-0 p-4 md:p-6 bg-gradient-to-t from-black/70 to-transparent text-white">
+              <div key={idx} className="absolute inset-x-0 bottom-0 p-4 md:p-6 bg-gradient-to-t from-black/70 to-transparent text-white" style={captionAnim}>
                 {title && <h3 className="text-lg md:text-2xl font-bold">{title}</h3>}
                 {sub && <p className="text-xs md:text-sm opacity-85">{sub}</p>}
               </div>
@@ -316,10 +319,11 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     case "card-stack":
       return (
         <div className="relative w-full px-6 md:px-10">
+          {sharedKeyframes}
           <div className="relative w-full" style={{ ...aspectStyle, borderRadius: rounded, overflow: "hidden", boxShadow: "0 24px 48px -16px rgba(0,0,0,.35)" }}>
-            <Img src={cur.image} />
+            <Layers />
             {(title || sub) && (
-              <div className="absolute inset-x-0 bottom-0 p-4 md:p-6 bg-gradient-to-t from-black/75 to-transparent text-white">
+              <div key={idx} className="absolute inset-x-0 bottom-0 p-4 md:p-6 bg-gradient-to-t from-black/75 to-transparent text-white" style={captionAnim}>
                 {title && <h3 className="text-base md:text-xl font-semibold">{title}</h3>}
                 {sub && <p className="text-xs md:text-sm opacity-85 mt-0.5">{sub}</p>}
               </div>
@@ -333,11 +337,12 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     case "polaroid":
       return (
         <div className="relative w-full bg-white p-3 pb-10 shadow-xl mx-auto" style={{ maxWidth: 640, borderRadius: 4 }}>
-          <div className="relative w-full bg-black" style={aspectStyle}>
-            <Img src={cur.image} />
+          {sharedKeyframes}
+          <div className="relative w-full bg-black overflow-hidden" style={aspectStyle}>
+            <Layers />
             <Arrows size="sm" />
           </div>
-          <div className="mt-3 text-center font-serif italic text-neutral-700 text-sm md:text-base min-h-[1.5em]">
+          <div key={idx} className="mt-3 text-center font-serif italic text-neutral-700 text-sm md:text-base min-h-[1.5em]" style={captionAnim}>
             {title}
           </div>
           {items.length > 1 && (
@@ -354,10 +359,11 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     case "thumbnail-strip":
       return (
         <div className="w-full">
+          {sharedKeyframes}
           <div className="relative w-full" style={{ ...aspectStyle, borderRadius: rounded, overflow: "hidden" }}>
-            <Img src={cur.image} />
+            <Layers />
             {(title || sub) && (
-              <div className="absolute inset-x-0 bottom-0 p-3 md:p-4 bg-gradient-to-t from-black/70 to-transparent text-white">
+              <div key={idx} className="absolute inset-x-0 bottom-0 p-3 md:p-4 bg-gradient-to-t from-black/70 to-transparent text-white" style={captionAnim}>
                 {title && <h3 className="text-base md:text-lg font-semibold">{title}</h3>}
                 {sub && <p className="text-xs opacity-85">{sub}</p>}
               </div>
@@ -370,7 +376,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
                 key={i}
                 type="button"
                 onClick={() => setIdx(i)}
-                className={`relative overflow-hidden rounded transition ${i === idx ? "ring-2 ring-foreground" : "opacity-70 hover:opacity-100"}`}
+                className={`relative overflow-hidden rounded transition-all duration-300 ${i === idx ? "ring-2 ring-foreground scale-[1.03]" : "opacity-60 hover:opacity-100 hover:scale-[1.02]"}`}
                 style={{ aspectRatio: "4 / 3" }}
               >
                 <img src={safeImageUrl(it.image) || it.image} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -384,10 +390,11 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     default:
       return (
         <div className="relative w-full" style={wrapStyle}>
+          {sharedKeyframes}
           <div className="relative w-full" style={aspectStyle}>
-            <Img src={cur.image} />
+            <Layers />
             {(title || sub) && (
-              <div className="absolute inset-x-0 bottom-0 bg-black/55 backdrop-blur-sm text-white px-4 py-3 z-10">
+              <div key={idx} className="absolute inset-x-0 bottom-0 bg-black/55 backdrop-blur-sm text-white px-4 py-3 z-10" style={captionAnim}>
                 {title && <div className="text-sm md:text-base font-semibold">{title}</div>}
                 {sub && <div className="text-xs opacity-85">{sub}</div>}
               </div>
