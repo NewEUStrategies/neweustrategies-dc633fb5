@@ -101,18 +101,20 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                   { image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800", title_pl: "Trzeci slajd", title_en: "Third", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
                 ];
             return (
-              <button
+              <div
                 key={v.value}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => setContent("variant", v.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setContent("variant", v.value); } }}
                 title={v.label}
-                className={`group relative text-left rounded-lg overflow-hidden transition-all duration-200 bg-card w-full
+                className={`group relative text-left rounded-lg overflow-hidden transition-all duration-200 bg-card w-full cursor-pointer
                   ${isActive
                     ? "ring-2 ring-brand ring-offset-1 ring-offset-background shadow-md"
                     : "ring-1 ring-border hover:ring-brand/60 hover:shadow-md"}`}
               >
-                {/* Uniform preview frame — no cropping, autoplay enabled */}
-                <div className="relative w-full aspect-[16/9] overflow-hidden bg-muted">
+                {/* Uniform preview frame — pointer-events disabled so inner buttons don't conflict */}
+                <div className="relative w-full aspect-[16/9] overflow-hidden bg-muted pointer-events-none">
                   <div className="absolute inset-0 [&>*]:!h-full [&>*]:!w-full">
                     <SliderRender
                       config={{ variant: v.value, ratio: "16/9", autoplay: true, intervalMs: 2400, rounded: "none", overlayOpacity, items: sample }}
@@ -131,7 +133,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                     {v.label}
                   </span>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
