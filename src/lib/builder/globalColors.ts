@@ -337,8 +337,8 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     label: "Inputs / Text Fields",
     slots: [
       { key: "input-bg", label: "Input Background", description: "Tło pól tekstowych.", hasDark: true, defaultLight: "#ffffff", defaultDark: "#0f172a", overrides: ["--input-background"] },
-      { key: "input-text", label: "Input Text", description: "Kolor wpisywanego tekstu.", hasDark: true, defaultLight: "#0f172a", defaultDark: "#f1f5f9" },
-      { key: "input-placeholder", label: "Placeholder Text", description: "Kolor placeholdera.", hasDark: true, defaultLight: "#94a3b8", defaultDark: "#64748b" },
+      { key: "input-text", label: "Input Text", description: "Kolor wpisywanego tekstu.", hasDark: true, defaultLight: "#0f172a", defaultDark: "#f1f5f9", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "14px" },
+      { key: "input-placeholder", label: "Placeholder Text", description: "Kolor placeholdera.", hasDark: true, defaultLight: "#94a3b8", defaultDark: "#64748b", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "14px" },
       { key: "input-border", label: "Input Border", description: "Kolor obramowania.", hasDark: true, defaultLight: "#e2e8f0", defaultDark: "#1e293b", overrides: ["--input"] },
       { key: "input-hover-bg", label: "Hover — Background", description: "Tło pola po najechaniu.", hasDark: true, defaultLight: "#f8fafc", defaultDark: "#1e293b" },
       { key: "input-hover-border", label: "Hover — Border", description: "Obramowanie pola po najechaniu.", hasDark: true, defaultLight: "#cbd5e1", defaultDark: "#334155" },
