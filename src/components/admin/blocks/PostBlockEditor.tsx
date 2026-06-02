@@ -1,13 +1,19 @@
 // Główny edytor wpisów w stylu Gutenberg / Foxiz.
-// Lewa kolumna: zakładki języków + kanwa bloków.
-// Prawa kolumna: sidebar z zakładkami Blok / Dokument.
+// - history (undo/redo) z debouncem
+// - skróty klawiszowe Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z
+// - dwie zakładki językowe (PL/EN) z izolowanymi stosami historii
+// - sidebar po prawej z zakładkami Blok / Dokument
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
+import type { Block, BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
 import { BlockCanvas } from "./BlockCanvas";
 import { BlockSidebar } from "./BlockSidebar";
+import { useBlocksHistory } from "./hooks/useBlocksHistory";
+import { IconButton } from "./atoms/IconButton";
+import { Undo, Redo } from "@/lib/lucide-shim";
 
 interface Props {
   value: LocalizedBlocks | null;
@@ -16,6 +22,7 @@ interface Props {
 }
 
 export function PostBlockEditor({ value, onChange, documentPane }: Props) {
+  const { t } = useTranslation();
   const [lang, setLang] = useState<"pl" | "en">("pl");
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -23,43 +30,113 @@ export function PostBlockEditor({ value, onChange, documentPane }: Props) {
     pl: value?.pl ?? EMPTY_BLOCKS_DOC,
     en: value?.en ?? EMPTY_BLOCKS_DOC,
   };
-  const doc: BlocksDoc = safe[lang];
 
-  const setDoc = (next: BlocksDoc) => {
-    onChange({ ...safe, [lang]: next });
-  };
+  const history = useBlocksHistory(safe[lang]);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const safeRef = useRef(safe);
+  safeRef.current = safe;
 
-  const activeBlock = activeId ? doc.blocks.find((b) => b.id === activeId) ?? null : null;
+  // Reset history when switching languages or when external value identity changes per-lang.
+  const lastSyncRef = useRef<{ lang: "pl" | "en"; doc: BlocksDoc } | null>(null);
+  useEffect(() => {
+    const current = safeRef.current[lang];
+    if (lastSyncRef.current?.lang !== lang || lastSyncRef.current.doc !== current) {
+      history.reset(current);
+      lastSyncRef.current = { lang, doc: current };
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang, safe.pl, safe.en]);
 
-  const updateActive = (next: typeof activeBlock) => {
+  // Propagate history.doc upstream whenever it diverges from the parent value.
+  useEffect(() => {
+    const current = safeRef.current[lang];
+    if (history.doc !== current) {
+      onChangeRef.current({ ...safeRef.current, [lang]: history.doc });
+    }
+  }, [history.doc, lang]);
+
+  // Keyboard: Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z (or Y)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const target = e.target as HTMLElement | null;
+      const inEditable = !!target?.closest('[contenteditable="true"], input, textarea');
+      if (e.key === "z" || e.key === "Z") {
+        if (e.shiftKey) {
+          e.preventDefault();
+          history.redo();
+        } else if (!inEditable) {
+          // Inside contenteditable we let TipTap handle its own undo first.
+          e.preventDefault();
+          history.undo();
+        }
+      } else if (e.key === "y" || e.key === "Y") {
+        e.preventDefault();
+        history.redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [history]);
+
+  const activeBlock: Block | null =
+    activeId ? history.doc.blocks.find((b) => b.id === activeId) ?? null : null;
+
+  const updateActive = useCallback((next: Block | null) => {
     if (!next) return;
-    setDoc({ ...doc, blocks: doc.blocks.map((b) => (b.id === next.id ? next : b)) });
-  };
+    history.setDoc({
+      ...history.doc,
+      blocks: history.doc.blocks.map((b) => (b.id === next.id ? next : b)),
+    }, true);
+  }, [history]);
 
   return (
-    <div className="grid grid-cols-[1fr_320px] gap-4 min-h-[600px]">
-      {/* Kanwa */}
-      <div className="bg-background border border-border rounded-lg p-6">
-        <Tabs value={lang} onValueChange={(v) => { setLang(v as "pl" | "en"); setActiveId(null); }}>
-          <TabsList className="mb-4">
-            <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
-            <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
-          </TabsList>
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 min-h-[600px]">
+      <div className="bg-background border border-border rounded-lg p-4 lg:p-6">
+        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+          <Tabs value={lang} onValueChange={(v) => { setLang(v as "pl" | "en"); setActiveId(null); }}>
+            <TabsList>
+              <TabsTrigger value="pl">🇵🇱 PL</TabsTrigger>
+              <TabsTrigger value="en">🇬🇧 EN</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <div className="flex items-center gap-1 rounded-md border border-border bg-card px-1 py-1">
+            <IconButton
+              onClick={history.undo}
+              disabled={!history.canUndo}
+              title={`${t("blocks.actions.undo")} (Ctrl+Z)`}
+              aria-label={t("blocks.actions.undo")}
+            >
+              <Undo className="w-3.5 h-3.5" />
+            </IconButton>
+            <IconButton
+              onClick={history.redo}
+              disabled={!history.canRedo}
+              title={`${t("blocks.actions.redo")} (Ctrl+Shift+Z)`}
+              aria-label={t("blocks.actions.redo")}
+            >
+              <Redo className="w-3.5 h-3.5" />
+            </IconButton>
+          </div>
+        </div>
+
+        <Tabs value={lang}>
           <TabsContent value={lang} className="mt-0">
             <BlockCanvas
-              doc={doc}
+              doc={history.doc}
               activeId={activeId}
               onSelect={setActiveId}
-              onChange={setDoc}
+              onChange={(next, immediate) => history.setDoc(next, immediate)}
             />
           </TabsContent>
         </Tabs>
       </div>
 
-      {/* Sidebar */}
-      <aside className="bg-card border border-border rounded-lg sticky top-4 self-start max-h-[calc(100vh-2rem)] flex flex-col">
+      <aside className="bg-card border border-border rounded-lg lg:sticky lg:top-4 self-start max-h-[calc(100vh-2rem)] flex flex-col">
         <BlockSidebar
-          doc={doc}
+          doc={history.doc}
           activeBlock={activeBlock}
           onChangeBlock={updateActive}
           documentPane={documentPane}
