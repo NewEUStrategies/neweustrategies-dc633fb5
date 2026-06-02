@@ -414,6 +414,12 @@ export type GlobalColorsValue = Record<
     hoverDark?: string;
     fontFamily?: string;
     fontSize?: string;
+    /** "normal" | "500" | "600" | "700" */
+    fontWeight?: string;
+    /** "normal" | "italic" */
+    fontStyle?: string;
+    /** "none" | "underline" */
+    textDecoration?: string;
   }
 >;
 
