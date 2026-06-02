@@ -129,8 +129,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       <div key={safeIdx} className="px-4 pt-8 pb-2 text-center" style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}>
         {title && (
           href ? (
-            <a href={href} className="block">
-              <h3 className="text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground hover:opacity-80 transition">
+            <a href={href} className="inline-block group">
+              <h3 className="text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground bg-[linear-gradient(currentColor,currentColor)] bg-no-repeat bg-[length:0%_2px] bg-[position:0_100%] group-hover:bg-[length:100%_2px] transition-[background-size] duration-500 ease-out pb-1">
                 {title}
               </h3>
             </a>
