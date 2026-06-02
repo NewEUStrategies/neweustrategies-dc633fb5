@@ -832,7 +832,7 @@ function ThemeOptionsBody({
   children: React.ReactNode;
 }) {
   void save;
-  const { t } = useTranslation();
+  const { t } = useTranslation(undefined, { keyPrefix: "admin" });
   const sidebarStyle = draft.sidebars?.style ?? "style-1";
   const compact = sidebarStyle === "style-4";
   return (
@@ -846,7 +846,7 @@ function ThemeOptionsBody({
         )}
       >
         <div data-sidebar="group-label" className="px-2 pb-2 pt-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-          {t("admin.nav.themeOptions")}
+          {t("nav.themeOptions")}
         </div>
         <nav className="space-y-0.5">
           {SECTIONS.map((s) => {
