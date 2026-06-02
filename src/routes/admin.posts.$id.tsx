@@ -6,6 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { updatePost, deletePost } from "@/lib/content.functions";
+import { migratePostToBlocks } from "@/lib/posts-migrate.functions";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import { useAutosave } from "@/hooks/useAutosave";
 import { AutosaveBar } from "@/components/admin/AutosaveBar";
@@ -74,6 +75,7 @@ function EditPost() {
   const tenantId = useRequiredTenant();
   const update$ = useServerFn(updatePost);
   const delete$ = useServerFn(deletePost);
+  const migrate$ = useServerFn(migratePostToBlocks);
   const { data: globalLayout } = usePostLayoutSettings();
 
   const { data: post, isLoading } = useQuery({
@@ -222,12 +224,36 @@ function EditPost() {
         <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="blocks">Block editor (zalecane)</SelectItem>
-            <SelectItem value="builder">Visual Builder (Elementor)</SelectItem>
-            <SelectItem value="richtext">Rich text (legacy)</SelectItem>
-            <SelectItem value="markdown">Markdown (legacy)</SelectItem>
+            <SelectItem value="blocks">{t("admin.posts.editorBlocks", { defaultValue: "Block editor (zalecane)" })}</SelectItem>
+            <SelectItem value="builder">{t("admin.posts.editorBuilder", { defaultValue: "Visual Builder (Elementor)" })}</SelectItem>
+            <SelectItem value="richtext">{t("admin.posts.editorRichtext", { defaultValue: "Rich text (legacy)" })}</SelectItem>
+            <SelectItem value="markdown">{t("admin.posts.editorMarkdown", { defaultValue: "Markdown (legacy)" })}</SelectItem>
           </SelectContent>
         </Select>
+        {form.editor !== "blocks" && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-2 w-full"
+            onClick={async () => {
+              try {
+                const res = await migrate$({ data: { id: form.id } });
+                toast.success(
+                  t("admin.posts.migrateOk", {
+                    defaultValue: "Skonwertowano na bloki (źródło: {{src}})",
+                    src: res.source,
+                  }),
+                );
+                await qc.invalidateQueries({ queryKey: ["admin", "post", form.id] });
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : String(e));
+              }
+            }}
+          >
+            {t("admin.posts.migrateToBlocks", { defaultValue: "Konwertuj na bloki" })}
+          </Button>
+        )}
       </div>
       <div>
         <Label>Slug</Label>
