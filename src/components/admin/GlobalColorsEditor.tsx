@@ -476,6 +476,17 @@ const FONT_PRESETS: { label: string; value: string }[] = [
   { label: "Inherit", value: "inherit" },
 ];
 
+/** Zwiększ/zmniejsz wartość rozmiaru fontu zachowując jednostkę (px/rem/em). */
+function bumpFontSize(current: string, delta: number): string {
+  const m = /^(-?\d*\.?\d+)\s*(px|rem|em|%)?$/i.exec((current || "").trim());
+  if (!m) return current;
+  const num = parseFloat(m[1]);
+  const unit = m[2] || "px";
+  const step = unit.toLowerCase() === "px" ? 1 : 0.125;
+  const next = Math.max(0, +(num + delta * step).toFixed(3));
+  return `${next}${unit}`;
+}
+
 function TypographyRow({
   fontFamily, fontSize, defaultFontFamily, defaultFontSize, onFontFamily, onFontSize,
 }: {
