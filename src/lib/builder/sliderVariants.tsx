@@ -200,19 +200,12 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     case "fade":
       return (
         <div className="relative w-full" style={wrapStyle}>
+          {sharedKeyframes}
           <div className="relative w-full" style={aspectStyle}>
-            {items.map((it, i) => (
-              <img
-                key={i}
-                src={safeImageUrl(it.image) || it.image}
-                alt=""
-                className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
-                style={{ opacity: i === idx ? 1 : 0 }}
-              />
-            ))}
+            <Layers />
             <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${overlayOpacity})` }} />
             {(title || sub) && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-white p-6 z-10">
+              <div key={idx} className="absolute inset-0 flex flex-col items-center justify-center text-center text-white p-6 z-10" style={captionAnim}>
                 {title && <h3 className="text-xl md:text-3xl font-bold drop-shadow">{title}</h3>}
                 {sub && <p className="mt-2 text-sm md:text-base opacity-90 max-w-2xl">{sub}</p>}
                 {cta && href && (
@@ -225,6 +218,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           </div>
         </div>
       );
+
 
     case "ken-burns":
       return (
