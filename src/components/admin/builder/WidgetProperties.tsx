@@ -150,22 +150,20 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
   const widgetLabel = WIDGETS.find((w) => w.type === widget.type)?.label ?? widget.type;
 
   return (
-    <div className="wp-compact text-[11px]">
+    <div className="wp-compact">
     <Tabs defaultValue="content">
-      <div className="mb-2 px-0.5">
+      <div className="mb-1.5 px-0.5">
         <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Widget</div>
         <div className="text-[12px] font-medium truncate">{widgetLabel}</div>
       </div>
-      <TabsList className="grid grid-cols-3 w-full h-7">
+      <TabsList className="grid grid-cols-3 w-full h-6">
         <TabsTrigger value="content" className="text-[11px]">Treść</TabsTrigger>
         <TabsTrigger value="style" className="text-[11px]">Styl</TabsTrigger>
         <TabsTrigger value="advanced" className="text-[11px]">Zaawans.</TabsTrigger>
       </TabsList>
 
 
-
-
-      <TabsContent value="content" className="space-y-3 mt-3">
+      <TabsContent value="content" className="space-y-2 mt-2">
         <ContentFields widget={widget} lang={lang} setContent={setContent} />
       </TabsContent>
 
