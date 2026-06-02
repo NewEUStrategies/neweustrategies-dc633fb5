@@ -13,6 +13,7 @@ export type AnimatedHeadingShape =
   | "none"
   | "underline"
   | "double-underline"
+  | "scribble"
   | "curly"
   | "zigzag"
   | "circle"
@@ -26,6 +27,7 @@ export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] =
   { value: "none",              label: "Brak" },
   { value: "underline",         label: "Podkreślenie" },
   { value: "double-underline",  label: "Podwójne podkreślenie" },
+  { value: "scribble",          label: "Odręczne podkreślenie" },
   { value: "curly",             label: "Falisty" },
   { value: "zigzag",            label: "Zygzak" },
   { value: "circle",            label: "Okrąg" },
