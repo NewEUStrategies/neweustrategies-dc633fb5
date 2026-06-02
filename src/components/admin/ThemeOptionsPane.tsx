@@ -23,7 +23,7 @@ type ButtonVariant = "solid" | "outline" | "ghost" | "pill";
 type ButtonSize = "sm" | "md" | "lg";
 type InputStyle = "filled" | "outline" | "underline";
 type FocusRing = "none" | "brand" | "border";
-type SidebarStyle = "style-1" | "style-2" | "style-3" | "style-4" | "style-5" | "style-6";
+import type { SidebarStyle } from "@/lib/builder/sidebarStyles";
 
 
 interface ThemeOptions extends Record<string, unknown> {
