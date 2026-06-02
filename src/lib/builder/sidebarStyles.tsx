@@ -22,6 +22,21 @@ export const SIDEBAR_STYLES: { id: SidebarStyle; label: string; hint: string }[]
   { id: "style-6", label: "Style 6 — Bold Dark", hint: "Wymuszony ciemny kontrast w obu trybach + akcent brand." },
 ];
 
+export const SIDEBAR_ICON_FIELDS = [
+  {
+    key: "sidebar_icon",
+    darkKey: "sidebar_icon_dark",
+    label: "Ikona sidebaru — compact",
+    hint: "Pokazywana w zwiniętym sidebarze i w stylu rail.",
+  },
+  {
+    key: "sidebar_expanded",
+    darkKey: "sidebar_expanded_dark",
+    label: "Logo sidebaru — expanded",
+    hint: "Pokazywane w szerokim sidebarze dla admina i globalnego układu.",
+  },
+] as const;
+
 export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
   type Preset = {
     wrap: React.CSSProperties;
@@ -85,18 +100,23 @@ export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
     },
   };
   const p = presets[style];
-  const items = ["Kokpit", "Wpisy", "Strony"];
+  const items = ["Kokpit", "Wpisy", "Media", "Ustawienia"];
   return (
-    <div style={{ ...p.wrap, height: 120, borderRadius: 6 }} className="flex overflow-hidden">
+    <div style={{ ...p.wrap, height: 132, borderRadius: 8 }} className="flex overflow-hidden border border-border/60">
       <div style={{ width: p.width, padding: 6, ...p.aside }} className="flex flex-col gap-1">
-        <div style={{ fontSize: 10, fontWeight: 700, padding: "4px 6px", display: "flex", alignItems: "center", ...p.brand }}>
+        <div style={{ fontSize: 10, fontWeight: 700, padding: "4px 6px", display: "flex", alignItems: "center", minHeight: 22, ...p.brand }}>
           {p.showLabels ? "NES" : "N"}
         </div>
+        {p.showLabels && (
+          <div style={{ fontSize: 8, letterSpacing: 0.8, opacity: 0.7, padding: "2px 6px", textTransform: "uppercase" }}>
+            Nawigacja
+          </div>
+        )}
         {items.map((label, i) => (
           <div
             key={label}
             style={{
-              fontSize: 10, padding: "4px 6px", display: "flex", alignItems: "center", gap: 4,
+              fontSize: 10, padding: p.showLabels ? "4px 6px" : "0", display: "flex", alignItems: "center", gap: 4,
               borderRadius: p.itemRadius,
               ...(i === 0 ? p.itemActive : p.item),
             }}
@@ -106,7 +126,12 @@ export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
           </div>
         ))}
       </div>
-      <div className="flex-1" style={{ background: "hsl(var(--background) / 0.4)" }} />
+      <div className="flex-1" style={{ background: "hsl(var(--background) / 0.4)", padding: 8 }}>
+        <div style={{ height: 18, borderRadius: 4, background: "hsl(var(--muted) / 0.85)", marginBottom: 6 }} />
+        <div style={{ height: 34, borderRadius: 6, background: "hsl(var(--card))", border: "1px solid hsl(var(--border) / 0.7)", marginBottom: 6 }} />
+        <div style={{ height: 22, borderRadius: 6, background: "hsl(var(--muted) / 0.65)", width: "78%", marginBottom: 4 }} />
+        <div style={{ height: 22, borderRadius: 6, background: "hsl(var(--muted) / 0.45)", width: "62%" }} />
+      </div>
     </div>
   );
 }
