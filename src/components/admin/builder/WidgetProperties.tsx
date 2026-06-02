@@ -272,6 +272,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
             overridden={isOverridden("borderColor")}
             onReset={() => resetColor("borderColor")}
             placeholderHint="dziedziczy z global colors"
+            inheritedValue={inherited.borderColor}
           />
         </section>
 
