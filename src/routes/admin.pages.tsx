@@ -216,7 +216,7 @@ function PagesList() {
                       >
                         <Home className={`w-4 h-4 ${currentHome === p.slug ? "text-primary" : ""}`} />
                       </Button>
-                      <Link to="/admin/pages/$id" params={{ id: p.id }}>
+                      <Link to="/admin/pages/$slug" params={{ slug: p.slug }}>
                         <Button size="sm" variant="ghost"><Pencil className="w-4 h-4" /></Button>
                       </Link>
                       <Button size="sm" variant="ghost" onClick={() => del(p.id)}>

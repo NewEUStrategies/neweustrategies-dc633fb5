@@ -49,7 +49,7 @@ import { Route as AdminSettingsDesignRouteImport } from './routes/admin.settings
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
 import { Route as AdminPostsIdRouteImport } from './routes/admin.posts.$id'
 import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
-import { Route as AdminPagesIdRouteImport } from './routes/admin.pages.$id'
+import { Route as AdminPagesSlugRouteImport } from './routes/admin.pages.$slug'
 import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearance.menu'
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
 import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.appearance.global-colors'
@@ -256,9 +256,9 @@ const AdminPagesNewRoute = AdminPagesNewRouteImport.update({
   path: '/new',
   getParentRoute: () => AdminPagesRoute,
 } as any)
-const AdminPagesIdRoute = AdminPagesIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
+const AdminPagesSlugRoute = AdminPagesSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
   getParentRoute: () => AdminPagesRoute,
 } as any)
 const AdminAppearanceMenuRoute = AdminAppearanceMenuRouteImport.update({
@@ -321,7 +321,7 @@ export interface FileRoutesByFullPath {
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
-  '/admin/pages/$id': typeof AdminPagesIdRoute
+  '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
@@ -367,7 +367,7 @@ export interface FileRoutesByTo {
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
-  '/admin/pages/$id': typeof AdminPagesIdRoute
+  '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
@@ -416,7 +416,7 @@ export interface FileRoutesById {
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
-  '/admin/pages/$id': typeof AdminPagesIdRoute
+  '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
@@ -466,7 +466,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
-    | '/admin/pages/$id'
+    | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/posts/$id'
     | '/admin/posts/new'
@@ -512,7 +512,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
-    | '/admin/pages/$id'
+    | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/posts/$id'
     | '/admin/posts/new'
@@ -560,7 +560,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
-    | '/admin/pages/$id'
+    | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/posts/$id'
     | '/admin/posts/new'
@@ -876,11 +876,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPagesNewRouteImport
       parentRoute: typeof AdminPagesRoute
     }
-    '/admin/pages/$id': {
-      id: '/admin/pages/$id'
-      path: '/$id'
-      fullPath: '/admin/pages/$id'
-      preLoaderRoute: typeof AdminPagesIdRouteImport
+    '/admin/pages/$slug': {
+      id: '/admin/pages/$slug'
+      path: '/$slug'
+      fullPath: '/admin/pages/$slug'
+      preLoaderRoute: typeof AdminPagesSlugRouteImport
       parentRoute: typeof AdminPagesRoute
     }
     '/admin/appearance/menu': {
@@ -940,12 +940,12 @@ const AdminAppearanceRouteWithChildren = AdminAppearanceRoute._addFileChildren(
 )
 
 interface AdminPagesRouteChildren {
-  AdminPagesIdRoute: typeof AdminPagesIdRoute
+  AdminPagesSlugRoute: typeof AdminPagesSlugRoute
   AdminPagesNewRoute: typeof AdminPagesNewRoute
 }
 
 const AdminPagesRouteChildren: AdminPagesRouteChildren = {
-  AdminPagesIdRoute: AdminPagesIdRoute,
+  AdminPagesSlugRoute: AdminPagesSlugRoute,
   AdminPagesNewRoute: AdminPagesNewRoute,
 }
 

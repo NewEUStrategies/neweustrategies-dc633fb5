@@ -24,7 +24,7 @@ import { ImageSlot } from "@/components/admin/ImageSlot";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/admin/pages/$id")({
+export const Route = createFileRoute("/admin/pages/$slug")({
   component: EditPage,
 });
 
@@ -51,7 +51,7 @@ interface PageForm {
 
 
 function EditPage() {
-  const { id } = Route.useParams();
+  const { slug: routeSlug } = Route.useParams();
   const tenantId = useRequiredTenant();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -60,13 +60,22 @@ function EditPage() {
   const delete$ = useServerFn(deletePage);
 
   const { data: page, isLoading } = useQuery({
-    queryKey: ["page", id],
+    queryKey: ["page-by-slug", tenantId, routeSlug],
+    enabled: !!tenantId,
     queryFn: async (): Promise<PageForm> => {
-      const { data, error } = await supabase.from("pages").select("*").eq("id", id).single();
+      const { data, error } = await supabase
+        .from("pages")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .eq("slug", routeSlug)
+        .is("deleted_at", null)
+        .single();
       if (error) throw error;
       return data as PageForm;
     },
   });
+
+  const id = page?.id;
 
   const history = useUndoRedo<PageForm | null>(null);
   const form = history.state;
@@ -88,7 +97,7 @@ function EditPage() {
   }, [history.undo, history.redo]);
 
   const saveFn = useCallback(async (snapshot: PageForm | null) => {
-    if (!snapshot) return;
+    if (!snapshot || !id) return;
     await update$({
       data: {
         id,
@@ -109,13 +118,25 @@ function EditPage() {
         },
       },
     });
+    // The server may normalize the slug (uniqueSlug). Read back the canonical
+    // slug and, if it changed, update the URL so the address bar always
+    // reflects the current page name.
+    const { data: row } = await supabase
+      .from("pages").select("slug").eq("id", id).maybeSingle();
+    const canonical = row?.slug as string | undefined;
     qc.invalidateQueries({ queryKey: ["admin-pages"] });
-    qc.invalidateQueries({ queryKey: ["page", id] });
-  }, [id, update$, qc]);
+    if (canonical && canonical !== routeSlug) {
+      // Seed the new query key so the next mount has data immediately.
+      qc.setQueryData(["page-by-slug", tenantId, canonical], { ...snapshot, slug: canonical });
+      navigate({ to: "/admin/pages/$slug", params: { slug: canonical }, replace: true });
+    } else {
+      qc.invalidateQueries({ queryKey: ["page-by-slug", tenantId, routeSlug] });
+    }
+  }, [id, update$, qc, navigate, routeSlug, tenantId]);
 
-  const autosave = useAutosave({ value: form, enabled: !!form, save: saveFn });
+  const autosave = useAutosave({ value: form, enabled: !!form && !!id, save: saveFn });
 
-  if (isLoading || !form) return <div className="text-sm text-muted-foreground">...</div>;
+  if (isLoading || !form || !id) return <div className="text-sm text-muted-foreground">...</div>;
 
   const set = <K extends keyof PageForm>(k: K, v: PageForm[K]) =>
     history.set((f) => (f ? { ...f, [k]: v } : f), { coalesce: true });
@@ -175,6 +196,9 @@ function EditPage() {
       <div>
         <Label>Slug</Label>
         <Input value={form.slug} onChange={(e) => set("slug", e.target.value)} />
+        <p className="text-[11px] text-muted-foreground mt-1">
+          Zmiana slug zmieni adres URL tej strony (zarówno w panelu, jak i publicznie).
+        </p>
       </div>
       <PageParentSelect
         tenantId={tenantId}
@@ -421,5 +445,3 @@ function SeoDescriptionField({
     </div>
   );
 }
-
-
