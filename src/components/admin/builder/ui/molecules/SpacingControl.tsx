@@ -1,8 +1,6 @@
-// Molecule: padding + margin (per-side, responsive) + align (responsive).
-// Internal device tabs let the user edit desktop / tablet / mobile values
-// from one place; the `device` prop is just the initial active tab.
-import { useState } from "react";
-import { Monitor, Tablet, Smartphone } from "lucide-react";
+// Molecule: padding + margin (per-side) + align.
+// Wartości są wspólne dla wszystkich urządzeń (desktop / tablet / mobile)
+// — zapisujemy je jednocześnie do każdego breakpointa.
 import type { Align, CommonStyle, Device, ResponsiveValue } from "@/lib/builder/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -16,7 +14,6 @@ interface Props {
 
 type Sides = { top: string; right: string; bottom: string; left: string };
 
-// Parse CSS shorthand "16px 24px 8px 4px" into 4 sides.
 function parseSides(input: string | undefined): Sides {
   const empty = { top: "", right: "", bottom: "", left: "" };
   if (!input) return empty;
@@ -41,24 +38,32 @@ function sidesToString(s: Sides): string | undefined {
   return `${t} ${r} ${b} ${l}`;
 }
 
+// Wybierz reprezentatywną wartość (preferuj desktop, potem tablet, potem mobile).
+function pickUnified<T>(rv: ResponsiveValue<T> | undefined): T | undefined {
+  if (!rv) return undefined;
+  return rv.desktop ?? rv.tablet ?? rv.mobile;
+}
+
+// Ustaw tę samą wartość dla wszystkich urządzeń.
+function setAllDevices<T>(value: T | undefined): ResponsiveValue<T> {
+  return { desktop: value, tablet: value, mobile: value };
+}
+
 function SideInputs({
   value,
-  device,
   placeholder,
   onChange,
 }: {
   value: ResponsiveValue<string> | undefined;
-  device: Device;
   placeholder?: string;
   onChange: (next: ResponsiveValue<string>) => void;
 }) {
-  const cur = value?.[device];
+  const cur = pickUnified(value);
   const sides = parseSides(cur);
 
   const set = (key: keyof Sides, v: string) => {
     const next = { ...sides, [key]: v };
-    const str = sidesToString(next);
-    onChange({ ...(value ?? {}), [device]: str });
+    onChange(setAllDevices(sidesToString(next)));
   };
 
   const inputs: Array<{ key: keyof Sides; label: string }> = [
@@ -85,58 +90,30 @@ function SideInputs({
   );
 }
 
-export function SpacingControl({ style, device, onChange }: Props) {
-  const [activeDevice, setActiveDevice] = useState<Device>(device);
-
-  const devices: Array<{ v: Device; Icon: typeof Monitor; label: string }> = [
-    { v: "desktop", Icon: Monitor, label: "Desktop" },
-    { v: "tablet", Icon: Tablet, label: "Tablet" },
-    { v: "mobile", Icon: Smartphone, label: "Mobile" },
-  ];
+export function SpacingControl({ style, onChange }: Props) {
+  const currentAlign = pickUnified(style?.align) ?? "left";
 
   return (
     <div className="space-y-3">
-      <div className="inline-flex rounded border border-border bg-muted/30 p-0.5 w-full">
-        {devices.map(({ v, Icon, label }) => {
-          const active = activeDevice === v;
-          return (
-            <button
-              key={v}
-              type="button"
-              title={label}
-              onClick={() => setActiveDevice(v)}
-              className={`flex-1 inline-flex items-center justify-center gap-1 h-7 text-[11px] rounded transition ${
-                active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <PropField label={`Padding — wewnętrzne odstępy (${activeDevice})`}>
+      <PropField label="Padding — wewnętrzne odstępy">
         <SideInputs
           value={style?.padding}
-          device={activeDevice}
           placeholder="0"
           onChange={(padding) => onChange((s) => { s.padding = padding; })}
         />
       </PropField>
-      <PropField label={`Margin — zewnętrzne odstępy (${activeDevice})`}>
+      <PropField label="Margin — zewnętrzne odstępy">
         <SideInputs
           value={style?.margin}
-          device={activeDevice}
           placeholder="0"
           onChange={(margin) => onChange((s) => { s.margin = margin; })}
         />
       </PropField>
-      <PropField label={`Wyrównanie (${activeDevice})`}>
+      <PropField label="Wyrównanie">
         <Select
-          value={style?.align?.[activeDevice] ?? "left"}
+          value={currentAlign}
           onValueChange={(v) => onChange((s) => {
-            s.align = { ...(s.align ?? {}), [activeDevice]: v as Align };
+            s.align = setAllDevices(v as Align);
           })}
         >
           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
