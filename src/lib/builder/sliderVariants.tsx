@@ -89,10 +89,19 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const aspectStyle: CSSProperties = { aspectRatio: ratio.replace("/", " / "), width: "100%", minHeight: 0 };
 
   return (
-    <div className="w-full group/eh">
+    <div className="w-full eh-slider">
       <style>{`
         @keyframes ehFadeImg { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: scale(1); } }
         @keyframes ehFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        .eh-slider .eh-title {
+          background-image: linear-gradient(currentColor, currentColor);
+          background-repeat: no-repeat;
+          background-size: 0% 2px;
+          background-position: 0 100%;
+          transition: background-size 500ms cubic-bezier(.22,.61,.36,1);
+          padding-bottom: 4px;
+        }
+        .eh-slider:hover .eh-title { background-size: 100% 2px; }
       `}</style>
 
       {/* Image */}
@@ -130,12 +139,12 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         {title && (
           href ? (
             <a href={href} className="inline-block">
-              <h3 className="text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground bg-[linear-gradient(currentColor,currentColor)] bg-no-repeat bg-[length:0%_2px] bg-[position:0_100%] group-hover/eh:bg-[length:100%_2px] transition-[background-size] duration-500 ease-out pb-1">
+              <h3 className="eh-title text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground">
                 {title}
               </h3>
             </a>
           ) : (
-            <h3 className="text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground">
+            <h3 className="eh-title text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground">
               {title}
             </h3>
           )
