@@ -47,6 +47,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
 
 
   const isEditRoute = /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
+  const isThemeOptions = path.startsWith("/admin/theme-options");
   const [forceCompact, setForceCompact] = useState(false);
   const compact = ((isEditRoute || forceCompact) && !extras) || sidebarStyle === "style-4";
 
