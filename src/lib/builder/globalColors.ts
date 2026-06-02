@@ -662,6 +662,12 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where([data-sidebar="sidebar"]:hover){background:var(--gc-sidebar-bg-hover, var(--gc-sidebar-bg, var(--sidebar-background))) !important;border-color:var(--gc-sidebar-border-hover, var(--gc-sidebar-border, var(--sidebar-border))) !important;}
     :where([data-sidebar="sidebar"]:hover){color:var(--gc-sidebar-text-hover, var(--gc-sidebar-text, var(--sidebar-foreground))) !important;}
     :where(.bookmark-icon:hover){color:var(--gc-bookmark-hover-hover, var(--gc-bookmark-hover, currentColor));}
+    :where(sup.fn-ref, sup.fn-ref a){color:var(--gc-fn-ref, inherit);font-family:var(--gc-fn-ref-font, inherit);font-size:var(--gc-fn-ref-size, inherit);font-weight:var(--gc-fn-ref-weight, inherit);font-style:var(--gc-fn-ref-style, inherit);text-decoration:var(--gc-fn-ref-decoration, none);}
+    :where([data-footnotes-title]){color:var(--gc-fn-list-title, inherit);font-family:var(--gc-fn-list-title-font, inherit);font-size:var(--gc-fn-list-title-size, inherit);font-weight:var(--gc-fn-list-title-weight, inherit);font-style:var(--gc-fn-list-title-style, inherit);text-decoration:var(--gc-fn-list-title-decoration, inherit);}
+    :where([data-footnotes-list] li){color:var(--gc-fn-list-text, inherit);font-family:var(--gc-fn-list-text-font, inherit);font-size:var(--gc-fn-list-text-size, inherit);font-weight:var(--gc-fn-list-text-weight, inherit);font-style:var(--gc-fn-list-text-style, inherit);text-decoration:var(--gc-fn-list-text-decoration, inherit);}
+    :where([data-footnotes-list] [data-fn-marker]){color:var(--gc-fn-list-marker, inherit);font-family:var(--gc-fn-list-marker-font, inherit);font-size:var(--gc-fn-list-marker-size, inherit);font-weight:var(--gc-fn-list-marker-weight, inherit);font-style:var(--gc-fn-list-marker-style, inherit);text-decoration:var(--gc-fn-list-marker-decoration, inherit);}
+    :where([data-footnote-backlink]){color:var(--gc-fn-backlink, inherit);}
+    :where([data-footnote-tooltip]){background:var(--gc-fn-tooltip-bg, inherit);color:var(--gc-fn-tooltip-text, inherit);font-family:var(--gc-fn-tooltip-text-font, inherit);font-size:var(--gc-fn-tooltip-text-size, inherit);font-weight:var(--gc-fn-tooltip-text-weight, inherit);font-style:var(--gc-fn-tooltip-text-style, inherit);text-decoration:var(--gc-fn-tooltip-text-decoration, inherit);}
   `.replace(/\s+/g, " ").trim());
 
 
