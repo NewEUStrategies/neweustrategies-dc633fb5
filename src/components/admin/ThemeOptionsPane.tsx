@@ -754,7 +754,36 @@ export function ThemeOptionsPane() {
             <InputPreview opts={draft.text_fields} />
           </div>
         )}
+
+        {active === "sidebars" && (
+          <div className="space-y-4">
+            <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
+              Wybierz styl wizualny sidebara. <strong>Wewnętrzny (admin) i globalny (Layout 6) sidebar zawsze używają tego samego stylu.</strong>
+            </div>
+            <div className="grid md:grid-cols-2 gap-3">
+              {(Object.keys(SIDEBAR_PREVIEWS) as SidebarStyle[]).map((id) => {
+                const meta = SIDEBAR_PREVIEWS[id];
+                const isActive = draft.sidebars.style === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => patchSidebarStyle(id)}
+                    className={`text-left rounded-lg border-2 p-3 transition ${
+                      isActive ? "border-brand bg-brand/5" : "border-border hover:border-brand/40"
+                    }`}
+                  >
+                    <div className="text-sm font-medium">{meta.label}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5 mb-3">{meta.hint}</div>
+                    <SidebarStylePreview style={id} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         </>
+
         )}
       </section>
     </ThemeOptionsBody>
