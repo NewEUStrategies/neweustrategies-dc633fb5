@@ -20,6 +20,9 @@ import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon, Layers } from "@/lib/lucide-shim";
+import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
+import type { LocalizedBlocks, BlocksDoc } from "@/lib/blocks/types";
+import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
 import { getLayoutSet, findLayout, mergeOverrides, pickLayoutId } from "@/lib/postLayouts";
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
@@ -31,7 +34,7 @@ export const Route = createFileRoute("/admin/posts/$id")({
 });
 
 type PostStatus = "draft" | "published" | "archived";
-type EditorType = "richtext" | "markdown" | "builder";
+type EditorType = "blocks" | "richtext" | "markdown" | "builder";
 
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 
@@ -50,6 +53,7 @@ interface PostForm {
   read_minutes: number | null;
   published_at: string | null;
   builder_data: BuilderDocument | null;
+  blocks_data: LocalizedBlocks | null;
   parent_page_id: string;
   post_format: PostFormat;
   layout_overrides: LayoutOverrides | null;
@@ -143,6 +147,7 @@ function EditPost() {
           cover_image_url: snapshot.cover_image_url,
           read_minutes: snapshot.read_minutes,
           builder_data: snapshot.builder_data,
+          blocks_data: snapshot.blocks_data as unknown as Record<string, unknown> | null,
           parent_page_id: snapshot.parent_page_id,
           post_format: snapshot.post_format,
           layout_overrides: snapshot.layout_overrides,
@@ -217,6 +222,7 @@ function EditPost() {
         <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
+            <SelectItem value="blocks">Block editor (zalecane)</SelectItem>
             <SelectItem value="builder">Visual Builder (Elementor)</SelectItem>
             <SelectItem value="richtext">Rich text (legacy)</SelectItem>
             <SelectItem value="markdown">Markdown (legacy)</SelectItem>
@@ -472,7 +478,21 @@ function EditPost() {
         </div>
       ) : (
         <div className="space-y-5">
-          {form.editor === "builder" ? (
+          {form.editor === "blocks" ? (
+            <PostBlockEditor
+              value={form.blocks_data ?? { pl: EMPTY_BLOCKS_DOC, en: EMPTY_BLOCKS_DOC }}
+              onChange={(v) => set("blocks_data", v)}
+              documentPane={(
+                <div className="space-y-4">
+                  {metaCard}
+                  {layoutCard}
+                  {catsCard}
+                  {tagsCard}
+                  <AccessSettingsPane entityType="post" entityId={id} />
+                </div>
+              )}
+            />
+          ) : form.editor === "builder" ? (
             <BuilderPane form={form} set={set} />
           ) : (
             <Tabs defaultValue="pl">

@@ -1,100 +1,152 @@
-# Plan: Light/Dark mode per widget w CMS Builderze
+# Block Editor dla wpisów (Gutenberg/Foxiz-style)
 
 ## Cel
-Każdy widget (i sekcja, i kolumna) ma mieć osobne wartości stylów dla trybu jasnego i ciemnego. Domyślnie korzysta z Global Colors (semantic tokens `--gc-*`, które już teraz automatycznie przełączają się z klasą `.dark`). Użytkownik może nadpisać dowolne pole osobno dla light i dark, oraz zresetować je z powrotem do globalnego.
 
-## Model danych
+Wpisy edytowane domyślnie w nowym **block editorze** (liniowy strumień bloków + sidebar Blok/Dokument w stylu Foxiz). Obecny **Builder** zostaje jako opcja przełączana per wpis i pozostaje domyślnym edytorem stron.
 
-Wprowadzamy nowy wrapper analogiczny do istniejącego `ResponsiveValue<T>`:
+## Architektura
 
-```ts
-// src/lib/builder/types.ts
-export type Mode = "light" | "dark";
-export interface ThemedValue<T> { light?: T; dark?: T }
-export type Themed<T> = T | ThemedValue<T>;
+```text
+admin.posts.$id.tsx
+ └─ editor: "blocks" | "builder" | "richtext" | "markdown"
+     ├─ "blocks"  → <PostBlockEditor>     ← NOWE, domyślne dla wpisów
+     ├─ "builder" → <Builder>             ← istnieje, opt-in dla wpisów
+     ├─ "richtext"→ <PostEditor> (TipTap) ← legacy
+     └─ "markdown"→ split view             ← legacy
 ```
 
-`CommonStyle` rozszerzamy tak, by **wszystkie pola wizualne** (kolory, tła, typografia, spacing, border) mogły być `Themed<...>`:
+`<PostBlockEditor>` = 3 kolumny:
+- **Lewa (~260px)**: lista bloków (drag-handle, drop-zone, "+" pomiędzy)
+- **Środek**: kanwa — bloki renderowane jeden pod drugim, klik = aktywny blok, inline toolbar nad blokiem
+- **Prawa (~280px)**: sidebar z **dwiema zakładkami**: `Blok` (ustawienia aktywnego) / `Dokument` (metadane wpisu — kategorie, tagi, cover, excerpt, SEO, format, layout_overrides, takeaways, czas czytania)
 
-```ts
-interface CommonStyle {
-  bgColor?: Themed<string>;
-  textColor?: Themed<string>;
-  borderColor?: Themed<string>;
-  borderWidth?: Themed<string>;
-  borderStyle?: Themed<...>;
-  borderRadius?: Themed<string>;
-  boxShadow?: Themed<string>;
-  bgImage?: Themed<string>;            // nowe
-  bgGradient?: Themed<string>;         // nowe
-  padding?: Themed<ResponsiveValue<string>>;
-  margin?: Themed<ResponsiveValue<string>>;
-  typography?: Themed<WidgetTypography>;
-  hover?: Themed<HoverStyle>;
-  ...
-}
+## Zestaw bloków (15)
+
+| # | Block type        | Opis / mapowanie z buildera                        |
+|---|-------------------|----------------------------------------------------|
+| 1 | `paragraph`       | TipTap inline (bold/italic/link/code)              |
+| 2 | `heading`         | H2/H3/H4 + id (anchor)                             |
+| 3 | `image`           | + caption, alt, alignment, link                    |
+| 4 | `gallery`         | grid / masonry, lightbox                           |
+| 5 | `list`            | ul / ol, zagnieżdżone                              |
+| 6 | `quote`           | tekst + cite                                       |
+| 7 | `code`            | język + kopiowanie                                 |
+| 8 | `embed`           | YouTube / Vimeo / X / oembed URL                   |
+| 9 | `video`           | upload / URL, poster                               |
+| 10| `separator`       | hr (linia / kropki / spacer)                       |
+| 11| `callout`         | info / warning / success / danger + ikona          |
+| 12| `table`           | rows × cols, header                                |
+| 13| `button`          | label, link, wariant, align                        |
+| 14| `columns`         | 2-kolumnowy kontener (każda kolumna = bloki)       |
+| 15| `html`            | raw HTML (sanityzowany przy renderze)              |
+
+Każdy blok ma jednolity interfejs: `{ id, type, data, style? }`. Sidebar `Blok` renderuje pola na podstawie **rejestru bloków** (analogicznie do `WIDGET_SCHEMAS`).
+
+## Schemat danych
+
+Nowa kolumna w `posts`:
+
+```sql
+ALTER TABLE public.posts
+  ADD COLUMN blocks_data jsonb;
 ```
 
-Brak migracji DB — `data` jest `jsonb`, stare dokumenty (płaskie wartości) pozostają zgodne dzięki narzutowi `Themed<T> = T | { light?, dark? }`.
-
-## Logika pick (frame.ts)
-
 ```ts
-const pickMode = <T>(v: Themed<T> | undefined, mode: Mode): T | undefined => {
-  if (v == null) return undefined;
-  if (typeof v === "object" && ("light" in v || "dark" in v)) {
-    return (v as ThemedValue<T>)[mode] ?? (v as ThemedValue<T>).light;
-  }
-  return v as T;
-};
+type BlocksDoc = { version: 1; blocks: Block[] };
+type Block = { id: string; type: BlockType; data: Record<string, Json>; style?: BlockStyle };
 ```
 
-`styleToCSS(style, device, mode)` najpierw `pickMode`, potem dotychczasowy `pick` dla device. Dla pól pozostawionych pusto fallback do `var(--gc-*)` (tj. style w ogóle nie jest emitowany → element dziedziczy z global colors).
+`editor` enum dostaje nową wartość: `"blocks"`. Migracja: wszystkie istniejące wpisy konwertowane (`builder_data` + `content_pl/en` → `blocks_data`). **Strony (`pages`) nietknięte** — zostają w `builder_data`.
 
-## UI
+## Migracja danych (wpisy)
 
-### 1. Globalny przełącznik trybu w Toolbar
-W `Builder.tsx` dodajemy `mode: Mode` (obok `device`). W `Toolbar` segmented control Light/Dark obok desktop/tablet/mobile. Canvas dostaje klasę `dark` warunkowo, więc semantic tokens (`--gc-*`, `--background`, itp.) automatycznie się przełączają. `mode` propagowany do property panes i widget renderer.
+Skrypt po stronie serwera (server function `migratePostsToBlocks`), uruchamiany jednorazowo z UI w `admin/settings`. Algorytm:
 
-### 2. Zakładki Light/Dark w panelu Styl
-W `WidgetProperties.tsx` i `SectionProperties.tsx` u góry zakładki **Styl** dodajemy mały segmented (Light/Dark). Wybór synchronizuje się z globalnym przełącznikiem (zmiana w jednym miejscu zmienia drugi). Pod spodem zostają istniejące kontrolki — czytają/zapisują wartość przez `pickMode(value, mode)` i `setMode(value, mode, newVal)`.
+1. Jeśli `editor = 'richtext' | 'markdown'` → parsuj `content_pl/en` (HTML/MD) na sekwencję bloków (paragraph, heading, image, list, quote, code, embed). HTML rzadko mapowalny → blok `html` (fallback).
+2. Jeśli `editor = 'builder'` → mapuj widgety:
+   - `heading` → `heading`
+   - `text` → `paragraph` (HTML wewnątrz)
+   - `image` → `image`
+   - `gallery` → `gallery`
+   - `video` → `video`
+   - `button` → `button`
+   - `divider` / `spacer` → `separator`
+   - `accordion` / `tabs` / `pricing` / dynamiczne widgety / pozostałe → renderuj do HTML i zapisz jako `html` (z notatką `_originalWidget: <type>` w `data`)
+3. Ustaw `editor = 'blocks'`, zapisz `blocks_data`. **Zachowaj `builder_data` i `content_*` jako backup** (nic nie kasujemy).
+4. Per wpis flaga `_migration_warnings` (jsonb w `blocks_data.meta`) z listą nie-w-pełni-zmapowanych widgetów — autor zobaczy ostrzeżenie w edytorze.
 
-### 3. Nowy atom: `ThemedInput` / `useThemedField`
-Hook `useThemedField(value, mode, onChange)` zwracający `[current, setCurrent, { isOverridden, reset }]`. Wszystkie istniejące kontrolki (`ColorField`, `SpacingControl`, `TypographyControl`, `HoverControl`, `BorderControl`) opakowujemy nim w jednym miejscu zamiast przerabiać każdą.
+UI: przycisk **"Migruj wpisy do block editora"** + progress bar + raport (X zmigrowanych, Y z ostrzeżeniami).
 
-### 4. Reset per pole
-Obok każdego pola w panelu Styl mała kropka-badge gdy wartość jest nadpisana w aktualnym trybie + ikona ↺ (reset) ustawiająca `value[mode] = undefined` (jeśli oba puste — usuwa cały klucz). Tooltip: „Wróć do Global Colors”.
+## Publiczny renderer
 
-### 5. Placeholder z Global Colors
-W `ColorField` gdy pole jest puste pokazujemy podgląd aktualnego tokenu (`--gc-body-bg`) jako placeholder swatcha + napis „z Global Colors”. Sekcja palet w pickerze już listuje `GLOBAL_COLOR_GROUPS` — dodajemy kliknięcie „Użyj tokenu” które zapisuje `var(--gc-key)` zamiast surowego hex (dzięki temu zmiana global colors automatycznie się propaguje).
+Nowy `<BlocksRenderer doc={blocksDoc} lang={lang} />` w `src/components/blocks/BlocksRenderer.tsx`. Route `/post/$slug` wybiera renderer na podstawie `post.editor`:
 
-## Renderer
+```ts
+post.editor === "blocks"  → <BlocksRenderer />
+post.editor === "builder" → <BuilderRenderer />
+else (legacy)             → dangerouslySetInnerHTML / ReactMarkdown
+```
 
-`SectionView` / `WidgetView` / `ColumnView` przyjmują `mode` (z kontekstu builder podglądu) i przekazują do `styleToCSS`. Na froncie publicznym `mode` wynika z `document.documentElement.classList.contains('dark')` — używamy `useEffect` z `MutationObserver` lub istniejącego hooka, jeśli jest. **Lepiej:** emitujemy dwa bloki CSS (light + dark) per widget z unikalnym `data-wid="..."` i selektorem `.dark [data-wid="..."] { ... }` — zero JS, działa SSR.
+SSR-friendly, każdy blok ma czysty komponent prezentacyjny w `src/components/blocks/render/<Type>.tsx`.
 
-## Pliki do zmiany / utworzenia
+## Zmiany w `admin.posts.$id.tsx`
 
-**Zmiana:**
-- `src/lib/builder/types.ts` — `ThemedValue`, `Themed<T>`, rozszerzenie `CommonStyle`
-- `src/components/admin/builder/ui/organisms/widget-view/frame.ts` — `pickMode`, `styleToCSS(mode)`, emisja CSS per mode
-- `src/components/admin/builder/Builder.tsx` — `mode` state + propagacja
-- `src/components/admin/builder/ui/organisms/Toolbar.tsx` — przełącznik Light/Dark
-- `src/components/admin/builder/WidgetProperties.tsx` — zakładki Light/Dark + badge override
-- `src/components/admin/builder/ui/organisms/section-properties/StylePane.tsx` — to samo dla sekcji
-- `src/components/admin/builder/ColumnProperties.tsx` — to samo dla kolumn
-- `src/components/admin/builder/ui/molecules/ColorField.tsx` — placeholder z tokenem + przycisk „Użyj tokenu”
+- Dodać `"blocks"` do typu `EditorType` i jako pierwszą opcję w dropdownie (domyślną dla nowych wpisów).
+- Wczytywać/zapisywać `blocks_data` obok istniejących pól.
+- Renderować `<PostBlockEditor>` gdy `editor === "blocks"`.
 
-**Nowe:**
-- `src/lib/builder/themed.ts` — helpery `pickMode`, `setMode`, `isOverridden`, `resetMode`
-- `src/components/admin/builder/ui/atoms/ThemedField.tsx` — wrapper UI (badge + reset)
-- `src/components/admin/builder/ui/atoms/ModeSwitch.tsx` — segmented Light/Dark
+## Plik tree (NOWE)
 
-## Wstecz-kompatybilność
-- Stare dokumenty (płaskie wartości) działają bez zmian — `pickMode` zwraca je jak są dla obu trybów.
-- Pierwsza edycja w trybie dark automatycznie migruje pole do `{ light: oldValue, dark: newValue }`.
-- Brak migracji SQL.
+```text
+src/lib/blocks/
+  types.ts                # BlocksDoc, Block, BlockStyle, BlockType
+  registry.ts             # rejestr 15 bloków + schemas dla sidebar
+  serialize.ts            # blocks → HTML (dla SEO/RSS/excerpt)
+  migrate.ts              # konwersje: html→blocks, markdown→blocks, builder→blocks
 
-## Poza zakresem (świadomie)
-- Eksport CSS na publicznej stronie pozostaje statyczny (klasa `.dark` na `<html>`); nie ruszamy mechanizmu przełączania trybu po stronie odwiedzającego.
-- Nie ruszamy edytora Global Colors — ten już obsługuje light/dark.
-- Animacje przejść między trybami zostawiamy na CSS `transition` w istniejących tokenach.
+src/components/admin/blocks/
+  PostBlockEditor.tsx     # główny edytor (3 kolumny)
+  BlockCanvas.tsx         # środek, render listy bloków + drop zones
+  BlockOutline.tsx        # lewa kolumna, lista bloków
+  BlockSidebar.tsx        # prawa kolumna, tabs Blok/Dokument
+  BlockSidebarBlock.tsx   # zakładka Blok (schema-driven)
+  BlockSidebarDocument.tsx# zakładka Dokument (metadane wpisu)
+  BlockInserter.tsx       # popover "+"
+  BlockToolbar.tsx        # inline toolbar nad aktywnym blokiem
+  edit/<Type>.tsx         # 15 plików — komponent edycji każdego bloku
+
+src/components/blocks/
+  BlocksRenderer.tsx      # public renderer
+  render/<Type>.tsx       # 15 plików — komponent renderu publicznego
+
+src/lib/server/posts/
+  migrate-to-blocks.functions.ts  # server fn: jednorazowa migracja
+```
+
+## Etapy realizacji (kolejność)
+
+1. **Migracja DB**: `ALTER TABLE posts ADD COLUMN blocks_data jsonb` + rozszerzyć enum `editor` o `"blocks"`.
+2. **Fundament**: `types.ts`, `registry.ts`, pusty `PostBlockEditor` z 3-kolumnowym layoutem, sidebar z zakładkami Blok/Dokument.
+3. **5 bloków core**: paragraph, heading, image, list, quote (edit + render). Działający end-to-end zapis/odczyt + publiczny render dla wpisu.
+4. **Pozostałe 10 bloków**: code, embed, video, gallery, separator, callout, table, button, columns, html.
+5. **Slash commands** (`/`), markdown shortcuts (`##`, `>`, `-`), drag&drop reorder, undo/redo (per-blok historia).
+6. **Migracja istniejących wpisów**: server fn + UI w `admin/settings` + raport ostrzeżeń.
+7. **Default editor = blocks** dla nowych wpisów; obecny Builder zostaje jako wybór w dropdownie.
+8. **Polish**: skróty klawiszowe, kopiuj/duplikuj/usuń blok, multi-select, mobile preview w sidebarze Dokument.
+
+## Co NIE zmieniam
+
+- Builder dla **stron** (`pages`) — bez zmian, zostaje domyślny.
+- Istniejące `builder_data`, `content_pl/en` — zachowane jako backup po migracji.
+- Public render stron (`$.tsx`, `index.tsx`) — bez zmian.
+- TipTap (`PostEditor`) — zostaje jako legacy `richtext`.
+
+## Ryzyka
+
+- **Migracja widgetów builderowych do HTML fallbacku** straci interaktywność (np. accordion, tabs). Wpisy te dostaną ostrzeżenie i autor może przełączyć z powrotem na builder (`builder_data` zachowane).
+- **TipTap inline w `paragraph`** — TipTap jest single-instance heavy; przy 50+ paragrafach trzeba lazy mount (tylko aktywny paragraf ma pełny editor, reszta = static render).
+- **Skala**: 30+ nowych plików komponentowych. Realnie 1–2 tygodnie pracy w iteracjach.
+
+## Pytanie kontrolne
+
+Czy ruszamy w tej kolejności (etapy 1→8), zatwierdzając każdy etap osobno? Po etapie 3 będziesz mógł zobaczyć działający block editor z 5 blokami i ocenić UX zanim wbiję pozostałe 10.

@@ -25,7 +25,8 @@ export interface PageData {
   title_en: string;
   content_pl: string | null;
   content_en: string | null;
-  editor: "richtext" | "markdown" | "builder";
+  editor: "blocks" | "richtext" | "markdown" | "builder";
+  blocks_data?: unknown;
   builder_data: unknown;
   cover_image_url: string | null;
   published_at: string | null;
@@ -171,7 +172,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
           supabase
             .from("posts")
             .select(
-              "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en",
+              "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, content_pl, content_en, editor, builder_data, blocks_data, cover_image_url, published_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en",
             )
             .eq("id", hit.post_id)
             .maybeSingle(),
