@@ -101,47 +101,59 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
 
 function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   const va = column.verticalAlign ?? "start";
-  // A column is treated as a "toolbar" (header/footer/menu strip) only when
-  // EVERY visible child is a compact widget (nav-link, social-icons,
-  // lang-switcher, theme-toggle, account-link, search-button, newsletter) or
-  // intrinsic (image/icon/button/spacer/divider). Then we lay items in a row.
-  // Otherwise widgets stack vertically and each fills the full column width.
   const visibleChildren = column.children.filter((w) => !hiddenOnDevice(w.advanced, device));
   const isToolbar =
     visibleChildren.length > 1 &&
     visibleChildren.every((w) => COMPACT_WIDGET_TYPES.has(w.type) || AUTO_SIZE_WIDGETS.has(w.type));
-  const stacked = !isToolbar;
-  const axisClass = stacked
-    ? (column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : column.contentAlign === "start" ? "items-start" : "items-stretch")
-    : (column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : column.contentAlign === "start" ? "justify-start" : "justify-between");
-  const vClass = stacked
-    ? (va === "center" ? "justify-center" : va === "end" ? "justify-end" : va === "stretch" ? "justify-stretch" : "justify-start")
-    : (va === "center" ? "content-center items-center" : va === "end" ? "content-end items-end" : va === "stretch" ? "content-stretch items-stretch" : "content-start items-center");
-  const layoutClass = stacked ? "flex-col" : "flex-row flex-wrap";
-  const singleWidget = visibleChildren.length <= 1;
+  const axisClass = isToolbar
+    ? (column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : column.contentAlign === "start" ? "justify-start" : "justify-between")
+    : (column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : column.contentAlign === "start" ? "items-start" : "items-stretch");
+  const vClass = isToolbar
+    ? (va === "center" ? "content-center items-center" : va === "end" ? "content-end items-end" : va === "stretch" ? "content-stretch items-stretch" : "content-start items-center")
+    : (va === "center" ? "justify-center" : va === "end" ? "justify-end" : va === "stretch" ? "justify-stretch" : "justify-start");
+
+  // Group consecutive widgets sharing inline flow into one row.
+  const groups: Array<{ inline: boolean; items: typeof visibleChildren }> = [];
+  if (isToolbar) {
+    groups.push({ inline: true, items: visibleChildren });
+  } else {
+    for (const w of visibleChildren) {
+      const inline = w.advanced?.layout === "inline";
+      const last = groups[groups.length - 1];
+      if (inline && last && last.inline) last.items.push(w);
+      else groups.push({ inline, items: [w] });
+    }
+  }
+  const onlyOneBlock = !isToolbar && groups.length === 1 && !groups[0].inline && groups[0].items.length === 1;
+
   return (
-    <div data-col-id={column.id} className={`flex ${layoutClass} gap-2 h-full min-w-0 max-w-full overflow-hidden ${axisClass} ${vClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius }}>
-      {column.children.map((w) => {
-        if (hiddenOnDevice(w.advanced, device)) return null;
-        const adv = w.advanced as { height?: { desktop?: unknown; tablet?: unknown; mobile?: unknown } } | undefined;
-        const hasExplicitHeight = !!(adv?.height && (adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile));
-        // Fill column height by default only when there is a single content
-        // widget in the column. Skip compact / intrinsic widgets.
-        const shouldFillHeight =
-          singleWidget &&
-          !hasExplicitHeight &&
-          !AUTO_SIZE_WIDGETS.has(w.type) &&
-          !COMPACT_WIDGET_TYPES.has(w.type);
-        const itemClass = stacked
-          ? `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-hidden${shouldFillHeight ? " flex-1" : ""}`
-          : "flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-hidden";
-        return (
-          <div key={w.id} data-widget-id={w.id} className={itemClass} style={{ ...getWidgetFrameStyle(w, device), boxSizing: "border-box" }}>
-            <WidgetView node={w} lang={lang} device={device} />
-          </div>
-        );
+    <div data-col-id={column.id} className={`flex flex-col gap-2 h-full min-w-0 max-w-full overflow-hidden ${axisClass} ${vClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius }}>
+      {groups.map((g, gi) => {
+        const renderItem = (w: typeof visibleChildren[number], inRow: boolean) => {
+          const adv = w.advanced as { height?: { desktop?: unknown; tablet?: unknown; mobile?: unknown } } | undefined;
+          const hasExplicitHeight = !!(adv?.height && (adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile));
+          const shouldFillHeight =
+            onlyOneBlock && !hasExplicitHeight && !AUTO_SIZE_WIDGETS.has(w.type) && !COMPACT_WIDGET_TYPES.has(w.type);
+          const itemClass = inRow
+            ? "flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-hidden"
+            : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-hidden${shouldFillHeight ? " flex-1" : ""}`;
+          return (
+            <div key={w.id} data-widget-id={w.id} className={itemClass} style={{ ...getWidgetFrameStyle(w, device), boxSizing: "border-box" }}>
+              <WidgetView node={w} lang={lang} device={device} />
+            </div>
+          );
+        };
+        if (g.inline) {
+          return (
+            <div key={gi} className={`flex flex-row flex-wrap gap-2 min-w-0 max-w-full ${axisClass}`}>
+              {g.items.map((w) => renderItem(w, true))}
+            </div>
+          );
+        }
+        return <>{g.items.map((w) => renderItem(w, false))}</>;
       })}
     </div>
   );
 }
+
 
