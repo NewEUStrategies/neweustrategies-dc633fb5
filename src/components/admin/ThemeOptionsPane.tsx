@@ -528,7 +528,7 @@ export function ThemeOptionsPane() {
 
         {active === "header.mobile" && (
           <div className="space-y-4">
-            <Row label="Mobile Breakpoint (px)" hint="Poniżej tej szerokości aktywuje się układ mobilny.">
+            <Row label={t("themeOptions.mobile.breakpoint")} hint={t("themeOptions.mobile.breakpointHint")}>
               <Input
                 type="number" min={480} max={1400}
                 className="w-[120px] h-9 text-xs"
@@ -536,13 +536,13 @@ export function ThemeOptionsPane() {
                 onChange={(e) => patchMobile({ breakpoint: Number(e.target.value) || 1024 })}
               />
             </Row>
-            <Row label="Użyj Mobile Logo" hint="Zamiast głównego logo na mobile.">
+            <Row label={t("themeOptions.mobile.useMobileLogo")} hint={t("themeOptions.mobile.useMobileLogoHint")}>
               <Switch checked={draft.header.mobile.use_mobile_logo} onCheckedChange={(v) => patchMobile({ use_mobile_logo: v })} />
             </Row>
-            <Row label="Sticky na mobile">
+            <Row label={t("themeOptions.mobile.sticky")}>
               <Switch checked={draft.header.mobile.sticky} onCheckedChange={(v) => patchMobile({ sticky: v })} />
             </Row>
-            <Row label="Pokaż ikonę wyszukiwania">
+            <Row label={t("themeOptions.mobile.showSearch")}>
               <Switch checked={draft.header.mobile.show_search} onCheckedChange={(v) => patchMobile({ show_search: v })} />
             </Row>
           </div>
