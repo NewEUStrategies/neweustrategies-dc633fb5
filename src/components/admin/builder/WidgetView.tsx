@@ -158,7 +158,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     if (typography.textDecoration) rules.push(`${descendants}{text-decoration:${typography.textDecoration} !important;}`);
 
     return rules.join("\n");
-  }, [device, node.id, node.style?.typography]);
+  }, [device, effectiveMode, node.id, node.style?.typography]);
 
   const isImage = node.type === "image";
   const isMedia = isImage || node.type === "slider" || node.type === "video" || node.type === "gallery" || node.type === "map";
