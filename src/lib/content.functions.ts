@@ -162,7 +162,7 @@ export const createPost = createServerFn({ method: "POST" })
           parent_page_id: parentPageId,
           template_id: data.template_id ?? null,
           editor: "blocks",
-          blocks_data: { pl: { version: 1, blocks: [] }, en: { version: 1, blocks: [] } } as unknown as Record<string, unknown>,
+          blocks_data: { pl: { version: 1, blocks: [] }, en: { version: 1, blocks: [] } },
         })
         .select("id, slug").single();
       if (error) throw new Error(error.message);
