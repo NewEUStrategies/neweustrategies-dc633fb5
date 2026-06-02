@@ -56,9 +56,24 @@ function PostsList() {
   const [view, setView] = useState<View>("active");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
-  const [trashSearch, setTrashSearch] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [langFilter, setLangFilter] = useState<LangFilter>("all");
+  const [authorFilter, setAuthorFilter] = useState<string>("all");
   const [trashFrom, setTrashFrom] = useState("");
   const [trashTo, setTrashTo] = useState("");
+
+  const authorsQ = useTenantAuthors(tenantId);
+  const authorsById = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof authorsQ.data extends infer T ? () => T : never>>();
+    (authorsQ.data ?? []).forEach((a) => map.set(a.id, a));
+    return new Map((authorsQ.data ?? []).map((a) => [a.id, a]));
+  }, [authorsQ.data]);
+  void authorsById;
+  const authorMap = useMemo(
+    () => new Map((authorsQ.data ?? []).map((a) => [a.id, a])),
+    [authorsQ.data],
+  );
 
   const { data: posts, isLoading } = useQuery({
     enabled: !!tenantId,
@@ -66,7 +81,9 @@ function PostsList() {
     queryFn: async () => {
       let q = supabase
         .from("posts")
-        .select("id, slug, title_pl, title_en, status, published_at, updated_at, author_id, deleted_at")
+        .select(
+          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, status, published_at, updated_at, author_id, deleted_at",
+        )
         .eq("tenant_id", tenantId!)
         .order(view === "trash" ? "deleted_at" : "updated_at", { ascending: false });
       q = view === "trash" ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
@@ -92,10 +109,14 @@ function PostsList() {
 
   const isTrash = view === "trash";
 
+  const coverageOf = (p: { title_pl: string | null; title_en: string | null }) => ({
+    pl: !!(p.title_pl && p.title_pl.trim()),
+    en: !!(p.title_en && p.title_en.trim()),
+  });
+
   const filteredPosts = useMemo(() => {
     if (!posts) return [];
-    if (!isTrash) return posts;
-    const q = trashSearch.trim().toLowerCase();
+    const q = search.trim().toLowerCase();
     const fromTs = trashFrom ? new Date(trashFrom).getTime() : null;
     const toTs = trashTo ? new Date(trashTo).getTime() + 24 * 60 * 60 * 1000 - 1 : null;
     return posts.filter((p) => {
@@ -105,14 +126,23 @@ function PostsList() {
         const s = (p.slug ?? "").toLowerCase();
         if (!t1.includes(q) && !t2.includes(q) && !s.includes(q)) return false;
       }
-      if (fromTs !== null || toTs !== null) {
+      if (!isTrash && statusFilter !== "all" && p.status !== statusFilter) return false;
+      if (authorFilter !== "all" && p.author_id !== authorFilter) return false;
+      if (langFilter !== "all") {
+        const c = coverageOf(p);
+        if (langFilter === "complete" && !(c.pl && c.en)) return false;
+        if (langFilter === "missing_any" && c.pl && c.en) return false;
+        if (langFilter === "pl_only" && !(c.pl && !c.en)) return false;
+        if (langFilter === "en_only" && !(c.en && !c.pl)) return false;
+      }
+      if (isTrash && (fromTs !== null || toTs !== null)) {
         const d = p.deleted_at ? new Date(p.deleted_at).getTime() : 0;
         if (fromTs !== null && d < fromTs) return false;
         if (toTs !== null && d > toTs) return false;
       }
       return true;
     });
-  }, [posts, isTrash, trashSearch, trashFrom, trashTo]);
+  }, [posts, isTrash, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo]);
 
   const allIds = useMemo(() => filteredPosts.map((p) => p.id), [filteredPosts]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
