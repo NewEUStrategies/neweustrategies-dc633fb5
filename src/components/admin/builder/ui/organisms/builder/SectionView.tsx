@@ -98,12 +98,14 @@ export function SectionView(p: SectionViewProps) {
           {p.section.children.map((child) => {
             const span = child.kind === "column" ? resolveSpan(child.span, p.device, 12) : 12;
             const gridColumn = p.device === "mobile" ? "1 / -1" : `span ${span}`;
+            const sectionToolbar = isToolbarTag(p.section.layout?.htmlTag);
             if (child.kind === "inner-section") {
               return (
                 <div key={child.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn }}>
                   <InnerSectionView
                     inner={child} device={p.device} lang={p.lang}
                     selection={p.selection} setSelection={p.setSelection}
+                    forceToolbar={sectionToolbar || isToolbarTag(child.layout?.htmlTag)}
                     onRemoveColumn={p.onRemoveColumn} onDuplicateColumn={p.onDuplicateColumn}
                     onRemoveWidget={p.onRemoveWidget} onDuplicateWidget={p.onDuplicateWidget}
                     onDropWidget={p.onDropWidget}
@@ -117,6 +119,7 @@ export function SectionView(p: SectionViewProps) {
               <div key={child.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn }}>
                 <ColumnView column={child} device={p.device} lang={p.lang}
                   selection={p.selection} setSelection={p.setSelection}
+                  forceToolbar={sectionToolbar}
                   onRemove={() => p.onRemoveColumn(child.id)}
                   onDuplicate={() => p.onDuplicateColumn(child.id)}
                   onRemoveWidget={p.onRemoveWidget} onDuplicateWidget={p.onDuplicateWidget}
