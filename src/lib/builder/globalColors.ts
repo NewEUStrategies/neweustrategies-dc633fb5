@@ -310,12 +310,12 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     id: "headings",
     label: "Headings (H1–H6)",
     slots: [
-      { key: "h1", label: "H1 Color", description: "Kolor nagłówków H1.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff" },
-      { key: "h2", label: "H2 Color", description: "Kolor nagłówków H2.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff" },
-      { key: "h3", label: "H3 Color", description: "Kolor nagłówków H3.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6" },
-      { key: "h4", label: "H4 Color", description: "Kolor nagłówków H4.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6" },
-      { key: "h5", label: "H5 Color", description: "Kolor nagłówków H5.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb" },
-      { key: "h6", label: "H6 Color", description: "Kolor nagłówków H6.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb" },
+      { key: "h1", label: "H1 Color", description: "Kolor nagłówków H1.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff", typography: true, defaultFontFamily: "var(--font-display)", defaultFontSize: "2.25rem" },
+      { key: "h2", label: "H2 Color", description: "Kolor nagłówków H2.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff", typography: true, defaultFontFamily: "var(--font-display)", defaultFontSize: "1.875rem" },
+      { key: "h3", label: "H3 Color", description: "Kolor nagłówków H3.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6", typography: true, defaultFontFamily: "var(--font-display)", defaultFontSize: "1.5rem" },
+      { key: "h4", label: "H4 Color", description: "Kolor nagłówków H4.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6", typography: true, defaultFontFamily: "var(--font-display)", defaultFontSize: "1.25rem" },
+      { key: "h5", label: "H5 Color", description: "Kolor nagłówków H5.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb", typography: true, defaultFontFamily: "var(--font-display)", defaultFontSize: "1.125rem" },
+      { key: "h6", label: "H6 Color", description: "Kolor nagłówków H6.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb", typography: true, defaultFontFamily: "var(--font-display)", defaultFontSize: "1rem" },
     ],
   },
   {
@@ -330,6 +330,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#374151",
         defaultDark: "#d1d5db",
         overrides: ["--foreground"],
+        typography: true,
+        defaultFontFamily: "var(--font-sans)",
+        defaultFontSize: "1rem",
       },
       {
         key: "body-text-muted",
@@ -339,6 +342,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#6b7280",
         defaultDark: "#9ca3af",
         overrides: ["--muted-foreground"],
+        typography: true,
+        defaultFontFamily: "var(--font-sans)",
+        defaultFontSize: "0.875rem",
       },
     ],
   },
@@ -353,6 +359,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         hasDark: true,
         defaultLight: "#fa9346",
         defaultDark: "#fbbf24",
+        typography: true,
+        defaultFontFamily: "inherit",
+        defaultFontSize: "inherit",
       },
       {
         key: "link-hover",
@@ -368,7 +377,14 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
 
 export type GlobalColorsValue = Record<
   string,
-  { light?: string; dark?: string; hoverLight?: string; hoverDark?: string }
+  {
+    light?: string;
+    dark?: string;
+    hoverLight?: string;
+    hoverDark?: string;
+    fontFamily?: string;
+    fontSize?: string;
+  }
 >;
 
 export const EMPTY_GLOBAL_COLORS: GlobalColorsValue = {};
