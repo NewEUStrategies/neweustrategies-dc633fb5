@@ -11,6 +11,8 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { BlocksRenderer } from "@/components/blocks/BlocksRenderer";
+import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import { sanitizeMarkdownHtml } from "@/lib/sanitize";
 import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
@@ -109,6 +111,11 @@ function PublicPage() {
   const isBuilder = it.editor === "builder" && rawDoc.sections.length > 0;
   const rawHtml = lang === "en" ? it.content_en || it.content_pl : it.content_pl || it.content_en;
 
+  // Block editor (Gutenberg/Foxiz-style) — wpisy w nowym formacie
+  const blocksData = (it as { blocks_data?: LocalizedBlocks | null }).blocks_data ?? null;
+  const blocksDoc: BlocksDoc | null = blocksData ? (blocksData[lang] ?? blocksData.pl ?? blocksData.en ?? null) : null;
+  const isBlocks = it.editor === "blocks" && !!blocksDoc?.blocks?.length;
+
   const { doc, notes: builderNotes } = processDocFootnotes(rawDoc, lang);
   const { html: processedHtml, notes: htmlNotes } = processHtmlFootnotes(rawHtml ?? "", 1);
   const notes = isBuilder ? builderNotes : htmlNotes;
@@ -141,7 +148,9 @@ function PublicPage() {
       ) : (
         <>
           {isPost && takeaways.length > 0 && <KeyTakeaways items={takeaways} />}
-          {isBuilder ? (
+          {isBlocks ? (
+            <BlocksRenderer doc={blocksDoc} />
+          ) : isBuilder ? (
             <BuilderRenderer doc={doc} lang={lang} />
           ) : (
             <article className="single-post-content prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(processedHtml) }} />
