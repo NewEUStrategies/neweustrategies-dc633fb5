@@ -7,6 +7,7 @@ import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
 import { AdminSidebarExtrasProvider, useAdminSidebarExtrasSlot } from "@/components/admin/AdminSidebarExtras";
 import { useSiteSetting } from "@/lib/useSiteSetting";
+import { cn } from "@/lib/utils";
 
 import type { SidebarStyle } from "@/lib/builder/sidebarStyles";
 
@@ -47,7 +48,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
 
   const isEditRoute = /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
   const [forceCompact, setForceCompact] = useState(false);
-  const compact = (isEditRoute || forceCompact) && !extras;
+  const compact = ((isEditRoute || forceCompact) && !extras) || sidebarStyle === "style-4";
 
 
   const items = [
@@ -83,7 +84,10 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
         <aside
           data-sidebar="sidebar"
           data-sidebar-style={sidebarStyle}
-          className={`${compact || sidebarStyle === "style-4" ? "w-14" : "w-64"} bg-card border-r border-border flex flex-col transition-all duration-200 sticky top-0 self-start h-screen max-h-screen`}
+          className={cn(
+            compact ? "w-14" : "w-64",
+            "bg-card border-r border-border flex flex-col transition-all duration-200 sticky top-0 self-start h-screen max-h-screen sidebar-shell",
+          )}
         >
 
           <div className="p-3 border-b border-border">
@@ -154,6 +158,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
                       key={it.id}
                       type="button"
                       onClick={() => extras.onSelect(it.id)}
+                      data-sidebar="menu-button"
                       className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left border-l-2 transition ${
                         isActive
                           ? "border-brand bg-brand/10 text-brand font-medium"
@@ -161,7 +166,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
                       }`}
                     >
                       {Icon && <Icon className="w-4 h-4 shrink-0" />}
-                      <span className="flex-1 truncate">{it.label}</span>
+                      <span className={cn("flex-1 truncate", compact && "hidden")}>{it.label}</span>
                       {isActive && <ChevronRight className="w-3 h-3" />}
                     </button>
                   );
