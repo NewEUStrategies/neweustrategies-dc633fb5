@@ -107,6 +107,7 @@ export function SectionView(p: SectionViewProps) {
                     onRemoveWidget={p.onRemoveWidget} onDuplicateWidget={p.onDuplicateWidget}
                     onDropWidget={p.onDropWidget}
                     onUpdateWidgetContent={p.onUpdateWidgetContent}
+                    onToggleHidden={p.onToggleHidden}
                   />
                 </div>
               );
@@ -119,7 +120,8 @@ export function SectionView(p: SectionViewProps) {
                   onDuplicate={() => p.onDuplicateColumn(child.id)}
                   onRemoveWidget={p.onRemoveWidget} onDuplicateWidget={p.onDuplicateWidget}
                   onDropWidget={p.onDropWidget}
-                  onUpdateWidgetContent={p.onUpdateWidgetContent} />
+                  onUpdateWidgetContent={p.onUpdateWidgetContent}
+                  onToggleHidden={p.onToggleHidden} />
               </div>
             );
           })}
