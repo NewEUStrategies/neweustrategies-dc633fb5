@@ -75,10 +75,19 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     );
   }
 
+  // System-wide limits — applied uniformly to every slide so layout height
+  // is stable regardless of content length. Counts include spaces.
+  const TITLE_MAX = 80;   // ~2 linie na desktopie
+  const EXCERPT_MAX = 160; // ~3 linie na desktopie
+  const truncate = (s: string, max: number) =>
+    s.length > max ? s.slice(0, Math.max(0, max - 1)).trimEnd() + "…" : s;
+
   const safeIdx = Math.min(Math.max(0, idx), items.length - 1);
   const cur = items[safeIdx] ?? items[0];
-  const title = (lang === "en" ? cur.title_en : cur.title_pl) || cur.title_pl || cur.title_en || "";
-  const sub   = (lang === "en" ? cur.subtitle_en : cur.subtitle_pl) || cur.subtitle_pl || "";
+  const rawTitle = (lang === "en" ? cur.title_en : cur.title_pl) || cur.title_pl || cur.title_en || "";
+  const rawSub   = (lang === "en" ? cur.subtitle_en : cur.subtitle_pl) || cur.subtitle_pl || "";
+  const title = truncate(rawTitle, TITLE_MAX);
+  const sub   = truncate(rawSub, EXCERPT_MAX);
   const cat   = (lang === "en" ? cur.category_en : cur.category_pl) || cur.category_pl || "";
   const href  = safeUrl(cur.href ?? "") || undefined;
   const catColor = cur.categoryColor || "#ef6c2e";
@@ -104,6 +113,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         .eh-slider:hover .eh-title { background-size: 100% 2px; }
         .eh-slider .eh-img { transition: transform 3000ms cubic-bezier(.16,.84,.34,1); transform-origin: center center; will-change: transform; backface-visibility: hidden; }
         .eh-slider:hover .eh-img { transform: scale(1.06); }
+        .eh-slider .eh-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .eh-slider .eh-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
       `}</style>
 
       {/* Image */}
@@ -136,26 +147,36 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         )}
       </div>
 
-      {/* Title + excerpt */}
-      <div key={safeIdx} className="px-4 pt-8 pb-2 text-center" style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}>
-        {title && (
-          href ? (
-            <a href={href} className="inline-block">
-              <h3 className="eh-title text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground">
-                {title}
-              </h3>
-            </a>
-          ) : (
-            <h3 className="eh-title text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground">
-              {title}
+      {/* Title + excerpt — stała wysokość (rezerwacja 2 linii tytułu + 3 linii excerptu) */}
+      <div
+        key={safeIdx}
+        className="px-4 pt-8 pb-2 text-center"
+        style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
+      >
+        {href ? (
+          <a href={href} className="inline-block w-full">
+            <h3
+              className="eh-title eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
+              style={{ minHeight: "calc(2 * 1.25em)" }}
+            >
+              {title || "\u00A0"}
             </h3>
-          )
+          </a>
+        ) : (
+          <h3
+            className="eh-title eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
+            style={{ minHeight: "calc(2 * 1.25em)" }}
+          >
+            {title || "\u00A0"}
+          </h3>
         )}
-        {sub && (
-          <p className="mt-4 text-sm md:text-base text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-            {sub}
-          </p>
-        )}
+
+        <p
+          className="eh-clamp-3 mt-4 text-sm md:text-base text-muted-foreground max-w-3xl mx-auto leading-relaxed"
+          style={{ minHeight: "calc(3 * 1.625em)" }}
+        >
+          {sub || "\u00A0"}
+        </p>
 
         {/* Meta */}
         {(cur.author || cur.readTime) && (
@@ -166,6 +187,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           </div>
         )}
       </div>
+
 
       {/* Nav: arrow • dots • arrow */}
       {items.length > 1 && (
