@@ -350,12 +350,12 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Obramowanie ({mode === "dark" ? "ciemny" : "jasny"})</h4>
+          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Obramowanie</h4>
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Styl">
               <Select
-                value={getThemedBorderStyle()}
-                onValueChange={(v) => setThemedBorderStyle(v === "none" ? undefined : (v as CommonStyle["borderStyle"]))}
+                value={getFlatBorderStyle()}
+                onValueChange={(v) => setFlatBorderStyle(v === "none" ? undefined : (v as CommonStyle["borderStyle"]))}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -373,14 +373,14 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
             </PropField>
             <PropField label="Grubość">
               <Input
-                value={getThemedStr("borderWidth")}
+                value={getFlatStr("borderWidth")}
                 placeholder="1px"
-                onChange={(e) => setThemedStr("borderWidth", e.target.value)}
+                onChange={(e) => setFlatStr("borderWidth", e.target.value)}
               />
             </PropField>
           </div>
           <ThemedColorField
-            label="Kolor obramowania"
+            label={`Kolor obramowania (${mode === "dark" ? "ciemny" : "jasny"})`}
             value={getColor("borderColor")}
             onChange={(v) => setColor("borderColor", v)}
             overridden={isOverridden("borderColor")}
@@ -389,6 +389,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
             inheritedValue={inherited.borderColor}
           />
         </section>
+
 
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Cień ({mode === "dark" ? "ciemny" : "jasny"})</h4>
