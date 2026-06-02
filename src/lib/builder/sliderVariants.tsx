@@ -214,7 +214,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
               {title && <h2 className="text-2xl md:text-5xl font-bold leading-tight max-w-3xl">{title}</h2>}
               {sub && <p className="mt-2 md:mt-3 text-sm md:text-lg opacity-90 max-w-2xl">{sub}</p>}
               {cta && href && (
-                <a href={href} className="mt-4 self-start inline-flex items-center px-5 py-2.5 rounded-md bg-white text-black font-medium hover:bg-white/90">{cta}</a>
+                <a href={href} className="mt-4 self-start inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-white text-black text-sm font-semibold tracking-wide shadow-sm hover:shadow-md hover:bg-white/95 transition">{cta} <span aria-hidden>→</span></a>
               )}
             </div>
             <Arrows size="lg" />
