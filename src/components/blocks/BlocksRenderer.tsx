@@ -1,7 +1,8 @@
 // Publiczny renderer BlocksDoc. SSR-friendly, czysto prezentacyjny.
 
-import type { Block, BlocksDoc } from "@/lib/blocks/types";
+import type { Block, BlocksDoc, Json } from "@/lib/blocks/types";
 import DOMPurify from "isomorphic-dompurify";
+import { parseEmbedUrl } from "@/lib/blocks/embed";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -25,13 +26,27 @@ function alignClass(b: Block): string {
   return "";
 }
 
+function sanitize(html: string): string {
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+}
+
+function readBlocksArray(raw: Json | undefined): Block[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Block[] = [];
+  for (const x of raw) {
+    if (x && typeof x === "object" && !Array.isArray(x) && "type" in x && "id" in x) {
+      out.push(x as unknown as Block);
+    }
+  }
+  return out;
+}
+
 function BlockView({ block }: { block: Block }) {
   const cls = alignClass(block);
 
   switch (block.type) {
     case "paragraph": {
-      const html = String(block.data.html ?? "");
-      const safe = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+      const safe = sanitize(String(block.data.html ?? ""));
       return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
     }
     case "heading": {
@@ -72,13 +87,123 @@ function BlockView({ block }: { block: Block }) {
       return (
         <blockquote className={cls}>
           <p>{text}</p>
-          {cite && <cite className="text-sm text-muted-foreground">— {cite}</cite>}
+          {cite && <cite className="text-sm text-muted-foreground">- {cite}</cite>}
         </blockquote>
       );
     }
+    case "code": {
+      const code = String(block.data.code ?? "");
+      const lang = String(block.data.lang ?? "");
+      return (
+        <pre className={cls}>
+          <code data-lang={lang}>{code}</code>
+        </pre>
+      );
+    }
+    case "embed": {
+      const url = String(block.data.url ?? "");
+      const parsed = parseEmbedUrl(url);
+      if (!parsed) {
+        return url ? <p className={cls}><a href={url} target="_blank" rel="noopener noreferrer">{url}</a></p> : null;
+      }
+      return (
+        <div className={`relative aspect-video w-full ${cls}`}>
+          <iframe
+            src={parsed.embedUrl}
+            title={parsed.provider}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            loading="lazy"
+            className="absolute inset-0 w-full h-full rounded-lg"
+          />
+        </div>
+      );
+    }
+    case "video": {
+      const url = String(block.data.url ?? "");
+      const poster = String(block.data.poster ?? "");
+      if (!url) return null;
+      return <video src={url} poster={poster || undefined} controls preload="metadata" className={`w-full rounded-lg ${cls}`} />;
+    }
+    case "gallery": {
+      const raw = Array.isArray(block.data.images) ? block.data.images : [];
+      const images: { url: string; alt: string }[] = [];
+      for (const x of raw) {
+        if (x && typeof x === "object" && !Array.isArray(x)) {
+          const o = x as { [k: string]: unknown };
+          const url = String(o.url ?? "");
+          if (url) images.push({ url, alt: String(o.alt ?? "") });
+        }
+      }
+      if (images.length === 0) return null;
+      return (
+        <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 not-prose ${cls}`}>
+          {images.map((img, i) => (
+            <img key={i} src={img.url} alt={img.alt} className="w-full h-full object-cover rounded-md aspect-square" loading="lazy" />
+          ))}
+        </div>
+      );
+    }
+    case "separator": {
+      const variant = String(block.data.variant ?? "line");
+      if (variant === "dots") return <div className="text-center text-2xl tracking-[0.5em] text-muted-foreground py-3 select-none">···</div>;
+      if (variant === "wide") return <hr className="border-0 h-px bg-gradient-to-r from-transparent via-border to-transparent my-6" />;
+      return <hr className="border-border my-6" />;
+    }
+    case "callout": {
+      const variant = String(block.data.variant ?? "info");
+      const text = String(block.data.text ?? "");
+      const map: Record<string, string> = {
+        info: "bg-blue-500/10 border-blue-500/30 text-blue-700 dark:text-blue-300",
+        warning: "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300",
+        success: "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300",
+        danger: "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300",
+      };
+      const stl = map[variant] ?? map.info;
+      return <div className={`not-prose rounded-md border px-4 py-3 my-4 whitespace-pre-line ${stl} ${cls}`}>{text}</div>;
+    }
+    case "table": {
+      const rowsRaw = Array.isArray(block.data.rows) ? block.data.rows : [];
+      const rows: string[][] = rowsRaw.map((r) => Array.isArray(r) ? r.map((c) => String(c ?? "")) : []);
+      const header = Boolean(block.data.header);
+      if (rows.length === 0) return null;
+      const [head, ...body] = header ? [rows[0], ...rows.slice(1)] : [null, ...rows];
+      return (
+        <div className={`overflow-x-auto ${cls}`}>
+          <table>
+            {head && <thead><tr>{head.map((c, i) => <th key={i}>{c}</th>)}</tr></thead>}
+            <tbody>{body.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody>
+          </table>
+        </div>
+      );
+    }
+    case "button": {
+      const label = String(block.data.label ?? "");
+      const href = String(block.data.href ?? "#");
+      const variant = String(block.data.variant ?? "default");
+      const stl =
+        variant === "outline" ? "border border-primary text-primary hover:bg-primary/10"
+        : variant === "ghost" ? "text-primary hover:bg-primary/10"
+        : "bg-primary text-primary-foreground hover:bg-primary/90";
+      if (!label) return null;
+      return (
+        <p className={`not-prose ${cls}`}>
+          <a href={href} className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium ${stl}`}>{label}</a>
+        </p>
+      );
+    }
+    case "columns": {
+      const left = readBlocksArray(block.data.left);
+      const right = readBlocksArray(block.data.right);
+      return (
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 not-prose ${cls}`}>
+          <div className="prose dark:prose-invert max-w-none">{left.map((b) => <BlockView key={b.id} block={b} />)}</div>
+          <div className="prose dark:prose-invert max-w-none">{right.map((b) => <BlockView key={b.id} block={b} />)}</div>
+        </div>
+      );
+    }
     case "html": {
-      const html = String(block.data.html ?? "");
-      const safe = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+      const safe = sanitize(String(block.data.html ?? ""));
       return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
     }
     default:

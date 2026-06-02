@@ -5,6 +5,16 @@ import { HeadingBlock } from "./edit/Heading";
 import { ImageBlock } from "./edit/Image";
 import { ListBlockEdit } from "./edit/ListBlock";
 import { QuoteBlock } from "./edit/Quote";
+import { CodeBlock } from "./edit/Code";
+import { EmbedBlock } from "./edit/Embed";
+import { VideoBlock } from "./edit/Video";
+import { GalleryBlock } from "./edit/Gallery";
+import { SeparatorBlock } from "./edit/Separator";
+import { CalloutBlock } from "./edit/Callout";
+import { TableBlockEdit } from "./edit/Table";
+import { ButtonBlock } from "./edit/Button";
+import { ColumnsBlock } from "./edit/Columns";
+import { HtmlBlock } from "./edit/Html";
 import { ChevronUp as ArrowUp, ChevronDown as ArrowDown, Copy, Trash2 } from "@/lib/lucide-shim";
 
 interface Props {
@@ -104,10 +114,20 @@ function BlockRenderer({ block, isActive, onChange }: { block: Block; isActive: 
     case "image":     return <ImageBlock block={block} onChange={onChange} />;
     case "list":      return <ListBlockEdit block={block} onChange={onChange} />;
     case "quote":     return <QuoteBlock block={block} onChange={onChange} />;
+    case "code":      return <CodeBlock block={block} onChange={onChange} />;
+    case "embed":     return <EmbedBlock block={block} onChange={onChange} />;
+    case "video":     return <VideoBlock block={block} onChange={onChange} />;
+    case "gallery":   return <GalleryBlock block={block} onChange={onChange} />;
+    case "separator": return <SeparatorBlock block={block} onChange={onChange} />;
+    case "callout":   return <CalloutBlock block={block} onChange={onChange} />;
+    case "table":     return <TableBlockEdit block={block} onChange={onChange} />;
+    case "button":    return <ButtonBlock block={block} onChange={onChange} />;
+    case "columns":   return <ColumnsBlock block={block} onChange={onChange} />;
+    case "html":      return <HtmlBlock block={block} onChange={onChange} />;
     default:
       return (
         <div className="text-xs text-muted-foreground italic py-2">
-          [Blok „{block.type}" — edytor wkrótce]
+          [Blok „{block.type}" - edytor wkrótce]
         </div>
       );
   }
