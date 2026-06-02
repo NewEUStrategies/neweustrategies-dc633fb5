@@ -49,6 +49,11 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       href: typeof it.href === "string" ? it.href : "",
       cta_pl: typeof it.cta_pl === "string" ? it.cta_pl : "",
       cta_en: typeof it.cta_en === "string" ? it.cta_en : "",
+      category_pl: typeof it.category_pl === "string" ? it.category_pl : "",
+      category_en: typeof it.category_en === "string" ? it.category_en : "",
+      categoryColor: typeof it.categoryColor === "string" ? it.categoryColor : "",
+      author: typeof it.author === "string" ? it.author : "",
+      readTime: typeof it.readTime === "string" ? it.readTime : "",
     }));
 
   const updateItems = (next: SliderItem[]) =>
