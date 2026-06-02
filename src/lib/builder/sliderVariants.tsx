@@ -160,20 +160,21 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         {href ? (
           <a href={href} className="inline-block w-full">
             <h3
-              className="eh-title eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
+              className="eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
               style={{ minHeight: "calc(2 * 1.25em)" }}
             >
-              {title || "\u00A0"}
+              <span className="eh-title-text">{title || "\u00A0"}</span>
             </h3>
           </a>
         ) : (
           <h3
-            className="eh-title eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
+            className="eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
             style={{ minHeight: "calc(2 * 1.25em)" }}
           >
-            {title || "\u00A0"}
+            <span className="eh-title-text">{title || "\u00A0"}</span>
           </h3>
         )}
+
 
         <p
           className="eh-clamp-3 mt-4 text-sm md:text-base text-muted-foreground max-w-3xl mx-auto leading-relaxed"
