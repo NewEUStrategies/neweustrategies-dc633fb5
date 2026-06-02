@@ -8,6 +8,7 @@ export type FieldType =
   | "i18nText"    // single-line, separate PL/EN values stored as `${key}_pl|_en`
   | "i18nHtml"    // textarea HTML, separate PL/EN values
   | "url"
+  | "image"       // URL input + file upload to storage
   | "number"
   | "select"
   | "textarea"
