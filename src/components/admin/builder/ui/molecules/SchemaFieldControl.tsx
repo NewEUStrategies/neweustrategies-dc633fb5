@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PropField } from "../atoms/PropField";
+import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
+import { Image as ImageIcon } from "lucide-react";
 
 interface Props {
   field: SchemaFieldDef;
@@ -37,6 +39,17 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
             className="h-8 text-xs"
           />
         </PropField>
+      );
+
+    case "image":
+      return (
+        <ImageSlot
+          label={field.label}
+          icon={<ImageIcon className="w-3 h-3" />}
+          value={asString(content[field.key])}
+          onChange={(v) => setContent(field.key, v)}
+          hint={field.hint}
+        />
       );
 
     case "i18nText":

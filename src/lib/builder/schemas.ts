@@ -8,6 +8,7 @@ export type FieldType =
   | "i18nText"    // single-line, separate PL/EN values stored as `${key}_pl|_en`
   | "i18nHtml"    // textarea HTML, separate PL/EN values
   | "url"
+  | "image"       // URL input + file upload to storage
   | "number"
   | "select"
   | "textarea"
@@ -452,7 +453,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "excerpt", type: "i18nText", label: "Zajawka (opcjonalna)" },
-    { key: "image", type: "url", label: "URL obrazka" },
+    { key: "image", type: "image", label: "Obrazek", hint: "Wklej URL lub wgraj plik z dysku." },
     {
       key: "imageHover", type: "select", label: "Animacja obrazka (hover)",
       options: [
