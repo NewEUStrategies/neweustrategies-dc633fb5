@@ -197,41 +197,45 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
     case "slanted-ribbon-rule": {
       // Red ribbon with diagonal right edge whose slant continues as a thin
       // horizontal line all the way to the right, where the action sits.
+      // Fully responsive: ribbon shrinks/truncates, action stays visible, line spans full width.
       const fg = labelColor || contrastOn(accent);
-      const cutW = isSm ? 14 : 36;
+      const cutW = isSm ? 10 : 28;
       const lineH = isSm ? 2 : 3;
-      const ribbonPadX = isSm ? "pl-2 pr-3" : "pl-4 pr-6";
-      const ribbonPadY = isSm ? "py-1" : "py-2.5";
+      const ribbonPadX = isSm ? "pl-1.5" : "pl-4";
+      const ribbonPadY = isSm ? "py-0.5" : "py-2";
       const labelCls = isSm
-        ? "text-[9px] font-bold uppercase tracking-wider"
-        : "font-display text-base font-bold uppercase tracking-wider";
+        ? "text-[9px] font-bold uppercase tracking-wider truncate"
+        : "font-display text-sm sm:text-base font-bold uppercase tracking-wider truncate";
       const actCls = isSm
-        ? "text-[8px] font-medium text-foreground/80"
-        : "text-sm font-medium text-foreground/80 hover:opacity-80 transition";
+        ? "text-[8px] font-medium text-foreground/80 truncate"
+        : "text-xs sm:text-sm font-medium text-foreground/80 hover:opacity-80 transition truncate";
       return (
-        <div className={`${wrapperBase} relative flex items-stretch`}>
+        <div className={`${wrapperBase} relative flex items-stretch w-full min-w-0`}>
           {/* Continuous bottom line in accent color */}
           <span
             aria-hidden
-            className="absolute left-0 right-0 bottom-0"
+            className="absolute left-0 right-0 bottom-0 pointer-events-none"
             style={{ height: `${lineH}px`, background: accent }}
           />
-          {/* Ribbon with diagonal cut on the right; sits flush on top of the line */}
+          {/* Ribbon with diagonal cut on the right; shrinks but doesn't get clipped by parent */}
           <span
-            className={`relative inline-flex items-center ${ribbonPadX} ${ribbonPadY} ${labelCls}`}
+            className={`relative inline-flex items-center min-w-0 max-w-[80%] ${ribbonPadX} ${ribbonPadY} ${labelCls}`}
             style={{
               background: accent,
               color: fg,
               clipPath: `polygon(0 0, calc(100% - ${cutW}px) 0, 100% 100%, 0 100%)`,
-              paddingRight: `${cutW + (isSm ? 6 : 16)}px`,
+              paddingRight: `${cutW + (isSm ? 4 : 14)}px`,
               ...(labelSize && !isSm ? { fontSize: labelSize } : {}),
             }}
           >
-            {label}
+            <span className="truncate">{label}</span>
           </span>
-          {/* Action on the far right, vertically centered, just above the line */}
+          {/* Action on the far right, sits just above the line */}
           {action && (
-            <span className="ml-auto flex items-center" style={{ paddingRight: isSm ? 4 : 8, paddingBottom: lineH + 2 }}>
+            <span
+              className="ml-auto flex items-center min-w-0 shrink"
+              style={{ paddingLeft: isSm ? 4 : 12, paddingRight: isSm ? 4 : 8, paddingBottom: lineH + 2 }}
+            >
               {href && !isSm
                 ? <a href={href} className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</a>
                 : <span className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</span>}
