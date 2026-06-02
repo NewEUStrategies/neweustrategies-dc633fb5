@@ -421,6 +421,7 @@ export const createWpImportJob = createServerFn({ method: "POST" })
         status: "running",
         options: {
           number: data.number, offset: data.offset, status: data.status,
+          type: data.type,
           sync_existing: data.sync_existing, import_media: data.import_media,
           only_ids: data.only_ids ?? null,
         } as unknown as Json,
