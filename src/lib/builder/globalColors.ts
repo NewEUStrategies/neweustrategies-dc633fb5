@@ -340,6 +340,17 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultFontFamily: '"Red Hat Display", Georgia, serif',
         defaultFontSize: "12px",
       },
+      {
+        key: "sidebar-subtitle",
+        label: "Sidebar Subtitle (Nawigacja / Podsekcja)",
+        description: "Podtytuł / nagłówek podsekcji w sidebarze (np. Nawigacja) — z osobnym kolorem dla trybu jasnego i ciemnego.",
+        hasDark: true,
+        defaultLight: "#374151",
+        defaultDark: "#d1d5db",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "13px",
+      },
     ],
   },
   {
