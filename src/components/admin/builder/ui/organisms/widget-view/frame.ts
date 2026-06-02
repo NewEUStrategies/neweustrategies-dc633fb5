@@ -103,7 +103,6 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
   const adv = node.advanced as { width?: ResponsiveSize; height?: ResponsiveSize } | undefined;
   const wRaw = pickSize(adv?.width, device);
   const hRaw = pickSize(adv?.height, device);
-  const autoFit = AUTO_SIZE_WIDGETS.has(node.type) || COMPACT_WIDGET_TYPES.has(node.type);
 
   const style: CSSProperties = {
     width: "100%",
@@ -124,7 +123,7 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
   const sliderShouldFill = node.type === "slider" && wRaw === undefined && !node.style?.maxWidth && !horizontalAnchored;
   const w = sliderShouldFill
     ? "100%"
-    : toCssSize(wRaw) ?? node.style?.maxWidth ?? (autoFit || horizontalAnchored ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
+    : toCssSize(wRaw) ?? node.style?.maxWidth ?? (horizontalAnchored ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
   style.width = w;
   if (sliderShouldFill) {
     style.flexBasis = "100%";
