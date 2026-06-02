@@ -93,6 +93,12 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const intervalMs = Math.max(1500, config.intervalMs ?? 4500);
   const rounded = radiusMap[config.rounded ?? "md"];
   const overlayOpacity = Math.min(1, Math.max(0, config.overlayOpacity ?? 0.45));
+  const imageAnim: AnimType = config.imageAnim ?? "fade";
+  const imageDir: AnimDir = config.imageDir ?? "right";
+  const textAnim: AnimType = config.textAnim ?? "slide";
+  const textDir: AnimDir = config.textDir ?? "up";
+  const ctaAnim: AnimType = config.ctaAnim ?? "fade";
+  const ctaDir: AnimDir = config.ctaDir ?? "up";
 
   const [idx, setIdx] = useState(0);
   useEffect(() => { setIdx(0); }, [items.length]);
