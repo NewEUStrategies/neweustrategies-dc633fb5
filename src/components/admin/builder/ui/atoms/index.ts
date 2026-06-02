@@ -2,6 +2,7 @@
 export { ColorField } from "./ColorField";
 export { PropField } from "./PropField";
 export { ResponsiveInput } from "./ResponsiveInput";
+export { StepperInput } from "./StepperInput";
 export { Segmented } from "./Segmented";
 export { Row } from "./Row";
 export { ColorInput } from "./ColorInput";
