@@ -575,6 +575,64 @@ function TypographyRow({
   );
 }
 
+function FormatRow({
+  fontWeight, fontStyle, textDecoration, onWeight, onStyle, onDecoration,
+}: {
+  fontWeight: string;
+  fontStyle: string;
+  textDecoration: string;
+  onWeight: (v: string) => void;
+  onStyle: (v: string) => void;
+  onDecoration: (v: string) => void;
+}) {
+  const weightOptions: { label: string; value: string }[] = [
+    { label: "Brak", value: "" },
+    { label: "Normal", value: "400" },
+    { label: "Semibold", value: "600" },
+    { label: "Bold", value: "700" },
+  ];
+  const Btn = ({ active, onClick, children, title }: { active: boolean; onClick: () => void; children: React.ReactNode; title: string }) => (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className={`h-7 px-2 text-[11px] rounded border transition ${active ? "bg-foreground text-background border-foreground" : "bg-muted/40 border-border hover:bg-muted/70"}`}
+    >
+      {children}
+    </button>
+  );
+  return (
+    <div className="rounded-md border border-dashed border-border/70 bg-muted/20 p-2 space-y-2">
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+        Formatowanie
+      </div>
+      <div className="flex flex-wrap items-center gap-1">
+        {weightOptions.map((w) => (
+          <Btn key={w.value || "none"} active={fontWeight === w.value} onClick={() => onWeight(w.value)} title={`Grubość: ${w.label}`}>
+            <span style={{ fontWeight: w.value || "inherit" }}>{w.label}</span>
+          </Btn>
+        ))}
+        <span className="w-px h-5 bg-border mx-1" />
+        <Btn active={fontStyle === "italic"} onClick={() => onStyle(fontStyle === "italic" ? "" : "italic")} title="Kursywa">
+          <span className="italic">I</span>
+        </Btn>
+        <Btn active={textDecoration === "underline"} onClick={() => onDecoration(textDecoration === "underline" ? "" : "underline")} title="Podkreślenie">
+          <span className="underline">U</span>
+        </Btn>
+        {(fontWeight || fontStyle || textDecoration) && (
+          <button
+            type="button"
+            onClick={() => { onWeight(""); onStyle(""); onDecoration(""); }}
+            className="text-[10px] text-muted-foreground hover:text-foreground ml-auto"
+          >
+            Wyczyść
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BrandPaletteEditor({
   palette, onChange,
 }: { palette: BrandColor[]; onChange: (next: BrandColor[]) => void }) {
