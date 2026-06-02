@@ -161,6 +161,8 @@ export const createPost = createServerFn({ method: "POST" })
           title_pl: data.title_pl ?? "", title_en: data.title_en ?? "",
           parent_page_id: parentPageId,
           template_id: data.template_id ?? null,
+          editor: "blocks",
+          blocks_data: { pl: { version: 1, blocks: [] }, en: { version: 1, blocks: [] } } as unknown as Record<string, unknown>,
         })
         .select("id, slug").single();
       if (error) throw new Error(error.message);
