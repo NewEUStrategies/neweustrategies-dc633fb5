@@ -91,7 +91,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     );
   }
 
-  const cur = items[idx];
+  const safeIdx = Math.min(Math.max(0, idx), items.length - 1);
+  const cur = items[safeIdx] ?? items[0];
   const title = (lang === "en" ? cur.title_en : cur.title_pl) || cur.title_pl || cur.title_en || "";
   const sub   = (lang === "en" ? cur.subtitle_en : cur.subtitle_pl) || cur.subtitle_pl || "";
   const cta   = (lang === "en" ? cur.cta_en : cur.cta_pl) || cur.cta_pl || "";
