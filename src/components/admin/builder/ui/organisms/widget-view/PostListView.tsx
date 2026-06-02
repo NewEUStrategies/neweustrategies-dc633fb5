@@ -116,7 +116,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   const rows = data ?? [];
   if (!rows.length) {
     return (
-      <div className="text-xs text-muted-foreground border border-dashed border-border rounded-md p-4 text-center">
+      <div className="w-full text-xs text-muted-foreground border border-dashed border-border rounded-md p-4 text-center">
         Brak wpisów spełniających kryteria.
       </div>
     );
@@ -127,7 +127,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
   if (carousel) {
     return (
-      <div className="flex gap-4 overflow-x-auto pb-2 snap-x">
+      <div className="w-full flex gap-4 overflow-x-auto pb-2 snap-x">
         {rows.map((p) => (
           <PostCard key={p.id} p={p} variant={variant} carousel title={title(p)} excerpt={excerpt(p)} />
         ))}
@@ -137,7 +137,8 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
   if (variant === "list") {
     return (
-      <div className="flex flex-col divide-y divide-border">
+      <div className="w-full flex flex-col divide-y divide-border">
+
         {rows.map((p) => (
           <a key={p.id} href={`/post/${p.slug}`} className="flex gap-3 py-3 group">
             {p.cover_image_url && (
@@ -159,7 +160,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
   if (variant === "numbered") {
     return (
-      <div className="flex flex-col divide-y divide-border">
+      <div className="w-full flex flex-col divide-y divide-border">
         {rows.map((p, i) => (
           <a key={p.id} href={`/post/${p.slug}`} className="flex items-center gap-4 py-5 group relative">
             <span
@@ -189,7 +190,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
 
   return (
-    <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+    <div className="w-full grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
       {rows.map((p) => (
         <PostCard key={p.id} p={p} variant={variant} title={title(p)} excerpt={excerpt(p)} />
       ))}
