@@ -363,6 +363,8 @@ const ListInput = z.object({
   number: z.number().int().min(1).max(100).default(20),
   offset: z.number().int().min(0).max(10_000).default(0),
   status: z.enum(["publish", "draft", "any"]).default("publish"),
+  // Content type filter — default to "post" so pages/attachments are never imported by accident.
+  type: z.enum(["post", "page", "any"]).default("post"),
 });
 
 export const previewWpComPosts = createServerFn({ method: "POST" })
@@ -374,6 +376,7 @@ export const previewWpComPosts = createServerFn({ method: "POST" })
       number: String(data.number),
       offset: String(data.offset),
       status: data.status,
+      type: data.type,
       fields: "ID,slug,title,excerpt,date,modified,URL,featured_image,status",
     });
     const res = await wpFetch<WpPostsResponse>(`/rest/v1.1/sites/${site}/posts?${qs.toString()}`);
@@ -418,6 +421,7 @@ export const createWpImportJob = createServerFn({ method: "POST" })
         status: "running",
         options: {
           number: data.number, offset: data.offset, status: data.status,
+          type: data.type,
           sync_existing: data.sync_existing, import_media: data.import_media,
           only_ids: data.only_ids ?? null,
         } as unknown as Json,
@@ -464,6 +468,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
         number: String(data.number),
         offset: String(data.offset),
         status: data.status,
+        type: data.type,
         fields: "ID,slug,title,excerpt,content,date,modified,URL,featured_image,status",
       });
       await logger.push("info", `Fetching posts from ${data.site}…`);

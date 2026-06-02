@@ -39,6 +39,7 @@ function ImportWordpressPage() {
   const [number, setNumber] = useState(20);
   const [offset, setOffset] = useState(0);
   const [status, setStatus] = useState<"publish" | "draft" | "any">("publish");
+  const [type, setType] = useState<"post" | "page" | "any">("post");
   const [language, setLanguage] = useState<"pl" | "en">("pl");
   const [syncExisting, setSyncExisting] = useState(false);
   const [importMedia, setImportMedia] = useState(true);
@@ -88,7 +89,7 @@ function ImportWordpressPage() {
     mutationFn: async () => {
       if (!site.trim()) throw new Error(isPL ? "Podaj domenę witryny" : "Enter a site domain");
       setSelected(new Set());
-      return callPreview({ data: { site: site.trim(), number, offset, status } });
+      return callPreview({ data: { site: site.trim(), number, offset, status, type } });
     },
   });
 
@@ -107,7 +108,7 @@ function ImportWordpressPage() {
     mutationFn: async () => {
       const only_ids = selected.size > 0 ? Array.from(selected) : undefined;
       const input = {
-        site: site.trim(), number, offset, status, language, only_ids,
+        site: site.trim(), number, offset, status, type, language, only_ids,
         sync_existing: syncExisting, import_media: importMedia,
       };
       const { jobId: id } = await callCreate({ data: input });
@@ -205,6 +206,17 @@ function ImportWordpressPage() {
               onChange={(e) => setOffset(Math.max(0, Number(e.target.value) || 0))}
               className="h-8 text-xs"
             />
+          </div>
+          <div className="md:col-span-1.5">
+            <Label className="text-[11px] text-muted-foreground">{isPL ? "Typ treści" : "Content type"}</Label>
+            <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="post">{isPL ? "Wpisy (domyślnie)" : "Posts (default)"}</SelectItem>
+                <SelectItem value="page">{isPL ? "Strony" : "Pages"}</SelectItem>
+                <SelectItem value="any">{isPL ? "Wpisy + strony" : "Posts + pages"}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="md:col-span-1.5">
             <Label className="text-[11px] text-muted-foreground">Status</Label>
