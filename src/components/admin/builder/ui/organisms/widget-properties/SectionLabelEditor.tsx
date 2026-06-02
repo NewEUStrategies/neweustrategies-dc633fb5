@@ -11,7 +11,7 @@ import {
 } from "@/lib/builder/sectionLabelVariants";
 
 const PRESET_COLORS: { value: string; label: string; hex: string }[] = [
-  { value: "brand",     label: "Marka",     hex: "#e85d3a" },
+  { value: "brand",     label: "Marka",     hex: "#FA9346" },
   { value: "military",  label: "Military",  hex: "#9b4a2a" },
   { value: "finance",   label: "Finance",   hex: "#2d8a4e" },
   { value: "transport", label: "Transport", hex: "#c98a2a" },
