@@ -910,7 +910,7 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
         {id === "layout-2" && (
           <>
             <Bar y={0} h={36} fill="hsl(var(--muted) / 0.4)" />
-            {Logo(28, 18)}
+            <Logo cx={28} cy={18} />
             {navItems.map((i) => <NavDot key={i} x={90 + i * 22} y={18} />)}
             <rect x="180" y={14} width="14" height="8" rx="2" fill={brand} opacity="0.7" />
             <Bar y={36} h={54} fill="transparent" />
