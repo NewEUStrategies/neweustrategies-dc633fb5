@@ -1,6 +1,7 @@
 // Publiczny renderer BlocksDoc. SSR-friendly, czysto prezentacyjny.
 
 import type { Block, BlocksDoc, Json } from "@/lib/blocks/types";
+import { safeParseBlocks } from "@/lib/blocks/schema";
 import DOMPurify from "isomorphic-dompurify";
 import { parseEmbedUrl } from "@/lib/blocks/embed";
 
@@ -10,9 +11,12 @@ interface Props {
 
 export function BlocksRenderer({ doc }: Props) {
   if (!doc?.blocks?.length) return null;
+  // Defense in depth: validate at the render boundary; drops malformed data.
+  const safe = safeParseBlocks(doc);
+  if (!safe.blocks.length) return null;
   return (
     <article className="blocks-content prose prose-lg dark:prose-invert max-w-none">
-      {doc.blocks.map((b) => <BlockView key={b.id} block={b} />)}
+      {safe.blocks.map((b) => <BlockView key={b.id} block={b} />)}
     </article>
   );
 }

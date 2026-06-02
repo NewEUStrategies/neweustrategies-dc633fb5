@@ -18,6 +18,7 @@ import {
   restorePosts,
   purgePosts,
 } from "@/lib/content.functions";
+import { bulkMigratePostsToBlocks } from "@/lib/posts-migrate.functions";
 import { toast } from "sonner";
 import { BulkActionsBar, type BulkStatus } from "@/components/admin/BulkActionsBar";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
@@ -44,6 +45,7 @@ function PostsList() {
   const bulkUpd$ = useServerFn(bulkUpdatePosts);
   const restore$ = useServerFn(restorePosts);
   const purge$ = useServerFn(purgePosts);
+  const migrate$ = useServerFn(bulkMigratePostsToBlocks);
   const [view, setView] = useState<View>("active");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
@@ -228,6 +230,18 @@ function PostsList() {
       },
     });
   };
+  const onBulkMigrate = async () => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    try {
+      const res = await migrate$({ data: { ids } });
+      toast.success(`Skonwertowano: ${res.migrated}/${res.total}`);
+      clear();
+      invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
   const onBulkPurge = () => {
     const ids = [...selected];
     setConfirmState({
@@ -318,6 +332,7 @@ function PostsList() {
             onClear={clear}
             onApplyStatus={onBulkStatus}
             onDelete={onBulkDelete}
+            onMigrateToBlocks={onBulkMigrate}
           />
         )}
         {isLoading ? (
