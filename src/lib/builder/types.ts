@@ -92,6 +92,12 @@ export interface AdvancedSettings {
   animationEasing?: MotionEasing;
   animationDistance?: number;    // px — for slide/reveal presets
   hideOn?: { desktop?: boolean; tablet?: boolean; mobile?: boolean };
+  /**
+   * Flow positioning relative to siblings in a column.
+   *  - "block" (default): widget takes its own row, full width.
+   *  - "inline": widget sits next to neighbouring inline widgets in the same row.
+   */
+  layout?: "block" | "inline";
   htmlId?: string;
   // Per-breakpoint widget frame size. `number` = px, "auto" = hug content.
   // Legacy projects may still use a flat number — read with `pickWidgetSize`.
