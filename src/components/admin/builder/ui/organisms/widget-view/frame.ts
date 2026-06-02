@@ -41,32 +41,36 @@ export const styleToCSS = (
   mode: Mode = "light",
 ): CSSProperties => {
   if (!s) return {};
+  // Layout properties (padding, margin, sizes, typography metrics, radii,
+  // border widths, opacity) must NOT change when toggling light/dark — only
+  // colors do. We collapse themed values to a single shared value by
+  // preferring light and falling back to dark.
   const css: CSSProperties = {};
   const bgColor = resolveColorForMode(s.bgColor, mode);
   if (bgColor) css.background = bgColor;
   const textColor = resolveColorForMode(s.textColor, mode);
   if (textColor) css.color = textColor;
-  const padding = pick(pickMode(s.padding, mode), device);
+  const padding = pick(pickMode(s.padding, "light") ?? pickMode(s.padding, "dark"), device);
   if (padding) css.padding = padding;
-  const margin = pick(pickMode(s.margin, mode), device);
+  const margin = pick(pickMode(s.margin, "light") ?? pickMode(s.margin, "dark"), device);
   if (margin) css.margin = margin;
   const align = pick(s.align, device);
   if (align) css.textAlign = align;
-  const borderRadius = pickMode(s.borderRadius, mode);
+  const borderRadius = pickMode(s.borderRadius, "light") ?? pickMode(s.borderRadius, "dark");
   if (borderRadius) css.borderRadius = borderRadius;
   if (s.maxWidth) css.maxWidth = s.maxWidth;
   if (s.minHeight) css.minHeight = s.minHeight;
-  const borderStyle = pickMode(s.borderStyle, mode);
+  const borderStyle = pickMode(s.borderStyle, "light") ?? pickMode(s.borderStyle, "dark");
   if (borderStyle && borderStyle !== "none") {
     css.borderStyle = borderStyle;
-    css.borderWidth = pickMode(s.borderWidth, mode) || "1px";
+    css.borderWidth = (pickMode(s.borderWidth, "light") ?? pickMode(s.borderWidth, "dark")) || "1px";
     const borderColor = resolveColorForMode(s.borderColor, mode);
     if (borderColor) css.borderColor = borderColor;
   }
-  const boxShadow = pickMode(s.boxShadow, mode);
+  const boxShadow = pickMode(s.boxShadow, "light") ?? pickMode(s.boxShadow, "dark");
   if (boxShadow) css.boxShadow = boxShadow;
   if (typeof s.opacity === "number") css.opacity = s.opacity;
-  const t = pickMode<WidgetTypography>(s.typography, mode);
+  const t = pickMode<WidgetTypography>(s.typography, "light") ?? pickMode<WidgetTypography>(s.typography, "dark");
   if (t) {
     if (t.fontFamily) css.fontFamily = t.fontFamily;
     const size = pick(t.fontSize, device);
