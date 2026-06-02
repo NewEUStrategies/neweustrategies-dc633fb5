@@ -29,6 +29,12 @@ import { WidgetView, getWidgetFrameStyle } from "../../../WidgetView";
 import { AUTO_SIZE_WIDGETS, COMPACT_WIDGET_TYPES, hiddenOnDevice } from "../../organisms/widget-view/frame";
 import { IconBtn } from "../../atoms/IconBtn";
 import type { Selection } from "./types";
+import type { HtmlTag } from "@/lib/builder/types";
+
+const TOOLBAR_TAGS = new Set<HtmlTag>(["header", "footer", "nav"]);
+function isToolbarTag(tag?: HtmlTag): boolean {
+  return !!tag && TOOLBAR_TAGS.has(tag);
+}
 
 export interface SectionViewProps {
   section: SectionNode; device: Device; lang: "pl" | "en";
