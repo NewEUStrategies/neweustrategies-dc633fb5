@@ -28,6 +28,7 @@ import {
   type LangFilter,
 } from "@/components/admin/molecules/AdminListToolbar";
 import { LangCoverageBadges } from "@/components/admin/atoms/LangCoverageBadges";
+import { StatusBadge } from "@/components/admin/atoms/StatusBadge";
 import { useTenantAuthors, authorLabel } from "@/components/admin/hooks/useTenantAuthors";
 
 type Reading = {
@@ -453,9 +454,8 @@ function PagesList() {
                         {authorLabel(author)}
                       </td>
                       <td className="p-2">
-                        <Badge variant={p.status === "published" ? "default" : p.status === "draft" ? "secondary" : "outline"} className="text-[10px] py-0 px-1.5">
-                          {t(`admin.status.${p.status}`)}
-                        </Badge>
+                        <StatusBadge status={p.status} label={t(`admin.status.${p.status}`)} />
+
                       </td>
                       <td className="p-2 hidden md:table-cell text-muted-foreground text-[11px] tabular-nums">
                         {new Date((isTrash && p.deleted_at) ? p.deleted_at : p.updated_at).toLocaleString(lang)}
