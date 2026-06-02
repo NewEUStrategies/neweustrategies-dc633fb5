@@ -197,7 +197,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const html = getStr(c, key) || getStr(c, "html_pl");
       const cols = getNum(c, "columns", 1);
       const dropCap = getStr(c, "dropCap") === "on";
-      const proseCls = `prose prose-sm max-w-none dark:prose-invert ${dropCap ? "first-letter:float-left first-letter:text-5xl first-letter:font-display first-letter:mr-2 first-letter:leading-none" : ""}`;
+      const proseCls = `prose prose-sm max-w-none [&_*]:text-inherit ${dropCap ? "first-letter:float-left first-letter:text-5xl first-letter:font-display first-letter:mr-2 first-letter:leading-none" : ""}`;
       const colStyle = cols > 1 ? { columnCount: cols, columnGap: "1.5rem" } as CSSProperties : undefined;
       const singleColumnCompactStyle = cols <= 1
         ? { ...compactRowStyle, display: "flex", alignItems: "center", width: "100%" } satisfies CSSProperties

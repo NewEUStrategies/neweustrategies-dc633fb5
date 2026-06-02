@@ -27,7 +27,7 @@ export function TabsBlock({ tabs, lang, nodeId }: { tabs: Array<Record<string, s
           </button>
         ))}
       </div>
-      <div role="tabpanel" className="prose prose-sm max-w-none dark:prose-invert"
+      <div role="tabpanel" className="prose prose-sm max-w-none [&_*]:text-inherit"
         dangerouslySetInnerHTML={{ __html: sanitizeHtml(cur[`html_${lang}`] || cur.html_pl || "") }} />
     </div>
   );

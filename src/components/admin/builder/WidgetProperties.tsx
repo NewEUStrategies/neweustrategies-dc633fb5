@@ -460,10 +460,12 @@ function useInheritedColors(
         setV({});
         return;
       }
+      const textTarget = el.querySelector<HTMLElement>("h1,h2,h3,h4,h5,h6,p,span,a,button,li,blockquote,figcaption,[contenteditable='true']") ?? el;
       const cs = window.getComputedStyle(el);
+      const tcs = window.getComputedStyle(textTarget);
       setV({
         bgColor: cs.backgroundColor || undefined,
-        textColor: cs.color || undefined,
+        textColor: tcs.color || cs.color || undefined,
         borderColor: cs.borderColor || cs.borderTopColor || undefined,
       });
     };
