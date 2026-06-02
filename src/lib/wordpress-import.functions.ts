@@ -467,6 +467,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
         number: String(data.number),
         offset: String(data.offset),
         status: data.status,
+        type: data.type,
         fields: "ID,slug,title,excerpt,content,date,modified,URL,featured_image,status",
       });
       await logger.push("info", `Fetching posts from ${data.site}…`);
