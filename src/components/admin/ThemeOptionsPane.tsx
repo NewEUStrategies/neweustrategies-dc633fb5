@@ -497,30 +497,30 @@ export function ThemeOptionsPane() {
 
         {active === "header.alert_bar" && (
           <div className="space-y-4">
-            <Row label="Włącz Alert Bar" hint="Pasek powiadomień nad nagłówkiem.">
+            <Row label={t("themeOptions.alertBar.enable")} hint={t("themeOptions.alertBar.enableHint")}>
               <Switch checked={draft.header.alert_bar.enabled} onCheckedChange={(v) => patchAlert({ enabled: v })} />
             </Row>
-            <Row label="Treść (PL)">
+            <Row label={t("themeOptions.alertBar.messagePl")}>
               <Input value={draft.header.alert_bar.message_pl} onChange={(e) => patchAlert({ message_pl: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="Nowa publikacja dostępna…" />
             </Row>
-            <Row label="Treść (EN)">
+            <Row label={t("themeOptions.alertBar.messageEn")}>
               <Input value={draft.header.alert_bar.message_en} onChange={(e) => patchAlert({ message_en: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="New publication available…" />
             </Row>
-            <Row label="Link (URL)" hint="Opcjonalny — całość paska klikalna.">
+            <Row label={t("themeOptions.alertBar.link")} hint={t("themeOptions.alertBar.linkHint")}>
               <Input value={draft.header.alert_bar.link_url} onChange={(e) => patchAlert({ link_url: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="/blog" />
             </Row>
-            <Row label="Styl">
+            <Row label={t("themeOptions.alertBar.style")}>
               <Select value={draft.header.alert_bar.style} onValueChange={(v) => patchAlert({ style: v as AlertStyle })}>
                 <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="brand">Brand</SelectItem>
-                  <SelectItem value="info">Info</SelectItem>
-                  <SelectItem value="warning">Warning</SelectItem>
-                  <SelectItem value="success">Success</SelectItem>
+                  <SelectItem value="brand">{t("themeOptions.alertBar.styleBrand")}</SelectItem>
+                  <SelectItem value="info">{t("themeOptions.alertBar.styleInfo")}</SelectItem>
+                  <SelectItem value="warning">{t("themeOptions.alertBar.styleWarning")}</SelectItem>
+                  <SelectItem value="success">{t("themeOptions.alertBar.styleSuccess")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Możliwość zamknięcia" hint="Użytkownik może ukryć pasek (zapamiętane w localStorage).">
+            <Row label={t("themeOptions.alertBar.dismissible")} hint={t("themeOptions.alertBar.dismissibleHint")}>
               <Switch checked={draft.header.alert_bar.dismissible} onCheckedChange={(v) => patchAlert({ dismissible: v })} />
             </Row>
           </div>
