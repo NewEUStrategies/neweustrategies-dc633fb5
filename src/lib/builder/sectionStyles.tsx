@@ -76,10 +76,9 @@ export function sectionWrapperStyle(node: SectionNode | InnerSectionNode): CSSPr
   return css;
 }
 
-/** Style for the inner container (boxed width vs. full). */
-export function sectionContainerStyle(node: SectionNode | InnerSectionNode): CSSProperties {
-  const L = node.layout;
-  const css: CSSProperties = {
+/** Style for the inner container — full width with 8px side padding. */
+export function sectionContainerStyle(_node: SectionNode | InnerSectionNode): CSSProperties {
+  return {
     position: "relative",
     zIndex: 1,
     width: "100%",
@@ -89,13 +88,6 @@ export function sectionContainerStyle(node: SectionNode | InnerSectionNode): CSS
     paddingLeft: `${SECTION_SAFE_AREA_PX}px`,
     paddingRight: `${SECTION_SAFE_AREA_PX}px`,
   };
-  const contentWidth = L?.contentWidth ?? "boxed";
-  if (contentWidth === "boxed") {
-    css.maxWidth = `${L?.width ?? 1140}px`;
-    css.marginLeft = "auto";
-    css.marginRight = "auto";
-  }
-  return css;
 }
 
 /** Style for the columns grid container (gap + vertical alignment). */
