@@ -444,13 +444,13 @@ function ColorRow({
 }
 
 const FONT_PRESETS: { label: string; value: string }[] = [
+  { label: "Red Hat Display (domyślny)", value: '"Red Hat Display", Georgia, serif' },
+  { label: "Inter", value: "Inter, system-ui, sans-serif" },
+  { label: "Georgia (serif)", value: "Georgia, 'Times New Roman', serif" },
+  { label: "Mono", value: "ui-monospace, SFMono-Regular, monospace" },
   { label: "Display (var)", value: "var(--font-display)" },
   { label: "Sans (var)", value: "var(--font-sans)" },
   { label: "Inherit", value: "inherit" },
-  { label: "Inter", value: "Inter, system-ui, sans-serif" },
-  { label: "Red Hat Display", value: '"Red Hat Display", Georgia, serif' },
-  { label: "Georgia (serif)", value: "Georgia, 'Times New Roman', serif" },
-  { label: "Mono", value: "ui-monospace, SFMono-Regular, monospace" },
 ];
 
 function TypographyRow({
