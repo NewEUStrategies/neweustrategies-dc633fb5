@@ -102,8 +102,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           padding-bottom: 4px;
         }
         .eh-slider:hover .eh-title { background-size: 100% 2px; }
-        .eh-slider .eh-img { transition: transform 1400ms cubic-bezier(.22,.61,.36,1); transform-origin: center center; will-change: transform; }
-        .eh-slider:hover .eh-img { transform: scale(1.025); }
+        .eh-slider .eh-img { transition: transform 2200ms cubic-bezier(.16,.84,.34,1); transform-origin: center center; will-change: transform; backface-visibility: hidden; }
+        .eh-slider:hover .eh-img { transform: scale(1.012); }
       `}</style>
 
       {/* Image */}
