@@ -90,6 +90,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const hasRealItems = items.some((it) => it.image);
   const previewCfg = {
     variant, ratio, autoplay: true, intervalMs, rounded, overlayOpacity,
+    imageAnim, imageDir, textAnim, textDir, ctaAnim, ctaDir,
     items: hasRealItems ? items : demoItems,
   };
 
