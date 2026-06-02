@@ -245,3 +245,14 @@ export function parseEmbedUrl(raw: string): ParsedEmbed | null {
   // ---- Lossless fallback: unknown provider, original URL preserved ----
   return { provider: "unknown", embedUrl: sourceUrl, sourceUrl };
 }
+
+/** Providers that expose a real iframe-loadable embed URL. */
+const IFRAME_PROVIDERS = new Set<EmbedProvider>([
+  "youtube", "vimeo", "x", "instagram", "tiktok", "facebook",
+  "spotify", "soundcloud", "dailymotion", "twitch", "loom",
+  "wistia", "codepen", "codesandbox", "reddit", "linkedin",
+]);
+
+export function isIframeEmbed(parsed: ParsedEmbed | null | undefined): boolean {
+  return !!parsed && IFRAME_PROVIDERS.has(parsed.provider);
+}
