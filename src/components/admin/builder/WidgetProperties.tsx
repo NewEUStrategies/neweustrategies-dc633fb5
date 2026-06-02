@@ -367,7 +367,9 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         </section>
       </TabsContent>
     </Tabs>
+    </div>
   );
+
 }
 
 // ---- Themed color field: shows reset button + override dot when overridden ----
