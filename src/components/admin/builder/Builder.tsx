@@ -96,7 +96,10 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   const history = useHistory(initial, onChange);
   const doc = history.doc;
   const [device, setDevice] = useState<Device>("desktop");
-  const [mode, setMode] = useState<Mode>("light");
+  // Default canvas preview mode follows the live site theme so the editor
+  // shows the same colors/tokens visitors see — keeps admin and prod parity.
+  const { theme } = useTheme();
+  const [mode, setMode] = useState<Mode>(theme === "dark" ? "dark" : "light");
   const [selection, setSelection] = useState<Selection>({ kind: null, id: null });
   const [showNavigator, setShowNavigator] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
