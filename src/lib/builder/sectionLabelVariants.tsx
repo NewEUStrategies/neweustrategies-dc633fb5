@@ -119,7 +119,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
         <div className={`flex items-center justify-between ${wrapperBase} ${padY}`}>
           <span
             className={isSm ? "px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" : "px-3 py-1.5 text-sm font-bold uppercase tracking-wider"}
-            style={{ background: accent, color: contrastOn(accent) }}
+            style={{ background: accent, color: labelColor || contrastOn(accent), ...(labelSize && !isSm ? { fontSize: labelSize } : {}) }}
           >
             {label}
           </span>
@@ -131,7 +131,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
         <div className={`${wrapperBase} ${padY} text-center`}>
           <div className="flex items-center justify-center gap-3">
             <span className="flex-1 h-px bg-border" />
-            <span className={isSm ? "text-[10px] font-semibold" : "font-display text-2xl font-semibold tracking-tight"}>{label}</span>
+            <span className={isSm ? "text-[10px] font-semibold" : "font-display text-2xl font-semibold tracking-tight"} style={labelStyle}>{label}</span>
             <span className="flex-1 h-px bg-border" />
           </div>
           {ActionEl && <div className="mt-1">{ActionEl}</div>}
@@ -142,14 +142,15 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
         <div className={`${wrapperBase} ${padY} text-center`}>
           <div className="flex items-center justify-center gap-3">
             <span className={isSm ? "inline-block h-[2px] w-4" : "inline-block h-[2px] w-10"} style={{ background: accent }} />
-            <span className={isSm ? "text-[10px] font-semibold" : "font-display text-2xl font-semibold tracking-tight"}>{label}</span>
+            <span className={isSm ? "text-[10px] font-semibold" : "font-display text-2xl font-semibold tracking-tight"} style={labelStyle}>{label}</span>
             <span className={isSm ? "inline-block h-[2px] w-4" : "inline-block h-[2px] w-10"} style={{ background: accent }} />
           </div>
-          {ActionEl && <div className={isSm ? "mt-0.5 text-[8px] text-muted-foreground" : "mt-1 text-xs text-muted-foreground"}>{action}</div>}
+          {ActionEl && <div className={isSm ? "mt-0.5 text-[8px] text-muted-foreground" : "mt-1 text-xs text-muted-foreground"} style={actionStyle}>{action}</div>}
         </div>
       );
   }
 }
+
 
 function Corners({ accent, sm }: { accent: string; sm: boolean }) {
   const s = sm ? 4 : 8;
