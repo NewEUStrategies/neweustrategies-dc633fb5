@@ -116,7 +116,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   const rows = data ?? [];
   if (!rows.length) {
     return (
-      <div className="text-xs text-muted-foreground border border-dashed border-border rounded-md p-4 text-center">
+      <div className="w-full text-xs text-muted-foreground border border-dashed border-border rounded-md p-4 text-center">
         Brak wpisów spełniających kryteria.
       </div>
     );
