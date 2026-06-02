@@ -150,7 +150,7 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
             </div>
           );
         }
-        return <>{g.items.map((w) => renderItem(w, false))}</>;
+        return <React.Fragment key={gi}>{g.items.map((w) => renderItem(w, false))}</React.Fragment>;
       })}
     </div>
   );
