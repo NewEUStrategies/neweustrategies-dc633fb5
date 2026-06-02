@@ -11,6 +11,7 @@ import {
   SliderRender,
   ANIM_TYPES,
   ANIM_DIRS,
+  ANIM_PRESETS,
   type SliderVariant,
   type SliderItem,
   type AnimType,
