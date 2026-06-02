@@ -392,12 +392,12 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
 
 
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Cień ({mode === "dark" ? "ciemny" : "jasny"})</h4>
+          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Cień</h4>
           <PropField label="Cień (CSS box-shadow)">
             <Input
-              value={getThemedStr("boxShadow")}
+              value={getFlatStr("boxShadow")}
               placeholder="0 10px 30px rgba(0,0,0,.15)"
-              onChange={(e) => setThemedStr("boxShadow", e.target.value)}
+              onChange={(e) => setFlatStr("boxShadow", e.target.value)}
             />
           </PropField>
           <div className="flex flex-wrap gap-1">
@@ -411,12 +411,13 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
               <button
                 key={p.label}
                 type="button"
-                onClick={() => setThemedStr("boxShadow", p.v || undefined)}
+                onClick={() => setFlatStr("boxShadow", p.v || undefined)}
                 className="px-2 py-0.5 text-[10px] rounded border border-border hover:bg-muted"
               >{p.label}</button>
             ))}
           </div>
         </section>
+
 
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Typografia ({mode === "dark" ? "ciemny" : "jasny"})</h4>
