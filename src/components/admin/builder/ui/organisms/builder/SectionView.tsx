@@ -260,10 +260,10 @@ function ColumnView({
 }
 
 function SortableWidget({
-  widget, lang, device, selected, onSelect, onDuplicate, onRemove, onUpdateContent,
+  widget, lang, device, selected, onSelect, onDuplicate, onRemove, onToggleHidden, onUpdateContent,
 }: {
   widget: WidgetNode; lang: "pl" | "en"; device: Device; selected: boolean;
-  onSelect: () => void; onDuplicate: () => void; onRemove: () => void;
+  onSelect: () => void; onDuplicate: () => void; onRemove: () => void; onToggleHidden: () => void;
   onUpdateContent: (key: string, value: string | number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
@@ -271,13 +271,14 @@ function SortableWidget({
   const hidden = !!widget.advanced?.hideOn?.[device];
   const frameStyle = getWidgetFrameStyle(widget, device);
   return (
-    <div ref={setNodeRef} data-widget-id={widget.id} style={{ ...style, ...frameStyle, boxSizing: "border-box", padding: 0 }} {...attributes}
+    <div ref={setNodeRef} data-widget-id={widget.id} style={{ ...style, ...frameStyle, boxSizing: "border-box", padding: 0, overflow: "visible" }} {...attributes}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
-      className={`group/w relative flex flex-col items-stretch justify-start shrink min-w-0 max-w-full overflow-hidden rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} ${hidden ? "opacity-40" : ""}`}
+      className={`group/w relative flex flex-col items-stretch justify-start shrink min-w-0 max-w-full rounded border-2 ${selected ? "border-brand" : "border-transparent hover:border-brand/40"} ${hidden ? "opacity-40" : ""}`}
     >
-      <div className={`absolute -top-2.5 right-2 z-10 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] transition ${selected ? "opacity-100" : "opacity-0 group-hover/w:opacity-100"}`}>
+      <div className={`absolute -top-2.5 right-2 z-30 flex items-center gap-0.5 bg-background border border-border rounded px-1 py-0.5 text-[10px] shadow-sm transition ${selected ? "opacity-100" : "opacity-0 group-hover/w:opacity-100"}`}>
         <span {...listeners} className="cursor-grab text-muted-foreground px-1" title="Przeciągnij">⋮⋮</span>
         <IconBtn onClick={(e) => { e.stopPropagation(); onDuplicate(); }} title="Duplikuj"><Copy className="w-3 h-3" /></IconBtn>
+        <IconBtn onClick={(e) => { e.stopPropagation(); onToggleHidden(); }} title={hidden ? `Pokaż na ${device}` : `Ukryj na ${device}`}><Eye className={`w-3 h-3 ${hidden ? "opacity-40" : ""}`} /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
       </div>
       <div className={selected ? "h-full w-full" : "pointer-events-none h-full w-full"}>
