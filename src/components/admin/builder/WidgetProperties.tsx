@@ -84,6 +84,40 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
     }
   });
 
+  // ---- Themed read/write for generic string-valued style fields. The widget
+  // frame already reads these per-mode via pickMode, so editing them per mode
+  // gives the user a live, theme-correct preview without losing the other
+  // mode's value. ----
+  type StringStyleKey = "borderRadius" | "borderWidth" | "boxShadow";
+  const getThemedStr = (key: StringStyleKey): string => {
+    const v = pickMode<string>(widget.style?.[key] as Themed<string> | undefined, mode);
+    return typeof v === "string" ? v : "";
+  };
+  const setThemedStr = (key: StringStyleKey, v: string | undefined) => setStyle((s) => {
+    const prev = s[key] as Themed<string> | undefined;
+    (s[key] as Themed<string> | undefined) = setThemedMode<string>(prev, mode, v && v.length ? v : undefined);
+  });
+  const getThemedBorderStyle = (): string => {
+    const v = pickMode<CommonStyle["borderStyle"]>(
+      widget.style?.borderStyle as Themed<CommonStyle["borderStyle"]> | undefined,
+      mode,
+    );
+    return (typeof v === "string" ? v : "none");
+  };
+  const setThemedBorderStyle = (v: CommonStyle["borderStyle"] | undefined) => setStyle((s) => {
+    const prev = s.borderStyle as Themed<CommonStyle["borderStyle"]> | undefined;
+    (s.borderStyle as Themed<CommonStyle["borderStyle"]> | undefined) =
+      setThemedMode<CommonStyle["borderStyle"]>(prev, mode, v);
+  });
+  // Typography is themed at the whole-object level (one block per mode).
+  const getThemedTypography = (): WidgetTypography | undefined =>
+    pickMode<WidgetTypography>(widget.style?.typography as Themed<WidgetTypography> | undefined, mode);
+  const setThemedTypography = (t: WidgetTypography | undefined) => setStyle((s) => {
+    const prev = s.typography as Themed<WidgetTypography> | undefined;
+    (s.typography as Themed<WidgetTypography> | undefined) =
+      setThemedMode<WidgetTypography>(prev, mode, t && Object.keys(t).length ? t : undefined);
+  });
+
   // ---- Themed hover colors ----
   const hoverValue: HoverStyle | undefined = (() => {
     const h = widget.style?.hover;
