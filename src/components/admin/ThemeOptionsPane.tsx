@@ -171,7 +171,7 @@ export function ThemeOptionsPane() {
   const [active, setActive] = useState<(typeof SECTIONS)[number]["id"]>("logo");
   const [logoTab, setLogoTab] = useState<"default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark">("default");
 
-  if (!draft) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
+  if (!draft) return <p className="text-sm text-muted-foreground">{t("themeOptions.loading")}</p>;
 
 
   const patchLogo = (p: Partial<ThemeOptions["logo"]>) =>
