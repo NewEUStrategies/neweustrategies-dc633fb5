@@ -952,7 +952,7 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
         {id === "layout-6" && (
           <>
             <rect x="0" y="0" width="44" height="90" fill="hsl(var(--muted) / 0.6)" />
-            {Logo(22, 12, 22)}
+            <Logo cx={22} cy={12} w={22} />
             {navItems.map((i) => (
               <rect key={i} x={8} y={26 + i * 12} width={28} height={6} rx="1.5" fill={fg} opacity="0.55" />
             ))}
