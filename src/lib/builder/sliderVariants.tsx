@@ -178,7 +178,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
                 {title && <h3 className="text-xl md:text-3xl font-bold drop-shadow">{title}</h3>}
                 {sub && <p className="mt-2 text-sm md:text-base opacity-90 max-w-2xl">{sub}</p>}
                 {cta && href && (
-                  <a href={href} className="mt-4 inline-flex items-center px-4 py-2 rounded-md bg-white text-black text-sm font-medium hover:bg-white/90">{cta}</a>
+                  <a href={href} className="mt-4 inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-white/95 text-black text-sm font-semibold tracking-wide shadow-sm hover:bg-white hover:shadow-md transition">{cta} <span aria-hidden>→</span></a>
                 )}
               </div>
             )}
