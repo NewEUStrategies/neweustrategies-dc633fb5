@@ -254,7 +254,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
             <span className={titleCls} style={labelStyle}>{label}</span>
             {ActionEl && <div className={`${isSm ? "mt-0.5" : "mt-1"} truncate`}>{ActionEl}</div>}
           </div>
-          <span aria-hidden className="block w-full bg-border" style={{ height: 1 }} />
+          <span aria-hidden className="block w-full" style={{ height: 1, background: accent, opacity: 0.85 }} />
         </div>
       );
     }
