@@ -1017,7 +1017,10 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
     case "sidebar-btn-hover-text":
     case "sidebar-border":
     case "sidebar-title":
-    case "sidebar-subtitle": {
+    case "sidebar-subtitle":
+    case "sidebar-icon":
+    case "sidebar-icon-hover":
+    case "sidebar-icon-active": {
       const bg = get("sidebar-bg");
       const text = get("sidebar-text");
       const btnBg = get("sidebar-btn-bg");
@@ -1027,27 +1030,47 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
       const border = get("sidebar-border");
       const title = get("sidebar-title");
       const subtitle = get("sidebar-subtitle");
+      const icon = get("sidebar-icon");
+      const iconHover = get("sidebar-icon-hover");
+      const iconActive = get("sidebar-icon-active");
+      const Item = ({
+        state, label, path,
+      }: { state: "active" | "hover" | "idle"; label: string; path: string }) => {
+        const itemBg = state === "active" ? btnBg : state === "hover" ? hBg : "transparent";
+        const itemText = state === "active" ? btnText : state === "hover" ? hText : text;
+        const itemIcon = state === "active" ? iconActive : state === "hover" ? iconHover : icon;
+        return (
+          <div
+            className="flex items-center gap-2 px-2 py-1.5 rounded text-[11px] font-medium"
+            style={{ background: itemBg, color: itemText }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={itemIcon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d={path} />
+            </svg>
+            <span className="flex-1 truncate">{label}</span>
+            {state === "hover" && <span className="text-[8px] uppercase opacity-60">hover</span>}
+          </div>
+        );
+      };
       return (
         <div
           style={{ background: bg, color: text, borderColor: border }}
-          className="w-full rounded border p-2 flex flex-col gap-1 text-[11px]"
+          className="w-full rounded border p-2.5 flex flex-col gap-1.5"
         >
-          <div style={{ color: title }} className="text-[10px] font-semibold uppercase tracking-wider px-1">Menu</div>
-          <div style={{ color: subtitle, borderColor: border }} className="pb-1 border-b font-semibold">Nawigacja</div>
-          <div className="flex items-center gap-1.5 px-1.5 py-1 rounded" style={{ background: btnBg, color: btnText }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2z"/></svg>
-            <span>Aktywny</span>
+          <div style={{ color: title }} className="text-[10px] font-bold uppercase tracking-wider px-1 pt-0.5">
+            Newsroom
           </div>
-          <div className="flex items-center gap-1.5 px-1.5 py-1 rounded" style={{ background: hBg, color: hText }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
-            <span>Hover</span>
+          <div style={{ color: subtitle, borderColor: border }} className="text-[9px] uppercase tracking-widest font-semibold pb-1.5 border-b px-1">
+            Nawigacja
           </div>
-          <div style={{ color: title }} className="text-[10px] font-semibold uppercase tracking-wider px-1 pt-1">Ustawienia</div>
-          <div style={{ color: subtitle, borderColor: border }} className="pb-1 border-b font-semibold">Konto</div>
-          <div className="flex items-center gap-1.5 px-1.5 py-1">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
-            <span>Normalny link</span>
+          <Item state="active" label="Kokpit" path="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" />
+          <Item state="idle" label="Wpisy" path="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <Item state="hover" label="Media" path="M21 15V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z" />
+          <div style={{ color: subtitle, borderColor: border }} className="text-[9px] uppercase tracking-widest font-semibold pt-1.5 pb-1.5 border-b px-1">
+            Konto
           </div>
+          <Item state="idle" label="Ustawienia" path="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+          <Item state="idle" label="Wyloguj" path="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9" />
         </div>
       );
     }
