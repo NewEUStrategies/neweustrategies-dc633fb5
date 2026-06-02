@@ -52,13 +52,13 @@ export function buildHomepageDocument(): BuilderDocument {
         column(3, [
           widget("section-label", {
             label_pl: "Najnowszy raport", label_en: "Latest report",
-            color: "military", variant: "rect-bg",
+            color: "military", variant: "left-bar",
             action_pl: "Więcej", action_en: "More",
           }),
           widget("post-list", { limit: 1, columns: 1, variant: "card" }),
           widget("section-label", {
             label_pl: "Nadchodzące wydarzenia", label_en: "Upcoming events",
-            color: "brand", variant: "rect-bg",
+            color: "brand", variant: "left-bar",
             action_pl: "Więcej", action_en: "More",
           }),
           widget("post-list", { limit: 2, columns: 1, variant: "list" }),
@@ -86,7 +86,7 @@ export function buildHomepageDocument(): BuilderDocument {
         column(3, [
           widget("section-label", {
             label_pl: "Zdaniem ekspertów", label_en: "Expert opinions",
-            color: "#0a0a0a", variant: "rect-bg",
+            color: "#0a0a0a", variant: "left-bar",
             action_pl: "Więcej", action_en: "More",
           }),
           widget("rated-list", {
@@ -110,7 +110,7 @@ export function buildHomepageDocument(): BuilderDocument {
           widget("section-label", {
             label_pl: "Wywiady i podcasty",
             label_en: "Interviews & podcasts",
-            color: "brand", variant: "rect-bg",
+            color: "brand", variant: "left-bar",
             action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("dark-featured-card", {
@@ -125,7 +125,7 @@ export function buildHomepageDocument(): BuilderDocument {
         column(6, [
           widget("section-label", {
             label_pl: "Nasze raporty", label_en: "Our reports",
-            color: "military", variant: "rect-bg",
+            color: "military", variant: "left-bar",
             action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("post-list", { limit: 2, columns: 1, variant: "list" }),
@@ -137,7 +137,7 @@ export function buildHomepageDocument(): BuilderDocument {
         column(12, [
           widget("section-label", {
             label_pl: "Wojskowość i Geopolityka", label_en: "Military & Geopolitics",
-            color: "military", variant: "rect-bg",
+            color: "military", variant: "left-bar",
             action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("post-list", { limit: 3, columns: 3, variant: "card" }),
@@ -149,7 +149,7 @@ export function buildHomepageDocument(): BuilderDocument {
         column(8, [
           widget("section-label", {
             label_pl: "Finanse i Gospodarka", label_en: "Finance & Economy",
-            color: "finance", variant: "rect-bg",
+            color: "finance", variant: "left-bar",
             action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("post-list", { limit: 3, columns: 3, variant: "card" }),
@@ -157,7 +157,7 @@ export function buildHomepageDocument(): BuilderDocument {
         column(4, [
           widget("section-label", {
             label_pl: "Recenzje książek", label_en: "Book reviews",
-            color: "#0a0a0a", variant: "rect-bg",
+            color: "#0a0a0a", variant: "left-bar",
             action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("post-list", { limit: 1, columns: 1, variant: "card" }),
@@ -169,7 +169,7 @@ export function buildHomepageDocument(): BuilderDocument {
         column(4, [
           widget("section-label", {
             label_pl: "Transport i Energetyka", label_en: "Transport & Energy",
-            color: "transport", variant: "rect-bg",
+            color: "transport", variant: "left-bar",
             action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("post-list", { limit: 2, columns: 1, variant: "minimal" }),
@@ -177,7 +177,7 @@ export function buildHomepageDocument(): BuilderDocument {
         column(4, [
           widget("section-label", {
             label_pl: "Dyplomacja", label_en: "Diplomacy",
-            color: "diplomacy", variant: "rect-bg",
+            color: "diplomacy", variant: "left-bar",
             action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("post-list", { limit: 2, columns: 1, variant: "minimal" }),
@@ -185,7 +185,7 @@ export function buildHomepageDocument(): BuilderDocument {
         column(4, [
           widget("section-label", {
             label_pl: "Cyberbezpieczeństwo", label_en: "Cybersecurity",
-            color: "cyber", variant: "rect-bg",
+            color: "cyber", variant: "left-bar",
             action_pl: "Zobacz więcej", action_en: "See more",
           }),
           widget("post-list", { limit: 2, columns: 1, variant: "minimal" }),
