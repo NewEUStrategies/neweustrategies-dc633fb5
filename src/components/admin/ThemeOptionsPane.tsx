@@ -885,10 +885,10 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
   const Bar = ({ y, h, fill = bg }: { y: number; h: number; fill?: string }) => (
     <rect x="0" y={y} width="200" height={h} fill={fill} />
   );
-  const Logo = (cx: number, cy: number, w = 28) => (
+  const Logo = ({ cx, cy, w = 28 }: { cx: number; cy: number; w?: number }) => (
     <rect x={cx - w / 2} y={cy - 4} width={w} height={8} rx="1.5" fill={brand} />
   );
-  const NavDot = (x: number, y: number, w = 14) => (
+  const NavDot = ({ x, y, w = 14 }: { x: number; y: number; w?: number }) => (
     <rect x={x} y={y - 2} width={w} height={4} rx="1" fill={fg} opacity="0.55" />
   );
 
