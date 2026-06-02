@@ -62,18 +62,34 @@ export interface AnimatedHeadingConfig {
   align?: "left" | "center" | "right";
 }
 
-const shapeStroke: Record<AnimatedHeadingShape, string> = {
-  none: "0",
-  underline: "3",
-  "double-underline": "2.5",
-  curly: "3",
-  zigzag: "3",
-  circle: "3",
-  diagonal: "3",
-  strike: "3",
-  "double-strike": "2.5",
-  x: "3",
-  framed: "3",
+const shapeStroke: Record<AnimatedHeadingShape, number> = {
+  none: 0,
+  underline: 3,
+  "double-underline": 2.5,
+  curly: 2.5,
+  zigzag: 2.5,
+  circle: 3,
+  diagonal: 3,
+  strike: 3,
+  "double-strike": 2.5,
+  x: 3,
+  framed: 3,
+};
+
+// Rough path lengths (user-units) used to drive stroke-dashoffset animation.
+// Must be >= actual rendered path length so the line starts hidden.
+const shapePathLen: Record<AnimatedHeadingShape, number> = {
+  none: 0,
+  underline: 220,
+  "double-underline": 460,
+  curly: 520,
+  zigzag: 380,
+  circle: 520,
+  diagonal: 220,
+  strike: 220,
+  "double-strike": 440,
+  x: 440,
+  framed: 460,
 };
 
 function ShapeSvg({
@@ -87,9 +103,8 @@ function ShapeSvg({
   animKey: string | number;
 }) {
   if (shape === "none") return null;
-  // viewBox kept generic — preserveAspectRatio=none makes the stroke stretch to
-  // the highlighted text box.
   const stroke = shapeStroke[shape];
+  const len = shapePathLen[shape];
   const dur = `${durationMs}ms`;
   const delay = `${delayMs}ms`;
   const iter = loop ? "infinite" : "1";
@@ -97,34 +112,41 @@ function ShapeSvg({
 
   const css = `
     @keyframes ${animName} {
-      from { stroke-dashoffset: 1000; }
+      from { stroke-dashoffset: ${len}; }
       to   { stroke-dashoffset: 0; }
     }
     .ahead-path-${animKey} {
-      stroke-dasharray: 1000;
-      stroke-dashoffset: 1000;
+      stroke-dasharray: ${len};
+      stroke-dashoffset: ${len};
       animation: ${animName} ${dur} ${delay} ${iter} forwards ease-in-out;
     }
   `;
 
+  // Underline-family viewBox is taller and paths sit lower so they read well
+  // even when squeezed into a short overlay band.
+  let viewBox = "0 0 200 22";
   let body: React.ReactNode = null;
   switch (shape) {
     case "underline":
-      body = <path d="M2 18 Q 100 14 198 18" />;
+      viewBox = "0 0 200 10";
+      body = <path d="M2 6 Q 100 2 198 6" />;
       break;
     case "double-underline":
+      viewBox = "0 0 200 14";
       body = (
         <>
-          <path d="M2 15 Q 100 11 198 15" />
-          <path d="M2 19 Q 100 17 198 19" />
+          <path d="M2 4 Q 100 1 198 4" />
+          <path d="M2 11 Q 100 8 198 11" />
         </>
       );
       break;
     case "curly":
-      body = <path d="M2 16 q 12 -10 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0 t 24 0" />;
+      viewBox = "0 0 200 14";
+      body = <path d="M2 7 q 12.5 -7 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 23 0" />;
       break;
     case "zigzag":
-      body = <path d="M2 18 L 22 12 L 42 18 L 62 12 L 82 18 L 102 12 L 122 18 L 142 12 L 162 18 L 182 12 L 198 18" />;
+      viewBox = "0 0 200 14";
+      body = <path d="M2 11 L 22 3 L 42 11 L 62 3 L 82 11 L 102 3 L 122 11 L 142 3 L 162 11 L 182 3 L 198 11" />;
       break;
     case "circle":
       body = <path d="M100 4 C 30 4, 4 12, 4 11.5 C 4 19, 30 19.5, 100 19.5 C 170 19.5, 196 19, 196 11.5 C 196 4, 170 4, 100 4 Z" />;
@@ -158,23 +180,27 @@ function ShapeSvg({
       return null;
   }
 
+  const isUnderlineLike =
+    shape === "underline" || shape === "double-underline" || shape === "curly" || shape === "zigzag";
+
   const position: CSSProperties =
     shape === "circle" || shape === "framed" || shape === "x"
-      ? { position: "absolute", inset: "-6% -4%", width: "108%", height: "112%", pointerEvents: "none", zIndex: 0 }
+      ? { position: "absolute", inset: "-6% -4%", width: "108%", height: "112%", pointerEvents: "none", zIndex: 0, overflow: "visible" }
       : shape === "strike" || shape === "double-strike" || shape === "diagonal"
-      ? { position: "absolute", left: 0, right: 0, top: "45%", width: "100%", height: "0.5em", pointerEvents: "none", zIndex: 0 }
-      : { position: "absolute", left: 0, right: 0, top: "100%", width: "100%", height: "0.4em", marginTop: "-0.05em", pointerEvents: "none", zIndex: 0 };
+      ? { position: "absolute", left: 0, right: 0, top: "45%", width: "100%", height: "0.5em", pointerEvents: "none", zIndex: 0, overflow: "visible" }
+      : { position: "absolute", left: 0, right: 0, top: "100%", width: "100%", height: isUnderlineLike ? "0.55em" : "0.4em", marginTop: isUnderlineLike ? "-0.1em" : "-0.05em", pointerEvents: "none", zIndex: 0, overflow: "visible" };
 
   return (
     <>
       <style>{css}</style>
-      <svg viewBox="0 0 200 22" preserveAspectRatio="none" style={position}>
+      <svg viewBox={viewBox} preserveAspectRatio="none" style={position}>
         <g
           fill="none"
           stroke={color}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
           className={`ahead-path-${animKey}`}
         >
           {body}
@@ -183,6 +209,7 @@ function ShapeSvg({
     </>
   );
 }
+
 
 export function AnimatedHeadingRender({
   config,
