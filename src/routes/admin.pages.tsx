@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Home, Undo2, X, Search } from "@/lib/lucide-shim";
+import { Plus, Pencil, Trash2, Home, Undo2, X } from "@/lib/lucide-shim";
 import {
   deletePage,
   bulkDeletePages,
@@ -22,6 +22,13 @@ import { toast } from "sonner";
 import { BulkActionsBar, type BulkStatus } from "@/components/admin/BulkActionsBar";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
 import { useSettings } from "@/lib/admin/useSettings";
+import {
+  AdminListToolbar,
+  type StatusFilter,
+  type LangFilter,
+} from "@/components/admin/molecules/AdminListToolbar";
+import { LangCoverageBadges } from "@/components/admin/atoms/LangCoverageBadges";
+import { useTenantAuthors, authorLabel } from "@/components/admin/hooks/useTenantAuthors";
 
 type Reading = {
   posts_per_page: number;
