@@ -198,6 +198,8 @@ export function ThemeOptionsPane() {
     setDraft({ ...draft, buttons: { ...draft.buttons, ...p } });
   const patchInputs = (p: Partial<ThemeOptions["text_fields"]>) =>
     setDraft({ ...draft, text_fields: { ...draft.text_fields, ...p } });
+  const patchSidebarStyle = (style: SidebarStyle) =>
+    setDraft({ ...draft, sidebars: { ...draft.sidebars, style } });
 
   return (
     <ThemeOptionsBody
