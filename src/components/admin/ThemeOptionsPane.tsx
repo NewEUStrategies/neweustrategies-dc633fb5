@@ -209,9 +209,9 @@ export function ThemeOptionsPane() {
         ) : (
         <>
         <div className="flex items-center justify-between">
-          <h3 className="font-display text-lg">{SECTIONS.find((s) => s.id === active)?.label}</h3>
+          <h3 className="font-display text-lg">{(() => { const s = SECTIONS.find((x) => x.id === active); return s ? t(s.labelKey) : ""; })()}</h3>
           <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
-            <Save className="w-4 h-4 mr-2" /> {save.isPending ? "Zapisywanie…" : "Zapisz"}
+            <Save className="w-4 h-4 mr-2" /> {save.isPending ? t("themeOptions.saving") : t("themeOptions.save")}
           </Button>
         </div>
 
