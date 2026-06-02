@@ -19,7 +19,7 @@ interface Props {
   onMigrateToBlocks?: () => Promise<void> | void;
 }
 
-export function BulkActionsBar({ count, onClear, onApplyStatus, onDelete }: Props) {
+export function BulkActionsBar({ count, onClear, onApplyStatus, onDelete, onMigrateToBlocks }: Props) {
   const [status, setStatus] = useState<BulkStatus | "">("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
