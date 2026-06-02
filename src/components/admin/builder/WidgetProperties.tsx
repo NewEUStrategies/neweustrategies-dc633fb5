@@ -85,31 +85,34 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
     }
   });
 
-  // ---- Themed read/write for generic string-valued style fields. The widget
-  // frame already reads these per-mode via pickMode, so editing them per mode
-  // gives the user a live, theme-correct preview without losing the other
-  // mode's value. ----
+  // ---- Shared (non-themed) read/write for dimension / border / shadow fields.
+  // These are intentionally NOT per-mode: only colors differ between light
+  // and dark. Border radius, width, shadow strength etc. stay identical.
   type StringStyleKey = "borderRadius" | "borderWidth" | "boxShadow";
-  const getThemedStr = (key: StringStyleKey): string => {
-    const v = pickMode<string>(widget.style?.[key] as Themed<string> | undefined, mode);
+  const getFlatStr = (key: StringStyleKey): string => {
+    const v = widget.style?.[key];
+    // Back-compat: if a legacy themed value exists, surface whichever side is set.
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      const o = v as { light?: string; dark?: string };
+      return (o.light ?? o.dark ?? "") as string;
+    }
     return typeof v === "string" ? v : "";
   };
-  const setThemedStr = (key: StringStyleKey, v: string | undefined) => setStyle((s) => {
-    const prev = s[key] as Themed<string> | undefined;
-    (s[key] as Themed<string> | undefined) = setThemedMode<string>(prev, mode, v && v.length ? v : undefined);
+  const setFlatStr = (key: StringStyleKey, v: string | undefined) => setStyle((s) => {
+    (s as Record<string, unknown>)[key] = v && v.length ? v : undefined;
   });
-  const getThemedBorderStyle = (): string => {
-    const v = pickMode<CommonStyle["borderStyle"]>(
-      widget.style?.borderStyle as Themed<CommonStyle["borderStyle"]> | undefined,
-      mode,
-    );
+  const getFlatBorderStyle = (): string => {
+    const v = widget.style?.borderStyle as unknown;
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      const o = v as { light?: string; dark?: string };
+      return (o.light ?? o.dark ?? "none") as string;
+    }
     return (typeof v === "string" ? v : "none");
   };
-  const setThemedBorderStyle = (v: CommonStyle["borderStyle"] | undefined) => setStyle((s) => {
-    const prev = s.borderStyle as Themed<CommonStyle["borderStyle"]> | undefined;
-    (s.borderStyle as Themed<CommonStyle["borderStyle"]> | undefined) =
-      setThemedMode<CommonStyle["borderStyle"]>(prev, mode, v);
+  const setFlatBorderStyle = (v: CommonStyle["borderStyle"] | undefined) => setStyle((s) => {
+    (s as Record<string, unknown>).borderStyle = v ?? undefined;
   });
+
   // Typography is themed at the whole-object level (one block per mode).
   const getThemedTypography = (): WidgetTypography | undefined =>
     pickMode<WidgetTypography>(widget.style?.typography as Themed<WidgetTypography> | undefined, mode);
@@ -308,14 +311,15 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Wymiary ({mode === "dark" ? "ciemny" : "jasny"})</h4>
+          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Wymiary</h4>
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Zaokrąglenie rogów">
               <Input
-                value={getThemedStr("borderRadius")}
+                value={getFlatStr("borderRadius")}
                 placeholder="8px"
-                onChange={(e) => setThemedStr("borderRadius", e.target.value)}
+                onChange={(e) => setFlatStr("borderRadius", e.target.value)}
               />
+
             </PropField>
             <PropField label="Maks. szerokość">
               <Input
@@ -346,12 +350,12 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Obramowanie ({mode === "dark" ? "ciemny" : "jasny"})</h4>
+          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Obramowanie</h4>
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Styl">
               <Select
-                value={getThemedBorderStyle()}
-                onValueChange={(v) => setThemedBorderStyle(v === "none" ? undefined : (v as CommonStyle["borderStyle"]))}
+                value={getFlatBorderStyle()}
+                onValueChange={(v) => setFlatBorderStyle(v === "none" ? undefined : (v as CommonStyle["borderStyle"]))}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -369,14 +373,14 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
             </PropField>
             <PropField label="Grubość">
               <Input
-                value={getThemedStr("borderWidth")}
+                value={getFlatStr("borderWidth")}
                 placeholder="1px"
-                onChange={(e) => setThemedStr("borderWidth", e.target.value)}
+                onChange={(e) => setFlatStr("borderWidth", e.target.value)}
               />
             </PropField>
           </div>
           <ThemedColorField
-            label="Kolor obramowania"
+            label={`Kolor obramowania (${mode === "dark" ? "ciemny" : "jasny"})`}
             value={getColor("borderColor")}
             onChange={(v) => setColor("borderColor", v)}
             overridden={isOverridden("borderColor")}
@@ -386,13 +390,14 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
           />
         </section>
 
+
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Cień ({mode === "dark" ? "ciemny" : "jasny"})</h4>
+          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Cień</h4>
           <PropField label="Cień (CSS box-shadow)">
             <Input
-              value={getThemedStr("boxShadow")}
+              value={getFlatStr("boxShadow")}
               placeholder="0 10px 30px rgba(0,0,0,.15)"
-              onChange={(e) => setThemedStr("boxShadow", e.target.value)}
+              onChange={(e) => setFlatStr("boxShadow", e.target.value)}
             />
           </PropField>
           <div className="flex flex-wrap gap-1">
@@ -406,12 +411,13 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
               <button
                 key={p.label}
                 type="button"
-                onClick={() => setThemedStr("boxShadow", p.v || undefined)}
+                onClick={() => setFlatStr("boxShadow", p.v || undefined)}
                 className="px-2 py-0.5 text-[10px] rounded border border-border hover:bg-muted"
               >{p.label}</button>
             ))}
           </div>
         </section>
+
 
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Typografia ({mode === "dark" ? "ciemny" : "jasny"})</h4>
