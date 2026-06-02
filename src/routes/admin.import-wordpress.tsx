@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ArrowLeft, AlertTriangle, Check } from "@/lib/lucide-shim";
+import { Loader2, ArrowLeft, AlertTriangle, Check, X } from "@/lib/lucide-shim";
 import { Download } from "lucide-react";
 import {
   listWpComSites,
@@ -15,6 +15,7 @@ import {
   createWpImportJob,
   runWpImportJob,
   getWpImportJob,
+  cancelWpImportJob,
 } from "@/lib/wordpress-import.functions";
 
 export const Route = createFileRoute("/admin/import-wordpress")({
@@ -49,9 +50,17 @@ function ImportWordpressPage() {
   const callCreate = useServerFn(createWpImportJob);
   const callRun = useServerFn(runWpImportJob);
   const callGet = useServerFn(getWpImportJob);
+  const callCancel = useServerFn(cancelWpImportJob);
 
   const sites = useMutation({
     mutationFn: async () => (await callListSites()).sites as SiteOption[],
+  });
+
+  const cancel = useMutation({
+    mutationFn: async () => {
+      if (!jobId) return null;
+      return callCancel({ data: { jobId } });
+    },
   });
 
   const preview = useMutation({
@@ -233,7 +242,14 @@ function ImportWordpressPage() {
       </div>
 
       {jobData && (
-        <JobPanel data={jobData} pct={pct} isPL={isPL} />
+        <JobPanel
+          data={jobData}
+          pct={pct}
+          isPL={isPL}
+          canCancel={isRunning}
+          onCancel={() => cancel.mutate()}
+          cancelPending={cancel.isPending}
+        />
       )}
 
       {posts.length > 0 && (
@@ -287,7 +303,12 @@ interface JobShape {
   log: unknown; error: string | null; finished_at: string | null;
 }
 
-function JobPanel({ data, pct, isPL }: { data: JobShape; pct: number; isPL: boolean }) {
+function JobPanel({
+  data, pct, isPL, canCancel, onCancel, cancelPending,
+}: {
+  data: JobShape; pct: number; isPL: boolean;
+  canCancel: boolean; onCancel: () => void; cancelPending: boolean;
+}) {
   const log: LogEntry[] = Array.isArray(data.log) ? (data.log as LogEntry[]) : [];
   const logRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -296,25 +317,41 @@ function JobPanel({ data, pct, isPL }: { data: JobShape; pct: number; isPL: bool
 
   const done = data.status === "completed";
   const failed = data.status === "failed";
+  const canceled = data.status === "canceled";
 
   return (
     <div className="rounded-md border border-border bg-card p-3 text-xs space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           {done && <Check className="w-4 h-4 text-emerald-600" />}
           {failed && <AlertTriangle className="w-4 h-4 text-destructive" />}
-          {!done && !failed && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          {canceled && <X className="w-4 h-4 text-muted-foreground" />}
+          {!done && !failed && !canceled && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           <strong>
             {done
               ? (isPL ? "Import zakończony" : "Import completed")
               : failed
                 ? (isPL ? "Import nieudany" : "Import failed")
-                : (isPL ? "Importowanie w tle…" : "Importing in background…")}
+                : canceled
+                  ? (isPL ? "Import anulowany" : "Import canceled")
+                  : (isPL ? "Importowanie w tle…" : "Importing in background…")}
           </strong>
         </div>
-        <span className="text-muted-foreground">
-          {data.processed}/{data.total} ({pct}%)
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground">
+            {data.processed}/{data.total} ({pct}%)
+          </span>
+          {canCancel && (
+            <Button
+              type="button" size="sm" variant="outline"
+              className="h-7 text-[11px]"
+              onClick={onCancel} disabled={cancelPending}
+            >
+              {cancelPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <X className="w-3 h-3 mr-1" />}
+              {isPL ? "Anuluj" : "Cancel"}
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="h-1.5 w-full rounded bg-muted overflow-hidden">

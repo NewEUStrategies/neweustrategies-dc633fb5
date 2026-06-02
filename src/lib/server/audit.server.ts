@@ -10,7 +10,8 @@ export type AuditAction =
   | "page.create" | "page.update" | "page.delete" | "page.publish"
   | "category.create" | "category.update" | "category.delete"
   | "tag.create" | "tag.delete"
-  | "role.grant" | "role.revoke";
+  | "role.grant" | "role.revoke"
+  | "wp_import.cancel";
 
 export async function recordAudit(
   supabase: SupabaseClient,

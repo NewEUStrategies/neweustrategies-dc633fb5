@@ -300,10 +300,23 @@ interface JobPatch {
   skipped?: number;
   failed?: number;
   media_imported?: number;
-  status?: "running" | "completed" | "failed";
+  status?: "running" | "completed" | "failed" | "canceled";
   error?: string | null;
   total?: number;
   finished_at?: string | null;
+}
+
+async function readJobStatus(
+  supabase: SupabaseClient, jobId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("wp_import_jobs").select("status").eq("id", jobId).maybeSingle();
+  return (data?.status as string | undefined) ?? null;
+}
+
+function firstContentImage(html: string): string | null {
+  const m = html.match(/<img[^>]+src\s*=\s*"([^"]+)"/i);
+  return m ? m[1] : null;
 }
 
 async function patchJob(
@@ -470,25 +483,40 @@ export const runWpImportJob = createServerFn({ method: "POST" })
         : null;
 
       for (const wp of filtered) {
+        // Cooperative cancellation: re-check status each iteration.
+        const liveStatus = await readJobStatus(supabase, data.jobId);
+        if (liveStatus === "canceled") {
+          await logger.push("warn", "Import canceled by user.");
+          await patchJob(supabase, data.jobId, {
+            status: "canceled", finished_at: new Date().toISOString(),
+          });
+          return {
+            jobId: data.jobId, status: "canceled" as const,
+            processed, imported, updated_count, skipped, failed,
+            media_imported: importer?.count ?? 0,
+          };
+        }
+
         try {
           const desiredSlug = wp.slug || slugify(stripTags(wp.title)) || `wp-${wp.ID}`;
 
-          // Cover image (optional import).
-          let coverUrl: string | null = wp.featured_image ?? null;
+          // Inline media (optional) — rewrite first so we can pick a cover from content if needed.
+          let html = wp.content || "";
+          if (importer && html) {
+            html = await rewriteHtmlMedia(html, importer, siteHost, (u, err) => {
+              void logger.push("warn", `Media skipped ${u}: ${err instanceof Error ? err.message : "unknown"}`, wp.ID);
+            });
+          }
+
+          // Cover: normalize empty -> null, fallback to first content image.
+          const rawCover = (wp.featured_image ?? "").trim();
+          let coverUrl: string | null = rawCover.length > 0 ? rawCover : firstContentImage(html);
           if (coverUrl && importer) {
             try {
               coverUrl = await importer.importUrl(coverUrl);
             } catch (e) {
               await logger.push("warn", `Cover image failed: ${e instanceof Error ? e.message : "unknown"}`, wp.ID);
             }
-          }
-
-          // Inline media (optional).
-          let html = wp.content || "";
-          if (importer && html) {
-            html = await rewriteHtmlMedia(html, importer, siteHost, (u, err) => {
-              void logger.push("warn", `Media skipped ${u}: ${err instanceof Error ? err.message : "unknown"}`, wp.ID);
-            });
           }
 
           const doc = parseGutenberg(html);
@@ -511,12 +539,14 @@ export const runWpImportJob = createServerFn({ method: "POST" })
 
           // Existing post?
           const { data: existing } = await supabase
-            .from("posts").select("id").eq("tenant_id", tenantId).eq("slug", desiredSlug).maybeSingle();
+            .from("posts").select("id, cover_image_url")
+            .eq("tenant_id", tenantId).eq("slug", desiredSlug).maybeSingle();
 
           if (existing?.id && !data.sync_existing) {
             skipped += 1;
             await logger.push("info", `Skipped (slug exists): ${desiredSlug}`, wp.ID);
           } else if (existing?.id && data.sync_existing) {
+            const prevCover = (existing.cover_image_url as string | null) ?? null;
             const { error: upErr } = await supabase
               .from("posts")
               .update({
@@ -531,11 +561,18 @@ export const runWpImportJob = createServerFn({ method: "POST" })
               .eq("id", existing.id);
             if (upErr) throw new Error(upErr.message);
             updated_count += 1;
+            if (prevCover !== coverUrl) {
+              await logger.push(
+                "info",
+                coverUrl ? `Cover updated: ${desiredSlug}` : `Cover cleared: ${desiredSlug}`,
+                wp.ID,
+              );
+            }
             await logger.push("info", `Updated: ${desiredSlug}`, wp.ID);
             await recordAudit(supabase, {
               tenantId, action: "post.update", entityType: "post",
               entityId: existing.id as string,
-              metadata: { source: "wordpress_com", wp_id: wp.ID },
+              metadata: { source: "wordpress_com", wp_id: wp.ID, cover_changed: prevCover !== coverUrl },
             });
           } else {
             const slug = await ensureUniqueSlug(supabase, tenantId, desiredSlug);
@@ -609,4 +646,35 @@ export const getWpImportJob = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!row) throw new Error("Job not found");
     return row;
+  });
+
+// ---- cancel ----
+
+const CancelInput = z.object({ jobId: z.string().uuid() });
+
+export const cancelWpImportJob = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => CancelInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const tenantId = await resolveTenant(supabase, userId);
+    const { data: job } = await supabase
+      .from("wp_import_jobs").select("id, status, tenant_id")
+      .eq("id", data.jobId).maybeSingle();
+    if (!job || job.tenant_id !== tenantId) throw new Error("Job not found");
+    if (job.status !== "running") {
+      return { jobId: data.jobId, status: job.status as string };
+    }
+    // Flip status; the runner polls and finalizes (writes finished_at and the
+    // "canceled by user" log entry) on its next iteration.
+    const { error } = await supabase
+      .from("wp_import_jobs")
+      .update({ status: "canceled" })
+      .eq("id", data.jobId);
+    if (error) throw new Error(error.message);
+    await recordAudit(supabase, {
+      tenantId, action: "wp_import.cancel", entityType: "wp_import_job",
+      entityId: data.jobId,
+    });
+    return { jobId: data.jobId, status: "canceled" };
   });
