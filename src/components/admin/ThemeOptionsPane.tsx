@@ -874,7 +874,101 @@ function ThemeOptionsBody({
 }
 
 
-function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark") => void }) {
+function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
+  // Tokens
+  const bg = "hsl(var(--muted))";
+  const fg = "hsl(var(--muted-foreground))";
+  const brand = "hsl(var(--brand, var(--primary)))";
+  const border = "hsl(var(--border))";
+  const navItems = [0, 1, 2, 3];
+
+  const Bar = ({ y, h, fill = bg }: { y: number; h: number; fill?: string }) => (
+    <rect x="0" y={y} width="200" height={h} fill={fill} />
+  );
+  const Logo = (cx: number, cy: number, w = 28) => (
+    <rect x={cx - w / 2} y={cy - 4} width={w} height={8} rx="1.5" fill={brand} />
+  );
+  const NavDot = (x: number, y: number, w = 14) => (
+    <rect x={x} y={y - 2} width={w} height={4} rx="1" fill={fg} opacity="0.55" />
+  );
+
+  return (
+    <div className="rounded-md border border-border bg-background overflow-hidden">
+      <svg viewBox="0 0 200 90" className="w-full h-[90px] block" preserveAspectRatio="none">
+        {id === "layout-1" && (
+          <>
+            <Bar y={0} h={10} fill="hsl(var(--muted) / 0.6)" />
+            <NavDot x={6} y={5} w={20} />
+            <NavDot x={170} y={5} w={24} />
+            <Bar y={10} h={40} fill="transparent" />
+            {Logo(100, 30)}
+            <Bar y={50} h={20} fill="hsl(var(--muted) / 0.4)" />
+            {navItems.map((i) => <NavDot key={i} x={50 + i * 28} y={60} />)}
+            <Bar y={70} h={20} fill="transparent" />
+          </>
+        )}
+        {id === "layout-2" && (
+          <>
+            <Bar y={0} h={36} fill="hsl(var(--muted) / 0.4)" />
+            {Logo(28, 18)}
+            {navItems.map((i) => <NavDot key={i} x={90 + i * 22} y={18} />)}
+            <rect x="180" y={14} width="14" height="8" rx="2" fill={brand} opacity="0.7" />
+            <Bar y={36} h={54} fill="transparent" />
+          </>
+        )}
+        {id === "layout-3" && (
+          <>
+            <Bar y={0} h={36} fill="hsl(var(--muted) / 0.4)" />
+            <NavDot x={14} y={18} />
+            <NavDot x={36} y={18} />
+            <NavDot x={58} y={18} />
+            {Logo(100, 18, 32)}
+            <NavDot x={134} y={18} />
+            <NavDot x={156} y={18} />
+            <NavDot x={178} y={18} />
+            <Bar y={36} h={54} fill="transparent" />
+          </>
+        )}
+        {id === "layout-4" && (
+          <>
+            <Bar y={0} h={10} fill="hsl(var(--muted) / 0.6)" />
+            <NavDot x={6} y={5} w={18} />
+            <NavDot x={172} y={5} w={22} />
+            <Bar y={10} h={32} fill="transparent" />
+            {Logo(100, 26, 36)}
+            <Bar y={42} h={18} fill="hsl(var(--muted) / 0.4)" />
+            {navItems.map((i) => <NavDot key={i} x={56 + i * 26} y={51} />)}
+            <Bar y={60} h={30} fill="transparent" />
+          </>
+        )}
+        {id === "layout-5" && (
+          <>
+            <Bar y={0} h={36} fill="transparent" />
+            {Logo(28, 18)}
+            {navItems.map((i) => <NavDot key={i} x={110 + i * 22} y={18} />)}
+            <Bar y={36} h={54} fill="transparent" />
+          </>
+        )}
+        {id === "layout-6" && (
+          <>
+            <rect x="0" y="0" width="44" height="90" fill="hsl(var(--muted) / 0.6)" />
+            {Logo(22, 12, 22)}
+            {navItems.map((i) => (
+              <rect key={i} x={8} y={26 + i * 12} width={28} height={6} rx="1.5" fill={fg} opacity="0.55" />
+            ))}
+            <rect x="44" y="0" width="1" height="90" fill={border} />
+            <Bar y={0} h={90} fill="transparent" />
+            <rect x={56} y={10} width={90} height={6} rx="1.5" fill={fg} opacity="0.4" />
+            <rect x={56} y={22} width={130} height={4} rx="1" fill={fg} opacity="0.25" />
+            <rect x={56} y={30} width={120} height={4} rx="1" fill={fg} opacity="0.25" />
+          </>
+        )}
+      </svg>
+    </div>
+  );
+}
+
+
   const tabs: { id: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark"; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: "default", label: "Default Logos", icon: ImageIcon },
     { id: "mobile", label: "Mobile Logos", icon: Smartphone },
