@@ -443,6 +443,70 @@ function ColorRow({
   );
 }
 
+const FONT_PRESETS: { label: string; value: string }[] = [
+  { label: "Display (var)", value: "var(--font-display)" },
+  { label: "Sans (var)", value: "var(--font-sans)" },
+  { label: "Inherit", value: "inherit" },
+  { label: "Inter", value: "Inter, system-ui, sans-serif" },
+  { label: "Red Hat Display", value: '"Red Hat Display", Georgia, serif' },
+  { label: "Georgia (serif)", value: "Georgia, 'Times New Roman', serif" },
+  { label: "Mono", value: "ui-monospace, SFMono-Regular, monospace" },
+];
+
+function TypographyRow({
+  fontFamily, fontSize, defaultFontFamily, defaultFontSize, onFontFamily, onFontSize,
+}: {
+  fontFamily: string;
+  fontSize: string;
+  defaultFontFamily?: string;
+  defaultFontSize?: string;
+  onFontFamily: (v: string) => void;
+  onFontSize: (v: string) => void;
+}) {
+  return (
+    <div className="rounded-md border border-dashed border-border/70 bg-muted/20 p-2 space-y-2">
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+        Typografia
+      </div>
+      <div className="grid grid-cols-[1fr_120px] gap-2 items-center">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground w-12">Font</span>
+          <Input
+            list="gc-font-presets"
+            value={fontFamily}
+            placeholder={defaultFontFamily || "var(--font-sans)"}
+            onChange={(e) => onFontFamily(e.target.value)}
+            className="h-8 text-xs"
+          />
+          <datalist id="gc-font-presets">
+            {FONT_PRESETS.map((p) => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </datalist>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Size</span>
+          <Input
+            value={fontSize}
+            placeholder={defaultFontSize || "1rem"}
+            onChange={(e) => onFontSize(e.target.value)}
+            className="h-8 text-xs font-mono"
+          />
+        </div>
+      </div>
+      {(fontFamily || fontSize) && (
+        <button
+          type="button"
+          onClick={() => { onFontFamily(""); onFontSize(""); }}
+          className="text-[10px] text-muted-foreground hover:text-foreground"
+        >
+          Wyczyść font/size
+        </button>
+      )}
+    </div>
+  );
+}
+
 function BrandPaletteEditor({
   palette, onChange,
 }: { palette: BrandColor[]; onChange: (next: BrandColor[]) => void }) {
