@@ -105,6 +105,24 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
   const scopedCss = scopeCustomCss(node.advanced?.customCss, node.id);
   const hover = hoverCss(node.id, node.style, device);
 
+  // Widget-level color overrides win over any global/utility class colors
+  // (text-foreground, text-muted-foreground, prose, etc.). When the user sets
+  // a color on a widget, force descendants to inherit it.
+  const widgetTextColor = resolveColorForMode(node.style?.textColor, effectiveMode);
+  const widgetBgColor = resolveColorForMode(node.style?.bgColor, effectiveMode);
+  const overrideCss = (() => {
+    const sel = `[data-w-id="${node.id}"]`;
+    const rules: string[] = [];
+    if (widgetTextColor) {
+      rules.push(`${sel}, ${sel} *:not(svg):not(path):not([data-keep-color]) { color: ${widgetTextColor} !important; }`);
+      rules.push(`${sel} svg:not([data-keep-color]) { color: ${widgetTextColor}; }`);
+    }
+    if (widgetBgColor) {
+      rules.push(`${sel} { background: ${widgetBgColor} !important; }`);
+    }
+    return rules.join("\n");
+  })();
+
   const isImage = node.type === "image";
   const wrap = (children: React.ReactNode) => (
     <div
@@ -116,6 +134,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     >
       {children}
       {hover && <style dangerouslySetInnerHTML={{ __html: hover }} />}
+      {overrideCss && <style dangerouslySetInnerHTML={{ __html: overrideCss }} />}
       {scopedCss && <style dangerouslySetInnerHTML={{ __html: scopedCss }} />}
     </div>
   );
