@@ -125,3 +125,66 @@
   display: inline-block;
   clip-path: polygon(0 0, 100% 0, calc(100% - 16px) 100%, 0 100%);
 }
+
+/* ===== Sidebar Styles (Theme Options → Sidebars) =====
+   Applied to both internal admin sidebar and global Layout 6 sidebar.
+   Driven by [data-sidebar-style] on the <aside data-sidebar="sidebar"> root. */
+
+/* Style 2 — Minimal Borderless */
+aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] {
+  background: transparent !important;
+  border-right: 1px solid hsl(var(--border));
+  box-shadow: none;
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] [data-sidebar="menu-button"] {
+  background: transparent !important;
+  color: hsl(var(--muted-foreground));
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] [data-sidebar="menu-button"][data-active="true"] {
+  background: transparent !important;
+  color: hsl(var(--primary));
+  font-weight: 600;
+}
+
+/* Style 3 — Floating Card */
+aside[data-sidebar="sidebar"][data-sidebar-style="style-3"] {
+  margin: 0.5rem;
+  height: calc(100vh - 1rem) !important;
+  max-height: calc(100vh - 1rem) !important;
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 12px 32px -12px rgba(0,0,0,0.25);
+}
+
+/* Style 4 — Compact Rail (always collapsed to icons) */
+aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="menu-button"] > span:not(.shrink-0) {
+  display: none !important;
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="menu-button"] {
+  justify-content: center;
+}
+
+/* Style 5 — Glass */
+aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] {
+  background: hsl(var(--card) / 0.55) !important;
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-right: 1px solid hsl(var(--border) / 0.5);
+}
+
+/* Style 6 — Bold Dark (forces dark contrast in both modes) */
+aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] {
+  background: #0b0b10 !important;
+  border-right: 1px solid #1f1f29;
+  color: #e6e7eb;
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar="menu-button"] {
+  color: #c7c9d1;
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar="menu-button"]:hover {
+  background: #1a1a24 !important;
+  color: #ffffff;
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar-brand] {
+  color: #ffffff;
+}

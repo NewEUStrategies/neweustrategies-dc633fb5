@@ -14,9 +14,13 @@ type SidebarLogoCfg = {
     sidebar_expanded: string; sidebar_expanded_dark: string;
     main: string; main_dark: string;
   };
+  sidebars?: {
+    style?: "style-1" | "style-2" | "style-3" | "style-4" | "style-5" | "style-6";
+  };
 };
 const SIDEBAR_LOGO_DEFAULTS: SidebarLogoCfg = {
   logo: { sidebar_icon: "", sidebar_icon_dark: "", sidebar_expanded: "", sidebar_expanded_dark: "", main: "", main_dark: "" },
+  sidebars: { style: "style-1" },
 };
 
 
@@ -37,6 +41,8 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
   const path = useRouterState({ select: (s) => s.location.pathname });
   const lang = i18n.language ?? "pl";
   const { extras } = useAdminSidebarExtrasSlot();
+  const themeOpts = useSiteSetting<SidebarLogoCfg>("theme_options", SIDEBAR_LOGO_DEFAULTS);
+  const sidebarStyle = themeOpts.sidebars?.style ?? "style-1";
 
 
   const isEditRoute = /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
@@ -76,7 +82,8 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
       {!hideSidebar && (
         <aside
           data-sidebar="sidebar"
-          className={`${compact ? "w-14" : "w-64"} bg-card border-r border-border flex flex-col transition-all duration-200 sticky top-0 self-start h-screen max-h-screen`}
+          data-sidebar-style={sidebarStyle}
+          className={`${compact || sidebarStyle === "style-4" ? "w-14" : "w-64"} bg-card border-r border-border flex flex-col transition-all duration-200 sticky top-0 self-start h-screen max-h-screen`}
         >
 
           <div className="p-3 border-b border-border">
