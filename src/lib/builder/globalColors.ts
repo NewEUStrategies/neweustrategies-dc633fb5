@@ -519,8 +519,8 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(a, .link){color:var(--gc-highlight, inherit);}
     :where(.review-star-bg){background:var(--gc-review-bg, transparent);}
     :where(.review-star-icon){color:var(--gc-review-icon, currentColor);}
-    :where(.sponsor-label){color:var(--gc-sponsor-label, currentColor);}
-    :where(.popular-counter){color:var(--gc-popular-counter, currentColor);}
+    :where(.sponsor-label){color:var(--gc-sponsor-label, currentColor);font-family:var(--gc-sponsor-label-font, inherit);font-size:var(--gc-sponsor-label-size, inherit);font-weight:var(--gc-sponsor-label-weight, inherit);font-style:var(--gc-sponsor-label-style, inherit);text-decoration:var(--gc-sponsor-label-decoration, inherit);}
+    :where(.popular-counter){color:var(--gc-popular-counter, currentColor);font-family:var(--gc-popular-counter-font, inherit);font-size:var(--gc-popular-counter-size, inherit);font-weight:var(--gc-popular-counter-weight, inherit);font-style:var(--gc-popular-counter-style, inherit);text-decoration:var(--gc-popular-counter-decoration, inherit);}
     :where(.live-blog-dot){color:var(--gc-live-blog, currentColor);background:var(--gc-live-blog, transparent);}
     :where(.toc-wrap, .share-bar){background:var(--gc-toc-bg, transparent);}
     :where(.verified-tick){color:var(--gc-verified-tick, currentColor);}
