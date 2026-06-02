@@ -760,6 +760,7 @@ export function ThemeOptionsPane() {
 }
 
 function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
+  const { t } = useTranslation();
   const radius = opts.default_variant === "pill" ? 999 : opts.radius;
   const base: React.CSSProperties = {
     borderRadius: radius,
@@ -774,7 +775,7 @@ function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
   };
   return (
     <div className="rounded-md border border-border bg-background/40 p-4">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Podgląd</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{t("themeOptions.buttons.preview")}</div>
       <div className="flex flex-wrap items-center gap-2">
         <button style={{ ...base, background: "var(--gc-btn-bg, hsl(var(--primary)))", color: "var(--gc-btn-text, hsl(var(--primary-foreground)))" }}>Solid</button>
         <button style={{ ...base, background: "transparent", color: "var(--gc-btn-bg, hsl(var(--primary)))", border: `2px solid var(--gc-btn-bg, hsl(var(--primary)))` }}>Outline</button>
