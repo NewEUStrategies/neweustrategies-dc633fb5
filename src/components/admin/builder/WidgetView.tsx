@@ -491,6 +491,11 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         : badgeVariant === "gradient" ? "bg-gradient-to-r from-destructive to-brand text-white"
         : "bg-destructive text-white";
       const badgeCls = `inline-block font-bold uppercase tracking-wider mb-3 ${sizeCls} ${variantCls} ${radiusCls}`;
+      const badgeBg = getStr(c, "badgeBg");
+      const badgeText = getStr(c, "badgeText");
+      const badgeStyle: CSSProperties = {};
+      if (badgeBg) { badgeStyle.background = badgeBg; badgeStyle.borderColor = badgeBg; }
+      if (badgeText) badgeStyle.color = badgeText;
       const imageHover = getStr(c, "imageHover") || "zoom-in";
       // For zoom-in / zoom-out we animate the inset of an object-contain image,
       // so the picture grows/shrinks WITHIN the frame and is never cropped.
@@ -519,8 +524,8 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         >
           {(badge || canEdit) && (
             canEdit
-              ? <Editable as="div" value={badge} onCommit={(v) => commit(badgeKey, v)} className={badgeCls} placeholder="Etykieta…" />
-              : <div className={badgeCls}>{badge}</div>
+              ? <Editable as="div" value={badge} onCommit={(v) => commit(badgeKey, v)} className={badgeCls} style={badgeStyle} placeholder="Etykieta…" />
+              : <div className={badgeCls} style={badgeStyle}>{badge}</div>
           )}
           {img && (
             <div className="group/dfcimg relative w-full overflow-hidden rounded bg-black/20" style={{ aspectRatio: "16 / 9" }}>
