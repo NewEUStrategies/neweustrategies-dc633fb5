@@ -481,7 +481,7 @@ const resources = {
           media: "Media",
           users: "Users",
           paywall: "Paywall",
-          appearance: "Appearance",
+          appearance: "Header & Footer",
           themeOptions: "Theme Options",
           postLayouts: "Post layouts",
           contentArea: "Content Area",
