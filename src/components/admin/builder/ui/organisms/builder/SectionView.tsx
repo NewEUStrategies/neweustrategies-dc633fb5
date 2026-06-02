@@ -45,6 +45,7 @@ export interface SectionViewProps {
   onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
   onUpdateWidgetContent: (id: string, key: string, value: string | number) => void;
+  onToggleHidden: (kind: "section" | "inner-section" | "column" | "widget", id: string) => void;
 }
 
 export function SectionView(p: SectionViewProps) {
