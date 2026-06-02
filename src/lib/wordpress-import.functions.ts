@@ -376,6 +376,7 @@ export const previewWpComPosts = createServerFn({ method: "POST" })
       number: String(data.number),
       offset: String(data.offset),
       status: data.status,
+      type: data.type,
       fields: "ID,slug,title,excerpt,date,modified,URL,featured_image,status",
     });
     const res = await wpFetch<WpPostsResponse>(`/rest/v1.1/sites/${site}/posts?${qs.toString()}`);
