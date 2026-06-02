@@ -85,6 +85,7 @@ const shapePathLen: Record<AnimatedHeadingShape, number> = {
   none: 0,
   underline: 220,
   "double-underline": 460,
+  scribble: 240,
   curly: 440,
   zigzag: 320,
   circle: 520,
