@@ -36,6 +36,11 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
   const customAccent = (typeof c.accentColor === "string" ? c.accentColor : "") as string;
   const colorPreset = (typeof c.color === "string" ? c.color : "brand") as string;
   const accent = resolveAccentColor(customAccent || colorPreset);
+  const labelColor = (typeof c.labelColor === "string" ? c.labelColor : "") as string;
+  const labelSize = (typeof c.labelSize === "string" ? c.labelSize : "") as string;
+  const actionColor = (typeof c.actionColor === "string" ? c.actionColor : "") as string;
+  const actionSize = (typeof c.actionSize === "string" ? c.actionSize : "") as string;
+
   const previewLabel = label || "Etykieta";
 
   return (
@@ -154,6 +159,79 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
           className="h-8 text-xs"
         />
       </PropField>
+
+      <div className="space-y-2 pt-2 border-t border-border">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Styl tekstu nagłówka
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <PropField label="Kolor tekstu">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="color"
+                value={labelColor && labelColor.startsWith("#") ? labelColor : "#000000"}
+                onChange={(e) => setContent("labelColor", e.target.value)}
+                className="h-8 w-9 rounded border border-border cursor-pointer bg-transparent shrink-0"
+              />
+              <Input
+                value={labelColor}
+                onChange={(e) => setContent("labelColor", e.target.value)}
+                placeholder="auto"
+                className="h-8 text-[11px] font-mono flex-1"
+              />
+              {labelColor && (
+                <button type="button" onClick={() => setContent("labelColor", "")} title="Wyczyść" className="text-muted-foreground hover:text-destructive">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </PropField>
+          <PropField label="Rozmiar (np. 16px)">
+            <Input
+              value={labelSize}
+              onChange={(e) => setContent("labelSize", e.target.value)}
+              placeholder="auto"
+              className="h-8 text-xs"
+            />
+          </PropField>
+        </div>
+
+        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground pt-1">
+          Styl tekstu „więcej / linku"
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <PropField label="Kolor tekstu">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="color"
+                value={actionColor && actionColor.startsWith("#") ? actionColor : "#000000"}
+                onChange={(e) => setContent("actionColor", e.target.value)}
+                className="h-8 w-9 rounded border border-border cursor-pointer bg-transparent shrink-0"
+              />
+              <Input
+                value={actionColor}
+                onChange={(e) => setContent("actionColor", e.target.value)}
+                placeholder="auto"
+                className="h-8 text-[11px] font-mono flex-1"
+              />
+              {actionColor && (
+                <button type="button" onClick={() => setContent("actionColor", "")} title="Wyczyść" className="text-muted-foreground hover:text-destructive">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </PropField>
+          <PropField label="Rozmiar (np. 12px)">
+            <Input
+              value={actionSize}
+              onChange={(e) => setContent("actionSize", e.target.value)}
+              placeholder="auto"
+              className="h-8 text-xs"
+            />
+          </PropField>
+        </div>
+      </div>
     </div>
   );
 }
+

@@ -847,9 +847,14 @@ export function renderSimpleWidget(
           href={href || undefined}
           accent={accent}
           variant={variant}
+          labelColor={getStr(c, "labelColor") || undefined}
+          labelSize={getStr(c, "labelSize") || undefined}
+          actionColor={getStr(c, "actionColor") || undefined}
+          actionSize={getStr(c, "actionSize") || undefined}
         />
       );
     }
+
     case "hot-topic-bar": {
       const badge = getStr(c, `badge_${lang}`) || getStr(c, "badge_pl") || "Hot topic";
       const title = getStr(c, `title_${lang}`) || getStr(c, "title_pl");
