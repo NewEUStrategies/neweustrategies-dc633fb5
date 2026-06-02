@@ -71,7 +71,7 @@ function isHexColor(v: string): boolean {
  */
 type ThemeOptsLite = {
   sidebars?: { style?: SidebarStyle };
-  [k: string]: unknown;
+  [k: string]: any;
 };
 const THEME_OPTS_DEFAULTS: ThemeOptsLite = { sidebars: { style: "style-1" } };
 
