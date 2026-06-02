@@ -3,6 +3,7 @@
 import type { Device, WidgetTypography } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { AlignLeft, AlignCenter, AlignRight, AlignJustify } from "lucide-react";
 import { PropField } from "../atoms/PropField";
 import { ResponsiveInput } from "../atoms/ResponsiveInput";
 import { FontPicker } from "@/components/admin/settings/FontPicker";
