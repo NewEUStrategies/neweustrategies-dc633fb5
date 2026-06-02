@@ -110,6 +110,9 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
     s.hover = merged;
   });
 
+  // Resolve inherited colors from the actually rendered widget DOM (global colors cascade).
+  const inherited = useInheritedColors(widget.id, mode, widget.style);
+
   const widgetLabel = WIDGETS.find((w) => w.type === widget.type)?.label ?? widget.type;
 
   return (
