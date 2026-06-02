@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { PropField, ColorField } from "./ui/atoms";
+import { PropField, ColorField, StepperInput, NumberInput } from "./ui/atoms";
 import { PositionAnchor } from "./ui/atoms/PositionAnchor";
 import { SpacingControl } from "./ui/molecules/SpacingControl";
 import { TypographyControl } from "./ui/molecules/TypographyControl";
@@ -335,36 +335,37 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
           <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Wymiary</h4>
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Zaokrąglenie rogów">
-              <Input
+              <StepperInput
                 value={getFlatStr("borderRadius")}
                 placeholder="8px"
-                onChange={(e) => setFlatStr("borderRadius", e.target.value)}
+                min={0}
+                onChange={(v) => setFlatStr("borderRadius", v ?? "")}
               />
-
             </PropField>
             <PropField label="Maks. szerokość">
-              <Input
+              <StepperInput
                 value={widget.style?.maxWidth ?? ""}
                 placeholder="600px"
-                onChange={(e) => setStyle((s) => { s.maxWidth = e.target.value || undefined; })}
+                min={0}
+                onChange={(v) => setStyle((s) => { s.maxWidth = v || undefined; })}
               />
             </PropField>
             <PropField label="Min. wysokość">
-              <Input
+              <StepperInput
                 value={widget.style?.minHeight ?? ""}
                 placeholder="120px"
-                onChange={(e) => setStyle((s) => { s.minHeight = e.target.value || undefined; })}
+                min={0}
+                onChange={(v) => setStyle((s) => { s.minHeight = v || undefined; })}
               />
             </PropField>
             <PropField label="Krycie (opacity)">
-              <Input
-                type="number" min={0} max={1} step={0.05}
-                value={typeof widget.style?.opacity === "number" ? widget.style.opacity : ""}
+              <NumberInput
+                value={typeof widget.style?.opacity === "number" ? widget.style.opacity : undefined}
+                min={0}
+                max={1}
+                step={0.05}
                 placeholder="1"
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setStyle((s) => { s.opacity = v === "" ? undefined : Math.max(0, Math.min(1, Number(v))); });
-                }}
+                onChange={(v) => setStyle((s) => { s.opacity = v; })}
               />
             </PropField>
           </div>
