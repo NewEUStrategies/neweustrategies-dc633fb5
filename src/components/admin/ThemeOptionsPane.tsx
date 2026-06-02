@@ -147,6 +147,7 @@ const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
   "layout-3": { label: "Layout 3 — Split Nav", hint: "Logo centralnie, menu po obu stronach" },
   "layout-4": { label: "Layout 4 — Stacked", hint: "Utility bar + logo + nav (3 paski)" },
   "layout-5": { label: "Layout 5 — Minimal", hint: "Tylko logo + menu, bez utility bar" },
+  "layout-6": { label: "Layout 6 — Left Global Sidebar", hint: "Pionowy sidebar po lewej zamiast poziomego nagłówka (collapse/expand)" },
 };
 
 export function ThemeOptionsPane() {
