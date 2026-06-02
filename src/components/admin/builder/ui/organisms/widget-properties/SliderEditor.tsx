@@ -20,7 +20,7 @@ interface Props {
 }
 
 export function SliderEditor({ c, lang, setContent }: Props) {
-  const variant = ((typeof c.variant === "string" && c.variant) || "classic") as SliderVariant;
+  const variant = ((typeof c.variant === "string" && c.variant) || "editorial-hero") as SliderVariant;
   const ratio = (typeof c.ratio === "string" ? c.ratio : "16/9") as "16/9" | "4/3" | "1/1" | "21/9" | "3/2";
   const autoplay = c.autoplay !== false;
   const intervalMs = typeof c.intervalMs === "number" ? c.intervalMs : 4500;
@@ -49,6 +49,11 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       href: typeof it.href === "string" ? it.href : "",
       cta_pl: typeof it.cta_pl === "string" ? it.cta_pl : "",
       cta_en: typeof it.cta_en === "string" ? it.cta_en : "",
+      category_pl: typeof it.category_pl === "string" ? it.category_pl : "",
+      category_en: typeof it.category_en === "string" ? it.category_en : "",
+      categoryColor: typeof it.categoryColor === "string" ? it.categoryColor : "",
+      author: typeof it.author === "string" ? it.author : "",
+      readTime: typeof it.readTime === "string" ? it.readTime : "",
     }));
 
   const updateItems = (next: SliderItem[]) =>
@@ -332,6 +337,32 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                   <Input value={(it[itemCtaKey] as string) || ""}
                     onChange={(e) => updateItem(i, { [itemCtaKey]: e.target.value })}
                     className="h-8 text-xs" placeholder="Czytaj więcej" />
+                </PropField>
+              </div>
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <PropField label={`Kategoria (${lang.toUpperCase()})`}>
+                  <Input
+                    value={(it[`category_${lang}` as const] as string) || ""}
+                    onChange={(e) => updateItem(i, { [`category_${lang}`]: e.target.value })}
+                    className="h-8 text-xs" placeholder="np. RAPORTY" />
+                </PropField>
+                <PropField label="Kolor">
+                  <input type="color"
+                    value={it.categoryColor || "#ef6c2e"}
+                    onChange={(e) => updateItem(i, { categoryColor: e.target.value })}
+                    className="h-8 w-12 p-0.5 rounded border border-border bg-background cursor-pointer" />
+                </PropField>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <PropField label="Autor">
+                  <Input value={it.author || ""}
+                    onChange={(e) => updateItem(i, { author: e.target.value })}
+                    className="h-8 text-xs" placeholder="np. Jan Kowalski" />
+                </PropField>
+                <PropField label="Czas czytania">
+                  <Input value={it.readTime || ""}
+                    onChange={(e) => updateItem(i, { readTime: e.target.value })}
+                    className="h-8 text-xs" placeholder="np. 18 Min Read" />
                 </PropField>
               </div>
             </div>
