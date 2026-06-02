@@ -113,6 +113,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         .eh-slider:hover .eh-title { background-size: 100% 2px; }
         .eh-slider .eh-img { transition: transform 3000ms cubic-bezier(.16,.84,.34,1); transform-origin: center center; will-change: transform; backface-visibility: hidden; }
         .eh-slider:hover .eh-img { transform: scale(1.06); }
+        .eh-slider .eh-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .eh-slider .eh-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
       `}</style>
 
       {/* Image */}
