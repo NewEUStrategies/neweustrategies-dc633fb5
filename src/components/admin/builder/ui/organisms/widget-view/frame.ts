@@ -124,19 +124,19 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
 
   // When user anchors the widget horizontally OR opted into inline flow, it
   // must shrink to its content so siblings can sit next to it.
-  const shrinkToContent = horizontalAnchored || isInline;
+  // Exception: the search widget always fills the full column width.
+  const isSearch = node.type === "search-button";
+  const shrinkToContent = !isSearch && (horizontalAnchored || isInline);
   const sliderShouldFill = node.type === "slider" && wRaw === undefined && !node.style?.maxWidth && !shrinkToContent;
-  const w = sliderShouldFill
+  const searchShouldFill = isSearch && wRaw === undefined;
+  const w = sliderShouldFill || searchShouldFill
     ? "100%"
     : toCssSize(wRaw) ?? node.style?.maxWidth ?? (shrinkToContent ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
   style.width = w;
-  if (isInline && wRaw === undefined && !node.style?.maxWidth) {
+  if (isInline && wRaw === undefined && !node.style?.maxWidth && !isSearch) {
     style.flex = "0 0 auto";
   }
-  if (sliderShouldFill) {
-    style.flexBasis = "100%";
-  }
-  if (sliderShouldFill) {
+  if (sliderShouldFill || searchShouldFill) {
     style.flexBasis = "100%";
   }
 
