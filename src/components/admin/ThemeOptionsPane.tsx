@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers, MousePointerClick, Pencil, PanelLeft } from "@/lib/lucide-shim";
+import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers, MousePointerClick, Pencil } from "@/lib/lucide-shim";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
 import { useTheme } from "@/components/ThemeProvider";
 
