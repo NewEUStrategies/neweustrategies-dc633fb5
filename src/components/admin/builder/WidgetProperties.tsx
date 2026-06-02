@@ -228,14 +228,13 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Wymiary</h4>
+          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Wymiary ({mode === "dark" ? "ciemny" : "jasny"})</h4>
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Zaokrąglenie rogów">
               <Input
-                value={typeof widget.style?.borderRadius === "string" ? widget.style.borderRadius : ""}
+                value={getThemedStr("borderRadius")}
                 placeholder="8px"
-                onChange={(e) => setStyle((s) => { s.borderRadius = e.target.value || undefined; })}
-                className="h-8 text-xs"
+                onChange={(e) => setThemedStr("borderRadius", e.target.value)}
               />
             </PropField>
             <PropField label="Maks. szerokość">
@@ -243,7 +242,6 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
                 value={widget.style?.maxWidth ?? ""}
                 placeholder="600px"
                 onChange={(e) => setStyle((s) => { s.maxWidth = e.target.value || undefined; })}
-                className="h-8 text-xs"
               />
             </PropField>
             <PropField label="Min. wysokość">
@@ -251,7 +249,6 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
                 value={widget.style?.minHeight ?? ""}
                 placeholder="120px"
                 onChange={(e) => setStyle((s) => { s.minHeight = e.target.value || undefined; })}
-                className="h-8 text-xs"
               />
             </PropField>
             <PropField label="Krycie (opacity)">
@@ -263,21 +260,20 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
                   const v = e.target.value;
                   setStyle((s) => { s.opacity = v === "" ? undefined : Math.max(0, Math.min(1, Number(v))); });
                 }}
-                className="h-8 text-xs"
               />
             </PropField>
           </div>
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Obramowanie ({mode === "dark" ? "ciemny" : "jasny"})</h4>
+          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Obramowanie ({mode === "dark" ? "ciemny" : "jasny"})</h4>
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Styl">
               <Select
-                value={(typeof widget.style?.borderStyle === "string" ? widget.style.borderStyle : "none") as string}
-                onValueChange={(v) => setStyle((s) => { s.borderStyle = v === "none" ? undefined : (v as CommonStyle["borderStyle"]); })}
+                value={getThemedBorderStyle()}
+                onValueChange={(v) => setThemedBorderStyle(v === "none" ? undefined : (v as CommonStyle["borderStyle"]))}
               >
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {[
                     { v: "none", label: "Brak" },
@@ -293,10 +289,9 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
             </PropField>
             <PropField label="Grubość">
               <Input
-                value={typeof widget.style?.borderWidth === "string" ? widget.style.borderWidth : ""}
+                value={getThemedStr("borderWidth")}
                 placeholder="1px"
-                onChange={(e) => setStyle((s) => { s.borderWidth = e.target.value || undefined; })}
-                className="h-8 text-xs"
+                onChange={(e) => setThemedStr("borderWidth", e.target.value)}
               />
             </PropField>
           </div>
@@ -312,13 +307,12 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Cień</h4>
+          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Cień ({mode === "dark" ? "ciemny" : "jasny"})</h4>
           <PropField label="Cień (CSS box-shadow)">
             <Input
-              value={typeof widget.style?.boxShadow === "string" ? widget.style.boxShadow : ""}
+              value={getThemedStr("boxShadow")}
               placeholder="0 10px 30px rgba(0,0,0,.15)"
-              onChange={(e) => setStyle((s) => { s.boxShadow = e.target.value || undefined; })}
-              className="h-8 text-xs"
+              onChange={(e) => setThemedStr("boxShadow", e.target.value)}
             />
           </PropField>
           <div className="flex flex-wrap gap-1">
@@ -332,7 +326,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
               <button
                 key={p.label}
                 type="button"
-                onClick={() => setStyle((s) => { s.boxShadow = p.v || undefined; })}
+                onClick={() => setThemedStr("boxShadow", p.v || undefined)}
                 className="px-2 py-0.5 text-[10px] rounded border border-border hover:bg-muted"
               >{p.label}</button>
             ))}
@@ -340,16 +334,16 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Typografia</h4>
+          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Typografia ({mode === "dark" ? "ciemny" : "jasny"})</h4>
           <TypographyControl
-            value={widget.style?.typography}
+            value={getThemedTypography()}
             device={device}
-            onChange={(typography: WidgetTypography) => setStyle((s) => { s.typography = typography; })}
+            onChange={(typography: WidgetTypography) => setThemedTypography(typography)}
           />
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Hover ({mode === "dark" ? "ciemny" : "jasny"})</h4>
+          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Hover ({mode === "dark" ? "ciemny" : "jasny"})</h4>
           <HoverControl
             value={hoverValue}
             onChange={onHoverChange}
