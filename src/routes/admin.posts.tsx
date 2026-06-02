@@ -301,9 +301,16 @@ function PostsList() {
           <h1 className="font-display text-2xl font-bold">{t("admin.posts.title")}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">{filteredPosts.length} {t("admin.posts.count")}</p>
         </div>
-        <Link to="/admin/posts/new">
-          <Button size="sm"><Plus className="w-4 h-4 mr-1.5" /> {t("admin.posts.new")}</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link to="/admin/import-wordpress">
+            <Button size="sm" variant="outline" className="h-8 text-xs">
+              {t("admin.posts.import_wp", { defaultValue: i18n.language.startsWith("pl") ? "Import z WordPress" : "Import from WordPress" })}
+            </Button>
+          </Link>
+          <Link to="/admin/posts/new">
+            <Button size="sm"><Plus className="w-4 h-4 mr-1.5" /> {t("admin.posts.new")}</Button>
+          </Link>
+        </div>
       </div>
 
       <Tabs value={view} onValueChange={(v) => { setView(v as View); clear(); }} className="mb-3">
