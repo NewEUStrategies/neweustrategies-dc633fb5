@@ -291,9 +291,7 @@ export function migratePostContent(input: LegacyPostContent): MigrationResult {
   if (pl || en) {
     const isGb = /<!--\s*wp:[a-z]/i.test(pl) || /<!--\s*wp:[a-z]/i.test(en);
     if (isGb) {
-      // Dynamic import keeps htmlToBlocks <-> gutenberg cycle-free at module load.
-      const mod = require("./gutenberg") as typeof import("./gutenberg");
-      return { pl: mod.parseGutenberg(pl), en: mod.parseGutenberg(en), source: "gutenberg" };
+      return { pl: parseGutenberg(pl), en: parseGutenberg(en), source: "gutenberg" };
     }
     return { pl: htmlToBlocks(pl), en: htmlToBlocks(en), source: "html" };
   }
