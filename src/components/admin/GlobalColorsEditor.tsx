@@ -157,7 +157,11 @@ export function GlobalColorsEditor() {
   const setSlot = (key: string, mode: "light" | "dark" | "hoverLight" | "hoverDark", value: string) => {
     applyDraft({ ...draft, [key]: { ...(draft[key] ?? {}), [mode]: value } });
   };
-  const setSlotMeta = (key: string, field: "fontFamily" | "fontSize", value: string) => {
+  const setSlotMeta = (
+    key: string,
+    field: "fontFamily" | "fontSize" | "fontWeight" | "fontStyle" | "textDecoration",
+    value: string,
+  ) => {
     applyDraft({ ...draft, [key]: { ...(draft[key] ?? {}), [field]: value } });
   };
   const resetSlot = (slot: GlobalColorSlot) => {
