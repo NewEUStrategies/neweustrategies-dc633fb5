@@ -156,6 +156,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     if (typography.letterSpacing) rules.push(`${descendants}{letter-spacing:${typography.letterSpacing} !important;}`);
     if (typography.textTransform) rules.push(`${descendants}{text-transform:${typography.textTransform} !important;}`);
     if (typography.textDecoration) rules.push(`${descendants}{text-decoration:${typography.textDecoration} !important;}`);
+    if (typography.textAlign) rules.push(`${descendants}{text-align:${typography.textAlign} !important;}`);
 
     return rules.join("\n");
   }, [device, effectiveMode, node.id, node.style?.typography]);
