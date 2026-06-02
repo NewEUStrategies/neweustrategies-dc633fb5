@@ -492,13 +492,20 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         : "bg-destructive text-white";
       const badgeCls = `inline-block font-bold uppercase tracking-wider mb-3 ${sizeCls} ${variantCls} ${radiusCls}`;
       const imageHover = getStr(c, "imageHover") || "zoom-in";
+      // For zoom-in / zoom-out we animate the inset of an object-contain image,
+      // so the picture grows/shrinks WITHIN the frame and is never cropped.
       const imgAnimCls =
-        imageHover === "zoom-in" ? "transition-transform duration-500 ease-out group-hover/dfcimg:scale-110"
-        : imageHover === "zoom-out" ? "scale-110 transition-transform duration-500 ease-out group-hover/dfcimg:scale-100"
-        : imageHover === "fade" ? "transition-[filter,opacity] duration-500 ease-out group-hover/dfcimg:brightness-75"
-        : imageHover === "brighten" ? "brightness-90 transition-[filter] duration-500 ease-out group-hover/dfcimg:brightness-110"
-        : imageHover === "tilt" ? "transition-transform duration-500 ease-out group-hover/dfcimg:scale-105 group-hover/dfcimg:rotate-1"
-        : "";
+        imageHover === "zoom-in"
+          ? "transition-[inset] duration-500 ease-out inset-[8%] group-hover/dfcimg:inset-0"
+        : imageHover === "zoom-out"
+          ? "transition-[inset] duration-500 ease-out inset-0 group-hover/dfcimg:inset-[8%]"
+        : imageHover === "fade"
+          ? "inset-0 transition-[filter,opacity] duration-500 ease-out group-hover/dfcimg:brightness-75"
+        : imageHover === "brighten"
+          ? "inset-0 brightness-90 transition-[filter] duration-500 ease-out group-hover/dfcimg:brightness-110"
+        : imageHover === "tilt"
+          ? "inset-0 transition-transform duration-500 ease-out origin-center group-hover/dfcimg:rotate-1"
+        : "inset-0";
       const card = (
         <div
           className="relative p-6 rounded"
@@ -517,7 +524,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
           )}
           {img && (
             <div className="group/dfcimg relative w-full overflow-hidden rounded bg-black/20" style={{ aspectRatio: "16 / 9" }}>
-              <img src={img} alt="" className={`absolute inset-0 w-full h-full object-contain ${imgAnimCls}`} loading="lazy" />
+              <img src={img} alt="" className={`absolute w-auto h-auto max-w-full max-h-full m-auto object-contain ${imgAnimCls}`} loading="lazy" />
             </div>
           )}
           <h3 className="mt-4 font-display text-2xl font-bold">{title}</h3>
