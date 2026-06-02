@@ -561,7 +561,8 @@ export function ThemeOptionsPane() {
                       active ? "border-brand bg-brand/5" : "border-border hover:border-brand/40"
                     }`}
                   >
-                    <div className="text-sm font-medium">{meta.label}</div>
+                    <HeaderLayoutPreview id={id} />
+                    <div className="text-sm font-medium mt-3">{meta.label}</div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">{meta.hint}</div>
                   </button>
                 );
