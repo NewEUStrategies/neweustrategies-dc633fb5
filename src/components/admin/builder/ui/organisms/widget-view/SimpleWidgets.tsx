@@ -165,14 +165,20 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
   const showPopover = focused && hasQuery;
 
   return (
-    <div ref={wrapRef} className="relative w-[min(88vw,420px)] max-w-full min-w-0">
+    <div ref={wrapRef} className="builder-search-widget relative w-full max-w-full min-w-0">
       <div
-        className="flex w-full items-center gap-2 border border-border bg-background h-10 px-3.5 rounded"
+        className="flex min-h-10 w-full items-center gap-2 rounded-md border border-input bg-card px-3 text-foreground shadow-sm transition-colors"
         style={{ direction: "ltr" }}
       >
         <LucideIcons.Search className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden />
         <input
           ref={inputRef}
+          type="text"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          inputMode="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => setFocused(true)}
@@ -180,8 +186,22 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
           placeholder={placeholder}
           aria-label={label || placeholder}
           dir="ltr"
-          style={{ textAlign: "left", direction: "ltr", unicodeBidi: "plaintext", boxShadow: "none" }}
-          className="flex-1 min-w-0 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 text-xs text-foreground placeholder:text-muted-foreground"
+          style={{
+            textAlign: "left",
+            direction: "ltr",
+            unicodeBidi: "plaintext",
+            boxShadow: "none",
+            background: "transparent",
+            border: 0,
+            outline: "none",
+            borderRadius: 0,
+            padding: 0,
+            margin: 0,
+            appearance: "none",
+            WebkitAppearance: "none",
+            MozAppearance: "none",
+          }}
+          className="h-10 flex-1 min-w-0 bg-transparent border-0 px-0 py-0 text-sm text-foreground outline-none ring-0 shadow-none [appearance:none] [-webkit-appearance:none] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-muted-foreground/70"
         />
         {loading && <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />}
         {q && (
@@ -189,7 +209,7 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
             type="button"
             aria-label={lang === "pl" ? "Wyczyść" : "Clear"}
             onClick={() => { setQ(""); setResults([]); setSearched(false); inputRef.current?.focus(); }}
-            className="p-1 -mr-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent focus:outline-none focus-visible:outline-none focus:ring-0 shrink-0"
+            className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:outline-none focus:ring-0"
           >
             <LucideIcons.X className="w-3.5 h-3.5" />
           </button>
@@ -198,33 +218,33 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
 
       {showPopover && (
         <div
-          className="absolute left-0 right-0 top-[calc(100%+6px)] z-[60] w-[min(92vw,540px)] rounded-lg bg-popover text-popover-foreground border border-border shadow-xl overflow-hidden"
+          className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] overflow-hidden rounded-md border border-input bg-card text-card-foreground shadow-lg"
           role="dialog"
           aria-label={lang === "pl" ? "Wyniki wyszukiwania" : "Search results"}
         >
           <div className="max-h-[380px] overflow-y-auto py-1">
             {loading && (
-              <div className="px-4 py-6 text-xs text-muted-foreground flex items-center gap-2">
+              <div className="flex items-center gap-2 px-4 py-5 text-xs text-muted-foreground">
                 <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin" />
                 {lang === "pl" ? "Szukam…" : "Searching…"}
               </div>
             )}
 
             {!loading && showEmpty && (
-              <div className="px-4 py-6 text-xs text-muted-foreground">
+              <div className="px-4 py-5 text-xs text-muted-foreground">
                 {lang === "pl" ? "Brak wyników dla " : "No results for "}
                 <span className="font-medium text-foreground">„{q.trim()}"</span>
               </div>
             )}
 
             {!loading && results.length > 0 && (
-              <ul className="divide-y divide-border">
+              <ul className="divide-y divide-border/70">
                 {results.map((r) => (
                   <li key={r.id}>
                     <a
                       href={`/posts/${r.slug}`}
                       onClick={() => setFocused(false)}
-                      className="block px-4 py-2.5 hover:bg-accent transition-colors"
+                      className="block px-4 py-3 transition-colors hover:bg-muted/50"
                     >
                       <div className="text-sm font-medium text-foreground truncate">{r.title}</div>
                       {r.excerpt && (
@@ -238,6 +258,26 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
           </div>
         </div>
       )}
+
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            .builder-search-widget input::-webkit-search-decoration,
+            .builder-search-widget input::-webkit-search-cancel-button,
+            .builder-search-widget input::-webkit-search-results-button,
+            .builder-search-widget input::-webkit-search-results-decoration {
+              display: none;
+              -webkit-appearance: none;
+            }
+            .builder-search-widget input::-ms-clear,
+            .builder-search-widget input::-ms-reveal {
+              display: none;
+              width: 0;
+              height: 0;
+            }
+          `,
+        }}
+      />
     </div>
   );
 }
