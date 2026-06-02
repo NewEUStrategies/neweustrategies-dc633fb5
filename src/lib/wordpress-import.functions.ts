@@ -13,6 +13,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { parseGutenberg } from "@/lib/blocks/gutenberg";
 import { recordAudit } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
+import type { Json } from "@/integrations/supabase/types";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/wordpress_com";
 
@@ -250,7 +251,7 @@ export const importWpComPosts = createServerFn({ method: "POST" })
           : { pl: { version: 1, blocks: [] }, en: doc };
         // Round-trip via JSON to satisfy the generated `Json` column type
         // without resorting to `any` / `as any`.
-        const blocks_data = JSON.parse(JSON.stringify(blocksPayload)) as Record<string, unknown>;
+        const blocks_data = JSON.parse(JSON.stringify(blocksPayload)) as Json;
 
         const titleField = data.language === "pl" ? { title_pl: title, title_en: "" } : { title_pl: "", title_en: title };
         const excerptField = data.language === "pl"
