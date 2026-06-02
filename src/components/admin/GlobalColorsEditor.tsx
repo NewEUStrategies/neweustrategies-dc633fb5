@@ -892,7 +892,8 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
     case "sidebar-btn-text":
     case "sidebar-btn-hover-bg":
     case "sidebar-btn-hover-text":
-    case "sidebar-border": {
+    case "sidebar-border":
+    case "sidebar-title": {
       const bg = get("sidebar-bg");
       const text = get("sidebar-text");
       const btnBg = get("sidebar-btn-bg");
@@ -900,12 +901,14 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
       const hBg = get("sidebar-btn-hover-bg");
       const hText = get("sidebar-btn-hover-text");
       const border = get("sidebar-border");
+      const title = get("sidebar-title");
       return (
         <div
           style={{ background: bg, color: text, borderColor: border }}
           className="w-full rounded border p-2 flex flex-col gap-1 text-[11px]"
         >
-          <div style={{ borderColor: border }} className="pb-1 border-b font-semibold">Menu</div>
+          <div style={{ color: title }} className="text-[10px] font-semibold uppercase tracking-wider px-1">Menu</div>
+          <div style={{ borderColor: border }} className="pb-1 border-b font-semibold">Nawigacja</div>
           <div className="flex items-center gap-1.5 px-1.5 py-1 rounded" style={{ background: btnBg, color: btnText }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2z"/></svg>
             <span>Aktywny</span>
@@ -914,6 +917,7 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>
             <span>Hover</span>
           </div>
+          <div style={{ color: title }} className="text-[10px] font-semibold uppercase tracking-wider px-1 pt-1">Ustawienia</div>
           <div className="flex items-center gap-1.5 px-1.5 py-1">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
             <span>Normalny link</span>
