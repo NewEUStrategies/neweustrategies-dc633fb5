@@ -1030,57 +1030,22 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 
 type LogoState = ThemeOptions["logo"];
 
-const LOGO_LOCATIONS: Record<string, { title: string; locations: string[] }> = {
-  default: {
-    title: "Main Logo",
-    locations: [
-      "Nagłówek strony (desktop) — lewy/centralny slot",
-      "Strona logowania i rejestracji",
-      "Stopka (jeśli nie ustawiono osobnego footer logo)",
-      "Meta tagi Open Graph (fallback)",
-    ],
-  },
-  mobile: {
-    title: "Mobile Logo",
-    locations: [
-      "Nagłówek na urządzeniach mobilnych (< 1024px)",
-      "Wymaga włączonej opcji „Użyj Mobile Logo” w sekcji Mobile Header",
-    ],
-  },
-  transparent: {
-    title: "Transparent Logo",
-    locations: [
-      "Nagłówki z przezroczystym tłem (np. hero pełnoekranowe)",
-      "Sekcje z tłem dark accent / obrazem",
-    ],
-  },
-  organization: {
-    title: "Organization Logo",
-    locations: [
-      "Schema.org / JSON-LD (Organization)",
-      "Podgląd linków w social media (gdy brak Open Graph image)",
-      "Wyniki wyszukiwania Google",
-    ],
-  },
-  bookmark: {
-    title: "Bookmark / Touch Icons",
-    locations: [
-      "Ikona „Dodaj do ekranu głównego” w iOS",
-      "Kafelek Windows Metro",
-      "Favicon na pulpitach mobilnych",
-    ],
-  },
-  sidebar: {
-    title: "Sidebar Logo",
-    locations: [
-      "Panel boczny — wariant zwinięty (kwadratowa ikona)",
-      "Panel boczny — wariant rozwinięty (podłużne logo)",
-      "Automatyczna zmiana przy collapse / expand sidebaru",
-    ],
-  },
-};
+function useLogoLocations(): Record<string, { title: string; locations: string[] }> {
+  const { t } = useTranslation(undefined, { keyPrefix: "admin" });
+  const arr = (k: string) => t(k, { returnObjects: true }) as unknown as string[];
+  return {
+    default: { title: t("themeOptions.locations.mainTitle"), locations: arr("themeOptions.locations.mainItems") },
+    mobile: { title: t("themeOptions.locations.mobileTitle"), locations: arr("themeOptions.locations.mobileItems") },
+    transparent: { title: t("themeOptions.locations.transparentTitle"), locations: arr("themeOptions.locations.transparentItems") },
+    organization: { title: t("themeOptions.locations.organizationTitle"), locations: arr("themeOptions.locations.organizationItems") },
+    bookmark: { title: t("themeOptions.locations.bookmarkTitle"), locations: arr("themeOptions.locations.bookmarkItems") },
+    sidebar: { title: t("themeOptions.locations.sidebarTitle"), locations: arr("themeOptions.locations.sidebarItems") },
+  };
+}
 
 function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "admin" });
+  const LOGO_LOCATIONS = useLogoLocations();
   const meta = LOGO_LOCATIONS[tab] ?? LOGO_LOCATIONS.default;
   const pick = (light: string | undefined, dark: string | undefined): { l: string; d: string } => {
     const l = light || dark || "";
@@ -1112,12 +1077,12 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
       >
         <div className="flex items-center justify-between">
           <span className="text-[9px] uppercase tracking-widest" style={{ opacity: 0.6 }}>
-            {isDark ? "Dark mode" : "Light mode"}{active ? " • aktywny" : ""}
+            {isDark ? t("themeOptions.preview.darkMode") : t("themeOptions.preview.lightMode")}{active ? ` • ${t("themeOptions.preview.activeSuffix")}` : ""}
           </span>
           <button
             type="button"
             onClick={() => { if (!active) toggle(); }}
-            title={active ? "Aktywny motyw" : `Przełącz na ${isDark ? "dark" : "light"} mode`}
+            title={active ? t("themeOptions.preview.activeTheme") : (isDark ? t("themeOptions.preview.switchToDark") : t("themeOptions.preview.switchToLight"))}
             aria-pressed={active}
             className="group relative w-9 h-9 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
             style={{
@@ -1163,7 +1128,7 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
               style={tab === "bookmark" ? { borderRadius: 8 } : undefined}
             />
           ) : (
-            <span className="text-[11px]" style={{ opacity: 0.5 }}>brak grafiki</span>
+            <span className="text-[11px]" style={{ opacity: 0.5 }}>{t("themeOptions.preview.noImage")}</span>
           )}
         </div>
       </div>
@@ -1173,7 +1138,7 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
   return (
     <div className="rounded-lg border border-border bg-card/40 overflow-hidden">
       <div className="rounded-t-lg text-white text-xs font-semibold px-3 py-2" style={{ background: "#FA9346" }}>
-        Podgląd: {meta.title}
+        {t("themeOptions.preview.previewOf")} {meta.title}
       </div>
       <div className="p-3 space-y-3">
         <div className="grid grid-cols-2 gap-2">
@@ -1182,7 +1147,7 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
         </div>
         <div className="rounded-md bg-muted/50 p-2.5">
           <div className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">
-            Gdzie wykorzystywane
+            {t("themeOptions.preview.locations")}
           </div>
           <ul className="text-[11px] space-y-0.5 text-foreground/80">
             {meta.locations.map((l) => (
