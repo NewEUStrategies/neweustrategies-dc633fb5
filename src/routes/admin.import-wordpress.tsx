@@ -108,7 +108,7 @@ function ImportWordpressPage() {
     mutationFn: async () => {
       const only_ids = selected.size > 0 ? Array.from(selected) : undefined;
       const input = {
-        site: site.trim(), number, offset, status, language, only_ids,
+        site: site.trim(), number, offset, status, type, language, only_ids,
         sync_existing: syncExisting, import_media: importMedia,
       };
       const { jobId: id } = await callCreate({ data: input });
