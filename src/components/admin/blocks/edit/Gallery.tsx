@@ -13,9 +13,14 @@ interface Props {
 function readImages(block: Block): GalleryImage[] {
   const raw = block.data.images;
   if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((x): x is { [k: string]: unknown } => typeof x === "object" && x !== null)
-    .map((x) => ({ url: String(x.url ?? ""), alt: String(x.alt ?? "") }));
+  const out: GalleryImage[] = [];
+  for (const x of raw) {
+    if (x && typeof x === "object" && !Array.isArray(x)) {
+      const obj = x as { [k: string]: unknown };
+      out.push({ url: String(obj.url ?? ""), alt: String(obj.alt ?? "") });
+    }
+  }
+  return out;
 }
 
 export function GalleryBlock({ block, onChange }: Props) {
