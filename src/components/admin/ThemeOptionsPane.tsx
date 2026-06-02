@@ -139,17 +139,17 @@ const DEFAULTS: ThemeOptions = {
 };
 
 const SECTIONS = [
-  { id: "logo", label: "Logo", icon: ImageIcon },
-  { id: "global_colors", label: "Global Colors", icon: Eye },
-  { id: "header.layout", label: "Header Layout", icon: Layers },
-  { id: "header.main_menu", label: "Main Menu", icon: Menu },
-  { id: "header.search", label: "Header Search", icon: Search },
-  { id: "header.alert_bar", label: "Alert Bar", icon: Megaphone },
-  { id: "header.socials", label: "Social Icons", icon: Users },
-  { id: "header.signin", label: "Sign In Buttons", icon: LogIn },
-  { id: "header.mobile", label: "Mobile Header", icon: LayoutDashboard },
-  { id: "buttons", label: "Buttons", icon: MousePointerClick },
-  { id: "text_fields", label: "Text Fields", icon: Pencil },
+  { id: "logo", labelKey: "themeOptions.sections.logo", icon: ImageIcon },
+  { id: "global_colors", labelKey: "themeOptions.sections.globalColors", icon: Eye },
+  { id: "header.layout", labelKey: "themeOptions.sections.headerLayout", icon: Layers },
+  { id: "header.main_menu", labelKey: "themeOptions.sections.mainMenu", icon: Menu },
+  { id: "header.search", labelKey: "themeOptions.sections.headerSearch", icon: Search },
+  { id: "header.alert_bar", labelKey: "themeOptions.sections.alertBar", icon: Megaphone },
+  { id: "header.socials", labelKey: "themeOptions.sections.socialIcons", icon: Users },
+  { id: "header.signin", labelKey: "themeOptions.sections.signinButtons", icon: LogIn },
+  { id: "header.mobile", labelKey: "themeOptions.sections.mobileHeader", icon: LayoutDashboard },
+  { id: "buttons", labelKey: "themeOptions.sections.buttons", icon: MousePointerClick },
+  { id: "text_fields", labelKey: "themeOptions.sections.textFields", icon: Pencil },
 ] as const;
 
 const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
