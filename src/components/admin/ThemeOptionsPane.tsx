@@ -224,19 +224,19 @@ export function ThemeOptionsPane() {
             {logoTab === "default" && (
               <div className="grid md:grid-cols-2 gap-4">
                 <ImageSlot
-                  label="Main Logo"
+                  label={t("themeOptions.slots.main")}
                   icon={<Sun className="w-3.5 h-3.5" />}
                   value={draft.logo.main}
                   onChange={(v) => patchLogo({ main: v })}
-                  hint="Zalecana wysokość 120px (retina)."
+                  hint={t("themeOptions.hints.recommended120")}
                   folder="theme/logo"
                 />
                 <ImageSlot
-                  label="Dark Mode — Main Logo"
+                  label={t("themeOptions.slots.mainDark")}
                   icon={<Moon className="w-3.5 h-3.5" />}
                   value={draft.logo.main_dark}
                   onChange={(v) => patchLogo({ main_dark: v })}
-                  hint="Wariant dla ciemnego motywu."
+                  hint={t("themeOptions.hints.darkVariant")}
                   folder="theme/logo"
                 />
               </div>
@@ -245,15 +245,15 @@ export function ThemeOptionsPane() {
             {logoTab === "mobile" && (
               <div className="grid md:grid-cols-2 gap-4">
                 <ImageSlot
-                  label="Mobile Logo"
+                  label={t("themeOptions.slots.mobile")}
                   icon={<Smartphone className="w-3.5 h-3.5" />}
                   value={draft.logo.mobile}
                   onChange={(v) => patchLogo({ mobile: v })}
-                  hint="Zalecana wysokość 84px."
+                  hint={t("themeOptions.hints.recommended84")}
                   folder="theme/logo"
                 />
                 <ImageSlot
-                  label="Dark Mode — Mobile"
+                  label={t("themeOptions.slots.mobileDark")}
                   icon={<Moon className="w-3.5 h-3.5" />}
                   value={draft.logo.mobile_dark}
                   onChange={(v) => patchLogo({ mobile_dark: v })}
@@ -265,19 +265,19 @@ export function ThemeOptionsPane() {
             {logoTab === "transparent" && (
               <div className="grid md:grid-cols-2 gap-4">
                 <ImageSlot
-                  label="Transparent Logo"
+                  label={t("themeOptions.slots.transparent")}
                   icon={<Sun className="w-3.5 h-3.5" />}
                   value={draft.logo.transparent}
                   onChange={(v) => patchLogo({ transparent: v })}
-                  hint="Logo dla nagłówków z przezroczystym tłem."
+                  hint={t("themeOptions.hints.transparent")}
                   folder="theme/logo"
                 />
                 <ImageSlot
-                  label="Dark Mode — Transparent"
+                  label={t("themeOptions.slots.transparentDark")}
                   icon={<Moon className="w-3.5 h-3.5" />}
                   value={draft.logo.transparent_dark}
                   onChange={(v) => patchLogo({ transparent_dark: v })}
-                  hint="Wariant dla ciemnego motywu."
+                  hint={t("themeOptions.hints.darkVariant")}
                   folder="theme/logo"
                 />
               </div>
@@ -286,18 +286,18 @@ export function ThemeOptionsPane() {
             {logoTab === "organization" && (
               <div className="space-y-3">
                 <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
-                  Logo dla schema markup (social media, wyniki wyszukiwania). Zostaw puste, by użyć Main Logo.
+                  {t("themeOptions.banners.organization")}
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                   <ImageSlot
-                    label="Organization Logo"
+                    label={t("themeOptions.slots.organization")}
                     icon={<Sun className="w-3.5 h-3.5" />}
                     value={draft.logo.organization}
                     onChange={(v) => patchLogo({ organization: v })}
                     folder="theme/logo"
                   />
                   <ImageSlot
-                    label="Dark Mode — Organization"
+                    label={t("themeOptions.slots.organizationDark")}
                     icon={<Moon className="w-3.5 h-3.5" />}
                     value={draft.logo.organization_dark}
                     onChange={(v) => patchLogo({ organization_dark: v })}
@@ -310,21 +310,21 @@ export function ThemeOptionsPane() {
             {logoTab === "sidebar" && (
               <div className="space-y-4">
                 <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
-                  Logo sidebaru. <strong>Kwadrat</strong> pokazywany po zwinięciu, <strong>podłużne logo</strong> po rozwinięciu sidebaru.
+                  {t("themeOptions.banners.sidebar")}
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">Zwinięty sidebar — ikona (kwadrat)</div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">{t("themeOptions.headers.sidebarCollapsed")}</div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <ImageSlot
-                      label="Sidebar Icon"
+                      label={t("themeOptions.slots.sidebarIcon")}
                       icon={<Sun className="w-3.5 h-3.5" />}
                       value={draft.logo.sidebar_icon}
                       onChange={(v) => patchLogo({ sidebar_icon: v })}
-                      hint="Kwadratowa ikona (np. 64×64px)."
+                      hint={t("themeOptions.hints.sidebarSquare")}
                       folder="theme/logo"
                     />
                     <ImageSlot
-                      label="Dark Mode — Sidebar Icon"
+                      label={t("themeOptions.slots.sidebarIconDark")}
                       icon={<Moon className="w-3.5 h-3.5" />}
                       value={draft.logo.sidebar_icon_dark}
                       onChange={(v) => patchLogo({ sidebar_icon_dark: v })}
@@ -333,18 +333,18 @@ export function ThemeOptionsPane() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">Rozwinięty sidebar — podłużne logo</div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">{t("themeOptions.headers.sidebarExpanded")}</div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <ImageSlot
-                      label="Sidebar Expanded Logo"
+                      label={t("themeOptions.slots.sidebarExpanded")}
                       icon={<Sun className="w-3.5 h-3.5" />}
                       value={draft.logo.sidebar_expanded}
                       onChange={(v) => patchLogo({ sidebar_expanded: v })}
-                      hint="Podłużne logo (np. 200×48px)."
+                      hint={t("themeOptions.hints.sidebarOblong")}
                       folder="theme/logo"
                     />
                     <ImageSlot
-                      label="Dark Mode — Sidebar Expanded"
+                      label={t("themeOptions.slots.sidebarExpandedDark")}
                       icon={<Moon className="w-3.5 h-3.5" />}
                       value={draft.logo.sidebar_expanded_dark}
                       onChange={(v) => patchLogo({ sidebar_expanded_dark: v })}
@@ -358,17 +358,17 @@ export function ThemeOptionsPane() {
             {logoTab === "bookmark" && (
               <div className="space-y-5">
                 <div>
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">iOS Touch Icon · 180×180px</div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">{t("themeOptions.headers.iosTouchIcon")}</div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <ImageSlot
-                      label="iOS Touch Icon"
+                      label={t("themeOptions.slots.iosTouchIcon")}
                       icon={<Sun className="w-3.5 h-3.5" />}
                       value={draft.logo.bookmark_ios}
                       onChange={(v) => patchLogo({ bookmark_ios: v })}
                       folder="theme/icons"
                     />
                     <ImageSlot
-                      label="Dark Mode — iOS Touch Icon"
+                      label={t("themeOptions.slots.iosTouchIconDark")}
                       icon={<Moon className="w-3.5 h-3.5" />}
                       value={draft.logo.bookmark_ios_dark}
                       onChange={(v) => patchLogo({ bookmark_ios_dark: v })}
@@ -376,24 +376,24 @@ export function ThemeOptionsPane() {
                     />
                   </div>
                 </div>
-                <Row label="Add to Home Screen" hint="Wymaga ustawionego iOS Touch Icon.">
+                <Row label={t("themeOptions.addToHomeScreen")} hint={t("themeOptions.hints.addToHome")}>
                   <Switch
                     checked={draft.logo.add_to_home_screen}
                     onCheckedChange={(v) => patchLogo({ add_to_home_screen: v })}
                   />
                 </Row>
                 <div>
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">Windows Metro Tile · 144×144px</div>
+                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">{t("themeOptions.headers.windowsTile")}</div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <ImageSlot
-                      label="Windows Metro Tile Icon"
+                      label={t("themeOptions.slots.windowsTile")}
                       icon={<Sun className="w-3.5 h-3.5" />}
                       value={draft.logo.bookmark_windows}
                       onChange={(v) => patchLogo({ bookmark_windows: v })}
                       folder="theme/icons"
                     />
                     <ImageSlot
-                      label="Dark Mode — Windows Metro Tile"
+                      label={t("themeOptions.slots.windowsTileDark")}
                       icon={<Moon className="w-3.5 h-3.5" />}
                       value={draft.logo.bookmark_windows_dark}
                       onChange={(v) => patchLogo({ bookmark_windows_dark: v })}
