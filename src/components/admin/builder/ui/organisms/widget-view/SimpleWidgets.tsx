@@ -109,32 +109,28 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
   limit: number;
   lang: Lang;
 }) {
-  const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
-  const wrapRef = useRef<HTMLSpanElement>(null);
+  const [focused, setFocused] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 30);
-    else { setQ(""); setResults([]); setSearched(false); }
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
     const onDocClick = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setFocused(false);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setFocused(false); inputRef.current?.blur(); }
+    };
     document.addEventListener("mousedown", onDocClick);
     window.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("mousedown", onDocClick);
       window.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, []);
 
   const runSearch = async (term: string) => {
     const t = term.trim();
@@ -157,123 +153,95 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
   };
 
   useEffect(() => {
-    if (!open || !liveResults) return;
+    if (!liveResults) return;
     const h = setTimeout(() => runSearch(q), 220);
     return () => clearTimeout(h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, open, liveResults]);
+  }, [q, liveResults]);
 
   const placeholder = label || heading || (lang === "pl" ? "Szukaj" : "Search");
   const hasQuery = q.trim().length >= 2;
   const showEmpty = hasQuery && !loading && searched && results.length === 0;
+  const showPopover = focused && hasQuery;
 
   return (
-    <span ref={wrapRef} className="relative flex w-[min(88vw,420px)] max-w-full min-w-0">
+    <div ref={wrapRef} className="relative w-[min(88vw,420px)] max-w-full min-w-0">
       <div
-        style={{ borderRadius: 4, direction: "ltr" }}
-        className="flex w-[min(88vw,420px)] max-w-full min-w-0 items-center gap-2 border border-border bg-background transition-colors duration-150 px-3.5 h-10"
+        className="flex w-full items-center gap-2 border border-border bg-background h-10 px-3.5 rounded"
+        style={{ direction: "ltr" }}
       >
-        <LucideIcons.Search
-          className="w-4 h-4 text-muted-foreground shrink-0 cursor-pointer"
-          onClick={() => { inputRef.current?.focus(); setOpen(true); }}
-        />
+        <LucideIcons.Search className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden />
         <input
           ref={inputRef}
           value={q}
-          onFocus={() => setOpen(true)}
-          onChange={(e) => { setQ(e.target.value); if (!open) setOpen(true); }}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); runSearch(q); } }}
+          onChange={(e) => setQ(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); runSearch(q); setFocused(true); } }}
           placeholder={placeholder}
-          aria-label={label}
+          aria-label={label || placeholder}
           dir="ltr"
-          style={{ textAlign: "left", direction: "ltr", unicodeBidi: "plaintext" }}
-          className="block w-full flex-1 min-w-0 bg-transparent border-none outline-none text-xs text-left text-foreground placeholder:text-muted-foreground"
+          style={{ textAlign: "left", direction: "ltr", unicodeBidi: "plaintext", boxShadow: "none" }}
+          className="flex-1 min-w-0 bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 text-xs text-foreground placeholder:text-muted-foreground"
         />
         {loading && <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />}
-        {(q || open) && (
+        {q && (
           <button
             type="button"
-            aria-label={q ? "Clear" : "Close"}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (q) { setQ(""); setResults([]); setSearched(false); inputRef.current?.focus(); }
-              else setOpen(false);
-            }}
-            className="p-1 -mr-1 rounded-sm hover:bg-accent transition-colors shrink-0"
+            aria-label={lang === "pl" ? "Wyczyść" : "Clear"}
+            onClick={() => { setQ(""); setResults([]); setSearched(false); inputRef.current?.focus(); }}
+            className="p-1 -mr-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent focus:outline-none focus-visible:outline-none focus:ring-0 shrink-0"
           >
-            <LucideIcons.X className="w-3.5 h-3.5 text-muted-foreground" />
+            <LucideIcons.X className="w-3.5 h-3.5" />
           </button>
         )}
       </div>
 
-
-      {open && (
+      {showPopover && (
         <div
-          className="absolute left-0 top-[calc(100%+8px)] z-50 w-[min(92vw,540px)] rounded-2xl bg-popover text-popover-foreground border border-border shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150"
-          onClick={(e) => e.stopPropagation()}
+          className="absolute left-0 right-0 top-[calc(100%+6px)] z-[60] w-[min(92vw,540px)] rounded-lg bg-popover text-popover-foreground border border-border shadow-xl overflow-hidden"
           role="dialog"
-          aria-label="Search"
+          aria-label={lang === "pl" ? "Wyniki wyszukiwania" : "Search results"}
         >
-
-
-          {/* Results */}
-          <div className="max-h-[380px] overflow-y-auto p-2">
-            <div className="px-3 py-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-              {hasQuery
-                ? (lang === "pl" ? "Wyniki" : "Results")
-                : (lang === "pl" ? "Zacznij pisać, aby wyszukać" : "Start typing to search")}
-            </div>
-
-            {!hasQuery && (
-              <div className="px-3 py-6 text-sm text-muted-foreground">
-                {lang === "pl"
-                  ? "Wpisz co najmniej 2 znaki, aby zobaczyć wyniki."
-                  : "Type at least 2 characters to see results."}
+          <div className="max-h-[380px] overflow-y-auto py-1">
+            {loading && (
+              <div className="px-4 py-6 text-xs text-muted-foreground flex items-center gap-2">
+                <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin" />
+                {lang === "pl" ? "Szukam…" : "Searching…"}
               </div>
             )}
 
-            {showEmpty && (
-              <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-                <div className="p-3 rounded-full bg-muted mb-3">
-                  <LucideIcons.Search className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <div className="text-sm font-medium text-foreground">
-                  {lang === "pl" ? "Nie znaleziono wyników" : "No results found"}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {lang === "pl" ? "Spróbuj wpisać inne słowo kluczowe." : "Try a different keyword."}
-                </div>
+            {!loading && showEmpty && (
+              <div className="px-4 py-6 text-xs text-muted-foreground">
+                {lang === "pl" ? "Brak wyników dla " : "No results for "}
+                <span className="font-medium text-foreground">„{q.trim()}"</span>
               </div>
             )}
 
-            {hasQuery && results.length > 0 && (
-              <div className="space-y-1">
+            {!loading && results.length > 0 && (
+              <ul className="divide-y divide-border">
                 {results.map((r) => (
-                  <a
-                    key={r.id}
-                    href={`/posts/${r.slug}`}
-                    onClick={() => setOpen(false)}
-                    className="w-full flex items-start gap-4 p-3 rounded-xl hover:bg-accent text-left transition-colors group cursor-pointer"
-                  >
-                    <div className="mt-0.5 p-2 rounded-lg bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors shrink-0">
-                      <LucideIcons.FileText className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
+                  <li key={r.id}>
+                    <a
+                      href={`/posts/${r.slug}`}
+                      onClick={() => setFocused(false)}
+                      className="block px-4 py-2.5 hover:bg-accent transition-colors"
+                    >
                       <div className="text-sm font-medium text-foreground truncate">{r.title}</div>
                       {r.excerpt && (
                         <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{r.excerpt}</div>
                       )}
-                    </div>
-                  </a>
+                    </a>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </div>
         </div>
       )}
-    </span>
+    </div>
   );
 }
+
 
 
 
