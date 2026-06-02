@@ -8,7 +8,7 @@ import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
 import {
   SectionLabelRender, resolveAccentColor, type SectionLabelVariant,
 } from "@/lib/builder/sectionLabelVariants";
-import { SliderRender, type SliderVariant } from "@/lib/builder/sliderVariants";
+import { SliderRender, type SliderVariant, type AnimType, type AnimDir } from "@/lib/builder/sliderVariants";
 import {
   AnimatedHeadingRender, type AnimatedHeadingConfig,
   type AnimatedHeadingMode, type AnimatedHeadingShape,
