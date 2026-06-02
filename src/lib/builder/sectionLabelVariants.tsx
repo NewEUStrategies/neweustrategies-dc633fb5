@@ -46,9 +46,13 @@ interface RenderProps {
   accent: string;        // resolved CSS color
   variant: SectionLabelVariant;
   size?: "sm" | "md";    // sm = preview tile, md = real
+  labelColor?: string;   // override label text color
+  labelSize?: string;    // override label font-size (e.g. "14px", "1rem")
+  actionColor?: string;  // override action ("więcej") color
+  actionSize?: string;   // override action font-size
 }
 
-export function SectionLabelRender({ label, action, href, accent, variant, size = "md" }: RenderProps) {
+export function SectionLabelRender({ label, action, href, accent, variant, size = "md", labelColor, labelSize, actionColor, actionSize }: RenderProps) {
   const isSm = size === "sm";
   const textCls = isSm
     ? "text-[9px] font-bold uppercase tracking-wider truncate"
@@ -58,14 +62,23 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
     : "text-xs text-muted-foreground hover:opacity-80 transition";
   const wrapperBase = isSm ? "mb-1" : "mb-4";
 
+  const labelStyle: React.CSSProperties = {};
+  if (labelColor) labelStyle.color = labelColor;
+  if (labelSize && !isSm) labelStyle.fontSize = labelSize;
+
+  const actionStyle: React.CSSProperties = {};
+  if (actionColor) actionStyle.color = actionColor;
+  if (actionSize && !isSm) actionStyle.fontSize = actionSize;
+
   const ActionEl = action ? (
     href && !isSm
-      ? <a href={href} className={actionCls} style={{ color: accent }}>{action} →</a>
-      : <span className={actionCls}>{action} →</span>
+      ? <a href={href} className={actionCls} style={{ color: actionColor || accent, ...actionStyle }}>{action} →</a>
+      : <span className={actionCls} style={actionStyle}>{action} →</span>
   ) : null;
 
-  const labelEl = <span className={textCls}>{label}</span>;
+  const labelEl = <span className={textCls} style={labelStyle}>{label}</span>;
   const padY = isSm ? "py-1" : "py-2";
+
 
   switch (variant) {
     case "left-bar":
