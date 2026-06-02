@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PropField } from "../atoms/PropField";
 import { ResponsiveInput } from "../atoms/ResponsiveInput";
+import { FontPicker } from "@/components/admin/settings/FontPicker";
 
 interface Props {
   value: WidgetTypography | undefined;
@@ -19,13 +20,12 @@ export function TypographyControl({ value, device, onChange }: Props) {
   return (
     <div className="space-y-2">
       <PropField label="Krój pisma">
-        <Input
-          value={v.fontFamily ?? ""}
-          placeholder="Inter, system-ui"
-          onChange={(e) => set({ fontFamily: e.target.value || undefined })}
-          className="h-8 text-xs"
+        <FontPicker
+          value={v.fontFamily}
+          onChange={(stack) => set({ fontFamily: stack })}
         />
       </PropField>
+
 
       <PropField label={`Rozmiar (${device})`}>
         <ResponsiveInput

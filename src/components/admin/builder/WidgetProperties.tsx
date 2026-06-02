@@ -26,6 +26,7 @@ import { MotionControl } from "./ui/molecules/MotionControl";
 import { VisibilityControl } from "./ui/molecules/VisibilityControl";
 import { HoverControl } from "./ui/molecules/HoverControl";
 import { SchemaFieldControl } from "./ui/molecules/SchemaFieldControl";
+
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 import {
   AccordionEditor,
@@ -334,7 +335,72 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
 
 
         <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Zaokrąglenie rogów</h4>
+          <PropField label="Promień (px)">
+            <StepperInput
+              value={getFlatStr("borderRadius")}
+              placeholder="8px"
+              min={0}
+              onChange={(v) => setFlatStr("borderRadius", v ?? "")}
+            />
+          </PropField>
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Obramowanie</h4>
+          <div className="grid grid-cols-2 gap-2">
+            <PropField label="Styl">
+              <Select
+                value={getFlatBorderStyle()}
+                onValueChange={(v) => setFlatBorderStyle(v === "none" ? undefined : (v as CommonStyle["borderStyle"]))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[
+                    { v: "none", l: "Brak" },
+                    { v: "solid", l: "Ciągła" },
+                    { v: "dashed", l: "Kreskowana" },
+                    { v: "dotted", l: "Kropkowana" },
+                    { v: "double", l: "Podwójna" },
+                  ].map((o) => (
+                    <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </PropField>
+            <PropField label="Grubość (px)">
+              <StepperInput
+                value={getFlatStr("borderWidth")}
+                placeholder="1px"
+                min={0}
+                onChange={(v) => setFlatStr("borderWidth", v ?? "")}
+              />
+            </PropField>
+          </div>
+          <ThemedColorField
+            label={`Kolor (${mode === "dark" ? "ciemny" : "jasny"})`}
+            value={getColor("borderColor")}
+            onChange={(v) => setColor("borderColor", v)}
+            overridden={isOverridden("borderColor")}
+            onReset={() => resetColor("borderColor")}
+            placeholderHint="dziedziczy z global colors"
+            inheritedValue={inherited.borderColor}
+          />
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Typografia ({mode === "dark" ? "ciemny" : "jasny"})</h4>
+
+          <TypographyControl
+            value={getThemedTypography()}
+            device={device}
+            onChange={(typography: WidgetTypography) => setThemedTypography(typography)}
+          />
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Hover ({mode === "dark" ? "ciemny" : "jasny"})</h4>
+
           <HoverControl
             value={hoverValue}
             onChange={onHoverChange}
