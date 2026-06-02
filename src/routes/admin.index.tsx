@@ -44,7 +44,7 @@ function Dashboard() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((c) => (
           <Link key={c.to} to={c.to} className="bg-card border border-border rounded-lg p-5 hover:border-brand transition">
-            <c.icon className="w-6 h-6 text-brand mb-3" />
+            <c.icon className="w-6 h-6 mb-3" style={{ color: "var(--gc-icon, var(--gc-highlight, hsl(var(--brand))))" }} />
             <div className="text-3xl font-bold font-display">{c.value}</div>
             <div className="text-sm font-medium mt-1">{c.label}</div>
             {c.sub && <div className="text-xs text-muted-foreground mt-2">{c.sub}</div>}
