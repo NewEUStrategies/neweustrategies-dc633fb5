@@ -39,6 +39,7 @@ function ImportWordpressPage() {
   const [number, setNumber] = useState(20);
   const [offset, setOffset] = useState(0);
   const [status, setStatus] = useState<"publish" | "draft" | "any">("publish");
+  const [type, setType] = useState<"post" | "page" | "any">("post");
   const [language, setLanguage] = useState<"pl" | "en">("pl");
   const [syncExisting, setSyncExisting] = useState(false);
   const [importMedia, setImportMedia] = useState(true);
