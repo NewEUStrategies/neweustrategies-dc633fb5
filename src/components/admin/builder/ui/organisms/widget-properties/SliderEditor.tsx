@@ -9,8 +9,12 @@ import { TaxonomyPicker } from "./TaxonomyPicker";
 import {
   SLIDER_VARIANTS,
   SliderRender,
+  ANIM_TYPES,
+  ANIM_DIRS,
   type SliderVariant,
   type SliderItem,
+  type AnimType,
+  type AnimDir,
 } from "@/lib/builder/sliderVariants";
 
 interface Props {
