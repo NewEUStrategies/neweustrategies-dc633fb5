@@ -108,11 +108,14 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  const docRef = useRef(doc);
+  docRef.current = doc;
   const update = useCallback((mut: (d: BuilderDocument) => void) => {
-    const next: BuilderDocument = JSON.parse(JSON.stringify(doc));
+    const next: BuilderDocument = JSON.parse(JSON.stringify(docRef.current));
     mut(next);
+    docRef.current = next;
     history.setDoc(next);
-  }, [doc, history]);
+  }, [history]);
 
   // ---------- structural ops ----------
   const templates = useSectionTemplates();
