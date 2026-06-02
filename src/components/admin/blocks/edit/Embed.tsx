@@ -1,7 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { PlaySquare } from "lucide-react";
-import { parseEmbedUrl } from "@/lib/blocks/embed";
+import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
 
 interface Props {
   block: Block;
@@ -22,7 +22,7 @@ export function EmbedBlock({ block, onChange }: Props) {
           placeholder="https://www.youtube.com/watch?v=…  •  https://vimeo.com/…  •  https://x.com/…"
         />
       </div>
-      {parsed ? (
+      {parsed && isIframeEmbed(parsed) ? (
         <div className="relative aspect-video rounded-md overflow-hidden border border-border bg-muted">
           <iframe
             src={parsed.embedUrl}

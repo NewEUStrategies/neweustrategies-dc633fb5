@@ -107,7 +107,7 @@ function BlockView({ block }: { block: Block }) {
     case "embed": {
       const url = String(block.data.url ?? "");
       const parsed = parseEmbedUrl(url);
-      if (!parsed) {
+      if (!parsed || !isIframeEmbed(parsed)) {
         return url ? <p className={cls}><a href={url} target="_blank" rel="noopener noreferrer">{url}</a></p> : null;
       }
       return (
