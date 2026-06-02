@@ -25,7 +25,8 @@ export interface PageData {
   title_en: string;
   content_pl: string | null;
   content_en: string | null;
-  editor: "richtext" | "markdown" | "builder";
+  editor: "blocks" | "richtext" | "markdown" | "builder";
+  blocks_data?: unknown;
   builder_data: unknown;
   cover_image_url: string | null;
   published_at: string | null;
