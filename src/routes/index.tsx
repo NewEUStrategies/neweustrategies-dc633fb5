@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { parseBuilderDoc } from "@/lib/builder/parse";
@@ -48,6 +49,7 @@ function Index() {
           </div>
         )}
       </main>
+      <Footer />
     </div>
   );
 }
