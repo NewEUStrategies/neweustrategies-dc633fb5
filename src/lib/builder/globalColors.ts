@@ -57,7 +57,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultDark: "#e5e7eb",
         typography: true,
         defaultFontFamily: '"Red Hat Display", Georgia, serif',
-        defaultFontSize: "16px"
+        defaultFontSize: "14px"
       },
       {
         key: "header-icon-hover",
@@ -170,7 +170,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         overrides: ["--primary-foreground"],
         typography: true,
         defaultFontFamily: '"Red Hat Display", Georgia, serif',
-        defaultFontSize: "16px"
+        defaultFontSize: "14px"
       },
       {
         key: "btn-hover-bg",
@@ -281,7 +281,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         overrides: ["--sidebar-foreground"],
         typography: true,
         defaultFontFamily: '"Red Hat Display", Georgia, serif',
-        defaultFontSize: "16px"
+        defaultFontSize: "14px"
       },
       {
         key: "sidebar-btn-bg",
@@ -302,7 +302,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         overrides: ["--sidebar-primary-foreground", "--sidebar-accent-foreground"],
         typography: true,
         defaultFontFamily: '"Red Hat Display", Georgia, serif',
-        defaultFontSize: "16px"
+        defaultFontSize: "14px"
       },
       {
         key: "sidebar-btn-hover-bg",
@@ -373,7 +373,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         overrides: ["--foreground"],
         typography: true,
         defaultFontFamily: '"Red Hat Display", Georgia, serif',
-        defaultFontSize: "17px",
+        defaultFontSize: "14px",
       },
       {
         key: "body-text-muted",
@@ -403,7 +403,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultDark: "#fbbf24",
         typography: true,
         defaultFontFamily: '"Red Hat Display", Georgia, serif',
-        defaultFontSize: "16px",
+        defaultFontSize: "14px",
       },
       {
         key: "link-hover",
