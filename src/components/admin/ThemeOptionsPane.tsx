@@ -462,26 +462,26 @@ export function ThemeOptionsPane() {
 
         {active === "header.search" && (
           <div className="space-y-4">
-            <Row label="Header Search Icon" hint="Włącz lub wyłącz ikonę wyszukiwarki w nagłówku.">
+            <Row label={t("themeOptions.search.icon")} hint={t("themeOptions.search.iconHint")}>
               <Switch checked={draft.header.search.enabled} onCheckedChange={(v) => patchSearch({ enabled: v })} />
             </Row>
-            <Row label="Search Heading" hint="Nagłówek nad formularzem wyszukiwania.">
+            <Row label={t("themeOptions.search.heading")} hint={t("themeOptions.search.headingHint")}>
               <Input value={draft.header.search.heading} onChange={(e) => patchSearch({ heading: e.target.value })} className="w-[260px] h-9 text-xs" />
             </Row>
-            <Row label="Search Form Appearance Mode" hint="Sposób pojawiania się formularza.">
+            <Row label={t("themeOptions.search.mode")} hint={t("themeOptions.search.modeHint")}>
               <Select value={draft.header.search.mode} onValueChange={(v) => patchSearch({ mode: v as ThemeOptions["header"]["search"]["mode"] })}>
                 <SelectTrigger className="w-[260px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="standalone">Standalone Search Form</SelectItem>
-                  <SelectItem value="dropdown">Dropdown</SelectItem>
-                  <SelectItem value="fullscreen">Fullscreen Overlay</SelectItem>
+                  <SelectItem value="standalone">{t("themeOptions.search.modeStandalone")}</SelectItem>
+                  <SelectItem value="dropdown">{t("themeOptions.search.modeDropdown")}</SelectItem>
+                  <SelectItem value="fullscreen">{t("themeOptions.search.modeFullscreen")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Live Search Result" hint="Wyświetlaj wyniki na żywo podczas pisania.">
+            <Row label={t("themeOptions.search.live")} hint={t("themeOptions.search.liveHint")}>
               <Switch checked={draft.header.search.live_results} onCheckedChange={(v) => patchSearch({ live_results: v })} />
             </Row>
-            <Row label="Live Search Limit Posts" hint="Maksymalnie 10 pozycji.">
+            <Row label={t("themeOptions.search.limit")} hint={t("themeOptions.search.limitHint")}>
               <Input
                 type="number" min={1} max={10}
                 className="w-[120px] h-9 text-xs"
@@ -489,7 +489,7 @@ export function ThemeOptionsPane() {
                 onChange={(e) => patchSearch({ live_limit: Math.min(10, Math.max(1, Number(e.target.value) || 1)) })}
               />
             </Row>
-            <Row label="More Menu — Search Form" hint="Pokaż formularz w sekcji „More”.">
+            <Row label={t("themeOptions.search.moreMenu")} hint={t("themeOptions.search.moreMenuHint")}>
               <Switch checked={draft.header.search.more_menu_search} onCheckedChange={(v) => patchSearch({ more_menu_search: v })} />
             </Row>
           </div>
