@@ -41,6 +41,17 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
         </PropField>
       );
 
+    case "image":
+      return (
+        <ImageSlot
+          label={field.label}
+          icon={<ImageIcon className="w-3 h-3" />}
+          value={asString(content[field.key])}
+          onChange={(v) => setContent(field.key, v)}
+          hint={field.hint}
+        />
+      );
+
     case "i18nText":
       return (
         <PropField label={`${field.label} (${langSuffix})`} hint={field.hint}>
