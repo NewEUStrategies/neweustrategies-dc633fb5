@@ -7,12 +7,12 @@ import type {
 import { pickMode } from "@/lib/builder/themed";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 
-// Default width: widgets hug their content so they sit side-by-side in a row (left-aligned).
-// Max-width still capped at 100% so nothing overflows. Override per-device via advanced.width.
+// Default width: widgets fill the full column width unless an explicit width
+// is set or the widget type is intrinsic (image/icon/button/spacer/divider).
 export const DEFAULT_WIDGET_WIDTH_BY_DEVICE: Record<Device, string> = {
-  desktop: "auto",
-  tablet: "auto",
-  mobile: "auto",
+  desktop: "100%",
+  tablet: "100%",
+  mobile: "100%",
 };
 export const DEFAULT_WIDGET_MIN_HEIGHT = 0;
 export const AUTO_SIZE_WIDGETS = new Set(["image", "icon", "button", "spacer", "divider"]);
