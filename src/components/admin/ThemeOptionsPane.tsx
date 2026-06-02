@@ -159,6 +159,15 @@ const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
   "layout-6": { label: "Layout 6 — Left Global Sidebar", hint: "Pionowy sidebar po lewej zamiast poziomego nagłówka (collapse/expand)" },
 };
 
+const SIDEBAR_PREVIEWS: Record<SidebarStyle, { label: string; hint: string }> = {
+  "style-1": { label: "Style 1 — Default Solid", hint: "Pełne tło karty, klasyczny układ (obecny domyślny)." },
+  "style-2": { label: "Style 2 — Minimal Borderless", hint: "Bez obramowania, przezroczyste elementy, bardzo lekki look." },
+  "style-3": { label: "Style 3 — Floating Card", hint: "Odsunięty od krawędzi, zaokrąglone rogi, miękki cień." },
+  "style-4": { label: "Style 4 — Compact Rail", hint: "Wąski pasek z samymi ikonami (zawsze zwinięty)." },
+  "style-5": { label: "Style 5 — Glass", hint: "Półprzezroczyste tło z efektem szkła (backdrop blur)." },
+  "style-6": { label: "Style 6 — Bold Dark", hint: "Mocny kontrast — ciemne tło w obu trybach, jasny akcent." },
+};
+
 export function ThemeOptionsPane() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { query, save } = useSettings<any>("theme_options", DEFAULTS as any);
