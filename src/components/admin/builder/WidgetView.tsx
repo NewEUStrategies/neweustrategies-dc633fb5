@@ -491,6 +491,11 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         : badgeVariant === "gradient" ? "bg-gradient-to-r from-destructive to-brand text-white"
         : "bg-destructive text-white";
       const badgeCls = `inline-block font-bold uppercase tracking-wider mb-3 ${sizeCls} ${variantCls} ${radiusCls}`;
+      const badgeBg = getStr(c, "badgeBg");
+      const badgeText = getStr(c, "badgeText");
+      const badgeStyle: CSSProperties = {};
+      if (badgeBg) { badgeStyle.background = badgeBg; badgeStyle.borderColor = badgeBg; }
+      if (badgeText) badgeStyle.color = badgeText;
       const imageHover = getStr(c, "imageHover") || "zoom-in";
       // For zoom-in / zoom-out we animate the inset of an object-contain image,
       // so the picture grows/shrinks WITHIN the frame and is never cropped.
