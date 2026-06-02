@@ -130,6 +130,9 @@ const DEFAULTS: ThemeOptions = {
     focus_ring_width: 2,
     show_label_above: true,
   },
+  sidebars: {
+    style: "style-1",
+  },
 };
 
 const SECTIONS = [
