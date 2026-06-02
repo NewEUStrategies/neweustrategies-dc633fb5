@@ -164,6 +164,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
             overridden={isOverridden("bgColor")}
             onReset={() => resetColor("bgColor")}
             placeholderHint="dziedziczy z global colors"
+            inheritedValue={inherited.bgColor}
           />
           <ThemedColorField
             label="Tekst"
@@ -172,6 +173,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
             overridden={isOverridden("textColor")}
             onReset={() => resetColor("textColor")}
             placeholderHint="dziedziczy z global colors"
+            inheritedValue={inherited.textColor}
           />
         </section>
 
