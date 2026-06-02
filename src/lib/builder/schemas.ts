@@ -453,7 +453,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "excerpt", type: "i18nText", label: "Zajawka (opcjonalna)" },
-    { key: "image", type: "url", label: "URL obrazka" },
+    { key: "image", type: "image", label: "Obrazek", hint: "Wklej URL lub wgraj plik z dysku." },
     {
       key: "imageHover", type: "select", label: "Animacja obrazka (hover)",
       options: [
