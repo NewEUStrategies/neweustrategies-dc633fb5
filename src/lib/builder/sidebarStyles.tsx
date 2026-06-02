@@ -68,11 +68,11 @@ export function SidebarStylePreview({ style }: { style: SidebarStyle }) {
     },
     "style-3": {
       wrap: { background: "hsl(var(--muted) / 0.5)", padding: 8 },
-      aside: { background: "hsl(var(--card))", borderRadius: 12, boxShadow: "0 10px 28px -10px rgba(0,0,0,0.3)", border: "1px solid hsl(var(--border))" },
+      aside: { background: "hsl(var(--card))", borderRadius: 4, boxShadow: "0 10px 28px -10px rgba(0,0,0,0.3)", border: "1px solid hsl(var(--border))" },
       brand: { color: "hsl(var(--foreground))" },
       item: { color: "hsl(var(--foreground))", margin: "0 4px" },
       itemActive: { background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", margin: "0 4px" },
-      width: 92, showLabels: true, itemRadius: 8,
+      width: 92, showLabels: true, itemRadius: 4,
     },
     "style-4": {
       wrap: { background: "hsl(var(--muted) / 0.4)" },
