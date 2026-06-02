@@ -80,11 +80,13 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
       // Intersect include filters (taxonomy AND explicit IDs).
       let includeSet: Set<string> | null = null;
-      const seed = (s: Set<string>) => { includeSet = includeSet ? new Set([...includeSet].filter((x) => s.has(x))) : new Set(s); };
+      const seed = (s: Set<string>) => {
+        includeSet = includeSet ? new Set([...includeSet].filter((x) => s.has(x))) : new Set(s);
+      };
       if (includeCats.length) seed(incCatIds);
       if (includeTags.length) seed(incTagIds);
       if (includeIds.length) seed(new Set(includeIds));
-      if (includeSet && includeSet.size === 0) return [];
+      if (includeSet !== null && (includeSet as Set<string>).size === 0) return [];
 
       const excludeSet = new Set<string>([...excCatIds, ...excTagIds, ...excludeIds]);
 
