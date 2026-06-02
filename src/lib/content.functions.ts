@@ -226,15 +226,18 @@ export const updatePost = createServerFn({ method: "POST" })
     });
   });
 
+// Soft-delete: move to trash
 export const deletePost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);
-    const { error } = await supabase.from("posts").delete().eq("id", data.id);
+    const { error } = await supabase.from("posts")
+      .update({ deleted_at: new Date().toISOString() } as PostUpdateRow)
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
-    await audit(supabase, tenantId, "post.delete", "post", data.id);
+    await audit(supabase, tenantId, "post.delete", "post", data.id, { soft: true });
     return { ok: true as const };
   });
 
@@ -245,9 +248,41 @@ export const bulkDeletePosts = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("post.bulkDelete", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
+      const { error } = await supabase.from("posts")
+        .update({ deleted_at: new Date().toISOString() } as PostUpdateRow)
+        .in("id", data.ids);
+      if (error) throw new Error(error.message);
+      await audit(supabase, tenantId, "post.delete", "post", null, { ids: data.ids, count: data.ids.length, soft: true });
+      return { ok: true as const, count: data.ids.length };
+    });
+  });
+
+export const restorePosts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    return guard("post.restore", userId, 20, async () => {
+      const tenantId = await resolveTenant(supabase, userId);
+      const { error } = await supabase.from("posts")
+        .update({ deleted_at: null } as PostUpdateRow)
+        .in("id", data.ids);
+      if (error) throw new Error(error.message);
+      await audit(supabase, tenantId, "post.update", "post", null, { ids: data.ids, restored: true });
+      return { ok: true as const, count: data.ids.length };
+    });
+  });
+
+export const purgePosts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    return guard("post.purge", userId, 20, async () => {
+      const tenantId = await resolveTenant(supabase, userId);
       const { error } = await supabase.from("posts").delete().in("id", data.ids);
       if (error) throw new Error(error.message);
-      await audit(supabase, tenantId, "post.delete", "post", null, { ids: data.ids, count: data.ids.length });
+      await audit(supabase, tenantId, "post.delete", "post", null, { ids: data.ids, purged: true });
       return { ok: true as const, count: data.ids.length };
     });
   });
