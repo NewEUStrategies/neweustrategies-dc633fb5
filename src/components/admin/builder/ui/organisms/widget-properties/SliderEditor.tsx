@@ -20,7 +20,7 @@ interface Props {
 }
 
 export function SliderEditor({ c, lang, setContent }: Props) {
-  const variant = ((typeof c.variant === "string" && c.variant) || "classic") as SliderVariant;
+  const variant = ((typeof c.variant === "string" && c.variant) || "editorial-hero") as SliderVariant;
   const ratio = (typeof c.ratio === "string" ? c.ratio : "16/9") as "16/9" | "4/3" | "1/1" | "21/9" | "3/2";
   const autoplay = c.autoplay !== false;
   const intervalMs = typeof c.intervalMs === "number" ? c.intervalMs : 4500;
