@@ -12,19 +12,21 @@ export type SectionLabelVariant =
   | "centered-short-rule"
   | "filled-bar"
   | "centered-underline"
-  | "slanted-ribbon-rule";
+  | "slanted-ribbon-rule"
+  | "double-rule-centered";
 
 export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string }[] = [
-  { value: "left-bar",            label: "01 — Pionowy pasek" },
-  { value: "left-border",         label: "02 — Lewa krawędź" },
-  { value: "small-corners",       label: "04 — Narożniki" },
-  { value: "only-text",           label: "05 — Tylko tekst" },
-  { value: "badge-filled",        label: "06 — Etykieta pełna" },
-  { value: "centered-rule",       label: "07 — Wycentrowany z linią (np. Poznaj nasze raporty)" },
-  { value: "centered-short-rule", label: "08 — Wycentrowany z krótkimi liniami (np. Materiały partnerów)" },
-  { value: "filled-bar",          label: "09 — Pełny pasek (np. Najnowszy raport)" },
-  { value: "centered-underline",  label: "10 — Wycentrowany z podkreśleniem (np. Poznaj nasze raporty)" },
-  { value: "slanted-ribbon-rule", label: "11 — Wstęga ze spadem i linią (np. Najnowszy raport)" },
+  { value: "left-bar",             label: "01 — Pionowy pasek" },
+  { value: "left-border",          label: "02 — Lewa krawędź" },
+  { value: "small-corners",        label: "04 — Narożniki" },
+  { value: "only-text",            label: "05 — Tylko tekst" },
+  { value: "badge-filled",         label: "06 — Etykieta pełna" },
+  { value: "centered-rule",        label: "07 — Wycentrowany z linią (np. Poznaj nasze raporty)" },
+  { value: "centered-short-rule",  label: "08 — Wycentrowany z krótkimi liniami (np. Materiały partnerów)" },
+  { value: "filled-bar",           label: "09 — Pełny pasek (np. Najnowszy raport)" },
+  { value: "centered-underline",   label: "10 — Wycentrowany z podkreśleniem (np. Poznaj nasze raporty)" },
+  { value: "slanted-ribbon-rule",  label: "11 — Wstęga ze spadem i linią (np. Najnowszy raport)" },
+  { value: "double-rule-centered", label: "12 — Subtelne linie (np. Wywiady | Podcasty)" },
 ];
 
 
