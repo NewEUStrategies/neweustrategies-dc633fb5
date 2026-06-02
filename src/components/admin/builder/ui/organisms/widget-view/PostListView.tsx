@@ -160,7 +160,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
   if (variant === "numbered") {
     return (
-      <div className="flex flex-col divide-y divide-border">
+      <div className="w-full flex flex-col divide-y divide-border">
         {rows.map((p, i) => (
           <a key={p.id} href={`/post/${p.slug}`} className="flex items-center gap-4 py-5 group relative">
             <span
