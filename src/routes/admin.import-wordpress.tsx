@@ -186,7 +186,7 @@ function ImportWordpressPage() {
           </Button>
           {preview.error && (
             <span className="inline-flex items-center gap-1 text-[11px] text-destructive">
-              <AlertCircle className="w-3 h-3" /> {String(preview.error)}
+              <AlertTriangle className="w-3 h-3" /> {String(preview.error)}
             </span>
           )}
         </div>
@@ -195,7 +195,7 @@ function ImportWordpressPage() {
       {importer.data && (
         <div className="rounded-md border border-border bg-card p-3 text-xs">
           <div className="flex items-center gap-2 mb-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <Check className="w-4 h-4 text-emerald-600" />
             <strong>{isPL ? "Wynik importu" : "Import result"}</strong>
           </div>
           <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
