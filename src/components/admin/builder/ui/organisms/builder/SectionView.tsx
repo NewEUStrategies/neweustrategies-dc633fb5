@@ -144,11 +144,12 @@ export function SectionView(p: SectionViewProps) {
 }
 
 function InnerSectionView({
-  inner, device, lang, selection, setSelection, onRemoveColumn, onDuplicateColumn,
+  inner, device, lang, selection, setSelection, forceToolbar, onRemoveColumn, onDuplicateColumn,
   onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent, onToggleHidden,
 }: {
   inner: InnerSectionNode; device: Device; lang: "pl" | "en"; selection: Selection;
   setSelection: (s: Selection) => void;
+  forceToolbar?: boolean;
   onRemoveColumn: (id: string) => void; onDuplicateColumn: (id: string) => void;
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
@@ -181,6 +182,7 @@ function InnerSectionView({
 
             <ColumnView column={c} device={device} lang={lang} selection={selection}
               setSelection={setSelection}
+              forceToolbar={forceToolbar}
               onRemove={() => onRemoveColumn(c.id)} onDuplicate={() => onDuplicateColumn(c.id)}
               onRemoveWidget={onRemoveWidget} onDuplicateWidget={onDuplicateWidget}
               onDropWidget={onDropWidget}
@@ -194,11 +196,12 @@ function InnerSectionView({
 }
 
 function ColumnView({
-  column, device, lang, selection, setSelection, onRemove, onDuplicate,
+  column, device, lang, selection, setSelection, forceToolbar, onRemove, onDuplicate,
   onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent, onToggleHidden,
 }: {
   column: ColumnNode; device: Device; lang: "pl" | "en"; selection: Selection;
   setSelection: (s: Selection) => void;
+  forceToolbar?: boolean;
   onRemove: () => void; onDuplicate: () => void;
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
@@ -211,9 +214,11 @@ function ColumnView({
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: "col:" + column.id });
   const visibleChildren = column.children.filter((w) => !hiddenOnDevice(w.advanced, device));
   const isToolbar =
-    visibleChildren.length > 1 &&
-    visibleChildren.every((w) => COMPACT_WIDGET_TYPES.has(w.type) || AUTO_SIZE_WIDGETS.has(w.type));
+    forceToolbar ||
+    (visibleChildren.length > 1 &&
+      visibleChildren.every((w) => COMPACT_WIDGET_TYPES.has(w.type) || AUTO_SIZE_WIDGETS.has(w.type)));
   const stacked = !isToolbar;
+
   return (
     <div
       ref={setDropRef}
