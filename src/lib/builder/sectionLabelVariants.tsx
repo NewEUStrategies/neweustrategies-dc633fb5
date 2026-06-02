@@ -222,7 +222,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
             style={{
               background: accent,
               color: fg,
-              clipPath: `polygon(0 0, 100% 0, calc(100% - ${cutW}px) 100%, 0 100%)`,
+              clipPath: `polygon(0 0, calc(100% - ${cutW}px) 0, 100% 100%, 0 100%)`,
               paddingRight: `${cutW + (isSm ? 6 : 16)}px`,
               ...(labelSize && !isSm ? { fontSize: labelSize } : {}),
             }}
