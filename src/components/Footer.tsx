@@ -24,7 +24,17 @@ export function Footer() {
   if (!doc.sections?.length) return null;
 
   return (
-    <footer>
+    <footer className="builder-footer-public">
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            .builder-footer-public { color: var(--foreground); }
+            .builder-footer-public a:not(.btn):not([class*="button"]) { color: inherit; text-decoration: none; }
+            .builder-footer-public a:not(.btn):not([class*="button"]):hover { color: inherit; opacity: 0.8; }
+            .builder-footer-public :is(h1, h2, h3, h4, h5, h6, p, li, small) { color: inherit; }
+          `,
+        }}
+      />
       <BuilderRenderer doc={doc} lang={isPl ? "pl" : "en"} />
     </footer>
   );
