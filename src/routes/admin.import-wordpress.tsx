@@ -101,6 +101,7 @@ function ImportWordpressPage() {
   });
 
   // Poll the job while it's running.
+  const qc = useQueryClient();
   const job = useQuery({
     queryKey: ["wp-import-job", jobId],
     enabled: !!jobId,
@@ -110,6 +111,26 @@ function ImportWordpressPage() {
       return s === "running" || s === undefined ? 1000 : false;
     },
   });
+
+  // When the job finishes (or imports/updates progress), refresh the
+  // admin posts/media lists so the newly imported content shows up
+  // without a manual page reload.
+  const lastInvalidated = useRef<{ jobId: string | null; processed: number; status: string }>({
+    jobId: null, processed: -1, status: "",
+  });
+  useEffect(() => {
+    const d = job.data;
+    if (!jobId || !d) return;
+    const sig = lastInvalidated.current;
+    const finished = d.status === "completed" || d.status === "failed" || d.status === "canceled";
+    const progressed = d.processed !== sig.processed;
+    if (sig.jobId !== jobId || finished || progressed) {
+      lastInvalidated.current = { jobId, processed: d.processed, status: d.status };
+      qc.invalidateQueries({ queryKey: ["admin-posts"] });
+      qc.invalidateQueries({ queryKey: ["admin-posts-trash-count"] });
+      qc.invalidateQueries({ queryKey: ["admin-media"] });
+    }
+  }, [job.data, jobId, qc]);
 
   const importer = useMutation({
     mutationFn: async () => {
