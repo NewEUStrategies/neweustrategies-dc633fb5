@@ -1,7 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Layers, Star, Mail, Bookmark, ChevronRight } from "@/lib/lucide-shim";
+import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Layers, Star, Mail, Bookmark, ChevronRight, Lock, Palette, LayoutGrid, Sparkles, PanelsTopLeft, Newspaper, User } from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
@@ -54,18 +54,18 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
 
   const items = [
     { to: "/admin", icon: LayoutDashboard, label: t("admin.nav.dashboard") },
-    { to: "/admin/posts", icon: FileText, label: t("admin.nav.posts") },
+    { to: "/admin/posts", icon: Newspaper, label: t("admin.nav.posts") },
     { to: "/admin/pages", icon: File, label: t("admin.nav.pages") },
     { to: "/admin/media", icon: ImageIcon, label: t("admin.nav.media") },
     { to: "/admin/categories", icon: FolderTree, label: t("admin.nav.categories") },
     { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
-    { to: "/admin/paywall", icon: Star, label: t("admin.nav.paywall") },
-    { to: "/admin/appearance", icon: Layers, label: t("admin.nav.appearance") },
-    { to: "/admin/theme-options", icon: Sun, label: t("admin.nav.themeOptions") },
-    { to: "/admin/post-layouts", icon: Layers, label: t("admin.nav.postLayouts") },
+    { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
+    { to: "/admin/appearance", icon: PanelsTopLeft, label: t("admin.nav.appearance") },
+    { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
+    { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
     { to: "/admin/content-area", icon: FileText, label: t("admin.nav.contentArea") },
     { to: "/admin/newsletter", icon: Mail, label: t("admin.nav.newsletter") },
-    { to: "/admin/personalized", icon: Bookmark, label: t("admin.nav.personalized") },
+    { to: "/admin/personalized", icon: Sparkles, label: t("admin.nav.personalized") },
     ...(isAdmin ? [
       { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
       { to: "/admin/settings", icon: Settings, label: t("admin.nav.settings") },
