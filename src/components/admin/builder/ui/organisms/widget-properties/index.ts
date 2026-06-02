@@ -8,5 +8,6 @@ export { ImageSlot } from "./ImageSlot";
 export { SectionLabelEditor } from "./SectionLabelEditor";
 export { SliderEditor } from "./SliderEditor";
 export { AnimatedHeadingEditor } from "./AnimatedHeadingEditor";
+export { PostListEditor } from "./PostListEditor";
 export { ListShell } from "./ListShell";
 export { itemsOf, type Item } from "./shared";
