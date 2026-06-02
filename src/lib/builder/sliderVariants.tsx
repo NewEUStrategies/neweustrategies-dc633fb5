@@ -267,7 +267,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const sharedKeyframes = entryKeyframes;
   const captionAnim: CSSProperties = buildEntryAnim(textAnim, textDir, 700);
   const ctaAnimStyle: CSSProperties = { ...buildEntryAnim(ctaAnim, ctaDir, 800), animationDelay: "120ms" };
-  };
+
 
 
   switch (variant) {
