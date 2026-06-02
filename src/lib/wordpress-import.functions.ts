@@ -647,3 +647,34 @@ export const getWpImportJob = createServerFn({ method: "POST" })
     if (!row) throw new Error("Job not found");
     return row;
   });
+
+// ---- cancel ----
+
+const CancelInput = z.object({ jobId: z.string().uuid() });
+
+export const cancelWpImportJob = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) => CancelInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const tenantId = await resolveTenant(supabase, userId);
+    const { data: job } = await supabase
+      .from("wp_import_jobs").select("id, status, tenant_id")
+      .eq("id", data.jobId).maybeSingle();
+    if (!job || job.tenant_id !== tenantId) throw new Error("Job not found");
+    if (job.status !== "running") {
+      return { jobId: data.jobId, status: job.status as string };
+    }
+    // Flip status; the runner polls and finalizes (writes finished_at and the
+    // "canceled by user" log entry) on its next iteration.
+    const { error } = await supabase
+      .from("wp_import_jobs")
+      .update({ status: "canceled" })
+      .eq("id", data.jobId);
+    if (error) throw new Error(error.message);
+    await recordAudit(supabase, {
+      tenantId, action: "wp_import.cancel", entityType: "wp_import_job",
+      entityId: data.jobId,
+    });
+    return { jobId: data.jobId, status: "canceled" };
+  });
