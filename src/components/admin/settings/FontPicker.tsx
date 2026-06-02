@@ -88,11 +88,11 @@ export function FontPicker({ value, onChange, sampleText = "Aa — The quick bro
       >
         <span className="flex flex-col items-start min-w-0">
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            {selected?.label ?? "Domyślny"}
+            {selected?.label ?? "Red Hat Display (domyślny)"}
           </span>
           <span
             className="truncate text-base"
-            style={{ fontFamily: value || "inherit" }}
+            style={{ fontFamily: value || DEFAULT_FONT_STACK }}
           >
             {sampleText}
           </span>
