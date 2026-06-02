@@ -98,6 +98,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   const [mode, setMode] = useState<Mode>("light");
   const [selection, setSelection] = useState<Selection>({ kind: null, id: null });
   const [showNavigator, setShowNavigator] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ kind: "section" | "column" | "widget"; id: string } | null>(null);
   const [ctx, setCtx] = useState<CtxTarget | null>(null);
 
