@@ -161,8 +161,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const sizePreset = getStr(c, "sizePreset") || "md";
       const sizePx = getNum(c, "sizePx", 0);
       const sizePxMobile = getNum(c, "sizePxMobile", 0);
-      const rawHref = getStr(c, "href");
-      const href = rawHref ? safeUrl(rawHref) : "";
+      const href = safeUrl(getStr(c, "href"));
       const target = getStr(c, "target") === "blank" ? "_blank" : undefined;
       const iconName = getStr(c, "iconName");
       const iconPos = getStr(c, "iconPosition") || "left";
