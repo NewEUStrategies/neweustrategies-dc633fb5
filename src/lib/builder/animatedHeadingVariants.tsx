@@ -132,21 +132,21 @@ function ShapeSvg({
       body = <path d="M2 6 Q 100 2 198 6" />;
       break;
     case "double-underline":
-      viewBox = "0 0 200 14";
+      viewBox = "0 0 200 16";
       body = (
         <>
-          <path d="M2 4 Q 100 1 198 4" />
-          <path d="M2 11 Q 100 8 198 11" />
+          <path d="M2 5 Q 100 1 198 5" />
+          <path d="M3 12 Q 100 9 197 12" />
         </>
       );
       break;
     case "curly":
-      viewBox = "0 0 200 14";
-      body = <path d="M2 7 q 12.5 -7 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 23 0" />;
+      viewBox = "0 0 200 10";
+      body = <path d="M2 5 q 12.5 -3 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 23 0" />;
       break;
     case "zigzag":
-      viewBox = "0 0 200 14";
-      body = <path d="M2 11 L 22 3 L 42 11 L 62 3 L 82 11 L 102 3 L 122 11 L 142 3 L 162 11 L 182 3 L 198 11" />;
+      viewBox = "0 0 200 10";
+      body = <path d="M2 8 L 22 4 L 42 8 L 62 4 L 82 8 L 102 4 L 122 8 L 142 4 L 162 8 L 182 4 L 198 8" />;
       break;
     case "circle":
       body = <path d="M100 4 C 30 4, 4 12, 4 11.5 C 4 19, 30 19.5, 100 19.5 C 170 19.5, 196 19, 196 11.5 C 196 4, 170 4, 100 4 Z" />;
