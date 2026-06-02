@@ -920,6 +920,7 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
             <span>Hover</span>
           </div>
           <div style={{ color: title }} className="text-[10px] font-semibold uppercase tracking-wider px-1 pt-1">Ustawienia</div>
+          <div style={{ color: subtitle, borderColor: border }} className="pb-1 border-b font-semibold">Konto</div>
           <div className="flex items-center gap-1.5 px-1.5 py-1">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
             <span>Normalny link</span>
