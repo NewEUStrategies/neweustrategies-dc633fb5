@@ -146,7 +146,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
             {extras && !compact && (
               <div className="mt-4 pt-3 border-t border-border space-y-0.5">
                 {extras.title && (
-                  <div className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                  <div data-sidebar="group-label" className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
                     {extras.title}
                   </div>
                 )}
@@ -179,6 +179,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
             <Link
               to="/"
               title={t("admin.viewSite")}
+              data-sidebar="menu-button"
               className="flex items-center gap-3 px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted"
             >
               <Home className="w-4 h-4 shrink-0" />
@@ -187,6 +188,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
             <button
               onClick={toggle}
               title={t("admin.theme")}
+              data-sidebar="menu-button"
               className="w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted"
             >
               {theme === "dark" ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
@@ -195,6 +197,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
             <button
               onClick={() => i18n.changeLanguage(lang.startsWith("pl") ? "en" : "pl")}
               title={lang.startsWith("pl") ? "PL" : "EN"}
+              data-sidebar="menu-button"
               className="w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted"
             >
               <Globe className="w-4 h-4 shrink-0" />
@@ -203,6 +206,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
             <button
               onClick={handleSignOut}
               title={t("admin.signout")}
+              data-sidebar="menu-button"
               className="w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm text-destructive hover:bg-destructive/10"
             >
               <LogOut className="w-4 h-4 shrink-0" />
