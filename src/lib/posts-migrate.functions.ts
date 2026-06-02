@@ -32,7 +32,7 @@ async function migrateOne(
     .from("posts")
     .update({
       editor: "blocks",
-      blocks_data: { pl: result.pl, en: result.en } as unknown as Record<string, unknown>,
+      blocks_data: { pl: result.pl, en: result.en },
     })
     .eq("id", row.id);
   if (error) throw new Error(error.message);
