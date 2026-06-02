@@ -65,7 +65,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
   const isSm = size === "sm";
   const textCls = isSm
     ? "text-[9px] font-bold uppercase tracking-wider"
-    : "font-display text-sm font-bold uppercase tracking-wider";
+    : "font-display text-[11px] sm:text-xs font-bold uppercase tracking-wider";
   const actionCls = isSm
     ? "text-[8px] text-muted-foreground"
     : "text-xs text-muted-foreground hover:opacity-80 transition";
@@ -174,7 +174,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
       const padCls = isSm ? "px-2 py-1" : "px-3 sm:px-4 py-2 sm:py-3";
       const labelCls = isSm
         ? "text-[9px] font-bold uppercase tracking-wider"
-        : "font-display text-sm sm:text-base font-bold uppercase tracking-wider";
+        : "font-display text-[11px] sm:text-xs font-bold uppercase tracking-wider";
       const actCls = isSm
         ? "text-[8px] font-medium shrink-0"
         : "text-xs sm:text-sm font-medium hover:opacity-80 transition shrink-0";
@@ -204,7 +204,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
       const ribbonPadY = isSm ? "py-0.5" : "py-1";
       const labelCls = isSm
         ? "text-[9px] font-bold uppercase tracking-wider"
-        : "font-display text-xs sm:text-sm font-bold uppercase tracking-wider";
+        : "font-display text-[11px] sm:text-xs font-bold uppercase tracking-wider";
       const actCls = isSm
         ? "text-[8px] font-medium text-foreground/80"
         : "text-[11px] sm:text-xs font-medium text-foreground/80 hover:opacity-80 transition";
@@ -245,7 +245,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
       // jeszcze cieńsza neutralna pod. Inspirowane prasowymi nagłówkami.
       const titleCls = isSm
         ? "text-[10px] font-semibold tracking-tight"
-        : "font-display text-base sm:text-xl font-semibold tracking-tight inline-block max-w-full";
+        : "font-display text-sm sm:text-lg font-semibold tracking-tight inline-block max-w-full";
       const padBlock = isSm ? "py-1.5" : "py-3 sm:py-4";
       return (
         <div className={`${wrapperBase} w-full min-w-0 text-center`}>
