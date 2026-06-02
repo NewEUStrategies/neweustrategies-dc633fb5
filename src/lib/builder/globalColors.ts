@@ -230,7 +230,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "widgets",
     label: "Popular Counter",
     slots: [
-      { key: "popular-counter", label: "Popular Counter Color", description: "Kolor licznika popularnych wpisów.", hasDark: true },
+      { key: "popular-counter", label: "Popular Counter Color", description: "Kolor licznika popularnych wpisów.", hasDark: true, typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "14px" },
     ],
   },
   {
