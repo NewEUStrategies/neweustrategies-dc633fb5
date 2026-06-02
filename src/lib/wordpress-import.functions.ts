@@ -245,9 +245,12 @@ export const importWpComPosts = createServerFn({ method: "POST" })
         const excerpt = stripTags(wp.excerpt).slice(0, 1000);
         const doc = parseGutenberg(wp.content);
 
-        const blocks_data = data.language === "pl"
+        const blocksPayload = data.language === "pl"
           ? { pl: doc, en: { version: 1, blocks: [] } }
           : { pl: { version: 1, blocks: [] }, en: doc };
+        // Round-trip via JSON to satisfy the generated `Json` column type
+        // without resorting to `any` / `as any`.
+        const blocks_data = JSON.parse(JSON.stringify(blocksPayload)) as Record<string, unknown>;
 
         const titleField = data.language === "pl" ? { title_pl: title, title_en: "" } : { title_pl: "", title_en: title };
         const excerptField = data.language === "pl"
