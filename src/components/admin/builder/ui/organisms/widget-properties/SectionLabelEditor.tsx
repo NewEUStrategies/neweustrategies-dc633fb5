@@ -36,6 +36,11 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
   const customAccent = (typeof c.accentColor === "string" ? c.accentColor : "") as string;
   const colorPreset = (typeof c.color === "string" ? c.color : "brand") as string;
   const accent = resolveAccentColor(customAccent || colorPreset);
+  const labelColor = (typeof c.labelColor === "string" ? c.labelColor : "") as string;
+  const labelSize = (typeof c.labelSize === "string" ? c.labelSize : "") as string;
+  const actionColor = (typeof c.actionColor === "string" ? c.actionColor : "") as string;
+  const actionSize = (typeof c.actionSize === "string" ? c.actionSize : "") as string;
+
   const previewLabel = label || "Etykieta";
 
   return (
