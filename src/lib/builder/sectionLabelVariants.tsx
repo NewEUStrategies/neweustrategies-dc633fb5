@@ -119,18 +119,29 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
           {ActionEl}
         </div>
       );
-    case "badge-filled":
+    case "badge-filled": {
+      // Slanted ribbon: diagonal cut on the right edge, action sits outside on the right
+      const cutW = isSm ? 10 : 22;
+      const padR = isSm ? 14 : 32;
       return (
-        <div className={`flex items-center justify-between ${wrapperBase} ${padY}`}>
+        <div className={`flex items-stretch justify-between ${wrapperBase} gap-3`}>
           <span
-            className={isSm ? "px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" : "px-3 py-1.5 text-sm font-bold uppercase tracking-wider"}
-            style={{ background: accent, color: labelColor || contrastOn(accent), ...(labelSize && !isSm ? { fontSize: labelSize } : {}) }}
+            className={isSm ? "inline-flex items-center pl-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" : "inline-flex items-center pl-4 py-2 font-display text-base font-bold uppercase tracking-wider"}
+            style={{
+              background: accent,
+              color: labelColor || contrastOn(accent),
+              clipPath: `polygon(0 0, 100% 0, calc(100% - ${cutW}px) 100%, 0 100%)`,
+              paddingRight: `${padR}px`,
+              ...(labelSize && !isSm ? { fontSize: labelSize } : {}),
+            }}
           >
             {label}
           </span>
-          {ActionEl}
+          <span className="flex items-center">{ActionEl}</span>
         </div>
       );
+    }
+
     case "centered-rule":
       return (
         <div className={`${wrapperBase} ${padY} text-center`}>
