@@ -5,7 +5,7 @@ import {
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  Plus, Trash2, ChevronUp, ChevronDown, Columns2, Copy, Save,
+  Plus, Trash2, ChevronUp, ChevronDown, Columns2, Copy, Save, Eye,
 } from "@/lib/lucide-shim";
 import type {
   SectionNode, ColumnNode, InnerSectionNode, WidgetNode,
