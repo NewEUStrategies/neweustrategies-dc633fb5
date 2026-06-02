@@ -478,8 +478,14 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
       if (slot.typography) {
         const ff = v?.fontFamily || slot.defaultFontFamily;
         const fs = v?.fontSize || slot.defaultFontSize;
+        const fw = v?.fontWeight;
+        const fst = v?.fontStyle;
+        const ftd = v?.textDecoration;
         if (ff) rootLines.push(`--gc-${slot.key}-font: ${ff};`);
         if (fs) rootLines.push(`--gc-${slot.key}-size: ${fs};`);
+        if (fw) rootLines.push(`--gc-${slot.key}-weight: ${fw};`);
+        if (fst) rootLines.push(`--gc-${slot.key}-style: ${fst};`);
+        if (ftd) rootLines.push(`--gc-${slot.key}-decoration: ${ftd};`);
       }
     }
   }
