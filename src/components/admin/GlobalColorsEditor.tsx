@@ -174,6 +174,9 @@ export function GlobalColorsEditor() {
         hoverDark: slot.defaultHoverDark ?? "",
         fontFamily: slot.defaultFontFamily ?? "",
         fontSize: slot.defaultFontSize ?? "",
+        fontWeight: "",
+        fontStyle: "",
+        textDecoration: "",
       },
     });
   };
