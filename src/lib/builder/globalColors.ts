@@ -329,6 +329,17 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultDark: "#1f2a44",
         overrides: ["--sidebar-border"],
       },
+      {
+        key: "sidebar-title",
+        label: "Sidebar Title (Menu / Section)",
+        description: 'Tytuł sekcji w sidebarze (np. „Menu", „Ustawienia") — z osobnym kolorem dla trybu jasnego i ciemnego.',
+        hasDark: true,
+        defaultLight: "#6b7280",
+        defaultDark: "#9ca3af",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "12px",
+      },
     ],
   },
   {
@@ -620,6 +631,7 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     [data-sidebar="menu-button"][data-active="true"], [data-sidebar="menu-button"].active, [data-sidebar="sidebar"] .active{background:var(--gc-sidebar-btn-bg) !important;color:var(--gc-sidebar-btn-text, var(--gc-sidebar-text)) !important;}
     [data-sidebar="menu-button"][data-active="true"] svg, [data-sidebar="sidebar"] .active svg{color:var(--gc-sidebar-btn-text, currentColor) !important;}
     [data-sidebar="separator"]{background:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
+    [data-sidebar="group-label"]{color:var(--gc-sidebar-title, inherit) !important;font-family:var(--gc-sidebar-title-font, inherit);font-size:var(--gc-sidebar-title-size, inherit);font-weight:var(--gc-sidebar-title-weight, inherit);font-style:var(--gc-sidebar-title-style, inherit);text-decoration:var(--gc-sidebar-title-decoration, inherit);}
     :where(html:not(.dark) main h1, html:not(.dark) main h2, html:not(.dark) main h3, html:not(.dark) main h4, html:not(.dark) main h5, html:not(.dark) main h6, html:not(.dark) main p, html:not(.dark) article h1, html:not(.dark) article h2, html:not(.dark) article h3, html:not(.dark) article h4, html:not(.dark) article p, html:not(.dark) section h1, html:not(.dark) section h2, html:not(.dark) section h3, html:not(.dark) section h4, html:not(.dark) section p){color:var(--gc-dark-accent, inherit);}
     :where(main h1, article h1, section h1){color:var(--gc-h1, inherit);font-family:var(--gc-h1-font, inherit);font-size:var(--gc-h1-size, inherit);font-weight:var(--gc-h1-weight, inherit);font-style:var(--gc-h1-style, inherit);text-decoration:var(--gc-h1-decoration, inherit);}
     :where(main h2, article h2, section h2){color:var(--gc-h2, inherit);font-family:var(--gc-h2-font, inherit);font-size:var(--gc-h2-size, inherit);font-weight:var(--gc-h2-weight, inherit);font-style:var(--gc-h2-style, inherit);text-decoration:var(--gc-h2-decoration, inherit);}
