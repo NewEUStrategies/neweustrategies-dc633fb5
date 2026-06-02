@@ -115,7 +115,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
             alt=""
             draggable={false}
             data-fill-image
-            className="absolute inset-0 w-full h-full object-cover"
+            className="eh-img absolute inset-0 w-full h-full object-cover"
             style={{
               opacity: i === safeIdx ? 1 : 0,
               transition: "opacity 700ms cubic-bezier(.22,.61,.36,1)",
