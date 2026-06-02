@@ -373,7 +373,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         overrides: ["--foreground"],
         typography: true,
         defaultFontFamily: '"Red Hat Display", Georgia, serif',
-        defaultFontSize: "16px",
+        defaultFontSize: "17px",
       },
       {
         key: "body-text-muted",
