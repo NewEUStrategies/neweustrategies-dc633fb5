@@ -182,6 +182,12 @@ export const User = makeIcon(faUser, LUser);
 export const Users = makeIcon(faUsers, LUsers);
 export const Video = makeIcon(faVideo, LVideo);
 export const X = makeIcon(faXmark, LX);
+export const Lock = makeIcon(faLock, LLock);
+export const Palette = makeIcon(faPalette, LPalette);
+export const LayoutGrid = makeIcon(faTableCells, LLayoutGrid);
+export const Sparkles = makeIcon(faWandMagicSparkles, LSparkles);
+export const PanelsTopLeft = makeIcon(faWindowMaximize, LPanelsTopLeft);
+export const CreditCard = makeIcon(faCreditCard, LCreditCard);
 
 // Brands
 export const Facebook = makeIcon(faFacebook, LFacebook);
