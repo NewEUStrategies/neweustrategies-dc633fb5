@@ -464,7 +464,6 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "none", label: "Brak" },
       ],
       hint: "Efekt po najechaniu kursorem na obrazek.",
-      visibleWhen: (c) => !!c.image,
     },
     { key: "href", type: "url", label: "Link (opcjonalny)" },
   ],
