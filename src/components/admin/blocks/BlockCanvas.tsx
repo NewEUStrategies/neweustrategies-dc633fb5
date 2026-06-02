@@ -5,7 +5,7 @@ import { HeadingBlock } from "./edit/Heading";
 import { ImageBlock } from "./edit/Image";
 import { ListBlockEdit } from "./edit/ListBlock";
 import { QuoteBlock } from "./edit/Quote";
-import { ArrowUp, ArrowDown, Copy, Trash2 } from "@/lib/lucide-shim";
+import { ChevronUp as ArrowUp, ChevronDown as ArrowDown, Copy, Trash2 } from "@/lib/lucide-shim";
 
 interface Props {
   doc: BlocksDoc;

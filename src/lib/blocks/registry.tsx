@@ -5,22 +5,22 @@ import type { Block, BlockType } from "./types";
 import { newBlockId } from "./types";
 import {
   Type,
-  Heading as HeadingIcon,
+  Heading1 as HeadingIcon,
   Image as ImageIcon,
   List as ListIcon,
   Quote as QuoteIcon,
-  Code as CodeIcon,
+  Code2 as CodeIcon,
   Video as VideoIcon,
   Minus,
-  AlertCircle,
-  Table as TableIcon,
-  MousePointer2,
-  Columns as ColumnsIcon,
-  FileCode,
+  AlertTriangle as AlertCircle,
+  Table2 as TableIcon,
+  MousePointerClick as MousePointer2,
+  Columns2 as ColumnsIcon,
+  FileCode2 as FileCode,
   PlaySquare,
   Images,
   type LucideIcon,
-} from "@/lib/lucide-shim";
+} from "lucide-react";
 
 export interface BlockSpec {
   type: BlockType;

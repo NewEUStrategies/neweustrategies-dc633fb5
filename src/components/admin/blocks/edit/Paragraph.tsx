@@ -3,7 +3,8 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import { useEffect, useRef } from "react";
 import type { Block } from "@/lib/blocks/types";
-import { Bold, Italic, Link as LinkIcon, Code } from "@/lib/lucide-shim";
+import { Bold, Italic, Link as LinkIcon } from "@/lib/lucide-shim";
+import { Code2 as Code } from "lucide-react";
 
 interface Props {
   block: Block;
