@@ -56,6 +56,32 @@ function ImportWordpressPage() {
     mutationFn: async () => (await callListSites()).sites as SiteOption[],
   });
 
+  // Auto-prefill the site field from the linked WordPress connector on mount.
+  const didAutoFill = useRef(false);
+  useEffect(() => {
+    if (didAutoFill.current) return;
+    didAutoFill.current = true;
+    (async () => {
+      try {
+        const list = (await callListSites()).sites as SiteOption[];
+        sites.reset();
+        // Seed the mutation cache so the "My sites" list is populated too.
+        if (list?.length) {
+          (sites as unknown as { data: SiteOption[] | undefined }).data = list;
+        }
+        if (!site && list?.length) {
+          const preferred =
+            list.find((s) => {
+              try { return new URL(s.url).host.replace(/^www\./, "") === "neweuropeanstrategies.com"; }
+              catch { return false; }
+            }) ?? list[0];
+          try { setSite(new URL(preferred.url).host); } catch { /* ignore */ }
+        }
+      } catch { /* silently ignore; user can click "My sites" */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const cancel = useMutation({
     mutationFn: async () => {
       if (!jobId) return null;
