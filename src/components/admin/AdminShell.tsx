@@ -41,6 +41,8 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
   const path = useRouterState({ select: (s) => s.location.pathname });
   const lang = i18n.language ?? "pl";
   const { extras } = useAdminSidebarExtrasSlot();
+  const themeOpts = useSiteSetting<SidebarLogoCfg>("theme_options", SIDEBAR_LOGO_DEFAULTS);
+  const sidebarStyle = themeOpts.sidebars?.style ?? "style-1";
 
 
   const isEditRoute = /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
