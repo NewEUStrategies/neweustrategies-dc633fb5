@@ -135,7 +135,7 @@ export function SectionView(p: SectionViewProps) {
 
 function InnerSectionView({
   inner, device, lang, selection, setSelection, onRemoveColumn, onDuplicateColumn,
-  onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent,
+  onRemoveWidget, onDuplicateWidget, onDropWidget, onUpdateWidgetContent, onToggleHidden,
 }: {
   inner: InnerSectionNode; device: Device; lang: "pl" | "en"; selection: Selection;
   setSelection: (s: Selection) => void;
@@ -143,22 +143,28 @@ function InnerSectionView({
   onRemoveWidget: (id: string) => void; onDuplicateWidget: (id: string) => void;
   onDropWidget: (colId: string, type: WidgetType) => void;
   onUpdateWidgetContent: (id: string, key: string, value: string | number) => void;
+  onToggleHidden: (kind: "section" | "inner-section" | "column" | "widget", id: string) => void;
 }) {
   const selected = selection.kind === "inner-section" && selection.id === inner.id;
   const colsSum = inner.columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
+  const hidden = !!inner.advanced?.hideOn?.[device];
   const skin: React.CSSProperties = {
     ...sectionWrapperStyle(inner),
     ...backgroundLayerStyle(inner.background),
     ...borderStyle(inner.border),
+    opacity: hidden ? 0.45 : undefined,
   };
   return (
     <div
       data-inner-id={inner.id}
-      className={`relative min-w-0 max-w-full border rounded ${selected ? "border-brand" : "border-dashed border-border"}`}
+      className={`group/inner relative min-w-0 max-w-full border rounded ${selected ? "border-brand" : "border-dashed border-border"}`}
       style={{ ...skin, overflow: "visible" }}
       onClick={(e) => { e.stopPropagation(); setSelection({ kind: "inner-section", id: inner.id }); }}
     >
-      <div className="absolute -top-2.5 left-3 z-30 text-[9px] font-medium text-muted-foreground bg-background border border-border rounded px-1.5 py-0.5 shadow-sm">SEKCJA WEWNĘTRZNA</div>
+      <div className={`absolute -top-2.5 left-3 z-30 flex items-center gap-0.5 bg-background border border-border rounded px-1.5 py-0.5 text-[9px] font-medium shadow-sm transition ${selected ? "opacity-100" : "opacity-0 group-hover/inner:opacity-100"}`}>
+        <span className="text-muted-foreground uppercase tracking-wider">Sekcja wewn.</span>
+        <IconBtn onClick={(e) => { e.stopPropagation(); onToggleHidden("inner-section", inner.id); }} title={hidden ? `Pokaż na ${device}` : `Ukryj na ${device}`}><Eye className={`w-3 h-3 ${hidden ? "opacity-40" : ""}`} /></IconBtn>
+      </div>
       <div className="grid gap-2 relative z-10 min-w-0 max-w-full" style={{ ...columnsRowStyle(inner, colsSum), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
         {inner.columns.map((c) => (
           <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}` }}>
@@ -168,7 +174,8 @@ function InnerSectionView({
               onRemove={() => onRemoveColumn(c.id)} onDuplicate={() => onDuplicateColumn(c.id)}
               onRemoveWidget={onRemoveWidget} onDuplicateWidget={onDuplicateWidget}
               onDropWidget={onDropWidget}
-              onUpdateWidgetContent={onUpdateWidgetContent} />
+              onUpdateWidgetContent={onUpdateWidgetContent}
+              onToggleHidden={onToggleHidden} />
           </div>
         ))}
       </div>
