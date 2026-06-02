@@ -30,8 +30,8 @@ export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string
 
 // Resolve preset color names to CSS color values (also supports raw hex/oklch).
 export function resolveAccentColor(color?: string): string {
-  if (!color) return "hsl(var(--brand, 14 90% 53%))";
-  if (color.startsWith("#") || color.startsWith("oklch") || color.startsWith("hsl") || color.startsWith("rgb")) {
+  if (!color) return "#FA9346";
+  if (color.startsWith("#") || color.startsWith("oklch") || color.startsWith("hsl") || color.startsWith("rgb") || color.startsWith("var(")) {
     return color;
   }
   switch (color) {
@@ -42,7 +42,7 @@ export function resolveAccentColor(color?: string): string {
     case "cyber":     return "oklch(0.55 0.18 200)";
     case "neutral":   return "oklch(0.55 0 0)";
     case "brand":
-    default:          return "hsl(var(--brand, 14 90% 53%))";
+    default:          return "#FA9346";
   }
 }
 
