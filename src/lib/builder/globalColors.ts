@@ -7,25 +7,20 @@
 // tło, ramki, itd.).
 
 export interface GlobalColorSlot {
-  /** Stabilny identyfikator (klucz w obiekcie i nazwa zmiennej `--gc-<key>`). */
+  /** Stabilny identyfikator. */
   key: string;
-  /** Etykieta wyświetlana w admin panelu. */
   label: string;
-  /** Krótki opis — gdzie kolor będzie użyty. */
   description: string;
-  /** Czy slot ma osobną wartość dla dark mode. */
   hasDark?: boolean;
-  /** Czy slot ma dodatkowe kolory hover (light + dark) edytowalne w UI. */
   hoverable?: boolean;
-  /** Sugerowana wartość domyślna (light). */
+  /** Czy slot reprezentuje element tekstowy z edytowalnym fontem i rozmiarem. */
+  typography?: boolean;
+  defaultFontFamily?: string;
+  defaultFontSize?: string;
   defaultLight?: string;
-  /** Sugerowana wartość domyślna (dark). */
   defaultDark?: string;
-  /** Sugerowana wartość domyślna dla hover (light). */
   defaultHoverLight?: string;
-  /** Sugerowana wartość domyślna dla hover (dark). */
   defaultHoverDark?: string;
-  /** Lista semantycznych tokenów shadcn, które ten slot ma nadpisać. */
   overrides?: string[];
 }
 
@@ -315,12 +310,12 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     id: "headings",
     label: "Headings (H1–H6)",
     slots: [
-      { key: "h1", label: "H1 Color", description: "Kolor nagłówków H1.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff" },
-      { key: "h2", label: "H2 Color", description: "Kolor nagłówków H2.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff" },
-      { key: "h3", label: "H3 Color", description: "Kolor nagłówków H3.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6" },
-      { key: "h4", label: "H4 Color", description: "Kolor nagłówków H4.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6" },
-      { key: "h5", label: "H5 Color", description: "Kolor nagłówków H5.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb" },
-      { key: "h6", label: "H6 Color", description: "Kolor nagłówków H6.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb" },
+      { key: "h1", label: "H1 Color", description: "Kolor nagłówków H1.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff", typography: true, defaultFontFamily: "var(--font-display)", defaultFontSize: "2.25rem" },
+      { key: "h2", label: "H2 Color", description: "Kolor nagłówków H2.", hasDark: true, defaultLight: "#01112F", defaultDark: "#ffffff", typography: true, defaultFontFamily: "var(--font-display)", defaultFontSize: "1.875rem" },
+      { key: "h3", label: "H3 Color", description: "Kolor nagłówków H3.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6", typography: true, defaultFontFamily: "var(--font-display)", defaultFontSize: "1.5rem" },
+      { key: "h4", label: "H4 Color", description: "Kolor nagłówków H4.", hasDark: true, defaultLight: "#01112F", defaultDark: "#f3f4f6", typography: true, defaultFontFamily: "var(--font-display)", defaultFontSize: "1.25rem" },
+      { key: "h5", label: "H5 Color", description: "Kolor nagłówków H5.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb", typography: true, defaultFontFamily: "var(--font-display)", defaultFontSize: "1.125rem" },
+      { key: "h6", label: "H6 Color", description: "Kolor nagłówków H6.", hasDark: true, defaultLight: "#01112F", defaultDark: "#e5e7eb", typography: true, defaultFontFamily: "var(--font-display)", defaultFontSize: "1rem" },
     ],
   },
   {
@@ -335,6 +330,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#374151",
         defaultDark: "#d1d5db",
         overrides: ["--foreground"],
+        typography: true,
+        defaultFontFamily: "var(--font-sans)",
+        defaultFontSize: "1rem",
       },
       {
         key: "body-text-muted",
@@ -344,6 +342,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#6b7280",
         defaultDark: "#9ca3af",
         overrides: ["--muted-foreground"],
+        typography: true,
+        defaultFontFamily: "var(--font-sans)",
+        defaultFontSize: "0.875rem",
       },
     ],
   },
@@ -358,6 +359,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         hasDark: true,
         defaultLight: "#fa9346",
         defaultDark: "#fbbf24",
+        typography: true,
+        defaultFontFamily: "inherit",
+        defaultFontSize: "inherit",
       },
       {
         key: "link-hover",
@@ -373,7 +377,14 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
 
 export type GlobalColorsValue = Record<
   string,
-  { light?: string; dark?: string; hoverLight?: string; hoverDark?: string }
+  {
+    light?: string;
+    dark?: string;
+    hoverLight?: string;
+    hoverDark?: string;
+    fontFamily?: string;
+    fontSize?: string;
+  }
 >;
 
 export const EMPTY_GLOBAL_COLORS: GlobalColorsValue = {};
@@ -428,6 +439,12 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
         if (hLight) rootLines.push(`--gc-${slot.key}-hover: ${hLight};`);
         if (hDark) darkLines.push(`--gc-${slot.key}-hover: ${hDark};`);
       }
+      if (slot.typography) {
+        const ff = v?.fontFamily || slot.defaultFontFamily;
+        const fs = v?.fontSize || slot.defaultFontSize;
+        if (ff) rootLines.push(`--gc-${slot.key}-font: ${ff};`);
+        if (fs) rootLines.push(`--gc-${slot.key}-size: ${fs};`);
+      }
     }
   }
 
@@ -471,15 +488,15 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     [data-sidebar="menu-button"][data-active="true"] svg, [data-sidebar="sidebar"] .active svg{color:var(--gc-sidebar-btn-text, currentColor) !important;}
     [data-sidebar="separator"]{background:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
     :where(html:not(.dark) main h1, html:not(.dark) main h2, html:not(.dark) main h3, html:not(.dark) main h4, html:not(.dark) main h5, html:not(.dark) main h6, html:not(.dark) main p, html:not(.dark) article h1, html:not(.dark) article h2, html:not(.dark) article h3, html:not(.dark) article h4, html:not(.dark) article p, html:not(.dark) section h1, html:not(.dark) section h2, html:not(.dark) section h3, html:not(.dark) section h4, html:not(.dark) section p){color:var(--gc-dark-accent, inherit);}
-    :where(main h1, article h1, section h1){color:var(--gc-h1, inherit);}
-    :where(main h2, article h2, section h2){color:var(--gc-h2, inherit);}
-    :where(main h3, article h3, section h3){color:var(--gc-h3, inherit);}
-    :where(main h4, article h4, section h4){color:var(--gc-h4, inherit);}
-    :where(main h5, article h5, section h5){color:var(--gc-h5, inherit);}
-    :where(main h6, article h6, section h6){color:var(--gc-h6, inherit);}
-    :where(main p, article p, section p, main li, article li, section li){color:var(--gc-body-text, inherit);}
-    :where(main small, article small, section small, .text-muted, .muted){color:var(--gc-body-text-muted, inherit);}
-    :where(main a:not(.btn):not([class*="button"]), article a:not(.btn):not([class*="button"]), section a:not(.btn):not([class*="button"])){color:var(--gc-link, var(--gc-highlight, inherit));}
+    :where(main h1, article h1, section h1){color:var(--gc-h1, inherit);font-family:var(--gc-h1-font, inherit);font-size:var(--gc-h1-size, inherit);}
+    :where(main h2, article h2, section h2){color:var(--gc-h2, inherit);font-family:var(--gc-h2-font, inherit);font-size:var(--gc-h2-size, inherit);}
+    :where(main h3, article h3, section h3){color:var(--gc-h3, inherit);font-family:var(--gc-h3-font, inherit);font-size:var(--gc-h3-size, inherit);}
+    :where(main h4, article h4, section h4){color:var(--gc-h4, inherit);font-family:var(--gc-h4-font, inherit);font-size:var(--gc-h4-size, inherit);}
+    :where(main h5, article h5, section h5){color:var(--gc-h5, inherit);font-family:var(--gc-h5-font, inherit);font-size:var(--gc-h5-size, inherit);}
+    :where(main h6, article h6, section h6){color:var(--gc-h6, inherit);font-family:var(--gc-h6-font, inherit);font-size:var(--gc-h6-size, inherit);}
+    :where(main p, article p, section p, main li, article li, section li){color:var(--gc-body-text, inherit);font-family:var(--gc-body-text-font, inherit);font-size:var(--gc-body-text-size, inherit);}
+    :where(main small, article small, section small, .text-muted, .muted){color:var(--gc-body-text-muted, inherit);font-family:var(--gc-body-text-muted-font, inherit);font-size:var(--gc-body-text-muted-size, inherit);}
+    :where(main a:not(.btn):not([class*="button"]), article a:not(.btn):not([class*="button"]), section a:not(.btn):not([class*="button"])){color:var(--gc-link, var(--gc-highlight, inherit));font-family:var(--gc-link-font, inherit);font-size:var(--gc-link-size, inherit);}
     :where(main a:not(.btn):not([class*="button"]):hover, article a:not(.btn):not([class*="button"]):hover, section a:not(.btn):not([class*="button"]):hover){color:var(--gc-link-hover, var(--gc-link, inherit));}
     :where(.highlight, .text-brand, [data-highlight]){color:var(--gc-highlight, inherit);}
     :where(.highlight:hover, .text-brand:hover, [data-highlight]:hover){color:var(--gc-highlight-hover, var(--gc-highlight, inherit));}
