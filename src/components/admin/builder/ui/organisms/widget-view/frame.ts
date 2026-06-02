@@ -23,7 +23,6 @@ export const COMPACT_WIDGET_TYPES = new Set([
   "lang-switcher",
   "theme-toggle",
   "account-link",
-  "search-button",
   "nav-link",
   "newsletter",
 ]);
