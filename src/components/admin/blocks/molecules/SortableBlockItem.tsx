@@ -34,8 +34,9 @@ export function SortableBlockItem(props: Props) {
     <div
       ref={setNodeRef}
       style={style}
+      data-block-id={props.id}
       onClick={props.onSelect}
-      className={`group relative rounded-md pl-8 pr-3 py-2 border ${
+      className={`group relative rounded-md pl-8 pr-3 py-2 border scroll-mt-24 ${
         props.active
           ? "border-primary ring-1 ring-primary/40 bg-accent/30"
           : "border-transparent hover:border-border"
