@@ -275,6 +275,46 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         </PropField>
       </div>
 
+      {/* Per-element animations */}
+      <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Animacje elementów
+        </div>
+        {([
+          { label: "Zdjęcie", animKey: "imageAnim", dirKey: "imageDir", anim: imageAnim, dir: imageDir },
+          { label: "Tekst (tytuł/podtytuł)", animKey: "textAnim", dirKey: "textDir", anim: textAnim, dir: textDir },
+          { label: "Przycisk CTA", animKey: "ctaAnim", dirKey: "ctaDir", anim: ctaAnim, dir: ctaDir },
+        ] as const).map((row) => (
+          <div key={row.animKey} className="space-y-1">
+            <div className="text-[11px] text-muted-foreground">{row.label}</div>
+            <div className="grid grid-cols-2 gap-2">
+              <Select value={row.anim} onValueChange={(v) => setContent(row.animKey, v)}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ANIM_TYPES.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={row.dir}
+                onValueChange={(v) => setContent(row.dirKey, v)}
+                disabled={row.anim === "fade" || row.anim === "none" || row.anim === "zoom"}
+              >
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Kierunek" /></SelectTrigger>
+                <SelectContent>
+                  {ANIM_DIRS.map((d) => (
+                    <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        ))}
+      </div>
+
+
+
       {/* Live preview */}
       <div className="space-y-1.5">
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
