@@ -52,7 +52,12 @@ export function BulkActionsBar({ count, onClear, onApplyStatus, onDelete, onMigr
         <Button size="sm" variant="secondary" onClick={apply} disabled={!status || busy} className="h-7">
           <Check className="w-3.5 h-3.5 mr-1" /> Zastosuj
         </Button>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {onMigrateToBlocks && (
+            <Button size="sm" variant="outline" onClick={() => onMigrateToBlocks()} disabled={busy} className="h-7">
+              <Layers className="w-3.5 h-3.5 mr-1" /> Konwertuj na bloki
+            </Button>
+          )}
           <Button size="sm" variant="destructive" onClick={() => setConfirmDelete(true)} disabled={busy} className="h-7">
             <Trash2 className="w-3.5 h-3.5 mr-1" /> Usuń zaznaczone
           </Button>
