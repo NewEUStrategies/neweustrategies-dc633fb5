@@ -13,6 +13,7 @@ export type AnimatedHeadingShape =
   | "none"
   | "underline"
   | "double-underline"
+  | "scribble"
   | "curly"
   | "zigzag"
   | "circle"
@@ -26,6 +27,7 @@ export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] =
   { value: "none",              label: "Brak" },
   { value: "underline",         label: "Podkreślenie" },
   { value: "double-underline",  label: "Podwójne podkreślenie" },
+  { value: "scribble",          label: "Odręczne podkreślenie" },
   { value: "curly",             label: "Falisty" },
   { value: "zigzag",            label: "Zygzak" },
   { value: "circle",            label: "Okrąg" },
@@ -66,6 +68,7 @@ const shapeStroke: Record<AnimatedHeadingShape, number> = {
   none: 0,
   underline: 3,
   "double-underline": 4,
+  scribble: 4,
   curly: 1.75,
   zigzag: 1.75,
   circle: 3,
@@ -82,6 +85,7 @@ const shapePathLen: Record<AnimatedHeadingShape, number> = {
   none: 0,
   underline: 220,
   "double-underline": 460,
+  scribble: 240,
   curly: 440,
   zigzag: 320,
   circle: 520,
@@ -103,6 +107,57 @@ function ShapeSvg({
   animKey: string | number;
 }) {
   if (shape === "none") return null;
+
+  // Special case: hand-drawn scribble — two slightly curvy underlines drawn
+  // sequentially (second shorter, slightly offset), mimicking a marker.
+  if (shape === "scribble") {
+    const iter = loop ? "infinite" : "1";
+    const halfDur = Math.max(200, Math.round(durationMs * 0.55));
+    const totalDur = halfDur * 2;
+    const len1 = 210;
+    const len2 = 150;
+    const animA = `aHead-scribbleA-${animKey}`;
+    const animB = `aHead-scribbleB-${animKey}`;
+    const css2 = `
+      @keyframes ${animA} {
+        0%   { stroke-dashoffset: ${len1}; }
+        ${Math.round((halfDur / totalDur) * 100)}% { stroke-dashoffset: 0; }
+        100% { stroke-dashoffset: 0; }
+      }
+      @keyframes ${animB} {
+        0%   { stroke-dashoffset: ${len2}; }
+        ${Math.round((halfDur / totalDur) * 100)}% { stroke-dashoffset: ${len2}; }
+        100% { stroke-dashoffset: 0; }
+      }
+      .ahead-scribbleA-${animKey} {
+        stroke-dasharray: ${len1};
+        stroke-dashoffset: ${len1};
+        animation: ${animA} ${totalDur}ms ${delayMs}ms ${iter} forwards ease-out;
+      }
+      .ahead-scribbleB-${animKey} {
+        stroke-dasharray: ${len2};
+        stroke-dashoffset: ${len2};
+        animation: ${animB} ${totalDur}ms ${delayMs}ms ${iter} forwards ease-out;
+      }
+    `;
+    const positionScribble: CSSProperties = {
+      position: "absolute", left: 0, right: 0, top: "100%",
+      width: "100%", height: "0.65em", marginTop: "-0.12em",
+      pointerEvents: "none", zIndex: 0, overflow: "visible",
+    };
+    return (
+      <>
+        <style>{css2}</style>
+        <svg viewBox="0 0 200 20" preserveAspectRatio="none" style={positionScribble}>
+          <g fill="none" stroke={color} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
+            <path className={`ahead-scribbleA-${animKey}`} d="M3 8 Q 60 4 110 7 T 197 9" />
+            <path className={`ahead-scribbleB-${animKey}`} d="M18 15 Q 70 12 120 14 T 175 15" />
+          </g>
+        </svg>
+      </>
+    );
+  }
+
   const stroke = shapeStroke[shape];
   const len = shapePathLen[shape];
   const dur = `${durationMs}ms`;
