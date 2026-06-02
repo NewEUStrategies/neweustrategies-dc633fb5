@@ -23,6 +23,7 @@ import type {
 } from "@/lib/builder/types";
 import { emptyDocument, newId } from "@/lib/builder/types";
 import { BuilderModeProvider } from "@/lib/builder/modeContext";
+import { useTheme } from "@/components/ThemeProvider";
 import {
   cloneSection, cloneColumn, cloneWidget,
   findWidget, findSection, findColumn, findInner,
