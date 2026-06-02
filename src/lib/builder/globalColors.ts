@@ -439,6 +439,12 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
         if (hLight) rootLines.push(`--gc-${slot.key}-hover: ${hLight};`);
         if (hDark) darkLines.push(`--gc-${slot.key}-hover: ${hDark};`);
       }
+      if (slot.typography) {
+        const ff = v?.fontFamily || slot.defaultFontFamily;
+        const fs = v?.fontSize || slot.defaultFontSize;
+        if (ff) rootLines.push(`--gc-${slot.key}-font: ${ff};`);
+        if (fs) rootLines.push(`--gc-${slot.key}-size: ${fs};`);
+      }
     }
   }
 
