@@ -26,6 +26,7 @@ import {
 } from "@/lib/builder/sectionStyles";
 import { safeImageUrl } from "@/lib/sanitize";
 import { WidgetView, getWidgetFrameStyle } from "../../../WidgetView";
+import { AUTO_SIZE_WIDGETS, COMPACT_WIDGET_TYPES, hiddenOnDevice } from "../../organisms/widget-view/frame";
 import { IconBtn } from "../../atoms/IconBtn";
 import type { Selection } from "./types";
 
@@ -196,10 +197,14 @@ function ColumnView({
   onToggleHidden: (kind: "section" | "inner-section" | "column" | "widget", id: string) => void;
 }) {
   const selected = selection.kind === "column" && selection.id === column.id;
-  const singleWidget = column.children.length <= 1;
   const hidden = !!column.advanced?.hideOn?.[device];
   const [dragOver, setDragOver] = useState(false);
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: "col:" + column.id });
+  const visibleChildren = column.children.filter((w) => !hiddenOnDevice(w.advanced, device));
+  const isToolbar =
+    visibleChildren.length > 1 &&
+    visibleChildren.every((w) => COMPACT_WIDGET_TYPES.has(w.type) || AUTO_SIZE_WIDGETS.has(w.type));
+  const stacked = !isToolbar;
   return (
     <div
       ref={setDropRef}
@@ -233,14 +238,14 @@ function ColumnView({
       <SortableContext items={column.children.map((w) => w.id)} strategy={verticalListSortingStrategy}>
         {(() => {
           const va = column.verticalAlign ?? "start";
-          const hClass = singleWidget
-            ? (column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : va === "stretch" ? "items-stretch" : "items-start")
-            : (column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : "justify-start");
-          const vClass = singleWidget
+          const hClass = stacked
+            ? (column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : va === "stretch" ? "items-stretch" : "items-stretch")
+            : (column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : column.contentAlign === "start" ? "justify-start" : "justify-between");
+          const vClass = stacked
             ? (va === "center" ? "justify-center" : va === "end" ? "justify-end" : va === "stretch" ? "justify-stretch" : "justify-start")
-            : (va === "center" ? "content-center items-center" : va === "end" ? "content-end items-end" : va === "stretch" ? "content-stretch items-stretch" : "content-start items-start");
+            : (va === "center" ? "content-center items-center" : va === "end" ? "content-end items-end" : va === "stretch" ? "content-stretch items-stretch" : "content-start items-center");
           return (
-            <div className={`flex ${singleWidget ? "flex-col" : "flex-row flex-wrap"} gap-2 min-w-0 max-w-full ${hClass} ${vClass}`}>
+            <div className={`flex ${stacked ? "flex-col" : "flex-row flex-wrap"} gap-2 min-w-0 max-w-full ${hClass} ${vClass}`}>
               {column.children.map((w) => (
                 <SortableWidget key={w.id} widget={w} lang={lang} device={device}
                   selected={selection.kind === "widget" && selection.id === w.id}
