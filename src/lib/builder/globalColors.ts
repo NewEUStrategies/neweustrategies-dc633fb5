@@ -360,8 +360,8 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#fa9346",
         defaultDark: "#fbbf24",
         typography: true,
-        defaultFontFamily: "inherit",
-        defaultFontSize: "inherit",
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "16px",
       },
       {
         key: "link-hover",
