@@ -42,21 +42,82 @@ function stripTags(s: string): string {
   return s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
 }
 
-// ---------- Foxiz shortcodes ----------
+// ---------- Foxiz / Shortcodes Ultimate ----------
 
-// Foxiz ships dozens of shortcodes; we normalise the most common ones to
-// inline HTML so the regular HTML -> blocks pipeline can absorb them.
+// Helper for attribute extraction inside a single shortcode tag body.
+function scAttr(body: string, name: string): string {
+  const m = body.match(new RegExp(`${name}\\s*=\\s*"([^"]*)"`, "i"));
+  return m ? m[1] : "";
+}
+
+// Foxiz and Shortcodes Ultimate ship dozens of shortcodes; we normalise the
+// most common ones to inline HTML so the regular HTML -> blocks pipeline can
+// absorb them. Unknown shortcodes are left untouched (lossless).
 const SHORTCODE_RULES: Array<[RegExp, (m: RegExpMatchArray) => string]> = [
   // [su_quote cite="x"]text[/su_quote] -> blockquote
   [/\[su_quote(?:\s+cite="([^"]*)")?\]([\s\S]*?)\[\/su_quote\]/gi,
     (m) => `<blockquote><p>${m[2]}</p>${m[1] ? `<cite>${esc(m[1])}</cite>` : ""}</blockquote>`],
-  // [su_note] / [su_box] -> callout-like div
+  // [su_note] / [su_box] / [su_spoiler title="x"] -> callout-like wrapper
   [/\[su_(?:note|box)[^\]]*\]([\s\S]*?)\[\/su_(?:note|box)\]/gi,
     (m) => `<div class="callout">${m[1]}</div>`],
-  // [foxiz_ads] / [foxiz_*] standalone -> drop quietly
+  [/\[su_spoiler(?:\s+title="([^"]*)")?[^\]]*\]([\s\S]*?)\[\/su_spoiler\]/gi,
+    (m) => `<details class="callout"><summary>${esc(m[1] || "Details")}</summary>${m[2]}</details>`],
+  // [su_heading]Title[/su_heading] -> h2
+  [/\[su_heading[^\]]*\]([\s\S]*?)\[\/su_heading\]/gi,
+    (m) => `<h2>${esc(stripTags(m[1]))}</h2>`],
+  // [su_divider] -> hr
+  [/\[su_divider[^\]]*\]/gi, () => "<hr>"],
+  // [su_button url="x" target="blank"]Label[/su_button]
+  [/\[su_button\s+([^\]]*)\]([\s\S]*?)\[\/su_button\]/gi,
+    (m) => {
+      const href = scAttr(m[1], "url") || scAttr(m[1], "href") || "#";
+      return `<p><a class="wp-block-button__link" href="${esc(href)}">${esc(stripTags(m[2]))}</a></p>`;
+    }],
+  // [su_youtube|vimeo|video|audio url="x"] -> iframe-style embed
+  [/\[su_(?:youtube|vimeo|video|audio)\s+([^\]]*)\](?:\s*\[\/su_(?:youtube|vimeo|video|audio)\])?/gi,
+    (m) => {
+      const url = scAttr(m[1], "url") || scAttr(m[1], "src");
+      return url ? `<iframe src="${esc(url)}"></iframe>` : "";
+    }],
+  // [su_list]<ul>...</ul>[/su_list] -> unwrap
+  [/\[su_list[^\]]*\]([\s\S]*?)\[\/su_list\]/gi, (m) => m[1]],
+  // [su_highlight]text[/su_highlight] -> <mark>
+  [/\[su_highlight[^\]]*\]([\s\S]*?)\[\/su_highlight\]/gi,
+    (m) => `<mark>${m[1]}</mark>`],
+  // [su_table]...[/su_table] -> keep table-ish html
+  [/\[su_table[^\]]*\]([\s\S]*?)\[\/su_table\]/gi,
+    (m) => `<div class="wp-block-table">${m[1]}</div>`],
+  // [caption ...]<img>caption[/caption] -> figure
+  [/\[caption[^\]]*\]([\s\S]*?)\[\/caption\]/gi,
+    (m) => {
+      const img = m[1].match(/<img[^>]+>/i)?.[0] ?? "";
+      const cap = stripTags(m[1].replace(/<img[^>]+>/i, ""));
+      return `<figure>${img}${cap ? `<figcaption>${esc(cap)}</figcaption>` : ""}</figure>`;
+    }],
+  // [embed]url[/embed] / [video src=""] / [audio src=""]
+  [/\[embed[^\]]*\]([\s\S]*?)\[\/embed\]/gi,
+    (m) => `<iframe src="${esc(stripTags(m[1]))}"></iframe>`],
+  [/\[(?:video|audio)\s+([^\]]*)\](?:\s*\[\/(?:video|audio)\])?/gi,
+    (m) => {
+      const src = scAttr(m[1], "src") || scAttr(m[1], "url");
+      return src ? `<iframe src="${esc(src)}"></iframe>` : "";
+    }],
+  // Foxiz-specific: [ruby_button], [ruby_alert], [ruby_review] -> callout fallback
+  [/\[ruby_button\s+([^\]]*)\](?:([\s\S]*?)\[\/ruby_button\])?/gi,
+    (m) => {
+      const href = scAttr(m[1], "url") || scAttr(m[1], "href") || "#";
+      const label = stripTags(m[2] ?? scAttr(m[1], "label"));
+      return `<p><a class="wp-block-button__link" href="${esc(href)}">${esc(label)}</a></p>`;
+    }],
+  [/\[ruby_(?:alert|review|box|cta)[^\]]*\]([\s\S]*?)\[\/ruby_(?:alert|review|box|cta)\]/gi,
+    (m) => `<div class="callout">${m[1]}</div>`],
+  // [foxiz_ads], [foxiz_subscribe], etc. -> drop standalone widget shortcodes
   [/\[foxiz_[^\]]+\](?:[\s\S]*?\[\/foxiz_[^\]]+\])?/gi, () => ""],
-  // [ruby_toc] / [toc] -> marker; renderer can decide
+  // [ruby_toc] / [toc] / [su_table_of_contents] -> marker; renderer can decide
   [/\[(?:ruby_)?toc[^\]]*\]/gi, () => "<!-- toc -->"],
+  [/\[su_table_of_contents[^\]]*\]/gi, () => "<!-- toc -->"],
+  // [gallery ids="1,2,3"] -> drop (image refs unresolvable on import)
+  [/\[gallery[^\]]*\]/gi, () => ""],
 ];
 
 export function stripFoxizShortcodes(html: string): string {
