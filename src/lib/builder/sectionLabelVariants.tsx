@@ -131,7 +131,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
       return (
         <div className={`flex items-stretch justify-between gap-2 w-full min-w-0 ${wrapperBase}`}>
           <span
-            className={`${isSm ? "inline-flex items-center pl-2 py-0.5 text-[9px]" : "inline-flex items-center pl-4 py-2 font-display text-sm sm:text-base"} font-bold uppercase tracking-wider min-w-0 max-w-[80%]`}
+            className={`${isSm ? "inline-flex items-center pl-2 py-0.5 text-[9px]" : "inline-flex items-center pl-4 py-2 font-display text-xs sm:text-sm"} font-bold uppercase tracking-wider min-w-0 max-w-[80%]`}
             style={{
               background: accent,
               color: labelColor || contrastOn(accent),
@@ -152,7 +152,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
         <div className={`${wrapperBase} ${padY} text-center w-full min-w-0`}>
           <div className="flex items-center justify-center gap-3 min-w-0">
             <span className="flex-1 h-px bg-border min-w-[12px]" />
-            <span className={`${isSm ? "text-[10px]" : "font-display text-lg sm:text-2xl"} font-semibold tracking-tight max-w-[70%]`} style={labelStyle}>{label}</span>
+            <span className={`${isSm ? "text-[10px]" : "font-display text-sm sm:text-lg"} font-semibold tracking-tight max-w-[70%]`} style={labelStyle}>{label}</span>
             <span className="flex-1 h-px bg-border min-w-[12px]" />
           </div>
           {ActionEl && <div className="mt-1">{ActionEl}</div>}
@@ -163,7 +163,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
         <div className={`${wrapperBase} ${padY} text-center w-full min-w-0`}>
           <div className="flex items-center justify-center gap-3 min-w-0">
             <span className={`${isSm ? "inline-block h-[2px] w-4" : "inline-block h-[2px] w-6 sm:w-10"} shrink-0`} style={{ background: accent }} />
-            <span className={`${isSm ? "text-[10px]" : "font-display text-lg sm:text-2xl"} font-semibold tracking-tight max-w-[70%]`} style={labelStyle}>{label}</span>
+            <span className={`${isSm ? "text-[10px]" : "font-display text-sm sm:text-lg"} font-semibold tracking-tight max-w-[70%]`} style={labelStyle}>{label}</span>
             <span className={`${isSm ? "inline-block h-[2px] w-4" : "inline-block h-[2px] w-6 sm:w-10"} shrink-0`} style={{ background: accent }} />
           </div>
           {ActionEl && <div className={`${isSm ? "mt-0.5 text-[8px]" : "mt-1 text-xs"} text-muted-foreground`} style={actionStyle}>{action}</div>}
@@ -192,7 +192,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
     case "centered-underline":
       return (
         <div className={`${wrapperBase} ${padY} text-center border-b border-border w-full min-w-0`}>
-          <span className={`${isSm ? "text-[10px]" : "font-display text-base sm:text-xl"} font-semibold tracking-tight inline-block max-w-full`} style={labelStyle}>{label}</span>
+          <span className={`${isSm ? "text-[10px]" : "font-display text-sm sm:text-lg"} font-semibold tracking-tight inline-block max-w-full`} style={labelStyle}>{label}</span>
           {ActionEl && <div className={`${isSm ? "mt-0.5" : "mt-1"}`}>{ActionEl}</div>}
         </div>
       );
