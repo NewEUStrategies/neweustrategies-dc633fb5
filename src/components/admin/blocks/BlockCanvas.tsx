@@ -1,5 +1,26 @@
+// Refaktor: kanwa bloków z drag&drop (@dnd-kit), atomowymi akcjami i obsługą Enter/Backspace.
+// Każda mutacja przechodzi przez `onChange`, który u góry trafia w history hook (undo/redo).
+
+import { useCallback, useMemo, useRef } from "react";
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import type { Block, BlocksDoc } from "@/lib/blocks/types";
+import { newBlockId } from "@/lib/blocks/types";
 import { BlockInserter } from "./BlockInserter";
+import { SortableBlockItem } from "./molecules/SortableBlockItem";
 import { ParagraphBlock } from "./edit/Paragraph";
 import { HeadingBlock } from "./edit/Heading";
 import { ImageBlock } from "./edit/Image";
@@ -15,50 +36,81 @@ import { TableBlockEdit } from "./edit/Table";
 import { ButtonBlock } from "./edit/Button";
 import { ColumnsBlock } from "./edit/Columns";
 import { HtmlBlock } from "./edit/Html";
-import { ChevronUp as ArrowUp, ChevronDown as ArrowDown, Copy, Trash2 } from "@/lib/lucide-shim";
 
 interface Props {
   doc: BlocksDoc;
   activeId: string | null;
   onSelect: (id: string | null) => void;
-  onChange: (doc: BlocksDoc) => void;
+  onChange: (doc: BlocksDoc, immediate?: boolean) => void;
 }
 
 export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   const blocks = doc.blocks;
+  const ids = useMemo(() => blocks.map((b) => b.id), [blocks]);
 
-  const insertAt = (idx: number, block: Block) => {
-    const next = [...blocks];
+  // Stable ref to current doc/blocks so callbacks don't churn.
+  const docRef = useRef(doc);
+  docRef.current = doc;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const insertAt = useCallback((idx: number, block: Block, immediate = true) => {
+    const next = [...docRef.current.blocks];
     next.splice(idx, 0, block);
-    onChange({ ...doc, blocks: next });
+    onChange({ ...docRef.current, blocks: next }, immediate);
     onSelect(block.id);
-  };
+  }, [onChange, onSelect]);
 
-  const updateBlock = (id: string, next: Block) => {
-    onChange({ ...doc, blocks: blocks.map((b) => (b.id === id ? next : b)) });
-  };
+  const replaceBlock = useCallback((id: string, next: Block, immediate = false) => {
+    const updated = docRef.current.blocks.map((b) => (b.id === id ? next : b));
+    onChange({ ...docRef.current, blocks: updated }, immediate);
+  }, [onChange]);
 
-  const move = (idx: number, dir: -1 | 1) => {
+  /** Replace a block in place with one or more new blocks (e.g. markdown transform). */
+  const replaceWith = useCallback((id: string, replacement: Block[]) => {
+    const idx = docRef.current.blocks.findIndex((b) => b.id === id);
+    if (idx < 0) return;
+    const next = [...docRef.current.blocks];
+    next.splice(idx, 1, ...replacement);
+    onChange({ ...docRef.current, blocks: next }, true);
+    onSelect(replacement[replacement.length - 1]?.id ?? null);
+  }, [onChange, onSelect]);
+
+  const move = useCallback((idx: number, dir: -1 | 1) => {
     const j = idx + dir;
-    if (j < 0 || j >= blocks.length) return;
-    const next = [...blocks];
-    [next[idx], next[j]] = [next[j], next[idx]];
-    onChange({ ...doc, blocks: next });
-  };
+    const arr = docRef.current.blocks;
+    if (j < 0 || j >= arr.length) return;
+    const next = arrayMove(arr, idx, j);
+    onChange({ ...docRef.current, blocks: next }, true);
+  }, [onChange]);
 
-  const duplicate = (idx: number) => {
-    const orig = blocks[idx];
-    const copy: Block = { ...orig, id: "b_" + Math.random().toString(36).slice(2, 10) };
-    const next = [...blocks];
+  const duplicate = useCallback((idx: number) => {
+    const orig = docRef.current.blocks[idx];
+    if (!orig) return;
+    const copy: Block = { ...orig, id: newBlockId() };
+    const next = [...docRef.current.blocks];
     next.splice(idx + 1, 0, copy);
-    onChange({ ...doc, blocks: next });
-  };
+    onChange({ ...docRef.current, blocks: next }, true);
+  }, [onChange]);
 
-  const remove = (idx: number) => {
-    const next = blocks.filter((_, i) => i !== idx);
-    onChange({ ...doc, blocks: next });
-    if (activeId === blocks[idx]?.id) onSelect(null);
-  };
+  const remove = useCallback((idx: number) => {
+    const removed = docRef.current.blocks[idx];
+    const next = docRef.current.blocks.filter((_, i) => i !== idx);
+    onChange({ ...docRef.current, blocks: next }, true);
+    if (activeId === removed?.id) onSelect(null);
+  }, [onChange, onSelect, activeId]);
+
+  const onDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const from = docRef.current.blocks.findIndex((b) => b.id === active.id);
+    const to = docRef.current.blocks.findIndex((b) => b.id === over.id);
+    if (from < 0 || to < 0) return;
+    onChange({ ...docRef.current, blocks: arrayMove(docRef.current.blocks, from, to) }, true);
+  }, [onChange]);
 
   if (blocks.length === 0) {
     return (
@@ -69,47 +121,64 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   }
 
   return (
-    <div className="space-y-1">
-      <BlockInserter onInsert={(b) => insertAt(0, b)} />
-      {blocks.map((b, idx) => {
-        const isActive = b.id === activeId;
-        return (
-          <div key={b.id}>
-            <div
-              onClick={() => onSelect(b.id)}
-              className={`group relative rounded-md px-3 py-2 border ${
-                isActive ? "border-primary ring-1 ring-primary/40 bg-accent/30" : "border-transparent hover:border-border"
-              }`}
-            >
-              {isActive && (
-                <div className="absolute -right-1 top-0 -translate-y-full pb-1 flex items-center gap-0.5 z-10">
-                  <button type="button" onClick={(e) => { e.stopPropagation(); move(idx, -1); }} className="p-1 rounded bg-popover border border-border hover:bg-accent" title="W górę">
-                    <ArrowUp className="w-3 h-3" />
-                  </button>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); move(idx, 1); }} className="p-1 rounded bg-popover border border-border hover:bg-accent" title="W dół">
-                    <ArrowDown className="w-3 h-3" />
-                  </button>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); duplicate(idx); }} className="p-1 rounded bg-popover border border-border hover:bg-accent" title="Duplikuj">
-                    <Copy className="w-3 h-3" />
-                  </button>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); remove(idx); }} className="p-1 rounded bg-popover border border-border hover:bg-destructive hover:text-destructive-foreground" title="Usuń">
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-              <BlockRenderer block={b} isActive={isActive} onChange={(n) => updateBlock(b.id, n)} />
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        <div className="space-y-0.5">
+          <BlockInserter onInsert={(b) => insertAt(0, b)} />
+          {blocks.map((b, idx) => (
+            <div key={b.id}>
+              <SortableBlockItem
+                id={b.id}
+                index={idx}
+                total={blocks.length}
+                active={b.id === activeId}
+                onSelect={() => onSelect(b.id)}
+                onMove={(dir) => move(idx, dir)}
+                onDuplicate={() => duplicate(idx)}
+                onRemove={() => remove(idx)}
+              >
+                <BlockRenderer
+                  block={b}
+                  isActive={b.id === activeId}
+                  onChange={(n) => replaceBlock(b.id, n)}
+                  onTransform={(replacement) => replaceWith(b.id, replacement)}
+                  onInsertAfter={(blk) => insertAt(idx + 1, blk)}
+                  onDeleteEmpty={() => {
+                    if (blocks.length > 1) remove(idx);
+                  }}
+                />
+              </SortableBlockItem>
+              <BlockInserter onInsert={(blk) => insertAt(idx + 1, blk)} />
             </div>
-            <BlockInserter onInsert={(blk) => insertAt(idx + 1, blk)} />
-          </div>
-        );
-      })}
-    </div>
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
   );
 }
 
-function BlockRenderer({ block, isActive, onChange }: { block: Block; isActive: boolean; onChange: (n: Block) => void }) {
+interface RendererProps {
+  block: Block;
+  isActive: boolean;
+  onChange: (n: Block) => void;
+  onTransform: (replacement: Block[]) => void;
+  onInsertAfter: (b: Block) => void;
+  onDeleteEmpty: () => void;
+}
+
+function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, onDeleteEmpty }: RendererProps) {
   switch (block.type) {
-    case "paragraph": return <ParagraphBlock block={block} isActive={isActive} onChange={onChange} />;
+    case "paragraph":
+      return (
+        <ParagraphBlock
+          block={block}
+          isActive={isActive}
+          onChange={onChange}
+          onTransform={onTransform}
+          onInsertAfter={onInsertAfter}
+          onDeleteEmpty={onDeleteEmpty}
+        />
+      );
     case "heading":   return <HeadingBlock block={block} onChange={onChange} />;
     case "image":     return <ImageBlock block={block} onChange={onChange} />;
     case "list":      return <ListBlockEdit block={block} onChange={onChange} />;
@@ -127,7 +196,7 @@ function BlockRenderer({ block, isActive, onChange }: { block: Block; isActive: 
     default:
       return (
         <div className="text-xs text-muted-foreground italic py-2">
-          [Blok „{block.type}" - edytor wkrótce]
+          [{block.type}]
         </div>
       );
   }
