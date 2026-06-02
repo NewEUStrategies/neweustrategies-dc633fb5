@@ -200,6 +200,10 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="menu-
 aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] nav {
   padding-inline: 0.375rem;
 }
+aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="group-label"] {
+  text-align: center;
+  padding-inline: 0 !important;
+}
 
 /* Style 5 — Glass / Frosted */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] {
@@ -213,6 +217,9 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="menu-
   border-radius: 0.5rem;
   backdrop-filter: blur(4px);
   border: 1px solid hsl(var(--border) / 0.22);
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="menu-button"]:not([data-active="true"]) {
+  background: hsl(var(--background) / 0.24) !important;
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="menu-button"][data-active="true"] {
   background: hsl(var(--primary) / 0.85) !important;
@@ -245,5 +252,10 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar-toggle
 }
 aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] [data-sidebar="group-label"] {
   color: #8a8d99 !important;
+}
+aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] [data-sidebar="group-label"],
+aside[data-sidebar="sidebar"][data-sidebar-style="style-3"] [data-sidebar="group-label"],
+aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group-label"] {
+  padding-inline: 0.75rem;
 }
 

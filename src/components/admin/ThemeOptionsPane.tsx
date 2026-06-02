@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers, MousePointerClick, Pencil } from "@/lib/lucide-shim";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
 import { useTheme } from "@/components/ThemeProvider";
+import { cn } from "@/lib/utils";
 
 
 // ---------- Defaults ----------
@@ -824,11 +825,20 @@ function ThemeOptionsBody({
   save: ReturnType<typeof useSettings>["save"];
   children: React.ReactNode;
 }) {
-  void draft; void save;
+  void save;
+  const sidebarStyle = draft.sidebars?.style ?? "style-1";
+  const compact = sidebarStyle === "style-4";
   return (
     <div className="flex gap-4 min-h-[600px]">
-      <aside className="w-60 shrink-0 border border-border rounded-lg bg-card p-2 self-start">
-        <div className="px-2 pb-2 pt-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+      <aside
+        data-sidebar="sidebar"
+        data-sidebar-style={sidebarStyle}
+        className={cn(
+          compact ? "w-14" : "w-60",
+          "shrink-0 border border-border rounded-lg bg-card p-2 self-start sidebar-shell",
+        )}
+      >
+        <div data-sidebar="group-label" className="px-2 pb-2 pt-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
           Opcje motywu
         </div>
         <nav className="space-y-0.5">
@@ -840,6 +850,9 @@ function ThemeOptionsBody({
                 key={s.id}
                 type="button"
                 onClick={() => setActive(s.id)}
+                data-sidebar="menu-button"
+                data-active={isActive ? "true" : "false"}
+                title={s.label}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left border-l-2 transition ${
                   isActive
                     ? "border-brand bg-brand/10 text-brand font-medium"
@@ -847,8 +860,8 @@ function ThemeOptionsBody({
                 }`}
               >
                 {Icon && <Icon className="w-4 h-4 shrink-0" />}
-                <span className="flex-1 truncate">{s.label}</span>
-                {isActive && <ChevronRight className="w-3 h-3" />}
+                <span className={cn("flex-1 truncate", compact && "hidden")}>{s.label}</span>
+                {isActive && !compact && <ChevronRight className="w-3 h-3" />}
               </button>
             );
           })}
