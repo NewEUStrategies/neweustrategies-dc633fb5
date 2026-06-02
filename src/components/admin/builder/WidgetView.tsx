@@ -491,6 +491,14 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         : badgeVariant === "gradient" ? "bg-gradient-to-r from-destructive to-brand text-white"
         : "bg-destructive text-white";
       const badgeCls = `inline-block font-bold uppercase tracking-wider mb-3 ${sizeCls} ${variantCls} ${radiusCls}`;
+      const imageHover = getStr(c, "imageHover") || "zoom-in";
+      const imgAnimCls =
+        imageHover === "zoom-in" ? "transition-transform duration-500 ease-out group-hover/dfcimg:scale-110"
+        : imageHover === "zoom-out" ? "scale-110 transition-transform duration-500 ease-out group-hover/dfcimg:scale-100"
+        : imageHover === "fade" ? "transition-[filter,opacity] duration-500 ease-out group-hover/dfcimg:brightness-75"
+        : imageHover === "brighten" ? "brightness-90 transition-[filter] duration-500 ease-out group-hover/dfcimg:brightness-110"
+        : imageHover === "tilt" ? "transition-transform duration-500 ease-out group-hover/dfcimg:scale-105 group-hover/dfcimg:rotate-1"
+        : "";
       const card = (
         <div
           className="relative p-6 rounded"
@@ -507,7 +515,11 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
               ? <Editable as="div" value={badge} onCommit={(v) => commit(badgeKey, v)} className={badgeCls} placeholder="Etykieta…" />
               : <div className={badgeCls}>{badge}</div>
           )}
-          {img && <img src={img} alt="" className="w-full h-72 object-cover rounded" loading="lazy" />}
+          {img && (
+            <div className="group/dfcimg relative w-full h-72 overflow-hidden rounded">
+              <img src={img} alt="" className={`w-full h-full object-cover ${imgAnimCls}`} loading="lazy" />
+            </div>
+          )}
           <h3 className="mt-4 font-display text-2xl font-bold">{title}</h3>
           {excerpt && <p className="mt-2 text-sm opacity-70">{excerpt}</p>}
         </div>
