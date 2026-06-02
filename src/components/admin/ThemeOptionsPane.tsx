@@ -637,45 +637,45 @@ export function ThemeOptionsPane() {
         {active === "buttons" && (
           <div className="space-y-4">
             <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
-              Globalne ustawienia kształtu i typografii przycisków. Kolory (w tym hover) konfiguruj w <strong>Global Colors → Button</strong>.
+              {t("themeOptions.buttons.hint")}
             </div>
-            <Row label="Domyślny wariant">
+            <Row label={t("themeOptions.buttons.defaultVariant")}>
               <Select value={draft.buttons.default_variant} onValueChange={(v) => patchButtons({ default_variant: v as ButtonVariant })}>
                 <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="solid">Solid</SelectItem>
-                  <SelectItem value="outline">Outline</SelectItem>
+                  <SelectItem value="solid">{t("themeOptions.signin.variantSolid")}</SelectItem>
+                  <SelectItem value="outline">{t("themeOptions.signin.variantOutline")}</SelectItem>
                   <SelectItem value="ghost">Ghost</SelectItem>
                   <SelectItem value="pill">Pill</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Domyślny rozmiar">
+            <Row label={t("themeOptions.buttons.defaultSize")}>
               <Select value={draft.buttons.default_size} onValueChange={(v) => patchButtons({ default_size: v as ButtonSize })}>
                 <SelectTrigger className="w-[160px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="sm">Small</SelectItem>
-                  <SelectItem value="md">Medium</SelectItem>
-                  <SelectItem value="lg">Large</SelectItem>
+                  <SelectItem value="sm">{t("themeOptions.buttons.sizeSm")}</SelectItem>
+                  <SelectItem value="md">{t("themeOptions.buttons.sizeMd")}</SelectItem>
+                  <SelectItem value="lg">{t("themeOptions.buttons.sizeLg")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Border radius (px)" hint="0 = ostre rogi, 999 = pigułka.">
+            <Row label={t("themeOptions.buttons.radius")} hint={t("themeOptions.buttons.radiusHint")}>
               <Input type="number" min={0} max={999} className="w-[120px] h-9 text-xs"
                 value={draft.buttons.radius}
                 onChange={(e) => patchButtons({ radius: Number(e.target.value) || 0 })} />
             </Row>
-            <Row label="Padding poziomy (px)">
+            <Row label={t("themeOptions.buttons.paddingX")}>
               <Input type="number" min={0} max={64} className="w-[120px] h-9 text-xs"
                 value={draft.buttons.padding_x}
                 onChange={(e) => patchButtons({ padding_x: Number(e.target.value) || 0 })} />
             </Row>
-            <Row label="Padding pionowy (px)">
+            <Row label={t("themeOptions.buttons.paddingY")}>
               <Input type="number" min={0} max={48} className="w-[120px] h-9 text-xs"
                 value={draft.buttons.padding_y}
                 onChange={(e) => patchButtons({ padding_y: Number(e.target.value) || 0 })} />
             </Row>
-            <Row label="Grubość fontu" hint="400=regular, 600=semibold, 700=bold.">
+            <Row label={t("themeOptions.buttons.fontWeight")} hint={t("themeOptions.buttons.fontWeightHint")}>
               <Select value={String(draft.buttons.font_weight)} onValueChange={(v) => patchButtons({ font_weight: Number(v) })}>
                 <SelectTrigger className="w-[160px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -686,10 +686,10 @@ export function ThemeOptionsPane() {
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="WIELKIE LITERY" hint="Wymusza uppercase na tekście przycisków.">
+            <Row label={t("themeOptions.buttons.uppercase")} hint={t("themeOptions.buttons.uppercaseHint")}>
               <Switch checked={draft.buttons.uppercase} onCheckedChange={(v) => patchButtons({ uppercase: v })} />
             </Row>
-            <Row label="Letter spacing (px)">
+            <Row label={t("themeOptions.buttons.letterSpacing")}>
               <Input type="number" min={-2} max={8} step={0.1} className="w-[120px] h-9 text-xs"
                 value={draft.buttons.letter_spacing}
                 onChange={(e) => patchButtons({ letter_spacing: Number(e.target.value) || 0 })} />
@@ -701,49 +701,49 @@ export function ThemeOptionsPane() {
         {active === "text_fields" && (
           <div className="space-y-4">
             <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
-              Globalne ustawienia kształtu pól tekstowych. Kolory (tło, tekst, placeholder, hover, focus) konfiguruj w <strong>Global Colors → Inputs / Text Fields</strong>.
+              {t("themeOptions.inputs.hint")}
             </div>
-            <Row label="Styl pola">
+            <Row label={t("themeOptions.inputs.style")}>
               <Select value={draft.text_fields.style} onValueChange={(v) => patchInputs({ style: v as InputStyle })}>
                 <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="filled">Filled (z tłem)</SelectItem>
-                  <SelectItem value="outline">Outline (obramowane)</SelectItem>
-                  <SelectItem value="underline">Underline (tylko dolna linia)</SelectItem>
+                  <SelectItem value="filled">{t("themeOptions.inputs.styleFilled")}</SelectItem>
+                  <SelectItem value="outline">{t("themeOptions.inputs.styleOutline")}</SelectItem>
+                  <SelectItem value="underline">{t("themeOptions.inputs.styleUnderline")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Border radius (px)">
+            <Row label={t("themeOptions.inputs.radius")}>
               <Input type="number" min={0} max={32} className="w-[120px] h-9 text-xs"
                 value={draft.text_fields.radius}
                 onChange={(e) => patchInputs({ radius: Number(e.target.value) || 0 })} />
             </Row>
-            <Row label="Wysokość pola (px)">
+            <Row label={t("themeOptions.inputs.height")}>
               <Input type="number" min={28} max={72} className="w-[120px] h-9 text-xs"
                 value={draft.text_fields.height}
                 onChange={(e) => patchInputs({ height: Number(e.target.value) || 40 })} />
             </Row>
-            <Row label="Grubość obramowania (px)">
+            <Row label={t("themeOptions.inputs.borderWidth")}>
               <Input type="number" min={0} max={4} className="w-[120px] h-9 text-xs"
                 value={draft.text_fields.border_width}
                 onChange={(e) => patchInputs({ border_width: Number(e.target.value) || 0 })} />
             </Row>
-            <Row label="Focus ring" hint="Styl podświetlenia po fokusie.">
+            <Row label={t("themeOptions.inputs.focusRing")} hint={t("themeOptions.inputs.focusRingHint")}>
               <Select value={draft.text_fields.focus_ring} onValueChange={(v) => patchInputs({ focus_ring: v as FocusRing })}>
                 <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Brak</SelectItem>
-                  <SelectItem value="brand">Brand (highlight)</SelectItem>
-                  <SelectItem value="border">Border (pogrubienie)</SelectItem>
+                  <SelectItem value="none">{t("themeOptions.inputs.focusNone")}</SelectItem>
+                  <SelectItem value="brand">{t("themeOptions.inputs.focusBrand")}</SelectItem>
+                  <SelectItem value="border">{t("themeOptions.inputs.focusBorder")}</SelectItem>
                 </SelectContent>
               </Select>
             </Row>
-            <Row label="Grubość ringu (px)">
+            <Row label={t("themeOptions.inputs.ringWidth")}>
               <Input type="number" min={0} max={6} className="w-[120px] h-9 text-xs"
                 value={draft.text_fields.focus_ring_width}
                 onChange={(e) => patchInputs({ focus_ring_width: Number(e.target.value) || 0 })} />
             </Row>
-            <Row label="Pokaż label nad polem" hint="Jeśli wyłączone — label tylko jako placeholder.">
+            <Row label={t("themeOptions.inputs.showLabel")} hint={t("themeOptions.inputs.showLabelHint")}>
               <Switch checked={draft.text_fields.show_label_above} onCheckedChange={(v) => patchInputs({ show_label_above: v })} />
             </Row>
             <InputPreview opts={draft.text_fields} />
