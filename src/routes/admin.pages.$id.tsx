@@ -188,10 +188,15 @@ function EditPage() {
       </div>
       <div>
         <Label>{t("admin.posts.cover")}</Label>
-        <Input value={form.cover_image_url ?? ""} onChange={(e) => set("cover_image_url", e.target.value)} placeholder="https://..." />
-        {form.cover_image_url && (
-          <img src={form.cover_image_url} alt="" className="mt-2 rounded w-full h-24 object-cover" />
-        )}
+        <div className="mt-1">
+          <ImageSlot
+            label=""
+            value={form.cover_image_url ?? ""}
+            onChange={(v) => set("cover_image_url", v || null)}
+            hint="Zalecane 1200×630 px, JPG/PNG/WebP, < 500 KB. Używane jako miniatura i og:image."
+            folder="pages/cover"
+          />
+        </div>
       </div>
     </div>
   );
