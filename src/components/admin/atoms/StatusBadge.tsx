@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleDashed, Archive } from "@/lib/lucide-shim";
+import { Check, Pencil, Lock, Circle } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
 
 export type ContentStatus = "published" | "draft" | "archived";
@@ -34,32 +34,32 @@ export function StatusBadge({ status, label, className, title }: StatusBadgeProp
 
 function getTone(status: string): {
   classes: string;
-  icon: typeof CheckCircle2;
+  icon: typeof Check;
 } {
   switch (status) {
     case "published":
       return {
         classes:
           "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-        icon: CheckCircle2,
+        icon: Check,
       };
     case "draft":
       return {
         classes:
           "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-400",
-        icon: CircleDashed,
+        icon: Pencil,
       };
     case "archived":
       return {
         classes:
           "border-slate-500/40 bg-slate-500/15 text-slate-700 dark:text-slate-300",
-        icon: Archive,
+        icon: Lock,
       };
     default:
       return {
         classes:
           "border-border bg-muted text-muted-foreground",
-        icon: CircleDashed,
+        icon: Circle,
       };
   }
 }
