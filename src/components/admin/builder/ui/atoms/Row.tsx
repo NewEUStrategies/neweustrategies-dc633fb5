@@ -6,7 +6,7 @@ export function Row({ label, children, hint }: { label: string; children: React.
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
       {children}
-      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-[9px] leading-snug text-muted-foreground/60">{hint}</p>}
     </div>
   );
 }
