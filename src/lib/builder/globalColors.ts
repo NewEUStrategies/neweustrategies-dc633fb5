@@ -531,7 +531,7 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(main svg, article svg, section svg, .content svg, .card svg, [class*="card"] svg, [data-card] svg){color:var(--gc-icon, var(--gc-highlight, currentColor));}
     :where(main a:hover svg, article a:hover svg, section a:hover svg, .content a:hover svg, main button:hover svg, article button:hover svg, .card a:hover svg, [class*="card"] a:hover svg){color:var(--gc-icon-hover, var(--gc-icon, var(--gc-highlight, currentColor)));}
     :where(header svg){color:var(--gc-header-icon, currentColor);}
-    :where(header a, header button){color:var(--gc-header-icon, inherit);}
+    :where(header a, header button){color:var(--gc-header-icon, inherit);font-family:var(--gc-header-icon-font, inherit);font-size:var(--gc-header-icon-size, inherit);font-weight:var(--gc-header-icon-weight, inherit);font-style:var(--gc-header-icon-style, inherit);text-decoration:var(--gc-header-icon-decoration, inherit);}
     :where(header a:hover, header button:hover, header a:hover svg, header button:hover svg){color:var(--gc-header-icon-hover, var(--gc-header-icon, inherit));}
     aside[data-sidebar="sidebar"], [data-sidebar="sidebar"]{background:var(--gc-sidebar-bg, var(--sidebar-background)) !important;color:var(--gc-sidebar-text, var(--sidebar-foreground)) !important;border-color:var(--gc-sidebar-border, var(--sidebar-border)) !important;}
     [data-sidebar="sidebar"] a, [data-sidebar="sidebar"] button, [data-sidebar="menu-button"]{color:var(--gc-sidebar-text, inherit);}
