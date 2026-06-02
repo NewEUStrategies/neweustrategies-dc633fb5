@@ -8,8 +8,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2 } from "@/lib/lucide-shim";
-import { deletePost, bulkDeletePosts, bulkUpdatePosts } from "@/lib/content.functions";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Pencil, Trash2, Undo2, X } from "@/lib/lucide-shim";
+import {
+  deletePost,
+  bulkDeletePosts,
+  bulkUpdatePosts,
+  restorePosts,
+  purgePosts,
+} from "@/lib/content.functions";
 import { toast } from "sonner";
 import { BulkActionsBar, type BulkStatus } from "@/components/admin/BulkActionsBar";
 
@@ -23,6 +30,8 @@ function PostsLayout() {
   return <PostsList />;
 }
 
+type View = "active" | "trash";
+
 function PostsList() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language ?? "pl";
@@ -31,19 +40,38 @@ function PostsList() {
   const del$ = useServerFn(deletePost);
   const bulkDel$ = useServerFn(bulkDeletePosts);
   const bulkUpd$ = useServerFn(bulkUpdatePosts);
+  const restore$ = useServerFn(restorePosts);
+  const purge$ = useServerFn(purgePosts);
+  const [view, setView] = useState<View>("active");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const { data: posts, isLoading } = useQuery({
     enabled: !!tenantId,
-    queryKey: ["admin-posts", tenantId],
+    queryKey: ["admin-posts", tenantId, view],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("posts")
-        .select("id, slug, title_pl, title_en, status, published_at, updated_at, author_id")
+        .select("id, slug, title_pl, title_en, status, published_at, updated_at, author_id, deleted_at")
         .eq("tenant_id", tenantId!)
         .order("updated_at", { ascending: false });
+      q = view === "trash" ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
+      const { data, error } = await q;
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: trashCount } = useQuery({
+    enabled: !!tenantId,
+    queryKey: ["admin-posts-trash-count", tenantId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("posts")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId!)
+        .not("deleted_at", "is", null);
+      if (error) throw error;
+      return count ?? 0;
     },
   });
 
@@ -58,17 +86,20 @@ function PostsList() {
       return next;
     });
   };
-  const toggleAll = () => {
-    setSelected(allSelected ? new Set() : new Set(allIds));
-  };
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(allIds));
   const clear = () => setSelected(new Set());
 
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["admin-posts"] });
+    qc.invalidateQueries({ queryKey: ["admin-posts-trash-count"] });
+  };
+
   const del = async (id: string) => {
-    if (!confirm(t("admin.confirmDelete"))) return;
+    if (!confirm("Przenieść do kosza?")) return;
     try {
       await del$({ data: { id } });
-      toast.success(t("admin.deleted"));
-      qc.invalidateQueries({ queryKey: ["admin-posts"] });
+      toast.success("Przeniesiono do kosza");
+      invalidate();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     }
@@ -78,9 +109,9 @@ function PostsList() {
     try {
       const ids = [...selected];
       await bulkDel$({ data: { ids } });
-      toast.success(`Usunięto ${ids.length}`);
+      toast.success(`Przeniesiono do kosza: ${ids.length}`);
       clear();
-      qc.invalidateQueries({ queryKey: ["admin-posts"] });
+      invalidate();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     }
@@ -92,11 +123,56 @@ function PostsList() {
       await bulkUpd$({ data: { ids, status } });
       toast.success(`Zaktualizowano ${ids.length}`);
       clear();
-      qc.invalidateQueries({ queryKey: ["admin-posts"] });
+      invalidate();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     }
   };
+
+  const restoreOne = async (id: string) => {
+    try {
+      await restore$({ data: { ids: [id] } });
+      toast.success("Przywrócono");
+      invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const purgeOne = async (id: string) => {
+    if (!confirm("Usunąć trwale? Tej operacji nie można cofnąć.")) return;
+    try {
+      await purge$({ data: { ids: [id] } });
+      toast.success("Usunięto trwale");
+      invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const onBulkRestore = async () => {
+    try {
+      const ids = [...selected];
+      await restore$({ data: { ids } });
+      toast.success(`Przywrócono: ${ids.length}`);
+      clear();
+      invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const onBulkPurge = async () => {
+    if (!confirm(`Usunąć trwale ${selected.size}? Tej operacji nie można cofnąć.`)) return;
+    try {
+      const ids = [...selected];
+      await purge$({ data: { ids } });
+      toast.success(`Usunięto trwale: ${ids.length}`);
+      clear();
+      invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const isTrash = view === "trash";
 
   return (
     <div>
@@ -110,17 +186,45 @@ function PostsList() {
         </Link>
       </div>
 
+      <Tabs value={view} onValueChange={(v) => { setView(v as View); clear(); }} className="mb-4">
+        <TabsList>
+          <TabsTrigger value="active">Wszystkie</TabsTrigger>
+          <TabsTrigger value="trash">
+            Kosz{typeof trashCount === "number" && trashCount > 0 ? ` (${trashCount})` : ""}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <BulkActionsBar
-          count={selected.size}
-          onClear={clear}
-          onApplyStatus={onBulkStatus}
-          onDelete={onBulkDelete}
-        />
+        {isTrash ? (
+          selected.size > 0 ? (
+            <div className="flex items-center gap-2 p-2 border-b border-border bg-muted/30 text-sm">
+              <span className="px-2">Zaznaczono: {selected.size}</span>
+              <Button size="sm" variant="outline" onClick={onBulkRestore}>
+                <Undo2 className="w-4 h-4 mr-2" /> Przywróć
+              </Button>
+              <Button size="sm" variant="destructive" onClick={onBulkPurge}>
+                <Trash2 className="w-4 h-4 mr-2" /> Usuń trwale
+              </Button>
+              <Button size="sm" variant="ghost" onClick={clear} className="ml-auto">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : null
+        ) : (
+          <BulkActionsBar
+            count={selected.size}
+            onClear={clear}
+            onApplyStatus={onBulkStatus}
+            onDelete={onBulkDelete}
+          />
+        )}
         {isLoading ? (
           <div className="p-8 text-center text-muted-foreground text-sm">…</div>
         ) : !posts?.length ? (
-          <div className="p-12 text-center text-muted-foreground">{t("admin.posts.empty")}</div>
+          <div className="p-12 text-center text-muted-foreground">
+            {isTrash ? "Kosz jest pusty" : t("admin.posts.empty")}
+          </div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
@@ -134,7 +238,9 @@ function PostsList() {
                 </th>
                 <th className="text-left p-3">{t("admin.posts.titleCol")}</th>
                 <th className="text-left p-3">{t("admin.posts.status")}</th>
-                <th className="text-left p-3 hidden md:table-cell">{t("admin.posts.updated")}</th>
+                <th className="text-left p-3 hidden md:table-cell">
+                  {isTrash ? "Usunięto" : t("admin.posts.updated")}
+                </th>
                 <th className="p-3"></th>
               </tr>
             </thead>
@@ -158,16 +264,29 @@ function PostsList() {
                     </Badge>
                   </td>
                   <td className="p-3 hidden md:table-cell text-muted-foreground text-xs">
-                    {new Date(p.updated_at).toLocaleString(lang)}
+                    {new Date((isTrash && p.deleted_at) ? p.deleted_at : p.updated_at).toLocaleString(lang)}
                   </td>
                   <td className="p-3 text-right">
                     <div className="flex justify-end gap-1">
-                      <Link to="/admin/posts/$id" params={{ id: p.id }}>
-                        <Button size="sm" variant="ghost"><Pencil className="w-4 h-4" /></Button>
-                      </Link>
-                      <Button size="sm" variant="ghost" onClick={() => del(p.id)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      {isTrash ? (
+                        <>
+                          <Button size="sm" variant="ghost" title="Przywróć" onClick={() => restoreOne(p.id)}>
+                            <Undo2 className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" title="Usuń trwale" onClick={() => purgeOne(p.id)}>
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Link to="/admin/posts/$id" params={{ id: p.id }}>
+                            <Button size="sm" variant="ghost"><Pencil className="w-4 h-4" /></Button>
+                          </Link>
+                          <Button size="sm" variant="ghost" title="Do kosza" onClick={() => del(p.id)}>
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
