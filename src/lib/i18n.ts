@@ -137,7 +137,7 @@ const resources = {
           media: "Media",
           users: "Użytkownicy",
           paywall: "Paywall",
-          appearance: "Wygląd",
+          appearance: "Nagłówek i stopka",
           themeOptions: "Opcje motywu",
           postLayouts: "Layouty wpisów",
           contentArea: "Content Area",
