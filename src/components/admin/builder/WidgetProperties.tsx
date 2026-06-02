@@ -399,16 +399,6 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Typografia ({mode === "dark" ? "ciemny" : "jasny"})</h4>
-
-          <TypographyControl
-            value={getThemedTypography()}
-            device={device}
-            onChange={(typography: WidgetTypography) => setThemedTypography(typography)}
-          />
-        </section>
-
-        <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Hover ({mode === "dark" ? "ciemny" : "jasny"})</h4>
 
           <HoverControl
@@ -416,6 +406,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
             onChange={onHoverChange}
           />
         </section>
+
 
       </TabsContent>
 
