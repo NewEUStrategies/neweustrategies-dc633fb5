@@ -422,35 +422,6 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   ],
   "dark-featured-card": [
     { key: "badge", type: "i18nText", label: "Etykieta (badge)" },
-    {
-      key: "badgeVariant", type: "select", label: "Styl etykiety",
-      options: [
-        { value: "solid-red", label: "Pełny — czerwony" },
-        { value: "solid-brand", label: "Pełny — brand" },
-        { value: "solid-dark", label: "Pełny — ciemny" },
-        { value: "outline", label: "Obrysowany" },
-        { value: "ghost", label: "Przezroczysty (jasny tekst)" },
-        { value: "gradient", label: "Gradient" },
-      ],
-    },
-    {
-      key: "badgeRadius", type: "select", label: "Zaokrąglenie etykiety",
-      options: [
-        { value: "none", label: "Brak (kant)" },
-        { value: "sm", label: "Małe" },
-        { value: "md", label: "Średnie" },
-        { value: "lg", label: "Duże" },
-        { value: "full", label: "Pełne (pill)" },
-      ],
-    },
-    {
-      key: "badgeSize", type: "select", label: "Rozmiar etykiety",
-      options: [
-        { value: "xs", label: "XS" },
-        { value: "sm", label: "S" },
-        { value: "md", label: "M" },
-      ],
-    },
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "excerpt", type: "i18nText", label: "Zajawka (opcjonalna)" },
     { key: "image", type: "image", label: "Obrazek", hint: "Wklej URL lub wgraj plik z dysku." },
