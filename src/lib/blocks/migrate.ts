@@ -12,6 +12,7 @@
 // block so no content is lost.
 
 import type { Block, BlocksDoc, Json } from "./types";
+import { parseGutenberg } from "./gutenberg";
 import { EMPTY_BLOCKS_DOC, newBlockId } from "./types";
 
 // ---------- shared helpers ----------
