@@ -474,7 +474,7 @@ function TypographyRow({
           <Input
             list="gc-font-presets"
             value={fontFamily}
-            placeholder={defaultFontFamily || "var(--font-sans)"}
+            placeholder={defaultFontFamily || '"Red Hat Display", Georgia, serif'}
             onChange={(e) => onFontFamily(e.target.value)}
             className="h-8 text-xs"
           />
@@ -488,7 +488,7 @@ function TypographyRow({
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Size</span>
           <Input
             value={fontSize}
-            placeholder={defaultFontSize || "1rem"}
+            placeholder={defaultFontSize || "16px"}
             onChange={(e) => onFontSize(e.target.value)}
             className="h-8 text-xs font-mono"
           />
