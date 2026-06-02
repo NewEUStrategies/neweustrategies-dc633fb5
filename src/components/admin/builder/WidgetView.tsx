@@ -2,7 +2,7 @@
 // canvas via `editable` + `onContentChange`). Used in the live preview inside
 // the builder canvas and on public pages. All user-authored strings (custom
 // CSS, ids, classes, html, urls) go through src/lib/sanitize.ts.
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
@@ -20,6 +20,7 @@ import { hoverCss } from "@/lib/builder/hoverCss";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 import { useTheme } from "@/components/ThemeProvider";
 import { useBuilderMode } from "@/lib/builder/modeContext";
+import { pickMode } from "@/lib/builder/themed";
 import { NewsletterForm as NewsletterFormLive } from "@/components/NewsletterForm";
 import {
   SectionLabelRender,
@@ -76,6 +77,14 @@ interface ViewProps {
   onContentChange?: (key: string, value: string | number) => void;
 }
 
+function pickResponsiveValue<T>(
+  value: { desktop?: T; tablet?: T; mobile?: T } | undefined,
+  device: Device,
+): T | undefined {
+  if (!value) return undefined;
+  return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
+}
+
 export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
   const { theme } = useTheme();
   const builderMode = useBuilderMode();
@@ -122,6 +131,34 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     }
     return rules.join("\n");
   })();
+  const typographyCss = useMemo(() => {
+    const typography = pickMode(node.style?.typography, effectiveMode);
+    if (!typography) return "";
+
+    const sel = `[data-w-id="${node.id}"]`;
+    const descendants = `${sel}, ${sel} :is(p,span,a,strong,em,small,li,dt,dd,blockquote,cite,label,button,input,textarea,select,option,figcaption,legend,time,h1,h2,h3,h4,h5,h6,.prose,.prose *)`;
+    const rules: string[] = [];
+
+    if (typography.fontFamily) {
+      rules.push(`${descendants}{font-family:${typography.fontFamily} !important;}`);
+      rules.push(`${sel} input::placeholder, ${sel} textarea::placeholder{font-family:${typography.fontFamily} !important;}`);
+    }
+
+    const fontSize = pickResponsiveValue(typography.fontSize, device);
+    if (fontSize) {
+      rules.push(`${descendants}{font-size:${fontSize} !important;}`);
+      rules.push(`${sel} input::placeholder, ${sel} textarea::placeholder{font-size:${fontSize} !important;}`);
+    }
+
+    if (typography.fontWeight) rules.push(`${descendants}{font-weight:${typography.fontWeight} !important;}`);
+    if (typography.fontStyle) rules.push(`${descendants}{font-style:${typography.fontStyle} !important;}`);
+    if (typography.lineHeight) rules.push(`${descendants}{line-height:${typography.lineHeight} !important;}`);
+    if (typography.letterSpacing) rules.push(`${descendants}{letter-spacing:${typography.letterSpacing} !important;}`);
+    if (typography.textTransform) rules.push(`${descendants}{text-transform:${typography.textTransform} !important;}`);
+    if (typography.textDecoration) rules.push(`${descendants}{text-decoration:${typography.textDecoration} !important;}`);
+
+    return rules.join("\n");
+  }, [device, effectiveMode, node.id, node.style?.typography]);
 
   const isImage = node.type === "image";
   const isMedia = isImage || node.type === "slider" || node.type === "video" || node.type === "gallery" || node.type === "map";
@@ -135,6 +172,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     >
       {children}
       {hover && <style dangerouslySetInnerHTML={{ __html: hover }} />}
+      {typographyCss && <style dangerouslySetInnerHTML={{ __html: typographyCss }} />}
       {overrideCss && <style dangerouslySetInnerHTML={{ __html: overrideCss }} />}
       {scopedCss && <style dangerouslySetInnerHTML={{ __html: scopedCss }} />}
     </div>
