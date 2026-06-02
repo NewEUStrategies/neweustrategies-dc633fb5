@@ -246,9 +246,7 @@ function Footer({ lang }: { lang: "pl" | "en" }) {
           {lang === "pl" ? "nawiguj" : "navigate"}
         </span>
         <span className="inline-flex items-center gap-1">
-          <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px] inline-flex items-center">
-            <CornerDownLeft className="w-2.5 h-2.5" />
-          </kbd>
+          <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">↵</kbd>
           {lang === "pl" ? "otwórz" : "open"}
         </span>
         <span className="inline-flex items-center gap-1">
