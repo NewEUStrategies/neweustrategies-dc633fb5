@@ -9,14 +9,53 @@ interface Props {
   doc: BlocksDoc | null | undefined;
 }
 
+/** Globalny stan przypisów: zbiera [fn]...[/fn] w kolejności wystąpienia. */
+type FootnoteCollector = { notes: string[] };
+
+/** Escape HTML w treści przypisu używanej w atrybucie title oraz w sekcji końcowej. */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+/** Zamienia [fn]treść[/fn] na <sup> z tooltipem; treści dopisuje do kolektora. */
+function replaceFootnotes(html: string, fn: FootnoteCollector): string {
+  return html.replace(/\[fn\]([\s\S]*?)\[\/fn\]/g, (_m, content: string) => {
+    const text = content.trim();
+    if (!text) return "";
+    fn.notes.push(text);
+    const n = fn.notes.length;
+    const safeTitle = escapeHtml(text.replace(/<[^>]+>/g, ""));
+    return `<sup class="fn-ref"><a href="#fn-${n}" id="fnref-${n}" title="${safeTitle}" class="text-primary no-underline hover:underline">[${n}]</a></sup>`;
+  });
+}
+
+/** Zamienia treść przypisu z plain/markdown na czysty tekst dla listy końcowej. */
+function renderFootnoteHtml(text: string): string {
+  return DOMPurify.sanitize(text, { USE_PROFILES: { html: true } });
+}
+
 export function BlocksRenderer({ doc }: Props) {
   if (!doc?.blocks?.length) return null;
-  // Defense in depth: validate at the render boundary; drops malformed data.
   const safe = safeParseBlocks(doc);
   if (!safe.blocks.length) return null;
+  const fn: FootnoteCollector = { notes: [] };
   return (
     <article className="blocks-content prose prose-lg dark:prose-invert max-w-none">
-      {safe.blocks.map((b) => <BlockView key={b.id} block={b} />)}
+      {safe.blocks.map((b) => <BlockView key={b.id} block={b} fn={fn} />)}
+      {fn.notes.length > 0 && (
+        <section className="footnotes mt-10 pt-6 border-t border-border text-sm">
+          <h2 className="text-base font-semibold mb-3">Przypisy</h2>
+          <ol className="space-y-2 pl-5 list-decimal">
+            {fn.notes.map((n, i) => (
+              <li key={i} id={`fn-${i + 1}`}>
+                <span dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(n) }} />{" "}
+                <a href={`#fnref-${i + 1}`} className="text-muted-foreground hover:text-primary" aria-label="Wróć do tekstu">↩</a>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
     </article>
   );
 }
