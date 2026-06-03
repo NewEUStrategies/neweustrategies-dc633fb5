@@ -209,14 +209,14 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
         ? "text-[8px] font-medium text-foreground/80"
         : "text-[11px] sm:text-xs font-medium text-foreground/80 hover:opacity-80 transition";
       return (
-        <div className={`${wrapperBase} relative flex items-end gap-2 w-full min-w-0 overflow-visible`}>
+        <div className={`${wrapperBase} relative flex flex-wrap items-end gap-x-2 gap-y-1 w-full min-w-0 overflow-visible`}>
           <span
             aria-hidden
             className="absolute left-0 right-0 bottom-0 pointer-events-none z-0"
             style={{ height: `${lineH}px`, background: accent }}
           />
           <span
-            className={`relative z-10 inline-flex items-center flex-none max-w-full ${ribbonPadX} ${ribbonPadY} ${labelCls}`}
+            className={`relative z-10 inline-flex min-w-0 max-w-full flex-[1_1_auto] items-center ${ribbonPadX} ${ribbonPadY} ${labelCls}`}
             style={{
               background: accent,
               color: fg,
@@ -225,11 +225,11 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
               ...(labelSize && !isSm ? { fontSize: labelSize } : {}),
             }}
           >
-            <span className="block break-words whitespace-normal">{label}</span>
+            <span className="block min-w-0 break-words whitespace-normal [overflow-wrap:anywhere]">{label}</span>
           </span>
           {action && (
             <span
-              className="relative z-10 ml-auto flex items-center min-w-0 shrink-0 bg-background"
+              className="relative z-10 ml-auto flex max-w-full items-center min-w-0 shrink-0 bg-background"
               style={{ paddingLeft: isSm ? 4 : 12, paddingRight: isSm ? 4 : 8, paddingBottom: lineH + 2 }}
             >
               {href && !isSm
