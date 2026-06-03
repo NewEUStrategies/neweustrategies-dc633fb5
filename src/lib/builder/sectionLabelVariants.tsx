@@ -209,7 +209,10 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
         ? "text-[8px] font-medium text-foreground/80"
         : "text-[11px] sm:text-xs font-medium text-foreground/80 hover:opacity-80 transition";
       return (
-        <div className={`${wrapperBase} relative flex items-end gap-2 w-full min-w-0 overflow-visible`}>
+        <div
+          className={`${wrapperBase} relative flex items-end gap-2 w-full min-w-0 overflow-visible`}
+          style={{ paddingBottom: `${lineH}px` }}
+        >
           <span
             aria-hidden
             className="absolute left-0 right-0 bottom-0 pointer-events-none z-0"
@@ -230,7 +233,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
           {action && (
             <span
               className="relative z-10 ml-auto flex items-center min-w-0 shrink-0 bg-background"
-              style={{ paddingLeft: isSm ? 4 : 12, paddingRight: isSm ? 4 : 8, paddingBottom: lineH + 2 }}
+              style={{ paddingLeft: isSm ? 4 : 12, paddingRight: isSm ? 4 : 8 }}
             >
               {href && !isSm
                 ? <a href={href} className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</a>
