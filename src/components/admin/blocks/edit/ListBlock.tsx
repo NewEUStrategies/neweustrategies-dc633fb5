@@ -34,13 +34,13 @@ export function ListBlockEdit({ block, onChange }: Props) {
 
   const ListTag = ordered ? "ol" : "ul";
   const marker = ordered
-    ? (i: number) => <span className="text-muted-foreground w-6 text-right tabular-nums">{i + 1}.</span>
-    : () => <span className="text-muted-foreground w-6 text-center">•</span>;
+    ? (i: number) => <span className="w-6 text-right tabular-nums text-foreground">{i + 1}.</span>
+    : () => <span className="w-6 text-center text-foreground">•</span>;
 
   return (
-    <ListTag className="space-y-1 list-none pl-0 m-0">
+    <ListTag className="prose prose-sm dark:prose-invert max-w-none space-y-1 list-none pl-0 m-0 text-foreground">
       {items.map((it, i) => (
-        <li key={i} className="flex items-center gap-2">
+        <li key={i} className="flex items-center gap-2 m-0">
           {marker(i)}
           <input
             ref={(el) => { refs.current[i] = el; }}
@@ -49,7 +49,7 @@ export function ListBlockEdit({ block, onChange }: Props) {
             placeholder="Pozycja listy…"
             onChange={(e) => update(i, e.target.value)}
             onKeyDown={(e) => onKeyDown(i, e)}
-            className="flex-1 bg-transparent border-none outline-none focus:ring-0 p-0"
+            className="flex-1 bg-transparent border-none outline-none focus:ring-0 p-0 text-foreground"
           />
         </li>
       ))}
