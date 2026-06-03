@@ -48,12 +48,16 @@ export function PostBlockEditor({ value, onChange, documentPane }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang, safe.pl, safe.en]);
 
-  // Propagate history.doc upstream whenever it diverges from the parent value.
+  // Propagate history.doc upstream whenever the user actually edits.
+  // Guard against propagating the previous language's doc right after a
+  // lang switch (history.reset is asynchronous, so history.doc briefly
+  // still points at the old language's content during the next render).
   useEffect(() => {
     const current = safeRef.current[lang];
-    if (history.doc !== current) {
-      onChangeRef.current({ ...safeRef.current, [lang]: history.doc });
-    }
+    const lastSynced = lastSyncRef.current;
+    if (!lastSynced || lastSynced.lang !== lang) return;
+    if (history.doc === current) return;
+    onChangeRef.current({ ...safeRef.current, [lang]: history.doc });
   }, [history.doc, lang]);
 
   // Keyboard: Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z (or Y), Alt+ArrowUp/Down to move active block.
