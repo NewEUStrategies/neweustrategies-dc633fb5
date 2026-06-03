@@ -7,7 +7,13 @@ import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
+  lang?: "pl" | "en";
 }
+
+const FN_LABELS = {
+  pl: { title: "Przypisy", back: "Wróć do tekstu" },
+  en: { title: "Footnotes", back: "Back to text" },
+} as const;
 
 /** Globalny stan przypisów: zbiera [fn]...[/fn] w kolejności wystąpienia. */
 type FootnoteCollector = { notes: string[] };
