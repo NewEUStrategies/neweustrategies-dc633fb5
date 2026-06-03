@@ -127,7 +127,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
   if (carousel) {
     return (
-      <div className="w-full flex gap-4 overflow-x-auto pb-2 snap-x">
+      <div className="w-full min-w-0 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
         {rows.map((p) => (
           <PostCard key={p.id} p={p} variant={variant} carousel title={title(p)} excerpt={excerpt(p)} />
         ))}
@@ -202,11 +202,11 @@ function PostCard({
   title: string;
   excerpt: string;
 }) {
-  const base = `bg-card border border-border rounded-md overflow-hidden hover:border-brand transition ${carousel ? "w-full sm:flex-1 sm:basis-0 sm:min-w-[240px] snap-start" : ""}`;
+  const base = `bg-card border border-border rounded-md overflow-hidden hover:border-brand transition ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`;
 
   if (variant === "overlay" && p.cover_image_url) {
     return (
-      <a href={`/post/${p.slug}`} className={`relative block rounded-md overflow-hidden ${carousel ? "w-full sm:flex-1 sm:basis-0 sm:min-w-[240px] snap-start" : ""}`}>
+      <a href={`/post/${p.slug}`} className={`relative block rounded-md overflow-hidden ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
         <img src={p.cover_image_url} alt="" className="w-full h-40 object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-2.5 text-white">
@@ -218,7 +218,7 @@ function PostCard({
 
   if (variant === "minimal") {
     return (
-      <a href={`/post/${p.slug}`} className={`block ${carousel ? "w-full sm:flex-1 sm:basis-0 sm:min-w-[240px] snap-start" : ""}`}>
+      <a href={`/post/${p.slug}`} className={`block ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
         {p.cover_image_url && (
           <img src={p.cover_image_url} alt="" className="w-full h-28 object-cover rounded-sm mb-2" />
         )}
