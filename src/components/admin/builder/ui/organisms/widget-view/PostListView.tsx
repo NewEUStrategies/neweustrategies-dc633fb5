@@ -207,15 +207,15 @@ function PostCard({
   title: string;
   excerpt: string;
 }) {
-  const base = `bg-card border border-border rounded-lg overflow-hidden hover:border-brand transition ${carousel ? "min-w-[260px] snap-start" : ""}`;
+  const base = `bg-card border border-border rounded-md overflow-hidden hover:border-brand transition ${carousel ? "min-w-[220px] max-w-[240px] snap-start" : ""}`;
 
   if (variant === "overlay" && p.cover_image_url) {
     return (
-      <a href={`/post/${p.slug}`} className={`relative block rounded-lg overflow-hidden ${carousel ? "min-w-[260px] snap-start" : ""}`}>
-        <img src={p.cover_image_url} alt="" className="w-full h-56 object-cover" />
+      <a href={`/post/${p.slug}`} className={`relative block rounded-md overflow-hidden ${carousel ? "min-w-[220px] max-w-[240px] snap-start" : ""}`}>
+        <img src={p.cover_image_url} alt="" className="w-full h-40 object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 p-3 text-white">
-          <h4 className="font-display text-lg leading-tight line-clamp-2">{title}</h4>
+        <div className="absolute inset-x-0 bottom-0 p-2.5 text-white">
+          <h4 className="font-display text-sm leading-tight line-clamp-2">{title}</h4>
         </div>
       </a>
     );
@@ -223,11 +223,11 @@ function PostCard({
 
   if (variant === "minimal") {
     return (
-      <a href={`/post/${p.slug}`} className={`block ${carousel ? "min-w-[260px] snap-start" : ""}`}>
+      <a href={`/post/${p.slug}`} className={`block ${carousel ? "min-w-[220px] max-w-[240px] snap-start" : ""}`}>
         {p.cover_image_url && (
-          <img src={p.cover_image_url} alt="" className="w-full h-40 object-cover rounded-md mb-2" />
+          <img src={p.cover_image_url} alt="" className="w-full h-28 object-cover rounded-sm mb-2" />
         )}
-        <h4 className="font-display text-base leading-snug line-clamp-2 hover:text-brand transition">{title}</h4>
+        <h4 className="font-display text-sm leading-snug line-clamp-2 hover:text-brand transition">{title}</h4>
       </a>
     );
   }
@@ -236,11 +236,11 @@ function PostCard({
   return (
     <a href={`/post/${p.slug}`} className={base}>
       {p.cover_image_url && (
-        <img src={p.cover_image_url} alt="" className="w-full h-40 object-cover" />
+        <img src={p.cover_image_url} alt="" className="w-full h-28 object-cover" />
       )}
-      <div className="p-4">
-        <h4 className="font-display text-lg mb-1 line-clamp-2">{title}</h4>
-        {excerpt && <p className="text-sm text-muted-foreground line-clamp-2">{excerpt}</p>}
+      <div className="p-2.5">
+        <h4 className="font-display text-sm font-medium leading-snug mb-1 line-clamp-2">{title}</h4>
+        {excerpt && <p className="text-xs text-muted-foreground leading-snug line-clamp-2">{excerpt}</p>}
       </div>
     </a>
   );
