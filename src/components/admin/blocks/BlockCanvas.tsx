@@ -123,7 +123,7 @@ export function BlockCanvas({ doc, activeId, onSelect, onChange }: Props) {
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <div className="space-y-0.5">
+        <div className="block-canvas space-y-0.5">
           <BlockInserter onInsert={(b) => insertAt(0, b)} />
           {blocks.map((b, idx) => (
             <div key={b.id}>
