@@ -48,6 +48,7 @@ import { Route as AdminSettingsGeneralRouteImport } from './routes/admin.setting
 import { Route as AdminSettingsDiscussionRouteImport } from './routes/admin.settings.discussion'
 import { Route as AdminSettingsDesignRouteImport } from './routes/admin.settings.design'
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
+import { Route as AdminPostsSlugRouteImport } from './routes/admin.posts.$slug'
 import { Route as AdminPostsIdRouteImport } from './routes/admin.posts.$id'
 import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
 import { Route as AdminPagesSlugRouteImport } from './routes/admin.pages.$slug'
@@ -252,6 +253,11 @@ const AdminPostsNewRoute = AdminPostsNewRouteImport.update({
   path: '/new',
   getParentRoute: () => AdminPostsRoute,
 } as any)
+const AdminPostsSlugRoute = AdminPostsSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => AdminPostsRoute,
+} as any)
 const AdminPostsIdRoute = AdminPostsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -331,6 +337,7 @@ export interface FileRoutesByFullPath {
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
+  '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
@@ -378,6 +385,7 @@ export interface FileRoutesByTo {
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
+  '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
@@ -428,6 +436,7 @@ export interface FileRoutesById {
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/posts/$id': typeof AdminPostsIdRoute
+  '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
   '/admin/settings/discussion': typeof AdminSettingsDiscussionRoute
@@ -479,6 +488,7 @@ export interface FileRouteTypes {
     | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/posts/$id'
+    | '/admin/posts/$slug'
     | '/admin/posts/new'
     | '/admin/settings/design'
     | '/admin/settings/discussion'
@@ -526,6 +536,7 @@ export interface FileRouteTypes {
     | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/posts/$id'
+    | '/admin/posts/$slug'
     | '/admin/posts/new'
     | '/admin/settings/design'
     | '/admin/settings/discussion'
@@ -575,6 +586,7 @@ export interface FileRouteTypes {
     | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/posts/$id'
+    | '/admin/posts/$slug'
     | '/admin/posts/new'
     | '/admin/settings/design'
     | '/admin/settings/discussion'
@@ -881,6 +893,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPostsNewRouteImport
       parentRoute: typeof AdminPostsRoute
     }
+    '/admin/posts/$slug': {
+      id: '/admin/posts/$slug'
+      path: '/$slug'
+      fullPath: '/admin/posts/$slug'
+      preLoaderRoute: typeof AdminPostsSlugRouteImport
+      parentRoute: typeof AdminPostsRoute
+    }
     '/admin/posts/$id': {
       id: '/admin/posts/$id'
       path: '/$id'
@@ -974,11 +993,13 @@ const AdminPagesRouteWithChildren = AdminPagesRoute._addFileChildren(
 
 interface AdminPostsRouteChildren {
   AdminPostsIdRoute: typeof AdminPostsIdRoute
+  AdminPostsSlugRoute: typeof AdminPostsSlugRoute
   AdminPostsNewRoute: typeof AdminPostsNewRoute
 }
 
 const AdminPostsRouteChildren: AdminPostsRouteChildren = {
   AdminPostsIdRoute: AdminPostsIdRoute,
+  AdminPostsSlugRoute: AdminPostsSlugRoute,
   AdminPostsNewRoute: AdminPostsNewRoute,
 }
 
@@ -1073,13 +1094,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
