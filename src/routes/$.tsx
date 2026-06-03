@@ -149,13 +149,13 @@ function PublicPage() {
         <>
           {isPost && takeaways.length > 0 && <KeyTakeaways items={takeaways} />}
           {isBlocks ? (
-            <BlocksRenderer doc={blocksDoc} />
+            <BlocksRenderer doc={blocksDoc} lang={lang} />
           ) : isBuilder ? (
             <BuilderRenderer doc={doc} lang={lang} />
           ) : (
             <article className="single-post-content prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(processedHtml) }} />
           )}
-          <FootnotesList notes={notes} />
+          <FootnotesList notes={notes} lang={lang} />
         </>
       )}
     </div>

@@ -5,12 +5,18 @@ import { useEffect, useRef, useState } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
 import type { Footnote } from "@/lib/footnotes";
 
-export function FootnotesList({ notes }: { notes: Footnote[] }) {
+const FN_LIST_LABELS = {
+  pl: { title: "Przypisy źródłowe:", back: (id: number) => `Wróć do odsyłacza ${id}`, backTitle: "Wróć do odsyłacza" },
+  en: { title: "Source notes:", back: (id: number) => `Back to reference ${id}`, backTitle: "Back to reference" },
+} as const;
+
+export function FootnotesList({ notes, lang = "pl" }: { notes: Footnote[]; lang?: "pl" | "en" }) {
   if (!notes.length) return null;
+  const L = FN_LIST_LABELS[lang] ?? FN_LIST_LABELS.pl;
   return (
-    <section className="mt-12 pt-6 border-t border-border" aria-labelledby="footnotes-heading">
+    <section className="mt-12 pt-6 border-t border-border" aria-labelledby="footnotes-heading" lang={lang}>
       <h2 id="footnotes-heading" data-footnotes-title className="font-display text-xl mb-4">
-        Przypisy źródłowe:
+        {L.title}
       </h2>
       <ol data-footnotes-list className="space-y-2 text-sm text-muted-foreground">
         {notes.map((n) => (
@@ -21,8 +27,8 @@ export function FootnotesList({ notes }: { notes: Footnote[] }) {
               href={`#fnref-${n.id}`}
               data-footnote-backlink
               className="text-brand hover:underline ml-1"
-              aria-label={`Wróć do odsyłacza ${n.id}`}
-              title="Wróć do odsyłacza"
+              aria-label={L.back(n.id)}
+              title={L.backTitle}
             >
               ↩
             </a>
