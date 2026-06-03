@@ -165,13 +165,13 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
           <a key={p.id} href={`/post/${p.slug}`} className="relative flex items-center gap-3 py-3 group overflow-hidden">
             <span
               aria-hidden
-              className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 font-display font-bold tabular-nums text-foreground/5 leading-none select-none"
+              className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 font-display font-bold tabular-nums text-foreground/5 leading-none select-none"
               style={{ fontSize: "clamp(3rem, 7vw, 5.5rem)" }}
             >
               {String(i + 1).padStart(2, "0")}
             </span>
-            <div className="min-w-0 flex-1 relative pl-[3.5em]">
-              <h4 className="font-display text-sm md:text-[15px] font-medium leading-snug line-clamp-2 group-hover:text-brand transition">
+            <div className="min-w-0 flex-1 relative text-left">
+              <h4 className="font-display text-sm md:text-[15px] font-medium leading-snug group-hover:text-brand transition">
                 {title(p)}
               </h4>
             </div>
@@ -187,6 +187,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
       </div>
     );
   }
+
 
 
 
