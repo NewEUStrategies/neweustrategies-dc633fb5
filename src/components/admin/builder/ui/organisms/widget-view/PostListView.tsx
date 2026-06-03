@@ -175,13 +175,6 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                 {title(p)}
               </h4>
             </div>
-            {p.cover_image_url && (
-              <img
-                src={p.cover_image_url}
-                alt=""
-                className="relative w-16 h-12 md:w-20 md:h-14 object-cover rounded-sm shrink-0"
-              />
-            )}
           </a>
         ))}
       </div>
