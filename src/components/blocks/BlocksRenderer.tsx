@@ -84,12 +84,12 @@ function readBlocksArray(raw: Json | undefined): Block[] {
   return out;
 }
 
-function BlockView({ block }: { block: Block }) {
+function BlockView({ block, fn }: { block: Block; fn: FootnoteCollector }) {
   const cls = alignClass(block);
 
   switch (block.type) {
     case "paragraph": {
-      const safe = sanitize(String(block.data.html ?? ""));
+      const safe = replaceFootnotes(sanitize(String(block.data.html ?? "")), fn);
       return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
     }
     case "heading": {
