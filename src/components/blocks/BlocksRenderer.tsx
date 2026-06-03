@@ -246,7 +246,7 @@ function BlockView({ block, fn }: { block: Block; fn: FootnoteCollector }) {
       );
     }
     case "html": {
-      const safe = sanitize(String(block.data.html ?? ""));
+      const safe = replaceFootnotes(sanitize(String(block.data.html ?? "")), fn);
       return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
     }
     default:
