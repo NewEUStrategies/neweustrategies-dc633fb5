@@ -166,9 +166,9 @@ function mapBlock(tag: string, inner: string, openAttrs: string): Block | null {
     return { id: newBlockId(), type: "html", data: { html: `<figure>${inner}</figure>` } };
   }
   if (lower === "div") {
-    // Unknown wrapper - keep as raw html block so layout is preserved.
-    if (!stripTags(inner)) return null;
-    return { id: newBlockId(), type: "html", data: { html: `<div${openAttrs ? " " + openAttrs.trim() : ""}>${inner}</div>` } };
+    // Don't emit raw <div> wrappers — unwrap recursively in the loop below.
+    // Returning null here is just a guard; htmlToBlocks handles div specially.
+    return null;
   }
   return null;
 }
