@@ -162,15 +162,15 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     return (
       <div className="w-full flex flex-col divide-y divide-border">
         {rows.map((p, i) => (
-          <a key={p.id} href={`/post/${p.slug}`} className="flex items-center gap-3 py-3 group relative">
+          <a key={p.id} href={`/post/${p.slug}`} className="relative flex items-center gap-3 py-3 group overflow-hidden">
             <span
               aria-hidden
-              className="font-display font-semibold tabular-nums text-muted-foreground/30 leading-none select-none shrink-0 w-[1.8em] text-center"
-              style={{ fontSize: "clamp(1.25rem, 2vw, 1.75rem)" }}
+              className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 font-display font-bold tabular-nums text-foreground/5 leading-none select-none"
+              style={{ fontSize: "clamp(3rem, 7vw, 5.5rem)" }}
             >
               {String(i + 1).padStart(2, "0")}
             </span>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 relative pl-[3.5em]">
               <h4 className="font-display text-sm md:text-[15px] font-medium leading-snug line-clamp-2 group-hover:text-brand transition">
                 {title(p)}
               </h4>
@@ -179,7 +179,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               <img
                 src={p.cover_image_url}
                 alt=""
-                className="w-16 h-12 md:w-20 md:h-14 object-cover rounded-sm shrink-0"
+                className="relative w-16 h-12 md:w-20 md:h-14 object-cover rounded-sm shrink-0"
               />
             )}
           </a>
@@ -187,6 +187,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
       </div>
     );
   }
+
 
 
   return (
