@@ -172,8 +172,11 @@ function EditPost() {
       },
     });
     qc.invalidateQueries({ queryKey: ["admin-posts"] });
-    qc.invalidateQueries({ queryKey: ["post", id] });
-  }, [id, update$, selectedCats, selectedTags, qc]);
+    qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, snapshot.slug] });
+    if (snapshot.slug !== routeSlug) {
+      navigate({ to: "/admin/posts/$slug", params: { slug: snapshot.slug }, replace: true });
+    }
+  }, [id, update$, selectedCats, selectedTags, qc, navigate, routeSlug, tenantId]);
 
   // Track tuple [form, cats, tags] for autosave so taxonomies persist too.
   const autoValue = useMemo(() => ({ form, cats: selectedCats, tags: selectedTags }),
