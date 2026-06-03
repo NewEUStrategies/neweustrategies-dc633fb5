@@ -100,14 +100,14 @@ export function SectionView(p: SectionViewProps) {
       </div>
 
       <div style={sectionContainerStyle(p.section)}>
-        <div className="min-w-0 max-w-full overflow-hidden" style={columnsRowStyle(p.section, colsSum)}>
+        <div className="min-w-0 max-w-full overflow-visible" style={columnsRowStyle(p.section, colsSum)}>
           {p.section.children.map((child) => {
             const span = child.kind === "column" ? resolveSpan(child.span, p.device, 12) : 12;
             const gridColumn = p.device === "mobile" ? "1 / -1" : `span ${span}`;
             const sectionToolbar = isToolbarTag(p.section.layout?.htmlTag);
             if (child.kind === "inner-section") {
               return (
-                <div key={child.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn }}>
+                <div key={child.id} className="min-w-0 max-w-full overflow-visible" style={{ gridColumn }}>
                   <InnerSectionView
                     inner={child} device={p.device} lang={p.lang}
                     selection={p.selection} setSelection={p.setSelection}
@@ -122,7 +122,7 @@ export function SectionView(p: SectionViewProps) {
               );
             }
             return (
-              <div key={child.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn }}>
+              <div key={child.id} className="min-w-0 max-w-full overflow-visible" style={{ gridColumn }}>
                 <ColumnView column={child} device={p.device} lang={p.lang}
                   selection={p.selection} setSelection={p.setSelection}
                   forceToolbar={sectionToolbar}
