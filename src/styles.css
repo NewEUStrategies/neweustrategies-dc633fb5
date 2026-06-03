@@ -112,6 +112,17 @@
   h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; }
 }
 
+/* Block editor — wszystkie pola wejściowe wewnątrz kanwy są płaskie i przejrzyste,
+   żeby nagłówki / listy / akapity wyglądały jednolicie jak tekst w obrębie wpisu. */
+.block-canvas :is(input, textarea, [contenteditable="true"]) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
 /* Dual-source images (light/dark variants) — toggled via .dark on <html> */
 .gc-img-dark { display: none; }
 .dark .gc-img-light { display: none; }
