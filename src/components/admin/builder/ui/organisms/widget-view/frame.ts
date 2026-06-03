@@ -107,6 +107,7 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
   const wRaw = pickSize(adv?.width, device);
   const hRaw = pickSize(adv?.height, device);
   const isInline = adv?.layout === "inline";
+  const shouldAlwaysFillColumn = node.type === "post-list" || node.type === "carousel";
 
   const style: CSSProperties = {
     width: "100%",
@@ -126,7 +127,7 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
   // must shrink to its content so siblings can sit next to it.
   // Exception: the search widget always fills the full column width.
   const isSearch = node.type === "search-button";
-  const shrinkToContent = !isSearch && (horizontalAnchored || isInline);
+  const shrinkToContent = !isSearch && !shouldAlwaysFillColumn && (horizontalAnchored || isInline);
   const sliderShouldFill = node.type === "slider" && wRaw === undefined && !node.style?.maxWidth && !shrinkToContent;
   const searchShouldFill = isSearch && wRaw === undefined;
   const w = sliderShouldFill || searchShouldFill
@@ -137,6 +138,11 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
     style.flex = "0 0 auto";
   }
   if (sliderShouldFill || searchShouldFill) {
+    style.flexBasis = "100%";
+  }
+  if (shouldAlwaysFillColumn && wRaw === undefined && !node.style?.maxWidth) {
+    style.width = "100%";
+    style.maxWidth = "100%";
     style.flexBasis = "100%";
   }
 
