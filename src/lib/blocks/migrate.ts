@@ -186,8 +186,25 @@ export function htmlToBlocks(input: string | null | undefined): BlocksDoc {
       pushParagraph(out, html.slice(cursor, m.index));
     }
     if (m[1]) {
-      const block = mapBlock(m[1], m[3], m[2] ?? "");
-      if (block) out.push(block);
+      const tag = m[1].toLowerCase();
+      if (tag === "div") {
+        // Unwrap <div> wrappers (e.g. WordPress block-inner, p-wrap, entry-title).
+        // Recursively parse inner; if no block tags match, keep as paragraph
+        // so inline links/text are preserved instead of leaking raw markup.
+        const innerHtml = m[3] ?? "";
+        const nested = htmlToBlocks(innerHtml).blocks;
+        if (nested.length === 1 && nested[0].type === "paragraph") {
+          // already a clean paragraph from recursion — push as-is
+          out.push(nested[0]);
+        } else if (nested.length) {
+          for (const b of nested) out.push(b);
+        } else if (stripTags(innerHtml)) {
+          pushParagraph(out, innerHtml);
+        }
+      } else {
+        const block = mapBlock(m[1], m[3], m[2] ?? "");
+        if (block) out.push(block);
+      }
     } else if (m[4]) {
       const block = mapStandalone(m[4], m[5] ?? "");
       if (block) out.push(block);
