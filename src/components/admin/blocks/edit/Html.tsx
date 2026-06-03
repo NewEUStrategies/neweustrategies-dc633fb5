@@ -7,20 +7,26 @@ interface Props {
   onChange: (next: Block) => void;
 }
 
-export function HtmlBlock({ block, onChange }: Props) {
+// Canvas preview only — raw HTML editing lives in the right "Blok" sidebar.
+export function HtmlBlock({ block, onChange: _onChange }: Props) {
   const html = String(block.data.html ?? "");
-  const safe = useMemo(() => DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }), [html]);
+  const safe = useMemo(
+    () => DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }),
+    [html]
+  );
+
+  if (!html.trim()) {
+    return (
+      <p className="text-sm text-muted-foreground italic">
+        Pusty blok HTML — edytuj surowy HTML w panelu „Blok" po prawej.
+      </p>
+    );
+  }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-      <textarea
-        value={html}
-        onChange={(e) => onChange({ ...block, data: { ...block.data, html: e.target.value } })}
-        spellCheck={false}
-        placeholder="<div>…</div>"
-        className="font-mono text-xs p-2 rounded-md border border-border bg-muted/40 min-h-[120px] outline-none focus:ring-1 focus:ring-primary resize-y"
-      />
-      <div className="rounded-md border border-dashed border-border p-2 overflow-auto text-sm" dangerouslySetInnerHTML={{ __html: safe }} />
-    </div>
+    <div
+      className="blocks-content prose prose-sm dark:prose-invert max-w-none"
+      dangerouslySetInnerHTML={{ __html: safe }}
+    />
   );
 }

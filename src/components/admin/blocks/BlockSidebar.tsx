@@ -203,6 +203,22 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
         </div>
       )}
 
+      {block.type === "html" && (
+        <div>
+          <Label className="text-xs">Surowy HTML</Label>
+          <textarea
+            value={String(block.data.html ?? "")}
+            onChange={(e) => set("html", e.target.value)}
+            spellCheck={false}
+            placeholder="<div>…</div>"
+            className="w-full font-mono text-xs p-2 rounded-md border border-border bg-muted/40 min-h-[240px] outline-none focus:ring-1 focus:ring-primary resize-y"
+          />
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            Treść jest sanitizowana przy renderowaniu. Podgląd widoczny w obszarze treści.
+          </p>
+        </div>
+      )}
+
       <div className="pt-2 border-t border-border">
         <Label className="text-xs">{t("blocks.settings.align")}</Label>
         <Select
