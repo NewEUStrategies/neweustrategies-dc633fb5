@@ -198,7 +198,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
       );
     case "slanted-ribbon-rule": {
       const fg = labelColor || contrastOn(accent);
-      const cutW = isSm ? 10 : 28;
+      const cutW = isSm ? 8 : 18;
       const lineH = isSm ? 2 : 2;
       const ribbonPadX = isSm ? "pl-1.5" : "pl-3";
       const ribbonPadY = isSm ? "py-0.5" : "py-1";
@@ -221,7 +221,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
               background: accent,
               color: fg,
               clipPath: `polygon(0 0, calc(100% - ${cutW}px) 0, 100% 100%, 0 100%)`,
-              paddingRight: `${cutW + (isSm ? 4 : 14)}px`,
+              paddingRight: `${cutW + (isSm ? 8 : 18)}px`,
               ...(labelSize && !isSm ? { fontSize: labelSize } : {}),
             }}
           >
