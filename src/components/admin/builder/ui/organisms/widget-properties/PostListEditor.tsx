@@ -22,7 +22,7 @@ const VARIANTS = [
   { v: "minimal", l: "Minimalny" },
   { v: "overlay", l: "Overlay na okładce" },
   { v: "list", l: "Lista" },
-  { v: "numbered", l: "Numerowana (01, 02 + okładka)" },
+  { v: "numbered", l: "Numerowana (01, 02)" },
 ] as const;
 
 const ORDER_BY = [
@@ -127,14 +127,16 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               </SelectContent>
             </Select>
           </PropField>
-          <PropField label="Kolumny">
-            <Input
-              type="number" min={1} max={6}
-              value={columns}
-              onChange={(e) => setContent("columns", Number(e.target.value) || 1)}
-              className="h-8 text-xs"
-            />
-          </PropField>
+          {variant !== "numbered" && variant !== "list" && (
+            <PropField label="Kolumny">
+              <Input
+                type="number" min={1} max={6}
+                value={columns}
+                onChange={(e) => setContent("columns", Number(e.target.value) || 1)}
+                className="h-8 text-xs"
+              />
+            </PropField>
+          )}
         </div>
       </Collapsible>
 
