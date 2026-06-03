@@ -20,8 +20,8 @@ function NewPost() {
     setBusy(true);
     (async () => {
       try {
-        const { id } = await create({ data: {} });
-        navigate({ to: "/admin/posts/$id", params: { id }, replace: true });
+        const { slug } = await create({ data: {} });
+        navigate({ to: "/admin/posts/$slug", params: { slug }, replace: true });
       } catch (e) {
         toast.error(e instanceof Error ? e.message : String(e));
         navigate({ to: "/admin/posts" });

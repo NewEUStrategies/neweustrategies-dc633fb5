@@ -30,7 +30,7 @@ import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/admin/posts/$id")({
+export const Route = createFileRoute("/admin/posts/$slug")({
   component: EditPost,
 });
 
@@ -68,7 +68,7 @@ interface CategoryOpt { id: string; name_pl: string; name_en: string }
 interface TagOpt { id: string; name: string }
 
 function EditPost() {
-  const { id } = Route.useParams();
+  const { slug: routeSlug } = Route.useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -79,13 +79,21 @@ function EditPost() {
   const { data: globalLayout } = usePostLayoutSettings();
 
   const { data: post, isLoading } = useQuery({
-    queryKey: ["post", id],
+    queryKey: ["post-by-slug", tenantId, routeSlug],
+    enabled: !!tenantId,
     queryFn: async (): Promise<PostForm> => {
-      const { data, error } = await supabase.from("posts").select("*").eq("id", id).single();
+      const { data, error } = await supabase
+        .from("posts").select("*")
+        .eq("tenant_id", tenantId)
+        .eq("slug", routeSlug)
+        .is("deleted_at", null)
+        .single();
       if (error) throw error;
       return data as PostForm;
     },
   });
+
+  const id = post?.id ?? "";
 
   const { data: allCats } = useQuery({
     queryKey: ["categories", tenantId],
@@ -98,10 +106,12 @@ function EditPost() {
 
   const { data: postCats } = useQuery({
     queryKey: ["post-cats", id],
+    enabled: !!id,
     queryFn: async () => (await supabase.from("post_categories").select("category_id").eq("post_id", id)).data ?? [],
   });
   const { data: postTags } = useQuery({
     queryKey: ["post-tags", id],
+    enabled: !!id,
     queryFn: async () => (await supabase.from("post_tags").select("tag_id").eq("post_id", id)).data ?? [],
   });
 
@@ -162,8 +172,11 @@ function EditPost() {
       },
     });
     qc.invalidateQueries({ queryKey: ["admin-posts"] });
-    qc.invalidateQueries({ queryKey: ["post", id] });
-  }, [id, update$, selectedCats, selectedTags, qc]);
+    qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, snapshot.slug] });
+    if (snapshot.slug !== routeSlug) {
+      navigate({ to: "/admin/posts/$slug", params: { slug: snapshot.slug }, replace: true });
+    }
+  }, [id, update$, selectedCats, selectedTags, qc, navigate, routeSlug, tenantId]);
 
   // Track tuple [form, cats, tags] for autosave so taxonomies persist too.
   const autoValue = useMemo(() => ({ form, cats: selectedCats, tags: selectedTags }),

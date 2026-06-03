@@ -456,7 +456,7 @@ function PostsList() {
                             </>
                           ) : (
                             <>
-                              <Link to="/admin/posts/$id" params={{ id: p.id }}>
+                              <Link to="/admin/posts/$slug" params={{ slug: p.slug }}>
                                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0"><Pencil className="w-3.5 h-3.5" /></Button>
                               </Link>
                               <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title={t("admin.list.toTrash", { defaultValue: "Do kosza" })} onClick={() => del(p.id, titleOf(p))}>
