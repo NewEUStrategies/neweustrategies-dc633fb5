@@ -233,7 +233,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
           {action && (
             <span
               className="relative z-10 ml-auto flex items-center min-w-0 shrink-0 bg-background"
-              style={{ paddingLeft: isSm ? 4 : 12, paddingRight: isSm ? 4 : 8, paddingBottom: lineH + 2 }}
+              style={{ paddingLeft: isSm ? 4 : 12, paddingRight: isSm ? 4 : 8 }}
             >
               {href && !isSm
                 ? <a href={href} className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</a>
