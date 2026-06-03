@@ -209,7 +209,10 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
         ? "text-[8px] font-medium text-foreground/80"
         : "text-[11px] sm:text-xs font-medium text-foreground/80 hover:opacity-80 transition";
       return (
-        <div className={`${wrapperBase} relative flex items-end gap-2 w-full min-w-0 overflow-visible`}>
+        <div
+          className={`${wrapperBase} relative flex items-end gap-2 w-full min-w-0 overflow-visible`}
+          style={{ paddingBottom: `${lineH}px` }}
+        >
           <span
             aria-hidden
             className="absolute left-0 right-0 bottom-0 pointer-events-none z-0"
