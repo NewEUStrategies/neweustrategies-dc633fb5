@@ -38,9 +38,9 @@ export function ListBlockEdit({ block, onChange }: Props) {
     : () => <span className="w-6 text-center text-foreground">•</span>;
 
   return (
-    <ListTag className="prose prose-sm dark:prose-invert max-w-none space-y-1 list-none pl-0 m-0 text-foreground">
+    <ListTag className="list-none pl-0 m-0 p-0 text-foreground text-base leading-relaxed">
       {items.map((it, i) => (
-        <li key={i} className="flex items-center gap-2 m-0">
+        <li key={i} className="flex items-baseline gap-2 m-0 p-0">
           {marker(i)}
           <input
             ref={(el) => { refs.current[i] = el; }}
@@ -49,7 +49,7 @@ export function ListBlockEdit({ block, onChange }: Props) {
             placeholder="Pozycja listy…"
             onChange={(e) => update(i, e.target.value)}
             onKeyDown={(e) => onKeyDown(i, e)}
-            className="flex-1 bg-transparent border-none outline-none focus:ring-0 p-0 text-foreground"
+            className="flex-1 bg-transparent border-0 outline-none focus:ring-0 p-0 m-0 text-foreground text-base leading-relaxed"
           />
         </li>
       ))}

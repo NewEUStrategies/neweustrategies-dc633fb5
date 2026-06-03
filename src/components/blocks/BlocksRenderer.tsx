@@ -119,8 +119,8 @@ function BlockView({ block, fn }: { block: Block; fn: FootnoteCollector }) {
       const ordered = Boolean(block.data.ordered);
       const Tag = ordered ? "ol" : "ul";
       return (
-        <Tag className={cls}>
-          {items.filter(Boolean).map((it, i) => <li key={i}>{it}</li>)}
+        <Tag className={`my-0 pl-6 ${ordered ? "list-decimal" : "list-disc"} marker:text-foreground ${cls}`}>
+          {items.filter(Boolean).map((it, i) => <li key={i} className="my-0 pl-1">{it}</li>)}
         </Tag>
       );
     }
