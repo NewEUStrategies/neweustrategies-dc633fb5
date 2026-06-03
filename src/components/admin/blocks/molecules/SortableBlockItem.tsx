@@ -36,10 +36,10 @@ export function SortableBlockItem(props: Props) {
       style={style}
       data-block-id={props.id}
       onClick={props.onSelect}
-      className={`group relative rounded-md pl-8 pr-3 py-2 border scroll-mt-24 ${
+      className={`group relative pl-8 pr-3 py-1 scroll-mt-24 ${
         props.active
-          ? "border-primary ring-1 ring-primary/40 bg-accent/30"
-          : "border-transparent hover:border-border"
+          ? "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:bg-primary before:rounded"
+          : ""
       }`}
     >
       <button
