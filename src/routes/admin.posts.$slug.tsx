@@ -68,7 +68,7 @@ interface CategoryOpt { id: string; name_pl: string; name_en: string }
 interface TagOpt { id: string; name: string }
 
 function EditPost() {
-  const { id } = Route.useParams();
+  const { slug: routeSlug } = Route.useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -79,13 +79,21 @@ function EditPost() {
   const { data: globalLayout } = usePostLayoutSettings();
 
   const { data: post, isLoading } = useQuery({
-    queryKey: ["post", id],
+    queryKey: ["post-by-slug", tenantId, routeSlug],
+    enabled: !!tenantId,
     queryFn: async (): Promise<PostForm> => {
-      const { data, error } = await supabase.from("posts").select("*").eq("id", id).single();
+      const { data, error } = await supabase
+        .from("posts").select("*")
+        .eq("tenant_id", tenantId)
+        .eq("slug", routeSlug)
+        .is("deleted_at", null)
+        .single();
       if (error) throw error;
       return data as PostForm;
     },
   });
+
+  const id = post?.id ?? "";
 
   const { data: allCats } = useQuery({
     queryKey: ["categories", tenantId],
@@ -98,10 +106,12 @@ function EditPost() {
 
   const { data: postCats } = useQuery({
     queryKey: ["post-cats", id],
+    enabled: !!id,
     queryFn: async () => (await supabase.from("post_categories").select("category_id").eq("post_id", id)).data ?? [],
   });
   const { data: postTags } = useQuery({
     queryKey: ["post-tags", id],
+    enabled: !!id,
     queryFn: async () => (await supabase.from("post_tags").select("tag_id").eq("post_id", id)).data ?? [],
   });
 
