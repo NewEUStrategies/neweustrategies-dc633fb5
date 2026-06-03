@@ -240,8 +240,8 @@ function BlockView({ block, fn }: { block: Block; fn: FootnoteCollector }) {
       const right = readBlocksArray(block.data.right);
       return (
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 not-prose ${cls}`}>
-          <div className="prose dark:prose-invert max-w-none">{left.map((b) => <BlockView key={b.id} block={b} />)}</div>
-          <div className="prose dark:prose-invert max-w-none">{right.map((b) => <BlockView key={b.id} block={b} />)}</div>
+          <div className="prose dark:prose-invert max-w-none">{left.map((b) => <BlockView key={b.id} block={b} fn={fn} />)}</div>
+          <div className="prose dark:prose-invert max-w-none">{right.map((b) => <BlockView key={b.id} block={b} fn={fn} />)}</div>
         </div>
       );
     }
