@@ -41,22 +41,23 @@ function renderFootnoteHtml(text: string): string {
   return DOMPurify.sanitize(text, { USE_PROFILES: { html: true } });
 }
 
-export function BlocksRenderer({ doc }: Props) {
+export function BlocksRenderer({ doc, lang = "pl" }: Props) {
   if (!doc?.blocks?.length) return null;
   const safe = safeParseBlocks(doc);
   if (!safe.blocks.length) return null;
   const fn: FootnoteCollector = { notes: [] };
+  const L = FN_LABELS[lang] ?? FN_LABELS.pl;
   return (
-    <article className="blocks-content prose prose-lg dark:prose-invert max-w-none">
+    <article className="blocks-content prose prose-lg dark:prose-invert max-w-none" lang={lang}>
       {safe.blocks.map((b) => <BlockView key={b.id} block={b} fn={fn} />)}
       {fn.notes.length > 0 && (
-        <section className="footnotes mt-10 pt-6 border-t border-border text-sm">
-          <h2 className="text-base font-semibold mb-3">Przypisy</h2>
-          <ol className="space-y-2 pl-5 list-decimal">
+        <section className="footnotes mt-10 pt-6 border-t border-border text-sm" aria-labelledby="footnotes-heading">
+          <h2 id="footnotes-heading" data-footnotes-title className="text-base font-semibold mb-3">{L.title}</h2>
+          <ol data-footnotes-list className="space-y-2 pl-5 list-decimal">
             {fn.notes.map((n, i) => (
               <li key={i} id={`fn-${i + 1}`}>
                 <span dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(n) }} />{" "}
-                <a href={`#fnref-${i + 1}`} className="text-muted-foreground hover:text-primary" aria-label="Wróć do tekstu">↩</a>
+                <a href={`#fnref-${i + 1}`} data-footnote-backlink className="text-muted-foreground hover:text-primary" aria-label={L.back} title={L.back}>↩</a>
               </li>
             ))}
           </ol>
