@@ -202,11 +202,11 @@ function PostCard({
   title: string;
   excerpt: string;
 }) {
-  const base = `bg-card border border-border rounded-md overflow-hidden hover:border-brand transition ${carousel ? "w-full sm:w-auto sm:min-w-[240px] sm:flex-1 snap-start" : ""}`;
+  const base = `bg-card border border-border rounded-md overflow-hidden hover:border-brand transition ${carousel ? "w-full sm:flex-1 sm:basis-0 sm:min-w-[240px] snap-start" : ""}`;
 
   if (variant === "overlay" && p.cover_image_url) {
     return (
-      <a href={`/post/${p.slug}`} className={`relative block rounded-md overflow-hidden ${carousel ? "w-full sm:w-auto sm:min-w-[240px] sm:flex-1 snap-start" : ""}`}>
+      <a href={`/post/${p.slug}`} className={`relative block rounded-md overflow-hidden ${carousel ? "w-full sm:flex-1 sm:basis-0 sm:min-w-[240px] snap-start" : ""}`}>
         <img src={p.cover_image_url} alt="" className="w-full h-40 object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-2.5 text-white">
@@ -218,7 +218,7 @@ function PostCard({
 
   if (variant === "minimal") {
     return (
-      <a href={`/post/${p.slug}`} className={`block ${carousel ? "w-full sm:w-auto sm:min-w-[240px] sm:flex-1 snap-start" : ""}`}>
+      <a href={`/post/${p.slug}`} className={`block ${carousel ? "w-full sm:flex-1 sm:basis-0 sm:min-w-[240px] snap-start" : ""}`}>
         {p.cover_image_url && (
           <img src={p.cover_image_url} alt="" className="w-full h-28 object-cover rounded-sm mb-2" />
         )}
