@@ -64,14 +64,38 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
-      key: "sizePx", type: "number", label: "Rozmiar (px)",
+      key: "sizePx", type: "number", label: "Rozmiar tytułu (px)",
       min: 8, max: 200,
-      hint: "Wpisz dokładny rozmiar w pikselach (np. 28, 32). Nadpisuje preset.",
+      hint: "Wpisz dokładny rozmiar w pikselach (np. 28, 32). Nadpisuje preset i działa identycznie na każdym urządzeniu.",
     },
     {
-      key: "sizePxMobile", type: "number", label: "Rozmiar mobile (px)",
-      min: 8, max: 200,
-      hint: "Opcjonalny rozmiar na małych ekranach (<768px).",
+      key: "titleWeight", type: "select", label: "Grubość tytułu",
+      options: [
+        { value: "", label: "domyślna" },
+        { value: "300", label: "300" },
+        { value: "400", label: "400" },
+        { value: "500", label: "500" },
+        { value: "600", label: "600" },
+        { value: "700", label: "700" },
+        { value: "800", label: "800" },
+        { value: "900", label: "900" },
+      ],
+    },
+    {
+      key: "subtitleSizePx", type: "number", label: "Rozmiar podtytułu (px)",
+      min: 8, max: 120,
+      hint: "Działa identycznie na desktopie, tablecie i mobile.",
+    },
+    {
+      key: "subtitleWeight", type: "select", label: "Grubość podtytułu",
+      options: [
+        { value: "", label: "domyślna" },
+        { value: "300", label: "300" },
+        { value: "400", label: "400" },
+        { value: "500", label: "500" },
+        { value: "600", label: "600" },
+        { value: "700", label: "700" },
+      ],
     },
     { key: "href", type: "url", label: "Link (opcjonalny)", placeholder: "/o-nas lub https://…" },
     {

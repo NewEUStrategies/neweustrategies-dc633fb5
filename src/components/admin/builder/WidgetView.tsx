@@ -204,7 +204,9 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const variant = getStr(c, "variant") || "default";
       const sizePreset = getStr(c, "sizePreset") || "md";
       const sizePx = getNum(c, "sizePx", 0);
-      const sizePxMobile = getNum(c, "sizePxMobile", 0);
+      const titleWeight = getStr(c, "titleWeight");
+      const subtitleSizePx = getNum(c, "subtitleSizePx", 0);
+      const subtitleWeight = getStr(c, "subtitleWeight");
       const href = safeUrl(getStr(c, "href"));
       const target = getStr(c, "target") === "blank" ? "_blank" : undefined;
       const iconName = getStr(c, "iconName");
@@ -225,17 +227,12 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         : variant === "serif" ? "font-serif"
         : "";
       const headCls = `font-display ${sizeCls} ${variantCls}`.trim();
-      const headStyle: React.CSSProperties | undefined = usePx
-        ? { fontSize: `${sizePxMobile > 0 ? sizePxMobile : sizePx}px`, lineHeight: 1.1 }
-        : undefined;
-      // Desktop override via media query (inline style can't do MQ — use CSS var + class)
-      const mqStyle: React.CSSProperties | undefined = usePx && sizePxMobile > 0
-        ? ({ ["--h-px" as never]: `${sizePx}px` } as React.CSSProperties)
-        : undefined;
-      const finalStyle = mqStyle ? { ...headStyle, ...mqStyle } : headStyle;
-      const finalCls = usePx && sizePxMobile > 0
-        ? `${headCls} md:[font-size:var(--h-px)]`
-        : headCls;
+      const headStyle: React.CSSProperties = {
+        ...(usePx ? { fontSize: `${sizePx}px`, lineHeight: 1.1 } : {}),
+        ...(titleWeight ? { fontWeight: titleWeight as React.CSSProperties["fontWeight"] } : {}),
+      };
+      const finalStyle = Object.keys(headStyle).length ? headStyle : undefined;
+      const finalCls = headCls;
       const reg: Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined>;
       const Icon = iconName ? (reg[iconName] ?? null) : null;
@@ -248,10 +245,21 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
           <span className="contents">{inner}</span>
         </span>
       );
+      const subtitleStyle: React.CSSProperties = {
+        ...(subtitleSizePx > 0 ? { fontSize: `${subtitleSizePx}px`, lineHeight: 1.35 } : {}),
+        ...(subtitleWeight ? { fontWeight: subtitleWeight as React.CSSProperties["fontWeight"] } : {}),
+      };
       const block = (
         <div className="space-y-1">
           {href ? <a href={href} target={target} rel={target === "_blank" ? "noopener noreferrer" : undefined} className="hover:opacity-80 transition">{titleRow}</a> : titleRow}
-          {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+          {subtitle && (
+            <p
+              className={`text-sm text-muted-foreground${subtitleSizePx > 0 ? "" : ""}`}
+              style={Object.keys(subtitleStyle).length ? subtitleStyle : undefined}
+            >
+              {subtitle}
+            </p>
+          )}
         </div>
       );
       return wrap(block);

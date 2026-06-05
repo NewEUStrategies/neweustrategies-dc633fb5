@@ -45,6 +45,20 @@ async function fetchPostIdsBySlugs(table: "post_categories" | "post_tags", slugs
 }
 
 export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; lang: Lang; carousel?: boolean }) {
+  const titleSizePx = getNum(c, "titleSizePx", 0);
+  const titleWeight = getStr(c, "titleWeight");
+  const excerptSizePx = getNum(c, "excerptSizePx", 0);
+  const excerptWeight = getStr(c, "excerptWeight");
+  const titleStyle: React.CSSProperties = {
+    ...(titleSizePx > 0 ? { fontSize: `${titleSizePx}px`, lineHeight: 1.25 } : {}),
+    ...(titleWeight ? { fontWeight: titleWeight as React.CSSProperties["fontWeight"] } : {}),
+  };
+  const excerptStyle: React.CSSProperties = {
+    ...(excerptSizePx > 0 ? { fontSize: `${excerptSizePx}px`, lineHeight: 1.4 } : {}),
+    ...(excerptWeight ? { fontWeight: excerptWeight as React.CSSProperties["fontWeight"] } : {}),
+  };
+  const tStyle = Object.keys(titleStyle).length ? titleStyle : undefined;
+  const eStyle = Object.keys(excerptStyle).length ? excerptStyle : undefined;
   const variant = (getStr(c, "variant") || (carousel ? "card" : "card")) as Variant;
   const limit = Math.max(1, Math.min(100, getNum(c, "limit", 6)));
   const offset = Math.max(0, getNum(c, "offset", 0));
@@ -130,7 +144,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     return (
       <div className="w-full min-w-0 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
         {rows.map((p) => (
-          <PostCard key={p.id} p={p} variant={variant} carousel title={title(p)} excerpt={excerpt(p)} />
+          <PostCard key={p.id} p={p} variant={variant} carousel title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
         ))}
       </div>
     );
@@ -146,11 +160,11 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               <img src={p.cover_image_url} alt="" className="w-24 h-16 object-cover rounded-sm shrink-0" />
             )}
             <div className="min-w-0">
-              <h4 className="font-display text-sm leading-snug line-clamp-2 group-hover:text-brand transition">
+              <h4 className="font-display text-sm leading-snug line-clamp-2 group-hover:text-brand transition" style={tStyle}>
                 {title(p)}
               </h4>
               {excerpt(p) && (
-                <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{excerpt(p)}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5" style={eStyle}>{excerpt(p)}</p>
               )}
             </div>
           </a>
@@ -172,7 +186,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               {String(i + 1).padStart(2, "0")}
             </span>
             <div className="min-w-0 flex-1 relative text-left">
-              <h4 className="font-display text-sm md:text-[15px] font-medium leading-snug group-hover:text-brand transition">
+              <h4 className="font-display text-sm md:text-[15px] font-medium leading-snug group-hover:text-brand transition" style={tStyle}>
                 {title(p)}
               </h4>
             </div>
@@ -188,20 +202,22 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   return (
     <div className="w-full grid gap-4" style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}>
       {rows.map((p) => (
-        <PostCard key={p.id} p={p} variant={variant} title={title(p)} excerpt={excerpt(p)} />
+        <PostCard key={p.id} p={p} variant={variant} title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
       ))}
     </div>
   );
 }
 
 function PostCard({
-  p, variant, carousel = false, title, excerpt,
+  p, variant, carousel = false, title, excerpt, titleStyle, excerptStyle,
 }: {
   p: PostRow;
   variant: Variant;
   carousel?: boolean;
   title: string;
   excerpt: string;
+  titleStyle?: React.CSSProperties;
+  excerptStyle?: React.CSSProperties;
 }) {
   const base = `bg-card border border-border rounded-md overflow-hidden hover:border-brand transition ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`;
 
@@ -211,7 +227,7 @@ function PostCard({
         <img src={p.cover_image_url} alt="" className="w-full h-40 object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-2.5 text-white">
-          <h4 className="font-display text-sm leading-tight line-clamp-2">{title}</h4>
+          <h4 className="font-display text-sm leading-tight line-clamp-2" style={titleStyle}>{title}</h4>
         </div>
       </a>
     );
@@ -223,7 +239,7 @@ function PostCard({
         {p.cover_image_url && (
           <img src={p.cover_image_url} alt="" className="w-full h-28 object-cover rounded-sm mb-2" />
         )}
-        <h4 className="font-display text-sm leading-snug line-clamp-2 hover:text-brand transition">{title}</h4>
+        <h4 className="font-display text-sm leading-snug line-clamp-2 hover:text-brand transition" style={titleStyle}>{title}</h4>
       </a>
     );
   }
@@ -235,8 +251,8 @@ function PostCard({
         <img src={p.cover_image_url} alt="" className="w-full h-28 object-cover" />
       )}
       <div className="p-2.5">
-        <h4 className="font-display text-sm font-medium leading-snug mb-1 line-clamp-2">{title}</h4>
-        {excerpt && <p className="text-xs text-muted-foreground leading-snug line-clamp-2">{excerpt}</p>}
+        <h4 className="font-display text-sm font-medium leading-snug mb-1 line-clamp-2" style={titleStyle}>{title}</h4>
+        {excerpt && <p className="text-xs text-muted-foreground leading-snug line-clamp-2" style={excerptStyle}>{excerpt}</p>}
       </div>
     </a>
   );
