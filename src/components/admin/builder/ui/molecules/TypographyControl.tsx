@@ -112,6 +112,26 @@ export function TypographyControl({ value, onChange }: Props) {
         </PropField>
       </div>
 
+      <PropField label="Odstęp tytuł ↔ opis (px)">
+        <Input
+          type="number"
+          min={0}
+          max={200}
+          inputMode="numeric"
+          placeholder="np. 16"
+          value={typeof v.titleDescriptionGapPx === "number" ? v.titleDescriptionGapPx : ""}
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (raw === "") { set({ titleDescriptionGapPx: undefined }); return; }
+            const n = Math.max(0, Math.min(200, Number(raw) || 0));
+            set({ titleDescriptionGapPx: n });
+          }}
+          className="h-8 text-xs"
+        />
+      </PropField>
+
+
+
 
       <PropField label="Wyrównanie">
         <div className="inline-flex rounded border border-border bg-muted/30 p-0.5 w-full">
