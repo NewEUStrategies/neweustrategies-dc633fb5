@@ -69,7 +69,10 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
   const actionCls = isSm
     ? "text-[8px] text-muted-foreground"
     : "text-xs text-muted-foreground hover:opacity-80 transition";
-  const wrapperBase = isSm ? "mb-1" : "mb-4";
+  // Margins between widgets are owned by the column gap (see BuilderRenderer)
+  // so each section-label sits flush with its slot — no per-variant mb-* that
+  // would double the spacing on top of the column gap.
+  const wrapperBase = isSm ? "mb-1" : "";
 
   const labelStyle: React.CSSProperties = {};
   if (labelColor) labelStyle.color = labelColor;
