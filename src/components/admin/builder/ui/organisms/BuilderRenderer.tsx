@@ -36,8 +36,33 @@ function detectViewportDevice(): Device {
   return "desktop";
 }
 
+function readDebugFlag(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("debug") === "1") return true;
+    if (url.searchParams.get("debug") === "0") return false;
+    return window.localStorage.getItem("builder-debug") === "1";
+  } catch {
+    return false;
+  }
+}
+
+const DEBUG_CSS = `
+[data-builder-renderer][data-debug="1"] [data-sec-id]{outline:2px solid rgba(239,68,68,.9) !important;outline-offset:-2px;position:relative;}
+[data-builder-renderer][data-debug="1"] [data-sec-id]::before{content:"SECTION " attr(data-sec-id) " · " attr(data-debug-h) "px";position:absolute;top:0;left:0;background:rgba(239,68,68,.95);color:#fff;font:600 10px/1.4 ui-monospace,monospace;padding:2px 6px;z-index:9999;pointer-events:none;}
+[data-builder-renderer][data-debug="1"] [data-column-slot]{outline:1px dashed rgba(59,130,246,.9) !important;outline-offset:-1px;position:relative;}
+[data-builder-renderer][data-debug="1"] [data-col-id]{outline:1px dashed rgba(16,185,129,.9) !important;outline-offset:-1px;position:relative;}
+[data-builder-renderer][data-debug="1"] [data-col-id]::before{content:"COL " attr(data-col-id) " · " attr(data-debug-h) "px";position:absolute;top:0;right:0;background:rgba(16,185,129,.95);color:#fff;font:600 10px/1.4 ui-monospace,monospace;padding:1px 5px;z-index:9999;pointer-events:none;}
+[data-builder-renderer][data-debug="1"] [data-widget-id]{outline:1px solid rgba(234,179,8,.95) !important;outline-offset:-1px;position:relative;}
+[data-builder-renderer][data-debug="1"] [data-widget-id]::after{content:attr(data-debug-type) " · " attr(data-debug-h) "px";position:absolute;bottom:0;left:0;background:rgba(234,179,8,.95);color:#111;font:600 10px/1.4 ui-monospace,monospace;padding:1px 5px;z-index:9999;pointer-events:none;}
+.builder-debug-toggle{position:fixed;bottom:16px;right:16px;z-index:99999;background:#111;color:#fff;border:1px solid #444;border-radius:9999px;padding:8px 14px;font:600 12px/1 ui-monospace,monospace;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);}
+.builder-debug-toggle[data-on="1"]{background:#ef4444;}
+`;
+
 export function BuilderRenderer({ doc, lang, device }: Props) {
   const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? detectViewportDevice());
+  const [debug, setDebug] = useState<boolean>(() => readDebugFlag());
 
   useEffect(() => {
     if (device) {
@@ -51,12 +76,41 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
     return () => window.removeEventListener("resize", updateDevice);
   }, [device]);
 
+  useEffect(() => {
+    if (!debug || typeof window === "undefined") return;
+    const annotate = () => {
+      document.querySelectorAll<HTMLElement>(
+        "[data-builder-renderer] [data-sec-id], [data-builder-renderer] [data-col-id], [data-builder-renderer] [data-widget-id]"
+      ).forEach((el) => {
+        el.setAttribute("data-debug-h", String(Math.round(el.getBoundingClientRect().height)));
+      });
+    };
+    annotate();
+    const id = window.setInterval(annotate, 500);
+    window.addEventListener("resize", annotate);
+    return () => { window.clearInterval(id); window.removeEventListener("resize", annotate); };
+  }, [debug, doc]);
+
+  const toggleDebug = () => {
+    setDebug((prev) => {
+      const next = !prev;
+      try { window.localStorage.setItem("builder-debug", next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   const effectiveDevice = device ?? viewportDevice;
 
   return (
-    <div data-builder-renderer>
-      {doc.sections.map((s) => <RenderSection key={s.id} section={s} lang={lang} device={effectiveDevice} />)}
-    </div>
+    <>
+      <style dangerouslySetInnerHTML={{ __html: DEBUG_CSS }} />
+      <div data-builder-renderer data-debug={debug ? "1" : "0"}>
+        {doc.sections.map((s) => <RenderSection key={s.id} section={s} lang={lang} device={effectiveDevice} />)}
+      </div>
+      <button type="button" className="builder-debug-toggle" data-on={debug ? "1" : "0"} onClick={toggleDebug}>
+        {debug ? "Debug: ON" : "Debug: OFF"}
+      </button>
+    </>
   );
 }
 
@@ -169,7 +223,7 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
             ? `flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-visible${stackCls}`
             : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-visible${shouldFillHeight ? " flex-1" : ""}${stackCls}`;
           return (
-            <div key={w.id} data-widget-id={w.id} className={itemClass} style={{ ...getWidgetFrameStyle(w, device), boxSizing: "border-box" }}>
+            <div key={w.id} data-widget-id={w.id} data-debug-type={w.type} className={itemClass} style={{ ...getWidgetFrameStyle(w, device), boxSizing: "border-box" }}>
               <WidgetView node={w} lang={lang} device={device} />
             </div>
           );
