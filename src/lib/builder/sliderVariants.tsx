@@ -34,6 +34,10 @@ export interface SliderConfig {
   intervalMs?: number;
   rounded?: "none" | "sm" | "md" | "lg" | "xl" | "full";
   overlayOpacity?: number;
+  titleSizePx?: number;
+  titleWeight?: number;
+  subtitleSizePx?: number;
+  subtitleWeight?: number;
 }
 
 const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
@@ -52,6 +56,18 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const autoplay = config.autoplay !== false;
   const intervalMs = Math.max(1500, config.intervalMs ?? 4500);
   const rounded = radiusMap[config.rounded ?? "md"];
+  const titleStyle: CSSProperties = {
+    ...(typeof config.titleSizePx === "number" && config.titleSizePx > 0
+      ? { fontSize: `${config.titleSizePx}px`, lineHeight: 1.15 }
+      : {}),
+    ...(typeof config.titleWeight === "number" ? { fontWeight: config.titleWeight } : {}),
+  };
+  const subtitleStyle: CSSProperties = {
+    ...(typeof config.subtitleSizePx === "number" && config.subtitleSizePx > 0
+      ? { fontSize: `${config.subtitleSizePx}px`, lineHeight: 1.5 }
+      : {}),
+    ...(typeof config.subtitleWeight === "number" ? { fontWeight: config.subtitleWeight } : {}),
+  };
 
   const [idx, setIdx] = useState(0);
   useEffect(() => { setIdx(0); }, [items.length]);
@@ -161,7 +177,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           <a href={href} className="inline-block w-full">
             <h3
               className="eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
-              style={{ minHeight: "calc(2 * 1.25em)" }}
+              style={{ minHeight: "calc(2 * 1.25em)", ...titleStyle }}
             >
               <span className="eh-title-text">{title || "\u00A0"}</span>
             </h3>
@@ -169,7 +185,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         ) : (
           <h3
             className="eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
-            style={{ minHeight: "calc(2 * 1.25em)" }}
+            style={{ minHeight: "calc(2 * 1.25em)", ...titleStyle }}
           >
             <span className="eh-title-text">{title || "\u00A0"}</span>
           </h3>
@@ -178,7 +194,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
 
         <p
           className="eh-clamp-3 mt-4 text-sm md:text-base text-muted-foreground max-w-3xl mx-auto leading-relaxed"
-          style={{ minHeight: "calc(3 * 1.625em)" }}
+          style={{ minHeight: "calc(3 * 1.625em)", ...subtitleStyle }}
         >
           {sub || "\u00A0"}
         </p>

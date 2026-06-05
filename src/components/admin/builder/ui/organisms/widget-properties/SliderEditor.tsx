@@ -35,6 +35,10 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const showExcerpt = c.showExcerpt !== false;
   const ctaKey = `cta_${lang}` as const;
   const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
+  const titleSizePx = typeof c.titleSizePx === "number" ? c.titleSizePx : 0;
+  const titleWeight = typeof c.titleWeight === "number" ? c.titleWeight : 700;
+  const subtitleSizePx = typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : 0;
+  const subtitleWeight = typeof c.subtitleWeight === "number" ? c.subtitleWeight : 400;
 
 
   const rawItems = Array.isArray(c.items) ? (c.items as unknown[]) : [];
@@ -82,6 +86,10 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const hasRealItems = items.some((it) => it.image);
   const previewCfg = {
     variant, ratio, autoplay: true, intervalMs, rounded, overlayOpacity,
+    titleSizePx: titleSizePx > 0 ? titleSizePx : undefined,
+    titleWeight,
+    subtitleSizePx: subtitleSizePx > 0 ? subtitleSizePx : undefined,
+    subtitleWeight,
     items: hasRealItems ? items : demoItems,
   };
 
@@ -267,6 +275,52 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           />
         </PropField>
       </div>
+
+      {/* Typografia tytułu i opisu */}
+      <div className="space-y-2 rounded-md border border-border p-2 bg-muted/10">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Typografia — tytuł i opis
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <PropField label="Rozmiar tytułu (px, 0 = auto)">
+            <Input type="number" min={0} max={120} value={titleSizePx}
+              onChange={(e) => setContent("titleSizePx", Number(e.target.value) || 0)}
+              className="h-8 text-xs" />
+          </PropField>
+          <PropField label="Grubość tytułu">
+            <Select value={String(titleWeight)} onValueChange={(v) => setContent("titleWeight", Number(v))}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="300">300 — Light</SelectItem>
+                <SelectItem value="400">400 — Regular</SelectItem>
+                <SelectItem value="500">500 — Medium</SelectItem>
+                <SelectItem value="600">600 — SemiBold</SelectItem>
+                <SelectItem value="700">700 — Bold</SelectItem>
+                <SelectItem value="800">800 — ExtraBold</SelectItem>
+                <SelectItem value="900">900 — Black</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+          <PropField label="Rozmiar opisu (px, 0 = auto)">
+            <Input type="number" min={0} max={80} value={subtitleSizePx}
+              onChange={(e) => setContent("subtitleSizePx", Number(e.target.value) || 0)}
+              className="h-8 text-xs" />
+          </PropField>
+          <PropField label="Grubość opisu">
+            <Select value={String(subtitleWeight)} onValueChange={(v) => setContent("subtitleWeight", Number(v))}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="300">300 — Light</SelectItem>
+                <SelectItem value="400">400 — Regular</SelectItem>
+                <SelectItem value="500">500 — Medium</SelectItem>
+                <SelectItem value="600">600 — SemiBold</SelectItem>
+                <SelectItem value="700">700 — Bold</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+        </div>
+      </div>
+
 
       {/* Live preview */}
       <div className="space-y-1.5">
