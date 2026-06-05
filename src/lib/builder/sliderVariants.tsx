@@ -56,6 +56,18 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const autoplay = config.autoplay !== false;
   const intervalMs = Math.max(1500, config.intervalMs ?? 4500);
   const rounded = radiusMap[config.rounded ?? "md"];
+  const titleStyle: CSSProperties = {
+    ...(typeof config.titleSizePx === "number" && config.titleSizePx > 0
+      ? { fontSize: `${config.titleSizePx}px`, lineHeight: 1.15 }
+      : {}),
+    ...(typeof config.titleWeight === "number" ? { fontWeight: config.titleWeight } : {}),
+  };
+  const subtitleStyle: CSSProperties = {
+    ...(typeof config.subtitleSizePx === "number" && config.subtitleSizePx > 0
+      ? { fontSize: `${config.subtitleSizePx}px`, lineHeight: 1.5 }
+      : {}),
+    ...(typeof config.subtitleWeight === "number" ? { fontWeight: config.subtitleWeight } : {}),
+  };
 
   const [idx, setIdx] = useState(0);
   useEffect(() => { setIdx(0); }, [items.length]);
