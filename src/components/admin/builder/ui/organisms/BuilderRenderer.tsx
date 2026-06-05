@@ -215,6 +215,7 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
           const hasExplicitHeight = !!(adv?.height && (adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile));
           const shouldFillHeight =
             onlyOneBlock && !hasExplicitHeight && !AUTO_SIZE_WIDGETS.has(w.type) && !COMPACT_WIDGET_TYPES.has(w.type);
+          const frameStyle = getWidgetFrameStyle(w, device);
           // Section labels must visually sit ABOVE neighbouring widgets so their
           // accent lines / ribbons are never covered by adjacent backgrounds.
           const isSectionLabel = w.type === "section-label";
@@ -223,7 +224,25 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
             ? `flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-visible${stackCls}`
             : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-visible${shouldFillHeight ? " flex-1" : ""}${stackCls}`;
           return (
-            <div key={w.id} data-widget-id={w.id} data-debug-type={w.type} className={itemClass} style={{ ...getWidgetFrameStyle(w, device), boxSizing: "border-box" }}>
+            <div
+              key={w.id}
+              data-widget-id={w.id}
+              data-widget-layout={inRow ? "inline" : "block"}
+              data-debug-type={w.type}
+              className={itemClass}
+              style={{
+                ...frameStyle,
+                ...(inRow
+                  ? null
+                  : {
+                      width: frameStyle.width === "auto" ? "100%" : frameStyle.width,
+                      maxWidth: "100%",
+                      alignSelf: "stretch",
+                      justifySelf: "stretch",
+                    }),
+                boxSizing: "border-box",
+              }}
+            >
               <WidgetView node={w} lang={lang} device={device} />
             </div>
           );
