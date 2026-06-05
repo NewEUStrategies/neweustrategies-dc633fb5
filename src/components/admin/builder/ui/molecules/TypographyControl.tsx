@@ -18,14 +18,16 @@ export function TypographyControl({ value, onChange }: Props) {
   const v = value ?? {};
   const set = (patch: Partial<WidgetTypography>) => onChange({ ...v, ...patch });
 
-  const unifiedSize = v.fontSize?.desktop ?? v.fontSize?.tablet ?? v.fontSize?.mobile ?? "";
+  const rawUnified = v.fontSize?.desktop ?? v.fontSize?.tablet ?? v.fontSize?.mobile ?? "";
+  const unifiedPx = String(rawUnified).replace(/[^0-9]/g, "");
   const setUnifiedSize = (raw: string) => {
-    const trimmed = raw.trim();
-    if (!trimmed) {
+    const digits = raw.replace(/[^0-9]/g, "");
+    if (!digits) {
       set({ fontSize: undefined });
       return;
     }
-    set({ fontSize: { desktop: trimmed, tablet: trimmed, mobile: trimmed } });
+    const px = `${digits}px`;
+    set({ fontSize: { desktop: px, tablet: px, mobile: px } });
   };
 
   return (
@@ -38,13 +40,17 @@ export function TypographyControl({ value, onChange }: Props) {
       </PropField>
 
 
-      <PropField label="Rozmiar czcionki">
-        <Input
-          value={unifiedSize}
-          placeholder="np. 16px lub 1.25rem"
-          onChange={(e) => setUnifiedSize(e.target.value)}
-          className="h-8 text-xs"
-        />
+      <PropField label="Rozmiar czcionki (px)">
+        <div className="relative">
+          <Input
+            value={unifiedPx}
+            inputMode="numeric"
+            placeholder="16"
+            onChange={(e) => setUnifiedSize(e.target.value)}
+            className="h-8 text-xs pr-8"
+          />
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">px</span>
+        </div>
       </PropField>
 
       <PropField label="Wyrównanie">
