@@ -154,7 +154,7 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
   const onlyOneBlock = !isToolbar && groups.length === 1 && !groups[0].inline && groups[0].items.length === 1;
 
   return (
-    <div data-col-id={column.id} className={`flex flex-col gap-6 h-full min-w-0 max-w-full overflow-hidden ${axisClass} ${vClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius }}>
+    <div data-col-id={column.id} className={`flex flex-col gap-2 min-w-0 max-w-full overflow-visible ${axisClass} ${vClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius }}>
       {groups.map((g, gi) => {
         const renderItem = (w: typeof visibleChildren[number], inRow: boolean) => {
           const adv = w.advanced as { height?: { desktop?: unknown; tablet?: unknown; mobile?: unknown } } | undefined;
@@ -166,8 +166,8 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
           const isSectionLabel = w.type === "section-label";
           const stackCls = isSectionLabel ? " relative z-20" : "";
           const itemClass = inRow
-            ? `flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-x-hidden${stackCls}`
-            : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-x-hidden${shouldFillHeight ? " flex-1" : ""}${stackCls}`;
+            ? `flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-visible${stackCls}`
+            : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-visible${shouldFillHeight ? " flex-1" : ""}${stackCls}`;
           return (
             <div key={w.id} data-widget-id={w.id} className={itemClass} style={{ ...getWidgetFrameStyle(w, device), boxSizing: "border-box" }}>
               <WidgetView node={w} lang={lang} device={device} />
