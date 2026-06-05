@@ -1,11 +1,11 @@
-// Molecule: full typography editor block (font family, responsive size,
+// Molecule: full typography editor block (font family, unified size,
 // weight, style, line-height, letter-spacing, transform, decoration).
+// Font size is a single value applied identically on desktop / tablet / mobile.
 import type { Device, WidgetTypography } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { AlignLeft, AlignCenter, AlignRight, AlignJustify } from "lucide-react";
 import { PropField } from "../atoms/PropField";
-import { ResponsiveInput } from "../atoms/ResponsiveInput";
 import { FontPicker } from "@/components/admin/settings/FontPicker";
 
 interface Props {
@@ -14,9 +14,19 @@ interface Props {
   onChange: (next: WidgetTypography) => void;
 }
 
-export function TypographyControl({ value, device, onChange }: Props) {
+export function TypographyControl({ value, onChange }: Props) {
   const v = value ?? {};
   const set = (patch: Partial<WidgetTypography>) => onChange({ ...v, ...patch });
+
+  const unifiedSize = v.fontSize?.desktop ?? v.fontSize?.tablet ?? v.fontSize?.mobile ?? "";
+  const setUnifiedSize = (raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      set({ fontSize: undefined });
+      return;
+    }
+    set({ fontSize: { desktop: trimmed, tablet: trimmed, mobile: trimmed } });
+  };
 
   return (
     <div className="space-y-2">
@@ -28,12 +38,12 @@ export function TypographyControl({ value, device, onChange }: Props) {
       </PropField>
 
 
-      <PropField label={`Rozmiar (${device})`}>
-        <ResponsiveInput
-          value={v.fontSize}
-          device={device}
-          placeholder="16px / 1.25rem"
-          onChange={(fontSize) => set({ fontSize })}
+      <PropField label="Rozmiar czcionki">
+        <Input
+          value={unifiedSize}
+          placeholder="np. 16px lub 1.25rem"
+          onChange={(e) => setUnifiedSize(e.target.value)}
+          className="h-8 text-xs"
         />
       </PropField>
 
