@@ -114,6 +114,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   });
 
   const rows = data ?? [];
+  const effectiveCols = Math.max(1, Math.min(cols, rows.length || 1));
   if (!rows.length) {
     return (
       <div className="w-full text-xs text-muted-foreground border border-dashed border-border rounded-md p-4 text-center">
@@ -185,7 +186,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
 
   return (
-    <div className="w-full grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+    <div className="w-full grid gap-4" style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}>
       {rows.map((p) => (
         <PostCard key={p.id} p={p} variant={variant} title={title(p)} excerpt={excerpt(p)} />
       ))}
