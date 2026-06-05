@@ -35,6 +35,10 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const showExcerpt = c.showExcerpt !== false;
   const ctaKey = `cta_${lang}` as const;
   const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
+  const titleSizePx = typeof c.titleSizePx === "number" ? c.titleSizePx : 0;
+  const titleWeight = typeof c.titleWeight === "number" ? c.titleWeight : 700;
+  const subtitleSizePx = typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : 0;
+  const subtitleWeight = typeof c.subtitleWeight === "number" ? c.subtitleWeight : 400;
 
 
   const rawItems = Array.isArray(c.items) ? (c.items as unknown[]) : [];
