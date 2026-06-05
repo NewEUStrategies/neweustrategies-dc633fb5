@@ -49,6 +49,7 @@ function readDebugFlag(): boolean {
 }
 
 const DEBUG_CSS = `
+[data-builder-renderer] [data-widget-layout="block"] > [data-w-id]{margin-top:0 !important;margin-bottom:0 !important;}
 [data-builder-renderer][data-debug="1"] [data-sec-id]{outline:2px solid rgba(239,68,68,.9) !important;outline-offset:-2px;position:relative;}
 [data-builder-renderer][data-debug="1"] [data-sec-id]::before{content:"SECTION " attr(data-sec-id) " · " attr(data-debug-h) "px";position:absolute;top:0;left:0;background:rgba(239,68,68,.95);color:#fff;font:600 10px/1.4 ui-monospace,monospace;padding:2px 6px;z-index:9999;pointer-events:none;}
 [data-builder-renderer][data-debug="1"] [data-column-slot]{outline:1px dashed rgba(59,130,246,.9) !important;outline-offset:-1px;position:relative;}
@@ -239,6 +240,8 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
                       maxWidth: "100%",
                       alignSelf: "stretch",
                       justifySelf: "stretch",
+                      marginTop: onlyOneBlock ? frameStyle.marginTop : 0,
+                      marginBottom: onlyOneBlock ? frameStyle.marginBottom : 0,
                     }),
                 boxSizing: "border-box",
               }}
