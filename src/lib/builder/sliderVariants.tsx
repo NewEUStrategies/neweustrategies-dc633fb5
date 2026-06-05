@@ -34,6 +34,10 @@ export interface SliderConfig {
   intervalMs?: number;
   rounded?: "none" | "sm" | "md" | "lg" | "xl" | "full";
   overlayOpacity?: number;
+  titleSizePx?: number;
+  titleWeight?: number;
+  subtitleSizePx?: number;
+  subtitleWeight?: number;
 }
 
 const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
