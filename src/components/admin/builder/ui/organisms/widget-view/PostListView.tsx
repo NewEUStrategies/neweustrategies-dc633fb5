@@ -209,13 +209,15 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 }
 
 function PostCard({
-  p, variant, carousel = false, title, excerpt,
+  p, variant, carousel = false, title, excerpt, titleStyle, excerptStyle,
 }: {
   p: PostRow;
   variant: Variant;
   carousel?: boolean;
   title: string;
   excerpt: string;
+  titleStyle?: React.CSSProperties;
+  excerptStyle?: React.CSSProperties;
 }) {
   const base = `bg-card border border-border rounded-md overflow-hidden hover:border-brand transition ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`;
 
@@ -225,7 +227,7 @@ function PostCard({
         <img src={p.cover_image_url} alt="" className="w-full h-40 object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-2.5 text-white">
-          <h4 className="font-display text-sm leading-tight line-clamp-2">{title}</h4>
+          <h4 className="font-display text-sm leading-tight line-clamp-2" style={titleStyle}>{title}</h4>
         </div>
       </a>
     );
@@ -237,7 +239,7 @@ function PostCard({
         {p.cover_image_url && (
           <img src={p.cover_image_url} alt="" className="w-full h-28 object-cover rounded-sm mb-2" />
         )}
-        <h4 className="font-display text-sm leading-snug line-clamp-2 hover:text-brand transition">{title}</h4>
+        <h4 className="font-display text-sm leading-snug line-clamp-2 hover:text-brand transition" style={titleStyle}>{title}</h4>
       </a>
     );
   }
@@ -249,8 +251,8 @@ function PostCard({
         <img src={p.cover_image_url} alt="" className="w-full h-28 object-cover" />
       )}
       <div className="p-2.5">
-        <h4 className="font-display text-sm font-medium leading-snug mb-1 line-clamp-2">{title}</h4>
-        {excerpt && <p className="text-xs text-muted-foreground leading-snug line-clamp-2">{excerpt}</p>}
+        <h4 className="font-display text-sm font-medium leading-snug mb-1 line-clamp-2" style={titleStyle}>{title}</h4>
+        {excerpt && <p className="text-xs text-muted-foreground leading-snug line-clamp-2" style={excerptStyle}>{excerpt}</p>}
       </div>
     </a>
   );
