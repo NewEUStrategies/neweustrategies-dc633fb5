@@ -45,6 +45,20 @@ async function fetchPostIdsBySlugs(table: "post_categories" | "post_tags", slugs
 }
 
 export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; lang: Lang; carousel?: boolean }) {
+  const titleSizePx = getNum(c, "titleSizePx", 0);
+  const titleWeight = getStr(c, "titleWeight");
+  const excerptSizePx = getNum(c, "excerptSizePx", 0);
+  const excerptWeight = getStr(c, "excerptWeight");
+  const titleStyle: React.CSSProperties = {
+    ...(titleSizePx > 0 ? { fontSize: `${titleSizePx}px`, lineHeight: 1.25 } : {}),
+    ...(titleWeight ? { fontWeight: titleWeight as React.CSSProperties["fontWeight"] } : {}),
+  };
+  const excerptStyle: React.CSSProperties = {
+    ...(excerptSizePx > 0 ? { fontSize: `${excerptSizePx}px`, lineHeight: 1.4 } : {}),
+    ...(excerptWeight ? { fontWeight: excerptWeight as React.CSSProperties["fontWeight"] } : {}),
+  };
+  const tStyle = Object.keys(titleStyle).length ? titleStyle : undefined;
+  const eStyle = Object.keys(excerptStyle).length ? excerptStyle : undefined;
   const variant = (getStr(c, "variant") || (carousel ? "card" : "card")) as Variant;
   const limit = Math.max(1, Math.min(100, getNum(c, "limit", 6)));
   const offset = Math.max(0, getNum(c, "offset", 0));
