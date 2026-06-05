@@ -165,6 +165,16 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     if (descriptionFontSize) {
       rules.push(`${descriptionSel}{font-size:${descriptionFontSize} !important;}`);
     }
+    if (typeof typography.titleDescriptionGapPx === "number" && typography.titleDescriptionGapPx >= 0) {
+      const gap = `${typography.titleDescriptionGapPx}px`;
+      // Każdy paragraf/lista/blockquote/figcaption/small, ktry występuje
+      // po nagłówku, dostaje wymuszony margin-top = gap. Pierwsze dziecko
+      // (gdy nie ma nad nim nagłówka) zostaje bez wymuszenia.
+      rules.push(`${sel} :is(h1,h2,h3,h4,h5,h6) + :is(p,.prose p,ul,ol,blockquote,figcaption,small){margin-top:${gap} !important;}`);
+      // Dla widgetów, które renderują tytuł w linku (np. slider: <a><h3/></a><p/>),
+      // celujemy też w paragraf następujący po wrapperze z nagłówkiem.
+      rules.push(`${sel} a:has(> :is(h1,h2,h3,h4,h5,h6)) + :is(p,blockquote,small){margin-top:${gap} !important;}`);
+    }
 
     if (typography.fontWeight) rules.push(`${descendants}{font-weight:${typography.fontWeight} !important;}`);
     if (typography.fontStyle) rules.push(`${descendants}{font-style:${typography.fontStyle} !important;}`);
