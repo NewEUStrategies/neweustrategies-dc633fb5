@@ -209,40 +209,40 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
         ? "text-[8px] font-medium text-foreground/80"
         : "text-[11px] sm:text-xs font-medium text-foreground/80 hover:opacity-80 transition";
       return (
-        <div
-          className={`${wrapperBase} relative flex items-end gap-2 w-full min-w-0 overflow-visible`}
-          style={{ paddingBottom: `${lineH}px` }}
-        >
+        <div className={`${wrapperBase} w-full min-w-0`}>
+          <div className="relative flex items-end gap-2 w-full min-w-0 overflow-visible">
+            <span
+              className={`relative z-10 inline-flex items-center flex-none max-w-full ${ribbonPadX} ${ribbonPadY} ${labelCls}`}
+              style={{
+                background: accent,
+                color: fg,
+                clipPath: `polygon(0 0, calc(100% - ${cutW}px) 0, 100% 100%, 0 100%)`,
+                paddingRight: `${cutW + (isSm ? 4 : 14)}px`,
+                ...(labelSize && !isSm ? { fontSize: labelSize } : {}),
+              }}
+            >
+              <span className="block break-words whitespace-normal">{label}</span>
+            </span>
+            {action && (
+              <span
+                className="relative z-10 ml-auto flex items-center min-w-0 shrink-0"
+                style={{ paddingLeft: isSm ? 4 : 12, paddingRight: isSm ? 4 : 8 }}
+              >
+                {href && !isSm
+                  ? <a href={href} className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</a>
+                  : <span className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</span>}
+              </span>
+            )}
+          </div>
           <span
             aria-hidden
-            className="absolute left-0 right-0 bottom-0 pointer-events-none z-0"
-            style={{ height: `${lineH}px`, background: accent }}
+            className="block w-full pointer-events-none"
+            style={{ height: `${lineH}px`, background: accent, marginTop: `-${lineH}px` }}
           />
-          <span
-            className={`relative z-10 inline-flex items-center flex-none max-w-full ${ribbonPadX} ${ribbonPadY} ${labelCls}`}
-            style={{
-              background: accent,
-              color: fg,
-              clipPath: `polygon(0 0, calc(100% - ${cutW}px) 0, 100% 100%, 0 100%)`,
-              paddingRight: `${cutW + (isSm ? 4 : 14)}px`,
-              ...(labelSize && !isSm ? { fontSize: labelSize } : {}),
-            }}
-          >
-            <span className="block break-words whitespace-normal">{label}</span>
-          </span>
-          {action && (
-            <span
-              className="relative z-10 ml-auto flex items-center min-w-0 shrink-0 bg-background"
-              style={{ paddingLeft: isSm ? 4 : 12, paddingRight: isSm ? 4 : 8 }}
-            >
-              {href && !isSm
-                ? <a href={href} className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</a>
-                : <span className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</span>}
-            </span>
-          )}
         </div>
       );
     }
+
     case "double-rule-centered": {
       // Wycentrowany tytuł z dwiema subtelnymi liniami: cienka akcentowa nad,
       // jeszcze cieńsza neutralna pod. Inspirowane prasowymi nagłówkami.
