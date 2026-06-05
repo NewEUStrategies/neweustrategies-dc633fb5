@@ -36,8 +36,8 @@ function detectViewportDevice(): Device {
   return "desktop";
 }
 
-export function BuilderRenderer({ doc, lang, device = "desktop" }: Props) {
-  const [viewportDevice, setViewportDevice] = useState<Device>(() => device);
+export function BuilderRenderer({ doc, lang, device }: Props) {
+  const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? detectViewportDevice());
 
   useEffect(() => {
     if (device) {
