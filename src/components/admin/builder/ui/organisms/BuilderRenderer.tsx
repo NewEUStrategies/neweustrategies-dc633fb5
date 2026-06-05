@@ -27,28 +27,6 @@ interface Props {
 
 const MOBILE_BREAKPOINT = 768;
 const TABLET_BREAKPOINT = 1024;
-const PUBLIC_RENDERER_RESPONSIVE_CSS = `
-  @media (max-width: 767px) {
-    [data-builder-renderer] [data-columns-row] {
-      grid-template-columns: minmax(0, 1fr) !important;
-    }
-    [data-builder-renderer] [data-column-slot] {
-      grid-column: 1 / -1 !important;
-      min-width: 0;
-      max-width: 100%;
-    }
-    [data-builder-renderer] [data-col-id] {
-      height: auto !important;
-    }
-    [data-builder-renderer] [data-widget-id],
-    [data-builder-renderer] img:not([data-fill-image]),
-    [data-builder-renderer] video,
-    [data-builder-renderer] iframe,
-    [data-builder-renderer] svg {
-      max-width: 100% !important;
-    }
-  }
-`;
 
 function detectViewportDevice(): Device {
   if (typeof window === "undefined") return "desktop";
@@ -77,7 +55,6 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
 
   return (
     <div data-builder-renderer>
-      <style dangerouslySetInnerHTML={{ __html: PUBLIC_RENDERER_RESPONSIVE_CSS }} />
       {doc.sections.map((s) => <RenderSection key={s.id} section={s} lang={lang} device={effectiveDevice} />)}
     </div>
   );
@@ -113,7 +90,7 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
       <ShapeDivider s={section.shapeDividerTop} position="top" />
       <ShapeDivider s={section.shapeDividerBottom} position="bottom" />
       <div style={sectionContainerStyle(section)}>
-        <div data-columns-row className="min-w-0 max-w-full overflow-hidden" style={columnsRowStyle(section, colsSum)}>
+        <div data-columns-row className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(section, colsSum), gridTemplateColumns: device === "mobile" ? "minmax(0, 1fr)" : columnsRowStyle(section, colsSum).gridTemplateColumns }}>
           {section.children.map((c) => {
             const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
             const gridColumn = device === "mobile" ? "1 / -1" : `span ${span}`;
@@ -137,7 +114,7 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
   const colsSum = inner.columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()} style={{ ...sectionWrapperStyle(inner), ...backgroundLayerStyle(inner.background), ...borderStyle(inner.border), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
-      <div data-columns-row className="min-w-0 max-w-full overflow-hidden" style={columnsRowStyle(inner, colsSum)}>
+      <div data-columns-row className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(inner, colsSum), gridTemplateColumns: device === "mobile" ? "minmax(0, 1fr)" : columnsRowStyle(inner, colsSum).gridTemplateColumns }}>
         {inner.columns.map((c) => (
           <div key={c.id} data-column-slot className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}` }}>
 
