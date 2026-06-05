@@ -134,9 +134,13 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
           const hasExplicitHeight = !!(adv?.height && (adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile));
           const shouldFillHeight =
             onlyOneBlock && !hasExplicitHeight && !AUTO_SIZE_WIDGETS.has(w.type) && !COMPACT_WIDGET_TYPES.has(w.type);
+          // Section labels must visually sit ABOVE neighbouring widgets so their
+          // accent lines / ribbons are never covered by adjacent backgrounds.
+          const isSectionLabel = w.type === "section-label";
+          const stackCls = isSectionLabel ? " relative z-20" : "";
           const itemClass = inRow
-            ? "flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-x-hidden"
-            : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-x-hidden${shouldFillHeight ? " flex-1" : ""}`;
+            ? `flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-x-hidden${stackCls}`
+            : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-x-hidden${shouldFillHeight ? " flex-1" : ""}${stackCls}`;
           return (
             <div key={w.id} data-widget-id={w.id} className={itemClass} style={{ ...getWidgetFrameStyle(w, device), boxSizing: "border-box" }}>
               <WidgetView node={w} lang={lang} device={device} />
