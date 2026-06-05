@@ -4,7 +4,7 @@
 import type { Device, WidgetTypography } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { AlignLeft, AlignCenter, AlignRight, AlignJustify } from "lucide-react";
+import { AlignLeft, AlignCenter, AlignRight, AlignJustify, ChevronUp, ChevronDown } from "lucide-react";
 import { PropField } from "../atoms/PropField";
 import { FontPicker } from "@/components/admin/settings/FontPicker";
 
@@ -47,9 +47,42 @@ export function TypographyControl({ value, onChange }: Props) {
             inputMode="numeric"
             placeholder="16"
             onChange={(e) => setUnifiedSize(e.target.value)}
-            className="h-8 text-xs pr-8"
+            onKeyDown={(e) => {
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setUnifiedSize(String((parseInt(unifiedPx || "0", 10) || 0) + 1));
+              } else if (e.key === "ArrowDown") {
+                e.preventDefault();
+                const next = (parseInt(unifiedPx || "0", 10) || 0) - 1;
+                setUnifiedSize(next > 0 ? String(next) : "");
+              }
+            }}
+            className="h-8 text-xs pr-12"
           />
-          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">px</span>
+          <span className="pointer-events-none absolute right-7 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">px</span>
+          <div className="absolute right-0 top-0 h-8 w-6 flex flex-col border-l border-border">
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label="Zwiększ"
+              onClick={() => setUnifiedSize(String((parseInt(unifiedPx || "0", 10) || 0) + 1))}
+              className="flex-1 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
+            >
+              <ChevronUp className="w-3 h-3" />
+            </button>
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label="Zmniejsz"
+              onClick={() => {
+                const next = (parseInt(unifiedPx || "0", 10) || 0) - 1;
+                setUnifiedSize(next > 0 ? String(next) : "");
+              }}
+              className="flex-1 flex items-center justify-center border-t border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
+            >
+              <ChevronDown className="w-3 h-3" />
+            </button>
+          </div>
         </div>
       </PropField>
 
