@@ -242,8 +242,11 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
                       maxWidth: "100%",
                       alignSelf: "stretch",
                       justifySelf: "stretch",
-                      marginTop: onlyOneBlock ? frameStyle.marginTop : 0,
-                      marginBottom: onlyOneBlock ? frameStyle.marginBottom : 0,
+                      // Unified vertical rhythm: column gap is the only source of vertical spacing
+                      // between widgets. Preserve "auto" margins (used by selfAlign center/start/end),
+                      // but always strip numeric per-widget top/bottom margins.
+                      marginTop: frameStyle.marginTop === "auto" ? "auto" : 0,
+                      marginBottom: frameStyle.marginBottom === "auto" ? "auto" : 0,
                     }),
                 boxSizing: "border-box",
               }}
