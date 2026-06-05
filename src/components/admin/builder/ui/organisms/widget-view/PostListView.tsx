@@ -144,7 +144,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     return (
       <div className="w-full min-w-0 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
         {rows.map((p) => (
-          <PostCard key={p.id} p={p} variant={variant} carousel title={title(p)} excerpt={excerpt(p)} />
+          <PostCard key={p.id} p={p} variant={variant} carousel title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
         ))}
       </div>
     );
@@ -160,11 +160,11 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               <img src={p.cover_image_url} alt="" className="w-24 h-16 object-cover rounded-sm shrink-0" />
             )}
             <div className="min-w-0">
-              <h4 className="font-display text-sm leading-snug line-clamp-2 group-hover:text-brand transition">
+              <h4 className="font-display text-sm leading-snug line-clamp-2 group-hover:text-brand transition" style={tStyle}>
                 {title(p)}
               </h4>
               {excerpt(p) && (
-                <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{excerpt(p)}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5" style={eStyle}>{excerpt(p)}</p>
               )}
             </div>
           </a>
@@ -186,7 +186,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               {String(i + 1).padStart(2, "0")}
             </span>
             <div className="min-w-0 flex-1 relative text-left">
-              <h4 className="font-display text-sm md:text-[15px] font-medium leading-snug group-hover:text-brand transition">
+              <h4 className="font-display text-sm md:text-[15px] font-medium leading-snug group-hover:text-brand transition" style={tStyle}>
                 {title(p)}
               </h4>
             </div>
@@ -202,7 +202,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   return (
     <div className="w-full grid gap-4" style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}>
       {rows.map((p) => (
-        <PostCard key={p.id} p={p} variant={variant} title={title(p)} excerpt={excerpt(p)} />
+        <PostCard key={p.id} p={p} variant={variant} title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
       ))}
     </div>
   );
