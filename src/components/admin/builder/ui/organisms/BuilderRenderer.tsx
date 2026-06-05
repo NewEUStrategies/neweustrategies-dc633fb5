@@ -1,6 +1,6 @@
 // Read-only renderer for public pages. Applies all Section settings
 // (layout, background layers, overlay, border, shape dividers, typography).
-import { Fragment, type CSSProperties, type ElementType } from "react";
+import { Fragment, useEffect, useState, type CSSProperties, type ElementType } from "react";
 import type { BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, Device, ResponsiveValue } from "@/lib/builder/types";
 import { WidgetView, getWidgetFrameStyle, hiddenOnDevice } from "@/components/admin/builder/WidgetView";
 import { AUTO_SIZE_WIDGETS, COMPACT_WIDGET_TYPES } from "@/components/admin/builder/ui/organisms/widget-view/frame";
@@ -25,10 +25,37 @@ interface Props {
   device?: Device;
 }
 
+const MOBILE_BREAKPOINT = 768;
+const TABLET_BREAKPOINT = 1024;
+
+function detectViewportDevice(): Device {
+  if (typeof window === "undefined") return "desktop";
+  const width = window.innerWidth;
+  if (width < MOBILE_BREAKPOINT) return "mobile";
+  if (width < TABLET_BREAKPOINT) return "tablet";
+  return "desktop";
+}
+
 export function BuilderRenderer({ doc, lang, device = "desktop" }: Props) {
+  const [viewportDevice, setViewportDevice] = useState<Device>(() => device);
+
+  useEffect(() => {
+    if (device) {
+      setViewportDevice(device);
+      return;
+    }
+
+    const updateDevice = () => setViewportDevice(detectViewportDevice());
+    updateDevice();
+    window.addEventListener("resize", updateDevice);
+    return () => window.removeEventListener("resize", updateDevice);
+  }, [device]);
+
+  const effectiveDevice = device ?? viewportDevice;
+
   return (
     <div>
-      {doc.sections.map((s) => <RenderSection key={s.id} section={s} lang={lang} device={device} />)}
+      {doc.sections.map((s) => <RenderSection key={s.id} section={s} lang={lang} device={effectiveDevice} />)}
     </div>
   );
 }
