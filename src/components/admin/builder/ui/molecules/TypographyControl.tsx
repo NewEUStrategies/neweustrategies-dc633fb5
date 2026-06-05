@@ -30,6 +30,69 @@ export function TypographyControl({ value, onChange }: Props) {
     set({ fontSize: { desktop: px, tablet: px, mobile: px } });
   };
 
+  const rawDesc = v.descriptionFontSize?.desktop ?? v.descriptionFontSize?.tablet ?? v.descriptionFontSize?.mobile ?? "";
+  const descPx = String(rawDesc).replace(/[^0-9]/g, "");
+  const setDescSize = (raw: string) => {
+    const digits = raw.replace(/[^0-9]/g, "");
+    if (!digits) {
+      set({ descriptionFontSize: undefined });
+      return;
+    }
+    const px = `${digits}px`;
+    set({ descriptionFontSize: { desktop: px, tablet: px, mobile: px } });
+  };
+
+  const renderSizeInput = (
+    current: string,
+    setter: (raw: string) => void,
+    ariaLabel: string,
+  ) => (
+    <div className="relative">
+      <Input
+        value={current}
+        inputMode="numeric"
+        placeholder="16"
+        aria-label={ariaLabel}
+        onChange={(e) => setter(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setter(String((parseInt(current || "0", 10) || 0) + 1));
+          } else if (e.key === "ArrowDown") {
+            e.preventDefault();
+            const next = (parseInt(current || "0", 10) || 0) - 1;
+            setter(next > 0 ? String(next) : "");
+          }
+        }}
+        className="h-8 text-xs pr-12"
+      />
+      <span className="pointer-events-none absolute right-7 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">px</span>
+      <div className="absolute right-0 top-0 h-8 w-6 flex flex-col border-l border-border">
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Zwiększ"
+          onClick={() => setter(String((parseInt(current || "0", 10) || 0) + 1))}
+          className="flex-1 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
+        >
+          <ChevronUp className="w-3 h-3" />
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Zmniejsz"
+          onClick={() => {
+            const next = (parseInt(current || "0", 10) || 0) - 1;
+            setter(next > 0 ? String(next) : "");
+          }}
+          className="flex-1 flex items-center justify-center border-t border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
+        >
+          <ChevronDown className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-2">
       <PropField label="Krój pisma">
@@ -40,51 +103,15 @@ export function TypographyControl({ value, onChange }: Props) {
       </PropField>
 
 
-      <PropField label="Rozmiar czcionki (px)">
-        <div className="relative">
-          <Input
-            value={unifiedPx}
-            inputMode="numeric"
-            placeholder="16"
-            onChange={(e) => setUnifiedSize(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowUp") {
-                e.preventDefault();
-                setUnifiedSize(String((parseInt(unifiedPx || "0", 10) || 0) + 1));
-              } else if (e.key === "ArrowDown") {
-                e.preventDefault();
-                const next = (parseInt(unifiedPx || "0", 10) || 0) - 1;
-                setUnifiedSize(next > 0 ? String(next) : "");
-              }
-            }}
-            className="h-8 text-xs pr-12"
-          />
-          <span className="pointer-events-none absolute right-7 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">px</span>
-          <div className="absolute right-0 top-0 h-8 w-6 flex flex-col border-l border-border">
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-label="Zwiększ"
-              onClick={() => setUnifiedSize(String((parseInt(unifiedPx || "0", 10) || 0) + 1))}
-              className="flex-1 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
-            >
-              <ChevronUp className="w-3 h-3" />
-            </button>
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-label="Zmniejsz"
-              onClick={() => {
-                const next = (parseInt(unifiedPx || "0", 10) || 0) - 1;
-                setUnifiedSize(next > 0 ? String(next) : "");
-              }}
-              className="flex-1 flex items-center justify-center border-t border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
-            >
-              <ChevronDown className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-      </PropField>
+      <div className="grid grid-cols-2 gap-2">
+        <PropField label="Rozmiar tytułu (px)">
+          {renderSizeInput(unifiedPx, setUnifiedSize, "Rozmiar tytułu")}
+        </PropField>
+        <PropField label="Rozmiar opisu (px)">
+          {renderSizeInput(descPx, setDescSize, "Rozmiar opisu")}
+        </PropField>
+      </div>
+
 
       <PropField label="Wyrównanie">
         <div className="inline-flex rounded border border-border bg-muted/30 p-0.5 w-full">

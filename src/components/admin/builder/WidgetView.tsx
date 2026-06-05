@@ -142,6 +142,8 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
 
     const sel = `[data-w-id="${node.id}"]`;
     const descendants = `${sel}, ${sel} :is(p,span,a,strong,em,small,li,dt,dd,blockquote,cite,label,button,input,textarea,select,option,figcaption,legend,time,h1,h2,h3,h4,h5,h6,.prose,.prose *)`;
+    const headingSel = `${sel} :is(h1,h2,h3,h4,h5,h6), ${sel}[data-title-root]`;
+    const descriptionSel = `${sel} :is(p,.prose p,li,dd,blockquote,figcaption,small)`;
     const rules: string[] = [];
 
     if (typography.fontFamily) {
@@ -150,9 +152,18 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     }
 
     const fontSize = pickResponsiveValue(typography.fontSize, device);
+    const descriptionFontSize = pickResponsiveValue(typography.descriptionFontSize, device);
     if (fontSize) {
-      rules.push(`${descendants}{font-size:${fontSize} !important;}`);
-      rules.push(`${sel} input::placeholder, ${sel} textarea::placeholder{font-size:${fontSize} !important;}`);
+      if (descriptionFontSize) {
+        // When both are set, scope title size to headings only so opis może mieć inny rozmiar.
+        rules.push(`${headingSel}{font-size:${fontSize} !important;}`);
+      } else {
+        rules.push(`${descendants}{font-size:${fontSize} !important;}`);
+        rules.push(`${sel} input::placeholder, ${sel} textarea::placeholder{font-size:${fontSize} !important;}`);
+      }
+    }
+    if (descriptionFontSize) {
+      rules.push(`${descriptionSel}{font-size:${descriptionFontSize} !important;}`);
     }
 
     if (typography.fontWeight) rules.push(`${descendants}{font-weight:${typography.fontWeight} !important;}`);

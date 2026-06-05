@@ -25,7 +25,8 @@ export type Themed<T> = T | ThemedValue<T>;
 
 export interface WidgetTypography {
   fontFamily?: string;
-  fontSize?: ResponsiveValue<string>;     // e.g. "16px", "1.25rem"
+  fontSize?: ResponsiveValue<string>;     // tytuł / nagłówki — e.g. "16px"
+  descriptionFontSize?: ResponsiveValue<string>; // opisy / paragrafy
   fontWeight?: string;                    // "400" | "700" | "bold" ...
   fontStyle?: "normal" | "italic";
   lineHeight?: string;                    // e.g. "1.4"
