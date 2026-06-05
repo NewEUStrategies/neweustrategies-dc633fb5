@@ -314,11 +314,23 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .cms-builder-compact .py-1\.5 { padding-top: 0.2rem; padding-bottom: 0.2rem; }
 .cms-builder-compact .gap-2 { gap: 0.35rem; }
 .cms-builder-compact .gap-3 { gap: 0.5rem; }
-/* Canvas content must render identically to the public site — don't shrink
-   widget/column gaps inside the live preview. */
-.cms-builder-compact [data-visual-canvas] .gap-2,
-.cms-builder-compact [data-builder-renderer] .gap-2 { gap: 0.5rem; }
-.cms-builder-compact [data-visual-canvas] .gap-3,
-.cms-builder-compact [data-builder-renderer] .gap-3 { gap: 0.75rem; }
+/* Canvas content must render identically to the public site — neutralize ALL
+   .cms-builder-compact overrides (fonts, spacing, paddings) inside the live preview. */
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) { font-size: initial; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-xs { font-size: 0.75rem; line-height: 1rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-base { font-size: 1rem; line-height: 1.5rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-\[11px\] { font-size: 11px; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-\[10px\] { font-size: 10px; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-\[9px\] { font-size: 9px; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) :is(h1,h2,h3,h4) { font-size: revert; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .p-3 { padding: 0.75rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .p-4 { padding: 1rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .py-1\.5 { padding-top: 0.375rem; padding-bottom: 0.375rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-2 { gap: 0.5rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-3 { gap: 0.75rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .h-8 { height: 2rem; }
 .cms-builder-compact input, .cms-builder-compact select, .cms-builder-compact textarea, .cms-builder-compact button { font-size: inherit; }
 .cms-builder-compact .h-8 { height: 1.75rem; }
