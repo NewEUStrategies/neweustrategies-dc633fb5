@@ -79,8 +79,8 @@ export function NewsletterForm({ lang = "pl", source = "post-bottom", variant = 
 
   const containerCls =
     variant === "card"
-      ? "border border-border rounded-lg p-6 lg:p-8 bg-card my-10"
-      : "border-t border-b border-border py-8 my-10";
+      ? "border border-border rounded-lg p-6 lg:p-8 bg-card"
+      : "border-t border-b border-border py-8";
 
   return (
     <section className={containerCls} aria-labelledby="newsletter-heading">
