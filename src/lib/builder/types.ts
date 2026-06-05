@@ -27,6 +27,7 @@ export interface WidgetTypography {
   fontFamily?: string;
   fontSize?: ResponsiveValue<string>;     // tytuł / nagłówki — e.g. "16px"
   descriptionFontSize?: ResponsiveValue<string>; // opisy / paragrafy
+  titleDescriptionGapPx?: number;         // odstęp px między tytułem a opisem
   fontWeight?: string;                    // "400" | "700" | "bold" ...
   fontStyle?: "normal" | "italic";
   lineHeight?: string;                    // e.g. "1.4"
