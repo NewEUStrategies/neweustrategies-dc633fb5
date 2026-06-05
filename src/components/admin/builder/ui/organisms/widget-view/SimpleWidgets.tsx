@@ -703,6 +703,10 @@ export function renderSimpleWidget(
         intervalMs: getNum(c, "intervalMs", 4500),
         rounded: (getStr(c, "rounded") || "md") as "none" | "sm" | "md" | "lg" | "xl" | "full",
         overlayOpacity: typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45,
+        titleSizePx: typeof c.titleSizePx === "number" ? c.titleSizePx : undefined,
+        titleWeight: typeof c.titleWeight === "number" ? c.titleWeight : undefined,
+        subtitleSizePx: typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : undefined,
+        subtitleWeight: typeof c.subtitleWeight === "number" ? c.subtitleWeight : undefined,
         items: sampleItems,
       };
       if (!hasRealItems && editable) {
