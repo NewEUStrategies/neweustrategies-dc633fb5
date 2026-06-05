@@ -314,5 +314,11 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .cms-builder-compact .py-1\.5 { padding-top: 0.2rem; padding-bottom: 0.2rem; }
 .cms-builder-compact .gap-2 { gap: 0.35rem; }
 .cms-builder-compact .gap-3 { gap: 0.5rem; }
+/* Canvas content must render identically to the public site — don't shrink
+   widget/column gaps inside the live preview. */
+.cms-builder-compact [data-visual-canvas] .gap-2,
+.cms-builder-compact [data-builder-renderer] .gap-2 { gap: 0.5rem; }
+.cms-builder-compact [data-visual-canvas] .gap-3,
+.cms-builder-compact [data-builder-renderer] .gap-3 { gap: 0.75rem; }
 .cms-builder-compact input, .cms-builder-compact select, .cms-builder-compact textarea, .cms-builder-compact button { font-size: inherit; }
 .cms-builder-compact .h-8 { height: 1.75rem; }
