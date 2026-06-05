@@ -135,8 +135,8 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
           const shouldFillHeight =
             onlyOneBlock && !hasExplicitHeight && !AUTO_SIZE_WIDGETS.has(w.type) && !COMPACT_WIDGET_TYPES.has(w.type);
           const itemClass = inRow
-            ? "flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-hidden"
-            : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-hidden${shouldFillHeight ? " flex-1" : ""}`;
+            ? "flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-x-hidden"
+            : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-x-hidden${shouldFillHeight ? " flex-1" : ""}`;
           return (
             <div key={w.id} data-widget-id={w.id} className={itemClass} style={{ ...getWidgetFrameStyle(w, device), boxSizing: "border-box" }}>
               <WidgetView node={w} lang={lang} device={device} />
