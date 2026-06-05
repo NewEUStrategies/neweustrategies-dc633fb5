@@ -223,7 +223,7 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
             ? `flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-visible${stackCls}`
             : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-visible${shouldFillHeight ? " flex-1" : ""}${stackCls}`;
           return (
-            <div key={w.id} data-widget-id={w.id} className={itemClass} style={{ ...getWidgetFrameStyle(w, device), boxSizing: "border-box" }}>
+            <div key={w.id} data-widget-id={w.id} data-debug-type={w.type} className={itemClass} style={{ ...getWidgetFrameStyle(w, device), boxSizing: "border-box" }}>
               <WidgetView node={w} lang={lang} device={device} />
             </div>
           );
