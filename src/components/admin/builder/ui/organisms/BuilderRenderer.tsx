@@ -1,6 +1,6 @@
 // Read-only renderer for public pages. Applies all Section settings
 // (layout, background layers, overlay, border, shape dividers, typography).
-import { Fragment, type CSSProperties, type ElementType } from "react";
+import { Fragment, useEffect, useState, type CSSProperties, type ElementType } from "react";
 import type { BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, Device, ResponsiveValue } from "@/lib/builder/types";
 import { WidgetView, getWidgetFrameStyle, hiddenOnDevice } from "@/components/admin/builder/WidgetView";
 import { AUTO_SIZE_WIDGETS, COMPACT_WIDGET_TYPES } from "@/components/admin/builder/ui/organisms/widget-view/frame";
@@ -25,10 +25,37 @@ interface Props {
   device?: Device;
 }
 
-export function BuilderRenderer({ doc, lang, device = "desktop" }: Props) {
+const MOBILE_BREAKPOINT = 768;
+const TABLET_BREAKPOINT = 1024;
+
+function detectViewportDevice(): Device {
+  if (typeof window === "undefined") return "desktop";
+  const width = window.innerWidth;
+  if (width < MOBILE_BREAKPOINT) return "mobile";
+  if (width < TABLET_BREAKPOINT) return "tablet";
+  return "desktop";
+}
+
+export function BuilderRenderer({ doc, lang, device }: Props) {
+  const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? detectViewportDevice());
+
+  useEffect(() => {
+    if (device) {
+      setViewportDevice(device);
+      return;
+    }
+
+    const updateDevice = () => setViewportDevice(detectViewportDevice());
+    updateDevice();
+    window.addEventListener("resize", updateDevice);
+    return () => window.removeEventListener("resize", updateDevice);
+  }, [device]);
+
+  const effectiveDevice = device ?? viewportDevice;
+
   return (
-    <div>
-      {doc.sections.map((s) => <RenderSection key={s.id} section={s} lang={lang} device={device} />)}
+    <div data-builder-renderer>
+      {doc.sections.map((s) => <RenderSection key={s.id} section={s} lang={lang} device={effectiveDevice} />)}
     </div>
   );
 }
@@ -63,12 +90,12 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
       <ShapeDivider s={section.shapeDividerTop} position="top" />
       <ShapeDivider s={section.shapeDividerBottom} position="bottom" />
       <div style={sectionContainerStyle(section)}>
-        <div className="min-w-0 max-w-full overflow-hidden" style={columnsRowStyle(section, colsSum)}>
+        <div data-columns-row className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(section, colsSum), gridTemplateColumns: device === "mobile" ? "minmax(0, 1fr)" : columnsRowStyle(section, colsSum).gridTemplateColumns }}>
           {section.children.map((c) => {
             const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
             const gridColumn = device === "mobile" ? "1 / -1" : `span ${span}`;
             return (
-              <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn }}>
+              <div key={c.id} data-column-slot className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn }}>
                 {c.kind === "inner-section"
                   ? <RenderInner inner={c} lang={lang} device={device} />
                   : <RenderColumn column={c} lang={lang} device={device} />}
@@ -87,9 +114,9 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
   const colsSum = inner.columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()} style={{ ...sectionWrapperStyle(inner), ...backgroundLayerStyle(inner.background), ...borderStyle(inner.border), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
-      <div className="min-w-0 max-w-full overflow-hidden" style={columnsRowStyle(inner, colsSum)}>
+      <div data-columns-row className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(inner, colsSum), gridTemplateColumns: device === "mobile" ? "minmax(0, 1fr)" : columnsRowStyle(inner, colsSum).gridTemplateColumns }}>
         {inner.columns.map((c) => (
-          <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}` }}>
+          <div key={c.id} data-column-slot className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}` }}>
 
             <RenderColumn column={c} lang={lang} device={device} />
           </div>
