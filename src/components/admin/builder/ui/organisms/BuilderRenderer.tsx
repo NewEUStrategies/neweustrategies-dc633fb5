@@ -61,6 +61,26 @@ const DEBUG_CSS = `
 [data-builder-renderer][data-debug="1"] [data-widget-id]::after{content:attr(data-debug-type) " · " attr(data-debug-h) "px";position:absolute;bottom:0;left:0;background:rgba(234,179,8,.95);color:#111;font:600 10px/1.4 ui-monospace,monospace;padding:1px 5px;z-index:9999;pointer-events:none;}
 .builder-debug-toggle{position:fixed;bottom:16px;right:16px;z-index:99999;background:#111;color:#fff;border:1px solid #444;border-radius:9999px;padding:8px 14px;font:600 12px/1 ui-monospace,monospace;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);}
 .builder-debug-toggle[data-on="1"]{background:#ef4444;}
+
+/* ---------- Mobile safety net (works regardless of JS device detection) ---------- */
+[data-builder-renderer]{max-width:100%;overflow-x:clip;}
+[data-builder-renderer] *{min-width:0;}
+[data-builder-renderer] img,[data-builder-renderer] video,[data-builder-renderer] iframe,[data-builder-renderer] svg,[data-builder-renderer] canvas,[data-builder-renderer] object{max-width:100%;height:auto;}
+[data-builder-renderer] pre,[data-builder-renderer] code{max-width:100%;overflow-x:auto;white-space:pre-wrap;word-break:break-word;}
+[data-builder-renderer] table{max-width:100%;display:block;overflow-x:auto;}
+
+@media (max-width: 767px){
+  [data-builder-renderer] [data-columns-row]{grid-template-columns:minmax(0,1fr) !important;}
+  [data-builder-renderer] [data-column-slot]{grid-column:1 / -1 !important;width:100% !important;max-width:100% !important;min-width:0 !important;}
+  [data-builder-renderer] [data-widget-id]{max-width:100% !important;}
+  [data-builder-renderer] [data-widget-id][data-widget-layout="block"]{width:100% !important;}
+  [data-builder-renderer] [data-sec-id]{max-width:100vw;overflow-x:clip;}
+  [data-builder-renderer] [data-widget-id][data-widget-layout="inline"]{flex:0 1 auto;min-width:0;}
+  [data-builder-renderer] h1,[data-builder-renderer] h2,[data-builder-renderer] h3,
+  [data-builder-renderer] h4,[data-builder-renderer] h5,[data-builder-renderer] h6,
+  [data-builder-renderer] p,[data-builder-renderer] a,[data-builder-renderer] span,
+  [data-builder-renderer] li{overflow-wrap:anywhere;word-break:break-word;}
+}
 `;
 
 export function BuilderRenderer({ doc, lang, device }: Props) {
