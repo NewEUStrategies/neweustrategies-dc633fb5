@@ -83,6 +83,10 @@ function PostsSliderWidget({ c, lang }: { c: WidgetNode["content"]; lang: Lang }
 
   const cfg = {
     variant, ratio, autoplay, intervalMs, rounded, overlayOpacity,
+    titleSizePx: typeof c.titleSizePx === "number" ? c.titleSizePx : undefined,
+    titleWeight: typeof c.titleWeight === "number" ? c.titleWeight : undefined,
+    subtitleSizePx: typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : undefined,
+    subtitleWeight: typeof c.subtitleWeight === "number" ? c.subtitleWeight : undefined,
     items: items
       .filter((p) => p.cover_image_url)
       .map((p) => ({
