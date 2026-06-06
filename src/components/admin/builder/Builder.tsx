@@ -757,28 +757,6 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                 onDropNewWidgetToSection={appendWidgetToSection}
                 firstLabel={copy.first} lastLabel={copy.last}
               />
-              {false && (
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                  <SectionView
-                    section={doc.sections[0]} device={device} lang={lang}
-                    selection={selection} setSelection={setSelection}
-                    isFirst isLast
-                    onMove={() => {}}
-                    onRemove={() => {}}
-                    onDuplicate={() => {}}
-                    onSaveTemplate={() => {}}
-                    onAddInnerSection={() => {}}
-                    onAddColumn={() => {}}
-                    onRemoveColumn={() => {}}
-                    onDuplicateColumn={() => {}}
-                    onRemoveWidget={() => {}}
-                    onDuplicateWidget={() => {}}
-                    onDropWidget={() => {}}
-                    onUpdateWidgetContent={() => {}}
-                    onToggleHidden={() => {}}
-                  />
-                </DndContext>
-              )}
             </div>
 
 
