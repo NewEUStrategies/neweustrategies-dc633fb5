@@ -138,7 +138,69 @@ export function MediaPreviewDialog({ item, open, onOpenChange, gated = true, sho
             </div>
           )}
         </div>
+
+        {showUsage && item && <UsagePanel mediaId={item.id} lang={lang} />}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function UsagePanel({ mediaId, lang }: { mediaId: string; lang: "pl" | "en" }) {
+  const fetchUsage = useServerFn(getMediaUsage);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["media-usage", mediaId],
+    queryFn: () => fetchUsage({ data: { mediaId } }),
+  });
+  const items = data?.items ?? [];
+  return (
+    <div className="border-t border-border bg-background p-3 max-h-[28vh] overflow-auto shrink-0">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {lang === "pl" ? "Używane w" : "Used in"}
+        </h3>
+        <span className="text-[10px] text-muted-foreground">
+          {isLoading ? "…" : `${items.length}`}
+        </span>
+      </div>
+      {error && (
+        <p className="text-xs text-destructive">
+          {error instanceof Error ? error.message : String(error)}
+        </p>
+      )}
+      {!isLoading && !error && items.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          {lang === "pl"
+            ? "Ten materiał nie jest jeszcze używany w żadnym poście ani stronie."
+            : "This media is not used in any post or page yet."}
+        </p>
+      )}
+      {items.length > 0 && (
+        <ul className="divide-y divide-border border border-border rounded-md overflow-hidden">
+          {items.map((it) => (
+            <li key={`${it.kind}-${it.id}`} className="p-2 flex items-center justify-between gap-3 hover:bg-muted/40 text-xs">
+              <div className="min-w-0">
+                <div className="font-medium truncate">{it.title}</div>
+                <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                  <span className="uppercase">
+                    {it.kind === "post" ? (lang === "pl" ? "Post" : "Post") : (lang === "pl" ? "Strona" : "Page")}
+                  </span>
+                  <span>·</span>
+                  <span className="truncate">/{it.slug}</span>
+                  <span>·</span>
+                  <span className="truncate">{it.where.join(", ")}</span>
+                </div>
+              </div>
+              <Link
+                to={it.kind === "post" ? "/admin/posts/$slug" : "/admin/pages/$slug"}
+                params={{ slug: it.slug }}
+                className="shrink-0 inline-flex items-center gap-1 text-brand hover:underline"
+              >
+                {lang === "pl" ? "Edytuj" : "Edit"} <LinkIcon className="w-3 h-3" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
