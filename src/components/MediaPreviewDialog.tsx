@@ -34,7 +34,7 @@ interface Props {
   showUsage?: boolean;
 }
 
-export function MediaPreviewDialog({ item, open, onOpenChange, gated = true }: Props) {
+export function MediaPreviewDialog({ item, open, onOpenChange, gated = true, showUsage = false }: Props) {
   const { i18n } = useTranslation();
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
   // Hook needs a stable entity type; pass id only when gated + open
