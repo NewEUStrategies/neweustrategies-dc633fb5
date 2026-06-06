@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText } from "@/lib/lucide-shim";
+import { FileText, Link as LinkIcon } from "@/lib/lucide-shim";
 import { useContentAccess, type AccessEntityType } from "@/hooks/useContentAccess";
 import { Paywall } from "@/components/Paywall";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getMediaUsage } from "@/lib/media.functions";
+import { Link } from "@tanstack/react-router";
 
 const DownloadIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -26,6 +30,8 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** When true, respect paywall rules for this media before showing the file/download */
   gated?: boolean;
+  /** When true, show the "Used in" panel with links to CMS edit pages (admin only) */
+  showUsage?: boolean;
 }
 
 export function MediaPreviewDialog({ item, open, onOpenChange, gated = true }: Props) {
