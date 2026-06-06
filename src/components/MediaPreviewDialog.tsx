@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText } from "@/lib/lucide-shim";
+import { FileText, Link as LinkIcon } from "@/lib/lucide-shim";
 import { useContentAccess, type AccessEntityType } from "@/hooks/useContentAccess";
 import { Paywall } from "@/components/Paywall";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getMediaUsage } from "@/lib/media.functions";
+import { Link } from "@tanstack/react-router";
 
 const DownloadIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -26,9 +30,11 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** When true, respect paywall rules for this media before showing the file/download */
   gated?: boolean;
+  /** When true, show the "Used in" panel with links to CMS edit pages (admin only) */
+  showUsage?: boolean;
 }
 
-export function MediaPreviewDialog({ item, open, onOpenChange, gated = true }: Props) {
+export function MediaPreviewDialog({ item, open, onOpenChange, gated = true, showUsage = false }: Props) {
   const { i18n } = useTranslation();
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
   // Hook needs a stable entity type; pass id only when gated + open
@@ -132,7 +138,69 @@ export function MediaPreviewDialog({ item, open, onOpenChange, gated = true }: P
             </div>
           )}
         </div>
+
+        {showUsage && item && <UsagePanel mediaId={item.id} lang={lang} />}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function UsagePanel({ mediaId, lang }: { mediaId: string; lang: "pl" | "en" }) {
+  const fetchUsage = useServerFn(getMediaUsage);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["media-usage", mediaId],
+    queryFn: () => fetchUsage({ data: { mediaId } }),
+  });
+  const items = data?.items ?? [];
+  return (
+    <div className="border-t border-border bg-background p-3 max-h-[28vh] overflow-auto shrink-0">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {lang === "pl" ? "Używane w" : "Used in"}
+        </h3>
+        <span className="text-[10px] text-muted-foreground">
+          {isLoading ? "…" : `${items.length}`}
+        </span>
+      </div>
+      {error && (
+        <p className="text-xs text-destructive">
+          {error instanceof Error ? error.message : String(error)}
+        </p>
+      )}
+      {!isLoading && !error && items.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          {lang === "pl"
+            ? "Ten materiał nie jest jeszcze używany w żadnym poście ani stronie."
+            : "This media is not used in any post or page yet."}
+        </p>
+      )}
+      {items.length > 0 && (
+        <ul className="divide-y divide-border border border-border rounded-md overflow-hidden">
+          {items.map((it) => (
+            <li key={`${it.kind}-${it.id}`} className="p-2 flex items-center justify-between gap-3 hover:bg-muted/40 text-xs">
+              <div className="min-w-0">
+                <div className="font-medium truncate">{it.title}</div>
+                <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                  <span className="uppercase">
+                    {it.kind === "post" ? (lang === "pl" ? "Post" : "Post") : (lang === "pl" ? "Strona" : "Page")}
+                  </span>
+                  <span>·</span>
+                  <span className="truncate">/{it.slug}</span>
+                  <span>·</span>
+                  <span className="truncate">{it.where.join(", ")}</span>
+                </div>
+              </div>
+              <Link
+                to={it.kind === "post" ? "/admin/posts/$slug" : "/admin/pages/$slug"}
+                params={{ slug: it.slug }}
+                className="shrink-0 inline-flex items-center gap-1 text-brand hover:underline"
+              >
+                {lang === "pl" ? "Edytuj" : "Edit"} <LinkIcon className="w-3 h-3" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
