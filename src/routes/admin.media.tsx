@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState, useMemo, type ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -14,9 +14,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Upload, Trash2, Copy, Check, Settings as SettingsIcon, Search, X } from "@/lib/lucide-shim";
+import { Upload, Trash2, Copy, Check, Settings as SettingsIcon, Search, X, Link2, ExternalLink } from "@/lib/lucide-shim";
 import { toast } from "sonner";
-import { registerMediaUpload, deleteMedia } from "@/lib/media.functions";
+import { registerMediaUpload, deleteMedia, getMediaUsage, type MediaUsageItem } from "@/lib/media.functions";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { MediaPreviewDialog, type PreviewableMedia } from "@/components/MediaPreviewDialog";
