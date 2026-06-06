@@ -735,71 +735,28 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                 }}
               />
 
-              {scope !== "page" ? (
-                <VisualCanvas
-                  doc={doc} lang={lang} device={device}
-                  selection={selection} setSelection={setSelection}
-                  onInsertSection={insertSectionAt}
-                  onRemoveSection={askRemoveSection}
-                  onMoveWidget={moveWidgetTo}
-                  onMoveWidgetToColumn={moveWidgetToColumn}
-                  onMoveWidgetToSection={moveWidgetToSection}
-                  onMoveSection={moveSectionTo}
-                  onDropNewWidgetToColumn={addWidgetToColumn}
-                  onDropNewWidgetNear={insertWidgetNear}
-                  onDropNewWidgetToSection={appendWidgetToSection}
-                  firstLabel={copy.first} lastLabel={copy.last}
+              {doc.sections.length === 0 && scope === "page" && (
+                <EmptyState
+                  onAdd={addSection}
+                  title={copy.title}
+                  hint={copy.hint}
+                  onLoadHomepage={loadHomepage}
                 />
-              ) : (
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                  {doc.sections.length === 0 && (
-                    <EmptyState
-                      onAdd={addSection}
-                      title={copy.title}
-                      hint={copy.hint}
-                      onLoadHomepage={scope === "page" ? loadHomepage : undefined}
-                    />
-                  )}
-
-
-                  <SectionDropZone onInsert={(s) => insertSectionAt(0, s)} index={0} prominent label={copy.first} onRemoveBelow={doc.sections[0] ? () => askRemoveSection(doc.sections[0].id) : undefined} />
-
-                  {doc.sections.map((s, idx) => (
-                    <div key={s.id}>
-                      <SectionView
-                        section={s} device={device} lang={lang}
-                        selection={selection} setSelection={setSelection}
-                        isFirst={idx === 0} isLast={idx === doc.sections.length - 1}
-                        onMove={(dir) => moveSection(s.id, dir)}
-                        onRemove={() => askRemoveSection(s.id)}
-                        onDuplicate={() => duplicateSection(s.id)}
-                        onSaveTemplate={() => saveSectionAsTemplate(s.id)}
-                        onAddInnerSection={() => addInnerSection(s.id)}
-                        onAddColumn={() => addColumn(s.id)}
-                        onRemoveColumn={askRemoveColumn}
-                        onDuplicateColumn={duplicateColumn}
-                        onRemoveWidget={askRemoveWidget}
-                        onDuplicateWidget={duplicateWidget}
-                        onDropWidget={addWidgetToColumn}
-                        onUpdateWidgetContent={(id, k, v) =>
-                          updateWidget(id, (w) => { w.content = { ...w.content, [k]: v }; })
-                        }
-                        onToggleHidden={(kind, id) => toggleHidden(id, kind as NonNullable<SelectionKind>)}
-                      />
-                      {idx === doc.sections.length - 1 && (
-                        <SectionDropZone
-                          onInsert={(spans) => insertSectionAt(idx + 1, spans)}
-                          index={idx + 1}
-                          prominent
-                          label={copy.last}
-                        />
-                      )}
-
-
-                    </div>
-                  ))}
-                </DndContext>
               )}
+              <VisualCanvas
+                doc={doc} lang={lang} device={device}
+                selection={selection} setSelection={setSelection}
+                onInsertSection={insertSectionAt}
+                onRemoveSection={askRemoveSection}
+                onMoveWidget={moveWidgetTo}
+                onMoveWidgetToColumn={moveWidgetToColumn}
+                onMoveWidgetToSection={moveWidgetToSection}
+                onMoveSection={moveSectionTo}
+                onDropNewWidgetToColumn={addWidgetToColumn}
+                onDropNewWidgetNear={insertWidgetNear}
+                onDropNewWidgetToSection={appendWidgetToSection}
+                firstLabel={copy.first} lastLabel={copy.last}
+              />
             </div>
 
 
