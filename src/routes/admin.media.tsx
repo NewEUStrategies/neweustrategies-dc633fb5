@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Upload, Trash2, Copy, Check, Settings as SettingsIcon, Search, X, Link2, ExternalLink } from "@/lib/lucide-shim";
+import { Upload, Trash2, Copy, Check, Settings as SettingsIcon, Search, X, Link as LinkIcon } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { registerMediaUpload, deleteMedia, getMediaUsage, type MediaUsageItem } from "@/lib/media.functions";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
