@@ -223,6 +223,9 @@ function Media() {
                     <button type="button" onClick={() => copy(m.public_url)} aria-label="Copy URL" className="p-0.5 hover:text-brand">
                       {copied === m.public_url ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
+                    <button type="button" onClick={() => setUsageFor(m)} aria-label="Użycia" title="Pokaż użycia" className="p-0.5 hover:text-brand">
+                      <LinkIcon className="w-3.5 h-3.5" />
+                    </button>
                     <Dialog>
                       <DialogTrigger asChild>
                         <button type="button" aria-label="Dostęp" className="p-0.5 hover:text-brand">
@@ -245,6 +248,64 @@ function Media() {
         </div>
       )}
       <MediaPreviewDialog item={preview} open={!!preview} onOpenChange={(o) => !o && setPreview(null)} gated={false} />
+      <MediaUsageDialog item={usageFor} onClose={() => setUsageFor(null)} fetchUsage={fetchUsage} />
     </div>
+  );
+}
+
+function MediaUsageDialog({
+  item, onClose, fetchUsage,
+}: {
+  item: MediaItem | null;
+  onClose: () => void;
+  fetchUsage: (args: { data: { mediaId: string } }) => Promise<{ items: MediaUsageItem[] }>;
+}) {
+  const open = !!item;
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["media-usage", item?.id],
+    queryFn: () => fetchUsage({ data: { mediaId: item!.id } }),
+    enabled: open,
+  });
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="truncate">Użycia: {item?.filename}</DialogTitle>
+        </DialogHeader>
+        <div className="text-xs">
+          {isLoading && <p className="text-muted-foreground">Sprawdzam użycia…</p>}
+          {error && <p className="text-destructive">Błąd: {error instanceof Error ? error.message : String(error)}</p>}
+          {!isLoading && !error && (data?.items.length ?? 0) === 0 && (
+            <p className="text-muted-foreground">Ten materiał nie jest jeszcze używany w żadnym poście ani stronie.</p>
+          )}
+          {!!data?.items.length && (
+            <ul className="divide-y divide-border border border-border rounded-md overflow-hidden">
+              {data.items.map((it) => (
+                <li key={`${it.kind}-${it.id}`} className="p-2 flex items-center justify-between gap-3 hover:bg-muted/40">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{it.title}</div>
+                    <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                      <span className="uppercase">{it.kind === "post" ? "Post" : "Strona"}</span>
+                      <span>·</span>
+                      <span className="truncate">/{it.slug}</span>
+                      <span>·</span>
+                      <span className="truncate">{it.where.join(", ")}</span>
+                    </div>
+                  </div>
+                  <Link
+                    to={it.kind === "post" ? "/admin/posts/$slug" : "/admin/pages/$slug"}
+                    params={{ slug: it.slug }}
+                    onClick={onClose}
+                    className="shrink-0 inline-flex items-center gap-1 text-brand hover:underline"
+                  >
+                    Edytuj <LinkIcon className="w-3 h-3" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
