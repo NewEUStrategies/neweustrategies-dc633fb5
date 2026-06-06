@@ -145,30 +145,51 @@ export const getMediaUsage = createServerFn({ method: "POST" })
     if (mErr) throw new Error(mErr.message);
     if (!media) throw new Error("Media not found or access denied");
 
-    // Tokens we look for inside text/JSON fields.
-    const tokens = [media.public_url, media.storage_path, media.id]
-      .filter((t): t is string => typeof t === "string" && t.length > 0);
+    // Treat duplicates (same filename, re-uploaded/imported copies) as the same
+    // logical asset — otherwise opening a duplicate would falsely show "0 uses".
+    const tokens = new Set<string>();
+    if (media.public_url) tokens.add(media.public_url);
+    if (media.storage_path) tokens.add(media.storage_path);
+    tokens.add(media.id);
+
+    if (media.filename) {
+      const { data: siblings } = await supabase
+        .from("media")
+        .select("id, public_url, storage_path")
+        .eq("filename", media.filename);
+      for (const s of siblings ?? []) {
+        if (s.public_url) tokens.add(s.public_url);
+        if (s.storage_path) tokens.add(s.storage_path);
+        tokens.add(s.id);
+      }
+    }
+
+    const tokenList = Array.from(tokens).filter((t) => t && t.length > 0);
 
     const matches = (haystack: unknown): boolean => {
       if (haystack == null) return false;
       const s = typeof haystack === "string" ? haystack : JSON.stringify(haystack);
-      return tokens.some((tok) => s.includes(tok));
+      return tokenList.some((tok) => s.includes(tok));
     };
+    const matchesUrl = (url: string | null | undefined): boolean =>
+      !!url && tokenList.some((tok) => url.includes(tok));
 
     const out: MediaUsageItem[] = [];
 
     // POSTS
     const { data: posts, error: pErr } = await supabase
       .from("posts")
-      .select("id, slug, title_pl, title_en, cover_image_url, content_pl, content_en, builder_data, blocks_data")
+      .select("id, slug, title_pl, title_en, cover_image_url, excerpt_pl, excerpt_en, content_pl, content_en, builder_data, blocks_data, layout_overrides")
       .is("deleted_at", null);
     if (pErr) throw new Error(pErr.message);
     for (const p of posts ?? []) {
       const where: string[] = [];
-      if (p.cover_image_url && tokens.some((t) => p.cover_image_url!.includes(t))) where.push("Okładka");
+      if (matchesUrl(p.cover_image_url)) where.push("Okładka");
+      if (matches(p.excerpt_pl) || matches(p.excerpt_en)) where.push("Zajawka");
       if (matches(p.content_pl) || matches(p.content_en)) where.push("Treść");
       if (matches(p.builder_data)) where.push("Builder");
       if (matches(p.blocks_data)) where.push("Bloki");
+      if (matches(p.layout_overrides)) where.push("Layout");
       if (where.length) {
         out.push({
           kind: "post",
@@ -183,14 +204,16 @@ export const getMediaUsage = createServerFn({ method: "POST" })
     // PAGES
     const { data: pages, error: gErr } = await supabase
       .from("pages")
-      .select("id, slug, title_pl, title_en, cover_image_url, content_pl, content_en, builder_data")
+      .select("id, slug, title_pl, title_en, cover_image_url, excerpt_pl, excerpt_en, content_pl, content_en, builder_data, layout_overrides")
       .is("deleted_at", null);
     if (gErr) throw new Error(gErr.message);
     for (const p of pages ?? []) {
       const where: string[] = [];
-      if (p.cover_image_url && tokens.some((t) => p.cover_image_url!.includes(t))) where.push("Okładka");
+      if (matchesUrl(p.cover_image_url)) where.push("Okładka");
+      if (matches(p.excerpt_pl) || matches(p.excerpt_en)) where.push("Zajawka");
       if (matches(p.content_pl) || matches(p.content_en)) where.push("Treść");
       if (matches(p.builder_data)) where.push("Builder");
+      if (matches(p.layout_overrides)) where.push("Layout");
       if (where.length) {
         out.push({
           kind: "page",
