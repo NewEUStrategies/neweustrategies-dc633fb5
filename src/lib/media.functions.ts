@@ -116,3 +116,91 @@ export const deleteMedia = createServerFn({ method: "POST" })
 
     return { ok: true };
   });
+
+// ---------- Media usage lookup ----------
+// Finds posts/pages that reference a given media item (by id, public URL, or
+// storage path). Scans cover_image_url, content (HTML), builder_data and
+// blocks_data (JSON). Scoped to the user's tenant by RLS.
+const UsageSchema = z.object({ mediaId: z.string().uuid() });
+
+export type MediaUsageItem = {
+  kind: "post" | "page";
+  id: string;
+  slug: string;
+  title: string;
+  where: string[];
+};
+
+export const getMediaUsage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => UsageSchema.parse(input))
+  .handler(async ({ data, context }): Promise<{ items: MediaUsageItem[] }> => {
+    const { supabase } = context;
+
+    const { data: media, error: mErr } = await supabase
+      .from("media")
+      .select("id, public_url, storage_path, filename")
+      .eq("id", data.mediaId)
+      .maybeSingle();
+    if (mErr) throw new Error(mErr.message);
+    if (!media) throw new Error("Media not found or access denied");
+
+    // Tokens we look for inside text/JSON fields.
+    const tokens = [media.public_url, media.storage_path, media.id]
+      .filter((t): t is string => typeof t === "string" && t.length > 0);
+
+    const matches = (haystack: unknown): boolean => {
+      if (haystack == null) return false;
+      const s = typeof haystack === "string" ? haystack : JSON.stringify(haystack);
+      return tokens.some((tok) => s.includes(tok));
+    };
+
+    const out: MediaUsageItem[] = [];
+
+    // POSTS
+    const { data: posts, error: pErr } = await supabase
+      .from("posts")
+      .select("id, slug, title_pl, title_en, cover_image_url, content_pl, content_en, builder_data, blocks_data")
+      .is("deleted_at", null);
+    if (pErr) throw new Error(pErr.message);
+    for (const p of posts ?? []) {
+      const where: string[] = [];
+      if (p.cover_image_url && tokens.some((t) => p.cover_image_url!.includes(t))) where.push("Okładka");
+      if (matches(p.content_pl) || matches(p.content_en)) where.push("Treść");
+      if (matches(p.builder_data)) where.push("Builder");
+      if (matches(p.blocks_data)) where.push("Bloki");
+      if (where.length) {
+        out.push({
+          kind: "post",
+          id: p.id,
+          slug: p.slug,
+          title: p.title_pl || p.title_en || p.slug,
+          where,
+        });
+      }
+    }
+
+    // PAGES
+    const { data: pages, error: gErr } = await supabase
+      .from("pages")
+      .select("id, slug, title_pl, title_en, cover_image_url, content_pl, content_en, builder_data")
+      .is("deleted_at", null);
+    if (gErr) throw new Error(gErr.message);
+    for (const p of pages ?? []) {
+      const where: string[] = [];
+      if (p.cover_image_url && tokens.some((t) => p.cover_image_url!.includes(t))) where.push("Okładka");
+      if (matches(p.content_pl) || matches(p.content_en)) where.push("Treść");
+      if (matches(p.builder_data)) where.push("Builder");
+      if (where.length) {
+        out.push({
+          kind: "page",
+          id: p.id,
+          slug: p.slug,
+          title: p.title_pl || p.title_en || p.slug,
+          where,
+        });
+      }
+    }
+
+    return { items: out };
+  });
