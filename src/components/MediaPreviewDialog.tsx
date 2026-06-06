@@ -83,7 +83,7 @@ export function MediaPreviewDialog({ item, open, onOpenChange, gated = true, sho
       <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
         <DialogHeader className="p-4 border-b border-border flex-row items-center justify-between space-y-0">
           <DialogTitle className="truncate pr-4">{item.filename}</DialogTitle>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 mr-10">
             <span className="text-xs text-muted-foreground hidden sm:inline">
               {mime || "plik"}
               {item.size_bytes ? ` · ${(item.size_bytes / 1024).toFixed(0)} KB` : ""}
