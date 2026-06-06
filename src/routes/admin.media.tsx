@@ -61,6 +61,8 @@ function Media() {
   const [authorFilter, setAuthorFilter] = useState<string>("all");
   const registerUpload = useServerFn(registerMediaUpload);
   const removeMedia = useServerFn(deleteMedia);
+  const fetchUsage = useServerFn(getMediaUsage);
+  const [usageFor, setUsageFor] = useState<MediaItem | null>(null);
 
   const authorsQ = useTenantAuthors(tenantId);
   const authorMap = useMemo(
