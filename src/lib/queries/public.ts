@@ -173,7 +173,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
           supabase
             .from("posts")
             .select(
-              "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, content_pl, content_en, editor, builder_data, blocks_data, cover_image_url, published_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en",
+              "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, content_pl, content_en, editor, builder_data, blocks_data, cover_image_url, published_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, custom_meta",
             )
             .eq("id", hit.post_id)
             .maybeSingle(),
