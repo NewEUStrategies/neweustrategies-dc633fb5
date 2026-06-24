@@ -118,6 +118,8 @@ function EditPage() {
           builder_data: snapshot.builder_data,
           parent_id: snapshot.parent_id,
           menu_order: snapshot.menu_order,
+          template_type: snapshot.template_type,
+          header_override: snapshot.header_override,
         },
       },
     });
