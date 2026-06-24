@@ -175,8 +175,16 @@ export function ThemeOptionsPane() {
   const { query, save } = useSettings<any>("theme_options", DEFAULTS as any);
   const [draft, setDraft] = useState<ThemeOptions | null>(null);
   useEffect(() => { if (query.data && !draft) setDraft(query.data as ThemeOptions); }, [query.data, draft]);
-  const [active, setActive] = useState<(typeof SECTIONS)[number]["id"]>("logo");
+  const [active, setActive] = useState<(typeof SECTIONS)[number]["id"]>(() => {
+    if (typeof window !== "undefined") {
+      const h = window.location.hash.replace(/^#/, "");
+      const found = SECTIONS.find((s) => s.id === h);
+      if (found) return found.id;
+    }
+    return "logo";
+  });
   const [logoTab, setLogoTab] = useState<"default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark">("default");
+
 
   if (!draft) return <p className="text-sm text-muted-foreground">{t("themeOptions.loading")}</p>;
 
