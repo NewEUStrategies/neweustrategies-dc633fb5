@@ -27,6 +27,13 @@ export function AuthLink({ className = "" }: { className?: string }) {
       </Link>
     );
   }
+  if (session) {
+    return (
+      <Link to="/profile" className={`inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline ${className}`}>
+        <User className="w-3.5 h-3.5" /> {lang === "pl" ? "Profil" : "Profile"}
+      </Link>
+    );
+  }
   return (
     <Link to="/login" className={`inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-brand ${className}`}>
       <LogIn className="w-3.5 h-3.5" /> {label}
