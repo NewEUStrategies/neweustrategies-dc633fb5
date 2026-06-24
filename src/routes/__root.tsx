@@ -23,6 +23,7 @@ import { ThemeOptionsStyle } from "../components/ThemeOptionsStyle";
 import { ThemeDesignStyle } from "../components/theme/ThemeDesignStyle";
 import { LoginPopup } from "../components/LoginPopup";
 import { ConsentBanner } from "../components/ConsentBanner";
+import { NewsletterPopup } from "../components/NewsletterPopup";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { CommandPalette } from "../components/search/CommandPalette";
 
@@ -154,6 +155,7 @@ function RootComponent() {
           </ErrorBoundary>
           <LoginPopup />
           <ConsentBanner />
+          <NewsletterPopup />
           <CommandPalette />
           <Toaster />
         </AuthProvider>
