@@ -22,8 +22,13 @@ const HEADING_RE = /<h([23])([^>]*)>([\s\S]*?)<\/h\1>/gi;
 const ID_ATTR_RE = /\sid\s*=\s*"([^"]+)"/i;
 const TOC_MARKER_RE = /<!--\s*TOC\s*-->/i;
 
+const PL_MAP: Record<string, string> = {
+  "ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "đ": "d", "Đ": "D", "ß": "ss",
+};
+
 export function slugifyHeading(input: string): string {
   return input
+    .replace(/[łŁøØđĐß]/g, (c) => PL_MAP[c] ?? c)
     .toLowerCase()
     .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
