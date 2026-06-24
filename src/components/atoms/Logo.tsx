@@ -41,11 +41,22 @@ export function Logo({ size = "md", withWordmark = true, variant = "main" }: Log
     return main;
   })();
   const src = resolved || logoSrc;
+  const showWordmark = withWordmark && !resolved;
 
   return (
     <Link to="/" className="flex items-center gap-3" aria-label="New European Strategies - strona główna">
-      <img src={src} alt="" className={SIZE[size]} width={56} height={56} />
-      {withWordmark && !resolved && (
+      <img
+        src={src}
+        alt=""
+        className={SIZE[size]}
+        width={56}
+        height={56}
+        onError={(e) => {
+          const img = e.currentTarget;
+          if (img.src !== logoSrc) img.src = logoSrc;
+        }}
+      />
+      {showWordmark && (
         <span className="leading-[1.05] font-display font-bold text-xl md:text-2xl">
           <span className="block">New</span>
           <span className="block text-brand">European</span>
