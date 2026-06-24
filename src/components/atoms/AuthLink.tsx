@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { LayoutDashboard, LogIn } from "@/lib/lucide-shim";
+import { LayoutDashboard, LogIn, UserCircle } from "@/lib/lucide-shim";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useHasMounted } from "@/hooks/useHasMounted";
