@@ -243,3 +243,125 @@ function Page() {
     </AdminShell>
   );
 }
+
+function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
+  const [lang, setLang] = useState<"pl" | "en">("pl");
+  const [mode, setMode] = useState<"inline" | "popup">("inline");
+  const heading = lang === "pl" ? settings.heading_pl : settings.heading_en;
+  const description = lang === "pl" ? settings.description_pl : settings.description_en;
+  const policyHtml = (lang === "pl" ? settings.policy_html_pl : settings.policy_html_en) ?? "";
+  const popupTitle = lang === "pl" ? settings.popup_title_pl : settings.popup_title_en;
+  const popupDesc = lang === "pl" ? settings.popup_description_pl : settings.popup_description_en;
+  const popupCta = lang === "pl" ? settings.popup_cta_pl : settings.popup_cta_en;
+  const submitLabel = lang === "pl" ? "Zapisz się" : "Subscribe";
+  const emailPh = lang === "pl" ? "twoj@email.pl" : "you@email.com";
+  const namePh = lang === "pl" ? "Imię (opcjonalnie)" : "Name (optional)";
+
+  return (
+    <aside className="xl:sticky xl:top-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <Eye className="w-3.5 h-3.5" /> Podgląd na żywo
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setLang("pl")}
+            className={`px-2 py-1 text-xs rounded ${lang === "pl" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+          >PL</button>
+          <button
+            type="button"
+            onClick={() => setLang("en")}
+            className={`px-2 py-1 text-xs rounded ${lang === "en" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+          >EN</button>
+        </div>
+      </div>
+
+      <div className="flex gap-1 p-1 rounded-md bg-muted/60 border border-border">
+        <button
+          type="button"
+          onClick={() => setMode("inline")}
+          className={`flex-1 px-2 py-1.5 text-xs rounded ${mode === "inline" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+        >Formularz inline</button>
+        <button
+          type="button"
+          onClick={() => setMode("popup")}
+          className={`flex-1 px-2 py-1.5 text-xs rounded ${mode === "popup" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+        >Popup</button>
+      </div>
+
+      <div className="rounded-lg border border-border bg-gradient-to-br from-muted/40 to-muted/10 p-4 min-h-[400px]">
+        {mode === "inline" ? (
+          settings.enabled ? (
+            <div className="bg-card border border-border rounded-lg p-5 shadow-sm space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Mail className="w-4 h-4 text-primary" />
+                </div>
+                <h3 className="font-display text-lg">{heading || "—"}</h3>
+              </div>
+              {description && <p className="text-sm text-muted-foreground">{description}</p>}
+              <div className="space-y-2">
+                <Input placeholder={emailPh} readOnly />
+                <Input placeholder={namePh} readOnly />
+                <Button className="w-full" type="button">{submitLabel}</Button>
+              </div>
+              {policyHtml && (
+                <p
+                  className="text-[11px] text-muted-foreground leading-relaxed [&_a]:underline"
+                  dangerouslySetInnerHTML={{ __html: policyHtml }}
+                />
+              )}
+            </div>
+          ) : (
+            <div className="text-center text-sm text-muted-foreground py-12">
+              Formularz newslettera jest wyłączony.
+            </div>
+          )
+        ) : (
+          settings.popup_enabled ? (
+            <div className="relative bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+              <button
+                type="button"
+                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-muted-foreground hover:text-foreground z-10"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              {settings.popup_cover_url && (
+                <img src={settings.popup_cover_url} alt="" className="w-full h-32 object-cover" />
+              )}
+              <div className="p-5 space-y-3">
+                <h3 className="font-display text-xl">{popupTitle || "—"}</h3>
+                {popupDesc && <p className="text-sm text-muted-foreground">{popupDesc}</p>}
+                <Input placeholder={emailPh} readOnly />
+                <Button className="w-full" type="button">{popupCta || submitLabel}</Button>
+                {policyHtml && (
+                  <p
+                    className="text-[11px] text-muted-foreground leading-relaxed [&_a]:underline"
+                    dangerouslySetInnerHTML={{ __html: policyHtml }}
+                  />
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center text-sm text-muted-foreground py-12">
+              Popup newslettera jest wyłączony.
+            </div>
+          )
+        )}
+      </div>
+
+      {mode === "popup" && settings.popup_enabled && (
+        <div className="text-[11px] text-muted-foreground space-y-0.5 px-1">
+          <div>Trigger: <span className="font-medium text-foreground">{settings.popup_trigger}</span>
+            {settings.popup_trigger === "delay" && <> ({settings.popup_delay_seconds}s)</>}
+            {settings.popup_trigger === "scroll" && <> ({settings.popup_scroll_percent}%)</>}
+          </div>
+          <div>Częstotliwość: co {settings.popup_frequency_days} dni</div>
+        </div>
+      )}
+    </aside>
+  );
+}
+
