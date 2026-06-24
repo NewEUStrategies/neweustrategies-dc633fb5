@@ -146,9 +146,10 @@ function Page() {
         {!editing && (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <StatCard icon={ListMusic} label="Wszystkie" value={String(stats.total)} tone="default" />
-              <StatCard icon={CheckCircle2} label="Opublikowane" value={String(stats.published)} tone="success" />
-              <StatCard icon={FileEdit} label="Szkice" value={String(stats.drafts)} tone="warning" />
+              <StatCard icon={Mic} label="Wszystkie" value={String(stats.total)} tone="default" />
+              <StatCard icon={Check} label="Opublikowane" value={String(stats.published)} tone="success" />
+              <StatCard icon={FileText} label="Szkice" value={String(stats.drafts)} tone="warning" />
+
               <StatCard icon={Clock} label="Łączny czas" value={formatDuration(stats.totalSeconds)} tone="default" />
             </div>
 
