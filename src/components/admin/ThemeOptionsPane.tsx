@@ -221,7 +221,10 @@ export function ThemeOptionsPane() {
       <section className="border border-border rounded-lg bg-card p-5 space-y-5">
         {active === "global_colors" ? (
           <GlobalColorsEditor />
+        ) : active === "design" ? (
+          <ThemeDesignPane />
         ) : (
+
         <>
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg">{(() => { const s = SECTIONS.find((x) => x.id === active); return s ? t(s.labelKey) : ""; })()}</h3>
