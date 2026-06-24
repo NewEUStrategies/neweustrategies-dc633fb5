@@ -131,7 +131,7 @@ export function ThemeDesignPane() {
         </Grid>
       </Section>
 
-      <Section title="Przycisk „Czytaj więcej"">
+      <Section title={"Przycisk „Czytaj więcej”"}>
         <Grid>
           <Field label="Kolor tła"><Input value={draft.readMoreButton.bgColor} onChange={(e) => set("readMoreButton", { bgColor: e.target.value })} /></Field>
           <Field label="Kolor tekstu"><Input value={draft.readMoreButton.color} onChange={(e) => set("readMoreButton", { color: e.target.value })} /></Field>
