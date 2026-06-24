@@ -82,7 +82,14 @@ export interface AccessPlan {
   interval: "month" | "year" | "one_time";
   active: boolean;
   sort_order: number;
+  features_pl: string[];
+  features_en: string[];
+  badge_pl: string | null;
+  badge_en: string | null;
+  highlighted: boolean;
+  trial_days: number;
 }
+
 
 export function formatMoney(cents: number, currency: string) {
   try {

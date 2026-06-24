@@ -67,6 +67,7 @@ import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearan
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
 import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.appearance.global-colors'
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
+import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -360,6 +361,11 @@ const AdminAppearanceFooterRoute = AdminAppearanceFooterRouteImport.update({
   path: '/footer',
   getParentRoute: () => AdminAppearanceRoute,
 } as any)
+const ApiPublicWebhooksStripeRoute = ApiPublicWebhooksStripeRouteImport.update({
+  id: '/api/public/webhooks/stripe',
+  path: '/api/public/webhooks/stripe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicNewsletterConfirmRoute =
   ApiPublicNewsletterConfirmRouteImport.update({
     id: '/api/public/newsletter/confirm',
@@ -427,6 +433,7 @@ export interface FileRoutesByFullPath {
   '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
+  '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -485,6 +492,7 @@ export interface FileRoutesByTo {
   '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
+  '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -547,6 +555,7 @@ export interface FileRoutesById {
   '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
+  '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -610,6 +619,7 @@ export interface FileRouteTypes {
     | '/api/public/sitemap.xml'
     | '/admin/settings/'
     | '/api/public/newsletter/confirm'
+    | '/api/public/webhooks/stripe'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -668,6 +678,7 @@ export interface FileRouteTypes {
     | '/api/public/sitemap.xml'
     | '/admin/settings'
     | '/api/public/newsletter/confirm'
+    | '/api/public/webhooks/stripe'
   id:
     | '__root__'
     | '/'
@@ -729,6 +740,7 @@ export interface FileRouteTypes {
     | '/api/public/sitemap.xml'
     | '/admin/settings/'
     | '/api/public/newsletter/confirm'
+    | '/api/public/webhooks/stripe'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -751,6 +763,7 @@ export interface RootRouteChildren {
   ApiPublicRobotsDottxtRoute: typeof ApiPublicRobotsDottxtRoute
   ApiPublicSitemapDotxmlRoute: typeof ApiPublicSitemapDotxmlRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
+  ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1161,6 +1174,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppearanceFooterRouteImport
       parentRoute: typeof AdminAppearanceRoute
     }
+    '/api/public/webhooks/stripe': {
+      id: '/api/public/webhooks/stripe'
+      path: '/api/public/webhooks/stripe'
+      fullPath: '/api/public/webhooks/stripe'
+      preLoaderRoute: typeof ApiPublicWebhooksStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/newsletter/confirm': {
       id: '/api/public/newsletter/confirm'
       path: '/api/public/newsletter/confirm'
@@ -1328,6 +1348,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRobotsDottxtRoute: ApiPublicRobotsDottxtRoute,
   ApiPublicSitemapDotxmlRoute: ApiPublicSitemapDotxmlRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
+  ApiPublicWebhooksStripeRoute: ApiPublicWebhooksStripeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
