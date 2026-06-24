@@ -518,6 +518,17 @@ function EditPost() {
                 />
               </div>
 
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Powiązane wpisy - override</h3>
+                  <Link to="/admin/related-posts" className="text-xs text-brand underline">Konfiguracja globalna</Link>
+                </div>
+                <RelatedOverrideEditor
+                  value={form.related_override}
+                  onChange={(next) => set("related_override", next)}
+                />
+              </div>
+
               <div className="flex justify-end pt-2 border-t border-border">
                 <Button onClick={() => setStep("content")} disabled={!form.title_pl.trim() && !form.title_en.trim()}>
                   Przejdź do edycji treści <ArrowRight className="w-4 h-4 ml-2" />
