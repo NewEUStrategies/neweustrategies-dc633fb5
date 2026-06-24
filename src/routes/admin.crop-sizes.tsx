@@ -36,7 +36,21 @@ function CropSizesAdmin() {
   });
 
   const [draft, setDraft] = useState<CropSizeDraft & { id?: string }>(DEFAULT_DRAFT);
+  const [regenStatus, setRegenStatus] = useState<string | null>(null);
+  const regen$ = useServerFn(regenerateThumbnails);
   const refresh = () => qc.invalidateQueries({ queryKey: ["cropSizes"] });
+
+  const regenerate = async () => {
+    setRegenStatus("...");
+    try {
+      const r = await regen$({ data: { limit: 100 } });
+      setRegenStatus(`Media: ${r.media} | rozmiary: ${r.sizes} | OK: ${r.ok} | błędy: ${r.failed}`);
+      toast.success("Pre-warm zakończony");
+    } catch (e) {
+      setRegenStatus(null);
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const save = async () => {
     if (!draft.name.trim()) { toast.error("Nazwa wymagana"); return; }
