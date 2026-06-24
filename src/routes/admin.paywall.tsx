@@ -119,8 +119,24 @@ function PaywallAdmin() {
               <label className="flex items-center gap-2 text-sm">
                 <Switch checked={!!draft.active} onCheckedChange={(v) => setDraft({ ...draft, active: v })} /> {t("admin.paywall.active")}
               </label>
+              <label className="flex items-center gap-2 text-sm">
+                <Switch checked={!!draft.highlighted} onCheckedChange={(v) => setDraft({ ...draft, highlighted: v })} /> {t("admin.paywall.highlighted", "Wyróżniony")}
+              </label>
               <div className="ml-auto"><Label>{t("admin.paywall.sort")}</Label><Input type="number" value={draft.sort_order ?? 0} onChange={(e) => setDraft({ ...draft, sort_order: Number(e.target.value) })} className="w-24" /></div>
             </div>
+            <div><Label>{t("admin.paywall.badgePl", "Plakietka (PL)")}</Label><Input value={draft.badge_pl ?? ""} onChange={(e) => setDraft({ ...draft, badge_pl: e.target.value })} placeholder="Najpopularniejszy" /></div>
+            <div><Label>{t("admin.paywall.badgeEn", "Badge (EN)")}</Label><Input value={draft.badge_en ?? ""} onChange={(e) => setDraft({ ...draft, badge_en: e.target.value })} placeholder="Most popular" /></div>
+            <div><Label>{t("admin.paywall.trialDays", "Dni okresu próbnego")}</Label><Input type="number" min={0} value={draft.trial_days ?? 0} onChange={(e) => setDraft({ ...draft, trial_days: Number(e.target.value) })} /></div>
+            <div></div>
+            <div className="sm:col-span-2">
+              <Label>{t("admin.paywall.featuresPl", "Funkcje (PL, jedna na linię)")}</Label>
+              <Textarea rows={4} value={(draft.features_pl ?? []).join("\n")} onChange={(e) => setDraft({ ...draft, features_pl: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>{t("admin.paywall.featuresEn", "Features (EN, one per line)")}</Label>
+              <Textarea rows={4} value={(draft.features_en ?? []).join("\n")} onChange={(e) => setDraft({ ...draft, features_en: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })} />
+            </div>
+
           </div>
           <div className="flex gap-2 mt-5">
             <Button onClick={save} disabled={busy}><Plus className="w-4 h-4 mr-2" />{draft.id ? t("admin.save") : t("admin.paywall.addPlan")}</Button>
