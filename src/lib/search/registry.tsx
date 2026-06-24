@@ -48,11 +48,11 @@ const Icon = (C: typeof Home) => <C className="w-4 h-4" />;
 export const STATIC_COMMANDS: PaletteCommand[] = [
   // Public navigation
   { id: "nav:home", section: "navigation", label_pl: "Strona główna", label_en: "Home", to: "/", icon: Icon(Home), keywords_pl: ["start"], keywords_en: ["index"] },
-  { id: "nav:blog", section: "navigation", label_pl: "Blog", label_en: "Blog", to: "/blog", icon: Icon(Newspaper) },
-  { id: "nav:pricing", section: "navigation", label_pl: "Cennik", label_en: "Pricing", to: "/pricing", icon: Icon(CreditCard) },
+  { id: "nav:blog", section: "navigation", label_pl: "Blog", label_en: "Blog", to: "/blog", icon: Icon(Newspaper), popular: true },
+  { id: "nav:pricing", section: "navigation", label_pl: "Cennik", label_en: "Pricing", to: "/pricing", icon: Icon(CreditCard), popular: true },
 
   // Account
-  { id: "acc:profile", section: "account", label_pl: "Mój profil", label_en: "My profile", to: "/profile", icon: Icon(UserIcon), authOnly: true },
+  { id: "acc:profile", section: "account", label_pl: "Mój profil", label_en: "My profile", to: "/profile", icon: Icon(UserIcon), popular: true, authOnly: true },
   { id: "acc:account", section: "account", label_pl: "Konto", label_en: "Account", to: "/profile/account", icon: Icon(UserIcon), authOnly: true },
   { id: "acc:billing", section: "account", label_pl: "Płatności", label_en: "Billing", to: "/profile/billing", icon: Icon(CreditCard), authOnly: true },
   { id: "acc:orders", section: "account", label_pl: "Zamówienia", label_en: "Orders", to: "/profile/orders", icon: Icon(CreditCard), authOnly: true },
@@ -60,12 +60,12 @@ export const STATIC_COMMANDS: PaletteCommand[] = [
   { id: "acc:subscription", section: "account", label_pl: "Subskrypcja", label_en: "Subscription", to: "/profile/subscription", icon: Icon(ListOrdered), authOnly: true },
 
   // Admin
-  { id: "adm:dashboard", section: "admin", label_pl: "Panel administratora", label_en: "Admin dashboard", to: "/admin", icon: Icon(LayoutDashboard), adminOnly: true },
-  { id: "adm:pages", section: "admin", label_pl: "Strony", label_en: "Pages", to: "/admin/pages", icon: Icon(FileText), adminOnly: true, keywords_pl: ["pages"], keywords_en: ["strony"] },
+  { id: "adm:dashboard", section: "admin", label_pl: "Panel administratora", label_en: "Admin dashboard", to: "/admin", icon: Icon(LayoutDashboard), popular: true, adminOnly: true },
+  { id: "adm:pages", section: "admin", label_pl: "Strony", label_en: "Pages", to: "/admin/pages", icon: Icon(FileText), popular: true, adminOnly: true, keywords_pl: ["pages"], keywords_en: ["strony"] },
   { id: "adm:pages.new", section: "admin", label_pl: "Nowa strona", label_en: "New page", to: "/admin/pages/new", icon: Icon(FileText), adminOnly: true },
-  { id: "adm:posts", section: "admin", label_pl: "Wpisy", label_en: "Posts", to: "/admin/posts", icon: Icon(FileText), adminOnly: true },
+  { id: "adm:posts", section: "admin", label_pl: "Wpisy", label_en: "Posts", to: "/admin/posts", icon: Icon(FileText), adminOnly: true, popular: true },
   { id: "adm:posts.new", section: "admin", label_pl: "Nowy wpis", label_en: "New post", to: "/admin/posts/new", icon: Icon(FileText), adminOnly: true },
-  { id: "adm:media", section: "admin", label_pl: "Media", label_en: "Media", to: "/admin/media", icon: Icon(ImageIcon), adminOnly: true },
+  { id: "adm:media", section: "admin", label_pl: "Media", label_en: "Media", to: "/admin/media", icon: Icon(ImageIcon), popular: true, adminOnly: true },
   { id: "adm:categories", section: "admin", label_pl: "Kategorie", label_en: "Categories", to: "/admin/categories", icon: Icon(Tags), adminOnly: true },
   { id: "adm:ads", section: "admin", label_pl: "Reklamy", label_en: "Advertising", to: "/admin/ads", icon: Icon(Megaphone), adminOnly: true },
   { id: "adm:newsletter", section: "admin", label_pl: "Newsletter", label_en: "Newsletter", to: "/admin/newsletter", icon: Icon(Mail), adminOnly: true },
