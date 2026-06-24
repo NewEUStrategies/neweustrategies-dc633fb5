@@ -62,14 +62,27 @@ interface Props {
   value: string | undefined;
   onChange: (stack: string | undefined) => void;
   sampleText?: string;
+  /** Tenant-uploaded custom fonts (rendered as extra options at the top). */
+  customFonts?: CustomFont[];
 }
 
-export function FontPicker({ value, onChange, sampleText = "Aa — The quick brown fox" }: Props) {
+export function FontPicker({
+  value, onChange, sampleText = "Aa — The quick brown fox", customFonts = [],
+}: Props) {
   useLoadGoogleFonts();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const selected = useMemo(() => findOption(value), [value]);
+  const customOptions = useMemo<FontOption[]>(
+    () => customFonts.map((f) => ({
+      label: `${f.label} (własny)`,
+      stack: `"${f.id}", system-ui, sans-serif`,
+      hint: "Własny font",
+    })),
+    [customFonts],
+  );
+  const allOptions = useMemo(() => [...customOptions, ...FONT_OPTIONS], [customOptions]);
+  const selected = useMemo(() => allOptions.find((o) => o.stack === value), [allOptions, value]);
 
   useEffect(() => {
     if (!open) return;
