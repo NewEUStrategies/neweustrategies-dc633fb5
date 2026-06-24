@@ -28,6 +28,10 @@ import { KeyTakeaways, PostSidebar } from "@/components/molecules";
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { mergeOverrides, pickLayoutId, type LayoutOverrides, type PostFormat } from "@/lib/postLayouts";
 import { resolvedContentQueryOptions, type PostData } from "@/lib/queries/public";
+import { AdZone } from "@/components/AdSlot";
+import { MidPostAds } from "@/components/ads/MidPostAds";
+import { FooterSlideup } from "@/components/ads/FooterSlideup";
+import type { AdPageType } from "@/lib/ads/types";
 
 
 function splatToSegments(splat: string): string[] {
