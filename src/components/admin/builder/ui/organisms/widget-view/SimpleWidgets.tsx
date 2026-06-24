@@ -1,6 +1,6 @@
 // Read-only widget renderers (no inline editing). Returns null when the
 // widget type isn't handled here — caller falls through to the main switch.
-import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type ReactNode, type SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { WidgetNode } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
@@ -20,14 +20,21 @@ import { useTheme } from "@/components/ThemeProvider";
 import { useQuery } from "@tanstack/react-query";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
+type SiteLogoVariant = "main" | "mobile" | "transparent";
 type SiteLogoCfg = { logo?: { main?: string; main_dark?: string; mobile?: string; mobile_dark?: string; transparent?: string; transparent_dark?: string } };
-function useSiteLogo(variant: "main" | "mobile" | "transparent" = "main"): { light: string; dark: string } {
+function useSiteLogo(variant: SiteLogoVariant = "main"): { light: string; dark: string } {
   const { data } = useQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<SiteLogoCfg>(data, "theme_options", {});
   const l = cfg.logo ?? {};
   const lightKey = variant;
   const darkKey = `${variant}_dark` as const;
-  return { light: (l as Record<string, string | undefined>)[lightKey] ?? "", dark: (l as Record<string, string | undefined>)[darkKey] ?? "" };
+  const logoMap = l as Record<string, string | undefined>;
+  const main = safeImageUrl(logoMap.main ?? "");
+  const mainDark = safeImageUrl(logoMap.main_dark ?? "");
+  return {
+    light: safeImageUrl(logoMap[lightKey] ?? "") || main,
+    dark: safeImageUrl(logoMap[darkKey] ?? "") || mainDark || main,
+  };
 }
 
 type Lang = "pl" | "en";
@@ -53,12 +60,12 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
   // Fallback: use site logo from theme_options when no src is configured AND
   // either explicit useSiteLogo flag is set, or alt text indicates a logo
   // (matches default chrome seeds where alt = "Logo").
-  const siteLogoVariant = (getStr(c, "useSiteLogo") || "") as "" | "main" | "mobile" | "transparent";
+  const siteLogoVariant = (getStr(c, "useSiteLogo") || "") as "" | SiteLogoVariant;
   const altIsLogo = /logo/i.test(alt);
-  const wantsSiteLogo = !rawSrc && !rawSrcDark && (siteLogoVariant !== "" || altIsLogo);
+  const wantsSiteLogo = siteLogoVariant !== "" || altIsLogo;
   const siteLogo = useSiteLogo(siteLogoVariant || "main");
-  const src = rawSrc || (wantsSiteLogo ? siteLogo.light : "");
-  const srcDark = rawSrcDark || (wantsSiteLogo ? siteLogo.dark : "");
+  const src = wantsSiteLogo ? siteLogo.light || rawSrc : rawSrc;
+  const srcDark = wantsSiteLogo ? siteLogo.dark || rawSrcDark || siteLogo.light || rawSrc : rawSrcDark;
 
   const variantCls =
     variant === "rounded" ? "rounded-xl"
@@ -88,13 +95,19 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
   const figureAlign = align === "left" ? "items-start" : align === "right" ? "items-end" : "items-center";
   const showResize = editable && !!onContentChange;
   const imgCls = `max-w-full h-auto ${variantCls}`;
+  const applyLogoFallback = (event: SyntheticEvent<HTMLImageElement>) => {
+    if (!wantsSiteLogo) return;
+    const img = event.currentTarget;
+    const fallback = img.classList.contains("gc-img-dark") ? srcDark || src : src || srcDark;
+    if (fallback && img.src !== fallback) img.src = fallback;
+  };
   const imgEl = hasBoth ? (
     <>
-      <img src={lightSrc} alt={alt} className={`${imgCls} gc-img-light`} style={imgStyle} loading="lazy" />
-      <img src={darkSrc} alt={alt} className={`${imgCls} gc-img-dark`} style={imgStyle} loading="lazy" />
+      <img src={lightSrc} alt={alt} className={`${imgCls} gc-img-light`} style={imgStyle} loading="lazy" onError={applyLogoFallback} />
+      <img src={darkSrc} alt={alt} className={`${imgCls} gc-img-dark`} style={imgStyle} loading="lazy" onError={applyLogoFallback} />
     </>
   ) : (
-    <img src={theme === "dark" ? darkSrc : lightSrc} alt={alt} className={imgCls} style={imgStyle} loading="lazy" />
+    <img src={theme === "dark" ? darkSrc : lightSrc} alt={alt} className={imgCls} style={imgStyle} loading="lazy" onError={applyLogoFallback} />
   );
   return (
     <figure className={`space-y-2 flex flex-col ${figureAlign}`}>
