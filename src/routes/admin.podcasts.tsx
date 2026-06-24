@@ -13,6 +13,7 @@ import { Plus, Save, Trash2 } from "@/lib/lucide-shim";
 import type { Podcast, PodcastStatus } from "@/lib/podcast/types";
 import { parseDuration, formatDuration } from "@/lib/podcast/types";
 import { PODCAST_FIELDS } from "@/lib/queries/podcasts";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/admin/podcasts")({ component: Page });
 
@@ -77,7 +78,8 @@ function Page() {
         const { error } = await supabase.from("podcasts").update(payload).eq("id", p.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("podcasts").insert(payload);
+        if (!tenantId) throw new Error("Brak kontekstu tenanta");
+        const { error } = await supabase.from("podcasts").insert({ ...payload, tenant_id: tenantId });
         if (error) throw error;
       }
     },
