@@ -559,6 +559,22 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       hint: "Wyklucza wpisy już wyrenderowane przez wcześniejsze widgety na tej stronie.",
     },
   ],
+  "podcast-latest": [
+    { key: "variant", type: "select", label: "Wariant",
+      options: [
+        { value: "grid", label: "Siatka" },
+        { value: "list", label: "Lista" },
+        { value: "featured", label: "Wyróżniony odcinek" },
+      ] },
+    { key: "limit", type: "number", label: "Liczba odcinków", min: 1, max: 24 },
+    { key: "columns", type: "number", label: "Kolumny (siatka)", min: 1, max: 4,
+      hint: "Tylko dla wariantu „Siatka”." },
+    { key: "showPlayer", type: "select", label: "Pokaż odtwarzacz",
+      options: [
+        { value: "true", label: "Tak" },
+        { value: "false", label: "Nie" },
+      ] },
+  ],
 };
 
 

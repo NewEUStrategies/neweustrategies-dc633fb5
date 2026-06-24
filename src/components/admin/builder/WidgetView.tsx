@@ -48,6 +48,7 @@ import { Editable } from "./ui/molecules/Editable";
 import { TtsPlayerHost } from "./ui/molecules/TtsPlayerHost";
 import { PostListView } from "./ui/organisms/widget-view/PostListView";
 import { NewsTickerView } from "./ui/organisms/widget-view/NewsTickerView";
+import { PodcastLatestView } from "./ui/organisms/widget-view/PodcastLatestView";
 import { RatedListView } from "./ui/organisms/widget-view/RatedListView";
 import { AdSlotById } from "@/components/ads/AdSlotById";
 import { MegaMenu, type MegaMenuConfig } from "@/components/megaMenu/MegaMenu";
@@ -411,6 +412,8 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       return wrap(<PostListView c={c} lang={lang} carousel />);
     case "news-ticker":
       return wrap(<NewsTickerView c={c} lang={lang} />);
+    case "podcast-latest":
+      return wrap(<PodcastLatestView c={c} lang={lang} />);
     case "categories":
       return wrap(<CategoriesView lang={lang} />);
     case "tags":

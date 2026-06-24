@@ -29,6 +29,7 @@ import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
 import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
 import { Route as ProfileAccountRouteImport } from './routes/profile.account'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
+import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
@@ -44,6 +45,7 @@ import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminRelatedPostsRouteImport } from './routes/admin.related-posts'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
 import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layouts'
+import { Route as AdminPodcastsRouteImport } from './routes/admin.podcasts'
 import { Route as AdminPersonalizedRouteImport } from './routes/admin.personalized'
 import { Route as AdminPaywallRouteImport } from './routes/admin.paywall'
 import { Route as AdminPagesRouteImport } from './routes/admin.pages'
@@ -179,6 +181,11 @@ const PostSlugRoute = PostSlugRouteImport.update({
   path: '/post/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PodcastSlugRoute = PodcastSlugRouteImport.update({
+  id: '/podcast/$slug',
+  path: '/podcast/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NewsletterConfirmRoute = NewsletterConfirmRouteImport.update({
   id: '/newsletter/confirm',
   path: '/newsletter/confirm',
@@ -252,6 +259,11 @@ const AdminPostsRoute = AdminPostsRouteImport.update({
 const AdminPostLayoutsRoute = AdminPostLayoutsRouteImport.update({
   id: '/post-layouts',
   path: '/post-layouts',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPodcastsRoute = AdminPodcastsRouteImport.update({
+  id: '/podcasts',
+  path: '/podcasts',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminPersonalizedRoute = AdminPersonalizedRouteImport.update({
@@ -452,6 +464,7 @@ export interface FileRoutesByFullPath {
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
+  '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -467,6 +480,7 @@ export interface FileRoutesByFullPath {
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
+  '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/billing': typeof ProfileBillingRoute
@@ -521,6 +535,7 @@ export interface FileRoutesByTo {
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
+  '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -535,6 +550,7 @@ export interface FileRoutesByTo {
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
+  '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/billing': typeof ProfileBillingRoute
@@ -592,6 +608,7 @@ export interface FileRoutesById {
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
+  '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -607,6 +624,7 @@ export interface FileRoutesById {
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
+  '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/billing': typeof ProfileBillingRoute
@@ -665,6 +683,7 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/paywall'
     | '/admin/personalized'
+    | '/admin/podcasts'
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/related-posts'
@@ -680,6 +699,7 @@ export interface FileRouteTypes {
     | '/checkout/cancel'
     | '/checkout/success'
     | '/newsletter/confirm'
+    | '/podcast/$slug'
     | '/post/$slug'
     | '/profile/account'
     | '/profile/billing'
@@ -734,6 +754,7 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/paywall'
     | '/admin/personalized'
+    | '/admin/podcasts'
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/related-posts'
@@ -748,6 +769,7 @@ export interface FileRouteTypes {
     | '/checkout/cancel'
     | '/checkout/success'
     | '/newsletter/confirm'
+    | '/podcast/$slug'
     | '/post/$slug'
     | '/profile/account'
     | '/profile/billing'
@@ -804,6 +826,7 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/paywall'
     | '/admin/personalized'
+    | '/admin/podcasts'
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/related-posts'
@@ -819,6 +842,7 @@ export interface FileRouteTypes {
     | '/checkout/cancel'
     | '/checkout/success'
     | '/newsletter/confirm'
+    | '/podcast/$slug'
     | '/post/$slug'
     | '/profile/account'
     | '/profile/billing'
@@ -869,6 +893,7 @@ export interface RootRouteChildren {
   CheckoutCancelRoute: typeof CheckoutCancelRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
+  PodcastSlugRoute: typeof PodcastSlugRoute
   PostSlugRoute: typeof PostSlugRoute
   TagSlugRoute: typeof TagSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
@@ -1020,6 +1045,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PostSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/podcast/$slug': {
+      id: '/podcast/$slug'
+      path: '/podcast/$slug'
+      fullPath: '/podcast/$slug'
+      preLoaderRoute: typeof PodcastSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/newsletter/confirm': {
       id: '/newsletter/confirm'
       path: '/newsletter/confirm'
@@ -1123,6 +1155,13 @@ declare module '@tanstack/react-router' {
       path: '/post-layouts'
       fullPath: '/admin/post-layouts'
       preLoaderRoute: typeof AdminPostLayoutsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/podcasts': {
+      id: '/admin/podcasts'
+      path: '/podcasts'
+      fullPath: '/admin/podcasts'
+      preLoaderRoute: typeof AdminPodcastsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/personalized': {
@@ -1453,6 +1492,7 @@ interface AdminRouteChildren {
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
   AdminPaywallRoute: typeof AdminPaywallRoute
   AdminPersonalizedRoute: typeof AdminPersonalizedRoute
+  AdminPodcastsRoute: typeof AdminPodcastsRoute
   AdminPostLayoutsRoute: typeof AdminPostLayoutsRoute
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
   AdminRelatedPostsRoute: typeof AdminRelatedPostsRoute
@@ -1479,6 +1519,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPagesRoute: AdminPagesRouteWithChildren,
   AdminPaywallRoute: AdminPaywallRoute,
   AdminPersonalizedRoute: AdminPersonalizedRoute,
+  AdminPodcastsRoute: AdminPodcastsRoute,
   AdminPostLayoutsRoute: AdminPostLayoutsRoute,
   AdminPostsRoute: AdminPostsRouteWithChildren,
   AdminRelatedPostsRoute: AdminRelatedPostsRoute,
@@ -1531,6 +1572,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutCancelRoute: CheckoutCancelRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
+  PodcastSlugRoute: PodcastSlugRoute,
   PostSlugRoute: PostSlugRoute,
   TagSlugRoute: TagSlugRoute,
   BlogIndexRoute: BlogIndexRoute,

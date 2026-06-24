@@ -252,6 +252,14 @@ export const WIDGETS: WidgetDef[] = [
       categoriesCsv: "",
       uniqueOnPage: false,
     }) },
+  // Podcast
+  { type: "podcast-latest", label: "Podcast: najnowsze", category: "dynamic", icon: Megaphone,
+    defaults: () => ({
+      limit: 4,
+      columns: 2,
+      variant: "grid", // grid | list | featured
+      showPlayer: "true",
+    }) },
 ];
 
 export const WIDGET_MAP: Record<WidgetType, WidgetDef> = WIDGETS.reduce(
