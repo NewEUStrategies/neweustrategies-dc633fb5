@@ -16,8 +16,7 @@ interface Props {
 }
 
 export function CustomFontUploader({ value, onChange }: Props) {
-  const { profile } = useAuth();
-  const tenantId = profile?.tenant_id ?? null;
+  const { tenantId } = useAuth();
   const [label, setLabel] = useState("");
   const [weight, setWeight] = useState("400");
   const [busy, setBusy] = useState(false);
