@@ -47,6 +47,8 @@ interface PageForm {
   builder_data: BuilderDocument | null;
   parent_id: string | null;
   menu_order: number;
+  template_type: PageTemplateType;
+  header_override: string | null;
 }
 
 
