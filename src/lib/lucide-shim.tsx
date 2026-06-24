@@ -192,6 +192,8 @@ export const PanelsTopLeft = makeIcon(faWindowMaximize, LPanelsTopLeft);
 export const CreditCard = makeIcon(faCreditCard, LCreditCard);
 export const Play = makeIcon(faPlay, LPlay);
 export const Pause = makeIcon(faPause, LPause);
+export const Bell = makeIcon(faBell, LBell);
+export const Info = makeIcon(faCircleInfo, LInfo);
 
 
 // Brands
