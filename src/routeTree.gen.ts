@@ -45,6 +45,7 @@ import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminRelatedPostsRouteImport } from './routes/admin.related-posts'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
 import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layouts'
+import { Route as AdminPodcastsRouteImport } from './routes/admin.podcasts'
 import { Route as AdminPersonalizedRouteImport } from './routes/admin.personalized'
 import { Route as AdminPaywallRouteImport } from './routes/admin.paywall'
 import { Route as AdminPagesRouteImport } from './routes/admin.pages'
@@ -77,7 +78,6 @@ import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearan
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
 import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.appearance.global-colors'
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
-import { Route as AuthenticatedAdminPodcastsRouteImport } from './routes/_authenticated.admin.podcasts'
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 
@@ -261,6 +261,11 @@ const AdminPostLayoutsRoute = AdminPostLayoutsRouteImport.update({
   path: '/post-layouts',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminPodcastsRoute = AdminPodcastsRouteImport.update({
+  id: '/podcasts',
+  path: '/podcasts',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPersonalizedRoute = AdminPersonalizedRouteImport.update({
   id: '/personalized',
   path: '/personalized',
@@ -422,12 +427,6 @@ const AdminAppearanceFooterRoute = AdminAppearanceFooterRouteImport.update({
   path: '/footer',
   getParentRoute: () => AdminAppearanceRoute,
 } as any)
-const AuthenticatedAdminPodcastsRoute =
-  AuthenticatedAdminPodcastsRouteImport.update({
-    id: '/_authenticated/admin/podcasts',
-    path: '/admin/podcasts',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiPublicWebhooksStripeRoute = ApiPublicWebhooksStripeRouteImport.update({
   id: '/api/public/webhooks/stripe',
   path: '/api/public/webhooks/stripe',
@@ -465,6 +464,7 @@ export interface FileRoutesByFullPath {
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
+  '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -491,7 +491,6 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
-  '/admin/podcasts': typeof AuthenticatedAdminPodcastsRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -536,6 +535,7 @@ export interface FileRoutesByTo {
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
+  '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -561,7 +561,6 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/profile': typeof ProfileIndexRoute
-  '/admin/podcasts': typeof AuthenticatedAdminPodcastsRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -609,6 +608,7 @@ export interface FileRoutesById {
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
+  '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -635,7 +635,6 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
-  '/_authenticated/admin/podcasts': typeof AuthenticatedAdminPodcastsRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -684,6 +683,7 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/paywall'
     | '/admin/personalized'
+    | '/admin/podcasts'
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/related-posts'
@@ -710,7 +710,6 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/profile/'
-    | '/admin/podcasts'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -755,6 +754,7 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/paywall'
     | '/admin/personalized'
+    | '/admin/podcasts'
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/related-posts'
@@ -780,7 +780,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/blog'
     | '/profile'
-    | '/admin/podcasts'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -827,6 +826,7 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/paywall'
     | '/admin/personalized'
+    | '/admin/podcasts'
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/related-posts'
@@ -853,7 +853,6 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/profile/'
-    | '/_authenticated/admin/podcasts'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -898,7 +897,6 @@ export interface RootRouteChildren {
   PostSlugRoute: typeof PostSlugRoute
   TagSlugRoute: typeof TagSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
-  AuthenticatedAdminPodcastsRoute: typeof AuthenticatedAdminPodcastsRoute
   ApiPublicRobotsDottxtRoute: typeof ApiPublicRobotsDottxtRoute
   ApiPublicSitemapDotxmlRoute: typeof ApiPublicSitemapDotxmlRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
@@ -1159,6 +1157,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPostLayoutsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/podcasts': {
+      id: '/admin/podcasts'
+      path: '/podcasts'
+      fullPath: '/admin/podcasts'
+      preLoaderRoute: typeof AdminPodcastsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/personalized': {
       id: '/admin/personalized'
       path: '/personalized'
@@ -1383,13 +1388,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppearanceFooterRouteImport
       parentRoute: typeof AdminAppearanceRoute
     }
-    '/_authenticated/admin/podcasts': {
-      id: '/_authenticated/admin/podcasts'
-      path: '/admin/podcasts'
-      fullPath: '/admin/podcasts'
-      preLoaderRoute: typeof AuthenticatedAdminPodcastsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/webhooks/stripe': {
       id: '/api/public/webhooks/stripe'
       path: '/api/public/webhooks/stripe'
@@ -1494,6 +1492,7 @@ interface AdminRouteChildren {
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
   AdminPaywallRoute: typeof AdminPaywallRoute
   AdminPersonalizedRoute: typeof AdminPersonalizedRoute
+  AdminPodcastsRoute: typeof AdminPodcastsRoute
   AdminPostLayoutsRoute: typeof AdminPostLayoutsRoute
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
   AdminRelatedPostsRoute: typeof AdminRelatedPostsRoute
@@ -1520,6 +1519,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPagesRoute: AdminPagesRouteWithChildren,
   AdminPaywallRoute: AdminPaywallRoute,
   AdminPersonalizedRoute: AdminPersonalizedRoute,
+  AdminPodcastsRoute: AdminPodcastsRoute,
   AdminPostLayoutsRoute: AdminPostLayoutsRoute,
   AdminPostsRoute: AdminPostsRouteWithChildren,
   AdminRelatedPostsRoute: AdminRelatedPostsRoute,
@@ -1576,7 +1576,6 @@ const rootRouteChildren: RootRouteChildren = {
   PostSlugRoute: PostSlugRoute,
   TagSlugRoute: TagSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
-  AuthenticatedAdminPodcastsRoute: AuthenticatedAdminPodcastsRoute,
   ApiPublicRobotsDottxtRoute: ApiPublicRobotsDottxtRoute,
   ApiPublicSitemapDotxmlRoute: ApiPublicSitemapDotxmlRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,

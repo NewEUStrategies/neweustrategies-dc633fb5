@@ -14,7 +14,7 @@ import type { Podcast, PodcastStatus } from "@/lib/podcast/types";
 import { parseDuration, formatDuration } from "@/lib/podcast/types";
 import { PODCAST_FIELDS } from "@/lib/queries/podcasts";
 
-export const Route = createFileRoute("/_authenticated/admin/podcasts")({ component: Page });
+export const Route = createFileRoute("/admin/podcasts")({ component: Page });
 
 type Row = Pick<Podcast,
   "id" | "slug" | "title_pl" | "title_en" | "status" | "duration_seconds" | "episode_number" | "season" | "audio_url" | "cover_image_url"
