@@ -52,30 +52,67 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
   const compact = ((isEditRoute || forceCompact) && !extras) || sidebarStyle === "style-4";
 
 
-  const items = [
-    { to: "/admin", icon: LayoutDashboard, label: t("admin.nav.dashboard") },
-    { to: "/admin/posts", icon: Newspaper, label: t("admin.nav.posts") },
-    { to: "/admin/pages", icon: File, label: t("admin.nav.pages") },
-    { to: "/admin/media", icon: ImageIcon, label: t("admin.nav.media") },
-    { to: "/admin/categories", icon: FolderTree, label: t("admin.nav.categories") },
-    { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
-    { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
-    { to: "/admin/ads", icon: Megaphone, label: "Reklamy" },
-    { to: "/admin/appearance", icon: PanelsTopLeft, label: t("admin.nav.appearance") },
-    { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
-    { to: "/admin/theme-design", icon: Palette, label: "Theme Design" },
-    { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
-    { to: "/admin/related-posts", icon: LayoutGrid, label: "Powiązane wpisy" },
-    { to: "/admin/content-area", icon: FileText, label: t("admin.nav.contentArea") },
-    { to: "/admin/newsletter", icon: Mail, label: t("admin.nav.newsletter") },
-    { to: "/admin/podcasts", icon: Megaphone, label: "Podcasty" },
-    { to: "/admin/web-stories", icon: LayoutGrid, label: "Web Stories" },
-    { to: "/admin/personalized", icon: Sparkles, label: t("admin.nav.personalized") },
-    ...(isAdmin ? [
-      { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
-      { to: "/admin/settings", icon: Settings, label: t("admin.nav.settings") },
-    ] : []),
+  type NavItem = { to: string; icon: typeof LayoutDashboard; label: string };
+  type NavGroup = { id: string; label?: string; items: NavItem[] };
+
+  const groups: NavGroup[] = [
+    {
+      id: "overview",
+      items: [{ to: "/admin", icon: LayoutDashboard, label: t("admin.nav.dashboard") }],
+    },
+    {
+      id: "content",
+      label: t("admin.navGroups.content"),
+      items: [
+        { to: "/admin/posts", icon: Newspaper, label: t("admin.nav.posts") },
+        { to: "/admin/pages", icon: File, label: t("admin.nav.pages") },
+        { to: "/admin/media", icon: ImageIcon, label: t("admin.nav.media") },
+        { to: "/admin/categories", icon: FolderTree, label: t("admin.nav.categories") },
+        { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
+        { to: "/admin/content-area", icon: FileText, label: t("admin.nav.contentArea") },
+      ],
+    },
+    {
+      id: "monetization",
+      label: t("admin.navGroups.monetization"),
+      items: [
+        { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
+        { to: "/admin/ads", icon: Megaphone, label: t("admin.nav.ads") },
+      ],
+    },
+    {
+      id: "engagement",
+      label: t("admin.navGroups.engagement"),
+      items: [
+        { to: "/admin/newsletter", icon: Mail, label: t("admin.nav.newsletter") },
+        { to: "/admin/podcasts", icon: Mic, label: t("admin.nav.podcasts") },
+        { to: "/admin/web-stories", icon: Film, label: t("admin.nav.webStories") },
+        { to: "/admin/personalized", icon: Wand2, label: t("admin.nav.personalized") },
+        { to: "/admin/related-posts", icon: Share2, label: t("admin.nav.relatedPosts") },
+      ],
+    },
+    {
+      id: "design",
+      label: t("admin.navGroups.design"),
+      items: [
+        { to: "/admin/appearance", icon: PanelsTopLeft, label: t("admin.nav.appearance") },
+        { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
+        { to: "/admin/theme-design", icon: Brush, label: t("admin.nav.themeDesign") },
+        { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
+      ],
+    },
+    ...(isAdmin
+      ? [{
+          id: "system",
+          label: t("admin.navGroups.system"),
+          items: [
+            { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
+            { to: "/admin/settings", icon: Settings, label: t("admin.nav.settings") },
+          ],
+        }]
+      : []),
   ];
+  void Star; void Bookmark;
 
 
   const handleSignOut = async () => {
