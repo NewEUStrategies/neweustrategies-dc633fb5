@@ -106,6 +106,14 @@ export function CommandPalette() {
     void navigate({ to: hit.href });
   }, [navigate]);
 
+  const popular = useMemo(() => commands.filter((c) => c.popular).slice(0, 8), [commands]);
+  const q = query.trim();
+  const hasCmdResults = grouped.length > 0;
+  const hasHitResults = hits.length > 0;
+  const showShortQueryHint = q.length > 0 && q.length < 2;
+  const showEmptyState = q.length >= 2 && !searching && !hasCmdResults && !hasHitResults;
+  const showPopular = q.length === 0 && popular.length > 0;
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput
@@ -114,34 +122,63 @@ export function CommandPalette() {
         onValueChange={setQuery}
       />
       <CommandList>
-        <CommandEmpty>{searching ? "..." : t("palette.empty")}</CommandEmpty>
+        {/* cmdk requires CommandEmpty for keyboard semantics, but we render
+            richer state ourselves below; keep this minimal and visually hidden
+            unless nothing else renders. */}
+        <CommandEmpty className="sr-only">{t("palette.empty", { q })}</CommandEmpty>
+
+        {showPopular && (
+          <CommandGroup heading={t("palette.suggestions")}>
+            {popular.map((cmd) => (
+              <CommandItem key={cmd.id} value={cmd.id} onSelect={() => onSelect(cmd)} className="gap-2">
+                {cmd.icon}
+                <span className="flex-1 truncate">{lang === "pl" ? cmd.label_pl : cmd.label_en}</span>
+                {cmd.to && (
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">{cmd.to}</span>
+                )}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
         {grouped.map((g, idx) => (
           <div key={g.section}>
-            {idx > 0 && <CommandSeparator />}
+            {(idx > 0 || showPopular) && <CommandSeparator />}
             <CommandGroup heading={t(`palette.sections.${g.section}`)}>
-              {g.items.map((cmd) => (
-                <CommandItem
-                  key={cmd.id}
-                  value={`${cmd.id} ${buildHaystack({ cmd, lang })}`}
-                  onSelect={() => onSelect(cmd)}
-                  className="gap-2"
-                >
-                  {cmd.icon}
-                  <span className="flex-1 truncate">{lang === "pl" ? cmd.label_pl : cmd.label_en}</span>
-                  {cmd.to && (
-                    <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">{cmd.to}</span>
-                  )}
-                </CommandItem>
-              ))}
+              {g.items.map((cmd) => {
+                const label = lang === "pl" ? cmd.label_pl : cmd.label_en;
+                return (
+                  <CommandItem
+                    key={cmd.id}
+                    value={`${cmd.id} ${buildHaystack({ cmd, lang })}`}
+                    onSelect={() => onSelect(cmd)}
+                    className="gap-2"
+                  >
+                    {cmd.icon}
+                    <HighlightedText text={label} query={q} className="flex-1 truncate" />
+                    {cmd.to && (
+                      <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">{cmd.to}</span>
+                    )}
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           </div>
         ))}
 
-        {hits.length > 0 && (
+        {(hasHitResults || searching || showShortQueryHint) && (
           <>
             <CommandSeparator />
             <CommandGroup heading={t("palette.sections.content")}>
+              {searching && (
+                <div className="flex items-center gap-2 px-2 py-3 text-xs text-muted-foreground" role="status" aria-live="polite">
+                  <span className="inline-block w-3 h-3 rounded-full border-2 border-brand border-t-transparent animate-spin" aria-hidden="true" />
+                  {t("palette.loading")}
+                </div>
+              )}
+              {showShortQueryHint && !searching && (
+                <div className="px-2 py-3 text-xs text-muted-foreground">{t("palette.type_to_search")}</div>
+              )}
               {hits.map((hit) => {
                 const title = (lang === "pl" ? hit.title_pl : hit.title_en) || hit.title_pl || hit.title_en || hit.slug;
                 const IconCmp = hit.kind === "post" ? Newspaper : FileText;
@@ -153,13 +190,35 @@ export function CommandPalette() {
                     className="gap-2"
                   >
                     <IconCmp className="w-4 h-4" />
-                    <span className="flex-1 truncate">{title}</span>
+                    <HighlightedText text={title} query={q} className="flex-1 truncate" />
                     <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">{hit.href}</span>
                   </CommandItem>
                 );
               })}
             </CommandGroup>
           </>
+        )}
+
+        {showEmptyState && (
+          <div className="px-4 py-8 text-center">
+            <p className="text-sm font-semibold text-foreground">{t("palette.empty", { q })}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("palette.empty_hint")}</p>
+            {popular.length > 0 && (
+              <div className="mt-4 text-left">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 px-2">
+                  {t("palette.suggestions")}
+                </p>
+                <CommandGroup>
+                  {popular.slice(0, 5).map((cmd) => (
+                    <CommandItem key={cmd.id} value={cmd.id} onSelect={() => onSelect(cmd)} className="gap-2">
+                      {cmd.icon}
+                      <span className="flex-1 truncate">{lang === "pl" ? cmd.label_pl : cmd.label_en}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </div>
+            )}
+          </div>
         )}
       </CommandList>
     </CommandDialog>
