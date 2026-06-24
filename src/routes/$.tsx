@@ -20,6 +20,9 @@ import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
 import { AutoLoadNextPost } from "@/components/post/AutoLoadNextPost";
 import { CustomMetaList } from "@/components/post/CustomMetaList";
+import { ContactForm } from "@/components/pages/ContactForm";
+import { ArchiveListing } from "@/components/pages/ArchiveListing";
+import { findPageTemplate } from "@/lib/pageTemplates";
 import { useQuery } from "@tanstack/react-query";
 import { listCustomMetaDefs } from "@/lib/customMeta";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
@@ -33,7 +36,7 @@ import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways, PostSidebar } from "@/components/molecules";
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { mergeOverrides, pickLayoutId, type LayoutOverrides, type PostFormat } from "@/lib/postLayouts";
-import { resolvedContentQueryOptions, type PostData } from "@/lib/queries/public";
+import { resolvedContentQueryOptions, type PostData, type PageData } from "@/lib/queries/public";
 import { AdZone } from "@/components/AdSlot";
 import { MidPostAds } from "@/components/ads/MidPostAds";
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
@@ -270,18 +273,49 @@ function PublicPage() {
     );
   }
 
-  // Pages: keep original simple layout.
+  // Pages: pick template (default/full_width/landing/archive_listing/contact).
+  const page = it as PageData;
+  const tpl = findPageTemplate(page.template_type ?? "default");
+  const pageMaxW = tpl.fullWidth ? "max-w-none" : "max-w-[1200px]";
+  const parentPath = data.crumbs
+    .slice(0, -1)
+    .map((c) => c.slug)
+    .concat(page.slug)
+    .join("/");
+
+  const pageBody = (
+    <>
+      {tpl.id !== "landing" && <Breadcrumbs items={crumbs} />}
+      <AdZone position="top_of_post" pageType={adPageType} pageId={it.id} className="mb-6" />
+      <h1 className="font-display text-4xl lg:text-5xl mb-4">{title}</h1>
+      {contentBlock}
+      {tpl.id === "archive_listing" && (
+        <ArchiveListing parentPageId={it.id} lang={lang} parentPath={parentPath} />
+      )}
+      {tpl.id === "contact" && <ContactForm lang={lang} />}
+      <AdZone position="bottom_of_post" pageType={adPageType} pageId={it.id} className="my-6" />
+      <FootnoteTooltips notes={notes} containerRef={articleRef} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+    </>
+  );
+
+  if (tpl.bare) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background text-foreground" data-template={tpl.id}>
+        <main className="flex-1 w-full">{pageBody}</main>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <Header />
-      <main className={`flex-1 ${maxW} w-full mx-auto px-4 lg:px-8 py-10`}>
-        <Breadcrumbs items={crumbs} />
-        <AdZone position="top_of_post" pageType={adPageType} pageId={it.id} className="mb-6" />
-        <h1 className="font-display text-4xl lg:text-5xl mb-4">{title}</h1>
-        {contentBlock}
-        <AdZone position="bottom_of_post" pageType={adPageType} pageId={it.id} className="my-6" />
-        <FootnoteTooltips notes={notes} containerRef={articleRef} />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+    <div
+      className="min-h-screen flex flex-col bg-background text-foreground"
+      data-template={tpl.id}
+      data-header-override={page.header_override ?? "default"}
+    >
+      {page.header_override !== "hidden" && <Header />}
+      <main className={`flex-1 ${pageMaxW} w-full mx-auto px-4 lg:px-8 py-10`}>
+        {pageBody}
       </main>
       <Footer />
       <FooterSlideup pageType={adPageType} pageId={it.id} />

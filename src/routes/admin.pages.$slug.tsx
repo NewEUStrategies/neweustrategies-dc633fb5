@@ -23,6 +23,7 @@ import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { PAGE_TEMPLATES, type PageTemplateType } from "@/lib/pageTemplates";
 
 export const Route = createFileRoute("/admin/pages/$slug")({
   component: EditPage,
@@ -47,6 +48,8 @@ interface PageForm {
   builder_data: BuilderDocument | null;
   parent_id: string | null;
   menu_order: number;
+  template_type: PageTemplateType;
+  header_override: string | null;
 }
 
 
@@ -115,6 +118,8 @@ function EditPage() {
           builder_data: snapshot.builder_data,
           parent_id: snapshot.parent_id,
           menu_order: snapshot.menu_order,
+          template_type: snapshot.template_type,
+          header_override: snapshot.header_override,
         },
       },
     });
@@ -209,6 +214,37 @@ function EditPage() {
       <div>
         <Label>Kolejność w menu</Label>
         <Input type="number" value={form.menu_order} onChange={(e) => set("menu_order", Number(e.target.value) || 0)} />
+      </div>
+      <div>
+        <Label>Template strony</Label>
+        <Select
+          value={form.template_type}
+          onValueChange={(v) => set("template_type", v as PageTemplateType)}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {PAGE_TEMPLATES.map((t) => (
+              <SelectItem key={t.id} value={t.id}>{t.label_pl}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground mt-1">
+          {PAGE_TEMPLATES.find((x) => x.id === form.template_type)?.description_pl}
+        </p>
+      </div>
+      <div>
+        <Label>Header (override)</Label>
+        <Select
+          value={form.header_override ?? "default"}
+          onValueChange={(v) => set("header_override", v === "default" ? null : v)}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="default">Domyślny</SelectItem>
+            <SelectItem value="transparent">Przezroczysty</SelectItem>
+            <SelectItem value="hidden">Ukryty</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <div>
         <Label>{t("admin.posts.cover")}</Label>

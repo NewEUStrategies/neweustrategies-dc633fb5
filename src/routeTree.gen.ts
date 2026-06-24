@@ -47,6 +47,7 @@ import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-set
 import { Route as AdminLiveBlogRouteImport } from './routes/admin.live-blog'
 import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
+import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
 import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
@@ -262,6 +263,11 @@ const AdminCustomMetaRoute = AdminCustomMetaRouteImport.update({
   path: '/custom-meta',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCropSizesRoute = AdminCropSizesRouteImport.update({
+  id: '/crop-sizes',
+  path: '/crop-sizes',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminContentAreaRoute = AdminContentAreaRouteImport.update({
   id: '/content-area',
   path: '/content-area',
@@ -399,6 +405,7 @@ export interface FileRoutesByFullPath {
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/live-blog': typeof AdminLiveBlogRoute
@@ -461,6 +468,7 @@ export interface FileRoutesByTo {
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/live-blog': typeof AdminLiveBlogRoute
@@ -525,6 +533,7 @@ export interface FileRoutesById {
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/live-blog': typeof AdminLiveBlogRoute
@@ -591,6 +600,7 @@ export interface FileRouteTypes {
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
+    | '/admin/crop-sizes'
     | '/admin/custom-meta'
     | '/admin/import-wordpress'
     | '/admin/live-blog'
@@ -653,6 +663,7 @@ export interface FileRouteTypes {
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
+    | '/admin/crop-sizes'
     | '/admin/custom-meta'
     | '/admin/import-wordpress'
     | '/admin/live-blog'
@@ -716,6 +727,7 @@ export interface FileRouteTypes {
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
+    | '/admin/crop-sizes'
     | '/admin/custom-meta'
     | '/admin/import-wordpress'
     | '/admin/live-blog'
@@ -1058,6 +1070,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCustomMetaRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/crop-sizes': {
+      id: '/admin/crop-sizes'
+      path: '/crop-sizes'
+      fullPath: '/admin/crop-sizes'
+      preLoaderRoute: typeof AdminCropSizesRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/content-area': {
       id: '/admin/content-area'
       path: '/content-area'
@@ -1306,6 +1325,7 @@ interface AdminRouteChildren {
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminContentAreaRoute: typeof AdminContentAreaRoute
+  AdminCropSizesRoute: typeof AdminCropSizesRoute
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
   AdminImportWordpressRoute: typeof AdminImportWordpressRoute
   AdminLiveBlogRoute: typeof AdminLiveBlogRoute
@@ -1329,6 +1349,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminContentAreaRoute: AdminContentAreaRoute,
+  AdminCropSizesRoute: AdminCropSizesRoute,
   AdminCustomMetaRoute: AdminCustomMetaRoute,
   AdminImportWordpressRoute: AdminImportWordpressRoute,
   AdminLiveBlogRoute: AdminLiveBlogRoute,

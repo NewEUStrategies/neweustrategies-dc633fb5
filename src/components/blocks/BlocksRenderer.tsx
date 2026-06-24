@@ -5,6 +5,7 @@ import { safeParseBlocks } from "@/lib/blocks/schema";
 import DOMPurify from "isomorphic-dompurify";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
 import { LiveBlogBlock } from "./LiveBlogBlock";
+import { GalleryBlock } from "./GalleryBlock";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -188,14 +189,7 @@ function BlockView({ block, fn, lang = "pl", postId }: { block: Block; fn: Footn
           if (url) images.push({ url, alt: String(o.alt ?? "") });
         }
       }
-      if (images.length === 0) return null;
-      return (
-        <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 not-prose ${cls}`}>
-          {images.map((img, i) => (
-            <img key={i} src={img.url} alt={img.alt} className="w-full h-full object-cover rounded-md aspect-square" loading="lazy" />
-          ))}
-        </div>
-      );
+      return <GalleryBlock images={images} className={cls} />;
     }
     case "separator": {
       const variant = String(block.data.variant ?? "line");
