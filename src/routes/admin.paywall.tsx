@@ -18,8 +18,10 @@ export const Route = createFileRoute("/admin/paywall")({ component: PaywallAdmin
 
 function emptyPlan(): Partial<AccessPlan> {
   return { name_pl: "", name_en: "", description_pl: "", description_en: "",
-    price_cents: 1900, currency: "PLN", interval: "month", active: true, sort_order: 0 };
+    price_cents: 1900, currency: "PLN", interval: "month", active: true, sort_order: 0,
+    features_pl: [], features_en: [], badge_pl: "", badge_en: "", highlighted: false, trial_days: 0 };
 }
+
 
 function PaywallAdmin() {
   const { t } = useTranslation();
