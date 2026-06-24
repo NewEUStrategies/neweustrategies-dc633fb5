@@ -28,6 +28,7 @@ import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
 import { Route as ProfileAccountRouteImport } from './routes/profile.account'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
+import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
@@ -160,6 +161,11 @@ const PostSlugRoute = PostSlugRouteImport.update({
 const NewsletterConfirmRoute = NewsletterConfirmRouteImport.update({
   id: '/newsletter/confirm',
   path: '/newsletter/confirm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutSuccessRoute = CheckoutSuccessRouteImport.update({
+  id: '/checkout/success',
+  path: '/checkout/success',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CheckoutPlanIdRoute = CheckoutPlanIdRouteImport.update({
@@ -384,6 +390,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
   '/checkout/$planId': typeof CheckoutPlanIdRoute
+  '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
@@ -440,6 +447,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
   '/checkout/$planId': typeof CheckoutPlanIdRoute
+  '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
@@ -500,6 +508,7 @@ export interface FileRoutesById {
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
   '/checkout/$planId': typeof CheckoutPlanIdRoute
+  '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
@@ -561,6 +570,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/api/tts'
     | '/checkout/$planId'
+    | '/checkout/success'
     | '/newsletter/confirm'
     | '/post/$slug'
     | '/profile/account'
@@ -617,6 +627,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/api/tts'
     | '/checkout/$planId'
+    | '/checkout/success'
     | '/newsletter/confirm'
     | '/post/$slug'
     | '/profile/account'
@@ -676,6 +687,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/api/tts'
     | '/checkout/$planId'
+    | '/checkout/success'
     | '/newsletter/confirm'
     | '/post/$slug'
     | '/profile/account'
@@ -719,6 +731,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiTtsRoute: typeof ApiTtsRoute
   CheckoutPlanIdRoute: typeof CheckoutPlanIdRoute
+  CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   PostSlugRoute: typeof PostSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
@@ -860,6 +873,13 @@ declare module '@tanstack/react-router' {
       path: '/newsletter/confirm'
       fullPath: '/newsletter/confirm'
       preLoaderRoute: typeof NewsletterConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout/success': {
+      id: '/checkout/success'
+      path: '/checkout/success'
+      fullPath: '/checkout/success'
+      preLoaderRoute: typeof CheckoutSuccessRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/checkout/$planId': {
@@ -1280,6 +1300,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiTtsRoute: ApiTtsRoute,
   CheckoutPlanIdRoute: CheckoutPlanIdRoute,
+  CheckoutSuccessRoute: CheckoutSuccessRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
   PostSlugRoute: PostSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
