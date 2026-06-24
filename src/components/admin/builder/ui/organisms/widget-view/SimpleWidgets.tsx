@@ -32,6 +32,84 @@ function useSiteLogo(variant: "main" | "mobile" | "transparent" = "main"): { lig
 
 type Lang = "pl" | "en";
 
+function ImageWidget({ c, lang, theme, editable, onContentChange }: {
+  c: WidgetNode["content"];
+  lang: Lang;
+  theme: string | undefined;
+  editable: boolean;
+  onContentChange?: (key: string, value: string | number) => void;
+}) {
+  const rawSrc = safeImageUrl(getStr(c, "src"));
+  const rawSrcDark = safeImageUrl(getStr(c, "srcDark"));
+  const alt = getStr(c, `alt_${lang}`) || getStr(c, "alt_pl");
+  const caption = getStr(c, `caption_${lang}`) || getStr(c, "caption_pl");
+  const variant = getStr(c, "variant") || "default";
+  const fit = (getStr(c, "objectFit") || "cover") as CSSProperties["objectFit"];
+  const ratio = getStr(c, "ratio");
+  const widthPx = typeof c.widthPx === "number" ? c.widthPx : Number(c.widthPx) || 0;
+  const maxWidthPx = typeof c.maxWidthPx === "number" ? c.maxWidthPx : Number(c.maxWidthPx) || 0;
+  const align = (getStr(c, "align") || "center") as "left" | "center" | "right";
+
+  // Fallback: use site logo from theme_options when no src is configured AND
+  // either explicit useSiteLogo flag is set, or alt text indicates a logo
+  // (matches default chrome seeds where alt = "Logo").
+  const siteLogoVariant = (getStr(c, "useSiteLogo") || "") as "" | "main" | "mobile" | "transparent";
+  const altIsLogo = /logo/i.test(alt);
+  const wantsSiteLogo = !rawSrc && !rawSrcDark && (siteLogoVariant !== "" || altIsLogo);
+  const siteLogo = useSiteLogo(siteLogoVariant || "main");
+  const src = rawSrc || (wantsSiteLogo ? siteLogo.light : "");
+  const srcDark = rawSrcDark || (wantsSiteLogo ? siteLogo.dark : "");
+
+  const variantCls =
+    variant === "rounded" ? "rounded-xl"
+    : variant === "circle" ? "rounded-full aspect-square"
+    : variant === "polaroid" ? "bg-white p-2 pb-6 shadow-lg rotate-[-1deg]"
+    : variant === "shadow" ? "rounded shadow-2xl"
+    : variant === "frame" ? "rounded border-4 border-foreground/10"
+    : variant === "zoom-hover" ? "rounded overflow-hidden transition-transform duration-500 hover:scale-105"
+    : "rounded";
+  const caps: number[] = [];
+  if (widthPx > 0) caps.push(widthPx);
+  if (maxWidthPx > 0) caps.push(maxWidthPx);
+  const effectiveMaxPx = caps.length ? Math.min(...caps) : 0;
+  const imgStyle: CSSProperties = {
+    objectFit: fit,
+    aspectRatio: ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined,
+    width: effectiveMaxPx > 0 ? `${effectiveMaxPx}px` : "100%",
+    maxWidth: effectiveMaxPx > 0 ? "none" : "100%",
+    height: "auto",
+  };
+  if (!src && !srcDark) {
+    return <div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>;
+  }
+  const lightSrc = src || srcDark;
+  const darkSrc = srcDark || src;
+  const hasBoth = !!src && !!srcDark && src !== srcDark;
+  const figureAlign = align === "left" ? "items-start" : align === "right" ? "items-end" : "items-center";
+  const showResize = editable && !!onContentChange;
+  const imgCls = `max-w-full h-auto ${variantCls}`;
+  const imgEl = hasBoth ? (
+    <>
+      <img src={lightSrc} alt={alt} className={`${imgCls} gc-img-light`} style={imgStyle} loading="lazy" />
+      <img src={darkSrc} alt={alt} className={`${imgCls} gc-img-dark`} style={imgStyle} loading="lazy" />
+    </>
+  ) : (
+    <img src={theme === "dark" ? darkSrc : lightSrc} alt={alt} className={imgCls} style={imgStyle} loading="lazy" />
+  );
+  return (
+    <figure className={`space-y-2 flex flex-col ${figureAlign}`}>
+      <ResizableImageWrap
+        enabled={showResize}
+        currentPx={widthPx > 0 ? widthPx : undefined}
+        onCommit={(px) => onContentChange?.("widthPx", Math.round(px))}
+      >
+        {imgEl}
+      </ResizableImageWrap>
+      {caption && <figcaption className="text-xs text-muted-foreground text-center">{caption}</figcaption>}
+    </figure>
+  );
+}
+
 function PostsSliderWidget({ c, lang }: { c: WidgetNode["content"]; lang: Lang }) {
   const limit = Math.max(1, Math.min(20, getNum(c, "limit", 5)));
   const categoryId = getStr(c, "categoryId") || "";
