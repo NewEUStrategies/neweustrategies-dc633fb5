@@ -37,6 +37,7 @@ import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-
 import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
+import { Route as AdminAdsRouteImport } from './routes/admin.ads'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as ApiPublicSitemapDotxmlRouteImport } from './routes/api/public/sitemap[.]xml'
 import { Route as ApiPublicRobotsDottxtRouteImport } from './routes/api/public/robots[.]txt'
@@ -197,6 +198,11 @@ const AdminAppearanceRoute = AdminAppearanceRouteImport.update({
   path: '/appearance',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminAdsRoute = AdminAdsRouteImport.update({
+  id: '/ads',
+  path: '/ads',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -303,6 +309,7 @@ export interface FileRoutesByFullPath {
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
@@ -351,6 +358,7 @@ export interface FileRoutesByTo {
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
@@ -400,6 +408,7 @@ export interface FileRoutesById {
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
@@ -451,6 +460,7 @@ export interface FileRouteTypes {
     | '/reading-list'
     | '/robots.txt'
     | '/sitemap.xml'
+    | '/admin/ads'
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
@@ -499,6 +509,7 @@ export interface FileRouteTypes {
     | '/reading-list'
     | '/robots.txt'
     | '/sitemap.xml'
+    | '/admin/ads'
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
@@ -547,6 +558,7 @@ export interface FileRouteTypes {
     | '/reading-list'
     | '/robots.txt'
     | '/sitemap.xml'
+    | '/admin/ads'
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
@@ -804,6 +816,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppearanceRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/ads': {
+      id: '/admin/ads'
+      path: '/ads'
+      fullPath: '/admin/ads'
+      preLoaderRoute: typeof AdminAdsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/settings/': {
       id: '/admin/settings/'
       path: '/'
@@ -1013,6 +1032,7 @@ const AdminSettingsRouteWithChildren = AdminSettingsRoute._addFileChildren(
 )
 
 interface AdminRouteChildren {
+  AdminAdsRoute: typeof AdminAdsRoute
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminContentAreaRoute: typeof AdminContentAreaRoute
@@ -1033,6 +1053,7 @@ interface AdminRouteChildren {
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminAdsRoute: AdminAdsRoute,
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminContentAreaRoute: AdminContentAreaRoute,

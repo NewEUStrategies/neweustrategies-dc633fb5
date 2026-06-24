@@ -62,6 +62,137 @@ export type Database = {
         }
         Relationships: []
       }
+      ad_placements: {
+        Row: {
+          active: boolean
+          config: Json
+          created_at: string
+          ends_at: string | null
+          id: string
+          page_id: string | null
+          page_type: Database["public"]["Enums"]["ad_page_type"]
+          position: Database["public"]["Enums"]["ad_position"]
+          slot_id: string
+          sort_order: number
+          starts_at: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          config?: Json
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          page_id?: string | null
+          page_type?: Database["public"]["Enums"]["ad_page_type"]
+          position: Database["public"]["Enums"]["ad_position"]
+          slot_id: string
+          sort_order?: number
+          starts_at?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          config?: Json
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          page_id?: string | null
+          page_type?: Database["public"]["Enums"]["ad_page_type"]
+          position?: Database["public"]["Enums"]["ad_position"]
+          slot_id?: string
+          sort_order?: number
+          starts_at?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_placements_slot_id_fkey"
+            columns: ["slot_id"]
+            isOneToOne: false
+            referencedRelation: "ad_slots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_placements_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_slots: {
+        Row: {
+          created_at: string
+          height: number | null
+          html: string | null
+          id: string
+          image_alt: string | null
+          image_link: string | null
+          image_url: string | null
+          kind: Database["public"]["Enums"]["ad_slot_kind"]
+          name: string
+          notes: string | null
+          requires_consent: boolean
+          script: string | null
+          status: Database["public"]["Enums"]["ad_slot_status"]
+          targeting: Json
+          tenant_id: string
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          created_at?: string
+          height?: number | null
+          html?: string | null
+          id?: string
+          image_alt?: string | null
+          image_link?: string | null
+          image_url?: string | null
+          kind?: Database["public"]["Enums"]["ad_slot_kind"]
+          name: string
+          notes?: string | null
+          requires_consent?: boolean
+          script?: string | null
+          status?: Database["public"]["Enums"]["ad_slot_status"]
+          targeting?: Json
+          tenant_id?: string
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          created_at?: string
+          height?: number | null
+          html?: string | null
+          id?: string
+          image_alt?: string | null
+          image_link?: string | null
+          image_url?: string | null
+          kind?: Database["public"]["Enums"]["ad_slot_kind"]
+          name?: string
+          notes?: string | null
+          requires_consent?: boolean
+          script?: string | null
+          status?: Database["public"]["Enums"]["ad_slot_status"]
+          targeting?: Json
+          tenant_id?: string
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_slots_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -1299,6 +1430,25 @@ export type Database = {
     Enums: {
       access_entity_type: "post" | "page" | "media"
       access_mode: "public" | "members" | "paid"
+      ad_page_type:
+        | "all"
+        | "home"
+        | "post"
+        | "page"
+        | "category"
+        | "tag"
+        | "archive"
+        | "search"
+      ad_position:
+        | "header_banner"
+        | "top_of_post"
+        | "mid_post"
+        | "bottom_of_post"
+        | "sidebar"
+        | "in_feed"
+        | "footer_slideup"
+      ad_slot_kind: "html" | "script" | "image"
+      ad_slot_status: "active" | "paused"
       app_role: "admin" | "editor" | "author" | "user"
       editor_type: "richtext" | "markdown" | "builder" | "blocks"
       plan_interval: "month" | "year" | "one_time"
@@ -1433,6 +1583,27 @@ export const Constants = {
     Enums: {
       access_entity_type: ["post", "page", "media"],
       access_mode: ["public", "members", "paid"],
+      ad_page_type: [
+        "all",
+        "home",
+        "post",
+        "page",
+        "category",
+        "tag",
+        "archive",
+        "search",
+      ],
+      ad_position: [
+        "header_banner",
+        "top_of_post",
+        "mid_post",
+        "bottom_of_post",
+        "sidebar",
+        "in_feed",
+        "footer_slideup",
+      ],
+      ad_slot_kind: ["html", "script", "image"],
+      ad_slot_status: ["active", "paused"],
       app_role: ["admin", "editor", "author", "user"],
       editor_type: ["richtext", "markdown", "builder", "blocks"],
       plan_interval: ["month", "year", "one_time"],

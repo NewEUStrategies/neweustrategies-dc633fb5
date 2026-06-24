@@ -1,7 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Layers, Star, Mail, Bookmark, ChevronRight, Lock, Palette, LayoutGrid, Sparkles, PanelsTopLeft, Newspaper, User } from "@/lib/lucide-shim";
+import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Layers, Star, Mail, Bookmark, ChevronRight, Lock, Palette, LayoutGrid, Sparkles, PanelsTopLeft, Newspaper, User, Megaphone } from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
@@ -60,6 +60,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
     { to: "/admin/categories", icon: FolderTree, label: t("admin.nav.categories") },
     { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
     { to: "/admin/paywall", icon: Lock, label: t("admin.nav.paywall") },
+    { to: "/admin/ads", icon: Megaphone, label: "Reklamy" },
     { to: "/admin/appearance", icon: PanelsTopLeft, label: t("admin.nav.appearance") },
     { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
     { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
