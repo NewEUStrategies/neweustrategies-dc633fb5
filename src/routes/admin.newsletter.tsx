@@ -188,8 +188,13 @@ function Page() {
             </TabsContent>
           </Tabs>
         </section>
+          </div>
+
+          <NewsletterPreview settings={cur} />
+        </div>
 
         <section className="bg-card border border-border rounded-lg p-5">
+
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-display text-lg">{t("admin.newsletter.subscribers")} ({subs?.length ?? 0})</h2>
             <Button variant="outline" size="sm" onClick={exportCsv} disabled={!subs?.length}>
