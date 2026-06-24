@@ -125,7 +125,7 @@ export function FontPicker({
             {!value && <Check className="w-4 h-4 text-brand" />}
           </button>
           <div className="border-t border-border" />
-          {FONT_OPTIONS.map((opt) => {
+          {allOptions.map((opt) => {
             const active = opt.stack === value;
             return (
               <button
