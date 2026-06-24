@@ -55,8 +55,42 @@ export const defaultHeaderDoc = (): BuilderDocument => ({
         col(6, [
           widget("nav-link", { label_pl: "Analizy",       label_en: "Analyses",      href: "#", variant: "text" }),
           widget("nav-link", { label_pl: "Wywiady",       label_en: "Interviews",    href: "#", variant: "text" }),
-          widget("nav-link", { label_pl: "Policy Papers", label_en: "Policy Papers", href: "#", variant: "text" }),
-          widget("nav-link", { label_pl: "Raporty",       label_en: "Reports",       href: "#", variant: "text" }),
+          widget("mega-menu", {
+            trigger_pl: "Tematy", trigger_en: "Topics",
+            triggerOn: "hover", width: "container", widthPx: 1140,
+            columns: [
+              {
+                title_pl: "Analizy", title_en: "Analyses",
+                links: [
+                  { label_pl: "Bezpieczeństwo", label_en: "Security", href: "#" },
+                  { label_pl: "Gospodarka",     label_en: "Economy",  href: "#" },
+                  { label_pl: "Polityka",       label_en: "Politics", href: "#" },
+                ],
+                featured: null,
+              },
+              {
+                title_pl: "Formaty", title_en: "Formats",
+                links: [
+                  { label_pl: "Policy Papers", label_en: "Policy Papers", href: "#" },
+                  { label_pl: "Wywiady",       label_en: "Interviews",    href: "#" },
+                  { label_pl: "Raporty",       label_en: "Reports",       href: "#" },
+                ],
+                featured: null,
+              },
+              {
+                title_pl: "Wyróżnione", title_en: "Featured",
+                links: [],
+                featured: {
+                  image: "",
+                  title_pl: "Najnowszy raport",
+                  title_en: "Latest report",
+                  excerpt_pl: "Przegląd kluczowych trendów geopolitycznych.",
+                  excerpt_en: "Key geopolitical trends overview.",
+                  href: "#", cta_pl: "Czytaj", cta_en: "Read",
+                },
+              },
+            ],
+          }),
           widget("nav-link", { label_pl: "Wydarzenia",    label_en: "Events",        href: "#", variant: "text" }),
           widget("nav-link", { label_pl: "O nas",         label_en: "About",         href: "#", variant: "text" }),
         ]),
