@@ -168,7 +168,7 @@ function PublicPage() {
         <>
           {isPost && takeaways.length > 0 && <KeyTakeaways items={takeaways} />}
           {isBlocks ? (
-            <BlocksRenderer doc={blocksDoc} lang={lang} />
+            <BlocksRenderer doc={blocksDoc} lang={lang} postId={isPost ? it.id : undefined} />
           ) : isBuilder ? (
             <BuilderRenderer doc={doc} lang={lang} />
           ) : (
