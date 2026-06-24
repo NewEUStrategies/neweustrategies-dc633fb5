@@ -585,6 +585,8 @@ function ContentFields({ widget, lang, setContent }: {
     case "post-list":
     case "carousel":
       return <PostListEditor c={c} lang={lang} setContent={setContent} />;
+    case "ad-slot":
+      return <AdSlotEditor c={c} setContent={setContent} />;
   }
 
   // Schema-driven render for simple widgets.
@@ -598,6 +600,37 @@ function ContentFields({ widget, lang, setContent }: {
         <SchemaFieldControl key={f.key} field={f} lang={lang} content={c} setContent={setContent} />
       ))}
     </>
+  );
+}
+
+function AdSlotEditor({ c, setContent }: { c: Record<string, Json>; setContent: (k: string, v: Json) => void }) {
+  const [slots, setSlots] = useState<Array<{ id: string; name: string; kind: string; status: string }>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void import("@/integrations/supabase/client").then(async ({ supabase }) => {
+      const { data } = await supabase
+        .from("ad_slots")
+        .select("id, name, kind, status")
+        .order("name");
+      if (!cancelled) setSlots(data ?? []);
+    });
+    return () => { cancelled = true; };
+  }, []);
+  const value = typeof c.slotId === "string" ? c.slotId : "";
+  return (
+    <PropField label="Slot reklamowy">
+      <Select value={value} onValueChange={(v) => setContent("slotId", v)}>
+        <SelectTrigger><SelectValue placeholder="Wybierz slot…" /></SelectTrigger>
+        <SelectContent>
+          {slots.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">Brak slotów - dodaj w panelu Reklamy.</div>}
+          {slots.map((s) => (
+            <SelectItem key={s.id} value={s.id}>
+              {s.name} {s.status !== "active" ? "(wstrzymany)" : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </PropField>
   );
 }
 

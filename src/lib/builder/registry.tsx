@@ -8,7 +8,7 @@ import {
   Newspaper, Rows, FolderTree, Tags, Mail, Send, Megaphone,
   List, PanelLeft, Quote, Check, Link as LinkIcon,
   Globe, Sun, Search, User, Facebook,
-  Flame, Bookmark,
+  Flame, Bookmark, Megaphone as AdIcon,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
@@ -198,6 +198,9 @@ export const WIDGETS: WidgetDef[] = [
         { image: "", title_pl: "Drugi slajd",   title_en: "Second slide", subtitle_pl: "", subtitle_en: "", href: "", cta_pl: "", cta_en: "" },
       ],
     }) },
+  // Advertising
+  { type: "ad-slot", label: "Slot reklamowy", category: "blocks", icon: AdIcon,
+    defaults: () => ({ slotId: "" }) },
 ];
 
 export const WIDGET_MAP: Record<WidgetType, WidgetDef> = WIDGETS.reduce(

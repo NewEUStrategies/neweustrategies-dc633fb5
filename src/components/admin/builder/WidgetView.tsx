@@ -48,6 +48,7 @@ import { Editable } from "./ui/molecules/Editable";
 import { TtsPlayerHost } from "./ui/molecules/TtsPlayerHost";
 import { PostListView } from "./ui/organisms/widget-view/PostListView";
 import { RatedListView } from "./ui/organisms/widget-view/RatedListView";
+import { AdSlotById } from "@/components/ads/AdSlotById";
 import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
 import { TagsView } from "./ui/organisms/widget-view/TagsView";
 import { TabsBlock } from "./ui/organisms/widget-view/TabsBlock";
@@ -611,6 +612,10 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         </div>
       );
       return wrap(href ? <a href={href} className="block hover:opacity-95 transition">{card}</a> : card);
+    }
+    case "ad-slot": {
+      const slotId = getStr(c, "slotId");
+      return wrap(<AdSlotById slotId={slotId} />);
     }
     default:
       return null;

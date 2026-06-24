@@ -232,7 +232,9 @@ export type WidgetType =
   // Slider
   | "slider"
   // Animated heading
-  | "animated-heading";
+  | "animated-heading"
+  // Advertising
+  | "ad-slot";
 
 // JSON-safe primitives that may live inside a widget's content map.
 export type Json =

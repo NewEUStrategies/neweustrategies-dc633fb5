@@ -28,6 +28,10 @@ import { KeyTakeaways, PostSidebar } from "@/components/molecules";
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { mergeOverrides, pickLayoutId, type LayoutOverrides, type PostFormat } from "@/lib/postLayouts";
 import { resolvedContentQueryOptions, type PostData } from "@/lib/queries/public";
+import { AdZone } from "@/components/AdSlot";
+import { MidPostAds } from "@/components/ads/MidPostAds";
+import { FooterSlideup } from "@/components/ads/FooterSlideup";
+import type { AdPageType } from "@/lib/ads/types";
 
 
 function splatToSegments(splat: string): string[] {
@@ -162,6 +166,8 @@ function PublicPage() {
   );
 
 
+  const adPageType: AdPageType = isPost ? "post" : "page";
+
   // Posts: render via PostLayoutRenderer with merged global+override settings.
   if (isPost && post && globalLayoutSettings) {
     const overrides = post.layout_overrides ?? null;
@@ -174,6 +180,7 @@ function PublicPage() {
         <Header />
         <main className={`flex-1 ${maxW} w-full mx-auto px-4 lg:px-8 py-10`}>
           <Breadcrumbs items={crumbs} />
+          <AdZone position="top_of_post" pageType={adPageType} pageId={it.id} className="mb-6" />
           <PostLayoutRenderer
             format={format}
             layoutId={layoutId}
@@ -182,13 +189,26 @@ function PublicPage() {
             excerpt={excerpt}
             coverImageUrl={it.cover_image_url}
             meta={post.read_minutes ? <span>{post.read_minutes} min</span> : null}
-            content={contentBlock}
+            content={
+              <>
+                {contentBlock}
+                <MidPostAds
+                  articleRef={articleRef}
+                  pageType={adPageType}
+                  pageId={it.id}
+                  scanKey={`${it.id}-${lang}`}
+                />
+              </>
+            }
             sidebar={
-              <PostSidebar
-                articleRef={articleRef}
-                tags={postTags}
-                scanKey={`${it.id}-${lang}`}
-              />
+              <>
+                <AdZone position="sidebar" pageType={adPageType} pageId={it.id} />
+                <PostSidebar
+                  articleRef={articleRef}
+                  tags={postTags}
+                  scanKey={`${it.id}-${lang}`}
+                />
+              </>
             }
             footer={
               <>
@@ -200,6 +220,7 @@ function PublicPage() {
                   via={null}
                   author={null}
                 />
+                <AdZone position="bottom_of_post" pageType={adPageType} pageId={it.id} className="my-6" />
                 {merged.show_bottom_newsletter && <NewsletterForm lang={lang} source={`post:${post.slug}`} />}
               </>
             }
@@ -208,6 +229,7 @@ function PublicPage() {
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
         </main>
         <Footer />
+        <FooterSlideup pageType={adPageType} pageId={it.id} />
       </div>
     );
   }
@@ -218,12 +240,15 @@ function PublicPage() {
       <Header />
       <main className={`flex-1 ${maxW} w-full mx-auto px-4 lg:px-8 py-10`}>
         <Breadcrumbs items={crumbs} />
+        <AdZone position="top_of_post" pageType={adPageType} pageId={it.id} className="mb-6" />
         <h1 className="font-display text-4xl lg:text-5xl mb-4">{title}</h1>
         {contentBlock}
+        <AdZone position="bottom_of_post" pageType={adPageType} pageId={it.id} className="my-6" />
         <FootnoteTooltips notes={notes} containerRef={articleRef} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       </main>
       <Footer />
+      <FooterSlideup pageType={adPageType} pageId={it.id} />
     </div>
   );
 }
