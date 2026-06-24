@@ -378,18 +378,14 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       );
     }
     case "mega-menu": {
-      const MegaMenu = require("@/components/megaMenu/MegaMenu").MegaMenu as React.ComponentType<{
-        config: import("@/components/megaMenu/MegaMenu").MegaMenuConfig;
-        lang: "pl" | "en";
-        mobile?: boolean;
-      }>;
       return wrap(
         <MegaMenu
-          config={c as unknown as import("@/components/megaMenu/MegaMenu").MegaMenuConfig}
+          config={c as unknown as MegaMenuConfig}
           lang={lang}
           mobile={device === "mobile"}
         />,
       );
+    }
     case "tts": {
       const source = getStr(c, "source") || "post";
       const customText = getStr(c, `text_${lang}`) || getStr(c, "text_pl");
