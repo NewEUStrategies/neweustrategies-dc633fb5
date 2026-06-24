@@ -20,6 +20,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
 import { Route as ProfileAccountRouteImport } from './routes/profile.account'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
@@ -115,6 +116,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRoute,
+} as any)
+const ProfileBillingRoute = ProfileBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileAccountRoute = ProfileAccountRouteImport.update({
   id: '/account',
@@ -349,6 +355,7 @@ export interface FileRoutesByFullPath {
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
+  '/profile/billing': typeof ProfileBillingRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -399,6 +406,7 @@ export interface FileRoutesByTo {
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
+  '/profile/billing': typeof ProfileBillingRoute
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/profile': typeof ProfileIndexRoute
@@ -453,6 +461,7 @@ export interface FileRoutesById {
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
+  '/profile/billing': typeof ProfileBillingRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -508,6 +517,7 @@ export interface FileRouteTypes {
     | '/newsletter/confirm'
     | '/post/$slug'
     | '/profile/account'
+    | '/profile/billing'
     | '/admin/'
     | '/blog/'
     | '/profile/'
@@ -558,6 +568,7 @@ export interface FileRouteTypes {
     | '/newsletter/confirm'
     | '/post/$slug'
     | '/profile/account'
+    | '/profile/billing'
     | '/admin'
     | '/blog'
     | '/profile'
@@ -611,6 +622,7 @@ export interface FileRouteTypes {
     | '/newsletter/confirm'
     | '/post/$slug'
     | '/profile/account'
+    | '/profile/billing'
     | '/admin/'
     | '/blog/'
     | '/profile/'
@@ -731,6 +743,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/profile/billing': {
+      id: '/profile/billing'
+      path: '/billing'
+      fullPath: '/profile/billing'
+      preLoaderRoute: typeof ProfileBillingRouteImport
+      parentRoute: typeof ProfileRoute
     }
     '/profile/account': {
       id: '/profile/account'
@@ -1133,11 +1152,13 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface ProfileRouteChildren {
   ProfileAccountRoute: typeof ProfileAccountRoute
+  ProfileBillingRoute: typeof ProfileBillingRoute
   ProfileIndexRoute: typeof ProfileIndexRoute
 }
 
 const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileAccountRoute: ProfileAccountRoute,
+  ProfileBillingRoute: ProfileBillingRoute,
   ProfileIndexRoute: ProfileIndexRoute,
 }
 
