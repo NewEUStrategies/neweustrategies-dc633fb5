@@ -1,13 +1,13 @@
 // Renders the post's custom meta items (icon + label + value).
 // Uses lucide icons by name (`def.icon`). Unknown icon names fall back to Info.
 import type { ComponentType, SVGProps } from "react";
-import { Info, Clock, Award, Users, Tag, Star, BookOpen, MapPin } from "@/lib/lucide-shim";
+import { Clock, Tags, Star, BookOpen, MapPin, Globe, Bookmark } from "@/lib/lucide-shim";
 import { buildCustomMetaItems, metaLabel, type CustomMetaDef, type CustomMetaValues } from "@/lib/customMeta";
 
 type IconCmp = ComponentType<SVGProps<SVGSVGElement> & { className?: string }>;
 
 const ICONS: Record<string, IconCmp> = {
-  Info, Clock, Award, Users, Tag, Star, BookOpen, MapPin,
+  Info: Globe, Clock, Award: Star, Users: Globe, Tag: Tags, Star, BookOpen, MapPin, Bookmark, Globe,
 };
 
 interface Props {
