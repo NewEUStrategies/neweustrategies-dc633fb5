@@ -126,9 +126,19 @@ function PublicPage() {
   const isBlocks = it.editor === "blocks" && !!blocksDoc?.blocks?.length;
 
   const { doc, notes: builderNotes } = processDocFootnotes(rawDoc, lang);
-  const { html: processedHtml, notes: htmlNotes } = processHtmlFootnotes(rawHtml ?? "", 1);
+  const { html: footnoteHtml, notes: htmlNotes } = processHtmlFootnotes(rawHtml ?? "", 1);
+  // Manual <!--TOC--> marker -> inline auto-generated table of contents;
+  // also assigns stable IDs to h2/h3 so deep links work.
+  const { html: processedHtml } = processManualToc(footnoteHtml, lang);
   const notes = isBuilder ? builderNotes : htmlNotes;
   const articleRef = useRef<HTMLDivElement>(null);
+
+  // Custom meta definitions (publicly readable, cached).
+  const { data: customMetaDefs = [] } = useQuery({
+    queryKey: ["customMetaDefs", "public"] as const,
+    queryFn: () => listCustomMetaDefs(),
+    staleTime: 5 * 60_000,
+  });
 
   const [crumbs, setCrumbs] = useState<BreadcrumbItem[]>([]);
   useEffect(() => {
