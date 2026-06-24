@@ -391,6 +391,7 @@ export type Database = {
           created_at: string
           description_en: string | null
           description_pl: string | null
+          featured_template_id: string | null
           id: string
           name_en: string
           name_pl: string
@@ -401,6 +402,7 @@ export type Database = {
           created_at?: string
           description_en?: string | null
           description_pl?: string | null
+          featured_template_id?: string | null
           id?: string
           name_en: string
           name_pl: string
@@ -411,6 +413,7 @@ export type Database = {
           created_at?: string
           description_en?: string | null
           description_pl?: string | null
+          featured_template_id?: string | null
           id?: string
           name_en?: string
           name_pl?: string
@@ -418,6 +421,13 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "categories_featured_template_id_fkey"
+            columns: ["featured_template_id"]
+            isOneToOne: false
+            referencedRelation: "builder_templates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "categories_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -1297,38 +1307,56 @@ export type Database = {
         Row: {
           avatar_url: string | null
           bio: string | null
+          bio_en: string | null
+          bio_pl: string | null
           cover_url: string | null
           created_at: string
           display_name: string | null
           email: string | null
           id: string
+          linkedin_url: string | null
           prefs: Json
+          slug: string | null
           tenant_id: string
+          twitter_url: string | null
           updated_at: string
+          website_url: string | null
         }
         Insert: {
           avatar_url?: string | null
           bio?: string | null
+          bio_en?: string | null
+          bio_pl?: string | null
           cover_url?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
           id: string
+          linkedin_url?: string | null
           prefs?: Json
+          slug?: string | null
           tenant_id: string
+          twitter_url?: string | null
           updated_at?: string
+          website_url?: string | null
         }
         Update: {
           avatar_url?: string | null
           bio?: string | null
+          bio_en?: string | null
+          bio_pl?: string | null
           cover_url?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
           id?: string
+          linkedin_url?: string | null
           prefs?: Json
+          slug?: string | null
           tenant_id?: string
+          twitter_url?: string | null
           updated_at?: string
+          website_url?: string | null
         }
         Relationships: [
           {
@@ -1489,6 +1517,7 @@ export type Database = {
       tags: {
         Row: {
           created_at: string
+          featured_template_id: string | null
           id: string
           name: string
           slug: string
@@ -1496,6 +1525,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          featured_template_id?: string | null
           id?: string
           name: string
           slug: string
@@ -1503,12 +1533,20 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          featured_template_id?: string | null
           id?: string
           name?: string
           slug?: string
           tenant_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tags_featured_template_id_fkey"
+            columns: ["featured_template_id"]
+            isOneToOne: false
+            referencedRelation: "builder_templates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tags_tenant_id_fkey"
             columns: ["tenant_id"]
