@@ -142,6 +142,7 @@ export function defaultPostLayoutSettings(): PostLayoutSettings {
     prev_next_mobile_hide: true,
     show_bottom_newsletter: true,
     show_floating_share_bar: true,
+    auto_load_next_post: false,
   };
 }
 
@@ -158,6 +159,7 @@ export function mergeOverrides(global: PostLayoutSettings, overrides: LayoutOver
     show_prev_next: overrides.show_prev_next ?? global.show_prev_next,
     show_bottom_newsletter: overrides.show_bottom_newsletter ?? global.show_bottom_newsletter,
     show_floating_share_bar: overrides.show_floating_share_bar ?? global.show_floating_share_bar,
+    auto_load_next_post: overrides.auto_load_next_post ?? global.auto_load_next_post,
   };
 }
 
