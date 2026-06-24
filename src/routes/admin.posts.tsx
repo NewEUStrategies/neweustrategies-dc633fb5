@@ -420,10 +420,21 @@ function PostsList() {
                         />
                       </td>
                       <td className="p-2">
-                        <div className="font-medium text-[13px] truncate max-w-[420px]">
-                          {(lang === "en" ? p.title_en : p.title_pl) || (lang === "en" ? p.title_pl : p.title_en) || <span className="italic text-muted-foreground">- {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -</span>}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground truncate max-w-[420px]">/{p.slug}</div>
+                        {isTrash ? (
+                          <>
+                            <div className="font-medium text-[13px] truncate max-w-[420px]">
+                              {(lang === "en" ? p.title_en : p.title_pl) || (lang === "en" ? p.title_pl : p.title_en) || <span className="italic text-muted-foreground">- {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -</span>}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground truncate max-w-[420px]">/{p.slug}</div>
+                          </>
+                        ) : (
+                          <Link to="/admin/posts/$slug" params={{ slug: p.slug }} className="block group">
+                            <div className="font-medium text-[13px] truncate max-w-[420px] group-hover:text-primary group-hover:underline underline-offset-2">
+                              {(lang === "en" ? p.title_en : p.title_pl) || (lang === "en" ? p.title_pl : p.title_en) || <span className="italic text-muted-foreground">- {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -</span>}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground truncate max-w-[420px] group-hover:text-primary/70">/{p.slug}</div>
+                          </Link>
+                        )}
                       </td>
                       <td className="p-2">
                         <LangCoverageBadges
