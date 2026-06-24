@@ -1,10 +1,13 @@
 // Organism: dynamic post grid/list/carousel sourced from Supabase.
 // All query knobs (categories, tags, exclusions, author, format, order,
-// limit, offset) are driven by widget content and edited via PostListEditor.
+// limit, offset, date range, popularity) are driven by widget content and
+// edited via PostListEditor.
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import { getNum, getStr } from "./frame";
+import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 
 type Lang = "pl" | "en";
 
@@ -67,6 +70,11 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   const orderDir = (getStr(c, "orderDir") || "desc") === "asc" ? "asc" : "desc";
   const postFormat = getStr(c, "postFormat");
   const authorId = getStr(c, "authorId");
+  const dateFrom = getStr(c, "dateFrom"); // ISO date "YYYY-MM-DD"
+  const dateTo = getStr(c, "dateTo");
+  const popularDays = Math.max(1, Math.min(365, getNum(c, "popularDays", 30)));
+  const uniqueOnPage = c["uniqueOnPage"] === true || c["uniqueOnPage"] === "true";
+  const mobileHScroll = c["mobileHorizontalScroll"] === true || c["mobileHorizontalScroll"] === "true";
 
   const includeCats = csv(c, "categoriesCsv");
   const excludeCats = csv(c, "excludeCategoriesCsv");
@@ -75,10 +83,19 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   const includeIds = csv(c, "includeIdsCsv");
   const excludeIds = csv(c, "excludeIdsCsv");
 
+  const used = useUsedPostIds();
+  // Snapshot once per mount so we don't re-fetch when other widgets register.
+  const usedSnapshot = useMemo(
+    () => (uniqueOnPage ? used.getSnapshot() : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [uniqueOnPage],
+  );
+
   const queryKey = [
     "builder-post-list",
     { variant, limit, offset, cols, orderByRaw, orderDir, postFormat, authorId,
-      includeCats, excludeCats, includeTags, excludeTags, includeIds, excludeIds },
+      includeCats, excludeCats, includeTags, excludeTags, includeIds, excludeIds,
+      dateFrom, dateTo, popularDays, usedSnapshot },
   ] as const;
 
   const { data } = useQuery<PostRow[]>({
@@ -102,7 +119,27 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
       if (includeIds.length) seed(new Set(includeIds));
       if (includeSet !== null && (includeSet as Set<string>).size === 0) return [];
 
-      const excludeSet = new Set<string>([...excCatIds, ...excTagIds, ...excludeIds]);
+      const excludeSet = new Set<string>([...excCatIds, ...excTagIds, ...excludeIds, ...usedSnapshot]);
+
+      // Popularity ordering (last N days, by user_read_history count).
+      let popularIds: string[] | null = null;
+      if (orderByRaw === "popular") {
+        const sinceIso = new Date(Date.now() - popularDays * 86400 * 1000).toISOString();
+        const { data: hist } = await supabase
+          .from("user_read_history")
+          .select("post_id")
+          .gte("read_at", sinceIso);
+        const counts = new Map<string, number>();
+        for (const r of (hist ?? []) as { post_id: string }[]) {
+          counts.set(r.post_id, (counts.get(r.post_id) ?? 0) + 1);
+        }
+        popularIds = Array.from(counts.entries())
+          .sort((a, b) => (orderDir === "asc" ? a[1] - b[1] : b[1] - a[1]))
+          .map(([id]) => id);
+        if (!popularIds.length) return [];
+        const popSet = new Set(popularIds);
+        includeSet = includeSet ? new Set([...includeSet].filter((x) => popSet.has(x))) : popSet;
+      }
 
       let q = supabase
         .from("posts")
@@ -111,21 +148,40 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
       if (postFormat) q = q.eq("post_format", postFormat);
       if (authorId) q = q.eq("author_id", authorId);
+      if (dateFrom) q = q.gte("published_at", `${dateFrom}T00:00:00Z`);
+      if (dateTo) q = q.lte("published_at", `${dateTo}T23:59:59Z`);
       if (includeSet) q = q.in("id", Array.from(includeSet));
       if (excludeSet.size) q = q.not("id", "in", `(${Array.from(excludeSet).join(",")})`);
 
-      const orderCol = orderByRaw === "title" ? `title_${lang}` : orderByRaw === "random" ? "published_at" : orderByRaw;
-      if (orderByRaw !== "random") {
+      const orderCol =
+        orderByRaw === "title" ? `title_${lang}`
+        : orderByRaw === "random" || orderByRaw === "popular" ? "published_at"
+        : orderByRaw;
+      if (orderByRaw !== "random" && orderByRaw !== "popular") {
         q = q.order(orderCol, { ascending: orderDir === "asc" });
       }
-      q = q.range(offset, offset + limit - 1);
+      // For popularity we fetch all matching rows (already constrained by includeSet)
+      // and sort client-side; otherwise apply the requested DB range.
+      if (orderByRaw !== "popular") {
+        q = q.range(offset, offset + limit - 1);
+      }
 
       const { data } = await q;
       let rows = (data ?? []) as PostRow[];
       if (orderByRaw === "random") rows = [...rows].sort(() => Math.random() - 0.5);
+      if (orderByRaw === "popular" && popularIds) {
+        const order = new Map(popularIds.map((id, i) => [id, i]));
+        rows = [...rows].sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9));
+        rows = rows.slice(offset, offset + limit);
+      }
       return rows;
     },
   });
+
+  // Register fetched IDs so later "uniqueOnPage" widgets exclude them.
+  useEffect(() => {
+    if (data && data.length) used.register(data.map((r) => r.id));
+  }, [data, used]);
 
   const rows = data ?? [];
   const effectiveCols = Math.max(1, Math.min(cols, rows.length || 1));
@@ -200,7 +256,10 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
 
   return (
-    <div className="w-full grid gap-4" style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}>
+    <div
+      className={`w-full grid gap-4 ${mobileHScroll ? "cms-mobile-hscroll" : ""}`}
+      style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}
+    >
       {rows.map((p) => (
         <PostCard key={p.id} p={p} variant={variant} title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
       ))}

@@ -11,6 +11,7 @@ import {
   ShapeDivider, typographyCss, typographyAlign,
   INNER_SECTION_SAFE_AREA_PX, COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
+import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
 
 function resolveSpan(span: ResponsiveValue<number>, device: Device, deskDefault: number): number {
   if (device === "mobile") return span.mobile ?? 12;
@@ -125,7 +126,7 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
   const effectiveDevice = device ?? viewportDevice;
 
   return (
-    <>
+    <UsedPostIdsProvider>
       <style dangerouslySetInnerHTML={{ __html: DEBUG_CSS }} />
       <div data-builder-renderer data-debug={debug ? "1" : "0"}>
         {doc.sections.map((s) => <RenderSection key={s.id} section={s} lang={lang} device={effectiveDevice} />)}
@@ -133,7 +134,7 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
       <button type="button" className="builder-debug-toggle" data-on={debug ? "1" : "0"} onClick={toggleDebug}>
         {debug ? "Debug: ON" : "Debug: OFF"}
       </button>
-    </>
+    </UsedPostIdsProvider>
   );
 }
 

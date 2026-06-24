@@ -346,3 +346,21 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 /* Page template hooks */
 [data-header-override="transparent"] header { background-color: transparent !important; backdrop-filter: blur(6px); }
 [data-template="landing"] header, [data-template="landing"] footer { display: none; }
+
+/* Builder: mobile horizontal-scroll for grid widgets (post-list etc.) */
+@media (max-width: 767px) {
+  .cms-mobile-hscroll {
+    display: flex !important;
+    grid-template-columns: none !important;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+  }
+  .cms-mobile-hscroll > * {
+    flex: 0 0 82%;
+    scroll-snap-align: start;
+    min-width: 0;
+  }
+}
