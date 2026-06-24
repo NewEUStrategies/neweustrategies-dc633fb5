@@ -523,6 +523,29 @@ export function ThemeOptionsPane() {
                 </SelectContent>
               </Select>
             </Row>
+            <Row label={t("themeOptions.alertBar.icon")} hint={t("themeOptions.alertBar.iconHint")}>
+              <Select value={draft.header.alert_bar.icon} onValueChange={(v) => patchAlert({ icon: v as AlertIcon })}>
+                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">{t("themeOptions.alertBar.iconAuto")}</SelectItem>
+                  <SelectItem value="none">{t("themeOptions.alertBar.iconNone")}</SelectItem>
+                  <SelectItem value="Megaphone">Megaphone</SelectItem>
+                  <SelectItem value="Bell">Bell</SelectItem>
+                  <SelectItem value="Info">Info</SelectItem>
+                  <SelectItem value="AlertTriangle">Warning</SelectItem>
+                  <SelectItem value="Check">Check</SelectItem>
+                  <SelectItem value="Sparkles">Sparkles</SelectItem>
+                  <SelectItem value="Flame">Flame</SelectItem>
+                  <SelectItem value="Mail">Mail</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label={t("themeOptions.alertBar.ctaPl")} hint={t("themeOptions.alertBar.ctaHint")}>
+              <Input value={draft.header.alert_bar.cta_label_pl} onChange={(e) => patchAlert({ cta_label_pl: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="Czytaj więcej" />
+            </Row>
+            <Row label={t("themeOptions.alertBar.ctaEn")}>
+              <Input value={draft.header.alert_bar.cta_label_en} onChange={(e) => patchAlert({ cta_label_en: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="Read more" />
+            </Row>
             <Row label={t("themeOptions.alertBar.dismissible")} hint={t("themeOptions.alertBar.dismissibleHint")}>
               <Switch checked={draft.header.alert_bar.dismissible} onCheckedChange={(v) => patchAlert({ dismissible: v })} />
             </Row>
