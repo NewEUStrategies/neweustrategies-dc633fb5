@@ -1,152 +1,73 @@
-# Block Editor dla wpisów (Gutenberg/Foxiz-style)
 
-## Cel
+## Zakres (4 moduły z Foxiz, wdrażane po kolei)
 
-Wpisy edytowane domyślnie w nowym **block editorze** (liniowy strumień bloków + sidebar Blok/Dokument w stylu Foxiz). Obecny **Builder** zostaje jako opcja przełączana per wpis i pozostaje domyślnym edytorem stron.
+Adaptacja pod nasz stack: TanStack Start + Lovable Cloud, builder widgets, atomic design, i18n PL/EN, tenant_id, RLS, testy.
 
-## Architektura
+---
 
-```text
-admin.posts.$id.tsx
- └─ editor: "blocks" | "builder" | "richtext" | "markdown"
-     ├─ "blocks"  → <PostBlockEditor>     ← NOWE, domyślne dla wpisów
-     ├─ "builder" → <Builder>             ← istnieje, opt-in dla wpisów
-     ├─ "richtext"→ <PostEditor> (TipTap) ← legacy
-     └─ "markdown"→ split view             ← legacy
-```
+### Moduł K — Footer
 
-`<PostBlockEditor>` = 3 kolumny:
-- **Lewa (~260px)**: lista bloków (drag-handle, drop-zone, "+" pomiędzy)
-- **Środek**: kanwa — bloki renderowane jeden pod drugim, klik = aktywny blok, inline toolbar nad blokiem
-- **Prawa (~280px)**: sidebar z **dwiema zakładkami**: `Blok` (ustawienia aktywnego) / `Dokument` (metadane wpisu — kategorie, tagi, cover, excerpt, SEO, format, layout_overrides, takeaways, czas czytania)
+1. **Footer Builder** — wybór szablonu z `builder_templates` (typ `footer`) per tenant. Renderer w `Footer.tsx` używa BuilderRenderer.
+2. **Footer Widgets area** — kolumny (1-4) z widgetami: about, menu, contact, social, newsletter, recent posts, tags cloud, instagram feed.
+3. **Footer Settings** (Theme Options → Footer):
+   - layout: `default | centered | minimal | dark | light`
+   - kolumny: 1/2/3/4
+   - copyright text (i18n)
+   - back-to-top toggle
+   - separator między sekcjami
+4. **Tabela**: `footer_settings` (tenant singleton) + admin route `/admin/theme-design/footer`.
 
-## Zestaw bloków (15)
+### Moduł L — Podcast
 
-| # | Block type        | Opis / mapowanie z buildera                        |
-|---|-------------------|----------------------------------------------------|
-| 1 | `paragraph`       | TipTap inline (bold/italic/link/code)              |
-| 2 | `heading`         | H2/H3/H4 + id (anchor)                             |
-| 3 | `image`           | + caption, alt, alignment, link                    |
-| 4 | `gallery`         | grid / masonry, lightbox                           |
-| 5 | `list`            | ul / ol, zagnieżdżone                              |
-| 6 | `quote`           | tekst + cite                                       |
-| 7 | `code`            | język + kopiowanie                                 |
-| 8 | `embed`           | YouTube / Vimeo / X / oembed URL                   |
-| 9 | `video`           | upload / URL, poster                               |
-| 10| `separator`       | hr (linia / kropki / spacer)                       |
-| 11| `callout`         | info / warning / success / danger + ikona          |
-| 12| `table`           | rows × cols, header                                |
-| 13| `button`          | label, link, wariant, align                        |
-| 14| `columns`         | 2-kolumnowy kontener (każda kolumna = bloki)       |
-| 15| `html`            | raw HTML (sanityzowany przy renderze)              |
+1. **Custom post type**: rozszerzenie `posts` o `post_type='podcast'` lub osobna tabela `podcasts` (audio_url, duration, episode_number, season, transcript, show_notes).
+2. **PodcastPlayer atom** — HTML5 audio + sticky player (kontrolki: play/pause, seek, speed, skip ±15s).
+3. **Builder widgets**:
+   - `podcast-latest` (grid/list ostatnich odcinków)
+   - `podcast-featured` (jeden hero z playerem)
+   - `podcast-playlist` (kolejka)
+4. **Single podcast page**: `/podcast/$slug` z playerem, show notes, transcript, embed code.
+5. **Global options**: domyślny player (mini/full), auto-play next, subscribe links (Spotify/Apple/Google).
+6. **Migracja**: tabela `podcasts` (RLS, GRANTS), `podcast_settings` (tenant singleton).
 
-Każdy blok ma jednolity interfejs: `{ id, type, data, style? }`. Sidebar `Blok` renderuje pola na podstawie **rejestru bloków** (analogicznie do `WIDGET_SCHEMAS`).
+### Moduł M — Newsletter
 
-## Schemat danych
+1. **Subscribe form block** — atom + builder widget (`newsletter-form`).
+2. **Tabela** `newsletter_subscribers` (email, tenant_id, status, confirmed_at, locale, consent) z double opt-in.
+3. **Server functions**: `subscribeNewsletter`, `confirmSubscription`, `unsubscribe` (token-based).
+4. **Newsletter Popup**:
+   - Theme Options → Newsletter Popup (cover image, title, description, CTA, trigger: delay/scroll/exit-intent, frequency cookie).
+   - `NewsletterPopup` komponent renderowany w root.
+5. **Email integration**: na razie zapis w DB + endpoint webhooka; opcjonalnie konektor Mailchimp/Resend (do dyspozycji w przyszłej turze).
+6. **Layouty formularza**: inline, stacked, boxed (per użycie).
 
-Nowa kolumna w `posts`:
+### Moduł N — Web Stories
 
-```sql
-ALTER TABLE public.posts
-  ADD COLUMN blocks_data jsonb;
-```
+1. **Tabela** `web_stories` (tenant_id, title, slug, cover_url, pages JSONB, published_at, status).
+2. **Story Viewer** — pełnoekranowy odtwarzacz (swipe/keyboard, progress bar, autoplay 5s per page, tap left/right, media: image/video, text overlay).
+3. **Edytor stories** w admin: `/admin/web-stories` (lista) + `/admin/web-stories/$slug` (edytor stron: dodaj/usuń/reorder, layout text, background media).
+4. **Public route** `/web-stories/$slug` (AMP-like fullscreen, SEO meta).
+5. **Builder widget** `web-stories-carousel` — poziomy carousel kafli z cover + tytuł, klik otwiera viewer.
+6. **i18n**: title/description per locale; lazy-load mediów.
 
-```ts
-type BlocksDoc = { version: 1; blocks: Block[] };
-type Block = { id: string; type: BlockType; data: Record<string, Json>; style?: BlockStyle };
-```
+---
 
-`editor` enum dostaje nową wartość: `"blocks"`. Migracja: wszystkie istniejące wpisy konwertowane (`builder_data` + `content_pl/en` → `blocks_data`). **Strony (`pages`) nietknięte** — zostają w `builder_data`.
+### Wspólne
 
-## Migracja danych (wpisy)
+- Wszystkie nowe tabele: tenant_id, RLS z `has_role` / tenant scoping, GRANTs (anon read tylko dla publish=true tam gdzie publiczne).
+- Builder widgets rejestrowane w `src/lib/builder/registry.tsx` z view + properties editor + Zod schema.
+- i18n: nowe klucze w `src/i18n/locales/pl.json` i `en.json`.
+- Testy vitest: scoring, walidacja zod, render layoutów, server fn guards.
+- Atomic design: atoms (Player, SubscribeInput, StoryProgressBar), molecules (PodcastCard, NewsletterCardForm, StoryCard), organisms (FooterRenderer, PodcastList, StoryCarousel, StoryViewer).
 
-Skrypt po stronie serwera (server function `migratePostsToBlocks`), uruchamiany jednorazowo z UI w `admin/settings`. Algorytm:
+### Kolejność wdrażania (4 osobne tury)
 
-1. Jeśli `editor = 'richtext' | 'markdown'` → parsuj `content_pl/en` (HTML/MD) na sekwencję bloków (paragraph, heading, image, list, quote, code, embed). HTML rzadko mapowalny → blok `html` (fallback).
-2. Jeśli `editor = 'builder'` → mapuj widgety:
-   - `heading` → `heading`
-   - `text` → `paragraph` (HTML wewnątrz)
-   - `image` → `image`
-   - `gallery` → `gallery`
-   - `video` → `video`
-   - `button` → `button`
-   - `divider` / `spacer` → `separator`
-   - `accordion` / `tabs` / `pricing` / dynamiczne widgety / pozostałe → renderuj do HTML i zapisz jako `html` (z notatką `_originalWidget: <type>` w `data`)
-3. Ustaw `editor = 'blocks'`, zapisz `blocks_data`. **Zachowaj `builder_data` i `content_*` jako backup** (nic nie kasujemy).
-4. Per wpis flaga `_migration_warnings` (jsonb w `blocks_data.meta`) z listą nie-w-pełni-zmapowanych widgetów — autor zobaczy ostrzeżenie w edytorze.
+1. **Tura 1 — Footer (K)** — szybkie, dotyka tylko UI + 1 tabela settings.
+2. **Tura 2 — Newsletter (M)** — subscribers + popup + form widget.
+3. **Tura 3 — Podcast (L)** — najobszerniejsze (CPT + player + widgets + single page).
+4. **Tura 4 — Web Stories (N)** — viewer + editor + carousel.
 
-UI: przycisk **"Migruj wpisy do block editora"** + progress bar + raport (X zmigrowanych, Y z ostrzeżeniami).
+Każdą turę kończę testami (`vitest`) + typecheck.
 
-## Publiczny renderer
+---
 
-Nowy `<BlocksRenderer doc={blocksDoc} lang={lang} />` w `src/components/blocks/BlocksRenderer.tsx`. Route `/post/$slug` wybiera renderer na podstawie `post.editor`:
-
-```ts
-post.editor === "blocks"  → <BlocksRenderer />
-post.editor === "builder" → <BuilderRenderer />
-else (legacy)             → dangerouslySetInnerHTML / ReactMarkdown
-```
-
-SSR-friendly, każdy blok ma czysty komponent prezentacyjny w `src/components/blocks/render/<Type>.tsx`.
-
-## Zmiany w `admin.posts.$id.tsx`
-
-- Dodać `"blocks"` do typu `EditorType` i jako pierwszą opcję w dropdownie (domyślną dla nowych wpisów).
-- Wczytywać/zapisywać `blocks_data` obok istniejących pól.
-- Renderować `<PostBlockEditor>` gdy `editor === "blocks"`.
-
-## Plik tree (NOWE)
-
-```text
-src/lib/blocks/
-  types.ts                # BlocksDoc, Block, BlockStyle, BlockType
-  registry.ts             # rejestr 15 bloków + schemas dla sidebar
-  serialize.ts            # blocks → HTML (dla SEO/RSS/excerpt)
-  migrate.ts              # konwersje: html→blocks, markdown→blocks, builder→blocks
-
-src/components/admin/blocks/
-  PostBlockEditor.tsx     # główny edytor (3 kolumny)
-  BlockCanvas.tsx         # środek, render listy bloków + drop zones
-  BlockOutline.tsx        # lewa kolumna, lista bloków
-  BlockSidebar.tsx        # prawa kolumna, tabs Blok/Dokument
-  BlockSidebarBlock.tsx   # zakładka Blok (schema-driven)
-  BlockSidebarDocument.tsx# zakładka Dokument (metadane wpisu)
-  BlockInserter.tsx       # popover "+"
-  BlockToolbar.tsx        # inline toolbar nad aktywnym blokiem
-  edit/<Type>.tsx         # 15 plików — komponent edycji każdego bloku
-
-src/components/blocks/
-  BlocksRenderer.tsx      # public renderer
-  render/<Type>.tsx       # 15 plików — komponent renderu publicznego
-
-src/lib/server/posts/
-  migrate-to-blocks.functions.ts  # server fn: jednorazowa migracja
-```
-
-## Etapy realizacji (kolejność)
-
-1. **Migracja DB**: `ALTER TABLE posts ADD COLUMN blocks_data jsonb` + rozszerzyć enum `editor` o `"blocks"`.
-2. **Fundament**: `types.ts`, `registry.ts`, pusty `PostBlockEditor` z 3-kolumnowym layoutem, sidebar z zakładkami Blok/Dokument.
-3. **5 bloków core**: paragraph, heading, image, list, quote (edit + render). Działający end-to-end zapis/odczyt + publiczny render dla wpisu.
-4. **Pozostałe 10 bloków**: code, embed, video, gallery, separator, callout, table, button, columns, html.
-5. **Slash commands** (`/`), markdown shortcuts (`##`, `>`, `-`), drag&drop reorder, undo/redo (per-blok historia).
-6. **Migracja istniejących wpisów**: server fn + UI w `admin/settings` + raport ostrzeżeń.
-7. **Default editor = blocks** dla nowych wpisów; obecny Builder zostaje jako wybór w dropdownie.
-8. **Polish**: skróty klawiszowe, kopiuj/duplikuj/usuń blok, multi-select, mobile preview w sidebarze Dokument.
-
-## Co NIE zmieniam
-
-- Builder dla **stron** (`pages`) — bez zmian, zostaje domyślny.
-- Istniejące `builder_data`, `content_pl/en` — zachowane jako backup po migracji.
-- Public render stron (`$.tsx`, `index.tsx`) — bez zmian.
-- TipTap (`PostEditor`) — zostaje jako legacy `richtext`.
-
-## Ryzyka
-
-- **Migracja widgetów builderowych do HTML fallbacku** straci interaktywność (np. accordion, tabs). Wpisy te dostaną ostrzeżenie i autor może przełączyć z powrotem na builder (`builder_data` zachowane).
-- **TipTap inline w `paragraph`** — TipTap jest single-instance heavy; przy 50+ paragrafach trzeba lazy mount (tylko aktywny paragraf ma pełny editor, reszta = static render).
-- **Skala**: 30+ nowych plików komponentowych. Realnie 1–2 tygodnie pracy w iteracjach.
-
-## Pytanie kontrolne
-
-Czy ruszamy w tej kolejności (etapy 1→8), zatwierdzając każdy etap osobno? Po etapie 3 będziesz mógł zobaczyć działający block editor z 5 blokami i ocenić UX zanim wbiję pozostałe 10.
+**Czy zatwierdzasz? Zaczynam od Tury 1 (Footer).** Jeśli chcesz zmiany kolejności lub okroić zakres (np. pominąć editor stories / pominąć double opt-in) — napisz przed startem.
