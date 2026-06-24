@@ -20,6 +20,7 @@ import {
   faVideo, faXmark, faSpinner, faTriangleExclamation,
   faLock, faPalette, faTableCells, faWandMagicSparkles, faWindowMaximize, faCreditCard,
   faPlay, faPause, faBell, faCircleInfo,
+  faMicrophone, faFilm, faPaintbrush, faRss, faShieldHalved, faGears, faWandSparkles, faShareNodes,
 } from "@fortawesome/free-solid-svg-icons";
 import {
   faFacebook, faInstagram, faLinkedin, faXTwitter, faYoutube,
@@ -47,6 +48,8 @@ import {
   Lock as LLock, Palette as LPalette, LayoutGrid as LLayoutGrid, Sparkles as LSparkles,
   PanelsTopLeft as LPanelsTopLeft, CreditCard as LCreditCard, Play as LPlay, Pause as LPause,
   Bell as LBell, Info as LInfo,
+  Mic as LMic, Film as LFilm, Brush as LBrush, Rss as LRss, ShieldCheck as LShieldCheck,
+  Cog as LCog, Wand2 as LWand2, Share2 as LShare2,
   Facebook as LFacebook, Instagram as LInstagram, Linkedin as LLinkedin,
   Twitter as LTwitter, Youtube as LYoutube,
   type LucideIcon as LucideIconImpl,
@@ -194,6 +197,14 @@ export const Play = makeIcon(faPlay, LPlay);
 export const Pause = makeIcon(faPause, LPause);
 export const Bell = makeIcon(faBell, LBell);
 export const Info = makeIcon(faCircleInfo, LInfo);
+export const Mic = makeIcon(faMicrophone, LMic);
+export const Film = makeIcon(faFilm, LFilm);
+export const Brush = makeIcon(faPaintbrush, LBrush);
+export const Rss = makeIcon(faRss, LRss);
+export const ShieldCheck = makeIcon(faShieldHalved, LShieldCheck);
+export const Cog = makeIcon(faGears, LCog);
+export const Wand2 = makeIcon(faWandSparkles, LWand2);
+export const Share2 = makeIcon(faShareNodes, LShare2);
 
 
 // Brands
