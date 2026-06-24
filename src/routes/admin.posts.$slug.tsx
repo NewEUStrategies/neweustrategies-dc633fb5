@@ -27,6 +27,7 @@ import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
 import { getLayoutSet, findLayout, mergeOverrides, pickLayoutId } from "@/lib/postLayouts";
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
+import { LayoutScaffold } from "@/components/admin/blocks/LayoutScaffold";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
