@@ -21,6 +21,7 @@ import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
+import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
 import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
 import { Route as ProfileAccountRouteImport } from './routes/profile.account'
@@ -122,6 +123,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 const ProfileSubscriptionRoute = ProfileSubscriptionRouteImport.update({
   id: '/subscription',
   path: '/subscription',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileSecurityRoute = ProfileSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
   getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileOrdersRoute = ProfileOrdersRouteImport.update({
@@ -369,6 +375,7 @@ export interface FileRoutesByFullPath {
   '/profile/account': typeof ProfileAccountRoute
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/security': typeof ProfileSecurityRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
@@ -422,6 +429,7 @@ export interface FileRoutesByTo {
   '/profile/account': typeof ProfileAccountRoute
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/security': typeof ProfileSecurityRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
@@ -479,6 +487,7 @@ export interface FileRoutesById {
   '/profile/account': typeof ProfileAccountRoute
   '/profile/billing': typeof ProfileBillingRoute
   '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/security': typeof ProfileSecurityRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
@@ -537,6 +546,7 @@ export interface FileRouteTypes {
     | '/profile/account'
     | '/profile/billing'
     | '/profile/orders'
+    | '/profile/security'
     | '/profile/subscription'
     | '/admin/'
     | '/blog/'
@@ -590,6 +600,7 @@ export interface FileRouteTypes {
     | '/profile/account'
     | '/profile/billing'
     | '/profile/orders'
+    | '/profile/security'
     | '/profile/subscription'
     | '/admin'
     | '/blog'
@@ -646,6 +657,7 @@ export interface FileRouteTypes {
     | '/profile/account'
     | '/profile/billing'
     | '/profile/orders'
+    | '/profile/security'
     | '/profile/subscription'
     | '/admin/'
     | '/blog/'
@@ -773,6 +785,13 @@ declare module '@tanstack/react-router' {
       path: '/subscription'
       fullPath: '/profile/subscription'
       preLoaderRoute: typeof ProfileSubscriptionRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/security': {
+      id: '/profile/security'
+      path: '/security'
+      fullPath: '/profile/security'
+      preLoaderRoute: typeof ProfileSecurityRouteImport
       parentRoute: typeof ProfileRoute
     }
     '/profile/orders': {
@@ -1192,6 +1211,7 @@ interface ProfileRouteChildren {
   ProfileAccountRoute: typeof ProfileAccountRoute
   ProfileBillingRoute: typeof ProfileBillingRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
+  ProfileSecurityRoute: typeof ProfileSecurityRoute
   ProfileSubscriptionRoute: typeof ProfileSubscriptionRoute
   ProfileIndexRoute: typeof ProfileIndexRoute
 }
@@ -1200,6 +1220,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileAccountRoute: ProfileAccountRoute,
   ProfileBillingRoute: ProfileBillingRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,
+  ProfileSecurityRoute: ProfileSecurityRoute,
   ProfileSubscriptionRoute: ProfileSubscriptionRoute,
   ProfileIndexRoute: ProfileIndexRoute,
 }
