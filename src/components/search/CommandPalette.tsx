@@ -15,6 +15,7 @@ import { visibleCommands, buildHaystack, type PaletteCommand, type CommandSectio
 import { rankItems } from "@/lib/search/fuzzy";
 import { globalSearch, type SearchHit } from "@/lib/search/search.functions";
 import { FileText, Newspaper } from "@/lib/lucide-shim";
+import { HighlightedText } from "@/components/search/HighlightedText";
 import "@/lib/i18n-search";
 
 const SECTION_ORDER: CommandSection[] = ["actions", "navigation", "account", "admin", "appearance", "settings", "content"];
