@@ -53,10 +53,6 @@ function useLoadGoogleFonts() {
   }, []);
 }
 
-function findOption(stack: string | undefined): FontOption | undefined {
-  if (!stack) return undefined;
-  return FONT_OPTIONS.find((o) => o.stack === stack);
-}
 
 interface Props {
   value: string | undefined;
