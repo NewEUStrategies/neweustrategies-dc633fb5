@@ -112,7 +112,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
         }]
       : []),
   ];
-  void Star; void Bookmark;
+  void Star; void Bookmark; void Brush;
 
 
   const handleSignOut = async () => {
