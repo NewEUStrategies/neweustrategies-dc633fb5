@@ -505,6 +505,45 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_crop_sizes: {
+        Row: {
+          created_at: string
+          height: number
+          id: string
+          name: string
+          position: number
+          ratio_h: number
+          ratio_w: number
+          tenant_id: string
+          updated_at: string
+          width: number
+        }
+        Insert: {
+          created_at?: string
+          height: number
+          id?: string
+          name: string
+          position?: number
+          ratio_h: number
+          ratio_w: number
+          tenant_id: string
+          updated_at?: string
+          width: number
+        }
+        Update: {
+          created_at?: string
+          height?: number
+          id?: string
+          name?: string
+          position?: number
+          ratio_h?: number
+          ratio_w?: number
+          tenant_id?: string
+          updated_at?: string
+          width?: number
+        }
+        Relationships: []
+      }
       live_blog_entries: {
         Row: {
           block_id: string
@@ -725,6 +764,7 @@ export type Database = {
           editor: Database["public"]["Enums"]["editor_type"]
           excerpt_en: string | null
           excerpt_pl: string | null
+          header_override: string | null
           id: string
           layout_overrides: Json | null
           menu_order: number
@@ -733,6 +773,7 @@ export type Database = {
           slug: string
           status: Database["public"]["Enums"]["post_status"]
           template_id: string | null
+          template_type: string
           tenant_id: string
           title_en: string
           title_pl: string
@@ -749,6 +790,7 @@ export type Database = {
           editor?: Database["public"]["Enums"]["editor_type"]
           excerpt_en?: string | null
           excerpt_pl?: string | null
+          header_override?: string | null
           id?: string
           layout_overrides?: Json | null
           menu_order?: number
@@ -757,6 +799,7 @@ export type Database = {
           slug: string
           status?: Database["public"]["Enums"]["post_status"]
           template_id?: string | null
+          template_type?: string
           tenant_id: string
           title_en?: string
           title_pl?: string
@@ -773,6 +816,7 @@ export type Database = {
           editor?: Database["public"]["Enums"]["editor_type"]
           excerpt_en?: string | null
           excerpt_pl?: string | null
+          header_override?: string | null
           id?: string
           layout_overrides?: Json | null
           menu_order?: number
@@ -781,6 +825,7 @@ export type Database = {
           slug?: string
           status?: Database["public"]["Enums"]["post_status"]
           template_id?: string | null
+          template_type?: string
           tenant_id?: string
           title_en?: string
           title_pl?: string
