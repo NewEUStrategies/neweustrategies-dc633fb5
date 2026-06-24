@@ -45,6 +45,7 @@ import { Route as AdminNewsletterRouteImport } from './routes/admin.newsletter'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
 import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
+import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
@@ -250,6 +251,11 @@ const AdminImportWordpressRoute = AdminImportWordpressRouteImport.update({
   path: '/import-wordpress',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCustomMetaRoute = AdminCustomMetaRouteImport.update({
+  id: '/custom-meta',
+  path: '/custom-meta',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminContentAreaRoute = AdminContentAreaRouteImport.update({
   id: '/content-area',
   path: '/content-area',
@@ -387,6 +393,7 @@ export interface FileRoutesByFullPath {
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
@@ -447,6 +454,7 @@ export interface FileRoutesByTo {
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
@@ -509,6 +517,7 @@ export interface FileRoutesById {
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
@@ -573,6 +582,7 @@ export interface FileRouteTypes {
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
+    | '/admin/custom-meta'
     | '/admin/import-wordpress'
     | '/admin/login-settings'
     | '/admin/media'
@@ -633,6 +643,7 @@ export interface FileRouteTypes {
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
+    | '/admin/custom-meta'
     | '/admin/import-wordpress'
     | '/admin/login-settings'
     | '/admin/media'
@@ -694,6 +705,7 @@ export interface FileRouteTypes {
     | '/admin/appearance'
     | '/admin/categories'
     | '/admin/content-area'
+    | '/admin/custom-meta'
     | '/admin/import-wordpress'
     | '/admin/login-settings'
     | '/admin/media'
@@ -1020,6 +1032,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminImportWordpressRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/custom-meta': {
+      id: '/admin/custom-meta'
+      path: '/custom-meta'
+      fullPath: '/admin/custom-meta'
+      preLoaderRoute: typeof AdminCustomMetaRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/content-area': {
       id: '/admin/content-area'
       path: '/content-area'
@@ -1268,6 +1287,7 @@ interface AdminRouteChildren {
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminContentAreaRoute: typeof AdminContentAreaRoute
+  AdminCustomMetaRoute: typeof AdminCustomMetaRoute
   AdminImportWordpressRoute: typeof AdminImportWordpressRoute
   AdminLoginSettingsRoute: typeof AdminLoginSettingsRoute
   AdminMediaRoute: typeof AdminMediaRoute
@@ -1289,6 +1309,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminContentAreaRoute: AdminContentAreaRoute,
+  AdminCustomMetaRoute: AdminCustomMetaRoute,
   AdminImportWordpressRoute: AdminImportWordpressRoute,
   AdminLoginSettingsRoute: AdminLoginSettingsRoute,
   AdminMediaRoute: AdminMediaRoute,
