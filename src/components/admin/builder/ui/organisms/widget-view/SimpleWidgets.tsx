@@ -18,6 +18,17 @@ import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/components/ThemeProvider";
 import { useQuery } from "@tanstack/react-query";
+import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+
+type SiteLogoCfg = { logo?: { main?: string; main_dark?: string; mobile?: string; mobile_dark?: string; transparent?: string; transparent_dark?: string } };
+function useSiteLogo(variant: "main" | "mobile" | "transparent" = "main"): { light: string; dark: string } {
+  const { data } = useQuery(siteSettingsQueryOptions);
+  const cfg = resolveSetting<SiteLogoCfg>(data, "theme_options", {});
+  const l = cfg.logo ?? {};
+  const lightKey = variant;
+  const darkKey = `${variant}_dark` as const;
+  return { light: (l as Record<string, string | undefined>)[lightKey] ?? "", dark: (l as Record<string, string | undefined>)[darkKey] ?? "" };
+}
 
 type Lang = "pl" | "en";
 
