@@ -8,7 +8,7 @@ import {
   Newspaper, Rows, FolderTree, Tags, Mail, Send, Megaphone,
   List, PanelLeft, Quote, Check, Link as LinkIcon,
   Globe, Sun, Search, User, Facebook,
-  Flame, Bookmark, Tag as AdIcon,
+  Flame, Bookmark, Megaphone as AdIcon,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
