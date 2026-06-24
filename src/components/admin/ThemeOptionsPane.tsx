@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 type HoverEffect = "color-border" | "underline" | "background" | "scale" | "none";
 type SearchMode = "standalone" | "dropdown" | "fullscreen";
 type AlertStyle = "info" | "warning" | "success" | "brand";
+type AlertIcon = "auto" | "none" | "Megaphone" | "Bell" | "Info" | "AlertTriangle" | "Check" | "Sparkles" | "Flame" | "Mail";
 type HeaderLayout = "layout-1" | "layout-2" | "layout-3" | "layout-4" | "layout-5" | "layout-6";
 type SocialPlacement = "topbar" | "navbar" | "both" | "hidden";
 type ButtonVariant = "solid" | "outline" | "ghost" | "pill";
