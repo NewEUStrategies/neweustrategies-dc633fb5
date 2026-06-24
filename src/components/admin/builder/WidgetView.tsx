@@ -48,6 +48,7 @@ import { Editable } from "./ui/molecules/Editable";
 import { TtsPlayerHost } from "./ui/molecules/TtsPlayerHost";
 import { PostListView } from "./ui/organisms/widget-view/PostListView";
 import { RatedListView } from "./ui/organisms/widget-view/RatedListView";
+import { AdSlotById } from "@/components/ads/AdSlotById";
 import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
 import { TagsView } from "./ui/organisms/widget-view/TagsView";
 import { TabsBlock } from "./ui/organisms/widget-view/TabsBlock";
@@ -614,8 +615,6 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     }
     case "ad-slot": {
       const slotId = getStr(c, "slotId");
-      // Lazy import to keep widget bundle small and avoid SSR issues.
-      const { AdSlotById } = require("@/components/ads/AdSlotById") as typeof import("@/components/ads/AdSlotById");
       return wrap(<AdSlotById slotId={slotId} />);
     }
     default:
