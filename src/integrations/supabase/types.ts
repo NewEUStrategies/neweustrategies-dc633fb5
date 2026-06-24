@@ -975,6 +975,150 @@ export type Database = {
           },
         ]
       }
+      podcast_settings: {
+        Row: {
+          apple_url: string | null
+          autoplay_next: boolean
+          default_player_variant: string
+          google_url: string | null
+          rss_url: string | null
+          show_speed_control: boolean
+          spotify_url: string | null
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          apple_url?: string | null
+          autoplay_next?: boolean
+          default_player_variant?: string
+          google_url?: string | null
+          rss_url?: string | null
+          show_speed_control?: boolean
+          spotify_url?: string | null
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          apple_url?: string | null
+          autoplay_next?: boolean
+          default_player_variant?: string
+          google_url?: string | null
+          rss_url?: string | null
+          show_speed_control?: boolean
+          spotify_url?: string | null
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcast_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      podcasts: {
+        Row: {
+          audio_url: string
+          author_id: string | null
+          cover_image_url: string | null
+          created_at: string
+          deleted_at: string | null
+          duration_seconds: number
+          episode_number: number | null
+          excerpt_en: string
+          excerpt_pl: string
+          id: string
+          published_at: string | null
+          season: number | null
+          show_notes_en: string
+          show_notes_pl: string
+          slug: string
+          status: string
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          transcript_en: string
+          transcript_pl: string
+          updated_at: string
+        }
+        Insert: {
+          audio_url: string
+          author_id?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          duration_seconds?: number
+          episode_number?: number | null
+          excerpt_en?: string
+          excerpt_pl?: string
+          id?: string
+          published_at?: string | null
+          season?: number | null
+          show_notes_en?: string
+          show_notes_pl?: string
+          slug: string
+          status?: string
+          tenant_id: string
+          title_en?: string
+          title_pl: string
+          transcript_en?: string
+          transcript_pl?: string
+          updated_at?: string
+        }
+        Update: {
+          audio_url?: string
+          author_id?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          duration_seconds?: number
+          episode_number?: number | null
+          excerpt_en?: string
+          excerpt_pl?: string
+          id?: string
+          published_at?: string | null
+          season?: number | null
+          show_notes_en?: string
+          show_notes_pl?: string
+          slug?: string
+          status?: string
+          tenant_id?: string
+          title_en?: string
+          title_pl?: string
+          transcript_en?: string
+          transcript_pl?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcasts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "podcasts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_categories: {
         Row: {
           category_id: string
