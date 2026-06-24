@@ -1136,6 +1136,48 @@ export type Database = {
           },
         ]
       }
+      post_views: {
+        Row: {
+          id: string
+          post_id: string
+          tenant_id: string
+          user_id: string | null
+          viewed_at: string
+          viewer_hash: string
+        }
+        Insert: {
+          id?: string
+          post_id: string
+          tenant_id: string
+          user_id?: string | null
+          viewed_at?: string
+          viewer_hash: string
+        }
+        Update: {
+          id?: string
+          post_id?: string
+          tenant_id?: string
+          user_id?: string | null
+          viewed_at?: string
+          viewer_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_views_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_views_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       posts: {
         Row: {
           author_id: string | null
@@ -1728,6 +1770,10 @@ export type Database = {
         }[]
       }
       page_full_path: { Args: { _page_id: string }; Returns: string }
+      record_post_view: {
+        Args: { _post_id: string; _viewer_hash: string }
+        Returns: undefined
+      }
       resolve_path: {
         Args: { _segments: string[] }
         Returns: {
@@ -1736,6 +1782,19 @@ export type Database = {
         }[]
       }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
+      trending_posts: {
+        Args: { _days?: number; _limit?: number }
+        Returns: {
+          cover_image_url: string
+          id: string
+          parent_page_id: string
+          published_at: string
+          slug: string
+          title_en: string
+          title_pl: string
+          views_count: number
+        }[]
+      }
     }
     Enums: {
       access_entity_type: "post" | "page" | "media"
