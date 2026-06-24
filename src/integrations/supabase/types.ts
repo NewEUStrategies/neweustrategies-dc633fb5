@@ -667,6 +667,18 @@ export type Database = {
           heading_pl: string
           policy_html_en: string | null
           policy_html_pl: string | null
+          popup_cover_url: string | null
+          popup_cta_en: string
+          popup_cta_pl: string
+          popup_delay_seconds: number
+          popup_description_en: string
+          popup_description_pl: string
+          popup_enabled: boolean
+          popup_frequency_days: number
+          popup_scroll_percent: number
+          popup_title_en: string
+          popup_title_pl: string
+          popup_trigger: string
           success_message_en: string
           success_message_pl: string
           tenant_id: string
@@ -682,6 +694,18 @@ export type Database = {
           heading_pl?: string
           policy_html_en?: string | null
           policy_html_pl?: string | null
+          popup_cover_url?: string | null
+          popup_cta_en?: string
+          popup_cta_pl?: string
+          popup_delay_seconds?: number
+          popup_description_en?: string
+          popup_description_pl?: string
+          popup_enabled?: boolean
+          popup_frequency_days?: number
+          popup_scroll_percent?: number
+          popup_title_en?: string
+          popup_title_pl?: string
+          popup_trigger?: string
           success_message_en?: string
           success_message_pl?: string
           tenant_id?: string
@@ -697,6 +721,18 @@ export type Database = {
           heading_pl?: string
           policy_html_en?: string | null
           policy_html_pl?: string | null
+          popup_cover_url?: string | null
+          popup_cta_en?: string
+          popup_cta_pl?: string
+          popup_delay_seconds?: number
+          popup_description_en?: string
+          popup_description_pl?: string
+          popup_enabled?: boolean
+          popup_frequency_days?: number
+          popup_scroll_percent?: number
+          popup_title_en?: string
+          popup_title_pl?: string
+          popup_trigger?: string
           success_message_en?: string
           success_message_pl?: string
           tenant_id?: string

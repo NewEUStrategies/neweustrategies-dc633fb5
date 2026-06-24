@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+export type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";
+
 export interface NewsletterSettings {
   tenant_id: string;
   heading_pl: string;
@@ -13,6 +15,19 @@ export interface NewsletterSettings {
   success_message_en: string;
   double_opt_in: boolean;
   enabled: boolean;
+  // Popup
+  popup_enabled: boolean;
+  popup_trigger: NewsletterPopupTrigger;
+  popup_delay_seconds: number;
+  popup_scroll_percent: number;
+  popup_frequency_days: number;
+  popup_cover_url: string | null;
+  popup_title_pl: string;
+  popup_title_en: string;
+  popup_description_pl: string;
+  popup_description_en: string;
+  popup_cta_pl: string;
+  popup_cta_en: string;
 }
 
 export function defaultNewsletterSettings(): NewsletterSettings {
@@ -28,6 +43,18 @@ export function defaultNewsletterSettings(): NewsletterSettings {
     success_message_en: "Thanks! Please check your inbox.",
     double_opt_in: false,
     enabled: true,
+    popup_enabled: false,
+    popup_trigger: "delay",
+    popup_delay_seconds: 15,
+    popup_scroll_percent: 50,
+    popup_frequency_days: 7,
+    popup_cover_url: null,
+    popup_title_pl: "Zostań w kontakcie",
+    popup_title_en: "Stay in touch",
+    popup_description_pl: "Cotygodniowy przegląd najlepszych treści.",
+    popup_description_en: "A weekly digest of the best stories.",
+    popup_cta_pl: "Zapisz się",
+    popup_cta_en: "Subscribe",
   };
 }
 
