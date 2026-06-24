@@ -1,10 +1,13 @@
 // Organism: dynamic post grid/list/carousel sourced from Supabase.
 // All query knobs (categories, tags, exclusions, author, format, order,
-// limit, offset) are driven by widget content and edited via PostListEditor.
+// limit, offset, date range, popularity) are driven by widget content and
+// edited via PostListEditor.
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import { getNum, getStr } from "./frame";
+import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 
 type Lang = "pl" | "en";
 
