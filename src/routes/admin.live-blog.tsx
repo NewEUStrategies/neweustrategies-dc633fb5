@@ -132,7 +132,7 @@ function LiveBlogAdmin() {
           </div>
           <div>
             <Label>Język</Label>
-            <Select value={lang} onValueChange={(v) => navigate({ search: (p) => ({ ...p, lang: v as "pl" | "en" }) })}>
+            <Select value={lang} onValueChange={(v) => navigate({ search: (p: SearchParams) => ({ ...p, lang: v as "pl" | "en" }) })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="pl">PL</SelectItem>
@@ -142,7 +142,7 @@ function LiveBlogAdmin() {
           </div>
         </div>
         <Button
-          onClick={() => navigate({ search: (p) => ({ ...p, postId, blockId }) })}
+          onClick={() => navigate({ search: (p: SearchParams) => ({ ...p, postId, blockId }) })}
           disabled={!postId || !blockId}
         >
           Wczytaj wpisy

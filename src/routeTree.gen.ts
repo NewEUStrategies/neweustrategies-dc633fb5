@@ -44,6 +44,7 @@ import { Route as AdminPagesRouteImport } from './routes/admin.pages'
 import { Route as AdminNewsletterRouteImport } from './routes/admin.newsletter'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
+import { Route as AdminLiveBlogRouteImport } from './routes/admin.live-blog'
 import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
@@ -246,6 +247,11 @@ const AdminLoginSettingsRoute = AdminLoginSettingsRouteImport.update({
   path: '/login-settings',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminLiveBlogRoute = AdminLiveBlogRouteImport.update({
+  id: '/live-blog',
+  path: '/live-blog',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminImportWordpressRoute = AdminImportWordpressRouteImport.update({
   id: '/import-wordpress',
   path: '/import-wordpress',
@@ -395,6 +401,7 @@ export interface FileRoutesByFullPath {
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
+  '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/newsletter': typeof AdminNewsletterRoute
@@ -456,6 +463,7 @@ export interface FileRoutesByTo {
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
+  '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/newsletter': typeof AdminNewsletterRoute
@@ -519,6 +527,7 @@ export interface FileRoutesById {
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
+  '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/newsletter': typeof AdminNewsletterRoute
@@ -584,6 +593,7 @@ export interface FileRouteTypes {
     | '/admin/content-area'
     | '/admin/custom-meta'
     | '/admin/import-wordpress'
+    | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
     | '/admin/newsletter'
@@ -645,6 +655,7 @@ export interface FileRouteTypes {
     | '/admin/content-area'
     | '/admin/custom-meta'
     | '/admin/import-wordpress'
+    | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
     | '/admin/newsletter'
@@ -707,6 +718,7 @@ export interface FileRouteTypes {
     | '/admin/content-area'
     | '/admin/custom-meta'
     | '/admin/import-wordpress'
+    | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
     | '/admin/newsletter'
@@ -1025,6 +1037,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLoginSettingsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/live-blog': {
+      id: '/admin/live-blog'
+      path: '/live-blog'
+      fullPath: '/admin/live-blog'
+      preLoaderRoute: typeof AdminLiveBlogRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/import-wordpress': {
       id: '/admin/import-wordpress'
       path: '/import-wordpress'
@@ -1289,6 +1308,7 @@ interface AdminRouteChildren {
   AdminContentAreaRoute: typeof AdminContentAreaRoute
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
   AdminImportWordpressRoute: typeof AdminImportWordpressRoute
+  AdminLiveBlogRoute: typeof AdminLiveBlogRoute
   AdminLoginSettingsRoute: typeof AdminLoginSettingsRoute
   AdminMediaRoute: typeof AdminMediaRoute
   AdminNewsletterRoute: typeof AdminNewsletterRoute
@@ -1311,6 +1331,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminContentAreaRoute: AdminContentAreaRoute,
   AdminCustomMetaRoute: AdminCustomMetaRoute,
   AdminImportWordpressRoute: AdminImportWordpressRoute,
+  AdminLiveBlogRoute: AdminLiveBlogRoute,
   AdminLoginSettingsRoute: AdminLoginSettingsRoute,
   AdminMediaRoute: AdminMediaRoute,
   AdminNewsletterRoute: AdminNewsletterRoute,
