@@ -21,14 +21,17 @@ export function useSavePostLayoutSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (patch: Partial<PostLayoutSettings>) => {
-      const { data: existing } = await supabase.from("post_layout_settings").select("tenant_id").maybeSingle();
-      if (existing) {
-        const { error } = await supabase.from("post_layout_settings").update(patch).eq("tenant_id", existing.tenant_id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("post_layout_settings").insert(patch);
-        if (error) throw error;
-      }
+      // Resolve tenant_id explicitly so first-time inserts are deterministic
+      // (DB default current_tenant_id() also works, but being explicit lets us
+      // upsert idempotently regardless of whether a row exists).
+      const { data: tRow, error: tErr } = await supabase.rpc("current_tenant_id");
+      if (tErr) throw tErr;
+      const tenant_id = (tRow as string | null) ?? undefined;
+      const payload = { ...patch, ...(tenant_id ? { tenant_id } : {}) };
+      const { error } = await supabase
+        .from("post_layout_settings")
+        .upsert(payload, { onConflict: "tenant_id" });
+      if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["post-layout-settings"] }),
   });
