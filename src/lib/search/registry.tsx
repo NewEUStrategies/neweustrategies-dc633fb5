@@ -4,9 +4,9 @@
 // invocation time inside the palette).
 import type { ReactNode } from "react";
 import {
-  Home, FileText, FilesIcon, Settings, Image as ImageIcon, Tag, Megaphone,
-  Palette, Mail, Lock, LayoutDashboard, Newspaper, ShoppingCart, User as UserIcon,
-  CreditCard, Receipt, Shield, ListOrdered, Globe,
+  Home, FileText, Settings, Image as ImageIcon, Tags, Megaphone,
+  Palette, Mail, Lock, LayoutDashboard, Newspaper, User as UserIcon,
+  CreditCard, ListOrdered, FolderTree,
 } from "@/lib/lucide-shim";
 
 export type CommandSection =
