@@ -1956,6 +1956,65 @@ export type Database = {
           },
         ]
       }
+      web_stories: {
+        Row: {
+          author_id: string | null
+          cover_url: string | null
+          created_at: string
+          description_en: string
+          description_pl: string
+          id: string
+          pages: Json
+          published_at: string | null
+          slug: string
+          status: string
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          cover_url?: string | null
+          created_at?: string
+          description_en?: string
+          description_pl?: string
+          id?: string
+          pages?: Json
+          published_at?: string | null
+          slug: string
+          status?: string
+          tenant_id: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          cover_url?: string | null
+          created_at?: string
+          description_en?: string
+          description_pl?: string
+          id?: string
+          pages?: Json
+          published_at?: string | null
+          slug?: string
+          status?: string
+          tenant_id?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "web_stories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wp_import_jobs: {
         Row: {
           actor_id: string
