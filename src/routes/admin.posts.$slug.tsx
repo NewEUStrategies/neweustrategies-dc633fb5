@@ -62,6 +62,7 @@ interface PostForm {
   takeaways_pl: string[];
   takeaways_en: string[];
   custom_meta: Record<string, string> | null;
+  related_override: Record<string, unknown> | null;
 }
 
 
@@ -168,6 +169,7 @@ function EditPost() {
           takeaways_pl: snapshot.takeaways_pl ?? [],
           takeaways_en: snapshot.takeaways_en ?? [],
           custom_meta: snapshot.custom_meta ?? null,
+          related_override: snapshot.related_override ?? null,
         },
         categories: selectedCats,
         tags: selectedTags,
