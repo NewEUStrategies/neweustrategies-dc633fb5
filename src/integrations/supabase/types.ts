@@ -861,6 +861,42 @@ export type Database = {
           },
         ]
       }
+      post_custom_meta_defs: {
+        Row: {
+          created_at: string
+          icon: string
+          id: string
+          key: string
+          label_en: string
+          label_pl: string
+          position: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          icon?: string
+          id?: string
+          key: string
+          label_en?: string
+          label_pl?: string
+          position?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          icon?: string
+          id?: string
+          key?: string
+          label_en?: string
+          label_pl?: string
+          position?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       post_layout_settings: {
         Row: {
           audio_layout: string
@@ -883,6 +919,7 @@ export type Database = {
           quick_view_info: boolean
           show_author_card: boolean
           show_bottom_newsletter: boolean
+          show_floating_share_bar: boolean
           show_post_tags_bar: boolean
           show_prev_next: boolean
           show_sources_bar: boolean
@@ -917,6 +954,7 @@ export type Database = {
           quick_view_info?: boolean
           show_author_card?: boolean
           show_bottom_newsletter?: boolean
+          show_floating_share_bar?: boolean
           show_post_tags_bar?: boolean
           show_prev_next?: boolean
           show_sources_bar?: boolean
@@ -951,6 +989,7 @@ export type Database = {
           quick_view_info?: boolean
           show_author_card?: boolean
           show_bottom_newsletter?: boolean
+          show_floating_share_bar?: boolean
           show_post_tags_bar?: boolean
           show_prev_next?: boolean
           show_sources_bar?: boolean
@@ -1005,6 +1044,7 @@ export type Database = {
           content_pl: string | null
           cover_image_url: string | null
           created_at: string
+          custom_meta: Json
           deleted_at: string | null
           editor: Database["public"]["Enums"]["editor_type"]
           excerpt_en: string | null
@@ -1033,6 +1073,7 @@ export type Database = {
           content_pl?: string | null
           cover_image_url?: string | null
           created_at?: string
+          custom_meta?: Json
           deleted_at?: string | null
           editor?: Database["public"]["Enums"]["editor_type"]
           excerpt_en?: string | null
@@ -1061,6 +1102,7 @@ export type Database = {
           content_pl?: string | null
           cover_image_url?: string | null
           created_at?: string
+          custom_meta?: Json
           deleted_at?: string | null
           editor?: Database["public"]["Enums"]["editor_type"]
           excerpt_en?: string | null
