@@ -189,6 +189,7 @@ function ColumnEditor({
           <div className="rounded-md border border-border p-2 space-y-1">
             <ImageSlot
               label="Obraz"
+              icon={<ImageIcon className="w-4 h-4" />}
               value={str(featured.image)}
               onChange={(v) => set("featured", { ...featured, image: v } as unknown as Json)}
             />
