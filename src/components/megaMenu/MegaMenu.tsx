@@ -15,6 +15,8 @@ export interface MegaMenuLink {
   desc_en?: string;
 }
 
+export type FeaturedAspectRatio = "16/10" | "16/9" | "4/3" | "1/1" | "3/4";
+
 export interface MegaMenuFeatured {
   image?: string;
   title_pl?: string;
@@ -24,6 +26,14 @@ export interface MegaMenuFeatured {
   href?: string;
   cta_pl?: string;
   cta_en?: string;
+  /** Focal point X (0-100). Default 50. */
+  focalX?: number;
+  /** Focal point Y (0-100). Default 50. */
+  focalY?: number;
+  /** Aspect ratio of the image frame. Default 16/10. */
+  aspectRatio?: FeaturedAspectRatio;
+  /** Placeholder background tint while the image loads (CSS color). */
+  placeholderColor?: string;
 }
 
 export interface MegaMenuColumn {
