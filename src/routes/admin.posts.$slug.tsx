@@ -28,6 +28,7 @@ import { getLayoutSet, findLayout, mergeOverrides, pickLayoutId } from "@/lib/po
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
+import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/posts/$slug")({
