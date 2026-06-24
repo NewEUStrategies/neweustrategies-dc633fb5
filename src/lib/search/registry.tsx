@@ -38,6 +38,8 @@ export interface PaletteCommand {
   adminOnly?: boolean;
   /** True when this command requires an authenticated user. */
   authOnly?: boolean;
+  /** Surface this item in the empty-state "popular" list. */
+  popular?: boolean;
   icon?: ReactNode;
 }
 
