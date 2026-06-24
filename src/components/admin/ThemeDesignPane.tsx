@@ -47,7 +47,7 @@ export function ThemeDesignPane() {
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
-        Globalne style dla nagłówków bloków, miniatur, przycisku „Czytaj więcej" oraz informacji
+        Globalne style dla nagłówków bloków, miniatur, przycisku „Czytaj więcej” oraz informacji
         meta. Wartości są aplikowane jako zmienne CSS (<code>--td-*</code>) i nadpisują domyślny
         wygląd kart i widgetów.
       </p>
