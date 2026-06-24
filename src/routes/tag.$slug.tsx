@@ -59,7 +59,7 @@ function TagArchivePage() {
       <main className="flex-1 w-full">
         {taxonomy.featured_section && (
           <section className="border-b border-border">
-            <BuilderRenderer doc={{ sections: [taxonomy.featured_section] }} lang={lang} />
+            <BuilderRenderer doc={{ version: 1, sections: [taxonomy.featured_section] }} lang={lang} />
           </section>
         )}
         <section className="max-w-[1200px] mx-auto px-4 lg:px-8 py-10">
