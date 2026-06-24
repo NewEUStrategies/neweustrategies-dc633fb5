@@ -230,8 +230,55 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               className="h-8 text-xs font-mono"
             />
           </PropField>
+
+          <div className="grid grid-cols-2 gap-2">
+            <PropField label="Data od">
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setContent("dateFrom", e.target.value)}
+                className="h-8 text-xs"
+              />
+            </PropField>
+            <PropField label="Data do">
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setContent("dateTo", e.target.value)}
+                className="h-8 text-xs"
+              />
+            </PropField>
+          </div>
         </div>
       </Collapsible>
+
+      {/* ── Behaviour ──────────────────────────────────────── */}
+      <Collapsible title="Zachowanie i unikalność" defaultOpen={false}>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={uniqueOnPage}
+              onChange={(e) => setContent("uniqueOnPage", e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            <span>Nie powtarzaj wpisów z wcześniejszych widgetów na stronie</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={mobileHScroll}
+              onChange={(e) => setContent("mobileHorizontalScroll", e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            <span>Tryb przewijania poziomego na mobile</span>
+          </label>
+          <div className="text-[10px] text-muted-foreground">
+            Działa dla widoku kart / overlay / minimal. Na desktop nic się nie zmienia.
+          </div>
+        </div>
+      </Collapsible>
+
 
       {/* ── Sort / paging ──────────────────────────────────── */}
       <Collapsible title="Sortowanie i ilość" defaultOpen>
