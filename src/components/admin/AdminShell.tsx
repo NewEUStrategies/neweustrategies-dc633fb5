@@ -166,25 +166,39 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
               </button>
             )}
           </div>
-          <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-            {items.map(({ to, icon: Icon, label }) => {
-              const active = path === to || (to !== "/admin" && path.startsWith(to));
-              return (
-                <Link
-                  key={to}
-                  to={to}
-                  title={label}
-                  data-sidebar="menu-button"
-                  data-active={active ? "true" : "false"}
-                  className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm transition ${
-                    active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted"
-                  }`}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span className={`truncate ${compact ? "hidden" : ""}`}>{label}</span>
-                </Link>
-              );
-            })}
+          <nav className="flex-1 p-2 space-y-3 overflow-y-auto">
+            {groups.map((group, idx) => (
+              <div key={group.id} className={idx > 0 ? "pt-2 border-t border-border/60" : ""}>
+                {group.label && !compact && (
+                  <div
+                    data-sidebar="group-label"
+                    className="px-2 pt-1 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold"
+                  >
+                    {group.label}
+                  </div>
+                )}
+                <div className="space-y-0.5">
+                  {group.items.map(({ to, icon: Icon, label }) => {
+                    const active = path === to || (to !== "/admin" && path.startsWith(to));
+                    return (
+                      <Link
+                        key={to}
+                        to={to}
+                        title={label}
+                        data-sidebar="menu-button"
+                        data-active={active ? "true" : "false"}
+                        className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm transition ${
+                          active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <span className={`truncate ${compact ? "hidden" : ""}`}>{label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
 
             {extras && !compact && (
               <div className="mt-4 pt-3 border-t border-border space-y-0.5">
