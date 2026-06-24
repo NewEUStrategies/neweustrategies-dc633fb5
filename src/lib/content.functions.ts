@@ -353,7 +353,7 @@ export const createPage = createServerFn({ method: "POST" })
           title_pl: data.title_pl ?? "", title_en: data.title_en ?? "",
           parent_id: data.parent_id ?? null,
           template_id: data.template_id ?? null,
-          builder_data: data.builder_data ?? null,
+          builder_data: (data.builder_data ?? null) as Json | null,
         })
         .select("id, slug").single();
       if (error) throw new Error(error.message);
