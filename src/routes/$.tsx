@@ -150,6 +150,11 @@ function PublicPage() {
     staleTime: 5 * 60_000,
   });
 
+  // Related posts global config (singleton). Per-post override merges on top.
+  const { data: relatedGlobalCfg } = useQuery(relatedPostsConfigQueryOptions());
+  const relatedOverride = (post?.related_override ?? null) as RelatedPostsOverride | null;
+  const relatedCfg = mergeRelatedConfig(relatedGlobalCfg, relatedOverride);
+
   const [crumbs, setCrumbs] = useState<BreadcrumbItem[]>([]);
   useEffect(() => {
     setCrumbs(buildBreadcrumbs(data.crumbs, lang, isPost ? title : undefined));
