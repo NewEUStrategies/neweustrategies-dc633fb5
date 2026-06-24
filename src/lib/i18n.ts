@@ -821,6 +821,8 @@ const resources = {
             mobileHeader: "Mobile Header",
             buttons: "Buttons",
             textFields: "Text Fields",
+            contentStyling: "Content Styling",
+
           },
           mainMenu: {
             navTopLevel: "Navigation (Top Level)",
