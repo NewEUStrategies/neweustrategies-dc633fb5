@@ -1,6 +1,6 @@
 // Read-only widget renderers (no inline editing). Returns null when the
 // widget type isn't handled here — caller falls through to the main switch.
-import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type ReactNode, type SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { WidgetNode } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
@@ -95,7 +95,7 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
   const figureAlign = align === "left" ? "items-start" : align === "right" ? "items-end" : "items-center";
   const showResize = editable && !!onContentChange;
   const imgCls = `max-w-full h-auto ${variantCls}`;
-  const applyLogoFallback = (event: React.SyntheticEvent<HTMLImageElement>) => {
+  const applyLogoFallback = (event: SyntheticEvent<HTMLImageElement>) => {
     if (!wantsSiteLogo) return;
     const img = event.currentTarget;
     const fallback = img.classList.contains("gc-img-dark") ? srcDark || src : src || srcDark;
