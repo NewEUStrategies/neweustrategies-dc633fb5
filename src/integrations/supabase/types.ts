@@ -90,7 +90,7 @@ export type Database = {
           slot_id: string
           sort_order?: number
           starts_at?: string | null
-          tenant_id: string
+          tenant_id?: string
           updated_at?: string
         }
         Update: {
@@ -160,7 +160,7 @@ export type Database = {
           script?: string | null
           status?: Database["public"]["Enums"]["ad_slot_status"]
           targeting?: Json
-          tenant_id: string
+          tenant_id?: string
           updated_at?: string
           width?: number | null
         }
