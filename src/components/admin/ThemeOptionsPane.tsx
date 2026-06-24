@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 type HoverEffect = "color-border" | "underline" | "background" | "scale" | "none";
 type SearchMode = "standalone" | "dropdown" | "fullscreen";
 type AlertStyle = "info" | "warning" | "success" | "brand";
+type AlertIcon = "auto" | "none" | "Megaphone" | "Bell" | "Info" | "AlertTriangle" | "Check" | "Sparkles" | "Flame" | "Mail";
 type HeaderLayout = "layout-1" | "layout-2" | "layout-3" | "layout-4" | "layout-5" | "layout-6";
 type SocialPlacement = "topbar" | "navbar" | "both" | "hidden";
 type ButtonVariant = "solid" | "outline" | "ghost" | "pill";
@@ -58,6 +59,8 @@ interface ThemeOptions extends Record<string, unknown> {
       link_url: string;
       style: AlertStyle;
       dismissible: boolean;
+      icon: AlertIcon;
+      cta_label_pl: string; cta_label_en: string;
     };
     mobile: {
       breakpoint: number;
@@ -109,7 +112,7 @@ const DEFAULTS: ThemeOptions = {
     layout: "layout-1",
     main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
     search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
-    alert_bar: { enabled: false, message_pl: "", message_en: "", link_url: "", style: "brand", dismissible: true },
+    alert_bar: { enabled: false, message_pl: "", message_en: "", link_url: "", style: "brand", dismissible: true, icon: "auto", cta_label_pl: "", cta_label_en: "" },
     mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
     socials: { placement: "topbar", facebook: "", twitter: "", instagram: "", linkedin: "", youtube: "", email: "", size: 16 },
     signin: { enabled: true, signin_label_pl: "Zaloguj", signin_label_en: "Sign in", signup_label_pl: "Zarejestruj", signup_label_en: "Sign up", variant: "ghost", show_signup: true },
@@ -519,6 +522,29 @@ export function ThemeOptionsPane() {
                   <SelectItem value="success">{t("themeOptions.alertBar.styleSuccess")}</SelectItem>
                 </SelectContent>
               </Select>
+            </Row>
+            <Row label={t("themeOptions.alertBar.icon")} hint={t("themeOptions.alertBar.iconHint")}>
+              <Select value={draft.header.alert_bar.icon} onValueChange={(v) => patchAlert({ icon: v as AlertIcon })}>
+                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">{t("themeOptions.alertBar.iconAuto")}</SelectItem>
+                  <SelectItem value="none">{t("themeOptions.alertBar.iconNone")}</SelectItem>
+                  <SelectItem value="Megaphone">Megaphone</SelectItem>
+                  <SelectItem value="Bell">Bell</SelectItem>
+                  <SelectItem value="Info">Info</SelectItem>
+                  <SelectItem value="AlertTriangle">Warning</SelectItem>
+                  <SelectItem value="Check">Check</SelectItem>
+                  <SelectItem value="Sparkles">Sparkles</SelectItem>
+                  <SelectItem value="Flame">Flame</SelectItem>
+                  <SelectItem value="Mail">Mail</SelectItem>
+                </SelectContent>
+              </Select>
+            </Row>
+            <Row label={t("themeOptions.alertBar.ctaPl")} hint={t("themeOptions.alertBar.ctaHint")}>
+              <Input value={draft.header.alert_bar.cta_label_pl} onChange={(e) => patchAlert({ cta_label_pl: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="Czytaj więcej" />
+            </Row>
+            <Row label={t("themeOptions.alertBar.ctaEn")}>
+              <Input value={draft.header.alert_bar.cta_label_en} onChange={(e) => patchAlert({ cta_label_en: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="Read more" />
             </Row>
             <Row label={t("themeOptions.alertBar.dismissible")} hint={t("themeOptions.alertBar.dismissibleHint")}>
               <Switch checked={draft.header.alert_bar.dismissible} onCheckedChange={(v) => patchAlert({ dismissible: v })} />
