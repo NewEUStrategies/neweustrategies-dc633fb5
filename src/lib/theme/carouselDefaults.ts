@@ -67,7 +67,7 @@ export function resolveCarouselSettings(
   if (!override) return defaults;
   const cleaned: Partial<CarouselDefaults> = {};
   for (const [k, v] of Object.entries(override)) {
-    if (v !== undefined && v !== null && v !== "") {
+    if (v !== undefined && v !== null) {
       (cleaned as Record<string, unknown>)[k] = v;
     }
   }
