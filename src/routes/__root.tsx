@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import "../lib/i18n";
+import "../lib/i18n-profile";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { AuthProvider } from "../hooks/useAuth";
 import { Toaster } from "../components/ui/sonner";
