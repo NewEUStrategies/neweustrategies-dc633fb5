@@ -18,6 +18,7 @@ import { sanitizeMarkdownHtml } from "@/lib/sanitize";
 import { processManualToc } from "@/lib/manualToc";
 import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
+import { AutoLoadNextPost } from "@/components/post/AutoLoadNextPost";
 import { CustomMetaList } from "@/components/post/CustomMetaList";
 import { useQuery } from "@tanstack/react-query";
 import { listCustomMetaDefs } from "@/lib/customMeta";
