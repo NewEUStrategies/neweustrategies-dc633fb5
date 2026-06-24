@@ -152,6 +152,7 @@ function RootComponent() {
           </ErrorBoundary>
           <LoginPopup />
           <ConsentBanner />
+          <CommandPalette />
           <Toaster />
         </AuthProvider>
       </ThemeProvider>
