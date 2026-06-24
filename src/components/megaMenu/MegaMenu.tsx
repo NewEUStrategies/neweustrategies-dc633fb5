@@ -15,6 +15,8 @@ export interface MegaMenuLink {
   desc_en?: string;
 }
 
+export type FeaturedAspectRatio = "16/10" | "16/9" | "4/3" | "1/1" | "3/4";
+
 export interface MegaMenuFeatured {
   image?: string;
   title_pl?: string;
@@ -24,6 +26,14 @@ export interface MegaMenuFeatured {
   href?: string;
   cta_pl?: string;
   cta_en?: string;
+  /** Focal point X (0-100). Default 50. */
+  focalX?: number;
+  /** Focal point Y (0-100). Default 50. */
+  focalY?: number;
+  /** Aspect ratio of the image frame. Default 16/10. */
+  aspectRatio?: FeaturedAspectRatio;
+  /** Placeholder background tint while the image loads (CSS color). */
+  placeholderColor?: string;
 }
 
 export interface MegaMenuColumn {
@@ -209,12 +219,36 @@ function FeaturedCard({ featured, lang }: { featured: MegaMenuFeatured; lang: Me
   const cta = pickLang(lang === "pl" ? featured.cta_pl : featured.cta_en, featured.cta_pl);
   const href = safeUrl(featured.href ?? "#");
   const img = safeImageUrl(featured.image ?? "");
+  const fx = clamp01(featured.focalX ?? 50);
+  const fy = clamp01(featured.focalY ?? 50);
+  const ratio = featured.aspectRatio ?? "16/10";
+  const aspectCls =
+    ratio === "16/9" ? "aspect-[16/9]"
+    : ratio === "4/3" ? "aspect-[4/3]"
+    : ratio === "1/1" ? "aspect-square"
+    : ratio === "3/4" ? "aspect-[3/4]"
+    : "aspect-[16/10]";
+  // Placeholder: blurred tint that paints before the image decodes, preventing CLS and white flash.
+  const placeholderStyle = featured.placeholderColor
+    ? { background: featured.placeholderColor }
+    : undefined;
   return (
     <a href={href} className="block group rounded-lg overflow-hidden border border-border hover:border-brand transition">
       {img && (
-        <div className="aspect-[16/10] overflow-hidden bg-muted">
-          {/* Decorative; copy carries semantics. */}
-          <img src={img} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        <div
+          className={`${aspectCls} overflow-hidden bg-muted relative`}
+          style={placeholderStyle}
+        >
+          {/* Decorative within link context; visible copy below carries semantics. */}
+          <img
+            src={img}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            sizes="(max-width: 768px) 90vw, 320px"
+            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            style={{ objectPosition: `${fx}% ${fy}%` }}
+          />
         </div>
       )}
       <div className="p-3 space-y-1">
@@ -228,6 +262,13 @@ function FeaturedCard({ featured, lang }: { featured: MegaMenuFeatured; lang: Me
       </div>
     </a>
   );
+}
+
+function clamp01(n: number): number {
+  if (!Number.isFinite(n)) return 50;
+  if (n < 0) return 0;
+  if (n > 100) return 100;
+  return n;
 }
 
 function MobileColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }) {

@@ -10,7 +10,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { recordAudit, type AuditAction } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
 
@@ -338,6 +338,7 @@ export const createPage = createServerFn({ method: "POST" })
     title_en: z.string().max(300).optional(),
     parent_id: UUID.nullable().optional(),
     template_id: UUID.optional(),
+    builder_data: BuilderJsonValue.nullable().optional(),
   }).parse(i ?? {}))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -352,6 +353,7 @@ export const createPage = createServerFn({ method: "POST" })
           title_pl: data.title_pl ?? "", title_en: data.title_en ?? "",
           parent_id: data.parent_id ?? null,
           template_id: data.template_id ?? null,
+          builder_data: (data.builder_data ?? null) as Json | null,
         })
         .select("id, slug").single();
       if (error) throw new Error(error.message);

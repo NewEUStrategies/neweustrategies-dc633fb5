@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Image as ImageIcon } from "@/lib/lucide-shim";
-import { PropField, ItemFrame, NumberInput } from "../../atoms";
+import { PropField, ItemFrame, NumberInput, FocalPointPicker } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { ImageSlot } from "./ImageSlot";
 import { itemsOf, type Item } from "./shared";
@@ -186,13 +186,65 @@ function ColumnEditor({
           )}
         </div>
         {featured && (
-          <div className="rounded-md border border-border p-2 space-y-1">
+          <div className="rounded-md border border-border p-2 space-y-2">
             <ImageSlot
               label="Obraz"
               icon={<ImageIcon className="w-4 h-4" />}
               value={str(featured.image)}
               onChange={(v) => set("featured", { ...featured, image: v } as unknown as Json)}
             />
+            {/* Focal point picker: drag to choose the visible center on every crop. */}
+            <PropField label="Punkt fokalny (kadrowanie)">
+              <FocalPointPicker
+                image={str(featured.image)}
+                x={typeof featured.focalX === "number" ? featured.focalX : 50}
+                y={typeof featured.focalY === "number" ? featured.focalY : 50}
+                aspectCls={aspectClassFor(str(featured.aspectRatio) || "16/10")}
+                placeholderColor={str(featured.placeholderColor) || undefined}
+                onChange={(x, y) =>
+                  set("featured", { ...featured, focalX: x, focalY: y } as unknown as Json)
+                }
+              />
+              <div className="grid grid-cols-2 gap-1 mt-1">
+                <Input
+                  type="number" min={0} max={100}
+                  value={typeof featured.focalX === "number" ? featured.focalX : 50}
+                  onChange={(e) => set("featured", { ...featured, focalX: Number(e.target.value) } as unknown as Json)}
+                  className="h-7 text-xs" placeholder="X%"
+                />
+                <Input
+                  type="number" min={0} max={100}
+                  value={typeof featured.focalY === "number" ? featured.focalY : 50}
+                  onChange={(e) => set("featured", { ...featured, focalY: Number(e.target.value) } as unknown as Json)}
+                  className="h-7 text-xs" placeholder="Y%"
+                />
+              </div>
+            </PropField>
+            <div className="grid grid-cols-2 gap-1">
+              <PropField label="Proporcje">
+                <Select
+                  value={str(featured.aspectRatio) || "16/10"}
+                  onValueChange={(v) => set("featured", { ...featured, aspectRatio: v } as unknown as Json)}
+                >
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="16/10">16:10</SelectItem>
+                    <SelectItem value="16/9">16:9</SelectItem>
+                    <SelectItem value="4/3">4:3</SelectItem>
+                    <SelectItem value="1/1">1:1</SelectItem>
+                    <SelectItem value="3/4">3:4</SelectItem>
+                  </SelectContent>
+                </Select>
+              </PropField>
+              <PropField label="Tło placeholdera">
+                <Input
+                  type="color"
+                  value={str(featured.placeholderColor) || "#e5e7eb"}
+                  onChange={(e) => set("featured", { ...featured, placeholderColor: e.target.value } as unknown as Json)}
+                  className="h-7 p-1"
+                />
+              </PropField>
+            </div>
             <Input
               placeholder={`Tytuł ${lang.toUpperCase()}`}
               value={str(featured[`title_${lang}`])}
@@ -225,4 +277,12 @@ function ColumnEditor({
       </div>
     </ItemFrame>
   );
+}
+
+function aspectClassFor(r: string): string {
+  if (r === "16/9") return "aspect-[16/9]";
+  if (r === "4/3") return "aspect-[4/3]";
+  if (r === "1/1") return "aspect-square";
+  if (r === "3/4") return "aspect-[3/4]";
+  return "aspect-[16/10]";
 }
