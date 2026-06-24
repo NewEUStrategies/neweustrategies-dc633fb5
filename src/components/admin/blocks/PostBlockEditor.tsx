@@ -23,7 +23,7 @@ interface Props {
   canvasWrap?: (canvas: React.ReactNode) => React.ReactNode;
 }
 
-export function PostBlockEditor({ value, onChange, documentPane }: Props) {
+export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: Props) {
   const { t } = useTranslation();
   const [lang, setLang] = useState<"pl" | "en">("pl");
   const [activeId, setActiveId] = useState<string | null>(null);
