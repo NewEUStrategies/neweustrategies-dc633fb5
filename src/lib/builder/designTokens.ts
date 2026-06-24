@@ -123,5 +123,6 @@ export function tokensToCss(t: DesignTokens): string {
   if (t.fonts.heading) lines.push(`--brand-font-heading: ${t.fonts.heading};`);
   if (t.fonts.body) lines.push(`--brand-font-body: ${t.fonts.body};`);
   if (t.scale.radius) lines.push(`--brand-radius: ${t.scale.radius};`);
-  return lines.length ? `:root{${lines.join("")}}` : "";
+  const rootRule = lines.length ? `:root{${lines.join("")}}` : "";
+  return customFontsCss(t.fonts.custom) + rootRule;
 }
