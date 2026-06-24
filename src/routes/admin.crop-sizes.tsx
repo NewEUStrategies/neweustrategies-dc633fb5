@@ -120,7 +120,15 @@ function CropSizesAdmin() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="font-medium">Presety ({sizes.length})</h2>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h2 className="font-medium">Presety ({sizes.length})</h2>
+          <div className="flex items-center gap-3">
+            {regenStatus && <span className="text-xs text-muted-foreground">{regenStatus}</span>}
+            <Button size="sm" variant="secondary" onClick={regenerate}>
+              Regeneruj miniatury
+            </Button>
+          </div>
+        </div>
         <ul className="divide-y divide-border rounded-md border">
           {sizes.map((s) => (
             <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
