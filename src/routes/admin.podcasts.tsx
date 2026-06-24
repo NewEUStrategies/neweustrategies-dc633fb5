@@ -215,7 +215,7 @@ function Page() {
                   ))}
                   {!filtered.length && (
                     <tr><td colSpan={7} className="p-10 text-center text-muted-foreground">
-                      {rows?.length ? "Brak wyników dla wybranego filtra." : "Brak odcinków. Dodaj pierwszy klikając „Nowy odcinek"."}
+                      {rows?.length ? "Brak wyników dla wybranego filtra." : "Brak odcinków. Dodaj pierwszy klikając „Nowy odcinek”."}
                     </td></tr>
                   )}
                 </tbody>
