@@ -4,9 +4,13 @@ import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { defaultDocFor } from "@/lib/builder/chromeDefaults";
 import type { BuilderDocument } from "@/lib/builder/types";
+import { FooterChromeSchema, defaultFooterChrome, type FooterChrome } from "@/lib/theme/footerSettings";
+import { BackToTop } from "@/components/footer/BackToTop";
+import { CopyrightBar } from "@/components/footer/CopyrightBar";
 
 type FooterSettings = {
   builder_data?: BuilderDocument | null;
+  chrome?: Partial<FooterChrome>;
 };
 
 export function Footer() {
@@ -16,8 +20,6 @@ export function Footer() {
   const { data: settingsMap, isLoading } = useQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<FooterSettings>(settingsMap, "footer", {});
 
-  // Fall back to default chrome when no footer has been saved yet, so the
-  // site always renders a usable footer instead of disappearing silently.
   const doc =
     cfg.builder_data && cfg.builder_data.sections?.length
       ? cfg.builder_data
@@ -25,11 +27,20 @@ export function Footer() {
         ? null
         : defaultDocFor("footer");
 
-  if (!doc?.sections?.length) return null;
+  const chrome = FooterChromeSchema.safeParse({ ...defaultFooterChrome(), ...(cfg.chrome ?? {}) });
+  const chromeCfg = chrome.success ? chrome.data : defaultFooterChrome();
+
+  if (!doc?.sections?.length) {
+    return chromeCfg.back_to_top ? <BackToTop thresholdPx={chromeCfg.back_to_top_threshold_px} /> : null;
+  }
 
   return (
-    <footer>
-      <BuilderRenderer doc={doc} lang={isPl ? "pl" : "en"} />
-    </footer>
+    <>
+      <footer data-footer-layout={chromeCfg.layout}>
+        <BuilderRenderer doc={doc} lang={isPl ? "pl" : "en"} />
+        <CopyrightBar chrome={chromeCfg} lang={isPl ? "pl" : "en"} />
+      </footer>
+      {chromeCfg.back_to_top ? <BackToTop thresholdPx={chromeCfg.back_to_top_threshold_px} /> : null}
+    </>
   );
 }
