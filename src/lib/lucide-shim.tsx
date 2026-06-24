@@ -189,6 +189,9 @@ export const LayoutGrid = makeIcon(faTableCells, LLayoutGrid);
 export const Sparkles = makeIcon(faWandMagicSparkles, LSparkles);
 export const PanelsTopLeft = makeIcon(faWindowMaximize, LPanelsTopLeft);
 export const CreditCard = makeIcon(faCreditCard, LCreditCard);
+export const Play = makeIcon(faPlay, LPlay);
+export const Pause = makeIcon(faPause, LPause);
+
 
 // Brands
 export const Facebook = makeIcon(faFacebook, LFacebook);
