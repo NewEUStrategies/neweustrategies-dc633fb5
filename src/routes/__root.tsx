@@ -20,6 +20,7 @@ import { DesignTokensStyle } from "../components/DesignTokensStyle";
 import { ContentAreaStyle } from "../components/ContentAreaStyle";
 import { ThemeOptionsStyle } from "../components/ThemeOptionsStyle";
 import { LoginPopup } from "../components/LoginPopup";
+import { ConsentBanner } from "../components/ConsentBanner";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 
 
@@ -148,6 +149,7 @@ function RootComponent() {
             <Outlet />
           </ErrorBoundary>
           <LoginPopup />
+          <ConsentBanner />
           <Toaster />
         </AuthProvider>
       </ThemeProvider>
