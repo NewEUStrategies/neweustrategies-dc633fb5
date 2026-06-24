@@ -146,12 +146,17 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: P
 
         <Tabs value={lang}>
           <TabsContent value={lang} className="mt-0">
-            <BlockCanvas
-              doc={history.doc}
-              activeId={activeId}
-              onSelect={setActiveId}
-              onChange={(next, immediate) => history.setDoc(next, immediate)}
-            />
+            {(() => {
+              const canvas = (
+                <BlockCanvas
+                  doc={history.doc}
+                  activeId={activeId}
+                  onSelect={setActiveId}
+                  onChange={(next, immediate) => history.setDoc(next, immediate)}
+                />
+              );
+              return canvasWrap ? canvasWrap(canvas) : canvas;
+            })()}
           </TabsContent>
         </Tabs>
       </div>
