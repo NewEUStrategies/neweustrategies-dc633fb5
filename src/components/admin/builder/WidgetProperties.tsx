@@ -38,6 +38,7 @@ import {
   SliderEditor,
   AnimatedHeadingEditor,
   PostListEditor,
+  MegaMenuEditor,
 } from "./ui/organisms/widget-properties";
 import { ShadowEditor } from "./ui/molecules/ShadowEditor";
 
