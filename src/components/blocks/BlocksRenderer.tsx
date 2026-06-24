@@ -250,14 +250,32 @@ function BlockView({ block, fn, lang = "pl", postId }: { block: Block; fn: Footn
       const right = readBlocksArray(block.data.right);
       return (
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 not-prose ${cls}`}>
-          <div className="prose dark:prose-invert max-w-none">{left.map((b) => <BlockView key={b.id} block={b} fn={fn} />)}</div>
-          <div className="prose dark:prose-invert max-w-none">{right.map((b) => <BlockView key={b.id} block={b} fn={fn} />)}</div>
+          <div className="prose dark:prose-invert max-w-none">{left.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} />)}</div>
+          <div className="prose dark:prose-invert max-w-none">{right.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} />)}</div>
         </div>
       );
     }
     case "html": {
       const safe = replaceFootnotes(sanitize(String(block.data.html ?? "")), fn);
       return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
+    }
+    case "liveblog": {
+      if (!postId) return null;
+      const title = String(block.data.title ?? "");
+      const reverseChronological = block.data.reverseChronological !== false;
+      const autoRefresh = block.data.autoRefresh !== false;
+      return (
+        <div className={cls}>
+          <LiveBlogBlock
+            postId={postId}
+            blockId={block.id}
+            lang={lang}
+            title={title || undefined}
+            reverseChronological={reverseChronological}
+            autoRefresh={autoRefresh}
+          />
+        </div>
+      );
     }
     default:
       return null;
