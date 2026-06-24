@@ -70,6 +70,11 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   const orderDir = (getStr(c, "orderDir") || "desc") === "asc" ? "asc" : "desc";
   const postFormat = getStr(c, "postFormat");
   const authorId = getStr(c, "authorId");
+  const dateFrom = getStr(c, "dateFrom"); // ISO date "YYYY-MM-DD"
+  const dateTo = getStr(c, "dateTo");
+  const popularDays = Math.max(1, Math.min(365, getNum(c, "popularDays", 30)));
+  const uniqueOnPage = c["uniqueOnPage"] === true || c["uniqueOnPage"] === "true";
+  const mobileHScroll = c["mobileHorizontalScroll"] === true || c["mobileHorizontalScroll"] === "true";
 
   const includeCats = csv(c, "categoriesCsv");
   const excludeCats = csv(c, "excludeCategoriesCsv");
@@ -78,10 +83,19 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   const includeIds = csv(c, "includeIdsCsv");
   const excludeIds = csv(c, "excludeIdsCsv");
 
+  const used = useUsedPostIds();
+  // Snapshot once per mount so we don't re-fetch when other widgets register.
+  const usedSnapshot = useMemo(
+    () => (uniqueOnPage ? used.getSnapshot() : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [uniqueOnPage],
+  );
+
   const queryKey = [
     "builder-post-list",
     { variant, limit, offset, cols, orderByRaw, orderDir, postFormat, authorId,
-      includeCats, excludeCats, includeTags, excludeTags, includeIds, excludeIds },
+      includeCats, excludeCats, includeTags, excludeTags, includeIds, excludeIds,
+      dateFrom, dateTo, popularDays, usedSnapshot },
   ] as const;
 
   const { data } = useQuery<PostRow[]>({
