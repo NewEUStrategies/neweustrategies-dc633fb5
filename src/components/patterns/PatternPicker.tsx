@@ -153,10 +153,19 @@ function PagePanel({
   const [overrides, setOverrides] = useState(() => fields.map((f) => ({ pl: f.pl, en: f.en })));
   const [titlePl, setTitlePl] = useState(pattern.defaultTitle.pl);
   const [titleEn, setTitleEn] = useState(pattern.defaultTitle.en);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const editedDoc = useMemo(
     () => applyI18nOverrides(pattern.builder, fields, overrides),
     [pattern, fields, overrides],
   );
+  const changedFields = useMemo(
+    () => fields
+      .map((f, i) => ({ f, ov: overrides[i] }))
+      .filter(({ f, ov }) => ov && (ov.pl !== f.pl || ov.en !== f.en)),
+    [fields, overrides],
+  );
+  const titleChanged =
+    titlePl.trim() !== pattern.defaultTitle.pl || titleEn.trim() !== pattern.defaultTitle.en;
 
   return (
     <div className="grid grid-rows-[minmax(0,1fr)_auto] min-h-[60vh]">
@@ -213,14 +222,31 @@ function PagePanel({
         </TabsContent>
       </Tabs>
 
-      <ApplyBar
-        onApply={() => onApply({
-          kind: "page",
-          pattern,
-          title_pl: titlePl.trim(),
-          title_en: titleEn.trim(),
-          builder: editedDoc,
-        })}
+      <ApplyBar onApply={() => setConfirmOpen(true)} />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        patternName={pattern.name[lang]}
+        rows={[
+          { label: lang === "pl" ? "Tytuł strony" : "Page title", changed: titleChanged,
+            before: `${pattern.defaultTitle.pl} / ${pattern.defaultTitle.en}`,
+            after: `${titlePl.trim()} / ${titleEn.trim()}` },
+          ...changedFields.map(({ f, ov }) => ({
+            label: `${f.widgetType} · ${f.baseKey}`,
+            changed: true,
+            before: `${f.pl} / ${f.en}`,
+            after: `${ov?.pl ?? ""} / ${ov?.en ?? ""}`,
+          })),
+        ]}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          onApply({
+            kind: "page", pattern,
+            title_pl: titlePl.trim(), title_en: titleEn.trim(),
+            builder: editedDoc,
+          });
+        }}
       />
     </div>
   );
@@ -239,6 +265,10 @@ function PostPanel({
   const [excerptEn, setExcerptEn] = useState(pattern.defaultExcerpt?.en ?? "");
   const [contentPl, setContentPl] = useState(pattern.content.pl);
   const [contentEn, setContentEn] = useState(pattern.content.en);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const diff = (label: string, before: string, after: string) =>
+    ({ label, changed: before !== after, before, after });
 
   return (
     <div className="grid grid-rows-[minmax(0,1fr)_auto] min-h-[60vh]">
@@ -280,22 +310,38 @@ function PostPanel({
         </TabsContent>
       </Tabs>
 
-      <ApplyBar
-        onApply={() => onApply({
-          kind: "post",
-          pattern,
-          title_pl: titlePl.trim(), title_en: titleEn.trim(),
-          excerpt_pl: excerptPl.trim(), excerpt_en: excerptEn.trim(),
-          content_pl: contentPl, content_en: contentEn,
-        })}
+      <ApplyBar onApply={() => setConfirmOpen(true)} />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        patternName={pattern.name[lang]}
+        rows={[
+          diff(lang === "pl" ? "Tytuł" : "Title",
+            `${pattern.defaultTitle.pl} / ${pattern.defaultTitle.en}`,
+            `${titlePl.trim()} / ${titleEn.trim()}`),
+          diff(lang === "pl" ? "Lead" : "Excerpt",
+            `${pattern.defaultExcerpt?.pl ?? ""} / ${pattern.defaultExcerpt?.en ?? ""}`,
+            `${excerptPl.trim()} / ${excerptEn.trim()}`),
+          diff(lang === "pl" ? "Treść" : "Content",
+            `${pattern.content.pl.length} zn. / ${pattern.content.en.length} zn.`,
+            `${contentPl.length} zn. / ${contentEn.length} zn.`),
+        ]}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          onApply({
+            kind: "post", pattern,
+            title_pl: titlePl.trim(), title_en: titleEn.trim(),
+            excerpt_pl: excerptPl.trim(), excerpt_en: excerptEn.trim(),
+            content_pl: contentPl, content_en: contentEn,
+          });
+        }}
       />
     </div>
   );
 }
 
 function PreviewFrame({ children }: { children: React.ReactNode }) {
-  // Scaled-down "device" frame so the preview fits in the dialog without
-  // shrinking content typography. Internal width 1280 -> scaled by container.
   return (
     <div className="relative h-[48vh] mx-4 my-2 rounded-lg border border-border overflow-hidden bg-background">
       <div className="absolute inset-0 overflow-auto">
@@ -310,8 +356,59 @@ function PreviewFrame({ children }: { children: React.ReactNode }) {
 function ApplyBar({ onApply }: { onApply: () => void }) {
   return (
     <DialogFooter className="px-6 py-3 border-t border-border bg-muted/30">
-      <Button onClick={onApply}>Zastosuj szablon</Button>
+      <Button onClick={onApply}>Przejrzyj zmiany</Button>
     </DialogFooter>
+  );
+}
+
+interface ConfirmRow { label: string; changed: boolean; before: string; after: string }
+
+function ConfirmDialog({
+  open, onOpenChange, patternName, rows, onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  patternName: string;
+  rows: ConfirmRow[];
+  onConfirm: () => void;
+}) {
+  const changedCount = rows.filter((r) => r.changed).length;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="font-display text-lg">Potwierdź zastosowanie szablonu</DialogTitle>
+          <DialogDescription>
+            Szablon: <strong>{patternName}</strong>. Zmienionych pól: <strong>{changedCount}</strong>.
+            Czynności nie można cofnąć automatycznie - zapisz wersję strony, jeśli to potrzebne.
+          </DialogDescription>
+        </DialogHeader>
+        <ScrollArea className="max-h-[40vh] -mx-2 px-2">
+          <ul className="space-y-2 py-2">
+            {rows.map((r, i) => (
+              <li key={i} className={`rounded-md border p-3 text-xs ${r.changed ? "border-brand/40 bg-brand/5" : "border-border bg-muted/30"}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-foreground">{r.label}</span>
+                  <Badge variant={r.changed ? "default" : "outline"} className="text-[10px]">
+                    {r.changed ? "zmieniono" : "bez zmian"}
+                  </Badge>
+                </div>
+                {r.changed && (
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-muted-foreground">
+                    <div><div className="text-[10px] uppercase">Przed</div><div className="line-clamp-3">{r.before}</div></div>
+                    <div><div className="text-[10px] uppercase">Po</div><div className="line-clamp-3 text-foreground">{r.after}</div></div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </ScrollArea>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Anuluj</Button>
+          <Button onClick={onConfirm}>Zastosuj</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

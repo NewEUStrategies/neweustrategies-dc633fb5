@@ -213,33 +213,46 @@ function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang 
   );
 }
 
-function FeaturedCard({ featured, lang }: { featured: MegaMenuFeatured; lang: MegaMenuLang }) {
-  const title = pickLang(lang === "pl" ? featured.title_pl : featured.title_en, featured.title_pl);
-  const excerpt = pickLang(lang === "pl" ? featured.excerpt_pl : featured.excerpt_en, featured.excerpt_pl);
-  const cta = pickLang(lang === "pl" ? featured.cta_pl : featured.cta_en, featured.cta_pl);
-  const href = safeUrl(featured.href ?? "#");
-  const img = safeImageUrl(featured.image ?? "");
-  const fx = clamp01(featured.focalX ?? 50);
-  const fy = clamp01(featured.focalY ?? 50);
-  const ratio = featured.aspectRatio ?? "16/10";
-  const aspectCls =
-    ratio === "16/9" ? "aspect-[16/9]"
-    : ratio === "4/3" ? "aspect-[4/3]"
-    : ratio === "1/1" ? "aspect-square"
-    : ratio === "3/4" ? "aspect-[3/4]"
-    : "aspect-[16/10]";
-  // Placeholder: blurred tint that paints before the image decodes, preventing CLS and white flash.
-  const placeholderStyle = featured.placeholderColor
-    ? { background: featured.placeholderColor }
+/** Allowed aspect ratios; used for legacy normalization. */
+const ALLOWED_RATIOS: ReadonlyArray<FeaturedAspectRatio> = ["16/10", "16/9", "4/3", "1/1", "3/4"];
+
+/**
+ * Normalize a (possibly legacy / partial / malformed) MegaMenuFeatured into a
+ * safe shape with focalX/focalY/aspectRatio/placeholderColor defaults applied.
+ * Accepts numeric strings (e.g. "50") and clamps out-of-range values.
+ */
+export function normalizeFeatured(
+  raw: MegaMenuFeatured | null | undefined,
+): Required<Pick<MegaMenuFeatured, "focalX" | "focalY" | "aspectRatio">> & MegaMenuFeatured {
+  const src: MegaMenuFeatured = raw ?? {};
+  const fx = clamp01(toNum(src.focalX, 50));
+  const fy = clamp01(toNum(src.focalY, 50));
+  const ratio: FeaturedAspectRatio =
+    src.aspectRatio && ALLOWED_RATIOS.includes(src.aspectRatio) ? src.aspectRatio : "16/10";
+  const placeholderColor = typeof src.placeholderColor === "string" && src.placeholderColor.trim()
+    ? src.placeholderColor
     : undefined;
+  return { ...src, focalX: fx, focalY: fy, aspectRatio: ratio, placeholderColor };
+}
+
+function FeaturedCard({ featured, lang }: { featured: MegaMenuFeatured; lang: MegaMenuLang }) {
+  const f = normalizeFeatured(featured);
+  const title = pickLang(lang === "pl" ? f.title_pl : f.title_en, f.title_pl);
+  const excerpt = pickLang(lang === "pl" ? f.excerpt_pl : f.excerpt_en, f.excerpt_pl);
+  const cta = pickLang(lang === "pl" ? f.cta_pl : f.cta_en, f.cta_pl);
+  const href = safeUrl(f.href ?? "#");
+  const img = safeImageUrl(f.image ?? "");
+  const aspectCls =
+    f.aspectRatio === "16/9" ? "aspect-[16/9]"
+    : f.aspectRatio === "4/3" ? "aspect-[4/3]"
+    : f.aspectRatio === "1/1" ? "aspect-square"
+    : f.aspectRatio === "3/4" ? "aspect-[3/4]"
+    : "aspect-[16/10]";
+  const placeholderStyle = f.placeholderColor ? { background: f.placeholderColor } : undefined;
   return (
     <a href={href} className="block group rounded-lg overflow-hidden border border-border hover:border-brand transition">
       {img && (
-        <div
-          className={`${aspectCls} overflow-hidden bg-muted relative`}
-          style={placeholderStyle}
-        >
-          {/* Decorative within link context; visible copy below carries semantics. */}
+        <div className={`${aspectCls} overflow-hidden bg-muted relative`} style={placeholderStyle}>
           <img
             src={img}
             alt=""
@@ -247,21 +260,26 @@ function FeaturedCard({ featured, lang }: { featured: MegaMenuFeatured; lang: Me
             decoding="async"
             sizes="(max-width: 768px) 90vw, 320px"
             className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            style={{ objectPosition: `${fx}% ${fy}%` }}
+            style={{ objectPosition: `${f.focalX}% ${f.focalY}%` }}
           />
         </div>
       )}
       <div className="p-3 space-y-1">
         {title && <div className="text-sm font-bold text-foreground leading-tight">{title}</div>}
         {excerpt && <div className="text-xs text-muted-foreground line-clamp-2">{excerpt}</div>}
-        {cta && (
-          <div className="text-xs font-semibold text-brand pt-1">
-            {cta} →
-          </div>
-        )}
+        {cta && (<div className="text-xs font-semibold text-brand pt-1">{cta} →</div>)}
       </div>
     </a>
   );
+}
+
+function toNum(v: unknown, fallback: number): number {
+  if (typeof v === "number") return v;
+  if (typeof v === "string" && v.trim()) {
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return fallback;
 }
 
 function clamp01(n: number): number {
