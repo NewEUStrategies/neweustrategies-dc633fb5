@@ -5,6 +5,7 @@ import { safeParseBlocks } from "@/lib/blocks/schema";
 import DOMPurify from "isomorphic-dompurify";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
 import { LiveBlogBlock } from "./LiveBlogBlock";
+import { GalleryBlock } from "./GalleryBlock";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
