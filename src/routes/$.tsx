@@ -308,8 +308,12 @@ function PublicPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground" data-template={tpl.id}>
-      <Header transparent={page.header_override === "transparent"} hidden={page.header_override === "hidden"} />
+    <div
+      className="min-h-screen flex flex-col bg-background text-foreground"
+      data-template={tpl.id}
+      data-header-override={page.header_override ?? "default"}
+    >
+      {page.header_override !== "hidden" && <Header />}
       <main className={`flex-1 ${pageMaxW} w-full mx-auto px-4 lg:px-8 py-10`}>
         {pageBody}
       </main>
