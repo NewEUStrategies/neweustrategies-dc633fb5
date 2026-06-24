@@ -29,6 +29,7 @@ import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
 import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
 import { Route as ProfileAccountRouteImport } from './routes/profile.account'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
+import { Route as PodcastSlugRouteImport } from './routes/podcast.$slug'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
@@ -177,6 +178,11 @@ const ProfileAccountRoute = ProfileAccountRouteImport.update({
 const PostSlugRoute = PostSlugRouteImport.update({
   id: '/post/$slug',
   path: '/post/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PodcastSlugRoute = PodcastSlugRouteImport.update({
+  id: '/podcast/$slug',
+  path: '/podcast/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewsletterConfirmRoute = NewsletterConfirmRouteImport.update({
@@ -467,6 +473,7 @@ export interface FileRoutesByFullPath {
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
+  '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/billing': typeof ProfileBillingRoute
@@ -535,6 +542,7 @@ export interface FileRoutesByTo {
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
+  '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/billing': typeof ProfileBillingRoute
@@ -607,6 +615,7 @@ export interface FileRoutesById {
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
+  '/podcast/$slug': typeof PodcastSlugRoute
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/billing': typeof ProfileBillingRoute
@@ -680,6 +689,7 @@ export interface FileRouteTypes {
     | '/checkout/cancel'
     | '/checkout/success'
     | '/newsletter/confirm'
+    | '/podcast/$slug'
     | '/post/$slug'
     | '/profile/account'
     | '/profile/billing'
@@ -748,6 +758,7 @@ export interface FileRouteTypes {
     | '/checkout/cancel'
     | '/checkout/success'
     | '/newsletter/confirm'
+    | '/podcast/$slug'
     | '/post/$slug'
     | '/profile/account'
     | '/profile/billing'
@@ -819,6 +830,7 @@ export interface FileRouteTypes {
     | '/checkout/cancel'
     | '/checkout/success'
     | '/newsletter/confirm'
+    | '/podcast/$slug'
     | '/post/$slug'
     | '/profile/account'
     | '/profile/billing'
@@ -869,6 +881,7 @@ export interface RootRouteChildren {
   CheckoutCancelRoute: typeof CheckoutCancelRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
+  PodcastSlugRoute: typeof PodcastSlugRoute
   PostSlugRoute: typeof PostSlugRoute
   TagSlugRoute: typeof TagSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
@@ -1018,6 +1031,13 @@ declare module '@tanstack/react-router' {
       path: '/post/$slug'
       fullPath: '/post/$slug'
       preLoaderRoute: typeof PostSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/podcast/$slug': {
+      id: '/podcast/$slug'
+      path: '/podcast/$slug'
+      fullPath: '/podcast/$slug'
+      preLoaderRoute: typeof PodcastSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/newsletter/confirm': {
@@ -1531,6 +1551,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutCancelRoute: CheckoutCancelRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
+  PodcastSlugRoute: PodcastSlugRoute,
   PostSlugRoute: PostSlugRoute,
   TagSlugRoute: TagSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
