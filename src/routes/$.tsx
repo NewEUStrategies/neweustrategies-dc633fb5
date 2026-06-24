@@ -120,6 +120,7 @@ function PublicPage() {
 
   const access = useContentAccess(isPost ? "post" : "page", it.id);
   const { data: globalLayoutSettings } = usePostLayoutSettings();
+  useRecordPostView(isPost ? it.id : null);
 
   const rawDoc = parseBuilderDoc(it.builder_data);
   const isBuilder = it.editor === "builder" && rawDoc.sections.length > 0;
