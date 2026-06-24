@@ -34,6 +34,7 @@ import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminThemeOptionsRouteImport } from './routes/admin.theme-options'
+import { Route as AdminThemeDesignRouteImport } from './routes/admin.theme-design'
 import { Route as AdminTagsRouteImport } from './routes/admin.tags'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
@@ -196,6 +197,11 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
 const AdminThemeOptionsRoute = AdminThemeOptionsRouteImport.update({
   id: '/theme-options',
   path: '/theme-options',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminThemeDesignRoute = AdminThemeDesignRouteImport.update({
+  id: '/theme-design',
+  path: '/theme-design',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminTagsRoute = AdminTagsRouteImport.update({
@@ -419,6 +425,7 @@ export interface FileRoutesByFullPath {
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
+  '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
@@ -481,6 +488,7 @@ export interface FileRoutesByTo {
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
+  '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
@@ -547,6 +555,7 @@ export interface FileRoutesById {
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
+  '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
@@ -614,6 +623,7 @@ export interface FileRouteTypes {
     | '/admin/posts'
     | '/admin/settings'
     | '/admin/tags'
+    | '/admin/theme-design'
     | '/admin/theme-options'
     | '/admin/users'
     | '/api/tts'
@@ -676,6 +686,7 @@ export interface FileRouteTypes {
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/tags'
+    | '/admin/theme-design'
     | '/admin/theme-options'
     | '/admin/users'
     | '/api/tts'
@@ -741,6 +752,7 @@ export interface FileRouteTypes {
     | '/admin/posts'
     | '/admin/settings'
     | '/admin/tags'
+    | '/admin/theme-design'
     | '/admin/theme-options'
     | '/admin/users'
     | '/api/tts'
@@ -977,6 +989,13 @@ declare module '@tanstack/react-router' {
       path: '/theme-options'
       fullPath: '/admin/theme-options'
       preLoaderRoute: typeof AdminThemeOptionsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/theme-design': {
+      id: '/admin/theme-design'
+      path: '/theme-design'
+      fullPath: '/admin/theme-design'
+      preLoaderRoute: typeof AdminThemeDesignRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/tags': {
@@ -1339,6 +1358,7 @@ interface AdminRouteChildren {
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
   AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
   AdminTagsRoute: typeof AdminTagsRoute
+  AdminThemeDesignRoute: typeof AdminThemeDesignRoute
   AdminThemeOptionsRoute: typeof AdminThemeOptionsRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -1363,6 +1383,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPostsRoute: AdminPostsRouteWithChildren,
   AdminSettingsRoute: AdminSettingsRouteWithChildren,
   AdminTagsRoute: AdminTagsRoute,
+  AdminThemeDesignRoute: AdminThemeDesignRoute,
   AdminThemeOptionsRoute: AdminThemeOptionsRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,

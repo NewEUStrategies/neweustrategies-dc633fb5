@@ -20,6 +20,7 @@ import { IconPackSync } from "../components/IconPackSync";
 import { DesignTokensStyle } from "../components/DesignTokensStyle";
 import { ContentAreaStyle } from "../components/ContentAreaStyle";
 import { ThemeOptionsStyle } from "../components/ThemeOptionsStyle";
+import { ThemeDesignStyle } from "../components/theme/ThemeDesignStyle";
 import { LoginPopup } from "../components/LoginPopup";
 import { ConsentBanner } from "../components/ConsentBanner";
 import { ErrorBoundary } from "../components/ErrorBoundary";
