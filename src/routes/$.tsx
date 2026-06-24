@@ -231,6 +231,16 @@ function PublicPage() {
             content={
               <>
                 {contentBlock}
+                {relatedCfg.enabled && relatedCfg.position === "after_paragraph" && (
+                  <RelatedPostsAfterParagraph
+                    containerRef={articleRef}
+                    afterParagraph={relatedCfg.after_paragraph}
+                    scanKey={`${it.id}-${lang}`}
+                    postId={post.id}
+                    lang={lang}
+                    override={relatedOverride}
+                  />
+                )}
                 <MidPostAds
                   articleRef={articleRef}
                   pageType={adPageType}
@@ -247,6 +257,15 @@ function PublicPage() {
                   tags={postTags}
                   scanKey={`${it.id}-${lang}`}
                 />
+                {relatedCfg.enabled && relatedCfg.position === "sidebar" && (
+                  <RelatedPosts
+                    postId={post.id}
+                    lang={lang}
+                    override={relatedOverride}
+                    forceLayout="list"
+                    className="mt-6"
+                  />
+                )}
               </>
             }
             footer={
@@ -259,6 +278,9 @@ function PublicPage() {
                   via={null}
                   author={null}
                 />
+                {relatedCfg.enabled && relatedCfg.position === "end" && (
+                  <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
+                )}
                 <AdZone position="bottom_of_post" pageType={adPageType} pageId={it.id} className="my-6" />
                 {merged.show_bottom_newsletter && <NewsletterForm lang={lang} source={`post:${post.slug}`} />}
               </>
