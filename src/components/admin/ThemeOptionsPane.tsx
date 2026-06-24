@@ -58,6 +58,8 @@ interface ThemeOptions extends Record<string, unknown> {
       link_url: string;
       style: AlertStyle;
       dismissible: boolean;
+      icon: AlertIcon;
+      cta_label_pl: string; cta_label_en: string;
     };
     mobile: {
       breakpoint: number;
