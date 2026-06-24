@@ -155,7 +155,7 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: P
                   onChange={(next, immediate) => history.setDoc(next, immediate)}
                 />
               );
-              return canvasWrap ? canvasWrap(canvas) : canvas;
+              return canvasWrap ? canvasWrap(canvas, lang) : canvas;
             })()}
           </TabsContent>
         </Tabs>
