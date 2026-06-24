@@ -91,6 +91,43 @@ export const WIDGETS: WidgetDef[] = [
       href: "/", target: "self",
       variant: "text",
     }) },
+  { type: "mega-menu", label: "Mega menu", category: "navigation", icon: LayoutGrid,
+    defaults: () => ({
+      trigger_pl: "Produkty", trigger_en: "Products",
+      href: "",
+      triggerOn: "hover",
+      width: "container",
+      widthPx: 1140,
+      columns: [
+        {
+          title_pl: "Kategorie", title_en: "Categories",
+          links: [
+            { label_pl: "Analizy", label_en: "Analyses", href: "#", desc_pl: "", desc_en: "" },
+            { label_pl: "Wywiady", label_en: "Interviews", href: "#", desc_pl: "", desc_en: "" },
+          ],
+        },
+        {
+          title_pl: "Zasoby", title_en: "Resources",
+          links: [
+            { label_pl: "Raporty", label_en: "Reports", href: "#", desc_pl: "", desc_en: "" },
+            { label_pl: "Newsletter", label_en: "Newsletter", href: "#", desc_pl: "", desc_en: "" },
+          ],
+        },
+        {
+          title_pl: "Wyróżnione", title_en: "Featured",
+          links: [],
+          featured: {
+            image: "",
+            title_pl: "Najnowszy raport",
+            title_en: "Latest report",
+            excerpt_pl: "Krótki opis wyróżnionej treści.",
+            excerpt_en: "Short summary of featured content.",
+            href: "#",
+            cta_pl: "Czytaj", cta_en: "Read",
+          },
+        },
+      ],
+    }) },
   // Site chrome (header / footer / menu)
   { type: "social-icons", label: "Ikony social", category: "navigation", icon: Facebook,
     defaults: () => ({
