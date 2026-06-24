@@ -2,6 +2,7 @@
 // Wartością jest pełen stos font-family (string), zgodny z `var(--brand-font-*)`.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Check } from "lucide-react";
+import type { CustomFont } from "@/lib/theme/customFonts";
 
 export interface FontOption {
   label: string;
