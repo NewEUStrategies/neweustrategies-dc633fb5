@@ -197,6 +197,14 @@ export const Play = makeIcon(faPlay, LPlay);
 export const Pause = makeIcon(faPause, LPause);
 export const Bell = makeIcon(faBell, LBell);
 export const Info = makeIcon(faCircleInfo, LInfo);
+export const Mic = makeIcon(faMicrophone, LMic);
+export const Film = makeIcon(faFilm, LFilm);
+export const Brush = makeIcon(faPaintbrush, LBrush);
+export const Rss = makeIcon(faRss, LRss);
+export const ShieldCheck = makeIcon(faShieldHalved, LShieldCheck);
+export const Cog = makeIcon(faGears, LCog);
+export const Wand2 = makeIcon(faWandSparkles, LWand2);
+export const Share2 = makeIcon(faShareNodes, LShare2);
 
 
 // Brands
