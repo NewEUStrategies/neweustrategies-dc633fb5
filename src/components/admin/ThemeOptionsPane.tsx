@@ -155,7 +155,9 @@ const SECTIONS = [
   { id: "header.mobile", labelKey: "themeOptions.sections.mobileHeader", icon: LayoutDashboard },
   { id: "buttons", labelKey: "themeOptions.sections.buttons", icon: MousePointerClick },
   { id: "text_fields", labelKey: "themeOptions.sections.textFields", icon: Pencil },
+  { id: "design", labelKey: "themeOptions.sections.contentStyling", icon: Brush },
 ] as const;
+
 
 const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
   "layout-1": { label: "Layout 1 — Classic Centered", hint: "Utility bar + centered logo + nav (current default)" },
