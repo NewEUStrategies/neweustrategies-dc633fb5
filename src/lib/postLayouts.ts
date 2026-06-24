@@ -91,6 +91,7 @@ export interface PostLayoutSettings {
   show_prev_next: boolean;
   prev_next_mobile_hide: boolean;
   show_bottom_newsletter: boolean;
+  show_floating_share_bar: boolean;
 }
 
 export interface LayoutOverrides {
