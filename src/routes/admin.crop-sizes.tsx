@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRequiredTenant } from "@/hooks/useAuth";
+import { useServerFn } from "@tanstack/react-start";
+import { regenerateThumbnails } from "@/lib/media.functions";
 import {
   listCropSizes, upsertCropSize, deleteCropSize,
   type CropSize, type CropSizeDraft,
