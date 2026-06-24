@@ -102,15 +102,15 @@ export const WIDGETS: WidgetDef[] = [
         {
           title_pl: "Kategorie", title_en: "Categories",
           links: [
-            { label_pl: "Analizy", label_en: "Analyses", href: "#", desc_pl: "", desc_en: "" },
-            { label_pl: "Wywiady", label_en: "Interviews", href: "#", desc_pl: "", desc_en: "" },
+            { label_pl: "Analizy", label_en: "Analyses", href: "#" },
+            { label_pl: "Wywiady", label_en: "Interviews", href: "#" },
           ],
         },
         {
           title_pl: "Zasoby", title_en: "Resources",
           links: [
-            { label_pl: "Raporty", label_en: "Reports", href: "#", desc_pl: "", desc_en: "" },
-            { label_pl: "Newsletter", label_en: "Newsletter", href: "#", desc_pl: "", desc_en: "" },
+            { label_pl: "Raporty", label_en: "Reports", href: "#" },
+            { label_pl: "Newsletter", label_en: "Newsletter", href: "#" },
           ],
         },
         {
