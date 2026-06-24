@@ -1,9 +1,12 @@
 // Public blog list. URL: /blog
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { AdSlotView } from "@/components/AdSlot";
+import { useAdPlacements } from "@/lib/ads/queries";
 import { blogListQueryOptions } from "@/lib/queries/public";
 
 export const Route = createFileRoute("/blog/")({
