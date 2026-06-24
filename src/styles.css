@@ -334,3 +334,11 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .h-8 { height: 2rem; }
 .cms-builder-compact input, .cms-builder-compact select, .cms-builder-compact textarea, .cms-builder-compact button { font-size: inherit; }
 .cms-builder-compact .h-8 { height: 1.75rem; }
+
+/* OptimizedImage hover effects */
+.oi-wrap { position: relative; display: block; }
+.oi-wrap .oi-img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 480ms ease, opacity 240ms ease-out, filter 320ms ease; }
+.oi-hover-zoom:hover .oi-img { transform: scale(1.06); }
+.oi-hover-fade:hover .oi-img { opacity: 0.85; filter: brightness(0.95); }
+.oi-hover-slide .oi-img { transform: translateX(0); }
+.oi-hover-slide:hover .oi-img { transform: translateX(-3%) scale(1.03); }
