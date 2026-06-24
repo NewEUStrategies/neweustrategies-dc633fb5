@@ -850,6 +850,13 @@ const resources = {
             styleSuccess: "Success",
             dismissible: "Dismissible",
             dismissibleHint: "User can hide the bar (stored in localStorage).",
+            icon: "Icon",
+            iconHint: "“Auto” picks an icon to match the style.",
+            iconAuto: "Automatic",
+            iconNone: "No icon",
+            ctaPl: "Button label (PL)",
+            ctaEn: "Button label (EN)",
+            ctaHint: "Shows a CTA button next to the message (requires a link).",
           },
           mobile: {
             breakpoint: "Mobile Breakpoint (px)",
