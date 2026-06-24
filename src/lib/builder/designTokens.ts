@@ -11,6 +11,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { customFontsCss, type CustomFont } from "@/lib/theme/customFonts";
+
+export type { CustomFont };
 
 export interface BrandColor {
   /** Stable slug used to build the CSS variable (`--brand-primary`). */
@@ -24,6 +27,8 @@ export interface BrandFonts {
   heading?: string;
   /** Font-family stack for body copy. */
   body?: string;
+  /** User-uploaded custom fonts (rendered as @font-face). */
+  custom?: CustomFont[];
 }
 
 export interface BrandScale {
@@ -118,5 +123,6 @@ export function tokensToCss(t: DesignTokens): string {
   if (t.fonts.heading) lines.push(`--brand-font-heading: ${t.fonts.heading};`);
   if (t.fonts.body) lines.push(`--brand-font-body: ${t.fonts.body};`);
   if (t.scale.radius) lines.push(`--brand-radius: ${t.scale.radius};`);
-  return lines.length ? `:root{${lines.join("")}}` : "";
+  const rootRule = lines.length ? `:root{${lines.join("")}}` : "";
+  return customFontsCss(t.fonts.custom) + rootRule;
 }

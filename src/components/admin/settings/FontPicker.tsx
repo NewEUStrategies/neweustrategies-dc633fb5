@@ -2,6 +2,7 @@
 // Wartością jest pełen stos font-family (string), zgodny z `var(--brand-font-*)`.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Check } from "lucide-react";
+import type { CustomFont } from "@/lib/theme/customFonts";
 
 export interface FontOption {
   label: string;
@@ -52,23 +53,32 @@ function useLoadGoogleFonts() {
   }, []);
 }
 
-function findOption(stack: string | undefined): FontOption | undefined {
-  if (!stack) return undefined;
-  return FONT_OPTIONS.find((o) => o.stack === stack);
-}
 
 interface Props {
   value: string | undefined;
   onChange: (stack: string | undefined) => void;
   sampleText?: string;
+  /** Tenant-uploaded custom fonts (rendered as extra options at the top). */
+  customFonts?: CustomFont[];
 }
 
-export function FontPicker({ value, onChange, sampleText = "Aa — The quick brown fox" }: Props) {
+export function FontPicker({
+  value, onChange, sampleText = "Aa — The quick brown fox", customFonts = [],
+}: Props) {
   useLoadGoogleFonts();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const selected = useMemo(() => findOption(value), [value]);
+  const customOptions = useMemo<FontOption[]>(
+    () => customFonts.map((f) => ({
+      label: `${f.label} (własny)`,
+      stack: `"${f.id}", system-ui, sans-serif`,
+      hint: "Własny font",
+    })),
+    [customFonts],
+  );
+  const allOptions = useMemo(() => [...customOptions, ...FONT_OPTIONS], [customOptions]);
+  const selected = useMemo(() => allOptions.find((o) => o.stack === value), [allOptions, value]);
 
   useEffect(() => {
     if (!open) return;
@@ -111,7 +121,7 @@ export function FontPicker({ value, onChange, sampleText = "Aa — The quick bro
             {!value && <Check className="w-4 h-4 text-brand" />}
           </button>
           <div className="border-t border-border" />
-          {FONT_OPTIONS.map((opt) => {
+          {allOptions.map((opt) => {
             const active = opt.stack === value;
             return (
               <button

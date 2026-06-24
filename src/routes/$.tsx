@@ -20,6 +20,7 @@ import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
 import { AutoLoadNextPost } from "@/components/post/AutoLoadNextPost";
 import { CustomMetaList } from "@/components/post/CustomMetaList";
+import { useRecordPostView } from "@/hooks/useRecordPostView";
 import { ContactForm } from "@/components/pages/ContactForm";
 import { ArchiveListing } from "@/components/pages/ArchiveListing";
 import { findPageTemplate } from "@/lib/pageTemplates";
@@ -119,6 +120,7 @@ function PublicPage() {
 
   const access = useContentAccess(isPost ? "post" : "page", it.id);
   const { data: globalLayoutSettings } = usePostLayoutSettings();
+  useRecordPostView(isPost ? it.id : null);
 
   const rawDoc = parseBuilderDoc(it.builder_data);
   const isBuilder = it.editor === "builder" && rawDoc.sections.length > 0;

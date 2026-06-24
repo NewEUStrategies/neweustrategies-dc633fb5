@@ -22,6 +22,8 @@ import {
 import { Field, Text, SaveBar } from "@/components/admin/settings/fields";
 import { ColorField } from "@/components/admin/builder/ui/atoms/ColorField";
 import { FontPicker } from "@/components/admin/settings/FontPicker";
+import { CustomFontUploader } from "@/components/admin/CustomFontUploader";
+import type { CustomFont } from "@/lib/theme/customFonts";
 
 export const Route = createFileRoute("/admin/settings/design")({
   component: DesignSettings,
@@ -80,6 +82,7 @@ function DesignSettings() {
             value={draft.fonts.heading}
             onChange={(stack) => setDraft({ ...draft, fonts: { ...draft.fonts, heading: stack } })}
             sampleText="Nagłówek — Headlines &amp; Display"
+            customFonts={draft.fonts.custom ?? []}
           />
         </Field>
         <Field label="Font tekstu" hint="Treść artykułów, akapity, listy, opisy.">
@@ -87,8 +90,17 @@ function DesignSettings() {
             value={draft.fonts.body}
             onChange={(stack) => setDraft({ ...draft, fonts: { ...draft.fonts, body: stack } })}
             sampleText="Treść — szybki brązowy lis przeskakuje przez leniwego psa."
+            customFonts={draft.fonts.custom ?? []}
           />
         </Field>
+        <div className="mt-3">
+          <CustomFontUploader
+            value={draft.fonts.custom ?? []}
+            onChange={(custom: CustomFont[]) =>
+              setDraft({ ...draft, fonts: { ...draft.fonts, custom } })
+            }
+          />
+        </div>
         <Field label="Promień (radius)" hint="Domyślny border-radius dla kart, przycisków itp.">
           <Text
             value={draft.scale.radius ?? ""}
