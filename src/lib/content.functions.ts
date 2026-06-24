@@ -330,6 +330,8 @@ const PageCore = z.object({
   parent_id: UUID.nullable().optional(),
   template_id: UUID.nullable().optional(),
   menu_order: z.number().int().min(0).max(99999).optional(),
+  template_type: z.enum(["default", "full_width", "landing", "archive_listing", "contact"]).optional(),
+  header_override: z.string().max(64).nullable().optional(),
 });
 
 export const createPage = createServerFn({ method: "POST" })
