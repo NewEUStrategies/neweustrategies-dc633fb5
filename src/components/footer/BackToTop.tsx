@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUp } from "@/lib/lucide-shim";
+import { ChevronUp } from "@/lib/lucide-shim";
 
 interface Props {
   thresholdPx?: number;
@@ -33,7 +33,7 @@ export function BackToTop({ thresholdPx = 400 }: Props) {
         "hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
       ].join(" ")}
     >
-      <ArrowUp className="w-5 h-5" aria-hidden="true" />
+      <ChevronUp className="w-5 h-5" aria-hidden="true" />
     </button>
   );
 }
