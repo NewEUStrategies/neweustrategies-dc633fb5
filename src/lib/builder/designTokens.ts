@@ -11,6 +11,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { customFontsCss, type CustomFont } from "@/lib/theme/customFonts";
+
+export type { CustomFont };
 
 export interface BrandColor {
   /** Stable slug used to build the CSS variable (`--brand-primary`). */
