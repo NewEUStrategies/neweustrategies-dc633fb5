@@ -575,6 +575,20 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "false", label: "Nie" },
       ] },
   ],
+  "web-stories-carousel": [
+    { key: "variant", type: "select", label: "Wariant",
+      options: [
+        { value: "carousel", label: "Karuzela" },
+        { value: "grid", label: "Siatka" },
+      ] },
+    { key: "limit", type: "number", label: "Liczba historii", min: 2, max: 20 },
+    { key: "aspect", type: "select", label: "Proporcje kafla",
+      options: [
+        { value: "9/16", label: "Pionowy 9:16" },
+        { value: "3/4", label: "3:4" },
+        { value: "1/1", label: "Kwadrat" },
+      ] },
+  ],
 };
 
 

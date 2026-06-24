@@ -22,6 +22,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as WebStoriesSlugRouteImport } from './routes/web-stories.$slug'
 import { Route as TagSlugRouteImport } from './routes/tag.$slug'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
@@ -37,6 +38,7 @@ import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
+import { Route as AdminWebStoriesRouteImport } from './routes/admin.web-stories'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminThemeOptionsRouteImport } from './routes/admin.theme-options'
 import { Route as AdminThemeDesignRouteImport } from './routes/admin.theme-design'
@@ -146,6 +148,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const WebStoriesSlugRoute = WebStoriesSlugRouteImport.update({
+  id: '/web-stories/$slug',
+  path: '/web-stories/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TagSlugRoute = TagSlugRouteImport.update({
   id: '/tag/$slug',
   path: '/tag/$slug',
@@ -220,6 +227,11 @@ const ApiTtsRoute = ApiTtsRouteImport.update({
   id: '/api/tts',
   path: '/api/tts',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminWebStoriesRoute = AdminWebStoriesRouteImport.update({
+  id: '/web-stories',
+  path: '/web-stories',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
@@ -473,6 +485,7 @@ export interface FileRoutesByFullPath {
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRoute
@@ -488,6 +501,7 @@ export interface FileRoutesByFullPath {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/tag/$slug': typeof TagSlugRoute
+  '/web-stories/$slug': typeof WebStoriesSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -543,6 +557,7 @@ export interface FileRoutesByTo {
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRoute
@@ -558,6 +573,7 @@ export interface FileRoutesByTo {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/tag/$slug': typeof TagSlugRoute
+  '/web-stories/$slug': typeof WebStoriesSlugRoute
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/profile': typeof ProfileIndexRoute
@@ -617,6 +633,7 @@ export interface FileRoutesById {
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
   '/category/$slug': typeof CategorySlugRoute
@@ -632,6 +649,7 @@ export interface FileRoutesById {
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/tag/$slug': typeof TagSlugRoute
+  '/web-stories/$slug': typeof WebStoriesSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -692,6 +710,7 @@ export interface FileRouteTypes {
     | '/admin/theme-design'
     | '/admin/theme-options'
     | '/admin/users'
+    | '/admin/web-stories'
     | '/api/tts'
     | '/author/$slug'
     | '/category/$slug'
@@ -707,6 +726,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/subscription'
     | '/tag/$slug'
+    | '/web-stories/$slug'
     | '/admin/'
     | '/blog/'
     | '/profile/'
@@ -762,6 +782,7 @@ export interface FileRouteTypes {
     | '/admin/theme-design'
     | '/admin/theme-options'
     | '/admin/users'
+    | '/admin/web-stories'
     | '/api/tts'
     | '/author/$slug'
     | '/category/$slug'
@@ -777,6 +798,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/subscription'
     | '/tag/$slug'
+    | '/web-stories/$slug'
     | '/admin'
     | '/blog'
     | '/profile'
@@ -835,6 +857,7 @@ export interface FileRouteTypes {
     | '/admin/theme-design'
     | '/admin/theme-options'
     | '/admin/users'
+    | '/admin/web-stories'
     | '/api/tts'
     | '/author/$slug'
     | '/category/$slug'
@@ -850,6 +873,7 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/subscription'
     | '/tag/$slug'
+    | '/web-stories/$slug'
     | '/admin/'
     | '/blog/'
     | '/profile/'
@@ -896,6 +920,7 @@ export interface RootRouteChildren {
   PodcastSlugRoute: typeof PodcastSlugRoute
   PostSlugRoute: typeof PostSlugRoute
   TagSlugRoute: typeof TagSlugRoute
+  WebStoriesSlugRoute: typeof WebStoriesSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
   ApiPublicRobotsDottxtRoute: typeof ApiPublicRobotsDottxtRoute
   ApiPublicSitemapDotxmlRoute: typeof ApiPublicSitemapDotxmlRoute
@@ -995,6 +1020,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/web-stories/$slug': {
+      id: '/web-stories/$slug'
+      path: '/web-stories/$slug'
+      fullPath: '/web-stories/$slug'
+      preLoaderRoute: typeof WebStoriesSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/tag/$slug': {
       id: '/tag/$slug'
@@ -1100,6 +1132,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/tts'
       preLoaderRoute: typeof ApiTtsRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/web-stories': {
+      id: '/admin/web-stories'
+      path: '/web-stories'
+      fullPath: '/admin/web-stories'
+      preLoaderRoute: typeof AdminWebStoriesRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/admin/users': {
       id: '/admin/users'
@@ -1501,6 +1540,7 @@ interface AdminRouteChildren {
   AdminThemeDesignRoute: typeof AdminThemeDesignRoute
   AdminThemeOptionsRoute: typeof AdminThemeOptionsRoute
   AdminUsersRoute: typeof AdminUsersRoute
+  AdminWebStoriesRoute: typeof AdminWebStoriesRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
@@ -1528,6 +1568,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminThemeDesignRoute: AdminThemeDesignRoute,
   AdminThemeOptionsRoute: AdminThemeOptionsRoute,
   AdminUsersRoute: AdminUsersRoute,
+  AdminWebStoriesRoute: AdminWebStoriesRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 
@@ -1575,6 +1616,7 @@ const rootRouteChildren: RootRouteChildren = {
   PodcastSlugRoute: PodcastSlugRoute,
   PostSlugRoute: PostSlugRoute,
   TagSlugRoute: TagSlugRoute,
+  WebStoriesSlugRoute: WebStoriesSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
   ApiPublicRobotsDottxtRoute: ApiPublicRobotsDottxtRoute,
   ApiPublicSitemapDotxmlRoute: ApiPublicSitemapDotxmlRoute,

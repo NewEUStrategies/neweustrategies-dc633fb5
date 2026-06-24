@@ -260,6 +260,13 @@ export const WIDGETS: WidgetDef[] = [
       variant: "grid", // grid | list | featured
       showPlayer: "true",
     }) },
+  // Web Stories
+  { type: "web-stories-carousel", label: "Web Stories: karuzela", category: "dynamic", icon: GalleryHorizontal,
+    defaults: () => ({
+      limit: 8,
+      variant: "carousel", // carousel | grid
+      aspect: "9/16",
+    }) },
 ];
 
 export const WIDGET_MAP: Record<WidgetType, WidgetDef> = WIDGETS.reduce(

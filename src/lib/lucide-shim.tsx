@@ -19,6 +19,7 @@ import {
   faTags, faTrashCan, faFont, faRotateLeft, faUpload, faUser, faUsers,
   faVideo, faXmark, faSpinner, faTriangleExclamation,
   faLock, faPalette, faTableCells, faWandMagicSparkles, faWindowMaximize, faCreditCard,
+  faPlay, faPause,
 } from "@fortawesome/free-solid-svg-icons";
 import {
   faFacebook, faInstagram, faLinkedin, faXTwitter, faYoutube,
@@ -44,7 +45,7 @@ import {
   Trash2 as LTrash2, Type as LType, Undo as LUndo, Upload as LUpload, User as LUser,
   Users as LUsers, Video as LVideo, X as LX,
   Lock as LLock, Palette as LPalette, LayoutGrid as LLayoutGrid, Sparkles as LSparkles,
-  PanelsTopLeft as LPanelsTopLeft, CreditCard as LCreditCard,
+  PanelsTopLeft as LPanelsTopLeft, CreditCard as LCreditCard, Play as LPlay, Pause as LPause,
   Facebook as LFacebook, Instagram as LInstagram, Linkedin as LLinkedin,
   Twitter as LTwitter, Youtube as LYoutube,
   type LucideIcon as LucideIconImpl,
@@ -188,6 +189,9 @@ export const LayoutGrid = makeIcon(faTableCells, LLayoutGrid);
 export const Sparkles = makeIcon(faWandMagicSparkles, LSparkles);
 export const PanelsTopLeft = makeIcon(faWindowMaximize, LPanelsTopLeft);
 export const CreditCard = makeIcon(faCreditCard, LCreditCard);
+export const Play = makeIcon(faPlay, LPlay);
+export const Pause = makeIcon(faPause, LPause);
+
 
 // Brands
 export const Facebook = makeIcon(faFacebook, LFacebook);
