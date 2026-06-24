@@ -44,6 +44,7 @@ import { Route as AdminPersonalizedRouteImport } from './routes/admin.personaliz
 import { Route as AdminPaywallRouteImport } from './routes/admin.paywall'
 import { Route as AdminPagesRouteImport } from './routes/admin.pages'
 import { Route as AdminNewsletterRouteImport } from './routes/admin.newsletter'
+import { Route as AdminRelatedPostsRouteImport } from './routes/admin.related-posts'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
 import { Route as AdminLiveBlogRouteImport } from './routes/admin.live-blog'
@@ -280,6 +281,11 @@ const AdminCropSizesRoute = AdminCropSizesRouteImport.update({
   path: '/crop-sizes',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminRelatedPostsRoute = AdminRelatedPostsRouteImport.update({
+  id: '/related-posts',
+  path: '/related-posts',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminContentAreaRoute = AdminContentAreaRouteImport.update({
   id: '/content-area',
   path: '/content-area',
@@ -428,6 +434,7 @@ export interface FileRoutesByFullPath {
   '/admin/paywall': typeof AdminPaywallRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
+  '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/settings': typeof AdminSettingsRouteWithChildren
@@ -495,6 +502,7 @@ export interface FileRoutesByTo {
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/related-posts': typeof AdminRelatedPostsRoute
+  '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
@@ -561,6 +569,7 @@ export interface FileRoutesById {
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
@@ -630,6 +639,7 @@ export interface FileRouteTypes {
     | '/admin/personalized'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/related-posts'
     | '/admin/related-posts'
     | '/admin/settings'
     | '/admin/tags'
@@ -1115,6 +1125,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCropSizesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/related-posts': {
+      id: '/admin/related-posts'
+      path: '/related-posts'
+      fullPath: '/admin/related-posts'
+      preLoaderRoute: typeof AdminRelatedPostsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/content-area': {
       id: '/admin/content-area'
       path: '/content-area'
@@ -1376,6 +1393,7 @@ interface AdminRouteChildren {
   AdminPostLayoutsRoute: typeof AdminPostLayoutsRoute
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
   AdminRelatedPostsRoute: typeof AdminRelatedPostsRoute
+  AdminRelatedPostsRoute: typeof AdminRelatedPostsRoute
   AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
   AdminTagsRoute: typeof AdminTagsRoute
   AdminThemeDesignRoute: typeof AdminThemeDesignRoute
@@ -1401,6 +1419,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPersonalizedRoute: AdminPersonalizedRoute,
   AdminPostLayoutsRoute: AdminPostLayoutsRoute,
   AdminPostsRoute: AdminPostsRouteWithChildren,
+  AdminRelatedPostsRoute: AdminRelatedPostsRoute,
   AdminRelatedPostsRoute: AdminRelatedPostsRoute,
   AdminSettingsRoute: AdminSettingsRouteWithChildren,
   AdminTagsRoute: AdminTagsRoute,
