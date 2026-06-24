@@ -21,11 +21,13 @@ const SearchParams = z.object({
   to: z.string().optional(),
 });
 
+type SearchInput = z.infer<typeof SearchParams>;
+
 export const Route = createFileRoute("/search")({
-  validateSearch: (s) => SearchParams.parse(s),
-  head: ({ search }) => ({
+  validateSearch: (s: Record<string, unknown>): SearchInput => SearchParams.parse(s),
+  head: () => ({
     meta: [
-      { title: search.q ? `Wyniki: ${search.q}` : "Szukaj" },
+      { title: "Szukaj" },
       { name: "description", content: "Wyszukiwarka wpisów" },
     ],
   }),
@@ -54,11 +56,11 @@ function SearchPage() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    navigate({ search: (s) => ({ ...s, q: draft }) });
+    navigate({ search: (s: SearchInput) => ({ ...s, q: draft }) });
   };
 
-  const updateFilter = (key: keyof typeof search, value: string | undefined) => {
-    navigate({ search: (s) => ({ ...s, [key]: value || undefined }) });
+  const updateFilter = (key: keyof SearchInput, value: string | undefined) => {
+    navigate({ search: (s: SearchInput) => ({ ...s, [key]: value || undefined }) });
   };
 
   const clearAll = () => navigate({ search: { q: search.q } });
