@@ -505,6 +505,59 @@ export type Database = {
         }
         Relationships: []
       }
+      live_blog_entries: {
+        Row: {
+          block_id: string
+          body_html: string
+          created_at: string
+          created_by: string | null
+          id: string
+          lang: string
+          occurred_at: string
+          pinned: boolean
+          post_id: string
+          tenant_id: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          block_id: string
+          body_html?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lang?: string
+          occurred_at?: string
+          pinned?: boolean
+          post_id: string
+          tenant_id: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          block_id?: string
+          body_html?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lang?: string
+          occurred_at?: string
+          pinned?: boolean
+          post_id?: string
+          tenant_id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_blog_entries_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media: {
         Row: {
           alt_text: string | null
@@ -900,6 +953,7 @@ export type Database = {
       post_layout_settings: {
         Row: {
           audio_layout: string
+          auto_load_next_post: boolean
           center_entry_meta: boolean
           center_header: boolean
           featured_ratio_l10: number
@@ -935,6 +989,7 @@ export type Database = {
         }
         Insert: {
           audio_layout?: string
+          auto_load_next_post?: boolean
           center_entry_meta?: boolean
           center_header?: boolean
           featured_ratio_l10?: number
@@ -970,6 +1025,7 @@ export type Database = {
         }
         Update: {
           audio_layout?: string
+          auto_load_next_post?: boolean
           center_entry_meta?: boolean
           center_header?: boolean
           featured_ratio_l10?: number

@@ -19,6 +19,7 @@ import {
   FileCode2 as FileCode,
   PlaySquare,
   Images,
+  Radio as RadioIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -154,6 +155,18 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     category: "advanced",
     create: () => ({ id: newBlockId(), type: "html", data: { html: "" } }),
   },
+  liveblog: {
+    type: "liveblog",
+    label: "Live Blog",
+    description: "Wpisy na żywo z auto-odświeżaniem (timestamped).",
+    icon: RadioIcon,
+    category: "advanced",
+    create: () => ({
+      id: newBlockId(),
+      type: "liveblog",
+      data: { title: "", reverseChronological: true, autoRefresh: true },
+    }),
+  },
 };
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
@@ -175,4 +188,5 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "button",
   "columns",
   "html",
+  "liveblog",
 ];

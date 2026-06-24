@@ -16,7 +16,8 @@ export type BlockType =
   | "table"
   | "button"
   | "columns"
-  | "html";
+  | "html"
+  | "liveblog";
 
 export type Json =
   | string

@@ -4,10 +4,13 @@ import type { Block, BlocksDoc, Json } from "@/lib/blocks/types";
 import { safeParseBlocks } from "@/lib/blocks/schema";
 import DOMPurify from "isomorphic-dompurify";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
+import { LiveBlogBlock } from "./LiveBlogBlock";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
   lang?: "pl" | "en";
+  /** Wymagane do bloków typu `liveblog` (subskrypcja realtime per post). */
+  postId?: string;
 }
 
 const FN_LABELS = {
@@ -41,7 +44,7 @@ function renderFootnoteHtml(text: string): string {
   return DOMPurify.sanitize(text, { USE_PROFILES: { html: true } });
 }
 
-export function BlocksRenderer({ doc, lang = "pl" }: Props) {
+export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
   if (!doc?.blocks?.length) return null;
   const safe = safeParseBlocks(doc);
   if (!safe.blocks.length) return null;
@@ -49,7 +52,7 @@ export function BlocksRenderer({ doc, lang = "pl" }: Props) {
   const L = FN_LABELS[lang] ?? FN_LABELS.pl;
   return (
     <article className="blocks-content prose prose-lg dark:prose-invert max-w-none" lang={lang}>
-      {safe.blocks.map((b) => <BlockView key={b.id} block={b} fn={fn} />)}
+      {safe.blocks.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} />)}
       {fn.notes.length > 0 && (
         <section className="footnotes mt-10 pt-6 border-t border-border text-sm" aria-labelledby="footnotes-heading">
           <h2 id="footnotes-heading" data-footnotes-title className="text-base font-semibold mb-3">{L.title}</h2>
@@ -91,7 +94,7 @@ function readBlocksArray(raw: Json | undefined): Block[] {
   return out;
 }
 
-function BlockView({ block, fn }: { block: Block; fn: FootnoteCollector }) {
+function BlockView({ block, fn, lang = "pl", postId }: { block: Block; fn: FootnoteCollector; lang?: "pl" | "en"; postId?: string }) {
   const cls = alignClass(block);
 
   switch (block.type) {
@@ -247,14 +250,32 @@ function BlockView({ block, fn }: { block: Block; fn: FootnoteCollector }) {
       const right = readBlocksArray(block.data.right);
       return (
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 not-prose ${cls}`}>
-          <div className="prose dark:prose-invert max-w-none">{left.map((b) => <BlockView key={b.id} block={b} fn={fn} />)}</div>
-          <div className="prose dark:prose-invert max-w-none">{right.map((b) => <BlockView key={b.id} block={b} fn={fn} />)}</div>
+          <div className="prose dark:prose-invert max-w-none">{left.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} />)}</div>
+          <div className="prose dark:prose-invert max-w-none">{right.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} />)}</div>
         </div>
       );
     }
     case "html": {
       const safe = replaceFootnotes(sanitize(String(block.data.html ?? "")), fn);
       return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
+    }
+    case "liveblog": {
+      if (!postId) return null;
+      const title = String(block.data.title ?? "");
+      const reverseChronological = block.data.reverseChronological !== false;
+      const autoRefresh = block.data.autoRefresh !== false;
+      return (
+        <div className={cls}>
+          <LiveBlogBlock
+            postId={postId}
+            blockId={block.id}
+            lang={lang}
+            title={title || undefined}
+            reverseChronological={reverseChronological}
+            autoRefresh={autoRefresh}
+          />
+        </div>
+      );
     }
     default:
       return null;

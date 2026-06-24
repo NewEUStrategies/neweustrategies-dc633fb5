@@ -18,6 +18,7 @@ import { sanitizeMarkdownHtml } from "@/lib/sanitize";
 import { processManualToc } from "@/lib/manualToc";
 import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
+import { AutoLoadNextPost } from "@/components/post/AutoLoadNextPost";
 import { CustomMetaList } from "@/components/post/CustomMetaList";
 import { useQuery } from "@tanstack/react-query";
 import { listCustomMetaDefs } from "@/lib/customMeta";
@@ -168,7 +169,7 @@ function PublicPage() {
         <>
           {isPost && takeaways.length > 0 && <KeyTakeaways items={takeaways} />}
           {isBlocks ? (
-            <BlocksRenderer doc={blocksDoc} lang={lang} />
+            <BlocksRenderer doc={blocksDoc} lang={lang} postId={isPost ? it.id : undefined} />
           ) : isBuilder ? (
             <BuilderRenderer doc={doc} lang={lang} />
           ) : (
@@ -250,6 +251,14 @@ function PublicPage() {
             }
           />
           <FootnoteTooltips notes={notes} containerRef={articleRef} />
+          {merged.auto_load_next_post && (
+            <AutoLoadNextPost
+              currentPostId={post.id}
+              parentPageId={data.parentPageId}
+              currentPublishedAt={post.published_at}
+              lang={lang}
+            />
+          )}
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
         </main>
         <Footer />
