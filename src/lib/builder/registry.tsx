@@ -105,6 +105,7 @@ export const WIDGETS: WidgetDef[] = [
             { label_pl: "Analizy", label_en: "Analyses", href: "#" },
             { label_pl: "Wywiady", label_en: "Interviews", href: "#" },
           ],
+          featured: null,
         },
         {
           title_pl: "Zasoby", title_en: "Resources",
@@ -112,6 +113,7 @@ export const WIDGETS: WidgetDef[] = [
             { label_pl: "Raporty", label_en: "Reports", href: "#" },
             { label_pl: "Newsletter", label_en: "Newsletter", href: "#" },
           ],
+          featured: null,
         },
         {
           title_pl: "Wyróżnione", title_en: "Featured",
