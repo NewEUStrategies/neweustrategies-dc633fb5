@@ -22,6 +22,8 @@ import {
 import { Field, Text, SaveBar } from "@/components/admin/settings/fields";
 import { ColorField } from "@/components/admin/builder/ui/atoms/ColorField";
 import { FontPicker } from "@/components/admin/settings/FontPicker";
+import { CustomFontUploader } from "@/components/admin/CustomFontUploader";
+import type { CustomFont } from "@/lib/theme/customFonts";
 
 export const Route = createFileRoute("/admin/settings/design")({
   component: DesignSettings,
