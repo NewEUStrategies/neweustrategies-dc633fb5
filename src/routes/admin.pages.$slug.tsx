@@ -216,6 +216,37 @@ function EditPage() {
         <Input type="number" value={form.menu_order} onChange={(e) => set("menu_order", Number(e.target.value) || 0)} />
       </div>
       <div>
+        <Label>Template strony</Label>
+        <Select
+          value={form.template_type}
+          onValueChange={(v) => set("template_type", v as PageTemplateType)}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {PAGE_TEMPLATES.map((t) => (
+              <SelectItem key={t.id} value={t.id}>{t.label_pl}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground mt-1">
+          {PAGE_TEMPLATES.find((x) => x.id === form.template_type)?.description_pl}
+        </p>
+      </div>
+      <div>
+        <Label>Header (override)</Label>
+        <Select
+          value={form.header_override ?? "default"}
+          onValueChange={(v) => set("header_override", v === "default" ? null : v)}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="default">Domyślny</SelectItem>
+            <SelectItem value="transparent">Przezroczysty</SelectItem>
+            <SelectItem value="hidden">Ukryty</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
         <Label>{t("admin.posts.cover")}</Label>
         <div className="mt-1">
           <ImageSlot
