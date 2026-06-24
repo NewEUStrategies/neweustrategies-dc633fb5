@@ -22,6 +22,7 @@ type Row = Pick<Podcast,
 
 function Page() {
   const qc = useQueryClient();
+  const { tenantId } = useAuth();
   const [editing, setEditing] = useState<Podcast | null>(null);
 
   const { data: rows } = useQuery({
