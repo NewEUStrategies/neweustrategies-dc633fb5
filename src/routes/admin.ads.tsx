@@ -96,10 +96,10 @@ function SlotsPanel() {
   const save = async () => {
     if (!draft.name?.trim()) { toast.error("Nazwa jest wymagana"); return; }
     setBusy(true);
-    const payload = { ...draft };
+    const payload = { ...draft } as never;
     const { error } = draft.id
       ? await supabase.from("ad_slots").update(payload).eq("id", draft.id)
-      : await supabase.from("ad_slots").insert(payload as never);
+      : await supabase.from("ad_slots").insert(payload);
     setBusy(false);
     if (error) toast.error(error.message);
     else { toast.success("Zapisano slot"); setDraft(emptySlot()); load(); }
@@ -247,9 +247,10 @@ function PlacementsPanel() {
   const save = async () => {
     if (!draft.slot_id) { toast.error("Wybierz slot"); return; }
     setBusy(true);
+    const payload = { ...draft } as never;
     const { error } = draft.id
-      ? await supabase.from("ad_placements").update(draft).eq("id", draft.id)
-      : await supabase.from("ad_placements").insert(draft as never);
+      ? await supabase.from("ad_placements").update(payload).eq("id", draft.id)
+      : await supabase.from("ad_placements").insert(payload);
     setBusy(false);
     if (error) toast.error(error.message);
     else { toast.success("Zapisano pozycję"); setDraft(emptyPlacement()); load(); }
