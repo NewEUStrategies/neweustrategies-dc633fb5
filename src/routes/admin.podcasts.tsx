@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Plus, Save, Trash2, Mic, Search, Eye, Clock, CheckCircle2, FileEdit, ListMusic } from "@/lib/lucide-shim";
+import { Plus, Save, Trash2, Mic, Search, Eye, Clock, Check, FileText } from "@/lib/lucide-shim";
 import type { Podcast, PodcastStatus } from "@/lib/podcast/types";
 import { parseDuration, formatDuration } from "@/lib/podcast/types";
 import { PODCAST_FIELDS } from "@/lib/queries/podcasts";
