@@ -77,6 +77,7 @@ import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearan
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
 import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.appearance.global-colors'
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
+import { Route as AuthenticatedAdminPodcastsRouteImport } from './routes/_authenticated.admin.podcasts'
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 
@@ -421,6 +422,12 @@ const AdminAppearanceFooterRoute = AdminAppearanceFooterRouteImport.update({
   path: '/footer',
   getParentRoute: () => AdminAppearanceRoute,
 } as any)
+const AuthenticatedAdminPodcastsRoute =
+  AuthenticatedAdminPodcastsRouteImport.update({
+    id: '/_authenticated/admin/podcasts',
+    path: '/admin/podcasts',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicWebhooksStripeRoute = ApiPublicWebhooksStripeRouteImport.update({
   id: '/api/public/webhooks/stripe',
   path: '/api/public/webhooks/stripe',
@@ -484,6 +491,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/admin/podcasts': typeof AuthenticatedAdminPodcastsRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -553,6 +561,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/profile': typeof ProfileIndexRoute
+  '/admin/podcasts': typeof AuthenticatedAdminPodcastsRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -626,6 +635,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/_authenticated/admin/podcasts': typeof AuthenticatedAdminPodcastsRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -700,6 +710,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/profile/'
+    | '/admin/podcasts'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -769,6 +780,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/blog'
     | '/profile'
+    | '/admin/podcasts'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -841,6 +853,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/profile/'
+    | '/_authenticated/admin/podcasts'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -885,6 +898,7 @@ export interface RootRouteChildren {
   PostSlugRoute: typeof PostSlugRoute
   TagSlugRoute: typeof TagSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
+  AuthenticatedAdminPodcastsRoute: typeof AuthenticatedAdminPodcastsRoute
   ApiPublicRobotsDottxtRoute: typeof ApiPublicRobotsDottxtRoute
   ApiPublicSitemapDotxmlRoute: typeof ApiPublicSitemapDotxmlRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
@@ -1369,6 +1383,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAppearanceFooterRouteImport
       parentRoute: typeof AdminAppearanceRoute
     }
+    '/_authenticated/admin/podcasts': {
+      id: '/_authenticated/admin/podcasts'
+      path: '/admin/podcasts'
+      fullPath: '/admin/podcasts'
+      preLoaderRoute: typeof AuthenticatedAdminPodcastsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/webhooks/stripe': {
       id: '/api/public/webhooks/stripe'
       path: '/api/public/webhooks/stripe'
@@ -1555,6 +1576,7 @@ const rootRouteChildren: RootRouteChildren = {
   PostSlugRoute: PostSlugRoute,
   TagSlugRoute: TagSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
+  AuthenticatedAdminPodcastsRoute: AuthenticatedAdminPodcastsRoute,
   ApiPublicRobotsDottxtRoute: ApiPublicRobotsDottxtRoute,
   ApiPublicSitemapDotxmlRoute: ApiPublicSitemapDotxmlRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
