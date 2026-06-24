@@ -27,6 +27,8 @@ export interface BrandFonts {
   heading?: string;
   /** Font-family stack for body copy. */
   body?: string;
+  /** User-uploaded custom fonts (rendered as @font-face). */
+  custom?: CustomFont[];
 }
 
 export interface BrandScale {
