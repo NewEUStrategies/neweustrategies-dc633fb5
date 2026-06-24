@@ -44,7 +44,7 @@ function renderFootnoteHtml(text: string): string {
   return DOMPurify.sanitize(text, { USE_PROFILES: { html: true } });
 }
 
-export function BlocksRenderer({ doc, lang = "pl" }: Props) {
+export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
   if (!doc?.blocks?.length) return null;
   const safe = safeParseBlocks(doc);
   if (!safe.blocks.length) return null;
@@ -52,7 +52,7 @@ export function BlocksRenderer({ doc, lang = "pl" }: Props) {
   const L = FN_LABELS[lang] ?? FN_LABELS.pl;
   return (
     <article className="blocks-content prose prose-lg dark:prose-invert max-w-none" lang={lang}>
-      {safe.blocks.map((b) => <BlockView key={b.id} block={b} fn={fn} />)}
+      {safe.blocks.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} />)}
       {fn.notes.length > 0 && (
         <section className="footnotes mt-10 pt-6 border-t border-border text-sm" aria-labelledby="footnotes-heading">
           <h2 id="footnotes-heading" data-footnotes-title className="text-base font-semibold mb-3">{L.title}</h2>
