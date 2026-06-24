@@ -94,7 +94,7 @@ function readBlocksArray(raw: Json | undefined): Block[] {
   return out;
 }
 
-function BlockView({ block, fn }: { block: Block; fn: FootnoteCollector }) {
+function BlockView({ block, fn, lang = "pl", postId }: { block: Block; fn: FootnoteCollector; lang?: "pl" | "en"; postId?: string }) {
   const cls = alignClass(block);
 
   switch (block.type) {
