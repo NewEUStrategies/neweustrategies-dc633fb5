@@ -45,7 +45,7 @@ import {
   Trash2 as LTrash2, Type as LType, Undo as LUndo, Upload as LUpload, User as LUser,
   Users as LUsers, Video as LVideo, X as LX,
   Lock as LLock, Palette as LPalette, LayoutGrid as LLayoutGrid, Sparkles as LSparkles,
-  PanelsTopLeft as LPanelsTopLeft, CreditCard as LCreditCard,
+  PanelsTopLeft as LPanelsTopLeft, CreditCard as LCreditCard, Play as LPlay, Pause as LPause,
   Facebook as LFacebook, Instagram as LInstagram, Linkedin as LLinkedin,
   Twitter as LTwitter, Youtube as LYoutube,
   type LucideIcon as LucideIconImpl,
