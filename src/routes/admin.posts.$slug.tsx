@@ -29,6 +29,7 @@ import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
+import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/posts/$slug")({
@@ -62,6 +63,7 @@ interface PostForm {
   takeaways_pl: string[];
   takeaways_en: string[];
   custom_meta: Record<string, string> | null;
+  related_override: Record<string, unknown> | null;
 }
 
 
@@ -168,6 +170,7 @@ function EditPost() {
           takeaways_pl: snapshot.takeaways_pl ?? [],
           takeaways_en: snapshot.takeaways_en ?? [],
           custom_meta: snapshot.custom_meta ?? null,
+          related_override: snapshot.related_override ?? null,
         },
         categories: selectedCats,
         tags: selectedTags,
@@ -513,6 +516,17 @@ function EditPost() {
                   lang="pl"
                   values={form.custom_meta}
                   onChange={(next) => set("custom_meta", next)}
+                />
+              </div>
+
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Powiązane wpisy - override</h3>
+                  <Link to="/admin/related-posts" className="text-xs text-brand underline">Konfiguracja globalna</Link>
+                </div>
+                <RelatedOverrideEditor
+                  value={form.related_override}
+                  onChange={(next: Record<string, unknown> | null) => set("related_override", next)}
                 />
               </div>
 

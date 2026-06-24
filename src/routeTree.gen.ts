@@ -37,6 +37,7 @@ import { Route as AdminThemeOptionsRouteImport } from './routes/admin.theme-opti
 import { Route as AdminThemeDesignRouteImport } from './routes/admin.theme-design'
 import { Route as AdminTagsRouteImport } from './routes/admin.tags'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
+import { Route as AdminRelatedPostsRouteImport } from './routes/admin.related-posts'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
 import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layouts'
 import { Route as AdminPersonalizedRouteImport } from './routes/admin.personalized'
@@ -212,6 +213,11 @@ const AdminTagsRoute = AdminTagsRouteImport.update({
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminRelatedPostsRoute = AdminRelatedPostsRouteImport.update({
+  id: '/related-posts',
+  path: '/related-posts',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminPostsRoute = AdminPostsRouteImport.update({
@@ -423,6 +429,7 @@ export interface FileRoutesByFullPath {
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
@@ -487,6 +494,7 @@ export interface FileRoutesByTo {
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
@@ -553,6 +561,7 @@ export interface FileRoutesById {
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
@@ -621,6 +630,7 @@ export interface FileRouteTypes {
     | '/admin/personalized'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/related-posts'
     | '/admin/settings'
     | '/admin/tags'
     | '/admin/theme-design'
@@ -685,6 +695,7 @@ export interface FileRouteTypes {
     | '/admin/personalized'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/related-posts'
     | '/admin/tags'
     | '/admin/theme-design'
     | '/admin/theme-options'
@@ -750,6 +761,7 @@ export interface FileRouteTypes {
     | '/admin/personalized'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/related-posts'
     | '/admin/settings'
     | '/admin/tags'
     | '/admin/theme-design'
@@ -1010,6 +1022,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/admin/settings'
       preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/related-posts': {
+      id: '/admin/related-posts'
+      path: '/related-posts'
+      fullPath: '/admin/related-posts'
+      preLoaderRoute: typeof AdminRelatedPostsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/posts': {
@@ -1356,6 +1375,7 @@ interface AdminRouteChildren {
   AdminPersonalizedRoute: typeof AdminPersonalizedRoute
   AdminPostLayoutsRoute: typeof AdminPostLayoutsRoute
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
+  AdminRelatedPostsRoute: typeof AdminRelatedPostsRoute
   AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
   AdminTagsRoute: typeof AdminTagsRoute
   AdminThemeDesignRoute: typeof AdminThemeDesignRoute
@@ -1381,6 +1401,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPersonalizedRoute: AdminPersonalizedRoute,
   AdminPostLayoutsRoute: AdminPostLayoutsRoute,
   AdminPostsRoute: AdminPostsRouteWithChildren,
+  AdminRelatedPostsRoute: AdminRelatedPostsRoute,
   AdminSettingsRoute: AdminSettingsRouteWithChildren,
   AdminTagsRoute: AdminTagsRoute,
   AdminThemeDesignRoute: AdminThemeDesignRoute,

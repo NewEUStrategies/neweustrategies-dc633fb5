@@ -1198,6 +1198,7 @@ export type Database = {
           post_format: string
           published_at: string | null
           read_minutes: number | null
+          related_override: Json | null
           slug: string
           status: Database["public"]["Enums"]["post_status"]
           takeaways_en: string[]
@@ -1227,6 +1228,7 @@ export type Database = {
           post_format?: string
           published_at?: string | null
           read_minutes?: number | null
+          related_override?: Json | null
           slug: string
           status?: Database["public"]["Enums"]["post_status"]
           takeaways_en?: string[]
@@ -1256,6 +1258,7 @@ export type Database = {
           post_format?: string
           published_at?: string | null
           read_minutes?: number | null
+          related_override?: Json | null
           slug?: string
           status?: Database["public"]["Enums"]["post_status"]
           takeaways_en?: string[]
@@ -1360,6 +1363,77 @@ export type Database = {
           window_start?: string
         }
         Relationships: []
+      }
+      related_posts_config: {
+        Row: {
+          after_paragraph: number
+          columns: number
+          created_at: string
+          enabled: boolean
+          items_limit: number
+          layout: string
+          position: string
+          recency_boost_days: number
+          show_cover: boolean
+          show_excerpt: boolean
+          show_meta: boolean
+          slider_autoplay: boolean
+          slider_interval_ms: number
+          source_strategy: string
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+        }
+        Insert: {
+          after_paragraph?: number
+          columns?: number
+          created_at?: string
+          enabled?: boolean
+          items_limit?: number
+          layout?: string
+          position?: string
+          recency_boost_days?: number
+          show_cover?: boolean
+          show_excerpt?: boolean
+          show_meta?: boolean
+          slider_autoplay?: boolean
+          slider_interval_ms?: number
+          source_strategy?: string
+          tenant_id?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+        }
+        Update: {
+          after_paragraph?: number
+          columns?: number
+          created_at?: string
+          enabled?: boolean
+          items_limit?: number
+          layout?: string
+          position?: string
+          recency_boost_days?: number
+          show_cover?: boolean
+          show_excerpt?: boolean
+          show_meta?: boolean
+          slider_autoplay?: boolean
+          slider_interval_ms?: number
+          source_strategy?: string
+          tenant_id?: string
+          title_en?: string
+          title_pl?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "related_posts_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       site_design_tokens: {
         Row: {

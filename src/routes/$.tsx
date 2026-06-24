@@ -20,6 +20,10 @@ import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
 import { AutoLoadNextPost } from "@/components/post/AutoLoadNextPost";
 import { CustomMetaList } from "@/components/post/CustomMetaList";
+import { RelatedPosts } from "@/components/post/RelatedPosts";
+import { RelatedPostsAfterParagraph } from "@/components/post/RelatedPostsAfterParagraph";
+import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPosts";
+import { mergeRelatedConfig, type RelatedPostsOverride } from "@/lib/relatedPosts";
 import { useRecordPostView } from "@/hooks/useRecordPostView";
 import { ContactForm } from "@/components/pages/ContactForm";
 import { ArchiveListing } from "@/components/pages/ArchiveListing";
@@ -146,6 +150,11 @@ function PublicPage() {
     staleTime: 5 * 60_000,
   });
 
+  // Related posts global config (singleton). Per-post override merges on top.
+  const { data: relatedGlobalCfg } = useQuery(relatedPostsConfigQueryOptions());
+  const relatedOverride = (post?.related_override ?? null) as RelatedPostsOverride | null;
+  const relatedCfg = mergeRelatedConfig(relatedGlobalCfg, relatedOverride);
+
   const [crumbs, setCrumbs] = useState<BreadcrumbItem[]>([]);
   useEffect(() => {
     setCrumbs(buildBreadcrumbs(data.crumbs, lang, isPost ? title : undefined));
@@ -222,6 +231,16 @@ function PublicPage() {
             content={
               <>
                 {contentBlock}
+                {relatedCfg.enabled && relatedCfg.position === "after_paragraph" && (
+                  <RelatedPostsAfterParagraph
+                    containerRef={articleRef}
+                    afterParagraph={relatedCfg.after_paragraph}
+                    scanKey={`${it.id}-${lang}`}
+                    postId={post.id}
+                    lang={lang}
+                    override={relatedOverride}
+                  />
+                )}
                 <MidPostAds
                   articleRef={articleRef}
                   pageType={adPageType}
@@ -238,6 +257,15 @@ function PublicPage() {
                   tags={postTags}
                   scanKey={`${it.id}-${lang}`}
                 />
+                {relatedCfg.enabled && relatedCfg.position === "sidebar" && (
+                  <RelatedPosts
+                    postId={post.id}
+                    lang={lang}
+                    override={relatedOverride}
+                    forceLayout="list"
+                    className="mt-6"
+                  />
+                )}
               </>
             }
             footer={
@@ -250,6 +278,9 @@ function PublicPage() {
                   via={null}
                   author={null}
                 />
+                {relatedCfg.enabled && relatedCfg.position === "end" && (
+                  <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
+                )}
                 <AdZone position="bottom_of_post" pageType={adPageType} pageId={it.id} className="my-6" />
                 {merged.show_bottom_newsletter && <NewsletterForm lang={lang} source={`post:${post.slug}`} />}
               </>
