@@ -535,6 +535,31 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
   ],
   // `rated-list` has its own custom list editor in WidgetProperties.tsx.
+  "news-ticker": [
+    { key: "badge", type: "i18nText", label: "Etykieta (badge)", placeholder: "Najnowsze / Latest" },
+    { key: "limit", type: "number", label: "Liczba wpisów", min: 3, max: 30 },
+    { key: "speedSeconds", type: "number", label: "Tempo (sekundy na pętlę)", min: 10, max: 180,
+      hint: "Im większa wartość, tym wolniejsze przewijanie." },
+    {
+      key: "pauseOnHover", type: "select", label: "Pauza po najechaniu",
+      options: [
+        { value: "true", label: "Tak" },
+        { value: "false", label: "Nie" },
+      ],
+    },
+    { key: "separator", type: "text", label: "Separator", placeholder: "•" },
+    { key: "categoriesCsv", type: "text", label: "Kategorie (slugi, po przecinku)",
+      placeholder: "polityka, gospodarka", hint: "Pozostaw puste = wszystkie." },
+    {
+      key: "uniqueOnPage", type: "select", label: "Nie powtarzaj wpisów",
+      options: [
+        { value: "false", label: "Wyłączone" },
+        { value: "true", label: "Pomiń wpisy widoczne w innych widgetach" },
+      ],
+      hint: "Wyklucza wpisy już wyrenderowane przez wcześniejsze widgety na tej stronie.",
+    },
+  ],
 };
+
 
 
