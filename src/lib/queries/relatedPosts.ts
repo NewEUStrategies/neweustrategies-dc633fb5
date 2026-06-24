@@ -46,12 +46,12 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
       const [{ data: curCats }, { data: curTags }, { data: curPost }] = await Promise.all([
         supabase.from("post_categories").select("category_id").eq("post_id", input.postId),
         supabase.from("post_tags").select("tag_id").eq("post_id", input.postId),
-        supabase.from("posts").select("created_by, parent_page_id").eq("id", input.postId).maybeSingle(),
+        supabase.from("posts").select("author_id, parent_page_id").eq("id", input.postId).maybeSingle(),
       ]);
 
       const curCatSet = new Set<string>((curCats ?? []).map((r) => r.category_id as string));
       const curTagSet = new Set<string>((curTags ?? []).map((r) => r.tag_id as string));
-      const curAuthor = (curPost?.created_by as string | null) ?? null;
+      const curAuthor = (curPost?.author_id as string | null) ?? null;
 
       // No signals at all → no related posts (avoid recommending random items).
       if (
@@ -94,7 +94,7 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
         const { data } = await supabase
           .from("posts")
           .select("id")
-          .eq("created_by", curAuthor)
+          .eq("author_id", curAuthor)
           .neq("id", input.postId)
           .eq("status", "published")
           .is("deleted_at", null)
@@ -110,7 +110,7 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
       const { data: posts } = await supabase
         .from("posts")
         .select(
-          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, created_by",
+          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id, author_id",
         )
         .in("id", ids)
         .eq("status", "published")
@@ -125,7 +125,7 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
         cover_image_url: string | null;
         published_at: string | null;
         parent_page_id: string;
-        created_by: string | null;
+        author_id: string | null;
       }>;
       if (rows.length === 0) return [];
 
@@ -165,7 +165,7 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
           {
             categoryIds: catsByPost.get(r.id) ?? new Set(),
             tagIds: tagsByPost.get(r.id) ?? new Set(),
-            authorId: r.created_by,
+            authorId: r.author_id,
           },
           { source_strategy: input.strategy, recency_boost_days: input.recencyBoostDays },
           r.published_at,
