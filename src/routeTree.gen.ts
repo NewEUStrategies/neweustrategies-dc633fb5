@@ -20,6 +20,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as ProfileAccountRouteImport } from './routes/profile.account'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
@@ -114,6 +115,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRoute,
+} as any)
+const ProfileAccountRoute = ProfileAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => ProfileRoute,
 } as any)
 const PostSlugRoute = PostSlugRouteImport.update({
   id: '/post/$slug',
@@ -342,6 +348,7 @@ export interface FileRoutesByFullPath {
   '/api/tts': typeof ApiTtsRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
+  '/profile/account': typeof ProfileAccountRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -391,6 +398,7 @@ export interface FileRoutesByTo {
   '/api/tts': typeof ApiTtsRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
+  '/profile/account': typeof ProfileAccountRoute
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/profile': typeof ProfileIndexRoute
@@ -444,6 +452,7 @@ export interface FileRoutesById {
   '/api/tts': typeof ApiTtsRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
+  '/profile/account': typeof ProfileAccountRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -498,6 +507,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/newsletter/confirm'
     | '/post/$slug'
+    | '/profile/account'
     | '/admin/'
     | '/blog/'
     | '/profile/'
@@ -547,6 +557,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/newsletter/confirm'
     | '/post/$slug'
+    | '/profile/account'
     | '/admin'
     | '/blog'
     | '/profile'
@@ -599,6 +610,7 @@ export interface FileRouteTypes {
     | '/api/tts'
     | '/newsletter/confirm'
     | '/post/$slug'
+    | '/profile/account'
     | '/admin/'
     | '/blog/'
     | '/profile/'
@@ -719,6 +731,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/profile/account': {
+      id: '/profile/account'
+      path: '/account'
+      fullPath: '/profile/account'
+      preLoaderRoute: typeof ProfileAccountRouteImport
+      parentRoute: typeof ProfileRoute
     }
     '/post/$slug': {
       id: '/post/$slug'
@@ -1113,10 +1132,12 @@ const AdminRouteChildren: AdminRouteChildren = {
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface ProfileRouteChildren {
+  ProfileAccountRoute: typeof ProfileAccountRoute
   ProfileIndexRoute: typeof ProfileIndexRoute
 }
 
 const ProfileRouteChildren: ProfileRouteChildren = {
+  ProfileAccountRoute: ProfileAccountRoute,
   ProfileIndexRoute: ProfileIndexRoute,
 }
 
