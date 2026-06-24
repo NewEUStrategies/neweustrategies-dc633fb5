@@ -30,7 +30,7 @@ export interface MegaMenuColumn {
   title_pl?: string;
   title_en?: string;
   links?: MegaMenuLink[];
-  featured?: MegaMenuFeatured;
+  featured?: MegaMenuFeatured | null;
 }
 
 export interface MegaMenuConfig {
