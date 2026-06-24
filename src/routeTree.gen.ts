@@ -13,6 +13,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ReadingListRouteImport } from './routes/reading-list'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
@@ -83,6 +84,11 @@ const ReadingListRoute = ReadingListRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -348,6 +354,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -404,6 +411,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -460,6 +468,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -519,6 +528,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/login'
+    | '/pricing'
     | '/profile'
     | '/reading-list'
     | '/robots.txt'
@@ -575,6 +585,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/login'
+    | '/pricing'
     | '/reading-list'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -630,6 +641,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/login'
+    | '/pricing'
     | '/profile'
     | '/reading-list'
     | '/robots.txt'
@@ -688,6 +700,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRouteWithChildren
   LoginRoute: typeof LoginRoute
+  PricingRoute: typeof PricingRoute
   ProfileRoute: typeof ProfileRouteWithChildren
   ReadingListRoute: typeof ReadingListRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
@@ -729,6 +742,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -1233,6 +1253,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AdminRoute: AdminRouteWithChildren,
   LoginRoute: LoginRoute,
+  PricingRoute: PricingRoute,
   ProfileRoute: ProfileRouteWithChildren,
   ReadingListRoute: ReadingListRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
