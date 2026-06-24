@@ -112,7 +112,7 @@ const DEFAULTS: ThemeOptions = {
     layout: "layout-1",
     main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
     search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
-    alert_bar: { enabled: false, message_pl: "", message_en: "", link_url: "", style: "brand", dismissible: true },
+    alert_bar: { enabled: false, message_pl: "", message_en: "", link_url: "", style: "brand", dismissible: true, icon: "auto", cta_label_pl: "", cta_label_en: "" },
     mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
     socials: { placement: "topbar", facebook: "", twitter: "", instagram: "", linkedin: "", youtube: "", email: "", size: 16 },
     signin: { enabled: true, signin_label_pl: "Zaloguj", signin_label_en: "Sign in", signup_label_pl: "Zarejestruj", signup_label_en: "Sign up", variant: "ghost", show_signup: true },
