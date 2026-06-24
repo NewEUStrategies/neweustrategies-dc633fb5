@@ -139,6 +139,7 @@ export function defaultPostLayoutSettings(): PostLayoutSettings {
     show_prev_next: false,
     prev_next_mobile_hide: true,
     show_bottom_newsletter: true,
+    show_floating_share_bar: true,
   };
 }
 
