@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Image as ImageIcon } from "@/lib/lucide-shim";
-import { PropField, ItemFrame, NumberInput } from "../../atoms";
+import { PropField, ItemFrame, NumberInput, FocalPointPicker } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { ImageSlot } from "./ImageSlot";
 import { itemsOf, type Item } from "./shared";
