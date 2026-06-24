@@ -104,6 +104,7 @@ export interface LayoutOverrides {
   show_author_card?: boolean;
   show_prev_next?: boolean;
   show_bottom_newsletter?: boolean;
+  show_floating_share_bar?: boolean;
 }
 
 export function defaultPostLayoutSettings(): PostLayoutSettings {
