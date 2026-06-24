@@ -23,6 +23,7 @@ import { ThemeOptionsStyle } from "../components/ThemeOptionsStyle";
 import { LoginPopup } from "../components/LoginPopup";
 import { ConsentBanner } from "../components/ConsentBanner";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { CommandPalette } from "../components/search/CommandPalette";
 
 
 function NotFoundComponent() {
