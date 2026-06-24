@@ -238,7 +238,9 @@ export type WidgetType =
   // News ticker
   | "news-ticker"
   // Podcast
-  | "podcast-latest";
+  | "podcast-latest"
+  // Web Stories
+  | "web-stories-carousel";
 
 // JSON-safe primitives that may live inside a widget's content map.
 export type Json =
