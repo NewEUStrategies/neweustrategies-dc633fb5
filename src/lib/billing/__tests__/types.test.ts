@@ -15,7 +15,7 @@ describe("billing/types helpers", () => {
 
   it("formatMoney falls back gracefully on bad currency", () => {
     const out = formatMoney(100, "ZZZ", "pl");
-    expect(out).toContain("1.00");
+    expect(out).toMatch(/1[.,]00/);
   });
 
   it("planName picks the right localised name with fallback", () => {
