@@ -49,6 +49,7 @@ import { TtsPlayerHost } from "./ui/molecules/TtsPlayerHost";
 import { PostListView } from "./ui/organisms/widget-view/PostListView";
 import { RatedListView } from "./ui/organisms/widget-view/RatedListView";
 import { AdSlotById } from "@/components/ads/AdSlotById";
+import { MegaMenu, type MegaMenuConfig } from "@/components/megaMenu/MegaMenu";
 import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
 import { TagsView } from "./ui/organisms/widget-view/TagsView";
 import { TabsBlock } from "./ui/organisms/widget-view/TabsBlock";
