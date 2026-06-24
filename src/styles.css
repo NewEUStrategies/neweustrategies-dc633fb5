@@ -342,3 +342,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .oi-hover-fade:hover .oi-img { opacity: 0.85; filter: brightness(0.95); }
 .oi-hover-slide .oi-img { transform: translateX(0); }
 .oi-hover-slide:hover .oi-img { transform: translateX(-3%) scale(1.03); }
+
+/* Page template hooks */
+[data-header-override="transparent"] header { background-color: transparent !important; backdrop-filter: blur(6px); }
+[data-template="landing"] header, [data-template="landing"] footer { display: none; }
