@@ -29,6 +29,7 @@ import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
+import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/posts/$slug")({
@@ -525,7 +526,7 @@ function EditPost() {
                 </div>
                 <RelatedOverrideEditor
                   value={form.related_override}
-                  onChange={(next) => set("related_override", next)}
+                  onChange={(next: Record<string, unknown> | null) => set("related_override", next)}
                 />
               </div>
 
