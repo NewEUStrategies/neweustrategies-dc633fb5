@@ -17,10 +17,15 @@ export type Database = {
       access_plans: {
         Row: {
           active: boolean
+          badge_en: string | null
+          badge_pl: string | null
           created_at: string
           currency: string
           description_en: string | null
           description_pl: string | null
+          features_en: Json
+          features_pl: Json
+          highlighted: boolean
           id: string
           interval: Database["public"]["Enums"]["plan_interval"]
           name_en: string
@@ -28,14 +33,20 @@ export type Database = {
           price_cents: number
           sort_order: number
           tenant_id: string
+          trial_days: number
           updated_at: string
         }
         Insert: {
           active?: boolean
+          badge_en?: string | null
+          badge_pl?: string | null
           created_at?: string
           currency?: string
           description_en?: string | null
           description_pl?: string | null
+          features_en?: Json
+          features_pl?: Json
+          highlighted?: boolean
           id?: string
           interval?: Database["public"]["Enums"]["plan_interval"]
           name_en?: string
@@ -43,14 +54,20 @@ export type Database = {
           price_cents?: number
           sort_order?: number
           tenant_id?: string
+          trial_days?: number
           updated_at?: string
         }
         Update: {
           active?: boolean
+          badge_en?: string | null
+          badge_pl?: string | null
           created_at?: string
           currency?: string
           description_en?: string | null
           description_pl?: string | null
+          features_en?: Json
+          features_pl?: Json
+          highlighted?: boolean
           id?: string
           interval?: Database["public"]["Enums"]["plan_interval"]
           name_en?: string
@@ -58,6 +75,7 @@ export type Database = {
           price_cents?: number
           sort_order?: number
           tenant_id?: string
+          trial_days?: number
           updated_at?: string
         }
         Relationships: []
@@ -228,6 +246,74 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: []
+      }
+      billing_profiles: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          company: string | null
+          country_code: string
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          is_company: boolean
+          phone: string | null
+          postal_code: string | null
+          region: string | null
+          tax_id: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          company?: string | null
+          country_code?: string
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          is_company?: boolean
+          phone?: string | null
+          postal_code?: string | null
+          region?: string | null
+          tax_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          company?: string | null
+          country_code?: string
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          is_company?: boolean
+          phone?: string | null
+          postal_code?: string | null
+          region?: string | null
+          tax_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       builder_template_revisions: {
         Row: {
@@ -660,6 +746,87 @@ export type Database = {
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "builder_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_orders: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          entity_id: string | null
+          entity_type: Database["public"]["Enums"]["access_entity_type"] | null
+          id: string
+          invoice_url: string | null
+          kind: Database["public"]["Enums"]["order_kind"]
+          metadata: Json
+          paid_at: string | null
+          plan_id: string | null
+          provider: string
+          provider_intent_id: string | null
+          provider_session_id: string | null
+          receipt_email: string | null
+          status: Database["public"]["Enums"]["order_status"]
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          entity_id?: string | null
+          entity_type?: Database["public"]["Enums"]["access_entity_type"] | null
+          id?: string
+          invoice_url?: string | null
+          kind: Database["public"]["Enums"]["order_kind"]
+          metadata?: Json
+          paid_at?: string | null
+          plan_id?: string | null
+          provider?: string
+          provider_intent_id?: string | null
+          provider_session_id?: string | null
+          receipt_email?: string | null
+          status?: Database["public"]["Enums"]["order_status"]
+          tenant_id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          entity_id?: string | null
+          entity_type?: Database["public"]["Enums"]["access_entity_type"] | null
+          id?: string
+          invoice_url?: string | null
+          kind?: Database["public"]["Enums"]["order_kind"]
+          metadata?: Json
+          paid_at?: string | null
+          plan_id?: string | null
+          provider?: string
+          provider_intent_id?: string | null
+          provider_session_id?: string | null
+          receipt_email?: string | null
+          status?: Database["public"]["Enums"]["order_status"]
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_orders_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "access_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_orders_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -1451,6 +1618,14 @@ export type Database = {
       ad_slot_status: "active" | "paused"
       app_role: "admin" | "editor" | "author" | "user"
       editor_type: "richtext" | "markdown" | "builder" | "blocks"
+      order_kind: "subscription" | "one_time"
+      order_status:
+        | "pending"
+        | "processing"
+        | "paid"
+        | "failed"
+        | "refunded"
+        | "canceled"
       plan_interval: "month" | "year" | "one_time"
       post_status: "draft" | "published" | "archived"
       purchase_status: "pending" | "active" | "refunded" | "canceled"
@@ -1606,6 +1781,15 @@ export const Constants = {
       ad_slot_status: ["active", "paused"],
       app_role: ["admin", "editor", "author", "user"],
       editor_type: ["richtext", "markdown", "builder", "blocks"],
+      order_kind: ["subscription", "one_time"],
+      order_status: [
+        "pending",
+        "processing",
+        "paid",
+        "failed",
+        "refunded",
+        "canceled",
+      ],
       plan_interval: ["month", "year", "one_time"],
       post_status: ["draft", "published", "archived"],
       purchase_status: ["pending", "active", "refunded", "canceled"],
