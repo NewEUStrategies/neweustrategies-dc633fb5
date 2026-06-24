@@ -29,6 +29,7 @@ const ORDER_BY = [
   { v: "published_at", l: "Data publikacji" },
   { v: "created_at", l: "Data utworzenia" },
   { v: "title", l: "Tytuł (alfabetycznie)" },
+  { v: "popular", l: "Popularność (odsłony)" },
   { v: "random", l: "Losowo" },
 ] as const;
 
