@@ -172,7 +172,9 @@ async function handle(request: Request): Promise<Response> {
       case "checkout.session.expired":
       case "payment_intent.payment_failed": {
         const obj = event.data.object;
-        const orderId = ((obj.metadata as Record<string, string> | null)?.order_id ?? null) ?? str(obj, "client_reference_id") ?? null;
+        const meta = obj.metadata as Record<string, string> | null;
+        const orderId: string | null = meta?.order_id ?? str(obj, "client_reference_id");
+
         const sessionId = str(obj, "id");
         const status = event.type === "checkout.session.expired" ? "canceled" : "failed";
         if (orderId) {
