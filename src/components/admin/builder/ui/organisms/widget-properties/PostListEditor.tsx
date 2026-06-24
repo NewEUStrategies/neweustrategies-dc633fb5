@@ -321,6 +321,16 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               className="h-8 text-xs"
             />
           </PropField>
+          {orderBy === "popular" && (
+            <PropField label="Okres popularności (dni)">
+              <Input
+                type="number" min={1} max={365}
+                value={popularDays}
+                onChange={(e) => setContent("popularDays", Math.max(1, Number(e.target.value) || 30))}
+                className="h-8 text-xs"
+              />
+            </PropField>
+          )}
         </div>
         <div className="mt-2 text-[10px] text-muted-foreground">
           {typeof matchCount === "number"
