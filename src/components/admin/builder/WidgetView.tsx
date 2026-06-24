@@ -612,6 +612,12 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       );
       return wrap(href ? <a href={href} className="block hover:opacity-95 transition">{card}</a> : card);
     }
+    case "ad-slot": {
+      const slotId = getStr(c, "slotId");
+      // Lazy import to keep widget bundle small and avoid SSR issues.
+      const { AdSlotById } = require("@/components/ads/AdSlotById") as typeof import("@/components/ads/AdSlotById");
+      return wrap(<AdSlotById slotId={slotId} />);
+    }
     default:
       return null;
   }
