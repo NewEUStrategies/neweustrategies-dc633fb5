@@ -4,10 +4,13 @@ import type { Block, BlocksDoc, Json } from "@/lib/blocks/types";
 import { safeParseBlocks } from "@/lib/blocks/schema";
 import DOMPurify from "isomorphic-dompurify";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
+import { LiveBlogBlock } from "./LiveBlogBlock";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
   lang?: "pl" | "en";
+  /** Wymagane do bloków typu `liveblog` (subskrypcja realtime per post). */
+  postId?: string;
 }
 
 const FN_LABELS = {
