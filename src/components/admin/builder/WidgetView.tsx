@@ -49,6 +49,7 @@ import { TtsPlayerHost } from "./ui/molecules/TtsPlayerHost";
 import { PostListView } from "./ui/organisms/widget-view/PostListView";
 import { RatedListView } from "./ui/organisms/widget-view/RatedListView";
 import { AdSlotById } from "@/components/ads/AdSlotById";
+import { MegaMenu, type MegaMenuConfig } from "@/components/megaMenu/MegaMenu";
 import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
 import { TagsView } from "./ui/organisms/widget-view/TagsView";
 import { TabsBlock } from "./ui/organisms/widget-view/TabsBlock";
@@ -375,6 +376,15 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
           {Cmp ? <Cmp size={14} /> : null}
           {label}
         </a>,
+      );
+    }
+    case "mega-menu": {
+      return wrap(
+        <MegaMenu
+          config={c as unknown as MegaMenuConfig}
+          lang={lang}
+          mobile={device === "mobile"}
+        />,
       );
     }
     case "tts": {

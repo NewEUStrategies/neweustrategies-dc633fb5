@@ -9,6 +9,7 @@ import {
   List, PanelLeft, Quote, Check, Link as LinkIcon,
   Globe, Sun, Search, User, Facebook,
   Flame, Bookmark, Megaphone as AdIcon,
+  LayoutGrid,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
@@ -89,6 +90,45 @@ export const WIDGETS: WidgetDef[] = [
       label_pl: "Nowy link", label_en: "New link",
       href: "/", target: "self",
       variant: "text",
+    }) },
+  { type: "mega-menu", label: "Mega menu", category: "navigation", icon: LayoutGrid,
+    defaults: () => ({
+      trigger_pl: "Produkty", trigger_en: "Products",
+      href: "",
+      triggerOn: "hover",
+      width: "container",
+      widthPx: 1140,
+      columns: [
+        {
+          title_pl: "Kategorie", title_en: "Categories",
+          links: [
+            { label_pl: "Analizy", label_en: "Analyses", href: "#" },
+            { label_pl: "Wywiady", label_en: "Interviews", href: "#" },
+          ],
+          featured: null,
+        },
+        {
+          title_pl: "Zasoby", title_en: "Resources",
+          links: [
+            { label_pl: "Raporty", label_en: "Reports", href: "#" },
+            { label_pl: "Newsletter", label_en: "Newsletter", href: "#" },
+          ],
+          featured: null,
+        },
+        {
+          title_pl: "Wyróżnione", title_en: "Featured",
+          links: [],
+          featured: {
+            image: "",
+            title_pl: "Najnowszy raport",
+            title_en: "Latest report",
+            excerpt_pl: "Krótki opis wyróżnionej treści.",
+            excerpt_en: "Short summary of featured content.",
+            href: "#",
+            cta_pl: "Czytaj", cta_en: "Read",
+          },
+        },
+      ],
     }) },
   // Site chrome (header / footer / menu)
   { type: "social-icons", label: "Ikony social", category: "navigation", icon: Facebook,

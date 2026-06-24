@@ -24,6 +24,7 @@ export const COMPACT_WIDGET_TYPES = new Set([
   "theme-toggle",
   "account-link",
   "nav-link",
+  "mega-menu",
   "newsletter",
 ]);
 

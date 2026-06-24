@@ -9,5 +9,6 @@ export { SectionLabelEditor } from "./SectionLabelEditor";
 export { SliderEditor } from "./SliderEditor";
 export { AnimatedHeadingEditor } from "./AnimatedHeadingEditor";
 export { PostListEditor } from "./PostListEditor";
+export { MegaMenuEditor } from "./MegaMenuEditor";
 export { ListShell } from "./ListShell";
 export { itemsOf, type Item } from "./shared";
