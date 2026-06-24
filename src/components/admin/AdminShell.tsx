@@ -68,6 +68,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
     { to: "/admin/related-posts", icon: LayoutGrid, label: "Powiązane wpisy" },
     { to: "/admin/content-area", icon: FileText, label: t("admin.nav.contentArea") },
     { to: "/admin/newsletter", icon: Mail, label: t("admin.nav.newsletter") },
+    { to: "/admin/podcasts", icon: Megaphone, label: "Podcasty" },
     { to: "/admin/personalized", icon: Sparkles, label: t("admin.nav.personalized") },
     ...(isAdmin ? [
       { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
