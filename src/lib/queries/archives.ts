@@ -115,32 +115,63 @@ export const taxonomyArchiveQueryOptions = (kind: TaxonomyKind, slug: string) =>
   queryOptions({
     queryKey: ["public", "archive", kind, slug] as const,
     queryFn: async (): Promise<{ taxonomy: TaxonomyMeta; posts: BlogListItem[] } | null> => {
-      const table = kind === "category" ? "categories" : "tags";
-      const joinTable = kind === "category" ? "post_categories" : "post_tags";
-      const joinCol = kind === "category" ? "category_id" : "tag_id";
-
-      const cols =
-        kind === "category"
-          ? "id, slug, name_pl, name_en, description_pl, description_en, featured_template_id"
-          : "id, slug, name as name_pl, name as name_en, featured_template_id";
-
-      const { data: tax } = await supabase.from(table).select(cols).eq("slug", slug).maybeSingle();
-      if (!tax) return null;
-      const taxRow = tax as {
+      let taxRow: {
         id: string;
         slug: string;
         name_pl: string;
         name_en: string;
-        description_pl?: string | null;
-        description_en?: string | null;
+        description_pl: string | null;
+        description_en: string | null;
         featured_template_id: string | null;
-      };
+      } | null = null;
+      let postIds: string[] = [];
 
-      const [{ data: pivot }, featured_section] = await Promise.all([
-        supabase.from(joinTable).select("post_id").eq(joinCol, taxRow.id),
-        fetchFeaturedSection(taxRow.featured_template_id),
-      ]);
-      const postIds = (pivot ?? []).map((r) => r.post_id as string);
+      if (kind === "category") {
+        const { data: tax } = await supabase
+          .from("categories")
+          .select("id, slug, name_pl, name_en, description_pl, description_en, featured_template_id")
+          .eq("slug", slug)
+          .maybeSingle();
+        if (!tax) return null;
+        taxRow = {
+          id: tax.id as string,
+          slug: tax.slug as string,
+          name_pl: tax.name_pl as string,
+          name_en: tax.name_en as string,
+          description_pl: (tax.description_pl as string | null) ?? null,
+          description_en: (tax.description_en as string | null) ?? null,
+          featured_template_id: (tax.featured_template_id as string | null) ?? null,
+        };
+        const { data: pivot } = await supabase
+          .from("post_categories")
+          .select("post_id")
+          .eq("category_id", taxRow.id);
+        postIds = (pivot ?? []).map((r) => r.post_id as string);
+      } else {
+        const { data: tax } = await supabase
+          .from("tags")
+          .select("id, slug, name, featured_template_id")
+          .eq("slug", slug)
+          .maybeSingle();
+        if (!tax) return null;
+        const name = tax.name as string;
+        taxRow = {
+          id: tax.id as string,
+          slug: tax.slug as string,
+          name_pl: name,
+          name_en: name,
+          description_pl: null,
+          description_en: null,
+          featured_template_id: (tax.featured_template_id as string | null) ?? null,
+        };
+        const { data: pivot } = await supabase
+          .from("post_tags")
+          .select("post_id")
+          .eq("tag_id", taxRow.id);
+        postIds = (pivot ?? []).map((r) => r.post_id as string);
+      }
+
+      const featured_section = await fetchFeaturedSection(taxRow.featured_template_id);
 
       let posts: BlogListItem[] = [];
       if (postIds.length > 0) {
