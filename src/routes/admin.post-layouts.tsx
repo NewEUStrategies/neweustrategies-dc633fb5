@@ -19,8 +19,14 @@ function Page() {
   const onSave = async () => {
     const { tenant_id, ...rest } = local;
     void tenant_id;
-    await save.mutateAsync(rest);
-    toast.success("Zapisano");
+    try {
+      await save.mutateAsync(rest);
+      toast.success("Zapisano - layout wpisów został zaktualizowany");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Nie udało się zapisać";
+      toast.error(`Błąd zapisu: ${msg}`);
+      console.error("[post-layouts] save failed", e);
+    }
   };
 
   const LayoutGrid = ({ value, onChange, presets, title, hint }: {
