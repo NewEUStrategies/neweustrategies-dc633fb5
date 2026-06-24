@@ -70,7 +70,7 @@ export function MegaMenuEditor({ c, lang, setContent }: Props) {
             min={320}
             max={1920}
             step={20}
-            onChange={(n) => setContent("widthPx", n)}
+            onChange={(n) => setContent("widthPx", typeof n === "number" ? n : 1140)}
           />
         </PropField>
       )}
