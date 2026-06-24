@@ -148,6 +148,7 @@ function RootComponent() {
           <DesignTokensStyle />
           <ContentAreaStyle />
           <ThemeOptionsStyle />
+          <ThemeDesignStyle />
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>
