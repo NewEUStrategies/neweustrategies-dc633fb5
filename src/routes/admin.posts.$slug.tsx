@@ -503,6 +503,19 @@ function EditPost() {
                 onChange={(lang, next) => set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)}
               />
 
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Custom meta</h3>
+                  <Link to="/admin/custom-meta" className="text-xs text-brand underline">Edytuj definicje</Link>
+                </div>
+                <CustomMetaValuesEditor
+                  tenantId={tenantId}
+                  lang="pl"
+                  values={form.custom_meta}
+                  onChange={(next) => set("custom_meta", next)}
+                />
+              </div>
+
               <div className="flex justify-end pt-2 border-t border-border">
                 <Button onClick={() => setStep("content")} disabled={!form.title_pl.trim() && !form.title_en.trim()}>
                   Przejdź do edycji treści <ArrowRight className="w-4 h-4 ml-2" />
