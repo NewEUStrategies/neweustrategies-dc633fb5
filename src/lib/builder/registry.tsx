@@ -241,6 +241,17 @@ export const WIDGETS: WidgetDef[] = [
   // Advertising
   { type: "ad-slot", label: "Slot reklamowy", category: "blocks", icon: AdIcon,
     defaults: () => ({ slotId: "" }) },
+  // News ticker (horizontal scrolling latest posts)
+  { type: "news-ticker", label: "News ticker", category: "dynamic", icon: Flame,
+    defaults: () => ({
+      badge_pl: "Najnowsze", badge_en: "Latest",
+      limit: 10,
+      speedSeconds: 40,
+      pauseOnHover: true,
+      separator: "•",
+      categoriesCsv: "",
+      uniqueOnPage: false,
+    }) },
 ];
 
 export const WIDGET_MAP: Record<WidgetType, WidgetDef> = WIDGETS.reduce(
