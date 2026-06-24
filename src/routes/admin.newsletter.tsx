@@ -89,6 +89,10 @@ function Page() {
           <Button onClick={onSave} disabled={save.isPending}><Save className="w-4 h-4 mr-2" />{t("admin.saveSettings")}</Button>
         </div>
 
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
+          <div className="space-y-6 min-w-0">
+
+
         <section className="bg-card border border-border rounded-lg p-5 space-y-4">
           <h2 className="font-display text-lg">{t("admin.newsletter.formSettings")}</h2>
           <label className="flex items-center gap-2 text-sm">
