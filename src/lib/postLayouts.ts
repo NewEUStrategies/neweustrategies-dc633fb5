@@ -92,6 +92,7 @@ export interface PostLayoutSettings {
   prev_next_mobile_hide: boolean;
   show_bottom_newsletter: boolean;
   show_floating_share_bar: boolean;
+  auto_load_next_post: boolean;
 }
 
 export interface LayoutOverrides {
@@ -105,6 +106,7 @@ export interface LayoutOverrides {
   show_prev_next?: boolean;
   show_bottom_newsletter?: boolean;
   show_floating_share_bar?: boolean;
+  auto_load_next_post?: boolean;
 }
 
 export function defaultPostLayoutSettings(): PostLayoutSettings {
