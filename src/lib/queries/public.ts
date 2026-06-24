@@ -40,6 +40,7 @@ export interface PostData extends PageData {
   layout_overrides: LayoutOverrides | null;
   takeaways_pl: string[];
   takeaways_en: string[];
+  custom_meta: Record<string, string> | null;
 }
 
 
