@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ReadingListRouteImport } from './routes/reading-list'
 import { Route as ProfileRouteImport } from './routes/profile'
@@ -21,6 +22,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as TagSlugRouteImport } from './routes/tag.$slug'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
@@ -31,6 +33,8 @@ import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confi
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
+import { Route as CategorySlugRouteImport } from './routes/category.$slug'
+import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminThemeOptionsRouteImport } from './routes/admin.theme-options'
@@ -78,6 +82,11 @@ import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.pub
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
@@ -135,6 +144,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const TagSlugRoute = TagSlugRouteImport.update({
+  id: '/tag/$slug',
+  path: '/tag/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileSubscriptionRoute = ProfileSubscriptionRouteImport.update({
   id: '/subscription',
   path: '/subscription',
@@ -183,6 +197,16 @@ const CheckoutCancelRoute = CheckoutCancelRouteImport.update({
 const CheckoutPlanIdRoute = CheckoutPlanIdRouteImport.update({
   id: '/checkout/$planId',
   path: '/checkout/$planId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CategorySlugRoute = CategorySlugRouteImport.update({
+  id: '/category/$slug',
+  path: '/category/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthorSlugRoute = AuthorSlugRouteImport.update({
+  id: '/author/$slug',
+  path: '/author/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTtsRoute = ApiTtsRouteImport.update({
@@ -412,6 +436,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/search': typeof SearchRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
@@ -436,6 +461,8 @@ export interface FileRoutesByFullPath {
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
+  '/author/$slug': typeof AuthorSlugRoute
+  '/category/$slug': typeof CategorySlugRoute
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
@@ -446,6 +473,7 @@ export interface FileRoutesByFullPath {
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/tag/$slug': typeof TagSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -477,6 +505,7 @@ export interface FileRoutesByTo {
   '/pricing': typeof PricingRoute
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/search': typeof SearchRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
@@ -500,6 +529,8 @@ export interface FileRoutesByTo {
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
+  '/author/$slug': typeof AuthorSlugRoute
+  '/category/$slug': typeof CategorySlugRoute
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
@@ -510,6 +541,7 @@ export interface FileRoutesByTo {
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/tag/$slug': typeof TagSlugRoute
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/profile': typeof ProfileIndexRoute
@@ -544,6 +576,7 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/search': typeof SearchRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
@@ -568,6 +601,8 @@ export interface FileRoutesById {
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
+  '/author/$slug': typeof AuthorSlugRoute
+  '/category/$slug': typeof CategorySlugRoute
   '/checkout/$planId': typeof CheckoutPlanIdRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
@@ -578,6 +613,7 @@ export interface FileRoutesById {
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
+  '/tag/$slug': typeof TagSlugRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
@@ -613,6 +649,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reading-list'
     | '/robots.txt'
+    | '/search'
     | '/sitemap.xml'
     | '/admin/ads'
     | '/admin/appearance'
@@ -637,6 +674,8 @@ export interface FileRouteTypes {
     | '/admin/theme-options'
     | '/admin/users'
     | '/api/tts'
+    | '/author/$slug'
+    | '/category/$slug'
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
@@ -647,6 +686,7 @@ export interface FileRouteTypes {
     | '/profile/orders'
     | '/profile/security'
     | '/profile/subscription'
+    | '/tag/$slug'
     | '/admin/'
     | '/blog/'
     | '/profile/'
@@ -678,6 +718,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/reading-list'
     | '/robots.txt'
+    | '/search'
     | '/sitemap.xml'
     | '/admin/ads'
     | '/admin/appearance'
@@ -701,6 +742,8 @@ export interface FileRouteTypes {
     | '/admin/theme-options'
     | '/admin/users'
     | '/api/tts'
+    | '/author/$slug'
+    | '/category/$slug'
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
@@ -711,6 +754,7 @@ export interface FileRouteTypes {
     | '/profile/orders'
     | '/profile/security'
     | '/profile/subscription'
+    | '/tag/$slug'
     | '/admin'
     | '/blog'
     | '/profile'
@@ -744,6 +788,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reading-list'
     | '/robots.txt'
+    | '/search'
     | '/sitemap.xml'
     | '/admin/ads'
     | '/admin/appearance'
@@ -768,6 +813,8 @@ export interface FileRouteTypes {
     | '/admin/theme-options'
     | '/admin/users'
     | '/api/tts'
+    | '/author/$slug'
+    | '/category/$slug'
     | '/checkout/$planId'
     | '/checkout/cancel'
     | '/checkout/success'
@@ -778,6 +825,7 @@ export interface FileRouteTypes {
     | '/profile/orders'
     | '/profile/security'
     | '/profile/subscription'
+    | '/tag/$slug'
     | '/admin/'
     | '/blog/'
     | '/profile/'
@@ -812,13 +860,17 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRouteWithChildren
   ReadingListRoute: typeof ReadingListRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
+  SearchRoute: typeof SearchRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiTtsRoute: typeof ApiTtsRoute
+  AuthorSlugRoute: typeof AuthorSlugRoute
+  CategorySlugRoute: typeof CategorySlugRoute
   CheckoutPlanIdRoute: typeof CheckoutPlanIdRoute
   CheckoutCancelRoute: typeof CheckoutCancelRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   PostSlugRoute: typeof PostSlugRoute
+  TagSlugRoute: typeof TagSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
   ApiPublicRobotsDottxtRoute: typeof ApiPublicRobotsDottxtRoute
   ApiPublicSitemapDotxmlRoute: typeof ApiPublicSitemapDotxmlRoute
@@ -833,6 +885,13 @@ declare module '@tanstack/react-router' {
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/robots.txt': {
@@ -912,6 +971,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/tag/$slug': {
+      id: '/tag/$slug'
+      path: '/tag/$slug'
+      fullPath: '/tag/$slug'
+      preLoaderRoute: typeof TagSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile/subscription': {
       id: '/profile/subscription'
       path: '/subscription'
@@ -980,6 +1046,20 @@ declare module '@tanstack/react-router' {
       path: '/checkout/$planId'
       fullPath: '/checkout/$planId'
       preLoaderRoute: typeof CheckoutPlanIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/category/$slug': {
+      id: '/category/$slug'
+      path: '/category/$slug'
+      fullPath: '/category/$slug'
+      preLoaderRoute: typeof CategorySlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/author/$slug': {
+      id: '/author/$slug'
+      path: '/author/$slug'
+      fullPath: '/author/$slug'
+      preLoaderRoute: typeof AuthorSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tts': {
@@ -1442,13 +1522,17 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRouteWithChildren,
   ReadingListRoute: ReadingListRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
+  SearchRoute: SearchRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiTtsRoute: ApiTtsRoute,
+  AuthorSlugRoute: AuthorSlugRoute,
+  CategorySlugRoute: CategorySlugRoute,
   CheckoutPlanIdRoute: CheckoutPlanIdRoute,
   CheckoutCancelRoute: CheckoutCancelRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
   PostSlugRoute: PostSlugRoute,
+  TagSlugRoute: TagSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
   ApiPublicRobotsDottxtRoute: ApiPublicRobotsDottxtRoute,
   ApiPublicSitemapDotxmlRoute: ApiPublicSitemapDotxmlRoute,
