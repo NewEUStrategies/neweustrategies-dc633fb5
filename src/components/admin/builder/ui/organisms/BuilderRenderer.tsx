@@ -11,6 +11,7 @@ import {
   ShapeDivider, typographyCss, typographyAlign,
   INNER_SECTION_SAFE_AREA_PX, COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
+import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
 
 function resolveSpan(span: ResponsiveValue<number>, device: Device, deskDefault: number): number {
   if (device === "mobile") return span.mobile ?? 12;
