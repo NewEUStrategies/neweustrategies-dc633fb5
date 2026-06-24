@@ -38,38 +38,35 @@ const config: MegaMenuConfig = {
 describe("MegaMenu", () => {
   it("renders trigger label in PL", () => {
     render(<MegaMenu config={config} lang="pl" />);
-    expect(screen.getByRole("button", { name: /Tematy/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Tematy/ })).not.toBeNull();
   });
 
   it("renders trigger label in EN", () => {
     render(<MegaMenu config={config} lang="en" />);
-    expect(screen.getByRole("button", { name: /Topics/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Topics/ })).not.toBeNull();
   });
 
-  it("opens panel on click and shows column titles + links + featured CTA", () => {
+  it("opens panel on click and shows columns + links + featured CTA", () => {
     render(<MegaMenu config={config} lang="pl" />);
     fireEvent.click(screen.getByRole("button", { name: /Tematy/ }));
-    expect(screen.getByText("Analizy")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Bezpieczeństwo" })).toHaveAttribute(
-      "href",
-      "/security",
-    );
-    expect(screen.getByText("Raport")).toBeInTheDocument();
-    expect(screen.getByText(/Czytaj/)).toBeInTheDocument();
+    expect(screen.getByText("Analizy")).not.toBeNull();
+    const link = screen.getByRole("link", { name: "Bezpieczeństwo" });
+    expect(link.getAttribute("href")).toBe("/security");
+    expect(screen.getByText("Raport")).not.toBeNull();
+    expect(screen.getByText(/Czytaj/)).not.toBeNull();
   });
 
   it("renders mobile accordion with disclosure", () => {
     const { container } = render(<MegaMenu config={config} lang="en" mobile />);
-    const details = container.querySelector("details");
-    expect(details).toBeTruthy();
-    expect(screen.getByText("Topics")).toBeInTheDocument();
-    expect(screen.getByText("Analyses")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Security" })).toBeInTheDocument();
+    expect(container.querySelector("details")).not.toBeNull();
+    expect(screen.getByText("Topics")).not.toBeNull();
+    expect(screen.getByText("Analyses")).not.toBeNull();
+    expect(screen.getByRole("link", { name: "Security" })).not.toBeNull();
   });
 
   it("falls back to PL label when EN missing", () => {
     const cfg: MegaMenuConfig = { ...config, trigger_en: "" };
     render(<MegaMenu config={cfg} lang="en" />);
-    expect(screen.getByRole("button", { name: /Tematy/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Tematy/ })).not.toBeNull();
   });
 });
