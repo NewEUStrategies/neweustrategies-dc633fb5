@@ -109,7 +109,7 @@ function Page() {
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl">Podcasty</h1>
           <div className="flex gap-2">
-            <Button asChild variant="outline" size="sm"><Link to="/admin/podcasts/settings">Ustawienia</Link></Button>
+            
             <Button onClick={() => setEditing(newDraft())}><Plus className="w-4 h-4 mr-2" />Nowy odcinek</Button>
           </div>
         </div>
