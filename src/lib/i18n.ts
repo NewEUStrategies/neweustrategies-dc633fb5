@@ -219,6 +219,13 @@ const resources = {
             styleSuccess: "Sukces",
             dismissible: "Możliwość zamknięcia",
             dismissibleHint: "Użytkownik może ukryć pasek (zapamiętane w localStorage).",
+            icon: "Ikona",
+            iconHint: "„Auto” dobiera ikonę do stylu paska.",
+            iconAuto: "Automatyczna",
+            iconNone: "Bez ikony",
+            ctaPl: "Tekst przycisku (PL)",
+            ctaEn: "Tekst przycisku (EN)",
+            ctaHint: "Pokazuje przycisk CTA obok treści (wymaga ustawionego linku).",
           },
           mobile: {
             breakpoint: "Mobile breakpoint (px)",
