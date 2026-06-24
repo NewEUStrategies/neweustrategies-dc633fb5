@@ -12,14 +12,25 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ReadingListRouteImport } from './routes/reading-list'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
+import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
+import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
+import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
+import { Route as ProfileAccountRouteImport } from './routes/profile.account'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
 import { Route as NewsletterConfirmRouteImport } from './routes/newsletter.confirm'
+import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
+import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
+import { Route as CheckoutPlanIdRouteImport } from './routes/checkout.$planId'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminThemeOptionsRouteImport } from './routes/admin.theme-options'
@@ -73,6 +84,16 @@ const ReadingListRoute = ReadingListRouteImport.update({
   path: '/reading-list',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -93,6 +114,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProfileIndexRoute = ProfileIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ProfileRoute,
+} as any)
 const BlogIndexRoute = BlogIndexRouteImport.update({
   id: '/blog/',
   path: '/blog/',
@@ -103,6 +129,31 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const ProfileSubscriptionRoute = ProfileSubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileSecurityRoute = ProfileSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileOrdersRoute = ProfileOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileBillingRoute = ProfileBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileAccountRoute = ProfileAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => ProfileRoute,
+} as any)
 const PostSlugRoute = PostSlugRouteImport.update({
   id: '/post/$slug',
   path: '/post/$slug',
@@ -111,6 +162,21 @@ const PostSlugRoute = PostSlugRouteImport.update({
 const NewsletterConfirmRoute = NewsletterConfirmRouteImport.update({
   id: '/newsletter/confirm',
   path: '/newsletter/confirm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutSuccessRoute = CheckoutSuccessRouteImport.update({
+  id: '/checkout/success',
+  path: '/checkout/success',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutCancelRoute = CheckoutCancelRouteImport.update({
+  id: '/checkout/cancel',
+  path: '/checkout/cancel',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutPlanIdRoute = CheckoutPlanIdRouteImport.update({
+  id: '/checkout/$planId',
+  path: '/checkout/$planId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTtsRoute = ApiTtsRouteImport.update({
@@ -306,6 +372,8 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
+  '/profile': typeof ProfileRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -327,10 +395,19 @@ export interface FileRoutesByFullPath {
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
+  '/checkout/$planId': typeof CheckoutPlanIdRoute
+  '/checkout/cancel': typeof CheckoutCancelRoute
+  '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
+  '/profile/account': typeof ProfileAccountRoute
+  '/profile/billing': typeof ProfileBillingRoute
+  '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/security': typeof ProfileSecurityRoute
+  '/profile/subscription': typeof ProfileSubscriptionRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
+  '/profile/': typeof ProfileIndexRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -355,6 +432,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -375,10 +453,19 @@ export interface FileRoutesByTo {
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
+  '/checkout/$planId': typeof CheckoutPlanIdRoute
+  '/checkout/cancel': typeof CheckoutCancelRoute
+  '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
+  '/profile/account': typeof ProfileAccountRoute
+  '/profile/billing': typeof ProfileBillingRoute
+  '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/security': typeof ProfileSecurityRoute
+  '/profile/subscription': typeof ProfileSubscriptionRoute
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
+  '/profile': typeof ProfileIndexRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -405,6 +492,8 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
+  '/profile': typeof ProfileRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -426,10 +515,19 @@ export interface FileRoutesById {
   '/admin/theme-options': typeof AdminThemeOptionsRoute
   '/admin/users': typeof AdminUsersRoute
   '/api/tts': typeof ApiTtsRoute
+  '/checkout/$planId': typeof CheckoutPlanIdRoute
+  '/checkout/cancel': typeof CheckoutCancelRoute
+  '/checkout/success': typeof CheckoutSuccessRoute
   '/newsletter/confirm': typeof NewsletterConfirmRoute
   '/post/$slug': typeof PostSlugRoute
+  '/profile/account': typeof ProfileAccountRoute
+  '/profile/billing': typeof ProfileBillingRoute
+  '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/security': typeof ProfileSecurityRoute
+  '/profile/subscription': typeof ProfileSubscriptionRoute
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
+  '/profile/': typeof ProfileIndexRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -457,6 +555,8 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/login'
+    | '/pricing'
+    | '/profile'
     | '/reading-list'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -478,10 +578,19 @@ export interface FileRouteTypes {
     | '/admin/theme-options'
     | '/admin/users'
     | '/api/tts'
+    | '/checkout/$planId'
+    | '/checkout/cancel'
+    | '/checkout/success'
     | '/newsletter/confirm'
     | '/post/$slug'
+    | '/profile/account'
+    | '/profile/billing'
+    | '/profile/orders'
+    | '/profile/security'
+    | '/profile/subscription'
     | '/admin/'
     | '/blog/'
+    | '/profile/'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -506,6 +615,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/login'
+    | '/pricing'
     | '/reading-list'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -526,10 +636,19 @@ export interface FileRouteTypes {
     | '/admin/theme-options'
     | '/admin/users'
     | '/api/tts'
+    | '/checkout/$planId'
+    | '/checkout/cancel'
+    | '/checkout/success'
     | '/newsletter/confirm'
     | '/post/$slug'
+    | '/profile/account'
+    | '/profile/billing'
+    | '/profile/orders'
+    | '/profile/security'
+    | '/profile/subscription'
     | '/admin'
     | '/blog'
+    | '/profile'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -555,6 +674,8 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/login'
+    | '/pricing'
+    | '/profile'
     | '/reading-list'
     | '/robots.txt'
     | '/sitemap.xml'
@@ -576,10 +697,19 @@ export interface FileRouteTypes {
     | '/admin/theme-options'
     | '/admin/users'
     | '/api/tts'
+    | '/checkout/$planId'
+    | '/checkout/cancel'
+    | '/checkout/success'
     | '/newsletter/confirm'
     | '/post/$slug'
+    | '/profile/account'
+    | '/profile/billing'
+    | '/profile/orders'
+    | '/profile/security'
+    | '/profile/subscription'
     | '/admin/'
     | '/blog/'
+    | '/profile/'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -606,10 +736,15 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRouteWithChildren
   LoginRoute: typeof LoginRoute
+  PricingRoute: typeof PricingRoute
+  ProfileRoute: typeof ProfileRouteWithChildren
   ReadingListRoute: typeof ReadingListRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiTtsRoute: typeof ApiTtsRoute
+  CheckoutPlanIdRoute: typeof CheckoutPlanIdRoute
+  CheckoutCancelRoute: typeof CheckoutCancelRoute
+  CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   NewsletterConfirmRoute: typeof NewsletterConfirmRoute
   PostSlugRoute: typeof PostSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
@@ -641,6 +776,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReadingListRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -669,6 +818,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/profile/': {
+      id: '/profile/'
+      path: '/'
+      fullPath: '/profile/'
+      preLoaderRoute: typeof ProfileIndexRouteImport
+      parentRoute: typeof ProfileRoute
+    }
     '/blog/': {
       id: '/blog/'
       path: '/blog'
@@ -683,6 +839,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/profile/subscription': {
+      id: '/profile/subscription'
+      path: '/subscription'
+      fullPath: '/profile/subscription'
+      preLoaderRoute: typeof ProfileSubscriptionRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/security': {
+      id: '/profile/security'
+      path: '/security'
+      fullPath: '/profile/security'
+      preLoaderRoute: typeof ProfileSecurityRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/orders': {
+      id: '/profile/orders'
+      path: '/orders'
+      fullPath: '/profile/orders'
+      preLoaderRoute: typeof ProfileOrdersRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/billing': {
+      id: '/profile/billing'
+      path: '/billing'
+      fullPath: '/profile/billing'
+      preLoaderRoute: typeof ProfileBillingRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/account': {
+      id: '/profile/account'
+      path: '/account'
+      fullPath: '/profile/account'
+      preLoaderRoute: typeof ProfileAccountRouteImport
+      parentRoute: typeof ProfileRoute
+    }
     '/post/$slug': {
       id: '/post/$slug'
       path: '/post/$slug'
@@ -695,6 +886,27 @@ declare module '@tanstack/react-router' {
       path: '/newsletter/confirm'
       fullPath: '/newsletter/confirm'
       preLoaderRoute: typeof NewsletterConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout/success': {
+      id: '/checkout/success'
+      path: '/checkout/success'
+      fullPath: '/checkout/success'
+      preLoaderRoute: typeof CheckoutSuccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout/cancel': {
+      id: '/checkout/cancel'
+      path: '/checkout/cancel'
+      fullPath: '/checkout/cancel'
+      preLoaderRoute: typeof CheckoutCancelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout/$planId': {
+      id: '/checkout/$planId'
+      path: '/checkout/$planId'
+      fullPath: '/checkout/$planId'
+      preLoaderRoute: typeof CheckoutPlanIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tts': {
@@ -1075,15 +1287,41 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface ProfileRouteChildren {
+  ProfileAccountRoute: typeof ProfileAccountRoute
+  ProfileBillingRoute: typeof ProfileBillingRoute
+  ProfileOrdersRoute: typeof ProfileOrdersRoute
+  ProfileSecurityRoute: typeof ProfileSecurityRoute
+  ProfileSubscriptionRoute: typeof ProfileSubscriptionRoute
+  ProfileIndexRoute: typeof ProfileIndexRoute
+}
+
+const ProfileRouteChildren: ProfileRouteChildren = {
+  ProfileAccountRoute: ProfileAccountRoute,
+  ProfileBillingRoute: ProfileBillingRoute,
+  ProfileOrdersRoute: ProfileOrdersRoute,
+  ProfileSecurityRoute: ProfileSecurityRoute,
+  ProfileSubscriptionRoute: ProfileSubscriptionRoute,
+  ProfileIndexRoute: ProfileIndexRoute,
+}
+
+const ProfileRouteWithChildren =
+  ProfileRoute._addFileChildren(ProfileRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AdminRoute: AdminRouteWithChildren,
   LoginRoute: LoginRoute,
+  PricingRoute: PricingRoute,
+  ProfileRoute: ProfileRouteWithChildren,
   ReadingListRoute: ReadingListRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiTtsRoute: ApiTtsRoute,
+  CheckoutPlanIdRoute: CheckoutPlanIdRoute,
+  CheckoutCancelRoute: CheckoutCancelRoute,
+  CheckoutSuccessRoute: CheckoutSuccessRoute,
   NewsletterConfirmRoute: NewsletterConfirmRoute,
   PostSlugRoute: PostSlugRoute,
   BlogIndexRoute: BlogIndexRoute,

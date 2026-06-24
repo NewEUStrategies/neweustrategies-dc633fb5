@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { LayoutDashboard, LogIn } from "@/lib/lucide-shim";
+import { LayoutDashboard, LogIn, User } from "@/lib/lucide-shim";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useHasMounted } from "@/hooks/useHasMounted";
@@ -24,6 +24,13 @@ export function AuthLink({ className = "" }: { className?: string }) {
     return (
       <Link to="/admin" className={`inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline ${className}`}>
         <LayoutDashboard className="w-3.5 h-3.5" /> Panel
+      </Link>
+    );
+  }
+  if (session) {
+    return (
+      <Link to="/profile" className={`inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline ${className}`}>
+        <User className="w-3.5 h-3.5" /> {lang === "pl" ? "Profil" : "Profile"}
       </Link>
     );
   }
