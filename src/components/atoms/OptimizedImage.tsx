@@ -1,4 +1,7 @@
 import { useState, type ImgHTMLAttributes, type CSSProperties } from "react";
+import { buildTransformedImageUrl } from "@/lib/cropSizes";
+
+export type HoverEffect = "none" | "zoom" | "fade" | "slide";
 
 type OptimizedImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "loading" | "decoding"> & {
   src: string;
@@ -8,6 +11,10 @@ type OptimizedImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "loading" |
   priority?: boolean;
   aspectRatio?: number;
   fadeIn?: boolean;
+  /** Optional hover effect (wraps img in overflow-hidden container). */
+  hoverEffect?: HoverEffect;
+  /** Optional crop preset - applies Supabase image transform. */
+  crop?: { width: number; height: number; resize?: "cover" | "contain" | "fill" };
 };
 
 /**
@@ -16,6 +23,8 @@ type OptimizedImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "loading" |
  * - `priority` opts into eager + high fetch priority for LCP candidates.
  * - Reserves layout via `aspectRatio` to prevent CLS.
  * - Subtle fade-in on load to avoid layout pop.
+ * - Optional `hoverEffect` ("zoom" | "fade" | "slide") wraps the img.
+ * - Optional `crop` applies Supabase storage image transform.
  */
 export function OptimizedImage({
   src,
@@ -25,6 +34,8 @@ export function OptimizedImage({
   priority = false,
   aspectRatio,
   fadeIn = true,
+  hoverEffect = "none",
+  crop,
   className,
   style,
   onLoad,
@@ -34,6 +45,8 @@ export function OptimizedImage({
 
   const ratio =
     aspectRatio ?? (width && height ? width / height : undefined);
+
+  const finalSrc = crop ? buildTransformedImageUrl(src, crop) : src;
 
   const computedStyle: CSSProperties = {
     ...(ratio ? { aspectRatio: String(ratio) } : null),
@@ -46,23 +59,36 @@ export function OptimizedImage({
     ...style,
   };
 
-  return (
+  const imgEl = (
     <img
       {...rest}
-      src={src}
+      src={finalSrc}
       alt={alt}
       width={width}
       height={height}
       loading={priority ? "eager" : "lazy"}
       decoding={priority ? "sync" : "async"}
       fetchPriority={priority ? "high" : "auto"}
-      className={className}
+      className={hoverEffect === "none" ? className : `${className ?? ""} oi-img`}
       style={computedStyle}
       onLoad={(e) => {
         setLoaded(true);
         onLoad?.(e);
       }}
     />
+  );
+
+  if (hoverEffect === "none") return imgEl;
+
+  // Hover effects need a containing element. CSS in styles.css ships defaults;
+  // here we set inline class hooks the consumer's CSS layer can target.
+  return (
+    <span
+      className={`oi-wrap oi-hover-${hoverEffect} block overflow-hidden`}
+      style={ratio ? { aspectRatio: String(ratio) } : undefined}
+    >
+      {imgEl}
+    </span>
   );
 }
 
