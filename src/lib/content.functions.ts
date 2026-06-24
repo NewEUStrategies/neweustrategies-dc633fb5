@@ -116,6 +116,7 @@ const PostCore = z.object({
   layout_overrides: z.record(z.string(), z.unknown()).nullable().optional(),
   takeaways_pl: z.array(z.string().max(500)).max(6).optional(),
   takeaways_en: z.array(z.string().max(500)).max(6).optional(),
+  custom_meta: z.record(z.string().max(64), z.string().max(200)).nullable().optional(),
 
 });
 

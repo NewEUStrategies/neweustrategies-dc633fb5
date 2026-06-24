@@ -15,7 +15,12 @@ import { BlocksRenderer } from "@/components/blocks/BlocksRenderer";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import { sanitizeMarkdownHtml } from "@/lib/sanitize";
+import { processManualToc } from "@/lib/manualToc";
 import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
+import { FloatingShareBar } from "@/components/share/FloatingShareBar";
+import { CustomMetaList } from "@/components/post/CustomMetaList";
+import { useQuery } from "@tanstack/react-query";
+import { listCustomMetaDefs } from "@/lib/customMeta";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
 import { useContentAccess } from "@/hooks/useContentAccess";
@@ -121,9 +126,19 @@ function PublicPage() {
   const isBlocks = it.editor === "blocks" && !!blocksDoc?.blocks?.length;
 
   const { doc, notes: builderNotes } = processDocFootnotes(rawDoc, lang);
-  const { html: processedHtml, notes: htmlNotes } = processHtmlFootnotes(rawHtml ?? "", 1);
+  const { html: footnoteHtml, notes: htmlNotes } = processHtmlFootnotes(rawHtml ?? "", 1);
+  // Manual <!--TOC--> marker -> inline auto-generated table of contents;
+  // also assigns stable IDs to h2/h3 so deep links work.
+  const { html: processedHtml } = processManualToc(footnoteHtml, lang);
   const notes = isBuilder ? builderNotes : htmlNotes;
   const articleRef = useRef<HTMLDivElement>(null);
+
+  // Custom meta definitions (publicly readable, cached).
+  const { data: customMetaDefs = [] } = useQuery({
+    queryKey: ["customMetaDefs", "public"] as const,
+    queryFn: () => listCustomMetaDefs(),
+    staleTime: 5 * 60_000,
+  });
 
   const [crumbs, setCrumbs] = useState<BreadcrumbItem[]>([]);
   useEffect(() => {
@@ -188,7 +203,16 @@ function PublicPage() {
             title={title}
             excerpt={excerpt}
             coverImageUrl={it.cover_image_url}
-            meta={post.read_minutes ? <span>{post.read_minutes} min</span> : null}
+            meta={
+              <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+                {post.read_minutes ? <span>{post.read_minutes} min</span> : null}
+                <CustomMetaList
+                  defs={customMetaDefs}
+                  values={post.custom_meta}
+                  lang={lang}
+                />
+              </span>
+            }
             content={
               <>
                 {contentBlock}
@@ -230,6 +254,9 @@ function PublicPage() {
         </main>
         <Footer />
         <FooterSlideup pageType={adPageType} pageId={it.id} />
+        {merged.show_floating_share_bar && (
+          <FloatingShareBar title={title} lang={lang} />
+        )}
       </div>
     );
   }

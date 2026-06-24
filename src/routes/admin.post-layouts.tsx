@@ -110,6 +110,7 @@ function Page() {
           <Toggle label="Nawigacja Poprzedni/Następny" checked={local.show_prev_next} onChange={(v) => upd({ show_prev_next: v })} />
           <Toggle label="Ukryj paginację na mobile" checked={local.prev_next_mobile_hide} onChange={(v) => upd({ prev_next_mobile_hide: v })} />
           <Toggle label="Dolny newsletter w treści" checked={local.show_bottom_newsletter} onChange={(v) => upd({ show_bottom_newsletter: v })} />
+          <Toggle label="Pływający pasek udostępniania (lewa strona, desktop)" checked={local.show_floating_share_bar} onChange={(v) => upd({ show_floating_share_bar: v })} />
         </section>
       </div>
     </AdminShell>

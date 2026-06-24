@@ -28,6 +28,7 @@ import { getLayoutSet, findLayout, mergeOverrides, pickLayoutId } from "@/lib/po
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
+import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/posts/$slug")({
@@ -60,6 +61,7 @@ interface PostForm {
   layout_overrides: LayoutOverrides | null;
   takeaways_pl: string[];
   takeaways_en: string[];
+  custom_meta: Record<string, string> | null;
 }
 
 
@@ -165,6 +167,7 @@ function EditPost() {
           layout_overrides: snapshot.layout_overrides,
           takeaways_pl: snapshot.takeaways_pl ?? [],
           takeaways_en: snapshot.takeaways_en ?? [],
+          custom_meta: snapshot.custom_meta ?? null,
         },
         categories: selectedCats,
         tags: selectedTags,
@@ -499,6 +502,19 @@ function EditPost() {
                 en={form.takeaways_en ?? []}
                 onChange={(lang, next) => set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)}
               />
+
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Custom meta</h3>
+                  <Link to="/admin/custom-meta" className="text-xs text-brand underline">Edytuj definicje</Link>
+                </div>
+                <CustomMetaValuesEditor
+                  tenantId={tenantId}
+                  lang="pl"
+                  values={form.custom_meta}
+                  onChange={(next) => set("custom_meta", next)}
+                />
+              </div>
 
               <div className="flex justify-end pt-2 border-t border-border">
                 <Button onClick={() => setStep("content")} disabled={!form.title_pl.trim() && !form.title_en.trim()}>

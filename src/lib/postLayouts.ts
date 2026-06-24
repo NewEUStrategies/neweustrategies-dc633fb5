@@ -91,6 +91,7 @@ export interface PostLayoutSettings {
   show_prev_next: boolean;
   prev_next_mobile_hide: boolean;
   show_bottom_newsletter: boolean;
+  show_floating_share_bar: boolean;
 }
 
 export interface LayoutOverrides {
@@ -103,6 +104,7 @@ export interface LayoutOverrides {
   show_author_card?: boolean;
   show_prev_next?: boolean;
   show_bottom_newsletter?: boolean;
+  show_floating_share_bar?: boolean;
 }
 
 export function defaultPostLayoutSettings(): PostLayoutSettings {
@@ -137,6 +139,7 @@ export function defaultPostLayoutSettings(): PostLayoutSettings {
     show_prev_next: false,
     prev_next_mobile_hide: true,
     show_bottom_newsletter: true,
+    show_floating_share_bar: true,
   };
 }
 
@@ -152,6 +155,7 @@ export function mergeOverrides(global: PostLayoutSettings, overrides: LayoutOver
     show_author_card: overrides.show_author_card ?? global.show_author_card,
     show_prev_next: overrides.show_prev_next ?? global.show_prev_next,
     show_bottom_newsletter: overrides.show_bottom_newsletter ?? global.show_bottom_newsletter,
+    show_floating_share_bar: overrides.show_floating_share_bar ?? global.show_floating_share_bar,
   };
 }
 
