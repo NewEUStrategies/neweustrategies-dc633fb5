@@ -155,6 +155,7 @@ export function mergeOverrides(global: PostLayoutSettings, overrides: LayoutOver
     show_author_card: overrides.show_author_card ?? global.show_author_card,
     show_prev_next: overrides.show_prev_next ?? global.show_prev_next,
     show_bottom_newsletter: overrides.show_bottom_newsletter ?? global.show_bottom_newsletter,
+    show_floating_share_bar: overrides.show_floating_share_bar ?? global.show_floating_share_bar,
   };
 }
 
