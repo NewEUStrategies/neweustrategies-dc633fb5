@@ -19,6 +19,8 @@ interface Props {
   value: LocalizedBlocks | null;
   onChange: (next: LocalizedBlocks) => void;
   documentPane: React.ReactNode;
+  /** Owija kanwę bloków (np. wireframem layoutu wpisu). */
+  canvasWrap?: (canvas: React.ReactNode) => React.ReactNode;
 }
 
 export function PostBlockEditor({ value, onChange, documentPane }: Props) {
