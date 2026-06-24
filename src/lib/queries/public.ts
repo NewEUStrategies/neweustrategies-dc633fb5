@@ -30,6 +30,8 @@ export interface PageData {
   builder_data: unknown;
   cover_image_url: string | null;
   published_at: string | null;
+  template_type?: string | null;
+  header_override?: string | null;
 }
 
 export interface PostData extends PageData {
