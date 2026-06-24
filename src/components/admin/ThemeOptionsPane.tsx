@@ -9,10 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers, MousePointerClick, Pencil } from "@/lib/lucide-shim";
+import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers, MousePointerClick, Pencil, Brush } from "@/lib/lucide-shim";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
+import { ThemeDesignPane } from "@/components/admin/ThemeDesignPane";
 import { useTheme } from "@/components/ThemeProvider";
 import { cn } from "@/lib/utils";
+
 
 
 // ---------- Defaults ----------
@@ -153,7 +155,9 @@ const SECTIONS = [
   { id: "header.mobile", labelKey: "themeOptions.sections.mobileHeader", icon: LayoutDashboard },
   { id: "buttons", labelKey: "themeOptions.sections.buttons", icon: MousePointerClick },
   { id: "text_fields", labelKey: "themeOptions.sections.textFields", icon: Pencil },
+  { id: "design", labelKey: "themeOptions.sections.contentStyling", icon: Brush },
 ] as const;
+
 
 const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
   "layout-1": { label: "Layout 1 — Classic Centered", hint: "Utility bar + centered logo + nav (current default)" },
@@ -171,8 +175,16 @@ export function ThemeOptionsPane() {
   const { query, save } = useSettings<any>("theme_options", DEFAULTS as any);
   const [draft, setDraft] = useState<ThemeOptions | null>(null);
   useEffect(() => { if (query.data && !draft) setDraft(query.data as ThemeOptions); }, [query.data, draft]);
-  const [active, setActive] = useState<(typeof SECTIONS)[number]["id"]>("logo");
+  const [active, setActive] = useState<(typeof SECTIONS)[number]["id"]>(() => {
+    if (typeof window !== "undefined") {
+      const h = window.location.hash.replace(/^#/, "");
+      const found = SECTIONS.find((s) => s.id === h);
+      if (found) return found.id;
+    }
+    return "logo";
+  });
   const [logoTab, setLogoTab] = useState<"default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark">("default");
+
 
   if (!draft) return <p className="text-sm text-muted-foreground">{t("themeOptions.loading")}</p>;
 
@@ -209,7 +221,10 @@ export function ThemeOptionsPane() {
       <section className="border border-border rounded-lg bg-card p-5 space-y-5">
         {active === "global_colors" ? (
           <GlobalColorsEditor />
+        ) : active === "design" ? (
+          <ThemeDesignPane />
         ) : (
+
         <>
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg">{(() => { const s = SECTIONS.find((x) => x.id === active); return s ? t(s.labelKey) : ""; })()}</h3>

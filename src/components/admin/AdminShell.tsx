@@ -97,8 +97,8 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
       items: [
         { to: "/admin/appearance", icon: PanelsTopLeft, label: t("admin.nav.appearance") },
         { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
-        { to: "/admin/theme-design", icon: Brush, label: t("admin.nav.themeDesign") },
         { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
+
       ],
     },
     ...(isAdmin
@@ -112,7 +112,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
         }]
       : []),
   ];
-  void Star; void Bookmark;
+  void Star; void Bookmark; void Brush;
 
 
   const handleSignOut = async () => {

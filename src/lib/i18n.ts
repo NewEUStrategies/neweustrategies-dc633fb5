@@ -176,6 +176,8 @@ const resources = {
             mobileHeader: "Nagłówek mobilny",
             buttons: "Przyciski",
             textFields: "Pola tekstowe",
+            contentStyling: "Style treści",
+
           },
           mainMenu: {
             navTopLevel: "Nawigacja (najwyższy poziom)",
@@ -819,6 +821,8 @@ const resources = {
             mobileHeader: "Mobile Header",
             buttons: "Buttons",
             textFields: "Text Fields",
+            contentStyling: "Content Styling",
+
           },
           mainMenu: {
             navTopLevel: "Navigation (Top Level)",
