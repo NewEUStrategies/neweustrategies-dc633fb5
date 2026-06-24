@@ -11,3 +11,4 @@ export { SidesInput } from "./SidesInput";
 export { CollapsibleDetails, CollapsibleSection } from "./Collapsible";
 export { IconBtn } from "./IconBtn";
 export { ItemFrame } from "./ItemFrame";
+export { FocalPointPicker } from "./FocalPointPicker";
