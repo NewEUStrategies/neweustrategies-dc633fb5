@@ -25,7 +25,7 @@ export function CustomMetaList({ defs, values, lang, variant = "inline", classNa
     return (
       <dl className={["grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm", className].filter(Boolean).join(" ")}>
         {items.map(({ def, value }) => {
-          const Icon = ICONS[def.icon] ?? Info;
+          const Icon = ICONS[def.icon] ?? Globe;
           return (
             <div key={def.id} className="flex items-start gap-2">
               <Icon className="w-4 h-4 mt-0.5 text-brand shrink-0" aria-hidden />
@@ -42,7 +42,7 @@ export function CustomMetaList({ defs, values, lang, variant = "inline", classNa
   return (
     <ul className={["inline-flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground", className].filter(Boolean).join(" ")}>
       {items.map(({ def, value }) => {
-        const Icon = ICONS[def.icon] ?? Info;
+        const Icon = ICONS[def.icon] ?? Globe;
         return (
           <li key={def.id} className="inline-flex items-center gap-1.5">
             <Icon className="w-3.5 h-3.5 text-brand" aria-hidden />
