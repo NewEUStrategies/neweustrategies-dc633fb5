@@ -25,7 +25,7 @@ const BlockSchema = z.object({
   type: z.enum([
     "paragraph", "heading", "image", "list", "quote", "code",
     "embed", "video", "gallery", "separator", "callout", "table",
-    "button", "columns", "html",
+    "button", "columns", "html", "liveblog",
   ]),
   data: z.record(z.string(), JsonSchema),
   style: BlockStyleSchema.optional(),
