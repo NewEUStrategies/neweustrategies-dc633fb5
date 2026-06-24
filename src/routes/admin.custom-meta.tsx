@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { useRequiredTenant } from "@/lib/tenant";
+import { useRequiredTenant } from "@/hooks/useAuth";
 import {
   listCustomMetaDefs, upsertCustomMetaDef, deleteCustomMetaDef, type CustomMetaDef,
 } from "@/lib/customMeta";
