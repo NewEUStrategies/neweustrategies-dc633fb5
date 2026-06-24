@@ -19,7 +19,7 @@ import {
   faTags, faTrashCan, faFont, faRotateLeft, faUpload, faUser, faUsers,
   faVideo, faXmark, faSpinner, faTriangleExclamation,
   faLock, faPalette, faTableCells, faWandMagicSparkles, faWindowMaximize, faCreditCard,
-  faPlay, faPause,
+  faPlay, faPause, faBell, faCircleInfo,
 } from "@fortawesome/free-solid-svg-icons";
 import {
   faFacebook, faInstagram, faLinkedin, faXTwitter, faYoutube,
