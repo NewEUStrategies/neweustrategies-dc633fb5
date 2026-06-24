@@ -62,6 +62,11 @@ export function PostListEditor({ c, lang, setContent }: Props) {
   const orderDir = str(c, "orderDir", "desc");
   const postFormat = str(c, "postFormat", "");
   const authorId = str(c, "authorId", "");
+  const dateFrom = str(c, "dateFrom", "");
+  const dateTo = str(c, "dateTo", "");
+  const popularDays = num(c, "popularDays", 30);
+  const uniqueOnPage = c["uniqueOnPage"] === true || c["uniqueOnPage"] === "true";
+  const mobileHScroll = c["mobileHorizontalScroll"] === true || c["mobileHorizontalScroll"] === "true";
 
   const categoriesCsv = str(c, "categoriesCsv", "");
   const excludeCategoriesCsv = str(c, "excludeCategoriesCsv", "");
