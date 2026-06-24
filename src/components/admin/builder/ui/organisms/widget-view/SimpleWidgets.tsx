@@ -604,12 +604,12 @@ export function renderSimpleWidget(
       const signin = getStr(c, `signin_${lang}`) || getStr(c, "signin_pl") || "Zaloguj";
       const signup = getStr(c, `signup_${lang}`) || getStr(c, "signup_pl") || "Zarejestruj";
       return (
-        <span className="inline-flex items-center gap-2 text-xs leading-none" style={compactRowStyle}>
-          <a href="/login" className="inline-flex h-10 items-center gap-1 text-foreground hover:opacity-80 transition-colors">
-            <LucideIcons.LogIn className="w-3.5 h-3.5" /> {signin}
+        <span className="inline-flex items-center gap-1.5 text-[11px] leading-none" style={compactRowStyle}>
+          <a href="/login" className="inline-flex h-7 items-center gap-1 text-foreground hover:opacity-80 transition-colors">
+            <LucideIcons.LogIn className="w-3 h-3" /> {signin}
           </a>
           <span className="text-muted-foreground/40">|</span>
-          <a href="/login?mode=signup" className="inline-flex h-10 items-center hover:underline" style={{ color: "#f97316" }}>{signup}</a>
+          <a href="/login?mode=signup" className="inline-flex h-7 items-center hover:underline" style={{ color: "#f97316" }}>{signup}</a>
         </span>
       );
     }
