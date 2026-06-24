@@ -92,7 +92,16 @@ async function handle(request: Request): Promise<Response> {
 
         if (!orderId && !sessionId) break;
 
-        const updates: Record<string, unknown> = {
+        type OrderUpdate = {
+          status: "paid";
+          paid_at: string;
+          provider_intent_id: string | null;
+          provider_session_id: string | null;
+          amount_cents?: number;
+          currency?: string;
+          receipt_email?: string;
+        };
+        const updates: OrderUpdate = {
           status: "paid",
           paid_at: new Date().toISOString(),
           provider_intent_id: paymentIntent,
@@ -107,6 +116,7 @@ async function handle(request: Request): Promise<Response> {
           ? await query.eq("id", orderId).select("id, user_id, tenant_id, plan_id, kind").maybeSingle()
           : await query.eq("provider_session_id", sessionId!).select("id, user_id, tenant_id, plan_id, kind").maybeSingle();
         if (orderErr) throw orderErr;
+
 
         if (order?.kind === "subscription" && order.plan_id && order.user_id && order.tenant_id) {
           // Resolve period end from plan interval (default 30d)
@@ -162,7 +172,7 @@ async function handle(request: Request): Promise<Response> {
       case "checkout.session.expired":
       case "payment_intent.payment_failed": {
         const obj = event.data.object;
-        const orderId = ((obj.metadata as Record<string, string> | null)?.order_id ?? null) ?? str(obj, "client_reference_id");
+        const orderId = ((obj.metadata as Record<string, string> | null)?.order_id ?? null) ?? str(obj, "client_reference_id") ?? null;
         const sessionId = str(obj, "id");
         const status = event.type === "checkout.session.expired" ? "canceled" : "failed";
         if (orderId) {
