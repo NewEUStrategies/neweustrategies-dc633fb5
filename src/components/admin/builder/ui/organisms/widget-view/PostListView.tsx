@@ -256,7 +256,10 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
 
   return (
-    <div className="w-full grid gap-4" style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}>
+    <div
+      className={`w-full grid gap-4 ${mobileHScroll ? "cms-mobile-hscroll" : ""}`}
+      style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}
+    >
       {rows.map((p) => (
         <PostCard key={p.id} p={p} variant={variant} title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
       ))}
