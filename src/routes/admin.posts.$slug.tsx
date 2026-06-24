@@ -27,6 +27,7 @@ import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
 import { getLayoutSet, findLayout, mergeOverrides, pickLayoutId } from "@/lib/postLayouts";
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { LayoutPreview } from "@/components/admin/LayoutPreview";
+import { LayoutScaffold } from "@/components/admin/blocks/LayoutScaffold";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
@@ -551,6 +552,25 @@ function EditPost() {
             <PostBlockEditor
               value={form.blocks_data ?? { pl: EMPTY_BLOCKS_DOC, en: EMPTY_BLOCKS_DOC }}
               onChange={(v) => set("blocks_data", v)}
+              canvasWrap={(canvas, lang) => {
+                if (!globalLayout) return canvas;
+                const effective = mergeOverrides(globalLayout, ov);
+                const layoutId = pickLayoutId(globalLayout, currentFormat, ov.layout);
+                const title = lang === "en" ? form.title_en || form.title_pl : form.title_pl || form.title_en;
+                const excerpt = lang === "en" ? form.excerpt_en : form.excerpt_pl;
+                return (
+                  <LayoutScaffold
+                    format={currentFormat}
+                    layoutId={layoutId}
+                    settings={effective}
+                    title={title}
+                    excerpt={excerpt}
+                    coverImageUrl={form.cover_image_url}
+                  >
+                    {canvas}
+                  </LayoutScaffold>
+                );
+              }}
               documentPane={(
                 <div className="space-y-4">
                   {metaCard}

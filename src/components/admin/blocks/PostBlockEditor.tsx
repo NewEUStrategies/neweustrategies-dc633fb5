@@ -19,9 +19,11 @@ interface Props {
   value: LocalizedBlocks | null;
   onChange: (next: LocalizedBlocks) => void;
   documentPane: React.ReactNode;
+  /** Owija kanwę bloków (np. wireframem layoutu wpisu). Otrzymuje aktywny język. */
+  canvasWrap?: (canvas: React.ReactNode, lang: "pl" | "en") => React.ReactNode;
 }
 
-export function PostBlockEditor({ value, onChange, documentPane }: Props) {
+export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: Props) {
   const { t } = useTranslation();
   const [lang, setLang] = useState<"pl" | "en">("pl");
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -144,12 +146,17 @@ export function PostBlockEditor({ value, onChange, documentPane }: Props) {
 
         <Tabs value={lang}>
           <TabsContent value={lang} className="mt-0">
-            <BlockCanvas
-              doc={history.doc}
-              activeId={activeId}
-              onSelect={setActiveId}
-              onChange={(next, immediate) => history.setDoc(next, immediate)}
-            />
+            {(() => {
+              const canvas = (
+                <BlockCanvas
+                  doc={history.doc}
+                  activeId={activeId}
+                  onSelect={setActiveId}
+                  onChange={(next, immediate) => history.setDoc(next, immediate)}
+                />
+              );
+              return canvasWrap ? canvasWrap(canvas, lang) : canvas;
+            })()}
           </TabsContent>
         </Tabs>
       </div>
