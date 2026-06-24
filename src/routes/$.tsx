@@ -251,6 +251,14 @@ function PublicPage() {
             }
           />
           <FootnoteTooltips notes={notes} containerRef={articleRef} />
+          {merged.auto_load_next_post && (
+            <AutoLoadNextPost
+              currentPostId={post.id}
+              parentPageId={data.parentPageId}
+              currentPublishedAt={post.published_at}
+              lang={lang}
+            />
+          )}
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
         </main>
         <Footer />
