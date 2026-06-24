@@ -415,6 +415,8 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       return wrap(<NewsTickerView c={c} lang={lang} />);
     case "podcast-latest":
       return wrap(<PodcastLatestView c={c} lang={lang} />);
+    case "web-stories-carousel":
+      return wrap(<WebStoriesCarouselView c={c} lang={lang} />);
     case "categories":
       return wrap(<CategoriesView lang={lang} />);
     case "tags":
