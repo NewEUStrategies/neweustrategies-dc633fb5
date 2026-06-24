@@ -221,7 +221,7 @@ export type WidgetType =
   // Forms
   | "newsletter" | "contact" | "cta"
   // Navigation
-  | "nav-link"
+  | "nav-link" | "mega-menu"
   // Site chrome (header/footer/menu)
   | "social-icons" | "lang-switcher" | "theme-toggle"
   | "account-link" | "search-button" | "copyright"
