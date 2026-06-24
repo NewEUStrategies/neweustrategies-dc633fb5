@@ -134,6 +134,19 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
             <ThemeOptionsPane />
           </TabsContent>
         </Tabs>
+      ) : scope === "footer" ? (
+        <Tabs defaultValue="builder">
+          <TabsList>
+            <TabsTrigger value="builder">Builder</TabsTrigger>
+            <TabsTrigger value="options">Opcje stopki</TabsTrigger>
+          </TabsList>
+          <TabsContent value="builder" className="mt-3">
+            <Builder value={doc} onChange={onChange} lang={lang} onLangChange={setLang} hideChrome scope={scope} />
+          </TabsContent>
+          <TabsContent value="options" className="mt-3">
+            <FooterChromePane />
+          </TabsContent>
+        </Tabs>
       ) : (
         <Builder value={doc} onChange={onChange} lang={lang} onLangChange={setLang} hideChrome scope={scope} />
       )}
