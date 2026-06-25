@@ -79,7 +79,7 @@
   --card-foreground: oklch(0.98 0 0);
   --popover: #0e131b;
   --popover-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.75 0.18 55);
+  --primary: #FA9346;
   --primary-foreground: #131822;
   --secondary: #1b1f27;
   --secondary-foreground: oklch(0.98 0 0);
@@ -91,16 +91,16 @@
   --destructive-foreground: oklch(1 0 0);
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 10%);
-  --ring: oklch(0.75 0.18 55);
-  --brand: oklch(0.75 0.18 55);
+  --ring: #FA9346;
+  --brand: #FA9346;
   --brand-foreground: #131822;
 
   --cat-military: oklch(0.68 0.22 25);
   --cat-finance: oklch(0.7 0.18 145);
   --cat-transport: oklch(0.8 0.15 75);
-  --cat-diplomacy: oklch(0.75 0.18 55);
+  --cat-diplomacy: #FA9346;
   --cat-cyber: oklch(0.65 0.18 320);
-  --hot: oklch(0.75 0.18 55);
+  --hot: #FA9346;
 }
 
 
