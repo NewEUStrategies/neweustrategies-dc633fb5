@@ -130,7 +130,7 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
     <UsedPostIdsProvider>
       <style dangerouslySetInnerHTML={{ __html: DEBUG_CSS }} />
       <div data-builder-renderer data-debug={debug ? "1" : "0"}>
-        {doc.sections.map((s) => <RenderSection key={s.id} section={s} lang={lang} device={effectiveDevice} />)}
+        <SectionsList sections={doc.sections} lang={lang} device={effectiveDevice} />
       </div>
       <button type="button" className="builder-debug-toggle" data-on={debug ? "1" : "0"} onClick={toggleDebug}>
         {debug ? "Debug: ON" : "Debug: OFF"}
@@ -139,8 +139,21 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
   );
 }
 
+function SectionsList({ sections, lang, device }: { sections: SectionNode[]; lang: "pl"|"en"; device: Device }) {
+  const accessCtx = useAccessContext();
+  return (
+    <>
+      {sections
+        .filter((s) => evaluateAccess(s.advanced?.access, accessCtx))
+        .map((s) => <RenderSection key={s.id} section={s} lang={lang} device={device} />)}
+    </>
+  );
+}
+
 function RenderSection({ section, lang, device }: { section: SectionNode; lang: "pl"|"en"; device: Device }) {
-  const colsSum = section.children.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12), 0) || 12;
+  const accessCtx = useAccessContext();
+  const visibleCols = section.children.filter((c) => evaluateAccess(c.advanced?.access, accessCtx));
+  const colsSum = visibleCols.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12), 0) || 12;
   const Tag = (section.layout?.htmlTag ?? "section") as ElementType;
   const bgStyle = backgroundLayerStyle(section.background);
   const wrapStyle: CSSProperties = {
@@ -170,7 +183,7 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
       <ShapeDivider s={section.shapeDividerBottom} position="bottom" />
       <div style={sectionContainerStyle(section)}>
         <div data-columns-row className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(section, colsSum), gridTemplateColumns: device === "mobile" ? "minmax(0, 1fr)" : columnsRowStyle(section, colsSum).gridTemplateColumns }}>
-          {section.children.map((c) => {
+          {visibleCols.map((c) => {
             const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
             const gridColumn = device === "mobile" ? "1 / -1" : `span ${span}`;
             return (

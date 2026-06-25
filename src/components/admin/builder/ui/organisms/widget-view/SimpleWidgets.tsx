@@ -23,6 +23,7 @@ import {
   LoginFormView, RegisterFormView, LostPasswordFormView, ResetPasswordFormView,
 } from "@/components/blocks/AuthFormBlocks";
 import { DynamicTagWidget } from "./DynamicTagWidgets";
+import { ContactFormView } from "@/components/blocks/ContactFormView";
 
 type AuthCfg = Record<string, unknown>;
 function AuthFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
@@ -993,6 +994,8 @@ export function renderSimpleWidget(
     case "archive-title":
     case "search-form":
       return <DynamicTagWidget node={node} lang={lang} />;
+    case "contact-form":
+      return <ContactFormView data={(node.content ?? {}) as Record<string, unknown>} lang={lang} />;
     default:
       return undefined;
   }

@@ -265,7 +265,7 @@ export type WidgetType =
   // Dynamic tags (current-post / archive aware)
   | "post-title" | "post-meta" | "post-tags-dyn" | "post-categories-dyn"
   | "post-author-card" | "post-breadcrumbs" | "post-cover" | "post-excerpt"
-  | "archive-title" | "search-form";
+  | "archive-title" | "search-form" | "contact-form";
 
 
 // JSON-safe primitives that may live inside a widget's content map.

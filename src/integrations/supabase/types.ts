@@ -437,6 +437,54 @@ export type Database = {
           },
         ]
       }
+      contact_messages: {
+        Row: {
+          company: string | null
+          consent: boolean
+          created_at: string
+          email: string
+          id: string
+          lang: string
+          message: string
+          name: string
+          phone: string | null
+          recipient: string | null
+          status: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          company?: string | null
+          consent?: boolean
+          created_at?: string
+          email: string
+          id?: string
+          lang?: string
+          message: string
+          name: string
+          phone?: string | null
+          recipient?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company?: string | null
+          consent?: boolean
+          created_at?: string
+          email?: string
+          id?: string
+          lang?: string
+          message?: string
+          name?: string
+          phone?: string | null
+          recipient?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       content_access: {
         Row: {
           created_at: string

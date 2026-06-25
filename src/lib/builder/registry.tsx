@@ -343,6 +343,20 @@ export const WIDGETS: WidgetDef[] = [
       button_pl: "Szukaj", button_en: "Search",
       variant: "default",
     }) },
+  { type: "contact-form", label: "Formularz kontaktowy", category: "form", icon: Send,
+    defaults: () => ({
+      variant: "card",
+      title_pl: "Skontaktuj się z nami", title_en: "Contact us",
+      subtitle_pl: "Odpowiemy w ciągu 24h.", subtitle_en: "We'll reply within 24h.",
+      submitLabel_pl: "Wyślij wiadomość", submitLabel_en: "Send message",
+      successMsg_pl: "Dziękujemy! Wiadomość została wysłana.",
+      successMsg_en: "Thanks! Your message has been sent.",
+      requireConsent: true,
+      showPhone: false,
+      showCompany: false,
+      showSubject: true,
+      recipient: "",
+    }) },
 ];
 
 export const WIDGET_MAP: Record<WidgetType, WidgetDef> = WIDGETS.reduce(

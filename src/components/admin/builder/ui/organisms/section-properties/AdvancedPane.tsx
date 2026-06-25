@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { SectionNode } from "@/lib/builder/types";
 import { PropField } from "../../atoms";
-import { MotionControl, VisibilityControl } from "../../molecules";
+import { AccessControl, MotionControl, VisibilityControl } from "../../molecules";
 
 type Mut = (mut: (s: SectionNode) => void) => void;
 const ensure = <T extends object>(v: T | undefined): T => (v ?? ({} as T));
@@ -32,6 +32,12 @@ export function AdvancedPane({ section, onChange }: { section: SectionNode; onCh
       <section className="space-y-2 pt-2 border-t border-border">
         <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Widoczność</h4>
         <VisibilityControl value={a} onChange={setA} />
+      </section>
+
+      <section className="space-y-2 pt-2 border-t border-border">
+        <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Dostęp (auth/role)</h4>
+        <AccessControl value={a} onChange={setA} />
+        <p className="text-[10px] text-muted-foreground">Reguły obowiązują tylko na opublikowanej stronie. W edytorze sekcja jest zawsze widoczna.</p>
       </section>
 
       <section className="space-y-2 pt-2 border-t border-border">
