@@ -88,8 +88,14 @@ const DEBUG_CSS = `
 [data-builder-renderer][data-device="mobile"] [data-widget-id][data-widget-layout="inline"]{flex:0 1 auto;min-width:0;max-width:100%;}
 [data-builder-renderer][data-device="mobile"] [data-col-id] > .flex,
 [data-builder-renderer][data-device="mobile"] [data-col-id] [data-widget-row]{flex-wrap:wrap !important;justify-content:center !important;row-gap:8px !important;column-gap:8px !important;width:100% !important;}
-[data-builder-renderer][data-device="mobile"] img,
-[data-builder-renderer][data-device="mobile"] svg{max-width:100% !important;height:auto !important;object-fit:contain !important;}
+/* Mobile fluid imagery: only shrink images that don't already declare a fixed
+   crop (object-cover/object-fill) or an explicit height utility. Post-list
+   covers, slider tiles, and hero backgrounds keep their constrained aspect
+   ratio; only logos and free-flowing media auto-scale. */
+[data-builder-renderer][data-device="mobile"] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]),
+[data-builder-renderer][data-device="mobile"] svg:not([class*="h-"]){max-width:100% !important;height:auto !important;object-fit:contain !important;}
+[data-builder-renderer][data-device="mobile"] img[class*="object-cover"],
+[data-builder-renderer][data-device="mobile"] img[class*="object-fill"]{max-width:100% !important;width:100% !important;}
 [data-builder-renderer][data-device="mobile"] [data-widget-id] figure{width:100% !important;align-items:center !important;}
 [data-builder-renderer][data-device="mobile"] a,
 [data-builder-renderer][data-device="mobile"] button{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:100% !important;}
