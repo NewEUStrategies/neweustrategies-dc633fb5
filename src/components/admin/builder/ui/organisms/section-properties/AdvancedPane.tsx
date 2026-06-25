@@ -35,6 +35,12 @@ export function AdvancedPane({ section, onChange }: { section: SectionNode; onCh
       </section>
 
       <section className="space-y-2 pt-2 border-t border-border">
+        <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Dostęp (auth/role)</h4>
+        <AccessControl value={a} onChange={setA} />
+        <p className="text-[10px] text-muted-foreground">Reguły obowiązują tylko na opublikowanej stronie. W edytorze sekcja jest zawsze widoczna.</p>
+      </section>
+
+      <section className="space-y-2 pt-2 border-t border-border">
         <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Custom CSS</h4>
         <Textarea rows={4} value={a.customCss ?? ""} onChange={(e) => setA((x) => { x.customCss = e.target.value || undefined; })} className="text-xs font-mono" placeholder=".my-class { color: red; }" />
       </section>
