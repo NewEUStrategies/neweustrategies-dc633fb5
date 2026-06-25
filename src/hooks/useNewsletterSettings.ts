@@ -8,6 +8,7 @@ export interface NewsletterMailingList {
   id: string;
   label_pl: string;
   label_en: string;
+  [key: string]: string;
 }
 
 export interface NewsletterSettings {
@@ -92,8 +93,8 @@ export function useNewsletterSettings() {
       const lists = row.popup_mailing_lists;
       return {
         ...def,
-        ...(data as Partial<NewsletterSettings>),
-        popup_mailing_lists: Array.isArray(lists) ? (lists as NewsletterMailingList[]) : [],
+        ...(data as unknown as Partial<NewsletterSettings>),
+        popup_mailing_lists: Array.isArray(lists) ? (lists as unknown as NewsletterMailingList[]) : [],
       };
     },
     staleTime: 60_000,
