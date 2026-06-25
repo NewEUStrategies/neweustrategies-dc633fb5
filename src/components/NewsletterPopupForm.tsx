@@ -51,6 +51,16 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
     e.preventDefault();
     setErr(null);
 
+    // Honeypot: bot fills hidden "website" field, or submits in <1.2s.
+    // We silently "succeed" without writing to DB so bots get no signal.
+    const elapsed = Date.now() - mountedAt.current;
+    if (honey.trim() !== "" || elapsed < 1200) {
+      setState("ok");
+      setV(empty);
+      onSuccess?.();
+      return;
+    }
+
     const email = v.email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setErr(t("Niepoprawny adres e-mail.", "Invalid e-mail address."));
