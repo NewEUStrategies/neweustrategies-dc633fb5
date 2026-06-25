@@ -8,6 +8,8 @@ export type SliderVariant = "editorial-hero";
 
 export interface SliderItem {
   image: string;
+  /** Optional bound post - cover/title/href become live unless overridden. */
+  postId?: string;
   title_pl?: string;
   title_en?: string;
   subtitle_pl?: string;
