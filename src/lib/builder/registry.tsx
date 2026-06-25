@@ -9,7 +9,8 @@ import {
   List, PanelLeft, Quote, Check, Link as LinkIcon,
   Globe, Sun, Search, User, Facebook,
   Flame, Bookmark, Megaphone as AdIcon,
-  LayoutGrid,
+  LayoutGrid, LogIn, UserPlus, KeyRound, ShieldCheck,
+
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
