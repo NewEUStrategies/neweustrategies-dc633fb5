@@ -593,8 +593,8 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       if (badgeBg) { badgeStyle.background = badgeBg; badgeStyle.borderColor = badgeBg; }
       if (badgeText) badgeStyle.color = badgeText;
       const imageHover = getStr(c, "imageHover") || "zoom-in";
-      // Keep dynamic-feature-card imagery consistent with other card widgets:
-      // fixed frame, responsive source candidates, and object-cover crop.
+      // Keep dynamic-feature-card imagery consistent with other widgets:
+      // fixed frame, responsive source candidates, and full-image contain fit.
       const imgAnimCls =
         imageHover === "zoom-in"
           ? "inset-0 transition-transform duration-500 ease-out group-hover/dfcimg:scale-105"
@@ -625,7 +625,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
           )}
           {img && (
             <div data-widget-media className="group/dfcimg relative w-full overflow-hidden rounded bg-black/20" style={{ aspectRatio: "16 / 9" }}>
-              <OptimizedImage src={img} alt="" responsive sizes="(max-width: 767px) 100vw, 50vw" className={`absolute block h-full w-full object-cover ${imgAnimCls}`} />
+              <OptimizedImage src={img} alt="" responsive sizes="(max-width: 767px) 100vw, 50vw" className={`absolute block h-full w-full object-contain ${imgAnimCls}`} />
             </div>
           )}
           <h3 className="mt-4 font-display text-2xl font-bold">{title}</h3>
