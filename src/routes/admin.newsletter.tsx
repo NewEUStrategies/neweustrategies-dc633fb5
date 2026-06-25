@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { useNewsletterSettings, useSaveNewsletterSettings, defaultNewsletterSettings, type NewsletterSettings } from "@/hooks/useNewsletterSettings";
+import { useNewsletterSettings, useSaveNewsletterSettings, defaultNewsletterSettings, type NewsletterSettings, type NewsletterMailingList } from "@/hooks/useNewsletterSettings";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
@@ -165,11 +165,48 @@ function Page() {
                 onChange={(e) => upd({ popup_frequency_days: Number(e.target.value) || 0 })} />
             </div>
             <div>
-              <Label>Okładka (URL)</Label>
+              <Label>Układ popupu</Label>
+              <select
+                className="w-full px-3 py-2 rounded border border-input bg-background text-sm h-10"
+                value={cur.popup_layout}
+                onChange={(e) => upd({ popup_layout: e.target.value as NewsletterSettings["popup_layout"] })}
+              >
+                <option value="stacked">Klasyczny (okładka u góry)</option>
+                <option value="split">Split (grafika z lewej + formularz)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <Label>Okładka - układ klasyczny (URL)</Label>
               <Input value={cur.popup_cover_url ?? ""} onChange={(e) => upd({ popup_cover_url: e.target.value || null })}
                 placeholder="https://…" />
             </div>
+            <div>
+              <Label>Grafika boczna - układ split (URL)</Label>
+              <Input value={cur.popup_side_image_url ?? ""} onChange={(e) => upd({ popup_side_image_url: e.target.value || null })}
+                placeholder="https://…" />
+            </div>
           </div>
+
+          <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-border">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={cur.popup_extended_fields}
+                onChange={(e) => upd({ popup_extended_fields: e.target.checked })} />
+              Rozszerzone pola (imię, nazwisko, stanowisko, firma, LinkedIn, telefon)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={cur.popup_require_terms}
+                onChange={(e) => upd({ popup_require_terms: e.target.checked })} />
+              Wymagana zgoda na regulamin (checkbox)
+            </label>
+          </div>
+
+          <MailingListsEditor
+            lists={cur.popup_mailing_lists}
+            onChange={(popup_mailing_lists) => upd({ popup_mailing_lists })}
+          />
 
           <Tabs defaultValue="pl">
             <TabsList>
@@ -180,11 +217,13 @@ function Page() {
               <div><Label>Nagłówek</Label><Input value={cur.popup_title_pl} onChange={(e) => upd({ popup_title_pl: e.target.value })} /></div>
               <div><Label>Opis</Label><Textarea rows={2} value={cur.popup_description_pl} onChange={(e) => upd({ popup_description_pl: e.target.value })} /></div>
               <div><Label>CTA (przycisk)</Label><Input value={cur.popup_cta_pl} onChange={(e) => upd({ popup_cta_pl: e.target.value })} /></div>
+              <div><Label>Treść zgody na regulamin (HTML)</Label><Textarea rows={2} value={cur.popup_terms_html_pl ?? ""} onChange={(e) => upd({ popup_terms_html_pl: e.target.value || null })} /></div>
             </TabsContent>
             <TabsContent value="en" className="space-y-3 mt-4">
               <div><Label>Heading</Label><Input value={cur.popup_title_en} onChange={(e) => upd({ popup_title_en: e.target.value })} /></div>
               <div><Label>Description</Label><Textarea rows={2} value={cur.popup_description_en} onChange={(e) => upd({ popup_description_en: e.target.value })} /></div>
               <div><Label>CTA (button)</Label><Input value={cur.popup_cta_en} onChange={(e) => upd({ popup_cta_en: e.target.value })} /></div>
+              <div><Label>Terms checkbox label (HTML)</Label><Textarea rows={2} value={cur.popup_terms_html_en ?? ""} onChange={(e) => upd({ popup_terms_html_en: e.target.value || null })} /></div>
             </TabsContent>
           </Tabs>
         </section>
@@ -320,30 +359,82 @@ function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
           )
         ) : (
           settings.popup_enabled ? (
-            <div className="relative bg-card border border-border rounded-xl shadow-xl overflow-hidden">
-              <button
-                type="button"
-                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-muted-foreground hover:text-foreground z-10"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              {settings.popup_cover_url && (
-                <img src={settings.popup_cover_url} alt="" className="w-full h-32 object-cover" />
-              )}
-              <div className="p-5 space-y-3">
-                <h3 className="font-display text-xl">{popupTitle || "—"}</h3>
-                {popupDesc && <p className="text-sm text-muted-foreground">{popupDesc}</p>}
-                <Input placeholder={emailPh} readOnly />
-                <Button className="w-full" type="button">{popupCta || submitLabel}</Button>
-                {policyHtml && (
-                  <p
-                    className="text-[11px] text-muted-foreground leading-relaxed [&_a]:underline"
-                    dangerouslySetInnerHTML={{ __html: policyHtml }}
-                  />
-                )}
+            settings.popup_layout === "split" ? (
+              <div className="relative rounded-xl shadow-2xl overflow-hidden border border-white/10 bg-[#0a0a0a] text-white grid grid-cols-[40%_1fr] min-h-[420px]">
+                <button type="button" aria-label="Close"
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center z-10">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+                <div
+                  className="bg-cover bg-center"
+                  style={{
+                    backgroundImage: settings.popup_side_image_url
+                      ? `url(${settings.popup_side_image_url})`
+                      : "linear-gradient(135deg, oklch(0.25 0.04 260), oklch(0.15 0.02 260))",
+                  }}
+                  aria-hidden="true"
+                />
+                <div className="p-5 space-y-3 overflow-y-auto max-h-[520px]">
+                  <h3 className="font-display text-2xl">{popupTitle || "—"}</h3>
+                  {popupDesc && <p className="text-xs text-white/70">{popupDesc}</p>}
+                  {settings.popup_extended_fields && (
+                    <>
+                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Imię" : "Name"} readOnly />
+                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Nazwisko" : "Surname"} readOnly />
+                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Stanowisko" : "Job position"} readOnly />
+                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Firma" : "Company"} readOnly />
+                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder="LinkedIn" readOnly />
+                    </>
+                  )}
+                  <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={emailPh} readOnly />
+                  {settings.popup_extended_fields && (
+                    <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Telefon" : "Phone"} readOnly />
+                  )}
+                  {settings.popup_mailing_lists.length > 0 && (
+                    <select className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white">
+                      <option>{lang === "pl" ? "Wybierz listę" : "Choose mailing list"}</option>
+                      {settings.popup_mailing_lists.map((l) => (
+                        <option key={l.id}>{lang === "pl" ? l.label_pl : l.label_en}</option>
+                      ))}
+                    </select>
+                  )}
+                  <button type="button" className="px-4 py-1.5 rounded bg-[var(--brand,#f97316)] text-white text-xs font-medium">
+                    {popupCta || submitLabel}
+                  </button>
+                  {settings.popup_require_terms && (
+                    <label className="flex items-start gap-2 text-[10px] text-white/60">
+                      <input type="checkbox" className="mt-0.5" />
+                      <span>{lang === "pl" ? "Akceptuję regulamin" : "I accept the terms"}</span>
+                    </label>
+                  )}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="relative bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+                <button
+                  type="button"
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-muted-foreground hover:text-foreground z-10"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                {settings.popup_cover_url && (
+                  <img src={settings.popup_cover_url} alt="" className="w-full h-32 object-cover" />
+                )}
+                <div className="p-5 space-y-3">
+                  <h3 className="font-display text-xl">{popupTitle || "—"}</h3>
+                  {popupDesc && <p className="text-sm text-muted-foreground">{popupDesc}</p>}
+                  <Input placeholder={emailPh} readOnly />
+                  <Button className="w-full" type="button">{popupCta || submitLabel}</Button>
+                  {policyHtml && (
+                    <p
+                      className="text-[11px] text-muted-foreground leading-relaxed [&_a]:underline"
+                      dangerouslySetInnerHTML={{ __html: policyHtml }}
+                    />
+                  )}
+                </div>
+              </div>
+            )
           ) : (
             <div className="text-center text-sm text-muted-foreground py-12">
               Popup newslettera jest wyłączony.
@@ -364,4 +455,40 @@ function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
     </aside>
   );
 }
+
+function MailingListsEditor({
+  lists,
+  onChange,
+}: {
+  lists: NewsletterMailingList[];
+  onChange: (next: NewsletterMailingList[]) => void;
+}) {
+  const add = () => onChange([...lists, { id: crypto.randomUUID().slice(0, 8), label_pl: "", label_en: "" }]);
+  const upd = (i: number, patch: Partial<NewsletterMailingList>) =>
+    onChange(lists.map((l, idx) => (idx === i ? ({ ...l, ...patch } as NewsletterMailingList) : l)));
+  const del = (i: number) => onChange(lists.filter((_, idx) => idx !== i));
+
+  return (
+    <div className="space-y-2 pt-2 border-t border-border">
+      <div className="flex items-center justify-between">
+        <Label>Listy mailingowe (select w popupie)</Label>
+        <Button type="button" size="sm" variant="outline" onClick={add}>+ Dodaj listę</Button>
+      </div>
+      {lists.length === 0 && (
+        <p className="text-xs text-muted-foreground">Brak list - select nie zostanie wyświetlony.</p>
+      )}
+      {lists.map((l, i) => (
+        <div key={i} className="grid grid-cols-[80px_1fr_1fr_auto] gap-2 items-center">
+          <Input value={l.id} onChange={(e) => upd(i, { id: e.target.value })} placeholder="id" className="font-mono text-xs" />
+          <Input value={l.label_pl} onChange={(e) => upd(i, { label_pl: e.target.value })} placeholder="Etykieta PL" />
+          <Input value={l.label_en} onChange={(e) => upd(i, { label_en: e.target.value })} placeholder="Label EN" />
+          <Button type="button" size="sm" variant="ghost" onClick={() => del(i)} aria-label="Usuń">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 

@@ -1,0 +1,195 @@
+// Rozszerzony formularz popupu newslettera - zgodny z układem split.
+// Dodatkowe pola są zapisywane w `meta jsonb` w tabeli subscribers, więc
+// nie wymagamy migracji kolumn per field. Walidacja PL/EN, zgody RODO.
+import { useState, type FormEvent } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { sanitizeHtml } from "@/lib/sanitize";
+import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
+
+interface Props {
+  settings: NewsletterSettings;
+  lang: "pl" | "en";
+  source?: string;
+  onSuccess?: () => void;
+  compact?: boolean;
+}
+
+interface ExtendedFields {
+  name: string;
+  surname: string;
+  job: string;
+  company: string;
+  linkedin: string;
+  email: string;
+  phone: string;
+  list: string;
+  terms: boolean;
+}
+
+const empty: ExtendedFields = {
+  name: "", surname: "", job: "", company: "",
+  linkedin: "", email: "", phone: "", list: "", terms: false,
+};
+
+export function NewsletterPopupForm({ settings, lang, source = "popup", onSuccess, compact = false }: Props) {
+  const [v, setV] = useState<ExtendedFields>(empty);
+  const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
+  const [err, setErr] = useState<string | null>(null);
+
+  const isPl = lang === "pl";
+  const ext = settings.popup_extended_fields;
+  const lists = settings.popup_mailing_lists ?? [];
+  const showLists = lists.length > 0;
+  const requireTerms = settings.popup_require_terms;
+
+  const t = (pl: string, en: string) => (isPl ? pl : en);
+
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+
+    const email = v.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErr(t("Niepoprawny adres e-mail.", "Invalid e-mail address."));
+      setState("err");
+      return;
+    }
+    if (requireTerms && !v.terms) {
+      setErr(t("Wymagana akceptacja regulaminu.", "Please accept the terms."));
+      setState("err");
+      return;
+    }
+
+    setState("loading");
+
+    const { data: site } = await supabase
+      .from("newsletter_settings").select("tenant_id").maybeSingle();
+    if (!site?.tenant_id) {
+      setErr(t("Newsletter nie jest skonfigurowany.", "Newsletter is not configured."));
+      setState("err");
+      return;
+    }
+
+    const displayName = [v.name.trim(), v.surname.trim()].filter(Boolean).join(" ");
+    const meta: Record<string, string> = {};
+    if (ext) {
+      if (v.name.trim()) meta.first_name = v.name.trim();
+      if (v.surname.trim()) meta.last_name = v.surname.trim();
+      if (v.job.trim()) meta.job_position = v.job.trim();
+      if (v.company.trim()) meta.company = v.company.trim();
+      if (v.linkedin.trim()) meta.linkedin = v.linkedin.trim();
+      if (v.phone.trim()) meta.phone = v.phone.trim();
+    }
+    if (showLists && v.list) meta.mailing_list = v.list;
+
+    const token = settings.double_opt_in && typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, "")
+      : null;
+
+    const { error } = await supabase.from("newsletter_subscribers").insert({
+      tenant_id: site.tenant_id,
+      email,
+      display_name: displayName || null,
+      language: lang,
+      source,
+      status: settings.double_opt_in ? "pending" : "subscribed",
+      confirmed_at: settings.double_opt_in ? null : new Date().toISOString(),
+      confirmation_token: token,
+      confirmation_expires_at: settings.double_opt_in
+        ? new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString() : null,
+      meta: Object.keys(meta).length ? meta : null,
+    });
+
+    if (error) {
+      if (error.code === "23505") {
+        setErr(t("Ten adres jest już zapisany.", "This e-mail is already subscribed."));
+      } else {
+        setErr(error.message);
+      }
+      setState("err");
+      return;
+    }
+    setState("ok");
+    setV(empty);
+    onSuccess?.();
+  };
+
+  const upd = <K extends keyof ExtendedFields>(k: K, val: ExtendedFields[K]) =>
+    setV((p) => ({ ...p, [k]: val }));
+
+  const cta = isPl ? settings.popup_cta_pl : settings.popup_cta_en;
+  const successMsg = isPl ? settings.success_message_pl : settings.success_message_en;
+  const termsHtml = (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
+
+  if (state === "ok") {
+    return (
+      <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-sm p-4">
+        {successMsg}
+      </div>
+    );
+  }
+
+  const inputCls = compact
+    ? "w-full px-3 py-2 rounded-md bg-white/5 border border-white/10 text-white placeholder-white/50 text-sm focus:outline-none focus:border-[var(--brand,#f97316)]"
+    : "w-full px-3.5 py-2.5 rounded-md bg-white/5 border border-white/10 text-white placeholder-white/50 text-sm focus:outline-none focus:border-[var(--brand,#f97316)] focus:bg-white/10 transition-colors";
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-2.5" noValidate>
+      {ext && (
+        <>
+          <input className={inputCls} placeholder={t("Imię", "Name")} value={v.name}
+            onChange={(e) => upd("name", e.target.value)} maxLength={80} />
+          <input className={inputCls} placeholder={t("Nazwisko", "Surname")} value={v.surname}
+            onChange={(e) => upd("surname", e.target.value)} maxLength={80} />
+          <input className={inputCls} placeholder={t("Stanowisko", "Job position")} value={v.job}
+            onChange={(e) => upd("job", e.target.value)} maxLength={120} />
+          <input className={inputCls} placeholder={t("Firma / organizacja", "Company")} value={v.company}
+            onChange={(e) => upd("company", e.target.value)} maxLength={120} />
+          <input className={inputCls} placeholder="LinkedIn" value={v.linkedin}
+            onChange={(e) => upd("linkedin", e.target.value)} maxLength={200} />
+        </>
+      )}
+      <input className={inputCls} type="email" required placeholder={t("Twój e-mail", "Your e-mail")}
+        value={v.email} onChange={(e) => upd("email", e.target.value)} maxLength={254} />
+      {ext && (
+        <input className={inputCls} type="tel" placeholder={t("Numer telefonu", "Phone number")}
+          value={v.phone} onChange={(e) => upd("phone", e.target.value)} maxLength={32} />
+      )}
+      {showLists && (
+        <select className={inputCls} value={v.list} onChange={(e) => upd("list", e.target.value)}>
+          <option value="">{t("Wybierz listę mailingową", "Choose your main mailing list")}</option>
+          {lists.map((l) => (
+            <option key={l.id} value={l.id}>{isPl ? l.label_pl : l.label_en}</option>
+          ))}
+        </select>
+      )}
+
+      <div className="pt-1">
+        <button
+          type="submit"
+          disabled={state === "loading"}
+          className="px-5 py-2 rounded-md bg-[var(--brand,#f97316)] text-white font-medium text-sm hover:opacity-90 disabled:opacity-60 transition-opacity"
+        >
+          {state === "loading" ? "…" : cta}
+        </button>
+      </div>
+
+      {requireTerms && (
+        <label className="flex items-start gap-2 text-[12px] text-white/70 leading-relaxed pt-1">
+          <input type="checkbox" checked={v.terms}
+            onChange={(e) => upd("terms", e.target.checked)}
+            className="mt-0.5 accent-[var(--brand,#f97316)]" />
+          <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(termsHtml) }} />
+        </label>
+      )}
+
+      {state === "err" && err && (
+        <p className="text-xs text-red-300">{err}</p>
+      )}
+
+      <p className="text-[11px] text-white/50 pt-1">
+        {t("Zero spamu. Możesz się wypisać w każdej chwili.", "Zero spam, unsubscribe at any time.")}
+      </p>
+    </form>
+  );
+}
