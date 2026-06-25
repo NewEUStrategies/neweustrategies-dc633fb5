@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PropField } from "../../atoms";
 import { ImageSlot } from "./ImageSlot";
+import { PostPicker } from "./PostPicker";
 import { TaxonomyPicker } from "./TaxonomyPicker";
 import {
   SLIDER_VARIANTS,
