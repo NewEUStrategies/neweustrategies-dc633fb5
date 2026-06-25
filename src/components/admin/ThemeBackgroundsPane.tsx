@@ -58,7 +58,17 @@ function ColorField({
   );
 }
 
-export function ThemeBackgroundsPane() {
+interface ThemeBackgroundsPaneProps {
+  groupId?: string;
+  title?: string;
+  description?: string;
+}
+
+export function ThemeBackgroundsPane({
+  groupId = "body",
+  title = "Tła motywu",
+  description = "Ustaw główne tła strony oraz powierzchni (kart, sidebaru) dla trybu jasnego i ciemnego. Zmiany działają natychmiast w podglądzie.",
+}: ThemeBackgroundsPaneProps = {}) {
   const { data, isLoading } = useGlobalColors();
   const save = useSaveGlobalColors();
   const [draft, setDraft] = useState<GlobalColorsValue | null>(null);
@@ -71,10 +81,11 @@ export function ThemeBackgroundsPane() {
     return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
   }
 
-  const bodyGroup = GLOBAL_COLOR_GROUPS.find((g) => g.id === "body");
-  const slots: GlobalColorSlot[] = bodyGroup?.slots ?? [];
+  const group = GLOBAL_COLOR_GROUPS.find((g) => g.id === groupId);
+  const slots: GlobalColorSlot[] = group?.slots ?? [];
   const baseline = { ...EMPTY_GLOBAL_COLORS, ...(data ?? {}) };
   const isDirty = JSON.stringify(draft) !== JSON.stringify(baseline);
+
 
   const setSlot = (key: string, mode: "light" | "dark", v: string) => {
     setDraft({ ...draft, [key]: { ...(draft[key] ?? {}), [mode]: v } });
@@ -99,12 +110,10 @@ export function ThemeBackgroundsPane() {
 
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="font-display text-lg">Tła motywu</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Ustaw główne tła strony oraz powierzchni (kart, sidebaru) dla trybu jasnego i ciemnego.
-            Zmiany działają natychmiast w podglądzie.
-          </p>
+          <h3 className="font-display text-lg">{title}</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
         </div>
+
         <div className="flex items-center gap-2">
           <Button
             size="sm"

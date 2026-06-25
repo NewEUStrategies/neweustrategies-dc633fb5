@@ -157,6 +157,8 @@ const SECTIONS = [
   { id: "header.mobile", labelKey: "themeOptions.sections.mobileHeader", icon: LayoutDashboard },
   { id: "buttons", labelKey: "themeOptions.sections.buttons", icon: MousePointerClick },
   { id: "text_fields", labelKey: "themeOptions.sections.textFields", icon: Pencil },
+  { id: "input_colors", labelKey: "themeOptions.sections.inputColors", icon: Palette },
+
   { id: "design", labelKey: "themeOptions.sections.contentStyling", icon: Brush },
 ] as const;
 
@@ -225,9 +227,16 @@ export function ThemeOptionsPane() {
           <GlobalColorsEditor />
         ) : active === "backgrounds" ? (
           <ThemeBackgroundsPane />
+        ) : active === "input_colors" ? (
+          <ThemeBackgroundsPane
+            groupId="input"
+            title={t("themeOptions.sections.inputColors")}
+            description={t("themeOptions.inputColorsDescription")}
+          />
         ) : active === "design" ? (
           <ThemeDesignPane />
         ) : (
+
 
         <>
         <div className="flex items-center justify-between">
