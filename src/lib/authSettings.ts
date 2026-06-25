@@ -20,6 +20,18 @@ export interface AuthSettings {
   logged_in_redirect_url: string;
   logout_redirect_url: string;
   show_back_to_home: boolean;
+  // Hero / branding on /login
+  hero_title_pl: string;
+  hero_title_en: string;
+  hero_subtitle_pl: string;
+  hero_subtitle_en: string;
+  hero_image_url_light: string;
+  hero_image_url_dark: string;
+  // Legal links
+  privacy_url: string;
+  terms_url: string;
+  // UI
+  show_language_switcher: boolean;
 }
 
 export const AUTH_DEFAULTS: AuthSettings = {
@@ -42,6 +54,16 @@ export const AUTH_DEFAULTS: AuthSettings = {
   logged_in_redirect_url: "",
   logout_redirect_url: "/",
   show_back_to_home: true,
+  hero_title_pl: "Rozpocznij swoją podróż.",
+  hero_title_en: "Start your journey.",
+  hero_subtitle_pl: "Strategia. Wiedza. Wpływ. - jedno konto, cały ekosystem.",
+  hero_subtitle_en: "Strategy. Insight. Influence. - one account, full ecosystem.",
+  hero_image_url_light: "",
+  hero_image_url_dark: "",
+  privacy_url: "/polityka-prywatnosci",
+  terms_url: "/regulamin",
+  show_language_switcher: true,
 };
+
 
 export const AUTH_SETTINGS_KEY = "auth_branding";
