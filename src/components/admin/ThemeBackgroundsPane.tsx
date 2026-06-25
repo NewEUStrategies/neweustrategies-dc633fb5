@@ -110,12 +110,10 @@ export function ThemeBackgroundsPane({
 
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="font-display text-lg">Tła motywu</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Ustaw główne tła strony oraz powierzchni (kart, sidebaru) dla trybu jasnego i ciemnego.
-            Zmiany działają natychmiast w podglądzie.
-          </p>
+          <h3 className="font-display text-lg">{title}</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
         </div>
+
         <div className="flex items-center gap-2">
           <Button
             size="sm"
