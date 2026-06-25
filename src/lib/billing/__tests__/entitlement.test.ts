@@ -24,15 +24,37 @@ describe("periodEndFor", () => {
 
 describe("entitlementForOrder", () => {
   it("maps a subscription order to its plan", () => {
-    expect(entitlementForOrder({ kind: "subscription", plan_id: "p1", entity_type: null, entity_id: null }))
-      .toEqual({ type: "subscription", planId: "p1" });
+    expect(
+      entitlementForOrder({
+        kind: "subscription",
+        plan_id: "p1",
+        entity_type: null,
+        entity_id: null,
+      }),
+    ).toEqual({ type: "subscription", planId: "p1" });
   });
   it("maps a one-time order to its entity", () => {
-    expect(entitlementForOrder({ kind: "one_time", plan_id: null, entity_type: "post", entity_id: "e1" }))
-      .toEqual({ type: "purchase", entityType: "post", entityId: "e1" });
+    expect(
+      entitlementForOrder({
+        kind: "one_time",
+        plan_id: null,
+        entity_type: "post",
+        entity_id: "e1",
+      }),
+    ).toEqual({ type: "purchase", entityType: "post", entityId: "e1" });
   });
   it("grants nothing for incomplete orders", () => {
-    expect(entitlementForOrder({ kind: "subscription", plan_id: null, entity_type: null, entity_id: null }).type).toBe("none");
-    expect(entitlementForOrder({ kind: "one_time", plan_id: null, entity_type: "post", entity_id: null }).type).toBe("none");
+    expect(
+      entitlementForOrder({
+        kind: "subscription",
+        plan_id: null,
+        entity_type: null,
+        entity_id: null,
+      }).type,
+    ).toBe("none");
+    expect(
+      entitlementForOrder({ kind: "one_time", plan_id: null, entity_type: "post", entity_id: null })
+        .type,
+    ).toBe("none");
   });
 });

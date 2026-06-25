@@ -13,7 +13,10 @@ const find = (meta: Array<Record<string, string>>, key: string, val: string) =>
 
 describe("splitUrl", () => {
   it("extracts origin + path and drops query/hash", () => {
-    expect(splitUrl("https://nes.eu/a/b?lang=en#x")).toEqual({ origin: "https://nes.eu", path: "/a/b" });
+    expect(splitUrl("https://nes.eu/a/b?lang=en#x")).toEqual({
+      origin: "https://nes.eu",
+      path: "/a/b",
+    });
   });
   it("degrades gracefully without an origin", () => {
     expect(splitUrl("")).toEqual({ origin: "", path: "/" });
@@ -108,14 +111,18 @@ describe("buildArticleJsonLd", () => {
     expect(ld["@type"]).toBe("NewsArticle");
     expect(ld.inLanguage).toBe("pl");
     expect(ld.url).toBe("https://nes.eu/analizy/post");
-    expect((ld.mainEntityOfPage as Record<string, string>)["@id"]).toBe("https://nes.eu/analizy/post");
+    expect((ld.mainEntityOfPage as Record<string, string>)["@id"]).toBe(
+      "https://nes.eu/analizy/post",
+    );
     expect((ld.publisher as Record<string, string>).name).toBe(SITE_NAME);
     expect(ld.datePublished).toBe(base.publishedAt);
     expect(ld.dateModified).toBe(base.modifiedAt);
   });
 
   it("uses a Person author when provided, else the organization", () => {
-    expect((buildArticleJsonLd({ ...base, authorName: "Jan Kowalski" }).author as Record<string, string>)).toEqual({
+    expect(
+      buildArticleJsonLd({ ...base, authorName: "Jan Kowalski" }).author as Record<string, string>,
+    ).toEqual({
       "@type": "Person",
       name: "Jan Kowalski",
     });

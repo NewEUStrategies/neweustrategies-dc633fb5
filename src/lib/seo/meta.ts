@@ -93,8 +93,10 @@ export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
   if (input.noindex) meta.push({ name: "robots", content: "noindex, nofollow" });
 
   if (input.type === "article") {
-    if (input.publishedAt) meta.push({ property: "article:published_time", content: input.publishedAt });
-    if (input.modifiedAt) meta.push({ property: "article:modified_time", content: input.modifiedAt });
+    if (input.publishedAt)
+      meta.push({ property: "article:published_time", content: input.publishedAt });
+    if (input.modifiedAt)
+      meta.push({ property: "article:modified_time", content: input.modifiedAt });
     if (input.section) meta.push({ property: "article:section", content: input.section });
     for (const tag of input.tags ?? []) meta.push({ property: "article:tag", content: tag });
   }
@@ -141,7 +143,9 @@ export function buildArticleJsonLd(input: ArticleJsonLdInput): Record<string, un
     name: input.title,
     description: input.description,
     inLanguage: input.lang,
-    ...(canonical ? { url: canonical, mainEntityOfPage: { "@type": "WebPage", "@id": canonical } } : {}),
+    ...(canonical
+      ? { url: canonical, mainEntityOfPage: { "@type": "WebPage", "@id": canonical } }
+      : {}),
     ...(input.image ? { image: [input.image] } : {}),
     ...(input.publishedAt ? { datePublished: input.publishedAt } : {}),
     ...(input.modifiedAt ? { dateModified: input.modifiedAt } : {}),
@@ -149,9 +153,7 @@ export function buildArticleJsonLd(input: ArticleJsonLdInput): Record<string, un
   };
 
   if (input.isArticle) {
-    graph.author = input.authorName
-      ? { "@type": "Person", name: input.authorName }
-      : publisher;
+    graph.author = input.authorName ? { "@type": "Person", name: input.authorName } : publisher;
   }
 
   if (input.gated) {

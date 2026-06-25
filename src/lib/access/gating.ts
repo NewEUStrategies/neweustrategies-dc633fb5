@@ -59,10 +59,7 @@ export function hasRenderableBody(body: BodyParts): boolean {
  * unauthorized client, and during the brief window before an entitled body is
  * unlocked client-side. Public content is never gated.
  */
-export function shouldShowPaywall(
-  mode: AccessMode | null | undefined,
-  body: BodyParts,
-): boolean {
+export function shouldShowPaywall(mode: AccessMode | null | undefined, body: BodyParts): boolean {
   if (!isGatedMode(mode)) return false;
   return !hasRenderableBody(body);
 }
