@@ -212,7 +212,7 @@ export function ThemeDesignPane() {
               ["--td-tb-px" as string]: draft.toolbarButton.paddingX,
               ["--td-tb-py" as string]: draft.toolbarButton.paddingY,
               ["--td-tb-size" as string]: draft.toolbarButton.size,
-            } as React.CSSProperties}
+            } as CSSProperties}
             className="flex flex-wrap items-center gap-2"
           >
             <button className="cms-tb-btn" data-active="true" title="Aktywny"><Monitor /></button>
@@ -244,7 +244,7 @@ export function ThemeDesignPane() {
               ["--td-ms-active-bg" as string]: draft.modeSwitcher.activeBg,
               ["--td-ms-active-color" as string]: draft.modeSwitcher.activeColor,
               ["--td-ms-radius" as string]: draft.modeSwitcher.radius,
-            } as React.CSSProperties}
+            } as CSSProperties}
           >
             <div className="cms-mode-switch">
               <button className="cms-mode-switch__btn" data-active="true">
@@ -282,7 +282,7 @@ export function ThemeDesignPane() {
               ["--td-si-radius" as string]: draft.socialIcons.radius,
               ["--td-si-px" as string]: draft.socialIcons.paddingX,
               ["--td-si-py" as string]: draft.socialIcons.paddingY,
-            } as React.CSSProperties}
+            } as CSSProperties}
           >
             <div className="cms-social">
               <button className="cms-social__btn" aria-label="Facebook"><Facebook /></button>
