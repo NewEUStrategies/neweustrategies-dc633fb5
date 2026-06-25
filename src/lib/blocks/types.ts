@@ -27,7 +27,12 @@ export type BlockType =
   | "newsletter"
   | "affiliate"
   | "xquote"
-  | "compare";
+  | "compare"
+  // Auth/form blocks (strukturalne — zamiast raw HTML)
+  | "login-form"
+  | "register-form"
+  | "lost-password-form"
+  | "reset-password-form";
 
 export type Json =
   | string
