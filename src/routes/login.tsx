@@ -117,7 +117,10 @@ function LoginPage() {
     }
   };
 
-  const illustration = theme === "dark" ? illustrationDark : illustrationLight;
+  const illustration =
+    theme === "dark"
+      ? (settings.hero_image_url_dark || settings.hero_image_url_light || illustrationDark)
+      : (settings.hero_image_url_light || settings.hero_image_url_light || illustrationLight);
 
   return (
     <div className="min-h-screen w-full bg-muted/40 dark:bg-background flex items-center justify-center p-4 sm:p-8">
@@ -132,13 +135,35 @@ function LoginPage() {
         </Link>
       )}
 
-      <div className="relative w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)] gap-0 lg:gap-6 isolate">
+      {/* Language switcher */}
+      {settings.show_language_switcher && (
+        <div className="absolute top-6 right-6 z-20 inline-flex items-center gap-1 rounded-full border border-border bg-card/80 backdrop-blur px-2 py-1 text-xs">
+          <button
+            type="button"
+            onClick={() => i18n.changeLanguage("pl")}
+            aria-pressed={isPl}
+            className={`px-2 py-0.5 rounded-full transition ${isPl ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            PL
+          </button>
+          <button
+            type="button"
+            onClick={() => i18n.changeLanguage("en")}
+            aria-pressed={!isPl}
+            className={`px-2 py-0.5 rounded-full transition ${!isPl ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            EN
+          </button>
+        </div>
+      )}
+
+      <div className="relative w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)] gap-0 lg:gap-6 isolate">
         {/* LEFT: vertical mode rail */}
-        <aside className="hidden lg:flex flex-col items-center gap-2 bg-card rounded-2xl shadow-lg shadow-foreground/5 border border-border py-6">
-          <Link to="/" className="mb-2" aria-label="Home">
-            <Logo size="sm" withWordmark={false} />
+        <aside className="hidden lg:flex flex-col items-center gap-2 bg-card rounded-2xl shadow-lg shadow-foreground/5 border border-border py-6 px-3">
+          <Link to="/" className="mb-3 flex items-center justify-center w-full" aria-label="Home">
+            <Logo size="lg" withWordmark={false} className="h-16 w-auto" />
           </Link>
-          <div className="w-8 h-px bg-border my-2" />
+          <div className="w-10 h-px bg-border my-2" />
           <RailButton active={mode === "signin"} onClick={() => setMode("signin")} icon={<LogIn className="w-5 h-5" />} label={t.signin} />
           <RailButton active={mode === "signup"} onClick={() => setMode("signup")} icon={<UserPlus className="w-5 h-5" />} label={t.signup} />
           <RailButton active={mode === "reset"} onClick={() => setMode("reset")} icon={<KeyRound className="w-5 h-5" />} label={t.reset} />
@@ -146,10 +171,10 @@ function LoginPage() {
 
         {/* CENTER: hero illustration card */}
         <section
-          key={`hero-${theme}`}
+          key={`hero-${theme}-${illustration}`}
           className="relative hidden lg:flex flex-col justify-between rounded-2xl overflow-hidden text-primary-foreground shadow-2xl shadow-primary/20 min-h-[620px] animate-[fadeInUp_.6s_ease-out]"
           style={{
-            backgroundImage: `linear-gradient(180deg, hsl(var(--primary) / 0.85) 0%, hsl(var(--primary) / 0.5) 40%, hsl(var(--primary) / 0.9) 100%), url(${illustration})`,
+            backgroundImage: `linear-gradient(180deg, hsl(var(--primary) / 0.55) 0%, hsl(var(--primary) / 0.25) 40%, hsl(var(--primary) / 0.75) 100%), url(${illustration})`,
             backgroundSize: "cover",
             backgroundPosition: "center",
           }}
@@ -158,13 +183,14 @@ function LoginPage() {
             <h2 className="font-display text-3xl xl:text-4xl font-bold leading-tight mb-2 drop-shadow-md">
               {t.heroTitle}
             </h2>
-            <p className="text-sm text-primary-foreground/90 max-w-xs">{t.heroSub}</p>
+            <p className="text-sm text-primary-foreground/90 max-w-xs drop-shadow">{t.heroSub}</p>
           </div>
           <div className="p-6 relative z-10 flex items-center justify-between text-[11px] uppercase tracking-wider text-primary-foreground/80">
             <span>© {new Date().getFullYear()} New European Strategies</span>
             <span className="px-2 py-1 rounded bg-white/15 backdrop-blur-sm">{isPl ? "PL" : "EN"}</span>
           </div>
         </section>
+
 
         {/* RIGHT: form */}
         <main className="bg-card rounded-2xl border border-border shadow-lg shadow-foreground/5 p-6 sm:p-10 flex flex-col">
