@@ -413,3 +413,77 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   margin-right: var(--td-meta-gap, 12px);
   opacity: .6;
 }
+
+/* Toolbar icon buttons (undo/redo, device picker, lang) */
+.cms-tb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--td-tb-bg, hsl(var(--muted)));
+  color: var(--td-tb-color, hsl(var(--foreground)));
+  border-radius: var(--td-tb-radius, 6px);
+  padding: var(--td-tb-py, 6px) var(--td-tb-px, 8px);
+  transition: background-color .15s ease, color .15s ease, opacity .15s ease;
+}
+.cms-tb-btn svg { width: var(--td-tb-size, 16px); height: var(--td-tb-size, 16px); }
+.cms-tb-btn:hover:not(:disabled):not([data-active="true"]) {
+  background: var(--td-tb-hover-bg, hsl(var(--muted) / 0.7));
+  color: var(--td-tb-hover-color, hsl(var(--foreground)));
+}
+.cms-tb-btn[data-active="true"] {
+  background: var(--td-tb-active-bg, #fa9346);
+  color: var(--td-tb-active-color, #ffffff);
+}
+.cms-tb-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+/* Mode switcher (light/dark segmented) */
+.cms-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  background: var(--td-ms-track-bg, hsl(var(--muted)));
+  border: 1px solid var(--td-ms-track-border, hsl(var(--border)));
+  border-radius: var(--td-ms-radius, 6px);
+  padding: 2px;
+}
+.cms-mode-switch__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: calc(var(--td-ms-radius, 6px) - 2px);
+  color: var(--td-ms-inactive, hsl(var(--muted-foreground)));
+  transition: background-color .15s ease, color .15s ease;
+}
+.cms-mode-switch__btn:hover { color: var(--td-ms-active-color, hsl(var(--foreground))); }
+.cms-mode-switch__btn[data-active="true"] {
+  background: var(--td-ms-active-bg, hsl(var(--background)));
+  color: var(--td-ms-active-color, hsl(var(--foreground)));
+  box-shadow: 0 1px 2px rgb(0 0 0 / .08);
+}
+
+/* Social icons */
+.cms-social {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--td-si-gap, 8px);
+}
+.cms-social a, .cms-social__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--td-si-color, hsl(var(--foreground)));
+  background: var(--td-si-bg, transparent);
+  border-radius: var(--td-si-radius, 9999px);
+  padding: var(--td-si-py, 6px) var(--td-si-px, 6px);
+  transition: color .15s ease, background-color .15s ease, transform .15s ease;
+}
+.cms-social a svg, .cms-social__btn svg {
+  width: var(--td-si-size, 18px);
+  height: var(--td-si-size, 18px);
+}
+.cms-social a:hover, .cms-social__btn:hover {
+  color: var(--td-si-hover-color, #fa9346);
+  background: var(--td-si-hover-bg, transparent);
+}
