@@ -8,7 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import { getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
-import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 
 // Cover renders across a 1-4 column responsive grid. Images are always painted

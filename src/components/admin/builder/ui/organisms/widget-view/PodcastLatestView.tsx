@@ -4,7 +4,6 @@ import { Link } from "@tanstack/react-router";
 import { latestPodcastsQueryOptions } from "@/lib/queries/podcasts";
 import { formatDuration, podcastEpisodeLabel, podcastTitle } from "@/lib/podcast/types";
 import { PodcastPlayer } from "@/components/atoms/PodcastPlayer";
-import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 
 interface Props {
