@@ -178,17 +178,23 @@ function Page() {
             </div>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div>
-              <Label>Okładka - układ klasyczny (URL)</Label>
-              <Input value={cur.popup_cover_url ?? ""} onChange={(e) => upd({ popup_cover_url: e.target.value || null })}
-                placeholder="https://…" />
-            </div>
-            <div>
-              <Label>Grafika boczna - układ split (URL)</Label>
-              <Input value={cur.popup_side_image_url ?? ""} onChange={(e) => upd({ popup_side_image_url: e.target.value || null })}
-                placeholder="https://…" />
-            </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <ImageSlot
+              label="Okładka - układ klasyczny"
+              icon={<ImageIcon className="w-3 h-3" />}
+              value={cur.popup_cover_url ?? ""}
+              onChange={(v) => upd({ popup_cover_url: v || null })}
+              folder="newsletter"
+              hint="Wyświetlana u góry popupu w układzie klasycznym (proporcje ~16:7)."
+            />
+            <ImageSlot
+              label="Grafika boczna - układ split"
+              icon={<ImageIcon className="w-3 h-3" />}
+              value={cur.popup_side_image_url ?? ""}
+              onChange={(v) => upd({ popup_side_image_url: v || null })}
+              folder="newsletter"
+              hint="Wyświetlana z lewej strony popupu w układzie split (proporcje pionowe ~4:5)."
+            />
           </div>
 
           <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-border">
