@@ -982,6 +982,17 @@ export function renderSimpleWidget(
     case "lost-password-form":
     case "reset-password-form":
       return <AuthFormWidget node={node} lang={lang} />;
+    case "post-title":
+    case "post-meta":
+    case "post-tags-dyn":
+    case "post-categories-dyn":
+    case "post-author-card":
+    case "post-breadcrumbs":
+    case "post-cover":
+    case "post-excerpt":
+    case "archive-title":
+    case "search-form":
+      return <DynamicTagWidget node={node} lang={lang} />;
     default:
       return undefined;
   }
