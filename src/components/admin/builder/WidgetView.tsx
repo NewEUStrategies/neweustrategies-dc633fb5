@@ -138,7 +138,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
   })();
   const typographyCss = useMemo(() => {
     // Typography metrics (size, weight, family, spacing, etc.) must stay
-    // identical across light/dark — only color is mode-specific. Resolve a
+    // identical across light/dark - only color is mode-specific. Resolve a
     // single shared value (light wins, dark fills in) regardless of mode.
     const typography =
       pickMode(node.style?.typography, "light") ??
@@ -218,7 +218,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     boxSizing: "border-box",
   };
 
-  // Read-only widgets without inline editing — short-circuit via dispatcher.
+  // Read-only widgets without inline editing - short-circuit via dispatcher.
   const simple = renderSimpleWidget(node, lang, effectiveMode, editable, onContentChange);
   if (simple !== undefined) return wrap(simple);
 

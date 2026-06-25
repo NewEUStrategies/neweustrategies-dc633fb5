@@ -1,4 +1,4 @@
-// Live Blog block — public renderer. Subskrybuje Supabase realtime
+// Live Blog block - public renderer. Subskrybuje Supabase realtime
 // (postgres_changes) i pokazuje wpisy posortowane wg occurred_at.
 // SSR-friendly: pierwszy fetch w useEffect, channel posprzątany na unmount.
 import { useEffect, useMemo, useState } from "react";

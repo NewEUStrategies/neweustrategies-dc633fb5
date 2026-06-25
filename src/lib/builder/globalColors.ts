@@ -1,8 +1,8 @@
-// Global Colors — strukturyzowana paleta odwzorowująca sekcje z motywu Foxiz.
+// Global Colors - strukturyzowana paleta odwzorowująca sekcje z motywu Foxiz.
 // Każdy slot ma wartość dla trybu jasnego (`light`) i ciemnego (`dark`).
 // Jest renderowana do CSS jako zmienne `--gc-<slug>` na :root oraz .dark,
 // a wybrane sloty nadpisują semantyczne tokeny shadcn (`--primary`, `--background`,
-// `--ring`, `--card`, itd.) — dzięki temu kolor zmieniony w admin panelu
+// `--ring`, `--card`, itd.) - dzięki temu kolor zmieniony w admin panelu
 // natychmiast wpływa na wygląd całej strony produkcyjnej (przyciski, linki,
 // tło, ramki, itd.).
 
@@ -41,12 +41,12 @@ export const GLOBAL_COLOR_CATEGORIES: { id: string; label: string }[] = [
   { id: "widgets", label: "Widgety treści" },
 ];
 
-/** Pełna definicja paneli — odpowiada zakładce "Global Colors" w Foxiz. */
+/** Pełna definicja paneli - odpowiada zakładce "Global Colors" w Foxiz. */
 export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   {
     id: "header",
     category: "header-nav",
-    label: "Header — Icons & Menu",
+    label: "Header - Icons & Menu",
     slots: [
       {
         key: "header-icon",
@@ -61,7 +61,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
       {
         key: "header-icon-hover",
-        label: "Header Icons & Menu — Hover",
+        label: "Header Icons & Menu - Hover",
         description: "Kolor ikon i linków menu po najechaniu.",
         hasDark: true,
         defaultLight: "#131822",
@@ -85,7 +85,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
       {
         key: "highlight-hover",
-        label: "Highlight — Hover",
+        label: "Highlight - Hover",
         description: "Kolor highlight po najechaniu kursorem.",
         hasDark: true,
         defaultLight: "#d97706",
@@ -100,7 +100,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     slots: [
       {
         key: "icon",
-        label: "Global Icon — Inactive",
+        label: "Global Icon - Inactive",
         description: "Domyślny kolor ikon SVG (stan nieaktywny). Stosowany w treści strony.",
         hasDark: true,
         defaultLight: "#6b7280",
@@ -108,7 +108,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
       {
         key: "icon-hover",
-        label: "Global Icon — Hover",
+        label: "Global Icon - Hover",
         description: "Kolor ikon SVG po najechaniu kursorem (bez kliknięcia).",
         hasDark: true,
         defaultLight: "#fa9346",
@@ -116,7 +116,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
       {
         key: "icon-active",
-        label: "Global Icon — Active",
+        label: "Global Icon - Active",
         description: "Kolor ikon SVG w stanie aktywnym (np. zaznaczona pozycja menu, włączony toggle).",
         hasDark: true,
         defaultLight: "#fa9346",
@@ -134,7 +134,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       {
         key: "dark-accent",
         label: "Dark Accent Color",
-        description: "Wiodący ciemny kolor — tła sekcji nagłówkowych, gradienty, ORAZ kolor tekstu (nagłówki, akapity, tytuły kart) w trybie jasnym.",
+        description: "Wiodący ciemny kolor - tła sekcji nagłówkowych, gradienty, ORAZ kolor tekstu (nagłówki, akapity, tytuły kart) w trybie jasnym.",
         hasDark: true,
         defaultLight: "#131822",
         defaultDark: "#131822",
@@ -207,12 +207,12 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
       {
         key: "btn-hover-bg",
-        label: "Hover — Primary Color",
+        label: "Hover - Primary Color",
         description: "Tło przycisków po najechaniu.",
       },
       {
         key: "btn-hover-text",
-        label: "Hover — Accent Color",
+        label: "Hover - Accent Color",
         description: "Tekst przycisków po najechaniu.",
       },
     ],
@@ -222,10 +222,10 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "header-nav",
     label: "Mode Switcher",
     slots: [
-      { key: "switcher-light-icon", label: "Light Switcher — Icon", description: "Kolor ikony słońca." },
-      { key: "switcher-light-bg", label: "Light Switcher — Icon BG", description: "Tło ikony słońca." },
-      { key: "switcher-dark-icon", label: "Dark Switcher — Icon", description: "Kolor ikony księżyca." },
-      { key: "switcher-dark-bg", label: "Dark Switcher — Icon BG", description: "Tło ikony księżyca." },
+      { key: "switcher-light-icon", label: "Light Switcher - Icon", description: "Kolor ikony słońca." },
+      { key: "switcher-light-bg", label: "Light Switcher - Icon BG", description: "Tło ikony słońca." },
+      { key: "switcher-dark-icon", label: "Dark Switcher - Icon", description: "Kolor ikony księżyca." },
+      { key: "switcher-dark-bg", label: "Dark Switcher - Icon BG", description: "Tło ikony księżyca." },
     ],
   },
   {
@@ -318,7 +318,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
       {
         key: "sidebar-btn-bg",
-        label: "Sidebar Button — Background",
+        label: "Sidebar Button - Background",
         description: "Tło przycisków / aktywnych elementów w sidebarze.",
         hasDark: true,
         defaultLight: "#fa9346",
@@ -327,7 +327,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
       {
         key: "sidebar-btn-text",
-        label: "Sidebar Button — Text",
+        label: "Sidebar Button - Text",
         description: "Kolor tekstu przycisków / aktywnych elementów w sidebarze.",
         hasDark: true,
         defaultLight: "#ffffff",
@@ -339,7 +339,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
       {
         key: "sidebar-btn-hover-bg",
-        label: "Sidebar Button — Hover BG",
+        label: "Sidebar Button - Hover BG",
         description: "Tło przycisków sidebaru po najechaniu.",
         hasDark: true,
         defaultLight: "#fdb078",
@@ -347,7 +347,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
       {
         key: "sidebar-btn-hover-text",
-        label: "Sidebar Button — Hover Text",
+        label: "Sidebar Button - Hover Text",
         description: "Tekst przycisków sidebaru po najechaniu.",
         hasDark: true,
         defaultLight: "#ffffff",
@@ -365,7 +365,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       {
         key: "sidebar-title",
         label: "Sidebar Title (Menu / Section)",
-        description: "Tytuł sekcji w sidebarze (np. Menu, Ustawienia) — z osobnym kolorem dla trybu jasnego i ciemnego.",
+        description: "Tytuł sekcji w sidebarze (np. Menu, Ustawienia) - z osobnym kolorem dla trybu jasnego i ciemnego.",
         hasDark: true,
         defaultLight: "#6b7280",
         defaultDark: "#9ca3af",
@@ -376,7 +376,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       {
         key: "sidebar-subtitle",
         label: "Sidebar Subtitle (Nawigacja / Podsekcja)",
-        description: "Podtytuł / nagłówek podsekcji w sidebarze (np. Nawigacja) — z osobnym kolorem dla trybu jasnego i ciemnego.",
+        description: "Podtytuł / nagłówek podsekcji w sidebarze (np. Nawigacja) - z osobnym kolorem dla trybu jasnego i ciemnego.",
         hasDark: true,
         defaultLight: "#374151",
         defaultDark: "#d1d5db",
@@ -386,7 +386,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
       {
         key: "sidebar-icon",
-        label: "Sidebar Icon — Inactive",
+        label: "Sidebar Icon - Inactive",
         description: "Kolor ikon w sidebarze (stan nieaktywny / domyślny).",
         hasDark: true,
         defaultLight: "#6b7280",
@@ -395,7 +395,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
       {
         key: "sidebar-icon-hover",
-        label: "Sidebar Icon — Hover",
+        label: "Sidebar Icon - Hover",
         description: "Kolor ikon po najechaniu (bez kliknięcia) na nieaktywny element.",
         hasDark: true,
         defaultLight: "#1b1f27",
@@ -404,7 +404,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       },
       {
         key: "sidebar-icon-active",
-        label: "Sidebar Icon — Active",
+        label: "Sidebar Icon - Active",
         description: "Kolor ikony aktualnie aktywnego elementu sidebaru.",
         hasDark: true,
         defaultLight: "#ffffff",
@@ -422,9 +422,9 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       { key: "input-text", label: "Input Text", description: "Kolor wpisywanego tekstu.", hasDark: true, defaultLight: "#131822", defaultDark: "#f1f5f9", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "14px" },
       { key: "input-placeholder", label: "Placeholder Text", description: "Kolor placeholdera.", hasDark: true, defaultLight: "#94a3b8", defaultDark: "#64748b", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "14px" },
       { key: "input-border", label: "Input Border", description: "Kolor obramowania.", hasDark: true, defaultLight: "#e2e8f0", defaultDark: "#1b1f27", overrides: ["--input"] },
-      { key: "input-hover-bg", label: "Hover — Background", description: "Tło pola po najechaniu.", hasDark: true, defaultLight: "#f8fafc", defaultDark: "#1b1f27" },
-      { key: "input-hover-border", label: "Hover — Border", description: "Obramowanie pola po najechaniu.", hasDark: true, defaultLight: "#cbd5e1", defaultDark: "#334155" },
-      { key: "input-focus-border", label: "Focus — Border / Ring", description: "Obramowanie i ring po fokusie.", hasDark: true, defaultLight: "#fa9346", defaultDark: "#fbbf24" },
+      { key: "input-hover-bg", label: "Hover - Background", description: "Tło pola po najechaniu.", hasDark: true, defaultLight: "#f8fafc", defaultDark: "#1b1f27" },
+      { key: "input-hover-border", label: "Hover - Border", description: "Obramowanie pola po najechaniu.", hasDark: true, defaultLight: "#cbd5e1", defaultDark: "#334155" },
+      { key: "input-focus-border", label: "Focus - Border / Ring", description: "Obramowanie i ring po fokusie.", hasDark: true, defaultLight: "#fa9346", defaultDark: "#fbbf24" },
     ],
   },
   {
@@ -608,7 +608,7 @@ export const EMPTY_GLOBAL_COLORS: GlobalColorsValue = {};
 
 /**
  * Czy dany slot powinien mieć dodatkową parę pickerów Hover (light + dark).
- * Domyślnie TAK — pomijamy tylko sloty, które same są wariantem hover
+ * Domyślnie TAK - pomijamy tylko sloty, które same są wariantem hover
  * (klucz kończy się na `-hover`) lub mają już siostrzany slot `<key>-hover`
  * w tej samej grupie, albo zostały jawnie wyłączone (`hoverable: false`).
  */
@@ -628,7 +628,7 @@ export function isSlotHoverable(slot: GlobalColorSlot, group: GlobalColorGroup):
 }
 
 /**
- * Buduje CSS dla globalnych kolorów — emituje:
+ * Buduje CSS dla globalnych kolorów - emituje:
  *  1) `--gc-<key>` na :root (light) i .dark (dark),
  *  2) `--gc-<key>-hover` dla slotów hoverable,
  *  3) nadpisania semantycznych tokenów shadcn (np. --primary, --background).

@@ -166,7 +166,7 @@ function mapBlock(tag: string, inner: string, openAttrs: string): Block | null {
     return { id: newBlockId(), type: "html", data: { html: `<figure>${inner}</figure>` } };
   }
   if (lower === "div") {
-    // Don't emit raw <div> wrappers — unwrap recursively in the loop below.
+    // Don't emit raw <div> wrappers - unwrap recursively in the loop below.
     // Returning null here is just a guard; htmlToBlocks handles div specially.
     return null;
   }
@@ -194,7 +194,7 @@ export function htmlToBlocks(input: string | null | undefined): BlocksDoc {
         const innerHtml = m[3] ?? "";
         const nested = htmlToBlocks(innerHtml).blocks;
         if (nested.length === 1 && nested[0].type === "paragraph") {
-          // already a clean paragraph from recursion — push as-is
+          // already a clean paragraph from recursion - push as-is
           out.push(nested[0]);
         } else if (nested.length) {
           for (const b of nested) out.push(b);

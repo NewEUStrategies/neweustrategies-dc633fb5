@@ -1,4 +1,4 @@
-// Atomic Design — Organisms barrel.
+// Atomic Design - Organisms barrel.
 // Complex, self-contained CMS editor sections aware of BuilderDocument /
 // SectionNode / WidgetNode shapes, drag-and-drop, history and selection.
 export { BuilderRenderer } from "./BuilderRenderer";

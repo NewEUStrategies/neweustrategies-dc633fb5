@@ -1,5 +1,5 @@
 // Builds a BuilderDocument that mirrors the index.tsx homepage layout
-// using existing widgets — used by the page builder "Load homepage layout" action.
+// using existing widgets - used by the page builder "Load homepage layout" action.
 import type {
   BuilderDocument, SectionNode, ColumnNode, WidgetNode, WidgetType, WidgetContent,
 } from "./types";
@@ -40,8 +40,8 @@ export function buildHomepageDocument(): BuilderDocument {
         column(12, [
           widget("hot-topic-bar", {
             badge_pl: "Hot topic", badge_en: "Hot topic",
-            title_pl: "Najważniejszy temat dnia — kliknij, aby przeczytać.",
-            title_en: "Today's top story — click to read.",
+            title_pl: "Najważniejszy temat dnia - kliknij, aby przeczytać.",
+            title_en: "Today's top story - click to read.",
             iconName: "Flame",
           }),
         ]),
@@ -116,8 +116,8 @@ export function buildHomepageDocument(): BuilderDocument {
           widget("dark-featured-card", {
             badge_pl: "GEOPOLITYCZNA GRA MOCARSTW",
             badge_en: "GEOPOLITICAL GAME OF POWERS",
-            title_pl: "Wywiad miesiąca — rozmowa z generałem.",
-            title_en: "Interview of the month — a conversation with the general.",
+            title_pl: "Wywiad miesiąca - rozmowa z generałem.",
+            title_en: "Interview of the month - a conversation with the general.",
             excerpt_pl: "", excerpt_en: "",
             image: "",
           }),

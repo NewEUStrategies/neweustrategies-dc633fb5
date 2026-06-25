@@ -7,7 +7,7 @@
 //     undefined (root cause of the recent Header crash).
 //  3. Optional Zod schema validates the merged value and falls back to defaults
 //     on parse failure, so a corrupted setting cannot take the page down.
-//  4. 5-minute staleTime / 30-minute gcTime — settings rarely change; we trade
+//  4. 5-minute staleTime / 30-minute gcTime - settings rarely change; we trade
 //     a few seconds of staleness for a fast, quiet UI.
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -56,7 +56,7 @@ export function resolveSetting<T extends object>(
 /**
  * Subscribe to one site_settings key.
  *
- * Reads from the shared bulk query — the second call costs nothing.
+ * Reads from the shared bulk query - the second call costs nothing.
  * Pass a Zod schema to enforce shape; invalid rows fall back to `defaults`.
  */
 export function useSiteSetting<T extends object>(

@@ -36,7 +36,7 @@ function GlobalColorsPage() {
       const prev = d ?? {};
       const cur = prev[key] ?? {};
       const next = { ...cur, [mode]: value };
-      // Jeżeli oba puste — usuwamy slot.
+      // Jeżeli oba puste - usuwamy slot.
       if (!next.light && !next.dark) {
         const { [key]: _drop, ...rest } = prev;
         return rest;
@@ -51,7 +51,7 @@ function GlobalColorsPage() {
         <div>
           <h2 className="font-display text-2xl">Global Colors</h2>
           <p className="text-sm text-muted-foreground">
-            Centralna paleta — każdy slot opisuje, gdzie kolor pojawi się na stronie.
+            Centralna paleta - każdy slot opisuje, gdzie kolor pojawi się na stronie.
             Zmiany są natychmiast widoczne w całej witrynie po zapisaniu.
           </p>
         </div>

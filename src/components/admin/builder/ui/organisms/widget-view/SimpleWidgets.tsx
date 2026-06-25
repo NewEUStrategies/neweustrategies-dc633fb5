@@ -1,5 +1,5 @@
 // Read-only widget renderers (no inline editing). Returns null when the
-// widget type isn't handled here — caller falls through to the main switch.
+// widget type isn't handled here - caller falls through to the main switch.
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type ReactNode, type SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { WidgetNode } from "@/lib/builder/types";
@@ -803,7 +803,7 @@ export function renderSimpleWidget(
       const rawColor = getStr(c, "color") || undefined;
       const rawAccent = getStr(c, "accentColor") || undefined;
       // Auto-invert when rendering in dark mode and the user set a single
-      // (light-mode) color — so headings stay readable on dark backgrounds.
+      // (light-mode) color - so headings stay readable on dark backgrounds.
       const isDark = theme === "dark";
       const ahCfg: AnimatedHeadingConfig = {
         mode: (getStr(c, "mode") || "highlight") as AnimatedHeadingMode,
@@ -1127,7 +1127,7 @@ function ResizableImageWrap({
       <div
         role="slider"
         aria-label="Zmień rozmiar obrazka (zachowuje proporcje)"
-        title={`Przeciągnij aby zmienić rozmiar${livePx ? ` — ${Math.round(livePx)}px` : ""}`}
+        title={`Przeciągnij aby zmienić rozmiar${livePx ? ` - ${Math.round(livePx)}px` : ""}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -1246,7 +1246,7 @@ export function ResizableBox({
       <div
         role="slider"
         aria-label="Zmień rozmiar"
-        title={`Przeciągnij aby zmienić rozmiar${live ? ` — ${Math.round(live.w)}×${Math.round(live.h)}px` : ""}`}
+        title={`Przeciągnij aby zmienić rozmiar${live ? ` - ${Math.round(live.w)}×${Math.round(live.h)}px` : ""}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

@@ -1,4 +1,4 @@
-// Global slider / carousel animation defaults — used as fallback for every
+// Global slider / carousel animation defaults - used as fallback for every
 // slider/carousel widget that doesn't define its own value. Editors override
 // per-widget; otherwise these globals win.
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

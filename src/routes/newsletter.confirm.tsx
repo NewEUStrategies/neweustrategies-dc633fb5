@@ -30,7 +30,7 @@ function Page() {
     <main className="min-h-[60vh] flex items-center justify-center p-6">
       <div className="max-w-md w-full text-center border border-border rounded-xl p-8 bg-card space-y-3">
         {state === "loading" && <><Loader2 className="w-10 h-10 mx-auto animate-spin text-brand" /><p>Potwierdzanie subskrypcji…</p></>}
-        {state === "ok" && <><CheckCircle2 className="w-10 h-10 mx-auto text-brand" /><h1 className="font-display text-2xl">Subskrypcja potwierdzona</h1><p className="text-sm text-muted-foreground">Dziękujemy — od teraz będziesz otrzymywać nasz newsletter.</p></>}
+        {state === "ok" && <><CheckCircle2 className="w-10 h-10 mx-auto text-brand" /><h1 className="font-display text-2xl">Subskrypcja potwierdzona</h1><p className="text-sm text-muted-foreground">Dziękujemy - od teraz będziesz otrzymywać nasz newsletter.</p></>}
         {state === "already" && <><CheckCircle2 className="w-10 h-10 mx-auto text-brand" /><h1 className="font-display text-2xl">Już potwierdzono</h1><p className="text-sm text-muted-foreground">Ten adres jest już zapisany do newslettera.</p></>}
         {state === "expired" && <><XCircle className="w-10 h-10 mx-auto text-destructive" /><h1 className="font-display text-2xl">Link wygasł</h1><p className="text-sm text-muted-foreground">Zapisz się ponownie, aby otrzymać świeży link.</p></>}
         {state === "error" && <><XCircle className="w-10 h-10 mx-auto text-destructive" /><h1 className="font-display text-2xl">Nie udało się potwierdzić</h1><p className="text-sm text-muted-foreground">{msg || "Spróbuj ponownie lub skontaktuj się z redakcją."}</p></>}

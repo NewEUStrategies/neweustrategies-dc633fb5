@@ -1,4 +1,4 @@
-// Block editor (Gutenberg/Foxiz-style) — typy podstawowe.
+// Block editor (Gutenberg/Foxiz-style) - typy podstawowe.
 // Każdy wpis może być serializowany jako BlocksDoc i renderowany publicznie.
 
 export type BlockType =
@@ -28,7 +28,7 @@ export type BlockType =
   | "affiliate"
   | "xquote"
   | "compare"
-  // Auth/form blocks (strukturalne — zamiast raw HTML)
+  // Auth/form blocks (strukturalne - zamiast raw HTML)
   | "login-form"
   | "register-form"
   | "lost-password-form"
@@ -51,7 +51,7 @@ export interface BlockStyle {
 export interface Block {
   id: string;
   type: BlockType;
-  /** Dane lokalne dla każdego typu — kształt definiuje rejestr. */
+  /** Dane lokalne dla każdego typu - kształt definiuje rejestr. */
   data: Record<string, Json>;
   style?: BlockStyle;
 }
@@ -70,7 +70,7 @@ export function newBlockId(): string {
   return "b_" + Math.random().toString(36).slice(2, 10);
 }
 
-/** Per-language content split — taka sama strategia jak w content_pl/en. */
+/** Per-language content split - taka sama strategia jak w content_pl/en. */
 export interface LocalizedBlocks {
   pl: BlocksDoc;
   en: BlocksDoc;

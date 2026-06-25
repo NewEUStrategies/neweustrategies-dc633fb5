@@ -126,7 +126,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                     ? "ring-2 ring-brand ring-offset-1 ring-offset-background shadow-md"
                     : "ring-1 ring-border hover:ring-brand/60 hover:shadow-md"}`}
               >
-                {/* Uniform preview frame — pointer-events disabled so inner buttons don't conflict */}
+                {/* Uniform preview frame - pointer-events disabled so inner buttons don't conflict */}
                 <div className="relative w-full aspect-[16/9] overflow-hidden bg-muted pointer-events-none">
                   <div className="absolute inset-0 [&>*]:!h-full [&>*]:!w-full">
                     <SliderRender
@@ -279,7 +279,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       {/* Typografia tytułu i opisu */}
       <div className="space-y-2 rounded-md border border-border p-2 bg-muted/10">
         <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Typografia — tytuł i opis
+          Typografia - tytuł i opis
         </div>
         <div className="grid grid-cols-2 gap-2">
           <PropField label="Rozmiar tytułu (px, 0 = auto)">
@@ -291,13 +291,13 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             <Select value={String(titleWeight)} onValueChange={(v) => setContent("titleWeight", Number(v))}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="300">300 — Light</SelectItem>
-                <SelectItem value="400">400 — Regular</SelectItem>
-                <SelectItem value="500">500 — Medium</SelectItem>
-                <SelectItem value="600">600 — SemiBold</SelectItem>
-                <SelectItem value="700">700 — Bold</SelectItem>
-                <SelectItem value="800">800 — ExtraBold</SelectItem>
-                <SelectItem value="900">900 — Black</SelectItem>
+                <SelectItem value="300">300 - Light</SelectItem>
+                <SelectItem value="400">400 - Regular</SelectItem>
+                <SelectItem value="500">500 - Medium</SelectItem>
+                <SelectItem value="600">600 - SemiBold</SelectItem>
+                <SelectItem value="700">700 - Bold</SelectItem>
+                <SelectItem value="800">800 - ExtraBold</SelectItem>
+                <SelectItem value="900">900 - Black</SelectItem>
               </SelectContent>
             </Select>
           </PropField>
@@ -310,11 +310,11 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             <Select value={String(subtitleWeight)} onValueChange={(v) => setContent("subtitleWeight", Number(v))}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="300">300 — Light</SelectItem>
-                <SelectItem value="400">400 — Regular</SelectItem>
-                <SelectItem value="500">500 — Medium</SelectItem>
-                <SelectItem value="600">600 — SemiBold</SelectItem>
-                <SelectItem value="700">700 — Bold</SelectItem>
+                <SelectItem value="300">300 - Light</SelectItem>
+                <SelectItem value="400">400 - Regular</SelectItem>
+                <SelectItem value="500">500 - Medium</SelectItem>
+                <SelectItem value="600">600 - SemiBold</SelectItem>
+                <SelectItem value="700">700 - Bold</SelectItem>
               </SelectContent>
             </Select>
           </PropField>

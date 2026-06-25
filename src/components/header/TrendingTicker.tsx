@@ -1,4 +1,4 @@
-// Header "Na czasie / Trending" — compact horizontal scroller of the most-read
+// Header "Na czasie / Trending" - compact horizontal scroller of the most-read
 // posts (last 7 days). Lazy-loaded so it never blocks the header chrome.
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";

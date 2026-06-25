@@ -1,4 +1,4 @@
-// Light/Dark mode value helpers — analogous to ResponsiveValue<T>.
+// Light/Dark mode value helpers - analogous to ResponsiveValue<T>.
 //
 // A field on a widget/section/column may be:
 //   - undefined         → inherit (use Global Colors token / default)
@@ -43,7 +43,7 @@ export function setMode<T>(
   // prev is a flat value (applies to both modes) or undefined.
   if (prev == null) {
     if (value == null) return undefined;
-    // First write — store flat so light/dark stay in sync until the user
+    // First write - store flat so light/dark stay in sync until the user
     // explicitly overrides one of them.
     if (mode === "light") return value;
     // Writing to dark with no prior value: stamp only dark, leave light at default.

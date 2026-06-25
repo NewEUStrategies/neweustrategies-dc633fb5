@@ -13,7 +13,7 @@ export function useRecordPostView(postId: string | undefined | null) {
     if (!postId || fired.current === postId) return;
     fired.current = postId;
     const viewerHash = getViewerHash();
-    // 1.5 s delay — filters out instant back/forward navigation.
+    // 1.5 s delay - filters out instant back/forward navigation.
     const t = window.setTimeout(() => {
       record({ data: { postId, viewerHash } }).catch(() => {
         /* silent: view counts are best-effort */

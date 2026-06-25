@@ -21,7 +21,7 @@ export function QuoteBlock({ block, onChange }: Props) {
       <input
         type="text"
         value={cite}
-        placeholder="— Autor (opcjonalnie)"
+        placeholder="- Autor (opcjonalnie)"
         onChange={(e) => onChange({ ...block, data: { ...block.data, cite: e.target.value } })}
         className="w-full bg-transparent text-sm text-muted-foreground border-none outline-none focus:ring-0 p-0"
       />

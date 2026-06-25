@@ -326,11 +326,11 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
       </Collapsible>
 
       <Collapsible title="Spacing (odstępy)">
-        <PropField label={`Odstęp między pozycjami (px) — ${num("itemSpacingPx", 28)}`}>
+        <PropField label={`Odstęp między pozycjami (px) - ${num("itemSpacingPx", 28)}`}>
           <Input type="range" min={0} max={80} step={1} value={num("itemSpacingPx", 28)}
             onChange={(e) => setContent("itemSpacingPx", (Number(e.target.value) || 0) as Json)} className="h-6" />
         </PropField>
-        <PropField label={`Padding wewnątrz pozycji (px) — ${num("itemPaddingPx", 0)}`}>
+        <PropField label={`Padding wewnątrz pozycji (px) - ${num("itemPaddingPx", 0)}`}>
           <Input type="range" min={0} max={40} step={1} value={num("itemPaddingPx", 0)}
             onChange={(e) => setContent("itemPaddingPx", (Number(e.target.value) || 0) as Json)} className="h-6" />
         </PropField>

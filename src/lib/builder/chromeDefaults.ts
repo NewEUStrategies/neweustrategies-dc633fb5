@@ -20,7 +20,7 @@ const section = (children: ColumnNode[], opts: Partial<SectionNode> = {}): Secti
 export const defaultHeaderDoc = (): BuilderDocument => ({
   version: 1,
   sections: [
-    // Row 1 — utility bar: newsletter + socials | logo (center) | language switcher
+    // Row 1 - utility bar: newsletter + socials | logo (center) | language switcher
     section(
       [
         col(4, [
@@ -48,7 +48,7 @@ export const defaultHeaderDoc = (): BuilderDocument => ({
         style: { padding: { desktop: "16px 24px" }, align: { desktop: "center" } },
       },
     ),
-    // Row 2 — nav bar: search | menu (center) | account + theme toggle
+    // Row 2 - nav bar: search | menu (center) | account + theme toggle
     section(
       [
         col(3, [widget("search-button", { label_pl: "Szukaj", label_en: "Search", variant: "input" })]),

@@ -1,4 +1,4 @@
-// Global "Theme Design" tokens — block headings, thumbnails, "Read more"
+// Global "Theme Design" tokens - block headings, thumbnails, "Read more"
 // button, and meta-info text styles. Single source of truth shared by every
 // widget/post-card across the site.
 //

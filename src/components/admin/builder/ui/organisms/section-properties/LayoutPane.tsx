@@ -67,7 +67,7 @@ export function LayoutPane({ section, onChange }: { section: SectionNode; onChan
         <Row label="Wysokość (vh)" hint="100 = pełna wysokość okna przeglądarki."><NumberInput value={L.heightValue ?? 100} onChange={(n) => setL((l) => { l.heightValue = n; })} min={10} max={100} suffix="vh" /></Row>
       )}
       {L.height === "min-height" && (
-        <Row label="Wysokość minimalna (px)" hint="Sekcja będzie co najmniej tak wysoka — treść może ją rozciągnąć dalej."><NumberInput value={L.heightValue ?? 400} onChange={(n) => setL((l) => { l.heightValue = n; })} min={40} max={2000} suffix="px" /></Row>
+        <Row label="Wysokość minimalna (px)" hint="Sekcja będzie co najmniej tak wysoka - treść może ją rozciągnąć dalej."><NumberInput value={L.heightValue ?? 400} onChange={(n) => setL((l) => { l.heightValue = n; })} min={40} max={2000} suffix="px" /></Row>
       )}
       {L.height === "fixed" && (
         <Row label="Wysokość (px)" hint="Dokładna wysokość sekcji. Treść większa zostanie przycięta (chyba że ustawisz Przepływ → Domyślnie)."><NumberInput value={L.heightValue ?? 400} onChange={(n) => setL((l) => { l.heightValue = n; })} min={40} max={4000} suffix="px" /></Row>

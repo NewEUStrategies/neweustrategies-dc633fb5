@@ -1,4 +1,4 @@
-// Structural contact form widget — submits via createServerFn (no raw HTML markup).
+// Structural contact form widget - submits via createServerFn (no raw HTML markup).
 import { useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactMessage } from "@/lib/contact.functions";

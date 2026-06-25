@@ -1,4 +1,4 @@
-// `web-stories-carousel` builder widget view — horizontal cards opening a viewer.
+// `web-stories-carousel` builder widget view - horizontal cards opening a viewer.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";

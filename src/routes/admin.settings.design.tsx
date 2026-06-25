@@ -71,7 +71,7 @@ function DesignSettings() {
       <p className="text-sm text-muted-foreground mb-4">
         Fonty i kolory definiują wygląd całej strony. Wartości zapisują się jako zmienne CSS
         (<code>var(--brand-…)</code>, <code>var(--gc-…)</code>) i automatycznie nadpisują tokeny
-        motywu (przyciski, tło, linki, ramki) — w trybie jasnym i ciemnym.
+        motywu (przyciski, tło, linki, ramki) - w trybie jasnym i ciemnym.
       </p>
 
       {/* ───────────────────────── FONTY ───────────────────────── */}
@@ -81,7 +81,7 @@ function DesignSettings() {
           <FontPicker
             value={draft.fonts.heading}
             onChange={(stack) => setDraft({ ...draft, fonts: { ...draft.fonts, heading: stack } })}
-            sampleText="Nagłówek — Headlines &amp; Display"
+            sampleText="Nagłówek - Headlines &amp; Display"
             customFonts={draft.fonts.custom ?? []}
           />
         </Field>
@@ -89,7 +89,7 @@ function DesignSettings() {
           <FontPicker
             value={draft.fonts.body}
             onChange={(stack) => setDraft({ ...draft, fonts: { ...draft.fonts, body: stack } })}
-            sampleText="Treść — szybki brązowy lis przeskakuje przez leniwego psa."
+            sampleText="Treść - szybki brązowy lis przeskakuje przez leniwego psa."
             customFonts={draft.fonts.custom ?? []}
           />
         </Field>

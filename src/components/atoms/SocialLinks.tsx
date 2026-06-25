@@ -1,4 +1,4 @@
-// Kompaktowe, wypełnione ikony social — mniejsze i gęściej upakowane,
+// Kompaktowe, wypełnione ikony social - mniejsze i gęściej upakowane,
 // zgodnie z referencją z headera neweuropeanstrategies.com.
 type IconProps = { className?: string };
 

@@ -496,7 +496,7 @@ function SeoDescriptionField({
         rows={3}
         className="resize-y"
       />
-      {/* Pasek długości — wizualizuje przedział "słodki punkt" 120–160 znaków */}
+      {/* Pasek długości - wizualizuje przedział "słodki punkt" 120–160 znaków */}
       <div className="relative h-1.5 bg-muted rounded-full overflow-hidden">
         <div
           className="absolute top-0 bottom-0 bg-emerald-500/30"
@@ -516,7 +516,7 @@ function SeoDescriptionField({
             <li><strong>Słowo kluczowe:</strong> umieść najważniejsze słowo na początku zdania.</li>
             <li><strong>Wartość:</strong> opisz konkretną korzyść lub czego użytkownik się dowie.</li>
             <li><strong>Akcja:</strong> dodaj zachętę (np. „Zobacz", „Sprawdź", „Dowiedz się").</li>
-            <li><strong>Unikalność:</strong> każda strona powinna mieć inny opis — nie powielaj.</li>
+            <li><strong>Unikalność:</strong> każda strona powinna mieć inny opis - nie powielaj.</li>
           </>
         ) : (
           <>
@@ -524,7 +524,7 @@ function SeoDescriptionField({
             <li><strong>Keyword:</strong> place the primary keyword near the beginning.</li>
             <li><strong>Value:</strong> describe a concrete benefit or what the user will learn.</li>
             <li><strong>Action:</strong> include a call-to-action (e.g. "Discover", "Learn", "See").</li>
-            <li><strong>Uniqueness:</strong> every page should have a unique description — don't duplicate.</li>
+            <li><strong>Uniqueness:</strong> every page should have a unique description - don't duplicate.</li>
           </>
         )}
       </ul>

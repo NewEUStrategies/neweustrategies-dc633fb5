@@ -314,7 +314,7 @@ function PostCard({
     );
   }
 
-  // default — card
+  // default - card
   return (
     <a href={`/post/${p.slug}`} className={base}>
       {p.cover_image_url && (

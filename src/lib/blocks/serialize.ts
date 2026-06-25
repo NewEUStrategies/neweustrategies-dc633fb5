@@ -1,5 +1,5 @@
 // Serializacja BlocksDoc -> HTML (do podglądu / excerpt / fallback SEO).
-// Nie zastępuje publicznego renderera React — tylko prosty zrzut tekstu.
+// Nie zastępuje publicznego renderera React - tylko prosty zrzut tekstu.
 
 import type { Block, BlocksDoc } from "./types";
 

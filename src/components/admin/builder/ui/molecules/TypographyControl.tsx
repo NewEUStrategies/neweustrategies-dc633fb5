@@ -165,7 +165,7 @@ export function TypographyControl({ value, onChange }: Props) {
             value={v.fontWeight ?? ""}
             onValueChange={(w) => set({ fontWeight: w || undefined })}
           >
-            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="—" /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
             <SelectContent>
               {["300", "400", "500", "600", "700", "800", "900"].map((w) => (
                 <SelectItem key={w} value={w}>{w}</SelectItem>

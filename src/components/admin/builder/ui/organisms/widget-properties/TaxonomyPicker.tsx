@@ -1,4 +1,4 @@
-// Shared category/tag multi-select picker — fetches from DB, shows post counts.
+// Shared category/tag multi-select picker - fetches from DB, shows post counts.
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";

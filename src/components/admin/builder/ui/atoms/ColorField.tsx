@@ -33,7 +33,7 @@ export function ColorField({ value, onChange, placeholder, inheritedValue }: Pro
   return (
     <div className="flex items-center gap-1.5">
       {showInherited && !hasOverride ? (
-        // Ghost swatch showing the inherited color — click opens picker to override.
+        // Ghost swatch showing the inherited color - click opens picker to override.
         <label
           className="relative h-8 w-8 rounded border border-dashed border-border cursor-pointer shrink-0 overflow-hidden"
           style={{ background: inherited }}

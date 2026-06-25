@@ -2,7 +2,7 @@
 //
 // RLS already enforces tenant isolation on the server (every policy checks
 // tenant_id = current_tenant_id()). These helpers add a second, client-side
-// guard so admin queries explicitly scope by tenant — defense in depth and
+// guard so admin queries explicitly scope by tenant - defense in depth and
 // also a smaller payload over the wire.
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";

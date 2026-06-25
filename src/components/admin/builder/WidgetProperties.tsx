@@ -84,7 +84,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         (s[key] as Themed<string> | undefined) = next;
       }
     } else {
-      // Flat value applies to both modes — reset removes it entirely.
+      // Flat value applies to both modes - reset removes it entirely.
       delete (s as Record<string, unknown>)[key];
     }
   });
@@ -197,7 +197,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
       </TabsContent>
 
       <TabsContent value="style" className="space-y-4 mt-3">
-        {/* Light / Dark mode tabs — synced with global preview switcher */}
+        {/* Light / Dark mode tabs - synced with global preview switcher */}
         <div className="flex items-center justify-between gap-2">
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
             Edytujesz: {device}
@@ -263,9 +263,9 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {[
-                      { v: "solid-red", l: "Pełny — czerwony" },
-                      { v: "solid-brand", l: "Pełny — brand" },
-                      { v: "solid-dark", l: "Pełny — ciemny" },
+                      { v: "solid-red", l: "Pełny - czerwony" },
+                      { v: "solid-brand", l: "Pełny - brand" },
+                      { v: "solid-dark", l: "Pełny - ciemny" },
                       { v: "outline", l: "Obrysowany" },
                       { v: "ghost", l: "Przezroczysty" },
                       { v: "gradient", l: "Gradient" },

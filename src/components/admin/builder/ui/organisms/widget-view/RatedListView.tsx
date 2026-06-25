@@ -347,7 +347,7 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
                 )}
                 {(showAuthor && it.author) || (showDate && it.date) ? (
                   <p className="rl-meta mt-2 text-muted-foreground" style={{ fontSize: `${metaSize}px` }}>
-                    {showAuthor && it.author && <>— <span className="font-semibold text-foreground/80">{it.author}</span></>}
+                    {showAuthor && it.author && <>- <span className="font-semibold text-foreground/80">{it.author}</span></>}
                     {showAuthor && it.author && showDate && it.date && " · "}
                     {showDate && it.date && <span>{new Date(it.date).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-US")}</span>}
                   </p>

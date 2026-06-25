@@ -1,11 +1,11 @@
-// Auto-invert helpers — when a widget color was set for one mode but the page
+// Auto-invert helpers - when a widget color was set for one mode but the page
 // renders in the OTHER mode (no explicit override), heuristically flip the
 // color so dark text on light background becomes light text on dark, etc.
 //
 // Strategy: parse to RGB, compute perceived luminance. If the color clearly
 // belongs to the "wrong" side (dark color in dark mode, or light color in
 // light mode), invert RGB. Mid-tone colors (brand accents, mid greys) pass
-// through unchanged — they read fine on both backgrounds.
+// through unchanged - they read fine on both backgrounds.
 
 import { isThemedValue } from "./themed";
 import type { Mode, Themed } from "./types";
@@ -97,7 +97,7 @@ export function resolveColorForMode(
 ): string | undefined {
   if (v == null) return undefined;
   if (!isThemedValue<string>(v)) {
-    // Flat value applies to both modes — auto-invert for the non-authored side.
+    // Flat value applies to both modes - auto-invert for the non-authored side.
     // We treat "light" as the authoring side by convention.
     return mode === "light" ? (v as string) : autoInvertColor(v as string, "dark");
   }

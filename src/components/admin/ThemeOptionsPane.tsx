@@ -1,4 +1,4 @@
-// Theme Options panel (Foxiz-style) — Logo + Header sections.
+// Theme Options panel (Foxiz-style) - Logo + Header sections.
 // Stores everything under site_settings.theme_options.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -166,12 +166,12 @@ const SECTIONS = [
 
 
 const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
-  "layout-1": { label: "Layout 1 — Classic Centered", hint: "Utility bar + centered logo + nav (current default)" },
-  "layout-2": { label: "Layout 2 — Logo Left", hint: "Logo po lewej, nav po prawej, jeden pasek" },
-  "layout-3": { label: "Layout 3 — Split Nav", hint: "Logo centralnie, menu po obu stronach" },
-  "layout-4": { label: "Layout 4 — Stacked", hint: "Utility bar + logo + nav (3 paski)" },
-  "layout-5": { label: "Layout 5 — Minimal", hint: "Tylko logo + menu, bez utility bar" },
-  "layout-6": { label: "Layout 6 — Left Global Sidebar", hint: "Pionowy sidebar po lewej zamiast poziomego nagłówka (collapse/expand)" },
+  "layout-1": { label: "Layout 1 - Classic Centered", hint: "Utility bar + centered logo + nav (current default)" },
+  "layout-2": { label: "Layout 2 - Logo Left", hint: "Logo po lewej, nav po prawej, jeden pasek" },
+  "layout-3": { label: "Layout 3 - Split Nav", hint: "Logo centralnie, menu po obu stronach" },
+  "layout-4": { label: "Layout 4 - Stacked", hint: "Utility bar + logo + nav (3 paski)" },
+  "layout-5": { label: "Layout 5 - Minimal", hint: "Tylko logo + menu, bez utility bar" },
+  "layout-6": { label: "Layout 6 - Left Global Sidebar", hint: "Pionowy sidebar po lewej zamiast poziomego nagłówka (collapse/expand)" },
 };
 
 
@@ -747,10 +747,10 @@ export function ThemeOptionsPane() {
               <Select value={String(draft.buttons.font_weight)} onValueChange={(v) => patchButtons({ font_weight: Number(v) })}>
                 <SelectTrigger className="w-[160px] h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="400">400 — Regular</SelectItem>
-                  <SelectItem value="500">500 — Medium</SelectItem>
-                  <SelectItem value="600">600 — Semibold</SelectItem>
-                  <SelectItem value="700">700 — Bold</SelectItem>
+                  <SelectItem value="400">400 - Regular</SelectItem>
+                  <SelectItem value="500">500 - Medium</SelectItem>
+                  <SelectItem value="600">600 - Semibold</SelectItem>
+                  <SelectItem value="700">700 - Bold</SelectItem>
                 </SelectContent>
               </Select>
             </Row>

@@ -281,7 +281,7 @@ function PlacementsPanel() {
           <tbody>
             {placements.map((p) => (
               <tr key={p.id} className="border-b border-border hover:bg-muted/40">
-                <td className="p-3 font-medium">{slotMap[p.slot_id]?.name ?? "—"}</td>
+                <td className="p-3 font-medium">{slotMap[p.slot_id]?.name ?? "-"}</td>
                 <td className="p-3">{AD_POSITION_LABELS[p.position]}</td>
                 <td className="p-3">{AD_PAGE_TYPE_LABELS[p.page_type]}</td>
                 <td className="p-3">{p.active ? "✓" : "-"}</td>

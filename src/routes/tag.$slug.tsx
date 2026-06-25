@@ -1,4 +1,4 @@
-// Tag archive: /tag/$slug — same shape as category, reuses TaxonomyPage logic.
+// Tag archive: /tag/$slug - same shape as category, reuses TaxonomyPage logic.
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";

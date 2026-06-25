@@ -14,25 +14,25 @@ export type SidebarStyle =
   | "style-6";
 
 export const SIDEBAR_STYLES: { id: SidebarStyle; label: string; hint: string }[] = [
-  { id: "style-1", label: "Style 1 — Solid Classic", hint: "Pełne tło karty, ostre rogi pozycji menu." },
-  { id: "style-2", label: "Style 2 — Minimal Borderless", hint: "Bez tła, hairline dashed border, tekstowe aktywne z lewą kreską." },
-  { id: "style-3", label: "Style 3 — Floating Card", hint: "Odsunięty od krawędzi, mocno zaokrąglony, miękki cień." },
-  { id: "style-4", label: "Style 4 — Compact Icon Rail", hint: "Wąski 56px pasek z samymi ikonami." },
-  { id: "style-5", label: "Style 5 — Glass / Frosted", hint: "Półprzezroczyste tło, backdrop blur, gradientowe items." },
-  { id: "style-6", label: "Style 6 — Bold Dark", hint: "Wymuszony ciemny kontrast w obu trybach + akcent brand." },
+  { id: "style-1", label: "Style 1 - Solid Classic", hint: "Pełne tło karty, ostre rogi pozycji menu." },
+  { id: "style-2", label: "Style 2 - Minimal Borderless", hint: "Bez tła, hairline dashed border, tekstowe aktywne z lewą kreską." },
+  { id: "style-3", label: "Style 3 - Floating Card", hint: "Odsunięty od krawędzi, mocno zaokrąglony, miękki cień." },
+  { id: "style-4", label: "Style 4 - Compact Icon Rail", hint: "Wąski 56px pasek z samymi ikonami." },
+  { id: "style-5", label: "Style 5 - Glass / Frosted", hint: "Półprzezroczyste tło, backdrop blur, gradientowe items." },
+  { id: "style-6", label: "Style 6 - Bold Dark", hint: "Wymuszony ciemny kontrast w obu trybach + akcent brand." },
 ];
 
 export const SIDEBAR_ICON_FIELDS = [
   {
     key: "sidebar_icon",
     darkKey: "sidebar_icon_dark",
-    label: "Ikona sidebaru — compact",
+    label: "Ikona sidebaru - compact",
     hint: "Pokazywana w zwiniętym sidebarze i w stylu rail.",
   },
   {
     key: "sidebar_expanded",
     darkKey: "sidebar_expanded_dark",
-    label: "Logo sidebaru — expanded",
+    label: "Logo sidebaru - expanded",
     hint: "Pokazywane w szerokim sidebarze dla admina i globalnego układu.",
   },
 ] as const;

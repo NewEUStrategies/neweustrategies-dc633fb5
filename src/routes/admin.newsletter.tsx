@@ -346,7 +346,7 @@ function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
                 <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
                   <Mail className="w-4 h-4 text-primary" />
                 </div>
-                <h3 className="font-display text-lg">{heading || "—"}</h3>
+                <h3 className="font-display text-lg">{heading || "-"}</h3>
               </div>
               {description && <p className="text-sm text-muted-foreground">{description}</p>}
               <div className="space-y-2">
@@ -384,7 +384,7 @@ function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
                   aria-hidden="true"
                 />
                 <div className="p-5 space-y-3 overflow-y-auto max-h-[520px]">
-                  <h3 className="font-display text-2xl">{popupTitle || "—"}</h3>
+                  <h3 className="font-display text-2xl">{popupTitle || "-"}</h3>
                   {popupDesc && <p className="text-xs text-white/70">{popupDesc}</p>}
                   {settings.popup_extended_fields && (
                     <>
@@ -431,7 +431,7 @@ function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
                   <img src={settings.popup_cover_url} alt="" className="w-full h-32 object-cover" />
                 )}
                 <div className="p-5 space-y-3">
-                  <h3 className="font-display text-xl">{popupTitle || "—"}</h3>
+                  <h3 className="font-display text-xl">{popupTitle || "-"}</h3>
                   {popupDesc && <p className="text-sm text-muted-foreground">{popupDesc}</p>}
                   <Input placeholder={emailPh} readOnly />
                   <Button className="w-full" type="button">{popupCta || submitLabel}</Button>

@@ -338,7 +338,7 @@ function CategoryColumnFields({
         <Select value={slug || "__none"} onValueChange={(v) => onSlug(v === "__none" ? "" : v)}>
           <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="wybierz" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="__none">— brak —</SelectItem>
+            <SelectItem value="__none">- brak -</SelectItem>
             {cats.map((c) => (
               <SelectItem key={c.slug} value={c.slug}>{c.name_pl}</SelectItem>
             ))}

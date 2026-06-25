@@ -18,12 +18,12 @@ export interface PageParentSelectProps {
   /** Exclude this page id and all of its descendants from the picker. */
   excludeId?: string;
   label?: string;
-  /** Optional null label, defaults to "— top-level —". */
+  /** Optional null label, defaults to "- top-level -". */
   noneLabel?: string;
 }
 
 export function PageParentSelect(props: PageParentSelectProps) {
-  const { tenantId, value, onChange, excludeId, label = "Strona nadrzędna", noneLabel = "— najwyższy poziom —" } = props;
+  const { tenantId, value, onChange, excludeId, label = "Strona nadrzędna", noneLabel = "- najwyższy poziom -" } = props;
   const { data: pages = [] } = useQuery({
     queryKey: ["admin-page-tree", tenantId],
     queryFn: async (): Promise<PageRow[]> => {
@@ -51,7 +51,7 @@ export function PageParentSelect(props: PageParentSelectProps) {
       for (const c of children) {
         if (c.id === excludeId) continue; // skip self + descendants
         const title = c.title_pl || c.title_en || c.slug;
-        result.push({ id: c.id, label: `${"— ".repeat(depth)}${title}`, depth });
+        result.push({ id: c.id, label: `${"- ".repeat(depth)}${title}`, depth });
         walk(c.id, depth + 1);
       }
     };

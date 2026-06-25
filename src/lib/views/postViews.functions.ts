@@ -1,9 +1,9 @@
 // Server functions: post view counter + Trending list.
 //
-// `recordPostView` — anti-spammed by viewer-hash + 5-min window inside the
+// `recordPostView` - anti-spammed by viewer-hash + 5-min window inside the
 //                    SECURITY DEFINER SQL function (`public.record_post_view`).
 //                    No auth required: anonymous reads count too.
-// `getTrendingPosts` — top published posts by view count in the last N days.
+// `getTrendingPosts` - top published posts by view count in the last N days.
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";

@@ -26,7 +26,7 @@ export function processHtmlFootnotes(
 }
 
 // Walks the builder document, processes text/heading widgets in place (returns a
-// new doc — does not mutate the original) and returns the collected footnotes.
+// new doc - does not mutate the original) and returns the collected footnotes.
 export function processDocFootnotes(
   doc: BuilderDocument,
   lang: "pl" | "en",

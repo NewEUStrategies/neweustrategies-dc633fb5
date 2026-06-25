@@ -284,7 +284,7 @@ function EditPost() {
         value={form.parent_page_id}
         onChange={(v) => v && set("parent_page_id", v)}
         label="Strona nadrzędna"
-        noneLabel="— wybierz stronę —"
+        noneLabel="- wybierz stronę -"
       />
       <div>
         <Label>{t("admin.posts.readMinutes")}</Label>
@@ -335,7 +335,7 @@ function EditPost() {
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="__inherit__">— Użyj globalnego —</SelectItem>
+            <SelectItem value="__inherit__">- Użyj globalnego -</SelectItem>
             {layoutSet.map((l) => (
               <SelectItem key={l.id} value={l.id}>{l.label}</SelectItem>
             ))}
