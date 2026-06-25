@@ -349,12 +349,13 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 [data-header-override="transparent"] header { background-color: transparent !important; backdrop-filter: blur(6px); }
 [data-template="landing"] header, [data-template="landing"] footer { display: none; }
 
-/* Builder/runtime: widget media frames - always show the full image, no crop/zoom */
+/* Builder/runtime: widget media frames - full image visible, tile visually filled */
 :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] {
   display: block;
   max-width: 100%;
   min-width: 0;
-  background: hsl(var(--muted) / 0.4);
+  isolation: isolate;
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
 }
 :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] > :is(img, .oi-wrap, span[role="img"]) {
   width: 100% !important;
@@ -371,6 +372,27 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] :is(.oi-hover-zoom, .oi-hover-slide):hover .oi-img,
 :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] :is(img, .oi-img):hover {
   transform: none !important;
+}
+:is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .widget-media-bg {
+  object-fit: cover !important;
+  object-position: center !important;
+  transform: scale(1.08) !important;
+  filter: blur(16px) saturate(1.08);
+  opacity: 0.58;
+  z-index: 0;
+}
+:is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .widget-media-bg:hover {
+  transform: scale(1.08) !important;
+}
+:is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .widget-media-scrim {
+  z-index: 1;
+  background: color-mix(in srgb, var(--background) 14%, transparent);
+}
+:is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .widget-media-fg {
+  object-fit: contain !important;
+  object-position: center !important;
+  transform: none !important;
+  z-index: 2;
 }
 
 /* Mobile: horizontal scroll for grid widgets (post-list etc.) */

@@ -218,7 +218,31 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
             alt=""
             draggable={false}
             data-fill-image
-            className="eh-img absolute inset-0 w-full h-full object-contain"
+            className="eh-img absolute inset-0 w-full h-full object-cover widget-media-bg"
+            style={{
+              opacity: i === safeIdx ? 1 : 0,
+              transition: "opacity 700ms cubic-bezier(.22,.61,.36,1)",
+            }}
+            onError={(e) => {
+              const target = e.currentTarget;
+              setFailedImages((prev) => {
+                const next = new Set(prev);
+                next.add(it.image);
+                return next;
+              });
+              if (target.src !== SLIDER_IMAGE_PLACEHOLDER) target.src = SLIDER_IMAGE_PLACEHOLDER;
+            }}
+          />
+        ))}
+        <span aria-hidden className="widget-media-scrim absolute inset-0" />
+        {items.map((it, i) => (
+          <img
+            key={`fg-${i}`}
+            src={safeImageUrl(it.image) || it.image}
+            alt=""
+            draggable={false}
+            data-fill-image
+            className="eh-img absolute inset-0 w-full h-full object-contain widget-media-fg"
             style={{
               opacity: i === safeIdx ? 1 : 0,
               transition: "opacity 700ms cubic-bezier(.22,.61,.36,1)",
