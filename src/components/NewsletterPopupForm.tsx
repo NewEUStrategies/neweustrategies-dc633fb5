@@ -1,9 +1,10 @@
 // Rozszerzony formularz popupu newslettera - zgodny z układem split.
 // Dodatkowe pola są zapisywane w `meta jsonb` w tabeli subscribers, więc
 // nie wymagamy migracji kolumn per field. Walidacja PL/EN, zgody RODO.
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { CheckCircle, Mail } from "@/lib/lucide-shim";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 
 interface Props {
