@@ -45,6 +45,10 @@ import { NewsletterBlock } from "./edit/Newsletter";
 import { AffiliateBlock } from "./edit/Affiliate";
 import { XQuoteBlock } from "./edit/XQuote";
 import { CompareBlock } from "./edit/Compare";
+import { LoginFormBlock } from "./edit/LoginForm";
+import { RegisterFormBlock } from "./edit/RegisterForm";
+import { LostPasswordFormBlock } from "./edit/LostPasswordForm";
+import { ResetPasswordFormBlock } from "./edit/ResetPasswordForm";
 
 interface Props {
   doc: BlocksDoc;
