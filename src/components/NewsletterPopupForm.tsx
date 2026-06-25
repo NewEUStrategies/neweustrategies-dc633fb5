@@ -36,6 +36,8 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
   const [v, setV] = useState<ExtendedFields>(empty);
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [err, setErr] = useState<string | null>(null);
+  const [honey, setHoney] = useState("");
+  const mountedAt = useRef<number>(Date.now());
 
   const isPl = lang === "pl";
   const ext = settings.popup_extended_fields;
