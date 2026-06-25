@@ -218,24 +218,35 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   if (variant === "list") {
     return (
       <div className="w-full flex flex-col divide-y divide-border">
-
         {rows.map((p) => (
           <a
             key={p.id}
             href={`/post/${p.slug}`}
-            className={`grid ${p.cover_image_url ? "grid-cols-[96px_minmax(0,1fr)]" : "grid-cols-1"} items-start gap-3 py-3 group`}
+            className={`grid ${p.cover_image_url ? "grid-cols-[112px_minmax(0,1fr)] sm:grid-cols-[128px_minmax(0,1fr)]" : "grid-cols-1"} items-start gap-3 sm:gap-4 py-3 group`}
           >
             {p.cover_image_url && (
               <span data-widget-media className={LIST_FRAME_CLASS}>
-                <OptimizedImage src={p.cover_image_url} alt="" responsive responsiveWidths={[96, 192, 288]} sizes="96px" className={COVER_IMG_CLASS} />
+                <OptimizedImage
+                  src={p.cover_image_url}
+                  alt=""
+                  responsive
+                  responsiveWidths={[128, 256, 384]}
+                  sizes="(max-width: 640px) 112px, 128px"
+                  className={COVER_IMG_CLASS}
+                />
               </span>
             )}
             <div className="min-w-0">
-              <h4 className="font-display text-sm leading-snug line-clamp-2 group-hover:text-brand transition" style={tStyle}>
+              <h4
+                className="font-display text-[15px] sm:text-base md:text-lg font-semibold leading-snug line-clamp-2 group-hover:text-brand transition"
+                style={tStyle}
+              >
                 {title(p)}
               </h4>
               {excerpt(p) && (
-                <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5" style={eStyle}>{excerpt(p)}</p>
+                <p className="text-[13px] text-muted-foreground line-clamp-2 mt-1 leading-snug" style={eStyle}>
+                  {excerpt(p)}
+                </p>
               )}
             </div>
           </a>
