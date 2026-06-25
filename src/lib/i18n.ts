@@ -832,10 +832,12 @@ const resources = {
             buttons: "Buttons",
             textFields: "Text Fields",
             inputColors: "Input Field Colors",
+            iconColors: "Icon Colors",
             contentStyling: "Content Styling",
 
           },
           inputColorsDescription: "Set background, text, placeholder, border, and hover/focus colors for input fields - for both light and dark mode.",
+          iconColorsDescription: "Set SVG icon colors: inactive, hover, and active state - for both light and dark mode.",
 
           mainMenu: {
             navTopLevel: "Navigation (Top Level)",
