@@ -245,7 +245,7 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
           const isSectionLabel = w.type === "section-label";
           const stackCls = isSectionLabel ? " relative z-20" : "";
           const itemClass = inRow
-            ? `flex flex-col items-stretch justify-start min-w-0 max-w-full overflow-visible${stackCls}`
+            ? `flex flex-col items-stretch justify-center min-w-0 max-w-full overflow-visible${stackCls}`
             : `flex flex-col items-stretch justify-start w-full min-w-0 max-w-full overflow-visible${shouldFillHeight ? " flex-1" : ""}${stackCls}`;
           return (
             <div
@@ -278,7 +278,7 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
         };
         if (g.inline) {
           return (
-            <div key={gi} className={`flex flex-row flex-wrap gap-2 min-w-0 max-w-full ${axisClass}`}>
+            <div key={gi} className={`flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full ${axisClass}`}>
               {g.items.map((w) => renderItem(w, true))}
             </div>
           );
