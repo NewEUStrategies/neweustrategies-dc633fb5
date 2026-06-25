@@ -97,8 +97,8 @@ export function NewsletterPopup() {
       <div
         className={
           split
-            ? "relative w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden border border-white/10 bg-[#0a0a0a] text-white grid md:grid-cols-2"
-            : "relative w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-white/10 bg-[#0a0a0a] text-white"
+            ? "relative w-full max-w-4xl my-4 max-h-[92vh] overflow-y-auto md:overflow-hidden rounded-2xl shadow-2xl border border-white/10 bg-[#0a0a0a] text-white grid grid-cols-1 md:grid-cols-2"
+            : "relative w-full max-w-lg my-4 max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl border border-white/10 bg-[#0a0a0a] text-white"
         }
         onClick={(e) => e.stopPropagation()}
       >
@@ -114,7 +114,7 @@ export function NewsletterPopup() {
         {split ? (
           <>
             <div
-              className="relative hidden md:block min-h-[560px] bg-cover bg-center"
+              className="relative h-40 sm:h-56 md:h-auto md:min-h-[560px] bg-cover bg-center"
               style={{
                 backgroundImage: s.popup_side_image_url
                   ? `url(${s.popup_side_image_url})`
@@ -123,20 +123,20 @@ export function NewsletterPopup() {
               aria-hidden="true"
             >
               {!s.popup_side_image_url && (
-                <div className="absolute inset-0 flex items-center justify-center p-8 text-center">
+                <div className="absolute inset-0 flex items-center justify-center p-6 md:p-8 text-center">
                   <div className="space-y-2">
-                    <div className="text-xs uppercase tracking-[0.3em] text-white/60">
-                      {isPl ? "Newsletter" : "Newsletter"}
+                    <div className="text-[10px] sm:text-xs uppercase tracking-[0.3em] text-white/60">
+                      Newsletter
                     </div>
-                    <div className="font-display text-3xl">{title}</div>
+                    <div className="font-display text-xl sm:text-2xl md:text-3xl">{title}</div>
                   </div>
                 </div>
               )}
             </div>
-            <div className="p-6 md:p-8 lg:p-10 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-start justify-between gap-4 mb-2">
-                <h2 id="nl-popup-title" className="font-display text-3xl leading-tight">{title}</h2>
-                <Send className="w-7 h-7 text-[var(--brand,#f97316)] shrink-0 mt-1" />
+            <div className="p-5 sm:p-6 md:p-8 lg:p-10 md:max-h-[92vh] md:overflow-y-auto">
+              <div className="flex items-start justify-between gap-3 mb-2 pr-10 md:pr-0">
+                <h2 id="nl-popup-title" className="font-display text-2xl sm:text-3xl leading-tight">{title}</h2>
+                <Send className="w-6 h-6 sm:w-7 sm:h-7 text-[var(--brand,#f97316)] shrink-0 mt-1" />
               </div>
               {desc && <p className="text-sm text-white/70 mb-5 leading-relaxed">{desc}</p>}
               <NewsletterPopupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
