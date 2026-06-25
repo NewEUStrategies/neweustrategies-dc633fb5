@@ -4,7 +4,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { sanitizeHtml } from "@/lib/sanitize";
-import { CheckCircle, Mail } from "@/lib/lucide-shim";
+import { Check, Mail } from "@/lib/lucide-shim";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 
 interface Props {
