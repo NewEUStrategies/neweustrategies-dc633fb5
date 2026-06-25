@@ -23,6 +23,7 @@ import {
   LoginFormView, RegisterFormView, LostPasswordFormView, ResetPasswordFormView,
 } from "@/components/blocks/AuthFormBlocks";
 import { DynamicTagWidget } from "./DynamicTagWidgets";
+import { ContactFormView } from "@/components/blocks/ContactFormView";
 
 type AuthCfg = Record<string, unknown>;
 function AuthFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
