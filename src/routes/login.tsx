@@ -160,10 +160,11 @@ function LoginPage() {
       <div className="relative w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)] gap-0 lg:gap-6 isolate">
         {/* LEFT: vertical mode rail */}
         <aside className="hidden lg:flex flex-col items-center gap-2 bg-card rounded-2xl shadow-lg shadow-foreground/5 border border-border py-6 px-3">
-          <Link to="/" className="mb-3 flex items-center justify-center w-full" aria-label="Home">
-            <Logo size="lg" withWordmark={false} className="h-16 w-auto" />
-          </Link>
+          <div className="mb-3 flex items-center justify-center w-full">
+            <Logo size="xl" withWordmark={false} />
+          </div>
           <div className="w-10 h-px bg-border my-2" />
+
           <RailButton active={mode === "signin"} onClick={() => setMode("signin")} icon={<LogIn className="w-5 h-5" />} label={t.signin} />
           <RailButton active={mode === "signup"} onClick={() => setMode("signup")} icon={<UserPlus className="w-5 h-5" />} label={t.signup} />
           <RailButton active={mode === "reset"} onClick={() => setMode("reset")} icon={<KeyRound className="w-5 h-5" />} label={t.reset} />
