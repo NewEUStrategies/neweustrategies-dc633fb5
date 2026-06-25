@@ -349,26 +349,28 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 [data-header-override="transparent"] header { background-color: transparent !important; backdrop-filter: blur(6px); }
 [data-template="landing"] header, [data-template="landing"] footer { display: none; }
 
-/* Builder: mobile horizontal-scroll for grid widgets (post-list etc.) */
+/* Builder/runtime: widget media frames — always show the full image (no zoom/crop) */
+:is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  background: hsl(var(--muted) / 0.4);
+}
+:is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] > :is(img, .oi-wrap, span[role="img"]) {
+  width: 100% !important;
+  height: 100% !important;
+}
+:is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] :is(img, .oi-img) {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  transform: none !important;
+}
+
+/* Mobile: horizontal scroll for grid widgets (post-list etc.) */
 @media (max-width: 767px) {
-  :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] {
-    display: block;
-    max-width: 100%;
-    min-width: 0;
-  }
-
-  :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] > :is(img, .oi-wrap, span[role="img"]) {
-    width: 100% !important;
-    height: 100% !important;
-  }
-
-  :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] img {
-    display: block;
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: contain !important;
-  }
-
   .cms-mobile-hscroll {
     display: flex !important;
     grid-template-columns: none !important;
@@ -384,6 +386,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
     min-width: 0;
   }
 }
+
 
 /* ===== Module H: Theme Design utility classes ===== */
 .cms-block-heading {
