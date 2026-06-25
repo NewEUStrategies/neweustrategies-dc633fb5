@@ -177,9 +177,12 @@ const resources = {
             mobileHeader: "Nagłówek mobilny",
             buttons: "Przyciski",
             textFields: "Pola tekstowe",
+            inputColors: "Kolory pól tekstowych",
             contentStyling: "Style treści",
 
           },
+          inputColorsDescription: "Ustaw kolory tła, tekstu, placeholdera, obramowania oraz stanów hover/focus pól tekstowych - dla trybu jasnego i ciemnego.",
+
           mainMenu: {
             navTopLevel: "Nawigacja (najwyższy poziom)",
             hoverEffect: "Efekt hover menu",
