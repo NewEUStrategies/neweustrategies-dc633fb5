@@ -18,7 +18,15 @@ import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
-import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon } from "@/lib/lucide-shim";
+import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon, Eye, Home as HomeIcon } from "@/lib/lucide-shim";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { Textarea } from "@/components/ui/textarea";
@@ -261,8 +269,44 @@ function EditPage() {
     </div>
   );
 
+  const displayTitle =
+    (form.title_pl || form.title_en || form.slug || t("admin.list.untitled", { defaultValue: "bez tytułu" })).toString();
+  const previewHref = `/${form.slug}`;
+
   return (
     <div className="space-y-6">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link to="/admin" className="inline-flex items-center gap-1">
+                <HomeIcon className="w-3.5 h-3.5" /> {t("admin.title", { defaultValue: "Panel" })}
+              </Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link to="/admin/pages">{t("admin.pages.title", { defaultValue: "Strony" })}</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage className="truncate max-w-[260px]">{displayTitle}</BreadcrumbPage>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage className="text-xs text-muted-foreground inline-flex items-center gap-1">
+              {step === "details" ? (
+                <><SettingsIcon className="w-3 h-3" /> {t("admin.pages.step.details", { defaultValue: "Szczegóły" })}</>
+              ) : (
+                <><FileText className="w-3 h-3" /> {t("admin.pages.step.content", { defaultValue: "Treść" })}</>
+              )}
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <div className="flex items-center justify-between gap-4 flex-wrap">
         {step === "details" ? (
           <Link to="/admin/pages" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
@@ -270,7 +314,7 @@ function EditPage() {
           </Link>
         ) : (
           <button onClick={() => setStep("details")} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-            <ArrowLeft className="w-4 h-4" /> Szczegóły strony
+            <ArrowLeft className="w-4 h-4" /> {t("admin.pages.step.details", { defaultValue: "Szczegóły strony" })}
           </button>
         )}
         <div className="flex items-center gap-2">
@@ -279,14 +323,14 @@ function EditPage() {
               onClick={() => setStep("details")}
               className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "details" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
             >
-              <SettingsIcon className="w-3.5 h-3.5" /> 1. Szczegóły
+              <SettingsIcon className="w-3.5 h-3.5" /> 1. {t("admin.pages.step.details", { defaultValue: "Szczegóły" })}
             </button>
             <span className="text-muted-foreground">→</span>
             <button
               onClick={() => setStep("content")}
               className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "content" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
             >
-              <FileText className="w-3.5 h-3.5" /> 2. Treść
+              <FileText className="w-3.5 h-3.5" /> 2. {t("admin.pages.step.content", { defaultValue: "Treść" })}
             </button>
           </div>
           <AutosaveBar
@@ -294,10 +338,16 @@ function EditPage() {
             canUndo={history.canUndo} canRedo={history.canRedo}
             onUndo={history.undo} onRedo={history.redo}
           />
+          <Button asChild variant="outline" size="sm" title={t("admin.pages.preview", { defaultValue: "Podgląd strony w nowej karcie" })}>
+            <a href={previewHref} target="_blank" rel="noopener noreferrer">
+              <Eye className="w-4 h-4 mr-1" /> {t("admin.preview", { defaultValue: "Podgląd" })}
+            </a>
+          </Button>
           <Button variant="ghost" size="sm" onClick={del}><Trash2 className="w-4 h-4 mr-1 text-destructive" /> {t("admin.delete")}</Button>
           <Button onClick={save} disabled={busy}><Save className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.save")}</Button>
         </div>
       </div>
+
 
       {step === "details" ? (
         <div className="grid lg:grid-cols-3 gap-6">
