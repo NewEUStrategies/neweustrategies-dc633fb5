@@ -230,14 +230,25 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   }
 
   if (variant === "numbered") {
+    const idxSize = getNum(c, "indexSizePx", 88);
+    const idxColor = getStr(c, "indexColor") || "";
+    const idxColorDark = getStr(c, "indexColorDark") || "";
+    const idxOpacity = (() => {
+      const v = getNum(c, "indexOpacity", -1);
+      return v < 0 ? 0.05 : Math.max(0, Math.min(1, v));
+    })();
+    const idxWeight = getStr(c, "indexWeight") || "700";
+    const lightColor = idxColor || `rgba(0,0,0,${idxOpacity})`;
+    const darkColor = idxColorDark || `rgba(255,255,255,${idxOpacity})`;
     return (
       <div className="w-full flex flex-col divide-y divide-border">
+        <style>{`.pl-num-light{color:${lightColor};} .dark .pl-num-light{color:${darkColor};}`}</style>
         {rows.map((p, i) => (
           <a key={p.id} href={`/post/${p.slug}`} className="relative flex items-center gap-3 py-3 group overflow-hidden">
             <span
               aria-hidden
-              className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 font-display font-bold tabular-nums text-foreground/5 leading-none select-none"
-              style={{ fontSize: "clamp(3rem, 7vw, 5.5rem)" }}
+              className="pl-num-light pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 font-display tabular-nums leading-none select-none"
+              style={{ fontSize: `${idxSize}px`, fontWeight: idxWeight as React.CSSProperties["fontWeight"] }}
             >
               {String(i + 1).padStart(2, "0")}
             </span>
