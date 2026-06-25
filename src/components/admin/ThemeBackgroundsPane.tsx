@@ -15,9 +15,6 @@ import {
 } from "@/lib/builder/globalColors";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
 
-function isHex(v: string): boolean {
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v.trim());
-}
 
 function isTransparent(v: string): boolean {
   const t = v.trim().toLowerCase();
