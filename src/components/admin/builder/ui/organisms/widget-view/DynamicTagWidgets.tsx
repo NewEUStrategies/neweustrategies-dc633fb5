@@ -48,14 +48,14 @@ function getNum(c: WidgetNode["content"], k: string, fb = 0): number {
 export function PostTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const c = node.content;
-  const Tag = (getStr(c, "tag", "h1") as keyof JSX.IntrinsicElements);
+  const tag = getStr(c, "tag", "h1");
   const title = pickLocalized(ctx, lang, "title")
     || (lang === "en" ? getStr(c, "fallback_en", "Post title") : getStr(c, "fallback_pl", "Tytuł wpisu"));
   const linkToPost = getBool(c, "linkToPost", false);
   const inner = linkToPost && ctx.slug
     ? <a href={`/${ctx.slug}`} className="hover:text-brand transition">{title}</a>
     : title;
-  return <Tag className="font-display font-bold leading-tight">{inner}</Tag>;
+  return createElement(tag, { className: "font-display font-bold leading-tight" }, inner);
 }
 
 export function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
