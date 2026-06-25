@@ -134,11 +134,11 @@ export function WidgetLibrary({ onPickStructure, onPickTemplate }: Props) {
                           e.dataTransfer.setData("application/x-widget-type", w.type);
                           e.dataTransfer.effectAllowed = "copy";
                         }}
-                        className="h-16 bg-muted/30 hover:bg-muted hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 p-1 transition group cursor-grab active:cursor-grabbing select-none"
+                        className="h-16 bg-muted/30 hover:bg-brand/10 hover:border-brand border border-border rounded flex flex-col items-center justify-center gap-0.5 p-1 transition group cursor-grab active:cursor-grabbing select-none"
                         title={`Przeciągnij na sekcję: ${w.label}`}
                       >
-                        <Icon className="w-4 h-4 text-muted-foreground group-hover:text-brand" />
-                        <span className="text-[9px] text-center leading-tight">{w.label}</span>
+                        <Icon className="w-4 h-4 text-brand group-hover:text-brand" />
+                        <span className="text-[9px] text-center leading-tight text-foreground group-hover:text-brand">{w.label}</span>
                       </div>
                     );
                   })}
