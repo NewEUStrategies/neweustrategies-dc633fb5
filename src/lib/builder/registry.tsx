@@ -314,6 +314,35 @@ export const WIDGETS: WidgetDef[] = [
       redirectTo: "/login",
     }) },
 
+  // Dynamic tag widgets - render current post / archive context
+  { type: "post-title", label: "Tytuł wpisu (dyn.)", category: "dynamic", icon: Heading1,
+    defaults: () => ({ tag: "h1", linkToPost: false, fallback_pl: "Tytuł wpisu", fallback_en: "Post title" }) },
+  { type: "post-meta", label: "Meta wpisu (data, autor, czas)", category: "dynamic", icon: Clock,
+    defaults: () => ({
+      showAuthor: true, showDate: true, showReadingTime: true, showViews: false, showCategory: true,
+      separator: " · ", dateFormat: "long",
+    }) },
+  { type: "post-tags-dyn", label: "Tagi wpisu (dyn.)", category: "dynamic", icon: Tags,
+    defaults: () => ({ variant: "pill", showLabel: true, label_pl: "Tagi:", label_en: "Tags:" }) },
+  { type: "post-categories-dyn", label: "Kategorie wpisu (dyn.)", category: "dynamic", icon: FolderTree,
+    defaults: () => ({ variant: "pill", limit: 0 }) },
+  { type: "post-author-card", label: "Karta autora", category: "dynamic", icon: User,
+    defaults: () => ({ showAvatar: true, showBio: true, showSocial: true, variant: "card" }) },
+  { type: "post-breadcrumbs", label: "Okruszki (breadcrumbs)", category: "dynamic", icon: ChevronRight,
+    defaults: () => ({ separator: "/", showHome: true, home_pl: "Start", home_en: "Home" }) },
+  { type: "post-cover", label: "Okładka wpisu", category: "dynamic", icon: CoverIcon,
+    defaults: () => ({ aspect: "16/9", rounded: true, showCaption: false }) },
+  { type: "post-excerpt", label: "Zajawka wpisu", category: "dynamic", icon: FileText,
+    defaults: () => ({ maxChars: 240 }) },
+  { type: "archive-title", label: "Tytuł archiwum", category: "dynamic", icon: BookOpen,
+    defaults: () => ({ showCount: true, showDescription: true }) },
+  { type: "search-form", label: "Formularz wyszukiwania", category: "form", icon: Search,
+    defaults: () => ({
+      action: "/search",
+      placeholder_pl: "Szukaj...", placeholder_en: "Search...",
+      button_pl: "Szukaj", button_en: "Search",
+      variant: "default",
+    }) },
 ];
 
 export const WIDGET_MAP: Record<WidgetType, WidgetDef> = WIDGETS.reduce(
