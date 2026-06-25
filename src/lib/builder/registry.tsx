@@ -268,6 +268,52 @@ export const WIDGETS: WidgetDef[] = [
       variant: "carousel", // carousel | grid
       aspect: "9/16",
     }) },
+  // Auth forms — structural widgets, never raw HTML
+  { type: "login-form", label: "Logowanie", category: "form", icon: LogIn,
+    defaults: () => ({
+      variant: "card",
+      title_pl: "Zaloguj się", title_en: "Sign in",
+      subtitle_pl: "Witaj ponownie", subtitle_en: "Welcome back",
+      submitLabel_pl: "Zaloguj", submitLabel_en: "Sign in",
+      showRemember: true,
+      showShowPassword: true,
+      showForgot: true,
+      showRegister: true,
+      showOAuthGoogle: true,
+      redirectTo: "/",
+      registerHref: "/register",
+      forgotHref: "/lost-password",
+    }) },
+  { type: "register-form", label: "Rejestracja", category: "form", icon: User,
+    defaults: () => ({
+      variant: "card",
+      title_pl: "Załóż konto", title_en: "Create account",
+      subtitle_pl: "", subtitle_en: "",
+      submitLabel_pl: "Zarejestruj", submitLabel_en: "Register",
+      requireConsent: true,
+      newsletterOptIn: true,
+      showOAuthGoogle: true,
+      redirectTo: "/",
+      loginHref: "/login",
+    }) },
+  { type: "lost-password-form", label: "Odzyskaj hasło", category: "form", icon: Lock,
+    defaults: () => ({
+      variant: "card",
+      title_pl: "Zapomniałeś hasła?", title_en: "Forgot password?",
+      subtitle_pl: "Wyślemy link do resetu na podany e-mail.",
+      subtitle_en: "We'll send a reset link to your email.",
+      submitLabel_pl: "Wyślij link", submitLabel_en: "Send reset link",
+      loginHref: "/login",
+    }) },
+  { type: "reset-password-form", label: "Ustaw nowe hasło", category: "form", icon: ShieldCheck,
+    defaults: () => ({
+      variant: "card",
+      title_pl: "Ustaw nowe hasło", title_en: "Set new password",
+      subtitle_pl: "", subtitle_en: "",
+      submitLabel_pl: "Zapisz", submitLabel_en: "Save",
+      redirectTo: "/login",
+    }) },
+
 ];
 
 export const WIDGET_MAP: Record<WidgetType, WidgetDef> = WIDGETS.reduce(
