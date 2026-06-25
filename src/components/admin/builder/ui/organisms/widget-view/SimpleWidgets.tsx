@@ -100,8 +100,8 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
   const imgStyle: CSSProperties = {
     objectFit: fit,
     aspectRatio: ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined,
-    width: effectiveMaxPx > 0 ? `${effectiveMaxPx}px` : "100%",
-    maxWidth: effectiveMaxPx > 0 ? "none" : "100%",
+    width: effectiveMaxPx > 0 ? `min(100%, ${effectiveMaxPx}px)` : "100%",
+    maxWidth: "100%",
     height: "auto",
   };
   if (!src && !srcDark) {
