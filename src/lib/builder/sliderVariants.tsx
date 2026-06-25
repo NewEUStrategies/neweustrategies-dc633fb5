@@ -1,9 +1,11 @@
 // Slider widget - styled variants. Self-contained renderer (no external slider
 // library). Variants are being rebuilt from scratch - currently one available.
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { useResolvedPostRefs } from "./contentRefs";
+import { supabase } from "@/integrations/supabase/client";
 
 export type SliderVariant = "editorial-hero";
 
@@ -47,10 +49,20 @@ const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
   none: "0px", sm: "4px", md: "8px", lg: "16px", xl: "24px", full: "9999px",
 };
 
+const SLIDER_IMAGE_PLACEHOLDER =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 75" preserveAspectRatio="xMidYMid meet"><rect width="100" height="75" fill="hsl(0 0% 90%)"/><g fill="none" stroke="hsl(0 0% 60%)" stroke-width="1.4"><rect x="30" y="22" width="40" height="28" rx="2"/><circle cx="39" cy="32" r="3"/><path d="m70 50-12-12-22 18"/></g></svg>',
+  );
+
 interface RenderProps {
   config: SliderConfig;
   lang: "pl" | "en";
   preview?: boolean;
+}
+
+interface FallbackPostImage {
+  cover_image_url: string | null;
 }
 
 export function SliderRender({ config, lang, preview = false }: RenderProps) {
@@ -81,8 +93,38 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       }),
     [rawItems, refMap, lang],
   );
-  const items = resolvedItems.filter((it) => it && it.image);
-  const ratio = config.ratio ?? "16/9";
+  const fallbackCount = Math.max(3, rawItems.length || 3);
+  const { data: fallbackImages = [] } = useQuery({
+    queryKey: ["builder-slider-fallback-images", fallbackCount] as const,
+    queryFn: async (): Promise<string[]> => {
+      const { data } = await supabase
+        .from("posts")
+        .select("cover_image_url")
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .not("cover_image_url", "is", null)
+        .order("published_at", { ascending: false })
+        .limit(fallbackCount);
+      return ((data ?? []) as FallbackPostImage[])
+        .map((row) => safeImageUrl(row.cover_image_url ?? ""))
+        .filter((src) => src.length > 0);
+    },
+    staleTime: 120_000,
+  });
+  const [failedImages, setFailedImages] = useState<ReadonlySet<string>>(() => new Set());
+  const items = resolvedItems
+    .filter((it): it is SliderItem => Boolean(it))
+    .map((it, i) => {
+      const safe = safeImageUrl(it.image);
+      return {
+        ...it,
+        image: !safe || failedImages.has(safe)
+          ? fallbackImages[i % Math.max(1, fallbackImages.length)] || SLIDER_IMAGE_PLACEHOLDER
+          : safe,
+      };
+    })
+    .filter((it) => it.image);
+  const ratio = "4/3";
   const autoplay = config.autoplay !== false;
   const intervalMs = Math.max(1500, config.intervalMs ?? 4500);
   const rounded = radiusMap[config.rounded ?? "md"];
@@ -146,7 +188,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   return (
     <div className="w-full eh-slider">
       <style>{`
-        @keyframes ehFadeImg { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: scale(1); } }
+        @keyframes ehFadeImg { from { opacity: 0; } to { opacity: 1; } }
         @keyframes ehFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
         .eh-slider .eh-title-text {
           display: inline;
@@ -161,14 +203,14 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         }
         .eh-slider:hover .eh-title-text { background-size: 100% 2px; }
 
-        .eh-slider .eh-img { transition: transform 3000ms cubic-bezier(.16,.84,.34,1); transform-origin: center center; will-change: transform; backface-visibility: hidden; }
-        .eh-slider:hover .eh-img { transform: scale(1.06); }
+        .eh-slider .eh-img { transform: none; transform-origin: center center; backface-visibility: hidden; }
+        .eh-slider:hover .eh-img { transform: none; }
         .eh-slider .eh-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .eh-slider .eh-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
       `}</style>
 
       {/* Image */}
-      <div className="relative w-full overflow-hidden" style={{ ...aspectStyle, borderRadius: 4 }}>
+      <div data-widget-media className="relative w-full overflow-hidden bg-muted/40" style={{ ...aspectStyle, borderRadius: 4 }}>
         {items.map((it, i) => (
           <img
             key={i}
@@ -176,25 +218,31 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
             alt=""
             draggable={false}
             data-fill-image
-            className="eh-img absolute inset-0 w-full h-full object-cover"
+            className="eh-img absolute inset-0 w-full h-full object-contain"
             style={{
               opacity: i === safeIdx ? 1 : 0,
               transition: "opacity 700ms cubic-bezier(.22,.61,.36,1)",
             }}
             onError={(e) => {
               const target = e.currentTarget;
+              setFailedImages((prev) => {
+                const next = new Set(prev);
+                next.add(it.image);
+                return next;
+              });
               // Inline neutral SVG placeholder - prevents "broken image" icon
               // and white-hole layout when storage returns 404.
               if (typeof console !== "undefined") {
                 // eslint-disable-next-line no-console
                 console.warn("[slider] image failed to load", target.src);
               }
+              const fallback = fallbackImages[i % Math.max(1, fallbackImages.length)] ?? "";
+              if (fallback && target.src !== fallback) {
+                target.src = fallback;
+                return;
+              }
               target.onerror = null;
-              target.src =
-                "data:image/svg+xml;utf8," +
-                encodeURIComponent(
-                  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 56" preserveAspectRatio="xMidYMid slice"><rect width="100" height="56" fill="hsl(0 0% 90%)"/><g fill="none" stroke="hsl(0 0% 60%)" stroke-width="1.2"><rect x="35" y="18" width="30" height="20" rx="1.5"/><circle cx="42" cy="26" r="2"/><path d="m65 38-8-8-15 12"/></g></svg>',
-                );
+              target.src = SLIDER_IMAGE_PLACEHOLDER;
             }}
           />
         ))}
