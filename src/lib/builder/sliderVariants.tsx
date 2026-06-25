@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
-import { useResolvedPostRefs, mergePostRefOverride } from "./contentRefs";
+import { useResolvedPostRefs } from "./contentRefs";
 
 export type SliderVariant = "editorial-hero";
 
