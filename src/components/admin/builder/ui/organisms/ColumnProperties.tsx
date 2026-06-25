@@ -11,6 +11,7 @@ import { ColorField } from "../atoms/ColorField";
 import { SpacingControl } from "../molecules/SpacingControl";
 import { MotionControl } from "../molecules/MotionControl";
 import { VisibilityControl } from "../molecules/VisibilityControl";
+import { AccessControl } from "../molecules/AccessControl";
 
 interface Props {
   column: ColumnNode;
