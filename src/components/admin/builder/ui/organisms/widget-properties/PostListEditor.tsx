@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { PropField, CollapsibleSection as Collapsible } from "../../atoms";
+import { PropField, CollapsibleSection as Collapsible, ColorField } from "../../atoms";
 import { TaxonomyPicker } from "./TaxonomyPicker";
 
 interface Props {
