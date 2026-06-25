@@ -4,12 +4,16 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthSettings } from "@/hooks/useAuthSettings";
+import { useTheme } from "@/components/ThemeProvider";
+import { Logo } from "@/components/atoms/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ArrowLeft, Eye, Loader2, Mail, Lock, User, ShieldCheck, Sparkles } from "@/lib/lucide-shim";
-import { EyeOff } from "lucide-react";
+import { ArrowLeft, Eye, Loader2, Mail, Lock, User, LogIn } from "@/lib/lucide-shim";
+import { EyeOff, UserPlus, KeyRound } from "lucide-react";
+import illustrationLight from "@/assets/login-illustration-light.jpg";
+import illustrationDark from "@/assets/login-illustration-dark.jpg";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>): { mode?: "signin" | "signup" | "reset" } => {
@@ -23,11 +27,12 @@ export const Route = createFileRoute("/login")({
 type Mode = "signin" | "signup" | "reset";
 
 function LoginPage() {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const isPl = i18n.language?.startsWith("pl");
   const navigate = useNavigate();
   const { session, isStaff, loading } = useAuth();
   const settings = useAuthSettings();
+  const { theme } = useTheme();
   const { mode: initialMode } = Route.useSearch();
   const [mode, setMode] = useState<Mode>((initialMode ?? "signin") as Mode);
   const [email, setEmail] = useState("");
@@ -40,17 +45,35 @@ function LoginPage() {
     if (!loading && session && isStaff) navigate({ to: "/admin" });
   }, [session, isStaff, loading, navigate]);
 
-  const heading = useMemo(() => {
-    if (mode === "signup") return isPl ? "Utwórz konto" : "Create account";
-    if (mode === "reset") return isPl ? "Resetuj hasło" : "Reset password";
-    return isPl ? settings.popup_heading_pl : settings.popup_heading_en;
-  }, [mode, isPl, settings]);
-
-  const subtitle = useMemo(() => {
-    if (mode === "reset") return isPl ? "Wyślemy link do zmiany hasła." : "We'll send a password reset link.";
-    if (mode === "signup") return isPl ? "Dołącz do New European Strategies." : "Join New European Strategies.";
-    return isPl ? settings.popup_description_pl : settings.popup_description_en;
-  }, [mode, isPl, settings]);
+  const t = useMemo(() => {
+    const dict = {
+      pl: {
+        signin: "Zaloguj się", signup: "Zarejestruj się", reset: "Resetuj hasło",
+        heroTitle: "Rozpocznij swoją podróż.", heroSub: "Strategia. Wiedza. Wpływ. - jedno konto, cały ekosystem.",
+        haveNo: "Nie masz konta?", haveYes: "Masz już konto?",
+        signUpLink: "Zarejestruj się", signInLink: "Zaloguj się",
+        email: "E-mail", password: "Hasło", name: "Imię i nazwisko",
+        forgot: "Zapomniałeś hasła?", back: "Wróć do logowania",
+        submitSignin: "Zaloguj się", submitSignup: "Utwórz konto", submitReset: "Wyślij link",
+        resetSub: "Wyślemy link do zmiany hasła na Twój adres.",
+        legal: "Klikając przycisk, akceptujesz Politykę prywatności i Regulamin.",
+        backHome: "Wróć na stronę", showPw: "Pokaż hasło", hidePw: "Ukryj hasło",
+      },
+      en: {
+        signin: "Sign In", signup: "Sign Up", reset: "Reset password",
+        heroTitle: "Start your journey.", heroSub: "Strategy. Insight. Influence. - one account, full ecosystem.",
+        haveNo: "Don't have an account?", haveYes: "Already have an account?",
+        signUpLink: "Sign Up", signInLink: "Sign In",
+        email: "E-Mail", password: "Password", name: "Full name",
+        forgot: "Forgot password?", back: "Back to sign in",
+        submitSignin: "Sign In", submitSignup: "Create account", submitReset: "Send link",
+        resetSub: "We'll email a password reset link.",
+        legal: "By clicking the button, you agree to the Privacy Policy and Terms of Service.",
+        backHome: "Back to site", showPw: "Show password", hidePw: "Hide password",
+      },
+    } as const;
+    return isPl ? dict.pl : dict.en;
+  }, [isPl]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,8 +81,7 @@ function LoginPage() {
     try {
       if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
-          email,
-          password,
+          email, password,
           options: {
             emailRedirectTo: `${window.location.origin}/admin`,
             data: { display_name: name || email.split("@")[0] },
@@ -86,206 +108,204 @@ function LoginPage() {
     }
   };
 
-  const bgStyle: React.CSSProperties = settings.login_bg_url
-    ? { backgroundImage: `url(${settings.login_bg_url})`, backgroundSize: "cover", backgroundPosition: "center" }
-    : settings.login_bg_color
-    ? { backgroundColor: settings.login_bg_color }
-    : {};
-
-  const features = isPl
-    ? [
-        { icon: ShieldCheck, label: "Bezpieczne logowanie", desc: "Szyfrowanie end-to-end i RLS." },
-        { icon: Sparkles, label: "Personalizacja", desc: "Zapisuj artykuły i obserwuj autorów." },
-        { icon: User, label: "Twój profil", desc: "Zarządzaj subskrypcjami i powiadomieniami." },
-      ]
-    : [
-        { icon: ShieldCheck, label: "Secure sign-in", desc: "End-to-end encryption with RLS." },
-        { icon: Sparkles, label: "Personalized", desc: "Bookmark articles and follow authors." },
-        { icon: User, label: "Your profile", desc: "Manage subscriptions and notifications." },
-      ];
+  const illustration = theme === "dark" ? illustrationDark : illustrationLight;
 
   return (
-    <div className="min-h-screen w-full grid lg:grid-cols-2 bg-background">
-      {/* Brand panel */}
-      <aside
-        className="relative hidden lg:flex flex-col justify-between p-12 overflow-hidden bg-gradient-to-br from-primary via-primary to-accent text-primary-foreground"
-        style={bgStyle}
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-black/20 to-black/60 pointer-events-none" />
-        <div className="relative z-10 flex items-center gap-3">
-          {settings.form_logo_url ? (
-            <img src={settings.form_logo_url} alt="Logo" className="h-10 w-auto" />
-          ) : (
-            <span className="font-display text-xl font-bold tracking-tight">New European Strategies</span>
-          )}
-        </div>
-        <div className="relative z-10 space-y-8 max-w-md">
-          <div>
-            <h2 className="font-display text-4xl font-bold leading-tight mb-3">
-              {isPl ? "Panel administracyjny" : "Administration panel"}
+    <div className="min-h-screen w-full bg-muted/40 dark:bg-background flex items-center justify-center p-4 sm:p-8">
+      {/* Floating back-to-site */}
+      {settings.show_back_to_home && (
+        <Link
+          to="/"
+          className="absolute top-6 left-6 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors z-20"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          {t.backHome}
+        </Link>
+      )}
+
+      <div className="relative w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)] gap-0 lg:gap-6 isolate">
+        {/* LEFT: vertical mode rail */}
+        <aside className="hidden lg:flex flex-col items-center gap-2 bg-card rounded-2xl shadow-lg shadow-foreground/5 border border-border py-6">
+          <Link to="/" className="mb-2" aria-label="Home">
+            <Logo size="sm" withWordmark={false} />
+          </Link>
+          <div className="w-8 h-px bg-border my-2" />
+          <RailButton active={mode === "signin"} onClick={() => setMode("signin")} icon={<LogIn className="w-5 h-5" />} label={t.signin} />
+          <RailButton active={mode === "signup"} onClick={() => setMode("signup")} icon={<UserPlus className="w-5 h-5" />} label={t.signup} />
+          <RailButton active={mode === "reset"} onClick={() => setMode("reset")} icon={<KeyRound className="w-5 h-5" />} label={t.reset} />
+        </aside>
+
+        {/* CENTER: hero illustration card */}
+        <section
+          key={`hero-${theme}`}
+          className="relative hidden lg:flex flex-col justify-between rounded-2xl overflow-hidden text-primary-foreground shadow-2xl shadow-primary/20 min-h-[620px] animate-[fadeInUp_.6s_ease-out]"
+          style={{
+            backgroundImage: `linear-gradient(180deg, hsl(var(--primary) / 0.85) 0%, hsl(var(--primary) / 0.5) 40%, hsl(var(--primary) / 0.9) 100%), url(${illustration})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          <div className="p-8 relative z-10">
+            <h2 className="font-display text-3xl xl:text-4xl font-bold leading-tight mb-2 drop-shadow-md">
+              {t.heroTitle}
             </h2>
-            <p className="text-base text-primary-foreground/85">
-              {isPl
-                ? "Zarządzaj treścią, użytkownikami i kampaniami w jednym miejscu."
-                : "Manage content, users and campaigns in one place."}
+            <p className="text-sm text-primary-foreground/90 max-w-xs">{t.heroSub}</p>
+          </div>
+          <div className="p-6 relative z-10 flex items-center justify-between text-[11px] uppercase tracking-wider text-primary-foreground/80">
+            <span>© {new Date().getFullYear()} New European Strategies</span>
+            <span className="px-2 py-1 rounded bg-white/15 backdrop-blur-sm">{isPl ? "PL" : "EN"}</span>
+          </div>
+        </section>
+
+        {/* RIGHT: form */}
+        <main className="bg-card rounded-2xl border border-border shadow-lg shadow-foreground/5 p-6 sm:p-10 flex flex-col">
+          {/* Mobile mode tabs */}
+          <div className="flex lg:hidden gap-2 mb-6">
+            {(["signin", "signup", "reset"] as Mode[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={`flex-1 text-xs font-medium py-2 rounded-md transition-colors ${
+                  mode === m ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {m === "signin" ? t.signin : m === "signup" ? t.signup : t.reset}
+              </button>
+            ))}
+          </div>
+
+          <div className="lg:hidden mb-6"><Logo size="sm" withWordmark /></div>
+
+          <div className="flex items-baseline justify-between mb-6">
+            <p className="text-sm text-muted-foreground">
+              {mode === "signin" && (
+                <>
+                  {t.haveNo}{" "}
+                  <button onClick={() => setMode("signup")} className="text-primary font-semibold hover:underline">
+                    {t.signUpLink}
+                  </button>
+                </>
+              )}
+              {mode === "signup" && (
+                <>
+                  {t.haveYes}{" "}
+                  <button onClick={() => setMode("signin")} className="text-primary font-semibold hover:underline">
+                    {t.signInLink}
+                  </button>
+                </>
+              )}
+              {mode === "reset" && (
+                <button onClick={() => setMode("signin")} className="text-primary font-semibold hover:underline">
+                  ← {t.back}
+                </button>
+              )}
             </p>
           </div>
-          <ul className="space-y-4">
-            {features.map((f) => (
-              <li key={f.label} className="flex gap-3 items-start">
-                <div className="rounded-md bg-white/15 backdrop-blur p-2 shrink-0">
-                  <f.icon className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">{f.label}</p>
-                  <p className="text-xs text-primary-foreground/75">{f.desc}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="relative z-10 text-xs text-primary-foreground/70">
-          © {new Date().getFullYear()} New European Strategies
-        </div>
-      </aside>
 
-      {/* Form panel */}
-      <main className="flex items-center justify-center p-6 sm:p-12">
-        <div className="w-full max-w-md">
-          {settings.show_back_to_home && (
-            <Link
-              to="/"
-              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-8"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              {isPl ? "Wróć na stronę" : "Back to site"}
-            </Link>
-          )}
-
-          {settings.form_logo_url && (
-            <img src={settings.form_logo_url} alt="Logo" className="h-12 w-auto mb-6 lg:hidden" />
-          )}
-
-          <h1 className="font-display text-3xl font-bold tracking-tight mb-2">{heading}</h1>
-          <p className="text-sm text-muted-foreground mb-8">{subtitle}</p>
-
-          <form onSubmit={submit} className="space-y-5">
+          <form
+            key={mode}
+            onSubmit={submit}
+            className="space-y-5 flex-1 animate-[fadeSlide_.35s_ease-out]"
+          >
             {mode === "signup" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="name" className="text-xs font-medium uppercase tracking-wide">
-                  {isPl ? "Imię" : "Name"}
-                </Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="pl-10 h-11"
-                    placeholder={isPl ? "Jan Kowalski" : "Jane Doe"}
-                  />
-                </div>
-              </div>
+              <Field label={t.name} icon={<User className="w-4 h-4" />}>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={isPl ? "Jan Kowalski" : "Jane Doe"} className="pl-10 h-12" />
+              </Field>
             )}
 
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs font-medium uppercase tracking-wide">
-                Email
-              </Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 h-11"
-                  placeholder="you@example.com"
-                />
-              </div>
-            </div>
+            <Field label={t.email} icon={<Mail className="w-4 h-4" />}>
+              <Input
+                type="email" required autoComplete="email"
+                value={email} onChange={(e) => setEmail(e.target.value)}
+                placeholder="youremail@example.com" className="pl-10 h-12"
+              />
+            </Field>
 
             {mode !== "reset" && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-xs font-medium uppercase tracking-wide">
-                    {isPl ? "Hasło" : "Password"}
-                  </Label>
-                  {mode === "signin" && (
-                    <button
-                      type="button"
-                      onClick={() => setMode("reset")}
-                      className="text-xs text-primary hover:underline"
-                    >
-                      {isPl ? "Zapomniałeś?" : "Forgot?"}
-                    </button>
-                  )}
-                </div>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    type={showPw ? "text" : "password"}
-                    required
-                    minLength={6}
-                    autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 h-11"
-                    placeholder="••••••••"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPw((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    aria-label={showPw ? (isPl ? "Ukryj hasło" : "Hide password") : (isPl ? "Pokaż hasło" : "Show password")}
-                  >
-                    {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              <Field
+                label={t.password}
+                icon={<Lock className="w-4 h-4" />}
+                action={mode === "signin" ? (
+                  <button type="button" onClick={() => setMode("reset")} className="text-xs text-primary hover:underline">
+                    {t.forgot}
                   </button>
-                </div>
-              </div>
+                ) : null}
+              >
+                <Input
+                  type={showPw ? "text" : "password"} required minLength={6}
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  value={password} onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••" className="pl-10 pr-10 h-12"
+                />
+                <button
+                  type="button" onClick={() => setShowPw((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showPw ? t.hidePw : t.showPw}
+                >
+                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </Field>
             )}
 
-            <Button type="submit" className="w-full h-11 font-medium" disabled={busy}>
-              {busy ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : mode === "signin" ? (
-                isPl ? "Zaloguj się" : "Sign in"
-              ) : mode === "signup" ? (
-                isPl ? "Utwórz konto" : "Create account"
-              ) : (
-                isPl ? "Wyślij link" : "Send link"
-              )}
-            </Button>
-          </form>
-
-          <div className="mt-8 pt-6 border-t border-border text-center text-sm text-muted-foreground">
-            {mode === "signin" && settings.allow_public_signup && (
-              <>
-                {isPl ? "Nie masz konta? " : "No account? "}
-                <button type="button" className="text-primary font-medium hover:underline" onClick={() => setMode("signup")}>
-                  {isPl ? "Zarejestruj się" : "Sign up"}
-                </button>
-              </>
-            )}
-            {mode === "signup" && (
-              <>
-                {isPl ? "Masz już konto? " : "Have an account? "}
-                <button type="button" className="text-primary font-medium hover:underline" onClick={() => setMode("signin")}>
-                  {isPl ? "Zaloguj się" : "Sign in"}
-                </button>
-              </>
-            )}
             {mode === "reset" && (
-              <button type="button" className="text-primary font-medium hover:underline" onClick={() => setMode("signin")}>
-                {isPl ? "← Wróć do logowania" : "← Back to sign in"}
-              </button>
+              <p className="text-xs text-muted-foreground -mt-2">{t.resetSub}</p>
             )}
-          </div>
-        </div>
-      </main>
+
+            <Button type="submit" className="w-full h-12 font-semibold tracking-wide uppercase text-xs" disabled={busy}>
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                mode === "signin" ? t.submitSignin :
+                mode === "signup" ? t.submitSignup : t.submitReset}
+            </Button>
+
+            <p className="text-[11px] leading-relaxed text-muted-foreground text-center pt-2">
+              {t.legal}
+            </p>
+          </form>
+        </main>
+      </div>
+
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeSlide {
+          from { opacity: 0; transform: translateX(12px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function RailButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`relative w-full flex flex-col items-center gap-1.5 py-4 text-[11px] font-medium transition-colors ${
+        active ? "text-primary" : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-10 bg-primary rounded-r-full" />}
+      <span className={`p-2 rounded-lg transition-colors ${active ? "bg-primary/10" : ""}`}>{icon}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function Field({
+  label, icon, action, children,
+}: { label: string; icon: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</Label>
+        {action}
+      </div>
+      <div className="relative">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{icon}</span>
+        {children}
+      </div>
     </div>
   );
 }
