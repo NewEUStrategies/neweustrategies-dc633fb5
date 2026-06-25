@@ -227,8 +227,10 @@ export function VisualCanvas({
     /* Mobile: cap every widget to the column width but DON'T force 100% so inline widgets (logo, lang, buttons) keep intrinsic sizes */
     [data-visual-canvas][data-device="mobile"] [data-widget-id]{max-width:100% !important;}
     [data-visual-canvas][data-device="mobile"] [data-widget-id][data-widget-layout="block"]{width:100% !important;}
-    [data-visual-canvas][data-device="mobile"] img,
-    [data-visual-canvas][data-device="mobile"] svg{max-width:100% !important;height:auto !important;object-fit:contain !important;}
+    [data-visual-canvas][data-device="mobile"] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]),
+    [data-visual-canvas][data-device="mobile"] svg:not([class*="h-"]){max-width:100% !important;height:auto !important;object-fit:contain !important;}
+    [data-visual-canvas][data-device="mobile"] img[class*="object-cover"],
+    [data-visual-canvas][data-device="mobile"] img[class*="object-fill"]{max-width:100% !important;width:100% !important;}
     [data-visual-canvas][data-device="tablet"] [data-widget-id]{max-width:100% !important;}
   `;
 
