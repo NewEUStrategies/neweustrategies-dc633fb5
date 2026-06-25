@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { SectionNode } from "@/lib/builder/types";
 import { PropField } from "../../atoms";
-import { MotionControl, VisibilityControl } from "../../molecules";
+import { AccessControl, MotionControl, VisibilityControl } from "../../molecules";
 
 type Mut = (mut: (s: SectionNode) => void) => void;
 const ensure = <T extends object>(v: T | undefined): T => (v ?? ({} as T));
