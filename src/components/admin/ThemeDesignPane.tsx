@@ -186,6 +186,117 @@ export function ThemeDesignPane() {
         </Grid>
       </Section>
 
+      <Section title="Przyciski toolbara (undo, redo, język, urządzenie)">
+        <Grid>
+          <Field label="Tło"><Input value={draft.toolbarButton.bgColor} onChange={(e) => set("toolbarButton", { bgColor: e.target.value })} /></Field>
+          <Field label="Kolor ikony/tekstu"><Input value={draft.toolbarButton.color} onChange={(e) => set("toolbarButton", { color: e.target.value })} /></Field>
+          <Field label="Hover - tło"><Input value={draft.toolbarButton.hoverBgColor} onChange={(e) => set("toolbarButton", { hoverBgColor: e.target.value })} /></Field>
+          <Field label="Hover - kolor"><Input value={draft.toolbarButton.hoverColor} onChange={(e) => set("toolbarButton", { hoverColor: e.target.value })} /></Field>
+          <Field label="Aktywny - tło"><Input value={draft.toolbarButton.activeBgColor} onChange={(e) => set("toolbarButton", { activeBgColor: e.target.value })} /></Field>
+          <Field label="Aktywny - kolor"><Input value={draft.toolbarButton.activeColor} onChange={(e) => set("toolbarButton", { activeColor: e.target.value })} /></Field>
+          <Field label="Zaokrąglenie (px)"><Input value={px(draft.toolbarButton.radius)} onChange={(e) => set("toolbarButton", { radius: `${e.target.value}px` })} /></Field>
+          <Field label="Padding X (px)"><Input value={px(draft.toolbarButton.paddingX)} onChange={(e) => set("toolbarButton", { paddingX: `${e.target.value}px` })} /></Field>
+          <Field label="Padding Y (px)"><Input value={px(draft.toolbarButton.paddingY)} onChange={(e) => set("toolbarButton", { paddingY: `${e.target.value}px` })} /></Field>
+          <Field label="Rozmiar ikony (px)"><Input value={px(draft.toolbarButton.size)} onChange={(e) => set("toolbarButton", { size: `${e.target.value}px` })} /></Field>
+        </Grid>
+        <Preview>
+          <div
+            style={{
+              ["--td-tb-bg" as string]: draft.toolbarButton.bgColor,
+              ["--td-tb-color" as string]: draft.toolbarButton.color,
+              ["--td-tb-hover-bg" as string]: draft.toolbarButton.hoverBgColor,
+              ["--td-tb-hover-color" as string]: draft.toolbarButton.hoverColor,
+              ["--td-tb-active-bg" as string]: draft.toolbarButton.activeBgColor,
+              ["--td-tb-active-color" as string]: draft.toolbarButton.activeColor,
+              ["--td-tb-radius" as string]: draft.toolbarButton.radius,
+              ["--td-tb-px" as string]: draft.toolbarButton.paddingX,
+              ["--td-tb-py" as string]: draft.toolbarButton.paddingY,
+              ["--td-tb-size" as string]: draft.toolbarButton.size,
+            } as React.CSSProperties}
+            className="flex flex-wrap items-center gap-2"
+          >
+            <button className="cms-tb-btn" data-active="true" title="Aktywny"><Monitor /></button>
+            <button className="cms-tb-btn"><Tablet /></button>
+            <button className="cms-tb-btn"><Smartphone /></button>
+            <button className="cms-tb-btn"><Undo /></button>
+            <button className="cms-tb-btn"><Redo /></button>
+            <button className="cms-tb-btn" disabled><Redo /></button>
+          </div>
+        </Preview>
+      </Section>
+
+      <Section title="Przełącznik trybu jasny/ciemny">
+        <Grid>
+          <Field label="Tło toru"><Input value={draft.modeSwitcher.trackBg} onChange={(e) => set("modeSwitcher", { trackBg: e.target.value })} /></Field>
+          <Field label="Obramowanie toru"><Input value={draft.modeSwitcher.trackBorder} onChange={(e) => set("modeSwitcher", { trackBorder: e.target.value })} /></Field>
+          <Field label="Kolor nieaktywny"><Input value={draft.modeSwitcher.inactiveColor} onChange={(e) => set("modeSwitcher", { inactiveColor: e.target.value })} /></Field>
+          <Field label="Aktywny - tło"><Input value={draft.modeSwitcher.activeBg} onChange={(e) => set("modeSwitcher", { activeBg: e.target.value })} /></Field>
+          <Field label="Aktywny - kolor"><Input value={draft.modeSwitcher.activeColor} onChange={(e) => set("modeSwitcher", { activeColor: e.target.value })} /></Field>
+          <Field label="Zaokrąglenie (px)"><Input value={px(draft.modeSwitcher.radius)} onChange={(e) => set("modeSwitcher", { radius: `${e.target.value}px` })} /></Field>
+          <ToggleField label="Pokaż etykiety (Jasny/Ciemny)" checked={draft.modeSwitcher.showLabel} onChange={(v) => set("modeSwitcher", { showLabel: v })} />
+        </Grid>
+        <Preview>
+          <div
+            style={{
+              ["--td-ms-track-bg" as string]: draft.modeSwitcher.trackBg,
+              ["--td-ms-track-border" as string]: draft.modeSwitcher.trackBorder,
+              ["--td-ms-inactive" as string]: draft.modeSwitcher.inactiveColor,
+              ["--td-ms-active-bg" as string]: draft.modeSwitcher.activeBg,
+              ["--td-ms-active-color" as string]: draft.modeSwitcher.activeColor,
+              ["--td-ms-radius" as string]: draft.modeSwitcher.radius,
+            } as React.CSSProperties}
+          >
+            <div className="cms-mode-switch">
+              <button className="cms-mode-switch__btn" data-active="true">
+                <Sun className="w-3.5 h-3.5" /> {draft.modeSwitcher.showLabel && "Jasny"}
+              </button>
+              <button className="cms-mode-switch__btn">
+                <Moon className="w-3.5 h-3.5" /> {draft.modeSwitcher.showLabel && "Ciemny"}
+              </button>
+            </div>
+          </div>
+        </Preview>
+      </Section>
+
+      <Section title="Ikony social media">
+        <Grid>
+          <Field label="Kolor ikony"><Input value={draft.socialIcons.color} onChange={(e) => set("socialIcons", { color: e.target.value })} /></Field>
+          <Field label="Hover - kolor"><Input value={draft.socialIcons.hoverColor} onChange={(e) => set("socialIcons", { hoverColor: e.target.value })} /></Field>
+          <Field label="Tło"><Input value={draft.socialIcons.bgColor} onChange={(e) => set("socialIcons", { bgColor: e.target.value })} /></Field>
+          <Field label="Hover - tło"><Input value={draft.socialIcons.hoverBgColor} onChange={(e) => set("socialIcons", { hoverBgColor: e.target.value })} /></Field>
+          <Field label="Rozmiar (px)"><Input value={px(draft.socialIcons.size)} onChange={(e) => set("socialIcons", { size: `${e.target.value}px` })} /></Field>
+          <Field label="Odstęp (px)"><Input value={px(draft.socialIcons.gap)} onChange={(e) => set("socialIcons", { gap: `${e.target.value}px` })} /></Field>
+          <Field label="Zaokrąglenie (px)"><Input value={px(draft.socialIcons.radius)} onChange={(e) => set("socialIcons", { radius: `${e.target.value}px` })} /></Field>
+          <Field label="Padding X (px)"><Input value={px(draft.socialIcons.paddingX)} onChange={(e) => set("socialIcons", { paddingX: `${e.target.value}px` })} /></Field>
+          <Field label="Padding Y (px)"><Input value={px(draft.socialIcons.paddingY)} onChange={(e) => set("socialIcons", { paddingY: `${e.target.value}px` })} /></Field>
+        </Grid>
+        <Preview>
+          <div
+            style={{
+              ["--td-si-color" as string]: draft.socialIcons.color,
+              ["--td-si-hover-color" as string]: draft.socialIcons.hoverColor,
+              ["--td-si-bg" as string]: draft.socialIcons.bgColor,
+              ["--td-si-hover-bg" as string]: draft.socialIcons.hoverBgColor,
+              ["--td-si-size" as string]: draft.socialIcons.size,
+              ["--td-si-gap" as string]: draft.socialIcons.gap,
+              ["--td-si-radius" as string]: draft.socialIcons.radius,
+              ["--td-si-px" as string]: draft.socialIcons.paddingX,
+              ["--td-si-py" as string]: draft.socialIcons.paddingY,
+            } as React.CSSProperties}
+          >
+            <div className="cms-social">
+              <button className="cms-social__btn" aria-label="Facebook"><Facebook /></button>
+              <button className="cms-social__btn" aria-label="Instagram"><Instagram /></button>
+              <button className="cms-social__btn" aria-label="YouTube"><Youtube /></button>
+              <button className="cms-social__btn" aria-label="LinkedIn"><Linkedin /></button>
+              <button className="cms-social__btn" aria-label="Email"><Mail /></button>
+            </div>
+          </div>
+        </Preview>
+      </Section>
+
+
+
       <Section title="Slider / karuzela - ustawienia globalne">
         <p className="text-xs text-muted-foreground -mt-2">
           Wartości używane domyślnie przez każdy widget slidera/karuzeli. Można je nadpisać w
