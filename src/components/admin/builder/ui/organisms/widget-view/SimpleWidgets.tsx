@@ -1143,7 +1143,7 @@ function ResizableImageWrap({
     position: "relative",
     display: "inline-block",
     maxWidth: "100%",
-    width: displayPx ? `min(100%, ${displayPx}px)` : "auto",
+    width: displayPx ? `min(100%, ${displayPx}px)` : "100%",
   };
   return (
     <div ref={ref} style={wrapStyle}>
