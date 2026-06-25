@@ -1262,13 +1262,13 @@ function ThemeToggleWidget() {
       onClick={toggle}
       aria-label={isDark ? "Przełącz na tryb jasny" : "Przełącz na tryb ciemny"}
       title={isDark ? "Tryb ciemny (kliknij, aby zmienić)" : "Tryb jasny (kliknij, aby zmienić)"}
-      className="inline-flex items-center justify-center rounded-full border border-border bg-muted/60 hover:bg-muted shadow-sm transition-colors"
-      style={{ width: 40, height: 40 }}
+      className="inline-flex items-center justify-center rounded-[2px] hover:opacity-80 transition-opacity"
+      style={{ width: 14, height: 14 }}
     >
       {isDark ? (
-        <LucideIcons.Sun className="w-5 h-5" style={{ color: "#FA9346" }} />
+        <LucideIcons.Sun className="w-3.5 h-3.5" style={{ color: "#FA9346" }} />
       ) : (
-        <LucideIcons.Moon className="w-5 h-5" />
+        <LucideIcons.Moon className="w-3.5 h-3.5" />
       )}
     </button>
   );
