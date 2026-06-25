@@ -467,6 +467,11 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Dostęp (auth / role)</h4>
+          <AccessControl value={widget.advanced} onChange={setAdvanced} />
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Custom CSS</h4>
           <Textarea
             rows={4}
