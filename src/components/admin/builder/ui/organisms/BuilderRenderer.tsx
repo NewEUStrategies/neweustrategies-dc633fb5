@@ -12,6 +12,7 @@ import {
   INNER_SECTION_SAFE_AREA_PX, COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
 import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
+import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 
 function resolveSpan(span: ResponsiveValue<number>, device: Device, deskDefault: number): number {
   if (device === "mobile") return span.mobile ?? 12;
@@ -206,7 +207,10 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
 
 function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   const va = column.verticalAlign ?? "start";
-  const visibleChildren = column.children.filter((w) => !hiddenOnDevice(w.advanced, device));
+  const accessCtx = useAccessContext();
+  const visibleChildren = column.children.filter(
+    (w) => !hiddenOnDevice(w.advanced, device) && evaluateAccess(w.advanced?.access, accessCtx),
+  );
   const isToolbar =
     visibleChildren.length > 1 &&
     visibleChildren.every((w) => COMPACT_WIDGET_TYPES.has(w.type) || AUTO_SIZE_WIDGETS.has(w.type));

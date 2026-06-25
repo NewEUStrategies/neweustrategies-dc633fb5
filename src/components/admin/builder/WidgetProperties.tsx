@@ -24,6 +24,7 @@ import { SpacingControl } from "./ui/molecules/SpacingControl";
 import { TypographyControl } from "./ui/molecules/TypographyControl";
 import { MotionControl } from "./ui/molecules/MotionControl";
 import { VisibilityControl } from "./ui/molecules/VisibilityControl";
+import { AccessControl } from "./ui/molecules/AccessControl";
 import { HoverControl } from "./ui/molecules/HoverControl";
 import { SchemaFieldControl } from "./ui/molecules/SchemaFieldControl";
 
@@ -463,6 +464,11 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         <section className="space-y-2 pt-2 border-t border-border">
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Widoczność</h4>
           <VisibilityControl value={widget.advanced} onChange={setAdvanced} />
+        </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Dostęp (auth / role)</h4>
+          <AccessControl value={widget.advanced} onChange={setAdvanced} />
         </section>
 
         <section className="space-y-2 pt-2 border-t border-border">
