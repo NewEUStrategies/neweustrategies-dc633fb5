@@ -2170,10 +2170,10 @@ export type Database = {
           _entity_type: Database["public"]["Enums"]["access_entity_type"]
         }
         Returns: {
-          blocks_data: Json | null
-          builder_data: Json | null
-          content_en: string | null
-          content_pl: string | null
+          blocks_data: Json
+          builder_data: Json
+          content_en: string
+          content_pl: string
         }[]
       }
       has_content_access: {
