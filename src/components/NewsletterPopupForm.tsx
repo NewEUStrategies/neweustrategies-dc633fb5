@@ -1,9 +1,10 @@
 // Rozszerzony formularz popupu newslettera - zgodny z układem split.
 // Dodatkowe pola są zapisywane w `meta jsonb` w tabeli subscribers, więc
 // nie wymagamy migracji kolumn per field. Walidacja PL/EN, zgody RODO.
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { Check, Mail } from "@/lib/lucide-shim";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
 
 interface Props {
@@ -35,6 +36,8 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
   const [v, setV] = useState<ExtendedFields>(empty);
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [err, setErr] = useState<string | null>(null);
+  const [honey, setHoney] = useState("");
+  const mountedAt = useRef<number>(Date.now());
 
   const isPl = lang === "pl";
   const ext = settings.popup_extended_fields;
@@ -47,6 +50,16 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErr(null);
+
+    // Honeypot: bot fills hidden "website" field, or submits in <1.2s.
+    // We silently "succeed" without writing to DB so bots get no signal.
+    const elapsed = Date.now() - mountedAt.current;
+    if (honey.trim() !== "" || elapsed < 1200) {
+      setState("ok");
+      setV(empty);
+      onSuccess?.();
+      return;
+    }
 
     const email = v.email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -150,9 +163,35 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
   const termsHtml = (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
 
   if (state === "ok") {
+    const doi = settings.double_opt_in;
+    const headline = doi
+      ? t("Sprawdź swoją skrzynkę!", "Check your inbox!")
+      : t("Zapisano. Dziękujemy!", "You're in. Thanks!");
+    const body = doi
+      ? t(
+          "Wysłaliśmy link potwierdzający - kliknij go w ciągu 48 godzin, aby aktywować subskrypcję. Sprawdź też folder Spam.",
+          "We've sent you a confirmation link - click it within 48 hours to activate your subscription. Please also check your Spam folder.",
+        )
+      : successMsg;
     return (
-      <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-sm p-4">
-        {successMsg}
+      <div
+        role="status"
+        aria-live="polite"
+        className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-5 space-y-3"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+            {doi ? <Mail className="w-5 h-5 text-emerald-300" /> : <Check className="w-5 h-5 text-emerald-300" />}
+          </div>
+          <h3 className="font-display text-lg text-emerald-100">{headline}</h3>
+        </div>
+        <p className="text-sm text-emerald-100/80 leading-relaxed">{body}</p>
+        {doi && (
+          <p className="text-[11px] text-emerald-100/60">
+            {t("Status: oczekuje potwierdzenia (double opt-in).",
+               "Status: pending confirmation (double opt-in).")}
+          </p>
+        )}
       </div>
     );
   }
@@ -163,6 +202,21 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
 
   return (
     <form onSubmit={onSubmit} className="space-y-2.5" noValidate>
+      {/* Honeypot: hidden from real users (CSS + tabIndex + aria-hidden), tempting for bots. */}
+      <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }}>
+        <label>
+          Website
+          <input
+            type="text"
+            name="website"
+            tabIndex={-1}
+            autoComplete="off"
+            value={honey}
+            onChange={(e) => setHoney(e.target.value)}
+          />
+        </label>
+      </div>
+
       {ext && (
         <>
           <input className={inputCls} placeholder={t("Imię", "Name")} value={v.name}
