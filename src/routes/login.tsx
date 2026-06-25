@@ -49,31 +49,40 @@ function LoginPage() {
     const dict = {
       pl: {
         signin: "Zaloguj się", signup: "Zarejestruj się", reset: "Resetuj hasło",
-        heroTitle: "Rozpocznij swoją podróż.", heroSub: "Strategia. Wiedza. Wpływ. - jedno konto, cały ekosystem.",
+        heroTitle: settings.hero_title_pl, heroSub: settings.hero_subtitle_pl,
         haveNo: "Nie masz konta?", haveYes: "Masz już konto?",
         signUpLink: "Zarejestruj się", signInLink: "Zaloguj się",
         email: "E-mail", password: "Hasło", name: "Imię i nazwisko",
         forgot: "Zapomniałeś hasła?", back: "Wróć do logowania",
         submitSignin: "Zaloguj się", submitSignup: "Utwórz konto", submitReset: "Wyślij link",
         resetSub: "Wyślemy link do zmiany hasła na Twój adres.",
-        legal: "Klikając przycisk, akceptujesz Politykę prywatności i Regulamin.",
+        legalPre: "Klikając przycisk, akceptujesz ",
+        legalPrivacy: "Politykę prywatności",
+        legalAnd: " i ",
+        legalTerms: "Regulamin",
+        legalSuf: ".",
         backHome: "Wróć na stronę", showPw: "Pokaż hasło", hidePw: "Ukryj hasło",
       },
       en: {
         signin: "Sign In", signup: "Sign Up", reset: "Reset password",
-        heroTitle: "Start your journey.", heroSub: "Strategy. Insight. Influence. - one account, full ecosystem.",
+        heroTitle: settings.hero_title_en, heroSub: settings.hero_subtitle_en,
         haveNo: "Don't have an account?", haveYes: "Already have an account?",
         signUpLink: "Sign Up", signInLink: "Sign In",
         email: "E-Mail", password: "Password", name: "Full name",
         forgot: "Forgot password?", back: "Back to sign in",
         submitSignin: "Sign In", submitSignup: "Create account", submitReset: "Send link",
         resetSub: "We'll email a password reset link.",
-        legal: "By clicking the button, you agree to the Privacy Policy and Terms of Service.",
+        legalPre: "By clicking the button, you agree to the ",
+        legalPrivacy: "Privacy Policy",
+        legalAnd: " and ",
+        legalTerms: "Terms of Service",
+        legalSuf: ".",
         backHome: "Back to site", showPw: "Show password", hidePw: "Hide password",
       },
     } as const;
     return isPl ? dict.pl : dict.en;
-  }, [isPl]);
+  }, [isPl, settings.hero_title_pl, settings.hero_title_en, settings.hero_subtitle_pl, settings.hero_subtitle_en]);
+
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
