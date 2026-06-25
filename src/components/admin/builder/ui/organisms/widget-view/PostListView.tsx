@@ -360,19 +360,3 @@ function PostCard({
     </a>
   );
 }
-
-  // default - card
-  return (
-    <a href={`/post/${p.slug}`} className={base}>
-      {p.cover_image_url && (
-        <span data-widget-media className={TILE_FRAME_CLASS}>
-          <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className={COVER_IMG_CLASS} />
-        </span>
-      )}
-      <div className="p-2.5">
-        <h4 className="font-display text-sm font-medium leading-snug mb-1 line-clamp-2" style={titleStyle}>{title}</h4>
-        {excerpt && <p className="text-xs text-muted-foreground leading-snug line-clamp-2" style={excerptStyle}>{excerpt}</p>}
-      </div>
-    </a>
-  );
-}
