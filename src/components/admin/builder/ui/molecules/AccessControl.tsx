@@ -10,7 +10,7 @@ interface Props {
 
 const AUTH_OPTIONS: Array<[AccessAuthMode, React.ComponentType<{ className?: string }>, string, string]> = [
   ["any", Users, "Wszyscy", "Brak ograniczeń (domyślnie)"],
-  ["guest", Unlock, "Goście", "Tylko niezalogowani"],
+  ["guest", Globe, "Goście", "Tylko niezalogowani"],
   ["user", Lock, "Zalogowani", "Tylko zalogowani użytkownicy"],
 ];
 
