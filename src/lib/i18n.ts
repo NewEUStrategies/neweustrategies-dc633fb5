@@ -816,6 +816,7 @@ const resources = {
           sections: {
             logo: "Logo",
             globalColors: "Global Colors",
+            backgrounds: "Theme Backgrounds",
             headerLayout: "Header Layout",
             mainMenu: "Main Menu",
             headerSearch: "Header Search",
