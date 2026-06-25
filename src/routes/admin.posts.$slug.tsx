@@ -32,6 +32,7 @@ import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
 import { toast } from "sonner";
+import { invalidateWidgetCaches, emitWidgetCacheInvalidate } from "@/lib/builder/widgetCacheInvalidation";
 
 export const Route = createFileRoute("/admin/posts/$slug")({
   component: EditPost,
