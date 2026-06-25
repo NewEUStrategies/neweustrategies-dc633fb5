@@ -107,11 +107,17 @@ export function useSaveNewsletterSettings() {
     mutationFn: async (patch: Partial<NewsletterSettings>) => {
       const { data: existing } = await supabase.from("newsletter_settings").select("tenant_id").maybeSingle();
       const body = patch as unknown as Record<string, unknown>;
+      const client = supabase as unknown as {
+        from: (t: string) => {
+          update: (b: Record<string, unknown>) => { eq: (c: string, v: string) => Promise<{ error: unknown }> };
+          insert: (b: Record<string, unknown>) => Promise<{ error: unknown }>;
+        };
+      };
       if (existing) {
-        const { error } = await supabase.from("newsletter_settings").update(body).eq("tenant_id", existing.tenant_id);
+        const { error } = await client.from("newsletter_settings").update(body).eq("tenant_id", existing.tenant_id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("newsletter_settings").insert(body);
+        const { error } = await client.from("newsletter_settings").insert(body);
         if (error) throw error;
       }
     },
