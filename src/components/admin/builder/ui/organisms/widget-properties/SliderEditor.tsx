@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PropField } from "../../atoms";
 import { ImageSlot } from "./ImageSlot";
+import { PostPicker } from "./PostPicker";
 import { TaxonomyPicker } from "./TaxonomyPicker";
 import {
   SLIDER_VARIANTS,
@@ -46,6 +47,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     .filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null)
     .map((it) => ({
       image: typeof it.image === "string" ? it.image : "",
+      postId: typeof it.postId === "string" ? it.postId : undefined,
       title_pl: typeof it.title_pl === "string" ? it.title_pl : "",
       title_en: typeof it.title_en === "string" ? it.title_en : "",
       subtitle_pl: typeof it.subtitle_pl === "string" ? it.subtitle_pl : "",
@@ -364,8 +366,16 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                 </div>
               </div>
 
+              <PropField label="Powiąż z wpisem (live sync)">
+                <PostPicker
+                  value={it.postId}
+                  onChange={(id) => updateItem(i, { postId: id })}
+                  lang={lang}
+                />
+              </PropField>
+
               <ImageSlot
-                label="Obrazek"
+                label={it.postId ? "Obrazek (nadpisuje cover)" : "Obrazek"}
                 icon={<ImageIcon className="w-3 h-3" />}
                 value={it.image || ""}
                 onChange={(v) => updateItem(i, { image: v })}

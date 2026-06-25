@@ -32,6 +32,7 @@ import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEditor";
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
 import { toast } from "sonner";
+import { invalidateWidgetCaches, emitWidgetCacheInvalidate } from "@/lib/builder/widgetCacheInvalidation";
 
 export const Route = createFileRoute("/admin/posts/$slug")({
   component: EditPost,
@@ -180,6 +181,9 @@ function EditPost() {
     });
     qc.invalidateQueries({ queryKey: ["admin-posts"] });
     qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, snapshot.slug] });
+    // Refresh every widget cache that references posts (live sync across the site).
+    invalidateWidgetCaches(qc);
+    emitWidgetCacheInvalidate();
     if (snapshot.slug !== routeSlug) {
       navigate({ to: "/admin/posts/$slug", params: { slug: snapshot.slug }, replace: true });
     }

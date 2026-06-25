@@ -31,6 +31,7 @@ import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { invalidateWidgetCaches, emitWidgetCacheInvalidate } from "@/lib/builder/widgetCacheInvalidation";
 import { PAGE_TEMPLATES, type PageTemplateType } from "@/lib/pageTemplates";
 
 export const Route = createFileRoute("/admin/pages/$slug")({
@@ -138,8 +139,9 @@ function EditPage() {
       .from("pages").select("slug").eq("id", id).maybeSingle();
     const canonical = row?.slug as string | undefined;
     qc.invalidateQueries({ queryKey: ["admin-pages"] });
+    invalidateWidgetCaches(qc);
+    emitWidgetCacheInvalidate();
     if (canonical && canonical !== routeSlug) {
-      // Seed the new query key so the next mount has data immediately.
       qc.setQueryData(["page-by-slug", tenantId, canonical], { ...snapshot, slug: canonical });
       navigate({ to: "/admin/pages/$slug", params: { slug: canonical }, replace: true });
     } else {

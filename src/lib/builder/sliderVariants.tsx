@@ -1,13 +1,16 @@
 // Slider widget - styled variants. Self-contained renderer (no external slider
 // library). Variants are being rebuilt from scratch - currently one available.
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
+import { useResolvedPostRefs } from "./contentRefs";
 
 export type SliderVariant = "editorial-hero";
 
 export interface SliderItem {
   image: string;
+  /** Optional bound post - cover/title/href become live unless overridden. */
+  postId?: string;
   title_pl?: string;
   title_en?: string;
   subtitle_pl?: string;
@@ -51,7 +54,34 @@ interface RenderProps {
 }
 
 export function SliderRender({ config, lang, preview = false }: RenderProps) {
-  const items = (config.items || []).filter((it) => it && it.image);
+  const rawItems = useMemo(() => config.items || [], [config.items]);
+  const postIds = useMemo(
+    () => rawItems.map((it) => (it && it.postId ? it.postId : null)),
+    [rawItems],
+  );
+  const refMap = useResolvedPostRefs(postIds, lang);
+  const resolvedItems = useMemo<SliderItem[]>(
+    () =>
+      rawItems.map((it) => {
+        if (!it || !it.postId) return it;
+        const ref = refMap.get(it.postId);
+        if (!ref) return it;
+        const pickStr = (cur: string | undefined, live: string): string =>
+          cur && cur.trim() !== "" ? cur : live;
+        const titleKey = `title_${lang}` as const;
+        const subKey = `subtitle_${lang}` as const;
+        return {
+          ...it,
+          image: pickStr(it.image, ref.cover),
+          href: pickStr(it.href, ref.href),
+          author: pickStr(it.author, ref.authorName),
+          [titleKey]: pickStr(it[titleKey], ref.title),
+          [subKey]: pickStr(it[subKey], ref.excerpt),
+        };
+      }),
+    [rawItems, refMap, lang],
+  );
+  const items = resolvedItems.filter((it) => it && it.image);
   const ratio = config.ratio ?? "16/9";
   const autoplay = config.autoplay !== false;
   const intervalMs = Math.max(1500, config.intervalMs ?? 4500);
@@ -150,6 +180,21 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
             style={{
               opacity: i === safeIdx ? 1 : 0,
               transition: "opacity 700ms cubic-bezier(.22,.61,.36,1)",
+            }}
+            onError={(e) => {
+              const target = e.currentTarget;
+              // Inline neutral SVG placeholder - prevents "broken image" icon
+              // and white-hole layout when storage returns 404.
+              if (typeof console !== "undefined") {
+                // eslint-disable-next-line no-console
+                console.warn("[slider] image failed to load", target.src);
+              }
+              target.onerror = null;
+              target.src =
+                "data:image/svg+xml;utf8," +
+                encodeURIComponent(
+                  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 56" preserveAspectRatio="xMidYMid slice"><rect width="100" height="56" fill="hsl(0 0% 90%)"/><g fill="none" stroke="hsl(0 0% 60%)" stroke-width="1.2"><rect x="35" y="18" width="30" height="20" rx="1.5"/><circle cx="42" cy="26" r="2"/><path d="m65 38-8-8-15 12"/></g></svg>',
+                );
             }}
           />
         ))}
