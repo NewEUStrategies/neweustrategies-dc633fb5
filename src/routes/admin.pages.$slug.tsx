@@ -138,8 +138,9 @@ function EditPage() {
       .from("pages").select("slug").eq("id", id).maybeSingle();
     const canonical = row?.slug as string | undefined;
     qc.invalidateQueries({ queryKey: ["admin-pages"] });
+    invalidateWidgetCaches(qc);
+    emitWidgetCacheInvalidate();
     if (canonical && canonical !== routeSlug) {
-      // Seed the new query key so the next mount has data immediately.
       qc.setQueryData(["page-by-slug", tenantId, canonical], { ...snapshot, slug: canonical });
       navigate({ to: "/admin/pages/$slug", params: { slug: canonical }, replace: true });
     } else {
