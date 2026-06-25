@@ -355,7 +355,7 @@ function CategoryColumnFields({
             onChange={(n) => onCount(typeof n === "number" ? n : 4)}
           />
         </PropField>
-        <PropField label="Link „Zobacz wszystkie"">
+        <PropField label="Link 'Zobacz wszystkie'">
           <Input
             value={viewAllHref}
             onChange={(e) => onViewAll(e.target.value)}
