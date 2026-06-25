@@ -12,6 +12,7 @@ import { TocBlockView } from "./TocBlockView";
 import { AffiliateBlockView } from "./AffiliateBlockView";
 import { XQuoteShare } from "./XQuoteShare";
 import { CompareSlider } from "./CompareSlider";
+import { LoginFormView, RegisterFormView, LostPasswordFormView, ResetPasswordFormView } from "./AuthFormBlocks";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 
