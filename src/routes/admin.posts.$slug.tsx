@@ -180,6 +180,9 @@ function EditPost() {
     });
     qc.invalidateQueries({ queryKey: ["admin-posts"] });
     qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, snapshot.slug] });
+    // Refresh every widget cache that references posts (live sync across the site).
+    invalidateWidgetCaches(qc);
+    emitWidgetCacheInvalidate();
     if (snapshot.slug !== routeSlug) {
       navigate({ to: "/admin/posts/$slug", params: { slug: snapshot.slug }, replace: true });
     }
