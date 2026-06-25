@@ -122,15 +122,43 @@ function ColumnEditor({
   const set = (k: string, v: unknown): void => onChange({ ...col, [k]: v as Json });
   const updateLinks = (next: Item[]): void => set("links", next);
 
+  const kind = (str(col.kind) || "links") as "links" | "category";
+
   return (
     <ItemFrame title={`Kolumna #${index + 1}`} onRemove={onRemove}>
+      <PropField label="Typ kolumny">
+        <Select value={kind} onValueChange={(v) => set("kind", v)}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="links">Linki + opcjonalna karta</SelectItem>
+            <SelectItem value="category">Kategoria (najnowsze wpisy)</SelectItem>
+          </SelectContent>
+        </Select>
+      </PropField>
+
       <PropField label={`Nagłówek kolumny (${lang.toUpperCase()})`}>
         <Input
           value={str(col[`title_${lang}`])}
           onChange={(e) => set(`title_${lang}`, e.target.value)}
           className="h-8 text-xs"
+          placeholder={kind === "category" ? (lang === "pl" ? "(zostaw puste = nazwa kategorii)" : "(empty = category name)") : ""}
         />
       </PropField>
+
+      {kind === "category" && (
+        <CategoryColumnFields
+          slug={str(col.categorySlug)}
+          postCount={typeof col.postCount === "number" ? col.postCount : 4}
+          viewAllHref={str(col.viewAllHref)}
+          onSlug={(v) => set("categorySlug", v)}
+          onCount={(n) => set("postCount", n)}
+          onViewAll={(v) => set("viewAllHref", v)}
+        />
+      )}
+
+      {kind === "links" && (
+      <>
+
 
       <div className="space-y-1">
         <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Linki</div>
