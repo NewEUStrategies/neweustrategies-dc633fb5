@@ -181,6 +181,21 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
               opacity: i === safeIdx ? 1 : 0,
               transition: "opacity 700ms cubic-bezier(.22,.61,.36,1)",
             }}
+            onError={(e) => {
+              const target = e.currentTarget;
+              // Inline neutral SVG placeholder - prevents "broken image" icon
+              // and white-hole layout when storage returns 404.
+              if (typeof console !== "undefined") {
+                // eslint-disable-next-line no-console
+                console.warn("[slider] image failed to load", target.src);
+              }
+              target.onerror = null;
+              target.src =
+                "data:image/svg+xml;utf8," +
+                encodeURIComponent(
+                  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 56" preserveAspectRatio="xMidYMid slice"><rect width="100" height="56" fill="hsl(0 0% 90%)"/><g fill="none" stroke="hsl(0 0% 60%)" stroke-width="1.2"><rect x="35" y="18" width="30" height="20" rx="1.5"/><circle cx="42" cy="26" r="2"/><path d="m65 38-8-8-15 12"/></g></svg>',
+                );
+            }}
           />
         ))}
 
