@@ -227,7 +227,7 @@ function BlockView({ block, fn, lang = "pl", postId, allBlocks }: { block: Block
       const variant = String(block.data.variant ?? "info");
       const text = String(block.data.text ?? "");
       const map: Record<string, string> = {
-        info: "bg-blue-500/10 border-blue-500/30 text-blue-700 dark:text-blue-300",
+        info: "bg-muted border-border text-foreground",
         warning: "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300",
         success: "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300",
         danger: "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300",
