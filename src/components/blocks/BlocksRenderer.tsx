@@ -445,6 +445,14 @@ function BlockView({ block, fn, lang = "pl", postId, allBlocks }: { block: Block
         </div>
       );
     }
+    case "login-form":
+      return <div className={cls}><LoginFormView data={block.data as never} lang={lang} /></div>;
+    case "register-form":
+      return <div className={cls}><RegisterFormView data={block.data as never} lang={lang} /></div>;
+    case "lost-password-form":
+      return <div className={cls}><LostPasswordFormView data={block.data as never} lang={lang} /></div>;
+    case "reset-password-form":
+      return <div className={cls}><ResetPasswordFormView data={block.data as never} lang={lang} /></div>;
     default:
       return null;
   }
