@@ -1,9 +1,11 @@
-// Organism: Mega menu editor - trigger + columns (title/links/featured).
+// Organism: Mega menu editor - trigger + columns (links/category/featured).
+import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Image as ImageIcon } from "@/lib/lucide-shim";
+import { supabase } from "@/integrations/supabase/client";
 import { PropField, ItemFrame, NumberInput, FocalPointPicker } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { ImageSlot } from "./ImageSlot";
@@ -120,15 +122,43 @@ function ColumnEditor({
   const set = (k: string, v: unknown): void => onChange({ ...col, [k]: v as Json });
   const updateLinks = (next: Item[]): void => set("links", next);
 
+  const kind = (str(col.kind) || "links") as "links" | "category";
+
   return (
     <ItemFrame title={`Kolumna #${index + 1}`} onRemove={onRemove}>
+      <PropField label="Typ kolumny">
+        <Select value={kind} onValueChange={(v) => set("kind", v)}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="links">Linki + opcjonalna karta</SelectItem>
+            <SelectItem value="category">Kategoria (najnowsze wpisy)</SelectItem>
+          </SelectContent>
+        </Select>
+      </PropField>
+
       <PropField label={`Nagłówek kolumny (${lang.toUpperCase()})`}>
         <Input
           value={str(col[`title_${lang}`])}
           onChange={(e) => set(`title_${lang}`, e.target.value)}
           className="h-8 text-xs"
+          placeholder={kind === "category" ? (lang === "pl" ? "(zostaw puste = nazwa kategorii)" : "(empty = category name)") : ""}
         />
       </PropField>
+
+      {kind === "category" && (
+        <CategoryColumnFields
+          slug={str(col.categorySlug)}
+          postCount={typeof col.postCount === "number" ? col.postCount : 4}
+          viewAllHref={str(col.viewAllHref)}
+          onSlug={(v) => set("categorySlug", v)}
+          onCount={(n) => set("postCount", n)}
+          onViewAll={(v) => set("viewAllHref", v)}
+        />
+      )}
+
+      {kind === "links" && (
+      <>
+
 
       <div className="space-y-1">
         <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Linki</div>
@@ -275,9 +305,69 @@ function ColumnEditor({
           </div>
         )}
       </div>
+      </>
+      )}
     </ItemFrame>
   );
 }
+
+function CategoryColumnFields({
+  slug, postCount, viewAllHref, onSlug, onCount, onViewAll,
+}: {
+  slug: string;
+  postCount: number;
+  viewAllHref: string;
+  onSlug: (v: string) => void;
+  onCount: (n: number) => void;
+  onViewAll: (v: string) => void;
+}) {
+  const { data: cats = [] } = useQuery({
+    queryKey: ["mega-menu-cats"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("categories")
+        .select("slug, name_pl")
+        .order("name_pl");
+      return (data ?? []) as Array<{ slug: string; name_pl: string }>;
+    },
+  });
+  return (
+    <div className="space-y-2 rounded-md border border-dashed border-border p-2 bg-muted/30">
+      <PropField label="Kategoria">
+        <Select value={slug || "__none"} onValueChange={(v) => onSlug(v === "__none" ? "" : v)}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="wybierz" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none">— brak —</SelectItem>
+            {cats.map((c) => (
+              <SelectItem key={c.slug} value={c.slug}>{c.name_pl}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </PropField>
+      <div className="grid grid-cols-2 gap-2">
+        <PropField label="Liczba wpisów">
+          <NumberInput
+            value={postCount}
+            min={1}
+            max={8}
+            step={1}
+            onChange={(n) => onCount(typeof n === "number" ? n : 4)}
+          />
+        </PropField>
+        <PropField label="Link 'Zobacz wszystkie'">
+          <Input
+            value={viewAllHref}
+            onChange={(e) => onViewAll(e.target.value)}
+            className="h-8 text-xs"
+            placeholder={slug ? `/category/${slug}` : "/category/..."}
+          />
+        </PropField>
+      </div>
+    </div>
+  );
+}
+
 
 function aspectClassFor(r: string): string {
   if (r === "16/9") return "aspect-[16/9]";
