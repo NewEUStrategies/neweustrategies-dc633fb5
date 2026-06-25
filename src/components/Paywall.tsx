@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { LogIn, Star } from "@/lib/lucide-shim";
 
 const Lock = (props: React.SVGProps<SVGSVGElement>) => (
@@ -13,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { ContentAccessRule, AccessPlan } from "@/hooks/useContentAccess";
 import { formatMoney } from "@/hooks/useContentAccess";
+import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 
 type Props = {
   rule: ContentAccessRule;
@@ -34,9 +36,9 @@ const T = {
     perMonth: "/ mies.",
     perYear: "/ rok",
     oneTime: "jednorazowo",
-    soonNotice: "Płatności online zostaną włączone wkrótce - zapisz się, aby otrzymać dostęp jako pierwszy.",
-    interestSaved: "Zapisaliśmy Twoje zainteresowanie tym materiałem.",
-    interestFail: "Nie udało się zapisać - spróbuj ponownie.",
+    processing: "Przekierowanie do płatności...",
+    secureNote: "Bezpieczna płatność. Dostęp odblokuje się automatycznie po opłaceniu.",
+    checkoutFail: "Nie udało się rozpocząć płatności - spróbuj ponownie.",
   },
   en: {
     membersOnly: "Members-only content",
@@ -50,14 +52,17 @@ const T = {
     perMonth: "/ mo",
     perYear: "/ yr",
     oneTime: "one-time",
-    soonNotice: "Online payments are coming soon - register your interest to get access first.",
-    interestSaved: "Saved your interest in this content.",
-    interestFail: "Couldn't save - please try again.",
+    processing: "Redirecting to payment...",
+    secureNote: "Secure payment. Access unlocks automatically once paid.",
+    checkoutFail: "Could not start checkout - please try again.",
   },
 };
 
 export function Paywall({ rule, lang, fallbackText }: Props) {
-  const { session, tenantId } = useAuth();
+  const { session } = useAuth();
+  const navigate = useNavigate();
+  const checkout = useServerFn(createCheckoutOrder);
+  const [busy, setBusy] = useState(false);
   const t = T[lang];
   const teaser =
     (lang === "pl" ? rule.teaser_pl : rule.teaser_en) ||
@@ -75,19 +80,40 @@ export function Paywall({ rule, lang, fallbackText }: Props) {
       .then(({ data }) => setPlans((data as AccessPlan[]) ?? []));
   }, [rule.plan_ids, rule.mode]);
 
-  const registerInterest = async () => {
-    if (!session || !tenantId) return;
-    const { error } = await supabase.from("user_purchases").insert({
-      tenant_id: tenantId,
-      user_id: session.user.id,
-      entity_type: rule.entity_type,
-      entity_id: rule.entity_id,
-      amount_cents: rule.one_time_price_cents ?? 0,
-      currency: rule.one_time_currency ?? "PLN",
-      status: "pending",
-    });
-    if (error) toast.error(t.interestFail);
-    else toast.success(t.interestSaved);
+  // One-time purchase of this single entity. Price is resolved + charged
+  // server-side from the access rule; the webhook (or mock finaliser) grants the
+  // user_purchases row that has_content_access reads.
+  const buyableEntity = rule.entity_type === "post" || rule.entity_type === "page";
+  const startOneTime = async () => {
+    if (!session) return;
+    // Narrow entity_type to the checkout-supported union ("post" | "page").
+    if (rule.entity_type !== "post" && rule.entity_type !== "page") return;
+    const entityType = rule.entity_type;
+    setBusy(true);
+    try {
+      const res = await checkout({
+        data: {
+          kind: "one_time",
+          entity_type: entityType,
+          entity_id: rule.entity_id,
+          success_path: "/checkout/success",
+          cancel_path: "/checkout/cancel",
+        },
+      });
+      if (!res.ok) {
+        toast.error(t.checkoutFail);
+        setBusy(false);
+        return;
+      }
+      if (res.mode === "stripe") {
+        window.location.href = res.url;
+      } else {
+        void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
+      }
+    } catch {
+      toast.error(t.checkoutFail);
+      setBusy(false);
+    }
   };
 
   return (
@@ -142,24 +168,26 @@ export function Paywall({ rule, lang, fallbackText }: Props) {
                         <span className="text-xs font-normal text-muted-foreground ml-1">{intervalLabel}</span>
                       </div>
                       {desc && <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{desc}</p>}
-                      <Button size="sm" className="w-full mt-3" onClick={registerInterest}>
-                        {t.subscribe}
+                      <Button asChild size="sm" className="w-full mt-3" disabled={busy}>
+                        <Link to="/checkout/$planId" params={{ planId: p.id }}>{t.subscribe}</Link>
                       </Button>
                     </div>
                   );
                 })}
               </div>
             )}
-            {rule.one_time_price_cents != null && rule.one_time_price_cents > 0 && (
+            {buyableEntity && rule.one_time_price_cents != null && rule.one_time_price_cents > 0 && (
               <div className="inline-flex items-center gap-3 border border-border rounded-lg px-4 py-3 bg-background">
                 <span className="text-sm">
                   {t.buy}: <strong>{formatMoney(rule.one_time_price_cents, rule.one_time_currency || "PLN")}</strong>
                   <span className="text-xs text-muted-foreground ml-1">{t.oneTime}</span>
                 </span>
-                <Button size="sm" onClick={registerInterest}>{t.buy}</Button>
+                <Button size="sm" onClick={startOneTime} disabled={busy}>
+                  {busy ? t.processing : t.buy}
+                </Button>
               </div>
             )}
-            <p className="text-xs text-muted-foreground italic max-w-md mx-auto">{t.soonNotice}</p>
+            <p className="text-xs text-muted-foreground italic max-w-md mx-auto">{t.secureNote}</p>
           </div>
         )}
       </div>

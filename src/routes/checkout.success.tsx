@@ -1,8 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useEffect } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
+import { finalizeCheckout } from "@/lib/billing/checkout.functions";
 import "@/lib/i18n-profile";
 
 export const Route = createFileRoute("/checkout/success")({
@@ -21,6 +25,31 @@ export const Route = createFileRoute("/checkout/success")({
 
 function SuccessPage() {
   const { t } = useTranslation();
+  const { order, mock } = Route.useSearch();
+  const finalize = useServerFn(finalizeCheckout);
+  const queryClient = useQueryClient();
+
+  // In mock mode (no Stripe) there is no webhook, so finalise the order here and
+  // then drop cached access/content so the just-purchased content unlocks.
+  useEffect(() => {
+    if (!mock || !order) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        await finalize({ data: { order_id: order } });
+      } catch {
+        /* surfaced on the orders page; success UI stays optimistic */
+      }
+      if (cancelled) return;
+      void queryClient.invalidateQueries({ queryKey: ["public", "resolved"] });
+      void queryClient.invalidateQueries({ queryKey: ["unlocked-body"] });
+      void queryClient.invalidateQueries({ queryKey: ["my-subscription"] });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mock, order, finalize, queryClient]);
+
   return (
     <div className="container mx-auto max-w-lg py-16">
       <Card>
