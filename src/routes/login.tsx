@@ -49,31 +49,40 @@ function LoginPage() {
     const dict = {
       pl: {
         signin: "Zaloguj się", signup: "Zarejestruj się", reset: "Resetuj hasło",
-        heroTitle: "Rozpocznij swoją podróż.", heroSub: "Strategia. Wiedza. Wpływ. - jedno konto, cały ekosystem.",
+        heroTitle: settings.hero_title_pl, heroSub: settings.hero_subtitle_pl,
         haveNo: "Nie masz konta?", haveYes: "Masz już konto?",
         signUpLink: "Zarejestruj się", signInLink: "Zaloguj się",
         email: "E-mail", password: "Hasło", name: "Imię i nazwisko",
         forgot: "Zapomniałeś hasła?", back: "Wróć do logowania",
         submitSignin: "Zaloguj się", submitSignup: "Utwórz konto", submitReset: "Wyślij link",
         resetSub: "Wyślemy link do zmiany hasła na Twój adres.",
-        legal: "Klikając przycisk, akceptujesz Politykę prywatności i Regulamin.",
+        legalPre: "Klikając przycisk, akceptujesz ",
+        legalPrivacy: "Politykę prywatności",
+        legalAnd: " i ",
+        legalTerms: "Regulamin",
+        legalSuf: ".",
         backHome: "Wróć na stronę", showPw: "Pokaż hasło", hidePw: "Ukryj hasło",
       },
       en: {
         signin: "Sign In", signup: "Sign Up", reset: "Reset password",
-        heroTitle: "Start your journey.", heroSub: "Strategy. Insight. Influence. - one account, full ecosystem.",
+        heroTitle: settings.hero_title_en, heroSub: settings.hero_subtitle_en,
         haveNo: "Don't have an account?", haveYes: "Already have an account?",
         signUpLink: "Sign Up", signInLink: "Sign In",
         email: "E-Mail", password: "Password", name: "Full name",
         forgot: "Forgot password?", back: "Back to sign in",
         submitSignin: "Sign In", submitSignup: "Create account", submitReset: "Send link",
         resetSub: "We'll email a password reset link.",
-        legal: "By clicking the button, you agree to the Privacy Policy and Terms of Service.",
+        legalPre: "By clicking the button, you agree to the ",
+        legalPrivacy: "Privacy Policy",
+        legalAnd: " and ",
+        legalTerms: "Terms of Service",
+        legalSuf: ".",
         backHome: "Back to site", showPw: "Show password", hidePw: "Hide password",
       },
     } as const;
     return isPl ? dict.pl : dict.en;
-  }, [isPl]);
+  }, [isPl, settings.hero_title_pl, settings.hero_title_en, settings.hero_subtitle_pl, settings.hero_subtitle_en]);
+
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,7 +117,10 @@ function LoginPage() {
     }
   };
 
-  const illustration = theme === "dark" ? illustrationDark : illustrationLight;
+  const illustration =
+    theme === "dark"
+      ? (settings.hero_image_url_dark || settings.hero_image_url_light || illustrationDark)
+      : (settings.hero_image_url_light || settings.hero_image_url_light || illustrationLight);
 
   return (
     <div className="min-h-screen w-full bg-muted/40 dark:bg-background flex items-center justify-center p-4 sm:p-8">
@@ -123,13 +135,36 @@ function LoginPage() {
         </Link>
       )}
 
-      <div className="relative w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[120px_minmax(0,1fr)_minmax(0,1fr)] gap-0 lg:gap-6 isolate">
+      {/* Language switcher */}
+      {settings.show_language_switcher && (
+        <div className="absolute top-6 right-6 z-20 inline-flex items-center gap-1 rounded-full border border-border bg-card/80 backdrop-blur px-2 py-1 text-xs">
+          <button
+            type="button"
+            onClick={() => i18n.changeLanguage("pl")}
+            aria-pressed={isPl}
+            className={`px-2 py-0.5 rounded-full transition ${isPl ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            PL
+          </button>
+          <button
+            type="button"
+            onClick={() => i18n.changeLanguage("en")}
+            aria-pressed={!isPl}
+            className={`px-2 py-0.5 rounded-full transition ${!isPl ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            EN
+          </button>
+        </div>
+      )}
+
+      <div className="relative w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)] gap-0 lg:gap-6 isolate">
         {/* LEFT: vertical mode rail */}
-        <aside className="hidden lg:flex flex-col items-center gap-2 bg-card rounded-2xl shadow-lg shadow-foreground/5 border border-border py-6">
-          <Link to="/" className="mb-2" aria-label="Home">
-            <Logo size="sm" withWordmark={false} />
-          </Link>
-          <div className="w-8 h-px bg-border my-2" />
+        <aside className="hidden lg:flex flex-col items-center gap-2 bg-card rounded-2xl shadow-lg shadow-foreground/5 border border-border py-6 px-3">
+          <div className="mb-3 flex items-center justify-center w-full">
+            <Logo size="xl" withWordmark={false} />
+          </div>
+          <div className="w-10 h-px bg-border my-2" />
+
           <RailButton active={mode === "signin"} onClick={() => setMode("signin")} icon={<LogIn className="w-5 h-5" />} label={t.signin} />
           <RailButton active={mode === "signup"} onClick={() => setMode("signup")} icon={<UserPlus className="w-5 h-5" />} label={t.signup} />
           <RailButton active={mode === "reset"} onClick={() => setMode("reset")} icon={<KeyRound className="w-5 h-5" />} label={t.reset} />
@@ -137,10 +172,10 @@ function LoginPage() {
 
         {/* CENTER: hero illustration card */}
         <section
-          key={`hero-${theme}`}
+          key={`hero-${theme}-${illustration}`}
           className="relative hidden lg:flex flex-col justify-between rounded-2xl overflow-hidden text-primary-foreground shadow-2xl shadow-primary/20 min-h-[620px] animate-[fadeInUp_.6s_ease-out]"
           style={{
-            backgroundImage: `linear-gradient(180deg, hsl(var(--primary) / 0.85) 0%, hsl(var(--primary) / 0.5) 40%, hsl(var(--primary) / 0.9) 100%), url(${illustration})`,
+            backgroundImage: `linear-gradient(180deg, hsl(var(--primary) / 0.55) 0%, hsl(var(--primary) / 0.25) 40%, hsl(var(--primary) / 0.75) 100%), url(${illustration})`,
             backgroundSize: "cover",
             backgroundPosition: "center",
           }}
@@ -149,13 +184,14 @@ function LoginPage() {
             <h2 className="font-display text-3xl xl:text-4xl font-bold leading-tight mb-2 drop-shadow-md">
               {t.heroTitle}
             </h2>
-            <p className="text-sm text-primary-foreground/90 max-w-xs">{t.heroSub}</p>
+            <p className="text-sm text-primary-foreground/90 max-w-xs drop-shadow">{t.heroSub}</p>
           </div>
           <div className="p-6 relative z-10 flex items-center justify-between text-[11px] uppercase tracking-wider text-primary-foreground/80">
             <span>© {new Date().getFullYear()} New European Strategies</span>
             <span className="px-2 py-1 rounded bg-white/15 backdrop-blur-sm">{isPl ? "PL" : "EN"}</span>
           </div>
         </section>
+
 
         {/* RIGHT: form */}
         <main className="bg-card rounded-2xl border border-border shadow-lg shadow-foreground/5 p-6 sm:p-10 flex flex-col">
@@ -258,8 +294,17 @@ function LoginPage() {
             </Button>
 
             <p className="text-[11px] leading-relaxed text-muted-foreground text-center pt-2">
-              {t.legal}
+              {t.legalPre}
+              <a href={settings.privacy_url || "/polityka-prywatnosci"} target="_blank" rel="noreferrer" className="underline hover:text-foreground">
+                {t.legalPrivacy}
+              </a>
+              {t.legalAnd}
+              <a href={settings.terms_url || "/regulamin"} target="_blank" rel="noreferrer" className="underline hover:text-foreground">
+                {t.legalTerms}
+              </a>
+              {t.legalSuf}
             </p>
+
           </form>
         </main>
       </div>
