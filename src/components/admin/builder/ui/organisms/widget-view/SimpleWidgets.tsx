@@ -960,10 +960,16 @@ export function renderSimpleWidget(
         </div>
       );
     }
+    case "login-form":
+    case "register-form":
+    case "lost-password-form":
+    case "reset-password-form":
+      return <AuthFormWidget node={node} lang={lang} />;
     default:
       return undefined;
   }
 }
+
 
 function LangSwitcherDropdown({ label }: { label: string }) {
   const { i18n } = useTranslation();
