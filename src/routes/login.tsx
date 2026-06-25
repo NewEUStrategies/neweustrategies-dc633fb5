@@ -12,9 +12,11 @@ import { ArrowLeft, Eye, Loader2, Mail, Lock, User, ShieldCheck, Sparkles } from
 import { EyeOff } from "lucide-react";
 
 export const Route = createFileRoute("/login")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    mode: search.mode === "signup" ? "signup" : search.mode === "reset" ? "reset" : "signin",
-  }),
+  validateSearch: (search: Record<string, unknown>): { mode?: "signin" | "signup" | "reset" } => {
+    const m = search.mode;
+    if (m === "signup" || m === "reset" || m === "signin") return { mode: m };
+    return {};
+  },
   component: LoginPage,
 });
 
