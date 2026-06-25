@@ -136,22 +136,46 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   {
     id: "body",
     category: "globals",
-    label: "Body Background",
+    label: "Tła motywu",
     slots: [
       {
         key: "body-bg",
         label: "Body Background",
-        description: "Główne tło strony.",
+        description: "Główne tło strony (light / dark).",
         hasDark: true,
+        defaultLight: "#fcfcf9",
+        defaultDark: "#131822",
         overrides: ["--background"],
       },
       {
         key: "body-bg-single",
         label: "Body Background (Single Post)",
         description: "Tło dla pojedynczych wpisów. Pusto = używa Body Background.",
+        hasDark: true,
+        defaultLight: "#ffffff",
+        defaultDark: "#131822",
+      },
+      {
+        key: "surface-bg",
+        label: "Surface / Card Background",
+        description: "Tło kart, popoverów, sidebarów - delikatnie ciemniejszy odcień tła.",
+        hasDark: true,
+        defaultLight: "#ffffff",
+        defaultDark: "#0e131b",
+        overrides: ["--card", "--popover", "--muted", "--sidebar"],
+      },
+      {
+        key: "surface-secondary-bg",
+        label: "Secondary Surface",
+        description: "Tło drugorzędnych powierzchni (pola, hover stany).",
+        hasDark: true,
+        defaultLight: "#f4f4ef",
+        defaultDark: "#1b1f27",
+        overrides: ["--secondary"],
       },
     ],
   },
+
   {
     id: "button",
     category: "forms",
