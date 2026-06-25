@@ -36,6 +36,15 @@ import { TableBlockEdit } from "./edit/Table";
 import { ButtonBlock } from "./edit/Button";
 import { ColumnsBlock } from "./edit/Columns";
 import { HtmlBlock } from "./edit/Html";
+import { ReviewBlock } from "./edit/Review";
+import { ProsConsBlock } from "./edit/ProsCons";
+import { SpoilerBlock } from "./edit/Spoiler";
+import { FaqBlock } from "./edit/Faq";
+import { TocBlock } from "./edit/Toc";
+import { NewsletterBlock } from "./edit/Newsletter";
+import { AffiliateBlock } from "./edit/Affiliate";
+import { XQuoteBlock } from "./edit/XQuote";
+import { CompareBlock } from "./edit/Compare";
 
 interface Props {
   doc: BlocksDoc;
@@ -193,6 +202,15 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "button":    return <ButtonBlock block={block} onChange={onChange} />;
     case "columns":   return <ColumnsBlock block={block} onChange={onChange} />;
     case "html":      return <HtmlBlock block={block} onChange={onChange} />;
+    case "review":    return <ReviewBlock block={block} onChange={onChange} />;
+    case "proscons":  return <ProsConsBlock block={block} onChange={onChange} />;
+    case "spoiler":   return <SpoilerBlock block={block} onChange={onChange} />;
+    case "faq":       return <FaqBlock block={block} onChange={onChange} />;
+    case "toc":       return <TocBlock block={block} onChange={onChange} />;
+    case "newsletter": return <NewsletterBlock block={block} onChange={onChange} />;
+    case "affiliate": return <AffiliateBlock block={block} onChange={onChange} />;
+    case "xquote":    return <XQuoteBlock block={block} onChange={onChange} />;
+    case "compare":   return <CompareBlock block={block} onChange={onChange} />;
     default:
       return (
         <div className="text-xs text-muted-foreground italic py-2">

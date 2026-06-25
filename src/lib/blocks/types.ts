@@ -17,7 +17,17 @@ export type BlockType =
   | "button"
   | "columns"
   | "html"
-  | "liveblog";
+  | "liveblog"
+  // Foxiz-style extended blocks
+  | "review"
+  | "proscons"
+  | "spoiler"
+  | "faq"
+  | "toc"
+  | "newsletter"
+  | "affiliate"
+  | "xquote"
+  | "compare";
 
 export type Json =
   | string

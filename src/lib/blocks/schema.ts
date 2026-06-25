@@ -26,6 +26,8 @@ const BlockSchema = z.object({
     "paragraph", "heading", "image", "list", "quote", "code",
     "embed", "video", "gallery", "separator", "callout", "table",
     "button", "columns", "html", "liveblog",
+    "review", "proscons", "spoiler", "faq", "toc",
+    "newsletter", "affiliate", "xquote", "compare",
   ]),
   data: z.record(z.string(), JsonSchema),
   style: BlockStyleSchema.optional(),
