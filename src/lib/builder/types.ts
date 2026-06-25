@@ -242,7 +242,11 @@ export type WidgetType =
   // Web Stories
   | "web-stories-carousel"
   // Auth forms (structural - never raw HTML)
-  | "login-form" | "register-form" | "lost-password-form" | "reset-password-form";
+  | "login-form" | "register-form" | "lost-password-form" | "reset-password-form"
+  // Dynamic tags (current-post / archive aware)
+  | "post-title" | "post-meta" | "post-tags-dyn" | "post-categories-dyn"
+  | "post-author-card" | "post-breadcrumbs" | "post-cover" | "post-excerpt"
+  | "archive-title" | "search-form";
 
 
 // JSON-safe primitives that may live inside a widget's content map.
