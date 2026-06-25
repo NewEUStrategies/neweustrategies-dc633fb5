@@ -500,4 +500,111 @@ function MailingListsEditor({
   );
 }
 
+function PopupBilingualPreview({ settings }: { settings: NewsletterSettings }) {
+  if (!settings.popup_enabled) return null;
+  return (
+    <section className="bg-card border border-border rounded-lg p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <Eye className="w-4 h-4 text-muted-foreground" />
+        <h2 className="font-display text-lg">Podgląd popupu - PL / EN</h2>
+        <span className="ml-auto text-[11px] text-muted-foreground uppercase tracking-wider">
+          Układ: {settings.popup_layout === "split" ? "split" : "klasyczny"}
+        </span>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <PopupMini settings={settings} lang="pl" />
+        <PopupMini settings={settings} lang="en" />
+      </div>
+    </section>
+  );
+}
+
+function PopupMini({ settings, lang }: { settings: NewsletterSettings; lang: "pl" | "en" }) {
+  const isPl = lang === "pl";
+  const title = isPl ? settings.popup_title_pl : settings.popup_title_en;
+  const desc = isPl ? settings.popup_description_pl : settings.popup_description_en;
+  const cta = isPl ? settings.popup_cta_pl : settings.popup_cta_en;
+  const terms = (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
+  const emailPh = isPl ? "twoj@email.pl" : "you@email.com";
+
+  const split = settings.popup_layout === "split";
+  const lists = settings.popup_mailing_lists ?? [];
+
+  return (
+    <div className="rounded-xl border border-border bg-gradient-to-br from-muted/40 to-muted/10 p-3">
+      <div className="flex items-center justify-between mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+        <span>{isPl ? "🇵🇱 Polski" : "🇬🇧 English"}</span>
+        <span>{settings.double_opt_in ? "Double opt-in" : "Single opt-in"}</span>
+      </div>
+
+      {split ? (
+        <div className="relative rounded-lg shadow-xl overflow-hidden border border-white/10 bg-[#0a0a0a] text-white grid grid-cols-[42%_1fr] min-h-[360px]">
+          <div
+            className="bg-cover bg-center"
+            style={{
+              backgroundImage: settings.popup_side_image_url
+                ? `url(${settings.popup_side_image_url})`
+                : "linear-gradient(135deg, oklch(0.25 0.04 260), oklch(0.15 0.02 260))",
+            }}
+            aria-hidden="true"
+          />
+          <div className="p-4 space-y-2 overflow-y-auto max-h-[420px]">
+            <h3 className="font-display text-lg leading-tight">{title || "-"}</h3>
+            {desc && <p className="text-[11px] text-white/70">{desc}</p>}
+            {settings.popup_extended_fields && (
+              <>
+                <input className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40" placeholder={isPl ? "Imię" : "Name"} readOnly />
+                <input className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40" placeholder={isPl ? "Nazwisko" : "Surname"} readOnly />
+                <input className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40" placeholder="LinkedIn" readOnly />
+              </>
+            )}
+            <input className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40" placeholder={emailPh} readOnly />
+            {settings.popup_extended_fields && (
+              <input className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40" placeholder={isPl ? "Telefon" : "Phone"} readOnly />
+            )}
+            {lists.length > 0 && (
+              <select className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white">
+                <option>{isPl ? "Wybierz listę" : "Choose mailing list"}</option>
+                {lists.map((l) => (
+                  <option key={l.id}>{isPl ? l.label_pl : l.label_en}</option>
+                ))}
+              </select>
+            )}
+            <button type="button" className="px-3 py-1 rounded bg-[var(--brand,#f97316)] text-white text-[11px] font-medium">
+              {cta || (isPl ? "Zapisz się" : "Subscribe")}
+            </button>
+            {settings.popup_require_terms && (
+              <label className="flex items-start gap-1.5 text-[10px] text-white/60 leading-snug">
+                <input type="checkbox" className="mt-0.5" />
+                <span dangerouslySetInnerHTML={{ __html: terms }} />
+              </label>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-lg shadow-xl overflow-hidden border border-white/10 bg-[#0a0a0a] text-white">
+          {settings.popup_cover_url && (
+            <img src={settings.popup_cover_url} alt="" className="w-full h-28 object-cover" />
+          )}
+          <div className="p-4 space-y-2">
+            <h3 className="font-display text-lg">{title || "-"}</h3>
+            {desc && <p className="text-[11px] text-white/70">{desc}</p>}
+            <input className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40" placeholder={emailPh} readOnly />
+            {lists.length > 0 && (
+              <select className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white">
+                <option>{isPl ? "Wybierz listę" : "Choose mailing list"}</option>
+                {lists.map((l) => (
+                  <option key={l.id}>{isPl ? l.label_pl : l.label_en}</option>
+                ))}
+              </select>
+            )}
+            <button type="button" className="px-3 py-1 rounded bg-[var(--brand,#f97316)] text-white text-[11px] font-medium">
+              {cta || (isPl ? "Zapisz się" : "Subscribe")}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
