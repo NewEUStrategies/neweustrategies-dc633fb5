@@ -429,10 +429,10 @@ function PostsList() {
                           </>
                         ) : (
                           <Link to="/admin/posts/$slug" params={{ slug: p.slug }} className="block group">
-                            <div className="font-medium text-[13px] truncate max-w-[420px] text-[#F8F6F4] group-hover:text-[#FDB078] group-hover:underline underline-offset-2">
+                            <div className="font-medium text-[13px] truncate max-w-[420px] text-[#231f20] dark:text-[#F8F6F4] group-hover:text-[#FDB078] group-hover:underline underline-offset-2">
                               {(lang === "en" ? p.title_en : p.title_pl) || (lang === "en" ? p.title_pl : p.title_en) || <span className="italic text-muted-foreground">- {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -</span>}
                             </div>
-                            <div className="text-[10px] text-[#F8F6F4] truncate max-w-[420px] group-hover:text-[#FDB078] group-hover:underline">/{p.slug}</div>
+                            <div className="text-[10px] text-[#231f20] dark:text-[#F8F6F4] truncate max-w-[420px] group-hover:text-[#FDB078] group-hover:underline">/{p.slug}</div>
                           </Link>
                         )}
                       </td>
