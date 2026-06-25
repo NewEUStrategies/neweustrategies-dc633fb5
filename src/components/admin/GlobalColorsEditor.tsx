@@ -30,7 +30,7 @@ const RECENT_STORAGE_KEY = "lovable.globalColors.recentColors.v1";
 const RECENT_MAX = 10;
 
 const DEFAULT_BRAND_PALETTE: BrandColor[] = [
-  { name: "Background Dark", value: "#01112F" },
+  { name: "Background Dark", value: "#131822" },
   { name: "Background Light", value: "#F8F6F4" },
   { name: "Granat", value: "#15334D" },
   { name: "Pomarańcz", value: "#FA9346" },
@@ -1125,9 +1125,9 @@ function SlotPreview({ slot, draft }: { slot: GlobalColorSlot; draft: GlobalColo
       <div
         className="rounded-md border p-3 flex flex-col gap-2 min-h-[72px]"
         style={{
-          background: isDark ? "#0b1220" : "#ffffff",
+          background: isDark ? "#131822" : "#ffffff",
           borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
-          color: isDark ? "#e5e7eb" : "#1f2937",
+          color: isDark ? "#e5e7eb" : "#1b1f27",
         }}
       >
         <span className="text-[9px] uppercase tracking-widest" style={{ opacity: 0.5 }}>

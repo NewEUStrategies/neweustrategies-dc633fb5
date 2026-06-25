@@ -8,7 +8,7 @@ export const StoryPageSchema = z.object({
   background: z.enum(["image", "video", "color"]).default("image"),
   media_url: z.string().default(""),
   poster_url: z.string().default(""),
-  color: z.string().default("#0F172A"),
+  color: z.string().default("#131822"),
   title_pl: z.string().default(""),
   title_en: z.string().default(""),
   caption_pl: z.string().default(""),
