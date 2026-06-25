@@ -1125,7 +1125,7 @@ function SlotPreview({ slot, draft }: { slot: GlobalColorSlot; draft: GlobalColo
       <div
         className="rounded-md border p-3 flex flex-col gap-2 min-h-[72px]"
         style={{
-          background: isDark ? "#131822" : "#ffffff",
+          background: isDark ? "#231f20" : "#ffffff",
           borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
           color: isDark ? "#e5e7eb" : "#1b1f27",
         }}
