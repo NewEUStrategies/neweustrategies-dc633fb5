@@ -426,6 +426,8 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
   },
 };
 
+export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
+
 /** Bloki, które mają już dedykowany edytor i renderer. */
 export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "paragraph",
@@ -453,4 +455,8 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "affiliate",
   "xquote",
   "compare",
+  "login-form",
+  "register-form",
+  "lost-password-form",
+  "reset-password-form",
 ];
