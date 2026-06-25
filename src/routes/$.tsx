@@ -187,7 +187,7 @@ function PublicPage() {
     coverUrl: it.cover_image_url ?? undefined,
     publishedAt: it.published_at ?? undefined,
     readingTimeMin: post?.read_minutes ?? undefined,
-    author: post?.author ? { name: post.author.name, slug: post.author.slug, avatarUrl: post.author.avatar_url ?? undefined, bio_pl: post.author.bio_pl ?? undefined, bio_en: post.author.bio_en ?? undefined } : null,
+    author: null,
     tags: postTags ?? [],
     categories: (data as { categories?: Array<{ slug: string; name: string }> }).categories ?? [],
     breadcrumbs: crumbs.map((b) => ({ label: b.label, href: b.href ?? undefined })),
