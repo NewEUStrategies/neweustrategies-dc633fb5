@@ -439,7 +439,7 @@ function PagesList() {
                             <Link
                               to="/admin/pages/$slug"
                               params={{ slug: p.slug }}
-                              className="font-medium text-[13px] truncate max-w-[360px] text-[#F8F6F4] hover:text-[#FDB078] hover:underline"
+                              className="font-medium text-[13px] truncate max-w-[360px] text-[#231f20] dark:text-[#F8F6F4] hover:text-[#FDB078] hover:underline"
                             >
                               {(lang === "en" ? p.title_en : p.title_pl) || (lang === "en" ? p.title_pl : p.title_en) || <span className="italic text-muted-foreground">- {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -</span>}
                             </Link>
