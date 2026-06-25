@@ -1,9 +1,14 @@
 // Mega menu - desktop hover/click dropdown panel + mobile accordion.
 // Used by the builder widget "mega-menu". Fully i18n (pl/en), keyboard-
 // accessible, theme-aware (semantic tokens only).
+// Supports two column kinds (Foxiz parity):
+//   - "links"    : title + list of links + optional featured banner
+//   - "category" : recent posts from a category with thumbnails (AJAX-style)
 import { useEffect, useId, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "@/lib/lucide-shim";
 import { safeUrl, safeImageUrl } from "@/lib/sanitize";
+import { supabase } from "@/integrations/supabase/client";
 
 export type MegaMenuLang = "pl" | "en";
 
