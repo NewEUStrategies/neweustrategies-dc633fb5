@@ -63,6 +63,33 @@ function LoginSettingsPage() {
         </TabsContent>
 
         <TabsContent value="page" className="space-y-4 mt-4">
+          <BiField label="Tytuł hero" valPl={s.hero_title_pl} valEn={s.hero_title_en}
+            onPl={(v) => update("hero_title_pl", v)} onEn={(v) => update("hero_title_en", v)} />
+          <BiField label="Podtytuł hero" textarea valPl={s.hero_subtitle_pl} valEn={s.hero_subtitle_en}
+            onPl={(v) => update("hero_subtitle_pl", v)} onEn={(v) => update("hero_subtitle_en", v)} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Ilustracja hero - jasny motyw (URL)</Label>
+              <Input value={s.hero_image_url_light} onChange={(e) => update("hero_image_url_light", e.target.value)} placeholder="https://…/hero-light.jpg" />
+            </div>
+            <div>
+              <Label>Ilustracja hero - ciemny motyw (URL)</Label>
+              <Input value={s.hero_image_url_dark} onChange={(e) => update("hero_image_url_dark", e.target.value)} placeholder="https://…/hero-dark.jpg" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Link do Polityki prywatności</Label>
+              <Input value={s.privacy_url} onChange={(e) => update("privacy_url", e.target.value)} placeholder="/polityka-prywatnosci" />
+            </div>
+            <div>
+              <Label>Link do Regulaminu</Label>
+              <Input value={s.terms_url} onChange={(e) => update("terms_url", e.target.value)} placeholder="/regulamin" />
+            </div>
+          </div>
+          <Card title="Przełącznik języka PL/EN" description="Pokazuje przyciski PL/EN w prawym górnym rogu strony /login.">
+            <Switch checked={s.show_language_switcher} onCheckedChange={(v) => update("show_language_switcher", v)} />
+          </Card>
           <div>
             <Label>Pozycja formularza</Label>
             <select className="w-full mt-1 border rounded p-2 bg-background"
@@ -84,22 +111,12 @@ function LoginSettingsPage() {
           <Card title="Pokaż link 'Wróć na stronę główną'" description="">
             <Switch checked={s.show_back_to_home} onCheckedChange={(v) => update("show_back_to_home", v)} />
           </Card>
-        </TabsContent>
-
-        <TabsContent value="redirects" className="space-y-4 mt-4">
-          <div>
-            <Label>URL po zalogowaniu (zostaw puste = wraca skąd przyszedł)</Label>
-            <Input value={s.logged_in_redirect_url} onChange={(e) => update("logged_in_redirect_url", e.target.value)} placeholder="/me/profile" />
-          </div>
-          <div>
-            <Label>URL po wylogowaniu</Label>
-            <Input value={s.logout_redirect_url} onChange={(e) => update("logout_redirect_url", e.target.value)} placeholder="/" />
-          </div>
           <div>
             <Label>Niestandardowy URL strony logowania (opcjonalnie)</Label>
             <Input value={s.custom_login_url} onChange={(e) => update("custom_login_url", e.target.value)} placeholder="/membership/login" />
           </div>
         </TabsContent>
+
 
         <TabsContent value="signup" className="space-y-4 mt-4">
           <Card title="Pozwól na publiczną rejestrację" description="Czytelnicy mogą zakładać konta (rola: user).">
