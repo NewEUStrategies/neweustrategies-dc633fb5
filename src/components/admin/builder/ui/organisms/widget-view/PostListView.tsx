@@ -14,8 +14,8 @@ import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 // into a stable frame so mobile CSS cannot stretch/squash their crop.
 const GRID_COVER_SIZES = "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw";
 const COVER_IMG_CLASS = "absolute inset-0 block h-full w-full object-cover";
-const TILE_FRAME_CLASS = "relative block h-28 w-full shrink-0 overflow-hidden bg-muted";
-const OVERLAY_FRAME_CLASS = "relative block h-40 w-full shrink-0 overflow-hidden bg-muted";
+const TILE_FRAME_CLASS = "relative block aspect-[4/3] w-full shrink-0 overflow-hidden bg-muted";
+const OVERLAY_FRAME_CLASS = "relative block aspect-[4/3] w-full shrink-0 overflow-hidden bg-muted";
 const LIST_FRAME_CLASS = "relative block aspect-[4/3] w-[112px] sm:w-[128px] shrink-0 overflow-hidden rounded-sm bg-muted";
 
 type Lang = "pl" | "en";
@@ -323,9 +323,9 @@ function PostCard({
         <span data-widget-media className={OVERLAY_FRAME_CLASS}>
           <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className={COVER_IMG_CLASS} />
         </span>
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 p-2.5 text-white">
-          <h4 className="font-display text-sm leading-tight line-clamp-2" style={titleStyle}>{title}</h4>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 p-3 text-white">
+          <h4 className="font-display text-base md:text-lg font-semibold leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
         </div>
       </a>
     );
@@ -333,13 +333,14 @@ function PostCard({
 
   if (variant === "minimal") {
     return (
-      <a href={`/post/${p.slug}`} className={`block ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
+      <a href={`/post/${p.slug}`} className={`block group ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
         {p.cover_image_url && (
-          <span data-widget-media className={`${TILE_FRAME_CLASS} rounded-sm mb-2`}>
+          <span data-widget-media className={`${TILE_FRAME_CLASS} rounded-sm mb-3`}>
             <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className={COVER_IMG_CLASS} />
           </span>
         )}
-        <h4 className="font-display text-sm leading-snug line-clamp-2 hover:text-brand transition" style={titleStyle}>{title}</h4>
+        <h4 className="font-display text-base md:text-lg font-semibold leading-snug line-clamp-2 group-hover:text-brand transition" style={titleStyle}>{title}</h4>
+        {excerpt && <p className="text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug" style={excerptStyle}>{excerpt}</p>}
       </a>
     );
   }
@@ -352,9 +353,9 @@ function PostCard({
           <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className={COVER_IMG_CLASS} />
         </span>
       )}
-      <div className="p-2.5">
-        <h4 className="font-display text-sm font-medium leading-snug mb-1 line-clamp-2" style={titleStyle}>{title}</h4>
-        {excerpt && <p className="text-xs text-muted-foreground leading-snug line-clamp-2" style={excerptStyle}>{excerpt}</p>}
+      <div className="p-3">
+        <h4 className="font-display text-base md:text-lg font-semibold leading-snug mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>
+        {excerpt && <p className="text-[13px] text-muted-foreground leading-snug line-clamp-2" style={excerptStyle}>{excerpt}</p>}
       </div>
     </a>
   );
