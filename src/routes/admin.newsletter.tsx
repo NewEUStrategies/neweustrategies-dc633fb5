@@ -165,11 +165,48 @@ function Page() {
                 onChange={(e) => upd({ popup_frequency_days: Number(e.target.value) || 0 })} />
             </div>
             <div>
-              <Label>Okładka (URL)</Label>
+              <Label>Układ popupu</Label>
+              <select
+                className="w-full px-3 py-2 rounded border border-input bg-background text-sm h-10"
+                value={cur.popup_layout}
+                onChange={(e) => upd({ popup_layout: e.target.value as NewsletterSettings["popup_layout"] })}
+              >
+                <option value="stacked">Klasyczny (okładka u góry)</option>
+                <option value="split">Split (grafika z lewej + formularz)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <Label>Okładka - układ klasyczny (URL)</Label>
               <Input value={cur.popup_cover_url ?? ""} onChange={(e) => upd({ popup_cover_url: e.target.value || null })}
                 placeholder="https://…" />
             </div>
+            <div>
+              <Label>Grafika boczna - układ split (URL)</Label>
+              <Input value={cur.popup_side_image_url ?? ""} onChange={(e) => upd({ popup_side_image_url: e.target.value || null })}
+                placeholder="https://…" />
+            </div>
           </div>
+
+          <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-border">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={cur.popup_extended_fields}
+                onChange={(e) => upd({ popup_extended_fields: e.target.checked })} />
+              Rozszerzone pola (imię, nazwisko, stanowisko, firma, LinkedIn, telefon)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={cur.popup_require_terms}
+                onChange={(e) => upd({ popup_require_terms: e.target.checked })} />
+              Wymagana zgoda na regulamin (checkbox)
+            </label>
+          </div>
+
+          <MailingListsEditor
+            lists={cur.popup_mailing_lists}
+            onChange={(popup_mailing_lists) => upd({ popup_mailing_lists })}
+          />
 
           <Tabs defaultValue="pl">
             <TabsList>
@@ -180,11 +217,13 @@ function Page() {
               <div><Label>Nagłówek</Label><Input value={cur.popup_title_pl} onChange={(e) => upd({ popup_title_pl: e.target.value })} /></div>
               <div><Label>Opis</Label><Textarea rows={2} value={cur.popup_description_pl} onChange={(e) => upd({ popup_description_pl: e.target.value })} /></div>
               <div><Label>CTA (przycisk)</Label><Input value={cur.popup_cta_pl} onChange={(e) => upd({ popup_cta_pl: e.target.value })} /></div>
+              <div><Label>Treść zgody na regulamin (HTML)</Label><Textarea rows={2} value={cur.popup_terms_html_pl ?? ""} onChange={(e) => upd({ popup_terms_html_pl: e.target.value || null })} /></div>
             </TabsContent>
             <TabsContent value="en" className="space-y-3 mt-4">
               <div><Label>Heading</Label><Input value={cur.popup_title_en} onChange={(e) => upd({ popup_title_en: e.target.value })} /></div>
               <div><Label>Description</Label><Textarea rows={2} value={cur.popup_description_en} onChange={(e) => upd({ popup_description_en: e.target.value })} /></div>
               <div><Label>CTA (button)</Label><Input value={cur.popup_cta_en} onChange={(e) => upd({ popup_cta_en: e.target.value })} /></div>
+              <div><Label>Terms checkbox label (HTML)</Label><Textarea rows={2} value={cur.popup_terms_html_en ?? ""} onChange={(e) => upd({ popup_terms_html_en: e.target.value || null })} /></div>
             </TabsContent>
           </Tabs>
         </section>
