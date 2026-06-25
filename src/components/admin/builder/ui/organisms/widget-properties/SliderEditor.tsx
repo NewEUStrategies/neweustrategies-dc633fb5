@@ -366,8 +366,16 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                 </div>
               </div>
 
+              <PropField label="Powiąż z wpisem (live sync)">
+                <PostPicker
+                  value={it.postId}
+                  onChange={(id) => updateItem(i, { postId: id })}
+                  lang={lang}
+                />
+              </PropField>
+
               <ImageSlot
-                label="Obrazek"
+                label={it.postId ? "Obrazek (nadpisuje cover)" : "Obrazek"}
                 icon={<ImageIcon className="w-3 h-3" />}
                 value={it.image || ""}
                 onChange={(v) => updateItem(i, { image: v })}
