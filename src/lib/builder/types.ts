@@ -85,6 +85,23 @@ export type MotionEasing =
 
 export type WidgetSize = number | "auto";
 
+export type AccessAuthMode = "any" | "guest" | "user";
+export type AccessRole = "admin" | "editor" | "author";
+export type AccessRolesMode = "any" | "all";
+
+export interface AccessControlSettings {
+  /**
+   * Gate based on authentication status.
+   *  - "any" (default): visible regardless of session
+   *  - "guest": only for not-logged-in visitors
+   *  - "user": only for logged-in visitors
+   */
+  auth?: AccessAuthMode;
+  /** When set, visitor must have at least one (`any`) or all (`all`) of these roles. */
+  roles?: AccessRole[];
+  rolesMode?: AccessRolesMode;
+}
+
 export interface AdvancedSettings {
   cssClass?: string;
   customCss?: string;
@@ -95,6 +112,8 @@ export interface AdvancedSettings {
   animationEasing?: MotionEasing;
   animationDistance?: number;    // px — for slide/reveal presets
   hideOn?: { desktop?: boolean; tablet?: boolean; mobile?: boolean };
+  /** Gate widget by authentication state and roles. Public renderer only. */
+  access?: AccessControlSettings;
   /**
    * Flow positioning relative to siblings in a column.
    *  - "block" (default): widget takes its own row, full width.
