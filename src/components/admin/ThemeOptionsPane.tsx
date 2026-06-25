@@ -223,6 +223,8 @@ export function ThemeOptionsPane() {
       <section className="border border-border rounded-lg bg-card p-5 space-y-5">
         {active === "global_colors" ? (
           <GlobalColorsEditor />
+        ) : active === "backgrounds" ? (
+          <ThemeBackgroundsPane />
         ) : active === "design" ? (
           <ThemeDesignPane />
         ) : (
