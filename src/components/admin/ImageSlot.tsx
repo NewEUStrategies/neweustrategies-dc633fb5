@@ -13,6 +13,7 @@ export function ImageSlot({
   hint,
   bucket = "media",
   folder = "theme",
+  previewMode = "auto",
 }: {
   label: string;
   icon?: React.ReactNode;
@@ -21,6 +22,8 @@ export function ImageSlot({
   hint?: string;
   bucket?: string;
   folder?: string;
+  /** Background of the preview box. 'light' uses theme body bg, 'dark' uses dark body bg, 'auto' uses neutral muted. */
+  previewMode?: "auto" | "light" | "dark";
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -54,7 +57,18 @@ export function ImageSlot({
         {icon}{label}
       </div>
       {value && (
-        <div className="rounded-md border border-border p-2 bg-muted/30 flex items-center justify-center min-h-[80px]">
+        <div
+          className={`rounded-md border border-border p-2 flex items-center justify-center min-h-[80px] ${previewMode === "auto" ? "bg-muted/30" : ""}`}
+          style={{
+            background:
+              previewMode === "dark"
+                ? "#131822"
+                : previewMode === "light"
+                ? "#f8f6f4"
+                : undefined,
+          }}
+          data-preview-mode={previewMode}
+        >
           <img src={value} alt="" className="max-h-24 max-w-full object-contain" />
         </div>
       )}

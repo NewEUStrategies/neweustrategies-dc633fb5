@@ -271,6 +271,7 @@ export function ThemeOptionsPane() {
                 <ImageSlot
                   label={t("themeOptions.slots.main")}
                   icon={<Sun className="w-3.5 h-3.5" />}
+                  previewMode="light"
                   value={draft.logo.main}
                   onChange={(v) => patchLogo({ main: v })}
                   hint={t("themeOptions.hints.recommended120")}
@@ -279,6 +280,7 @@ export function ThemeOptionsPane() {
                 <ImageSlot
                   label={t("themeOptions.slots.mainDark")}
                   icon={<Moon className="w-3.5 h-3.5" />}
+                  previewMode="dark"
                   value={draft.logo.main_dark}
                   onChange={(v) => patchLogo({ main_dark: v })}
                   hint={t("themeOptions.hints.darkVariant")}
@@ -300,6 +302,7 @@ export function ThemeOptionsPane() {
                 <ImageSlot
                   label={t("themeOptions.slots.mobileDark")}
                   icon={<Moon className="w-3.5 h-3.5" />}
+                  previewMode="dark"
                   value={draft.logo.mobile_dark}
                   onChange={(v) => patchLogo({ mobile_dark: v })}
                   folder="theme/logo"
@@ -312,6 +315,7 @@ export function ThemeOptionsPane() {
                 <ImageSlot
                   label={t("themeOptions.slots.transparent")}
                   icon={<Sun className="w-3.5 h-3.5" />}
+                  previewMode="light"
                   value={draft.logo.transparent}
                   onChange={(v) => patchLogo({ transparent: v })}
                   hint={t("themeOptions.hints.transparent")}
@@ -320,6 +324,7 @@ export function ThemeOptionsPane() {
                 <ImageSlot
                   label={t("themeOptions.slots.transparentDark")}
                   icon={<Moon className="w-3.5 h-3.5" />}
+                  previewMode="dark"
                   value={draft.logo.transparent_dark}
                   onChange={(v) => patchLogo({ transparent_dark: v })}
                   hint={t("themeOptions.hints.darkVariant")}
@@ -337,6 +342,7 @@ export function ThemeOptionsPane() {
                   <ImageSlot
                     label={t("themeOptions.slots.organization")}
                     icon={<Sun className="w-3.5 h-3.5" />}
+                  previewMode="light"
                     value={draft.logo.organization}
                     onChange={(v) => patchLogo({ organization: v })}
                     folder="theme/logo"
@@ -344,6 +350,7 @@ export function ThemeOptionsPane() {
                   <ImageSlot
                     label={t("themeOptions.slots.organizationDark")}
                     icon={<Moon className="w-3.5 h-3.5" />}
+                  previewMode="dark"
                     value={draft.logo.organization_dark}
                     onChange={(v) => patchLogo({ organization_dark: v })}
                     folder="theme/logo"
@@ -363,6 +370,7 @@ export function ThemeOptionsPane() {
                     <ImageSlot
                       label={t("themeOptions.slots.sidebarIcon")}
                       icon={<Sun className="w-3.5 h-3.5" />}
+                  previewMode="light"
                       value={draft.logo.sidebar_icon}
                       onChange={(v) => patchLogo({ sidebar_icon: v })}
                       hint={t("themeOptions.hints.sidebarSquare")}
@@ -371,6 +379,7 @@ export function ThemeOptionsPane() {
                     <ImageSlot
                       label={t("themeOptions.slots.sidebarIconDark")}
                       icon={<Moon className="w-3.5 h-3.5" />}
+                  previewMode="dark"
                       value={draft.logo.sidebar_icon_dark}
                       onChange={(v) => patchLogo({ sidebar_icon_dark: v })}
                       folder="theme/logo"
@@ -383,6 +392,7 @@ export function ThemeOptionsPane() {
                     <ImageSlot
                       label={t("themeOptions.slots.sidebarExpanded")}
                       icon={<Sun className="w-3.5 h-3.5" />}
+                  previewMode="light"
                       value={draft.logo.sidebar_expanded}
                       onChange={(v) => patchLogo({ sidebar_expanded: v })}
                       hint={t("themeOptions.hints.sidebarOblong")}
@@ -391,6 +401,7 @@ export function ThemeOptionsPane() {
                     <ImageSlot
                       label={t("themeOptions.slots.sidebarExpandedDark")}
                       icon={<Moon className="w-3.5 h-3.5" />}
+                  previewMode="dark"
                       value={draft.logo.sidebar_expanded_dark}
                       onChange={(v) => patchLogo({ sidebar_expanded_dark: v })}
                       folder="theme/logo"
@@ -408,6 +419,7 @@ export function ThemeOptionsPane() {
                     <ImageSlot
                       label={t("themeOptions.slots.iosTouchIcon")}
                       icon={<Sun className="w-3.5 h-3.5" />}
+                  previewMode="light"
                       value={draft.logo.bookmark_ios}
                       onChange={(v) => patchLogo({ bookmark_ios: v })}
                       folder="theme/icons"
@@ -415,6 +427,7 @@ export function ThemeOptionsPane() {
                     <ImageSlot
                       label={t("themeOptions.slots.iosTouchIconDark")}
                       icon={<Moon className="w-3.5 h-3.5" />}
+                  previewMode="dark"
                       value={draft.logo.bookmark_ios_dark}
                       onChange={(v) => patchLogo({ bookmark_ios_dark: v })}
                       folder="theme/icons"
@@ -433,6 +446,7 @@ export function ThemeOptionsPane() {
                     <ImageSlot
                       label={t("themeOptions.slots.windowsTile")}
                       icon={<Sun className="w-3.5 h-3.5" />}
+                  previewMode="light"
                       value={draft.logo.bookmark_windows}
                       onChange={(v) => patchLogo({ bookmark_windows: v })}
                       folder="theme/icons"
@@ -440,6 +454,7 @@ export function ThemeOptionsPane() {
                     <ImageSlot
                       label={t("themeOptions.slots.windowsTileDark")}
                       icon={<Moon className="w-3.5 h-3.5" />}
+                  previewMode="dark"
                       value={draft.logo.bookmark_windows_dark}
                       onChange={(v) => patchLogo({ bookmark_windows_dark: v })}
                       folder="theme/icons"
