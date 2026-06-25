@@ -31,6 +31,7 @@ import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { invalidateWidgetCaches, emitWidgetCacheInvalidate } from "@/lib/builder/widgetCacheInvalidation";
 import { PAGE_TEMPLATES, type PageTemplateType } from "@/lib/pageTemplates";
 
 export const Route = createFileRoute("/admin/pages/$slug")({
