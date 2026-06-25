@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ArrowLeft, Eye, Loader2, Mail, Lock, User, LogIn } from "@/lib/lucide-shim";
-import { EyeOff, UserPlus, KeyRound } from "lucide-react";
+import { EyeOff, UserPlus, KeyRound, Sun, Moon } from "lucide-react";
+
 import illustrationLight from "@/assets/login-illustration-light.jpg";
 import illustrationDark from "@/assets/login-illustration-dark.jpg";
 
@@ -32,7 +33,7 @@ function LoginPage() {
   const navigate = useNavigate();
   const { session, isStaff, loading } = useAuth();
   const settings = useAuthSettings();
-  const { theme } = useTheme();
+  const { theme, toggle: toggleTheme } = useTheme();
   const { mode: initialMode } = Route.useSearch();
   const [mode, setMode] = useState<Mode>((initialMode ?? "signin") as Mode);
   const [email, setEmail] = useState("");
@@ -135,27 +136,39 @@ function LoginPage() {
         </Link>
       )}
 
-      {/* Language switcher */}
-      {settings.show_language_switcher && (
-        <div className="absolute top-6 right-6 z-20 inline-flex items-center gap-1 rounded-full border border-border bg-card/80 backdrop-blur px-2 py-1 text-xs">
-          <button
-            type="button"
-            onClick={() => i18n.changeLanguage("pl")}
-            aria-pressed={isPl}
-            className={`px-2 py-0.5 rounded-full transition ${isPl ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            PL
-          </button>
-          <button
-            type="button"
-            onClick={() => i18n.changeLanguage("en")}
-            aria-pressed={!isPl}
-            className={`px-2 py-0.5 rounded-full transition ${!isPl ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            EN
-          </button>
-        </div>
-      )}
+      {/* Top-right controls: theme + language */}
+      <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={theme === "dark" ? (isPl ? "Tryb jasny" : "Light mode") : (isPl ? "Tryb ciemny" : "Dark mode")}
+          title={theme === "dark" ? (isPl ? "Tryb jasny" : "Light mode") : (isPl ? "Tryb ciemny" : "Dark mode")}
+          className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-border bg-card/80 backdrop-blur text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+        </button>
+        {settings.show_language_switcher && (
+          <div className="inline-flex items-center gap-1 rounded-full border border-border bg-card/80 backdrop-blur px-2 py-1 text-xs">
+            <button
+              type="button"
+              onClick={() => i18n.changeLanguage("pl")}
+              aria-pressed={isPl}
+              className={`px-2 py-0.5 rounded-full transition ${isPl ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              PL
+            </button>
+            <button
+              type="button"
+              onClick={() => i18n.changeLanguage("en")}
+              aria-pressed={!isPl}
+              className={`px-2 py-0.5 rounded-full transition ${!isPl ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              EN
+            </button>
+          </div>
+        )}
+      </div>
+
 
       <div className="relative w-full max-w-[1280px] grid grid-cols-1 lg:grid-cols-[100px_minmax(0,1.7fr)_minmax(0,1fr)] gap-0 lg:gap-5 isolate">
         {/* LEFT: vertical mode rail */}
