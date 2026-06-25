@@ -147,6 +147,7 @@ function RootComponent() {
       <ThemeProvider>
         <AuthProvider>
           <IconPackSync />
+          <WidgetLiveSync />
           <DesignTokensStyle />
           <ContentAreaStyle />
           <ThemeOptionsStyle />
