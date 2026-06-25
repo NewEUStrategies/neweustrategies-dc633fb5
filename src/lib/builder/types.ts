@@ -240,7 +240,10 @@ export type WidgetType =
   // Podcast
   | "podcast-latest"
   // Web Stories
-  | "web-stories-carousel";
+  | "web-stories-carousel"
+  // Auth forms (structural - never raw HTML)
+  | "login-form" | "register-form" | "lost-password-form" | "reset-password-form";
+
 
 // JSON-safe primitives that may live inside a widget's content map.
 export type Json =

@@ -19,6 +19,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/components/ThemeProvider";
 import { useQuery } from "@tanstack/react-query";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import {
+  LoginFormView, RegisterFormView, LostPasswordFormView, ResetPasswordFormView,
+} from "@/components/blocks/AuthFormBlocks";
+
+type AuthCfg = Record<string, unknown>;
+function AuthFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
+  const data = (node.content ?? {}) as AuthCfg;
+  switch (node.type) {
+    case "login-form": return <LoginFormView data={data} lang={lang} />;
+    case "register-form": return <RegisterFormView data={data} lang={lang} />;
+    case "lost-password-form": return <LostPasswordFormView data={data} lang={lang} />;
+    case "reset-password-form": return <ResetPasswordFormView data={data} lang={lang} />;
+    default: return null;
+  }
+}
+
 
 type SiteLogoVariant = "main" | "mobile" | "transparent";
 type SiteLogoCfg = { logo?: { main?: string; main_dark?: string; mobile?: string; mobile_dark?: string; transparent?: string; transparent_dark?: string } };
@@ -960,10 +976,16 @@ export function renderSimpleWidget(
         </div>
       );
     }
+    case "login-form":
+    case "register-form":
+    case "lost-password-form":
+    case "reset-password-form":
+      return <AuthFormWidget node={node} lang={lang} />;
     default:
       return undefined;
   }
 }
+
 
 function LangSwitcherDropdown({ label }: { label: string }) {
   const { i18n } = useTranslation();
