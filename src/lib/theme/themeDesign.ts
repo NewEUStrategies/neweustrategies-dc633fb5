@@ -48,6 +48,38 @@ export const ThemeDesignSchema = z.object({
     gap: PX.default("12px"),
     separator: z.enum(["dot", "slash", "pipe", "none"]).default("dot"),
   }).default({}),
+  toolbarButton: z.object({
+    bgColor: COLOR.default("hsl(var(--muted))"),
+    color: COLOR.default("hsl(var(--foreground))"),
+    hoverBgColor: COLOR.default("hsl(var(--muted) / 0.7)"),
+    hoverColor: COLOR.default("hsl(var(--foreground))"),
+    activeBgColor: COLOR.default("#fa9346"),
+    activeColor: COLOR.default("#ffffff"),
+    radius: PX.default("6px"),
+    paddingX: PX.default("8px"),
+    paddingY: PX.default("6px"),
+    size: PX.default("16px"),
+  }).default({}),
+  modeSwitcher: z.object({
+    trackBg: COLOR.default("hsl(var(--muted))"),
+    trackBorder: COLOR.default("hsl(var(--border))"),
+    inactiveColor: COLOR.default("hsl(var(--muted-foreground))"),
+    activeBg: COLOR.default("hsl(var(--background))"),
+    activeColor: COLOR.default("hsl(var(--foreground))"),
+    radius: PX.default("6px"),
+    showLabel: z.boolean().default(true),
+  }).default({}),
+  socialIcons: z.object({
+    color: COLOR.default("hsl(var(--foreground))"),
+    hoverColor: COLOR.default("#fa9346"),
+    bgColor: COLOR.default("transparent"),
+    hoverBgColor: COLOR.default("transparent"),
+    size: PX.default("18px"),
+    gap: PX.default("8px"),
+    radius: PX.default("9999px"),
+    paddingX: PX.default("6px"),
+    paddingY: PX.default("6px"),
+  }).default({}),
 }).default({});
 
 export type ThemeDesign = z.infer<typeof ThemeDesignSchema>;
