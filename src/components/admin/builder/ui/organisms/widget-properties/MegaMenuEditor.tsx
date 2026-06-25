@@ -305,9 +305,69 @@ function ColumnEditor({
           </div>
         )}
       </div>
+      </>
+      )}
     </ItemFrame>
   );
 }
+
+function CategoryColumnFields({
+  slug, postCount, viewAllHref, onSlug, onCount, onViewAll,
+}: {
+  slug: string;
+  postCount: number;
+  viewAllHref: string;
+  onSlug: (v: string) => void;
+  onCount: (n: number) => void;
+  onViewAll: (v: string) => void;
+}) {
+  const { data: cats = [] } = useQuery({
+    queryKey: ["mega-menu-cats"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("categories")
+        .select("slug, name_pl")
+        .order("name_pl");
+      return (data ?? []) as Array<{ slug: string; name_pl: string }>;
+    },
+  });
+  return (
+    <div className="space-y-2 rounded-md border border-dashed border-border p-2 bg-muted/30">
+      <PropField label="Kategoria">
+        <Select value={slug || "__none"} onValueChange={(v) => onSlug(v === "__none" ? "" : v)}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="wybierz" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none">— brak —</SelectItem>
+            {cats.map((c) => (
+              <SelectItem key={c.slug} value={c.slug}>{c.name_pl}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </PropField>
+      <div className="grid grid-cols-2 gap-2">
+        <PropField label="Liczba wpisów">
+          <NumberInput
+            value={postCount}
+            min={1}
+            max={8}
+            step={1}
+            onChange={(n) => onCount(typeof n === "number" ? n : 4)}
+          />
+        </PropField>
+        <PropField label="Link „Zobacz wszystkie"">
+          <Input
+            value={viewAllHref}
+            onChange={(e) => onViewAll(e.target.value)}
+            className="h-8 text-xs"
+            placeholder={slug ? `/category/${slug}` : "/category/..."}
+          />
+        </PropField>
+      </div>
+    </div>
+  );
+}
+
 
 function aspectClassFor(r: string): string {
   if (r === "16/9") return "aspect-[16/9]";
