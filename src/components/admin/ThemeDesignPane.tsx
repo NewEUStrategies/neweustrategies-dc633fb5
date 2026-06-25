@@ -1,8 +1,10 @@
 // Pane with global "Theme Design" styles - block headings, thumbnails,
-// "Read more" buttons, meta info + global slider/carousel defaults.
+// "Read more" buttons, meta info, toolbar buttons, mode switcher, social icons
+// + global slider/carousel defaults.
 // Embedded as a section inside ThemeOptionsPane (under "Style treści").
 import { useEffect, useState } from "react";
-import { Save } from "lucide-react";
+import { Save, Sun, Moon, Undo, Redo, Monitor, Tablet, Smartphone, Facebook, Instagram, Youtube, Linkedin, Mail } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
