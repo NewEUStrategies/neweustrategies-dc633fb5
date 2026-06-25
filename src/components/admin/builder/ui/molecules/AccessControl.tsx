@@ -1,7 +1,7 @@
 // Molecule: configures auth/role-based visibility for a widget, column, or section.
 // Mirrors the structure used by VisibilityControl so the Advanced tab feels coherent.
 import type { AdvancedSettings, AccessAuthMode, AccessRole, AccessRolesMode } from "@/lib/builder/types";
-import { Lock, Unlock, Users, ShieldCheck } from "@/lib/lucide-shim";
+import { Lock, Globe, Users, ShieldCheck } from "@/lib/lucide-shim";
 
 interface Props {
   value: AdvancedSettings | undefined;
