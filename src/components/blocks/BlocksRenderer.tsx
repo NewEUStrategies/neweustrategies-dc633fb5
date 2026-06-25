@@ -6,6 +6,14 @@ import DOMPurify from "isomorphic-dompurify";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
 import { LiveBlogBlock } from "./LiveBlogBlock";
 import { GalleryBlock } from "./GalleryBlock";
+import { ReviewBlockView } from "./ReviewBlockView";
+import { FaqBlockView } from "./FaqBlockView";
+import { TocBlockView } from "./TocBlockView";
+import { AffiliateBlockView } from "./AffiliateBlockView";
+import { XQuoteShare } from "./XQuoteShare";
+import { CompareSlider } from "./CompareSlider";
+import { NewsletterForm } from "@/components/NewsletterForm";
+import { ThumbsUp, ThumbsDown } from "lucide-react";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -53,7 +61,7 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
   const L = FN_LABELS[lang] ?? FN_LABELS.pl;
   return (
     <article className="blocks-content prose prose-lg dark:prose-invert max-w-none" lang={lang}>
-      {safe.blocks.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} />)}
+      {safe.blocks.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} allBlocks={safe.blocks} />)}
       {fn.notes.length > 0 && (
         <section className="footnotes mt-10 pt-6 border-t border-border text-sm" aria-labelledby="footnotes-heading">
           <h2 id="footnotes-heading" data-footnotes-title className="text-base font-semibold mb-3">{L.title}</h2>
@@ -95,7 +103,23 @@ function readBlocksArray(raw: Json | undefined): Block[] {
   return out;
 }
 
-function BlockView({ block, fn, lang = "pl", postId }: { block: Block; fn: FootnoteCollector; lang?: "pl" | "en"; postId?: string }) {
+function slugify(s: string): string {
+  return s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function readObjArray<T>(raw: Json | undefined, map: (o: Record<string, unknown>) => T): T[] {
+  if (!Array.isArray(raw)) return [];
+  const out: T[] = [];
+  for (const x of raw) {
+    if (x && typeof x === "object" && !Array.isArray(x)) {
+      out.push(map(x as Record<string, unknown>));
+    }
+  }
+  return out;
+}
+
+function BlockView({ block, fn, lang = "pl", postId, allBlocks }: { block: Block; fn: FootnoteCollector; lang?: "pl" | "en"; postId?: string; allBlocks?: Block[] }) {
   const cls = alignClass(block);
 
   switch (block.type) {
@@ -106,7 +130,8 @@ function BlockView({ block, fn, lang = "pl", postId }: { block: Block; fn: Footn
     case "heading": {
       const level = Math.min(Math.max(Number(block.data.level ?? 2), 2), 4);
       const text = String(block.data.text ?? "");
-      const id = block.data.anchor ? String(block.data.anchor) : undefined;
+      const explicit = block.data.anchor ? String(block.data.anchor) : "";
+      const id = explicit || (text ? slugify(text) : undefined);
       const Tag = `h${level}` as "h2" | "h3" | "h4";
       return <Tag id={id} className={cls}>{text}</Tag>;
     }
@@ -244,8 +269,8 @@ function BlockView({ block, fn, lang = "pl", postId }: { block: Block; fn: Footn
       const right = readBlocksArray(block.data.right);
       return (
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 not-prose ${cls}`}>
-          <div className="prose dark:prose-invert max-w-none">{left.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} />)}</div>
-          <div className="prose dark:prose-invert max-w-none">{right.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} />)}</div>
+          <div className="prose dark:prose-invert max-w-none">{left.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} allBlocks={allBlocks} />)}</div>
+          <div className="prose dark:prose-invert max-w-none">{right.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} allBlocks={allBlocks} />)}</div>
         </div>
       );
     }
@@ -267,6 +292,154 @@ function BlockView({ block, fn, lang = "pl", postId }: { block: Block; fn: Footn
             title={title || undefined}
             reverseChronological={reverseChronological}
             autoRefresh={autoRefresh}
+          />
+        </div>
+      );
+    }
+    case "review": {
+      const criteria = readObjArray(block.data.criteria, (o) => ({
+        label: String(o.label ?? ""),
+        score: Number(o.score ?? 0),
+      }));
+      return (
+        <div className={cls}>
+          <ReviewBlockView
+            title={String(block.data.title ?? "")}
+            summary={String(block.data.summary ?? "")}
+            criteria={criteria}
+            ctaLabel={String(block.data.ctaLabel ?? "")}
+            ctaHref={String(block.data.ctaHref ?? "")}
+            scale={Number(block.data.scale ?? 10)}
+            lang={lang}
+          />
+        </div>
+      );
+    }
+    case "proscons": {
+      const title = String(block.data.title ?? "");
+      const pros = (Array.isArray(block.data.pros) ? block.data.pros : []).map((x) => String(x ?? "")).filter(Boolean);
+      const cons = (Array.isArray(block.data.cons) ? block.data.cons : []).map((x) => String(x ?? "")).filter(Boolean);
+      const LBL = lang === "pl" ? { pros: "Plusy", cons: "Minusy" } : { pros: "Pros", cons: "Cons" };
+      if (!pros.length && !cons.length) return null;
+      return (
+        <section className={`not-prose my-6 ${cls}`}>
+          {title && <h3 className="text-base font-semibold mb-3">{title}</h3>}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300 mb-2">
+                <ThumbsUp className="w-4 h-4" /> {LBL.pros}
+              </div>
+              <ul className="m-0 pl-5 list-disc space-y-1 text-sm">
+                {pros.map((p, i) => <li key={i}>{p}</li>)}
+              </ul>
+            </div>
+            <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-300 mb-2">
+                <ThumbsDown className="w-4 h-4" /> {LBL.cons}
+              </div>
+              <ul className="m-0 pl-5 list-disc space-y-1 text-sm">
+                {cons.map((p, i) => <li key={i}>{p}</li>)}
+              </ul>
+            </div>
+          </div>
+        </section>
+      );
+    }
+    case "spoiler": {
+      const summary = String(block.data.summary ?? "");
+      const inner = sanitize(String(block.data.html ?? ""));
+      const open = Boolean(block.data.defaultOpen);
+      if (!inner) return null;
+      return (
+        <details className={`not-prose my-4 rounded-md border border-border bg-muted/30 ${cls}`} open={open}>
+          <summary className="cursor-pointer select-none px-4 py-3 font-medium text-sm hover:bg-accent/50 rounded-t-md">
+            {summary || (lang === "pl" ? "Pokaż więcej" : "Show more")}
+          </summary>
+          <div className="px-4 py-3 border-t border-border text-sm" dangerouslySetInnerHTML={{ __html: inner }} />
+        </details>
+      );
+    }
+    case "faq": {
+      const items = readObjArray(block.data.items, (o) => ({
+        q: String(o.q ?? ""),
+        a: String(o.a ?? ""),
+      }));
+      return (
+        <div className={cls}>
+          <FaqBlockView items={items} title={String(block.data.title ?? "")} lang={lang} />
+        </div>
+      );
+    }
+    case "toc": {
+      return (
+        <div className={cls}>
+          <TocBlockView
+            blocks={allBlocks ?? []}
+            title={String(block.data.title ?? "")}
+            maxLevel={Number(block.data.maxLevel ?? 3)}
+            ordered={Boolean(block.data.ordered)}
+            sticky={Boolean(block.data.sticky)}
+            lang={lang}
+          />
+        </div>
+      );
+    }
+    case "newsletter": {
+      const title = String(block.data.title ?? "");
+      const description = String(block.data.description ?? "");
+      const variant = (String(block.data.variant ?? "card") === "inline" ? "inline" : "card") as "card" | "inline";
+      return (
+        <section className={`not-prose my-6 rounded-lg border border-border bg-gradient-to-br from-primary/10 to-transparent p-5 ${cls}`}>
+          {title && <h3 className="text-lg font-semibold m-0 mb-1">{title}</h3>}
+          {description && <p className="text-sm text-muted-foreground mb-3 m-0">{description}</p>}
+          <NewsletterForm lang={lang} source="inline-block" variant={variant} />
+        </section>
+      );
+    }
+    case "affiliate": {
+      return (
+        <div className={cls}>
+          <AffiliateBlockView
+            title={String(block.data.title ?? "")}
+            description={String(block.data.description ?? "")}
+            image={String(block.data.image ?? "")}
+            price={String(block.data.price ?? "")}
+            currency={String(block.data.currency ?? "")}
+            store={String(block.data.store ?? "")}
+            ctaLabel={String(block.data.ctaLabel ?? "")}
+            ctaHref={String(block.data.ctaHref ?? "")}
+            rating={Number(block.data.rating ?? 0)}
+            sponsored={block.data.sponsored !== false}
+            lang={lang}
+          />
+        </div>
+      );
+    }
+    case "xquote": {
+      const text = String(block.data.text ?? "");
+      if (!text) return null;
+      return (
+        <div className={cls}>
+          <XQuoteShare
+            text={text}
+            via={String(block.data.via ?? "")}
+            hashtags={String(block.data.hashtags ?? "")}
+            lang={lang}
+          />
+        </div>
+      );
+    }
+    case "compare": {
+      const before = String(block.data.before ?? "");
+      const after = String(block.data.after ?? "");
+      if (!before || !after) return null;
+      return (
+        <div className={`not-prose my-6 ${cls}`}>
+          <CompareSlider
+            before={before}
+            after={after}
+            labelBefore={String(block.data.labelBefore ?? (lang === "pl" ? "Przed" : "Before"))}
+            labelAfter={String(block.data.labelAfter ?? (lang === "pl" ? "Po" : "After"))}
           />
         </div>
       );

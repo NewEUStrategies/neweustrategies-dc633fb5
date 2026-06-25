@@ -622,6 +622,9 @@ const resources = {
           paragraph: "Akapit", heading: "Nagłówek", image: "Obraz", list: "Lista", quote: "Cytat",
           code: "Kod", embed: "Embed", video: "Wideo", gallery: "Galeria", separator: "Separator",
           callout: "Callout", table: "Tabela", button: "Przycisk", columns: "Kolumny", html: "HTML",
+          liveblog: "Live Blog",
+          review: "Recenzja", proscons: "Plusy/Minusy", spoiler: "Spoiler", faq: "FAQ",
+          toc: "Spis treści", newsletter: "Newsletter", affiliate: "Produkt", xquote: "X Quote", compare: "Before/After",
         },
         outline: { title: "Konspekt", empty: "Dodaj nagłówki, aby zbudować konspekt." },
         settings: {
@@ -1267,6 +1270,9 @@ const resources = {
           paragraph: "Paragraph", heading: "Heading", image: "Image", list: "List", quote: "Quote",
           code: "Code", embed: "Embed", video: "Video", gallery: "Gallery", separator: "Separator",
           callout: "Callout", table: "Table", button: "Button", columns: "Columns", html: "HTML",
+          liveblog: "Live Blog",
+          review: "Review", proscons: "Pros/Cons", spoiler: "Spoiler", faq: "FAQ",
+          toc: "Table of contents", newsletter: "Newsletter", affiliate: "Product", xquote: "X Quote", compare: "Before/After",
         },
         outline: { title: "Outline", empty: "Add headings to build the outline." },
         settings: {
