@@ -153,6 +153,34 @@ export function themeDesignToCss(t: ThemeDesign): string {
   v.push(`--td-meta-color:${t.metaInfo.color};`);
   v.push(`--td-meta-transform:${t.metaInfo.uppercase ? "uppercase" : "none"};`);
   v.push(`--td-meta-gap:${t.metaInfo.gap};`);
+  // Toolbar buttons (undo/redo, device, lang)
+  v.push(`--td-tb-bg:${t.toolbarButton.bgColor};`);
+  v.push(`--td-tb-color:${t.toolbarButton.color};`);
+  v.push(`--td-tb-hover-bg:${t.toolbarButton.hoverBgColor};`);
+  v.push(`--td-tb-hover-color:${t.toolbarButton.hoverColor};`);
+  v.push(`--td-tb-active-bg:${t.toolbarButton.activeBgColor};`);
+  v.push(`--td-tb-active-color:${t.toolbarButton.activeColor};`);
+  v.push(`--td-tb-radius:${t.toolbarButton.radius};`);
+  v.push(`--td-tb-px:${t.toolbarButton.paddingX};`);
+  v.push(`--td-tb-py:${t.toolbarButton.paddingY};`);
+  v.push(`--td-tb-size:${t.toolbarButton.size};`);
+  // Mode switcher (light/dark segmented)
+  v.push(`--td-ms-track-bg:${t.modeSwitcher.trackBg};`);
+  v.push(`--td-ms-track-border:${t.modeSwitcher.trackBorder};`);
+  v.push(`--td-ms-inactive:${t.modeSwitcher.inactiveColor};`);
+  v.push(`--td-ms-active-bg:${t.modeSwitcher.activeBg};`);
+  v.push(`--td-ms-active-color:${t.modeSwitcher.activeColor};`);
+  v.push(`--td-ms-radius:${t.modeSwitcher.radius};`);
+  // Social icons
+  v.push(`--td-si-color:${t.socialIcons.color};`);
+  v.push(`--td-si-hover-color:${t.socialIcons.hoverColor};`);
+  v.push(`--td-si-bg:${t.socialIcons.bgColor};`);
+  v.push(`--td-si-hover-bg:${t.socialIcons.hoverBgColor};`);
+  v.push(`--td-si-size:${t.socialIcons.size};`);
+  v.push(`--td-si-gap:${t.socialIcons.gap};`);
+  v.push(`--td-si-radius:${t.socialIcons.radius};`);
+  v.push(`--td-si-px:${t.socialIcons.paddingX};`);
+  v.push(`--td-si-py:${t.socialIcons.paddingY};`);
   return `:root{${v.join("")}}`;
 }
 
