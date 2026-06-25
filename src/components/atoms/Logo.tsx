@@ -4,7 +4,7 @@ import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 
 interface LogoProps {
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   withWordmark?: boolean;
   /** Wariant: "main" (desktop), "mobile", "transparent". */
   variant?: "main" | "mobile" | "transparent";
@@ -14,7 +14,9 @@ const SIZE: Record<NonNullable<LogoProps["size"]>, string> = {
   sm: "w-8 h-8",
   md: "w-12 h-12 md:w-14 md:h-14",
   lg: "w-16 h-16",
+  xl: "w-24 h-24",
 };
+
 
 type LogoCfg = {
   logo: {
