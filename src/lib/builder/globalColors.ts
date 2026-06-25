@@ -495,6 +495,14 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#131822",
         defaultDark: "#ffffff",
       },
+      {
+        key: "link-active",
+        label: "Link Active Color",
+        description: "Kolor aktywnych linków (np. zaznaczona pozycja menu, bieżąca strona).",
+        hasDark: true,
+        defaultLight: "#fa9346",
+        defaultDark: "#fbbf24",
+      },
     ],
   },
   {
