@@ -202,7 +202,21 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
 
   return (
     <form onSubmit={onSubmit} className="space-y-2.5" noValidate>
-      {ext && (
+      {/* Honeypot: hidden from real users (CSS + tabIndex + aria-hidden), tempting for bots. */}
+      <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }}>
+        <label>
+          Website
+          <input
+            type="text"
+            name="website"
+            tabIndex={-1}
+            autoComplete="off"
+            value={honey}
+            onChange={(e) => setHoney(e.target.value)}
+          />
+        </label>
+      </div>
+
         <>
           <input className={inputCls} placeholder={t("Imię", "Name")} value={v.name}
             onChange={(e) => upd("name", e.target.value)} maxLength={80} />
