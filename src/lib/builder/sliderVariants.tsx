@@ -54,7 +54,28 @@ interface RenderProps {
 }
 
 export function SliderRender({ config, lang, preview = false }: RenderProps) {
-  const items = (config.items || []).filter((it) => it && it.image);
+  const rawItems = useMemo(() => config.items || [], [config.items]);
+  const postIds = useMemo(
+    () => rawItems.map((it) => (it && it.postId ? it.postId : null)),
+    [rawItems],
+  );
+  const refMap = useResolvedPostRefs(postIds, lang);
+  const resolvedItems = useMemo(
+    () =>
+      rawItems.map((it) => {
+        if (!it || !it.postId) return it;
+        const ref = refMap.get(it.postId) ?? null;
+        return mergePostRefOverride(it, ref, {
+          image: "image",
+          title: `title_${lang}` as keyof SliderItem,
+          subtitle: `subtitle_${lang}` as keyof SliderItem,
+          href: "href",
+          author: "author",
+        });
+      }),
+    [rawItems, refMap, lang],
+  );
+  const items = resolvedItems.filter((it) => it && it.image);
   const ratio = config.ratio ?? "16/9";
   const autoplay = config.autoplay !== false;
   const intervalMs = Math.max(1500, config.intervalMs ?? 4500);
