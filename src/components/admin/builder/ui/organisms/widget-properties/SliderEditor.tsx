@@ -47,6 +47,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     .filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null)
     .map((it) => ({
       image: typeof it.image === "string" ? it.image : "",
+      postId: typeof it.postId === "string" ? it.postId : undefined,
       title_pl: typeof it.title_pl === "string" ? it.title_pl : "",
       title_en: typeof it.title_en === "string" ? it.title_en : "",
       subtitle_pl: typeof it.subtitle_pl === "string" ? it.subtitle_pl : "",
