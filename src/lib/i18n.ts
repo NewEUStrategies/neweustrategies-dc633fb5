@@ -167,6 +167,7 @@ const resources = {
           sections: {
             logo: "Logo",
             globalColors: "Global Colors",
+            backgrounds: "Tła motywu",
             headerLayout: "Układ nagłówka",
             mainMenu: "Menu główne",
             headerSearch: "Wyszukiwarka w nagłówku",
