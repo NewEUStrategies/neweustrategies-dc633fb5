@@ -994,6 +994,8 @@ export function renderSimpleWidget(
     case "archive-title":
     case "search-form":
       return <DynamicTagWidget node={node} lang={lang} />;
+    case "contact-form":
+      return <ContactFormView data={(node.content ?? {}) as Record<string, unknown>} lang={lang} />;
     default:
       return undefined;
   }
