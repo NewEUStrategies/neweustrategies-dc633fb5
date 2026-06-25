@@ -1,73 +1,88 @@
+## Cel
 
-## Zakres (4 moduły z Foxiz, wdrażane po kolei)
+Widget w CMS przestaje być statyczną kopią treści. Każdy "treściowy" widget (Slider, Karta wyróżniona, Lista, Hot topic, News ticker, Karuzela, Hero) wskazuje wpis/stronę/kategorię/tag - obraz, tytuł, excerpt, autor, data, link i nazwa kategorii zawsze pobierane są na żywo z bazy. Edycja wpisu od razu propaguje się do wszystkich widgetów na wszystkich stronach.
 
-Adaptacja pod nasz stack: TanStack Start + Lovable Cloud, builder widgets, atomic design, i18n PL/EN, tenant_id, RLS, testy.
+## Stan obecny (audyt)
 
----
+Już zsynchronizowane (czytają live z Supabase):
+- `PostListView` - lista/grid/karuzela wpisów (filtry kategoria/tag/autor/data/popularność)
+- `NewsTickerView` - poziomy pasek najnowszych
+- `RatedListView`, `PostsSliderWidget` (gdy `source = "posts"`)
+- `CategoriesView`, `TagsView`, `WebStoriesCarouselView`, `PodcastLatestView`
 
-### Moduł K — Footer
+Trzymają zduplikowane dane (źródło problemu z preview):
+- Slider w trybie `manual` - per-slajd zapisany `image`, `title_*`, `subtitle_*`, `href` (gdy plik znika ze storage → 404, gdy zmienisz tytuł posta → nie aktualizuje się)
+- Widget `image` - zapisany URL bez referencji do posta
+- Widget `featured-card` / kafelek "hot" - statyczny tytuł/obraz
 
-1. **Footer Builder** — wybór szablonu z `builder_templates` (typ `footer`) per tenant. Renderer w `Footer.tsx` używa BuilderRenderer.
-2. **Footer Widgets area** — kolumny (1-4) z widgetami: about, menu, contact, social, newsletter, recent posts, tags cloud, instagram feed.
-3. **Footer Settings** (Theme Options → Footer):
-   - layout: `default | centered | minimal | dark | light`
-   - kolumny: 1/2/3/4
-   - copyright text (i18n)
-   - back-to-top toggle
-   - separator między sekcjami
-4. **Tabela**: `footer_settings` (tenant singleton) + admin route `/admin/theme-design/footer`.
+Brakuje też globalnej invalidacji cache po zapisie wpisu/strony - widget cache (`builder-slider-posts`, `post-list-*` itd.) odświeża się dopiero na `staleTime` lub po reload.
 
-### Moduł L — Podcast
+## Co wdrożymy
 
-1. **Custom post type**: rozszerzenie `posts` o `post_type='podcast'` lub osobna tabela `podcasts` (audio_url, duration, episode_number, season, transcript, show_notes).
-2. **PodcastPlayer atom** — HTML5 audio + sticky player (kontrolki: play/pause, seek, speed, skip ±15s).
-3. **Builder widgets**:
-   - `podcast-latest` (grid/list ostatnich odcinków)
-   - `podcast-featured` (jeden hero z playerem)
-   - `podcast-playlist` (kolejka)
-4. **Single podcast page**: `/podcast/$slug` z playerem, show notes, transcript, embed code.
-5. **Global options**: domyślny player (mini/full), auto-play next, subscribe links (Spotify/Apple/Google).
-6. **Migracja**: tabela `podcasts` (RLS, GRANTS), `podcast_settings` (tenant singleton).
+### 1. Wspólny "content reference" model
 
-### Moduł M — Newsletter
+Dodajemy lekki helper `useResolvedPostRef({ postId, fallback })` zwracający `{ id, slug, title, excerpt, cover, href, publishedAt, author, categories[] }` w aktywnym języku, z `useQuery` + wspólnym kluczem `["post-ref", id, lang]` (5 min stale, 30 min gc). Resolwer mapuje też URL covera przez nasze custom crop sizes.
 
-1. **Subscribe form block** — atom + builder widget (`newsletter-form`).
-2. **Tabela** `newsletter_subscribers` (email, tenant_id, status, confirmed_at, locale, consent) z double opt-in.
-3. **Server functions**: `subscribeNewsletter`, `confirmSubscription`, `unsubscribe` (token-based).
-4. **Newsletter Popup**:
-   - Theme Options → Newsletter Popup (cover image, title, description, CTA, trigger: delay/scroll/exit-intent, frequency cookie).
-   - `NewsletterPopup` komponent renderowany w root.
-5. **Email integration**: na razie zapis w DB + endpoint webhooka; opcjonalnie konektor Mailchimp/Resend (do dyspozycji w przyszłej turze).
-6. **Layouty formularza**: inline, stacked, boxed (per użycie).
+Plus `useResolvedPageRef`, `useResolvedCategoryRef`, `useResolvedTagRef` - ten sam wzorzec dla pozostałych encji.
 
-### Moduł N — Web Stories
+### 2. Slider - per-slajd referencja do wpisu
 
-1. **Tabela** `web_stories` (tenant_id, title, slug, cover_url, pages JSONB, published_at, status).
-2. **Story Viewer** — pełnoekranowy odtwarzacz (swipe/keyboard, progress bar, autoplay 5s per page, tap left/right, media: image/video, text overlay).
-3. **Edytor stories** w admin: `/admin/web-stories` (lista) + `/admin/web-stories/$slug` (edytor stron: dodaj/usuń/reorder, layout text, background media).
-4. **Public route** `/web-stories/$slug` (AMP-like fullscreen, SEO meta).
-5. **Builder widget** `web-stories-carousel` — poziomy carousel kafli z cover + tytuł, klik otwiera viewer.
-6. **i18n**: title/description per locale; lazy-load mediów.
+W `SliderEditor` (tryb manual) każdy slajd dostaje pole `Powiąż z wpisem` (Combobox z wyszukiwarką po `posts.slug/title`). Gdy ustawione:
+- `image` → `post.cover_image_url` (z lazy fallbackiem na zapisany URL)
+- `title_pl/en`, `subtitle_pl/en` (excerpt), `href` (wyliczony z parent_page + slug), `cta_*`
+- Wciąż można nadpisać ręcznie każde pole (zapisane wartości mają priorytet nad live)
 
----
+`SliderRender` w trybie manual uruchamia `useResolvedPostRef` dla każdego slajdu z `postId` i miksuje wynik z lokalnymi nadpisaniami. Brak postId = czysty manual jak dziś (z dodatkowym `onError` na `<img>` pokazującym placeholder zamiast 404).
 
-### Wspólne
+### 3. Widget `image` - opcjonalna referencja do covera wpisu
 
-- Wszystkie nowe tabele: tenant_id, RLS z `has_role` / tenant scoping, GRANTs (anon read tylko dla publish=true tam gdzie publiczne).
-- Builder widgets rejestrowane w `src/lib/builder/registry.tsx` z view + properties editor + Zod schema.
-- i18n: nowe klucze w `src/i18n/locales/pl.json` i `en.json`.
-- Testy vitest: scoring, walidacja zod, render layoutów, server fn guards.
-- Atomic design: atoms (Player, SubscribeInput, StoryProgressBar), molecules (PodcastCard, NewsletterCardForm, StoryCard), organisms (FooterRenderer, PodcastList, StoryCarousel, StoryViewer).
+Dodajemy w `ImageWidget` przełącznik `Źródło: Upload | Cover wpisu`. W trybie "cover wpisu" picker postId; live URL + alt z tytułu posta.
 
-### Kolejność wdrażania (4 osobne tury)
+### 4. Featured-card / hot-topic / hero
 
-1. **Tura 1 — Footer (K)** — szybkie, dotyka tylko UI + 1 tabela settings.
-2. **Tura 2 — Newsletter (M)** — subscribers + popup + form widget.
-3. **Tura 3 — Podcast (L)** — najobszerniejsze (CPT + player + widgets + single page).
-4. **Tura 4 — Web Stories (N)** — viewer + editor + carousel.
+Te widgety (`SimpleWidgets.tsx` cases) dziś trzymają tytuł/obraz w `c.title_*`/`c.image`. Dodajemy ten sam pattern: `postId` → live data, lokalne pola jako override.
 
-Każdą turę kończę testami (`vitest`) + typecheck.
+### 5. Auto-invalidacja po zapisie
 
----
+W mutacjach `updatePost` / `updatePage` / `publishPost` (admin) po success: `queryClient.invalidateQueries({ predicate: q => q.queryKey[0] in {"post-ref","page-ref","builder-slider-posts","post-list","news-ticker","trending"} })`. Plus Supabase realtime subskrypcja na frontendzie (`postgres_changes` na `posts/pages/categories/tags`) invaliduje te same klucze - aktualizacja widoczna bez przeładowania na innych otwartych kartach.
 
-**Czy zatwierdzasz? Zaczynam od Tury 1 (Footer).** Jeśli chcesz zmiany kolejności lub okroić zakres (np. pominąć editor stories / pominąć double opt-in) — napisz przed startem.
+### 6. Placeholder dla zniszczonych URL-i
+
+`OptimizedImage` + bezpośrednie `<img>` w `SliderRender` dostają `onError` → placeholder (neutralne tło + ikona) + `console.warn` z URL-em. Brak 404 wybielającego layout.
+
+### 7. i18n + testy
+
+- Nowe stringi PL/EN w `src/lib/i18n.ts` (Powiąż z wpisem, Źródło, Nadpisz tytuł itp.).
+- Testy jednostkowe dla `useResolvedPostRef` (override > live > fallback) i smoke test rendererów Slider/Image z `postId`.
+
+## Pliki
+
+```text
+src/lib/builder/contentRefs.ts                                   NEW - useResolvedPostRef/PageRef/CategoryRef/TagRef
+src/lib/builder/types.ts                                          + pola postId/pageId per slajd
+src/components/admin/builder/ui/organisms/widget-properties/
+  SliderEditor.tsx                                                + picker postId per item
+  ImageWidget editor (w SimpleWidgets / dedicated)                + przelacznik source
+  FeaturedCardEditor.tsx (jesli istnieje, inaczej w SimpleWidgets)+ picker postId
+src/components/admin/builder/ui/organisms/widget-view/
+  SimpleWidgets.tsx                                               miks live+override w slider/image/featured
+  SliderRender (sliderVariants.ts)                                onError placeholder
+src/components/atoms/OptimizedImage.tsx                           onError fallback
+src/lib/builder/widgetCacheInvalidation.ts                        NEW - helper invalidate + realtime hook
+src/routes/admin.posts.$slug.tsx, admin.pages.$slug.tsx           podlacz invalidate po mutation
+src/lib/i18n.ts                                                   nowe klucze
+src/components/admin/builder/__tests__/contentRefs.test.tsx       NEW
+```
+
+## Co się nie zmienia
+
+- Schema bazy bez zmian (`postId` to pole w JSON `content`).
+- RLS, polityki, edge functions - nic.
+- Istniejące widgety czytające live (PostList, NewsTicker itp.) - tylko dostają wspólną invalidację.
+
+## Akceptacja
+
+1. Otwieram istniejący Slider manual, klikam slajd, wybieram wpis → obraz/tytuł podmienione na żywo.
+2. Edytuję tytuł wpisu w `/admin/posts/$slug` → po zapisie wszystkie widgety na innych otwartych zakładkach pokazują nowy tytuł bez F5.
+3. Usuwam plik z Media → slider pokazuje placeholder zamiast pustej białej dziury.
+4. Build zielony, lint zielony, nowe testy zielone.
