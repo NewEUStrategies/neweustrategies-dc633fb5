@@ -15,7 +15,10 @@ export function Toolbar({
       <div className="flex items-center gap-1">
         {(["pl", "en"] as const).map((l) => (
           <button key={l} onClick={() => onLangChange(l)}
-            className={`px-2.5 py-1 text-xs rounded ${lang === l ? "bg-brand text-brand-foreground" : "bg-muted"}`}>
+            data-active={lang === l}
+            className="cms-tb-btn text-xs"
+            style={{ minWidth: 32 }}
+          >
             {l.toUpperCase()}
           </button>
         ))}
@@ -24,31 +27,33 @@ export function Toolbar({
         <div className="flex gap-1">
           {([["desktop", Monitor], ["tablet", Tablet], ["mobile", Smartphone]] as const).map(([d, Icon]) => (
             <button key={d} onClick={() => setDevice(d)}
-              className={`p-1.5 rounded ${device === d ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`} title={d}>
-              <Icon className="w-4 h-4" />
+              data-active={device === d}
+              className="cms-tb-btn"
+              title={d}
+            >
+              <Icon />
             </button>
           ))}
         </div>
-        <div className="inline-flex items-center rounded border border-border bg-muted p-0.5" role="group" aria-label="Tryb podglądu">
-          {([["light", Sun, "Tryb jasny"], ["dark", Moon, "Tryb ciemny"]] as const).map(([m, Icon, title]) => (
+        <div className="cms-mode-switch" role="group" aria-label="Tryb podglądu">
+          {([["light", Sun, "Tryb jasny", "Jasny"], ["dark", Moon, "Tryb ciemny", "Ciemny"]] as const).map(([m, Icon, title, label]) => (
             <button key={m} onClick={() => setMode(m)}
-              className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-sm transition ${
-                mode === m ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              }`}
+              data-active={mode === m}
+              className="cms-mode-switch__btn"
               title={title}
             >
               <Icon className="w-3.5 h-3.5" />
-              {m === "light" ? "Jasny" : "Ciemny"}
+              {label}
             </button>
           ))}
         </div>
       </div>
       <div className="flex items-center gap-1">
-        <button onClick={onUndo} disabled={!canUndo} className="p-1.5 rounded bg-muted hover:bg-muted/70 disabled:opacity-30" title="Cofnij">
-          <Undo className="w-4 h-4" />
+        <button onClick={onUndo} disabled={!canUndo} className="cms-tb-btn" title="Cofnij">
+          <Undo />
         </button>
-        <button onClick={onRedo} disabled={!canRedo} className="p-1.5 rounded bg-muted hover:bg-muted/70 disabled:opacity-30" title="Ponów">
-          <Redo className="w-4 h-4" />
+        <button onClick={onRedo} disabled={!canRedo} className="cms-tb-btn" title="Ponów">
+          <Redo />
         </button>
       </div>
     </div>
