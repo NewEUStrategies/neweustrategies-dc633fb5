@@ -1,7 +1,7 @@
 // Dynamic-tag widget renderers. Surface the current post/archive context
 // in a structural, non-HTML way. Falls back to placeholder data in the
 // admin canvas so authors see realistic previews.
-import { type ReactElement } from "react";
+import { createElement, type ReactElement } from "react";
 import { Link } from "@tanstack/react-router";
 import type { WidgetNode } from "@/lib/builder/types";
 import { useCurrentPostCtx, PLACEHOLDER_POST_CTX, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
