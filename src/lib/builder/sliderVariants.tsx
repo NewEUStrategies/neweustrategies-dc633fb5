@@ -49,6 +49,12 @@ const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
   none: "0px", sm: "4px", md: "8px", lg: "16px", xl: "24px", full: "9999px",
 };
 
+const SLIDER_IMAGE_PLACEHOLDER =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 75" preserveAspectRatio="xMidYMid meet"><rect width="100" height="75" fill="hsl(0 0% 90%)"/><g fill="none" stroke="hsl(0 0% 60%)" stroke-width="1.4"><rect x="30" y="22" width="40" height="28" rx="2"/><circle cx="39" cy="32" r="3"/><path d="m70 50-12-12-22 18"/></g></svg>',
+  );
+
 interface RenderProps {
   config: SliderConfig;
   lang: "pl" | "en";
@@ -113,7 +119,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       return {
         ...it,
         image: !safe || failedImages.has(safe)
-          ? fallbackImages[i % Math.max(1, fallbackImages.length)] || safe
+          ? fallbackImages[i % Math.max(1, fallbackImages.length)] || SLIDER_IMAGE_PLACEHOLDER
           : safe,
       };
     })
@@ -236,11 +242,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
                 return;
               }
               target.onerror = null;
-              target.src =
-                "data:image/svg+xml;utf8," +
-                encodeURIComponent(
-                  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 75" preserveAspectRatio="xMidYMid meet"><rect width="100" height="75" fill="hsl(0 0% 90%)"/><g fill="none" stroke="hsl(0 0% 60%)" stroke-width="1.4"><rect x="30" y="22" width="40" height="28" rx="2"/><circle cx="39" cy="32" r="3"/><path d="m70 50-12-12-22 18"/></g></svg>',
-                );
+              target.src = SLIDER_IMAGE_PLACEHOLDER;
             }}
           />
         ))}
