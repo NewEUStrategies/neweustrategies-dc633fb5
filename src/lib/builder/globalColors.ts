@@ -268,7 +268,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         description: "Tło sidebaru (panel boczny).",
         hasDark: true,
         defaultLight: "#f8f6f4",
-        defaultDark: "#01112f",
+        defaultDark: "#131822",
         overrides: ["--sidebar-background", "--sidebar"],
       },
       {
