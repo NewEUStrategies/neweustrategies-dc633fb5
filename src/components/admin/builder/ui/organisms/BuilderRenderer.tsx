@@ -121,6 +121,7 @@ const DEBUG_CSS = `
 `;
 
 export function BuilderRenderer({ doc, lang, device }: Props) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? detectViewportDevice());
   const [debug, setDebug] = useState<boolean>(() => readDebugFlag());
 
@@ -129,11 +130,24 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
       setViewportDevice(device);
       return;
     }
-
-    const updateDevice = () => setViewportDevice(detectViewportDevice());
-    updateDevice();
-    window.addEventListener("resize", updateDevice);
-    return () => window.removeEventListener("resize", updateDevice);
+    const el = rootRef.current;
+    // Prefer container width (handles being rendered inside a 390px canvas
+    // preview frame in the admin). Fall back to window width.
+    const measure = () => {
+      const w = el?.clientWidth && el.clientWidth > 0 ? el.clientWidth : window.innerWidth;
+      setViewportDevice(deviceForWidth(w));
+    };
+    measure();
+    let ro: ResizeObserver | null = null;
+    if (el && typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(measure);
+      ro.observe(el);
+    }
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro?.disconnect();
+    };
   }, [device]);
 
   useEffect(() => {
@@ -164,7 +178,7 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
   return (
     <UsedPostIdsProvider>
       <style dangerouslySetInnerHTML={{ __html: DEBUG_CSS }} />
-      <div data-builder-renderer data-debug={debug ? "1" : "0"}>
+      <div ref={rootRef} data-builder-renderer data-debug={debug ? "1" : "0"} data-device={effectiveDevice}>
         <SectionsList sections={doc.sections} lang={lang} device={effectiveDevice} />
       </div>
       <button type="button" className="builder-debug-toggle" data-on={debug ? "1" : "0"} onClick={toggleDebug}>
