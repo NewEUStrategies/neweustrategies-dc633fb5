@@ -241,6 +241,12 @@ export function ThemeOptionsPane() {
             title={t("themeOptions.sections.iconColors")}
             description={t("themeOptions.iconColorsDescription")}
           />
+        ) : active === "link_colors" ? (
+          <ThemeBackgroundsPane
+            groupId="links"
+            title={t("themeOptions.sections.linkColors")}
+            description={t("themeOptions.linkColorsDescription")}
+          />
         ) : active === "design" ? (
           <ThemeDesignPane />
         ) : (
