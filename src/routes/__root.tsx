@@ -26,6 +26,7 @@ import { ConsentBanner } from "../components/ConsentBanner";
 import { NewsletterPopup } from "../components/NewsletterPopup";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { CommandPalette } from "../components/search/CommandPalette";
+import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
 
 
 function NotFoundComponent() {
