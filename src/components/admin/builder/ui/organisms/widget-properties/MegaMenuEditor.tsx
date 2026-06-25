@@ -1,9 +1,11 @@
-// Organism: Mega menu editor - trigger + columns (title/links/featured).
+// Organism: Mega menu editor - trigger + columns (links/category/featured).
+import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Image as ImageIcon } from "@/lib/lucide-shim";
+import { supabase } from "@/integrations/supabase/client";
 import { PropField, ItemFrame, NumberInput, FocalPointPicker } from "../../atoms";
 import { ListShell } from "./ListShell";
 import { ImageSlot } from "./ImageSlot";
