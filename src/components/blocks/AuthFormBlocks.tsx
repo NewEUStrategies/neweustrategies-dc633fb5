@@ -20,6 +20,7 @@ interface BaseData {
   submitLabel_pl?: string; submitLabel_en?: string;
   redirectTo?: string;
   variant?: Variant;
+  [k: string]: unknown;
 }
 
 function pickLang(data: Record<string, unknown>, key: string, lang: Lang, fallback = ""): string {
