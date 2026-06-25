@@ -217,6 +217,7 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
         </label>
       </div>
 
+      {ext && (
         <>
           <input className={inputCls} placeholder={t("Imię", "Name")} value={v.name}
             onChange={(e) => upd("name", e.target.value)} maxLength={80} />
