@@ -385,6 +385,50 @@ export function PostListEditor({ c, lang, setContent }: Props) {
           Działa we wszystkich wariantach (karty, lista, numerowana, overlay) — identycznie na desktop / tablet / mobile.
         </div>
       </Collapsible>
+
+      {variant === "numbered" && (
+        <Collapsible title="Numeracja (01, 02, 03…)" defaultOpen>
+          <div className="grid grid-cols-2 gap-2">
+            <PropField label="Rozmiar (px)">
+              <Input
+                type="number" min={12} max={240}
+                value={num(c, "indexSizePx", 88)}
+                onChange={(e) => setContent("indexSizePx", Number(e.target.value) || 0)}
+                className="h-8 text-xs"
+              />
+            </PropField>
+            <PropField label="Grubość">
+              <Select value={str(c, "indexWeight", "700")} onValueChange={(v) => setContent("indexWeight", v)}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["300","400","500","600","700","800","900"].map((w) => (
+                    <SelectItem key={w} value={w}>{w}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </PropField>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <PropField label="Kolor (light)">
+              <ColorField value={str(c, "indexColor", "")} onChange={(v) => setContent("indexColor", v ?? "")} />
+            </PropField>
+            <PropField label="Kolor (dark)">
+              <ColorField value={str(c, "indexColorDark", "")} onChange={(v) => setContent("indexColorDark", v ?? "")} />
+            </PropField>
+          </div>
+          <PropField label={`Przezroczystość (${Math.round(((num(c, "indexOpacity", -1) < 0 ? 0.05 : num(c, "indexOpacity", 0.05))) * 100)}%) — używana gdy brak własnego koloru`}>
+            <Input
+              type="range" min={0} max={1} step={0.01}
+              value={num(c, "indexOpacity", -1) < 0 ? 0.05 : num(c, "indexOpacity", 0.05)}
+              onChange={(e) => setContent("indexOpacity", Number(e.target.value))}
+              className="h-6"
+            />
+          </PropField>
+          <div className="mt-1 text-[10px] text-muted-foreground">
+            Puste pole koloru = automatyczne dopasowanie do trybu jasnego/ciemnego z ustawioną przezroczystością.
+          </div>
+        </Collapsible>
+      )}
     </div>
   );
 }
