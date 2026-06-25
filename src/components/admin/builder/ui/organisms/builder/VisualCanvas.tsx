@@ -230,7 +230,8 @@ export function VisualCanvas({
     [data-visual-canvas][data-device="mobile"] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]),
     [data-visual-canvas][data-device="mobile"] svg:not([class*="h-"]){max-width:100% !important;height:auto !important;object-fit:contain !important;}
     [data-visual-canvas][data-device="mobile"] img[class*="object-cover"],
-    [data-visual-canvas][data-device="mobile"] img[class*="object-fill"]{max-width:100% !important;width:100% !important;}
+    [data-visual-canvas][data-device="mobile"] img[class*="object-fill"],
+    [data-visual-canvas][data-device="mobile"] img[data-fill-image]{max-width:100% !important;width:100% !important;}
     [data-visual-canvas][data-device="tablet"] [data-widget-id]{max-width:100% !important;}
   `;
 
