@@ -54,6 +54,34 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
       setState("err");
       return;
     }
+
+    if (ext) {
+      const nameRe = /^[\p{L}\p{M}'’\- ]{2,80}$/u;
+      if (v.name.trim() && !nameRe.test(v.name.trim())) {
+        setErr(t("Imię zawiera niedozwolone znaki (min. 2 znaki).", "Name contains invalid characters (min. 2 chars)."));
+        setState("err"); return;
+      }
+      if (v.surname.trim() && !nameRe.test(v.surname.trim())) {
+        setErr(t("Nazwisko zawiera niedozwolone znaki (min. 2 znaki).", "Surname contains invalid characters (min. 2 chars)."));
+        setState("err"); return;
+      }
+      if (v.linkedin.trim()) {
+        const li = v.linkedin.trim();
+        const liOk = /^(https?:\/\/)?([a-z]{2,3}\.)?linkedin\.com\/(in|pub|company)\/[A-Za-z0-9_\-%.]{2,100}\/?$/i.test(li);
+        if (!liOk) {
+          setErr(t("Niepoprawny URL LinkedIn (np. https://linkedin.com/in/jan-kowalski).", "Invalid LinkedIn URL (e.g. https://linkedin.com/in/jane-doe)."));
+          setState("err"); return;
+        }
+      }
+      if (v.phone.trim()) {
+        const phone = v.phone.trim().replace(/[\s\-().]/g, "");
+        if (!/^\+?[0-9]{7,15}$/.test(phone)) {
+          setErr(t("Niepoprawny numer telefonu (7-15 cyfr, opcjonalnie z +).", "Invalid phone number (7-15 digits, optional leading +)."));
+          setState("err"); return;
+        }
+      }
+    }
+
     if (requireTerms && !v.terms) {
       setErr(t("Wymagana akceptacja regulaminu.", "Please accept the terms."));
       setState("err");
