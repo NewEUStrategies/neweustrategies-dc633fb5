@@ -111,7 +111,10 @@ export function OptimizedImage({
         onLoad?.(e);
       }}
       onError={(event) => {
+        const beforeFallback = event.currentTarget.currentSrc || event.currentTarget.src;
         onError?.(event);
+        const afterFallback = event.currentTarget.currentSrc || event.currentTarget.src;
+        if (afterFallback && afterFallback !== beforeFallback) return;
         if (typeof console !== "undefined") {
           // eslint-disable-next-line no-console
           console.warn("[OptimizedImage] failed to load", finalSrc);
