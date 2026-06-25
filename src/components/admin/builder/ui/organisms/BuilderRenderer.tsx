@@ -12,6 +12,7 @@ import {
   INNER_SECTION_SAFE_AREA_PX, COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
 import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
+import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 
 function resolveSpan(span: ResponsiveValue<number>, device: Device, deskDefault: number): number {
   if (device === "mobile") return span.mobile ?? 12;
