@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers, MousePointerClick, Pencil, Brush } from "@/lib/lucide-shim";
+import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers, MousePointerClick, Pencil, Brush, Palette } from "@/lib/lucide-shim";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
 import { ThemeDesignPane } from "@/components/admin/ThemeDesignPane";
+import { ThemeBackgroundsPane } from "@/components/admin/ThemeBackgroundsPane";
 import { useTheme } from "@/components/ThemeProvider";
 import { cn } from "@/lib/utils";
 
@@ -146,6 +147,7 @@ const DEFAULTS: ThemeOptions = {
 const SECTIONS = [
   { id: "logo", labelKey: "themeOptions.sections.logo", icon: ImageIcon },
   { id: "global_colors", labelKey: "themeOptions.sections.globalColors", icon: Eye },
+  { id: "backgrounds", labelKey: "themeOptions.sections.backgrounds", icon: Palette },
   { id: "header.layout", labelKey: "themeOptions.sections.headerLayout", icon: Layers },
   { id: "header.main_menu", labelKey: "themeOptions.sections.mainMenu", icon: Menu },
   { id: "header.search", labelKey: "themeOptions.sections.headerSearch", icon: Search },
@@ -221,6 +223,8 @@ export function ThemeOptionsPane() {
       <section className="border border-border rounded-lg bg-card p-5 space-y-5">
         {active === "global_colors" ? (
           <GlobalColorsEditor />
+        ) : active === "backgrounds" ? (
+          <ThemeBackgroundsPane />
         ) : active === "design" ? (
           <ThemeDesignPane />
         ) : (
