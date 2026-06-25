@@ -224,9 +224,12 @@ export function VisualCanvas({
     [data-visual-canvas] iframe,
     [data-visual-canvas] svg{max-width:100% !important;height:auto;}
     [data-visual-canvas] *{max-width:100%;min-width:0;}
-    [data-visual-canvas][data-device="mobile"] .flex{flex-wrap:wrap;}
-    [data-visual-canvas][data-device="mobile"] [data-widget-id]{width:100% !important;max-width:100% !important;}
-    [data-visual-canvas][data-device="mobile"] img{width:auto;max-width:100% !important;}
+    /* Mobile: cap every widget to the column width but DON'T force 100% so inline widgets (logo, lang, buttons) keep intrinsic sizes */
+    [data-visual-canvas][data-device="mobile"] [data-widget-id]{max-width:100% !important;}
+    [data-visual-canvas][data-device="mobile"] [data-widget-id][data-widget-layout="block"]{width:100% !important;}
+    [data-visual-canvas][data-device="mobile"] img,
+    [data-visual-canvas][data-device="mobile"] svg{max-width:100% !important;height:auto !important;object-fit:contain !important;}
+    [data-visual-canvas][data-device="tablet"] [data-widget-id]{max-width:100% !important;}
   `;
 
 

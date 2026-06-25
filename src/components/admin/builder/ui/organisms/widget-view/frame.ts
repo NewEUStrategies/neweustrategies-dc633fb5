@@ -134,7 +134,14 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
   const w = sliderShouldFill || searchShouldFill
     ? "100%"
     : toCssSize(wRaw) ?? node.style?.maxWidth ?? (shrinkToContent ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
-  style.width = w;
+  // On narrow viewports clamp pixel widths so widgets shrink with the column.
+  if (device !== "desktop" && typeof w === "number") {
+    style.width = `min(100%, ${w}px)`;
+  } else if (device !== "desktop" && typeof w === "string" && /\d(px|rem|em)$/.test(w)) {
+    style.width = `min(100%, ${w})`;
+  } else {
+    style.width = w;
+  }
   if (isInline && wRaw === undefined && !node.style?.maxWidth && !isSearch) {
     style.flex = "0 0 auto";
   }

@@ -100,8 +100,8 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
   const imgStyle: CSSProperties = {
     objectFit: fit,
     aspectRatio: ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined,
-    width: effectiveMaxPx > 0 ? `${effectiveMaxPx}px` : "100%",
-    maxWidth: effectiveMaxPx > 0 ? "none" : "100%",
+    width: effectiveMaxPx > 0 ? `min(100%, ${effectiveMaxPx}px)` : "100%",
+    maxWidth: "100%",
     height: "auto",
   };
   if (!src && !srcDark) {
@@ -622,12 +622,12 @@ export function renderSimpleWidget(
       const signin = getStr(c, `signin_${lang}`) || getStr(c, "signin_pl") || "Zaloguj";
       const signup = getStr(c, `signup_${lang}`) || getStr(c, "signup_pl") || "Zarejestruj";
       return (
-        <span className="inline-flex items-center gap-1.5 text-[11px] leading-none" style={compactRowStyle}>
-          <a href="/login" className="inline-flex h-7 items-center gap-1 text-foreground hover:opacity-80 transition-colors">
+        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-none max-w-full" style={compactRowStyle}>
+          <a href="/login" className="inline-flex h-7 items-center gap-1 whitespace-nowrap text-foreground hover:opacity-80 transition-colors">
             <LucideIcons.LogIn className="w-3 h-3" /> {signin}
           </a>
-          <span className="text-muted-foreground/40">|</span>
-          <a href="/login?mode=signup" className="inline-flex h-7 items-center hover:underline" style={{ color: "#f97316" }}>{signup}</a>
+          <span className="text-muted-foreground/40" aria-hidden>|</span>
+          <a href="/login?mode=signup" className="inline-flex h-7 items-center whitespace-nowrap text-brand hover:underline">{signup}</a>
         </span>
       );
     }
