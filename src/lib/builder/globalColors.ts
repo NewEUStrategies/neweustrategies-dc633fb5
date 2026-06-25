@@ -495,6 +495,14 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultLight: "#131822",
         defaultDark: "#ffffff",
       },
+      {
+        key: "link-active",
+        label: "Link Active Color",
+        description: "Kolor aktywnych linków (np. zaznaczona pozycja menu, bieżąca strona).",
+        hasDark: true,
+        defaultLight: "#fa9346",
+        defaultDark: "#fbbf24",
+      },
     ],
   },
   {
@@ -717,6 +725,7 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(main small, article small, .text-muted, .muted){color:var(--gc-body-text-muted, inherit);font-family:var(--gc-body-text-muted-font, inherit);font-size:var(--gc-body-text-muted-size, inherit);font-weight:var(--gc-body-text-muted-weight, inherit);font-style:var(--gc-body-text-muted-style, inherit);text-decoration:var(--gc-body-text-muted-decoration, inherit);}
     :where(main a:not(.btn):not([class*="button"]), article a:not(.btn):not([class*="button"])){color:var(--gc-link, var(--gc-highlight, inherit));font-family:var(--gc-link-font, inherit);font-size:var(--gc-link-size, inherit);font-weight:var(--gc-link-weight, inherit);font-style:var(--gc-link-style, inherit);text-decoration:var(--gc-link-decoration, inherit);}
     :where(main a:not(.btn):not([class*="button"]):hover, article a:not(.btn):not([class*="button"]):hover){color:var(--gc-link-hover, var(--gc-link, inherit));}
+    :where(main a:not(.btn):not([class*="button"])[aria-current="page"], article a:not(.btn):not([class*="button"])[aria-current="page"], main a:not(.btn):not([class*="button"]).active, article a:not(.btn):not([class*="button"]).active){color:var(--gc-link-active, var(--gc-link-hover, var(--gc-link, inherit)));}
     :where(.highlight, .text-brand, [data-highlight]){color:var(--gc-highlight, inherit);}
     :where(.highlight:hover, .text-brand:hover, [data-highlight]:hover){color:var(--gc-highlight-hover, var(--gc-highlight, inherit));}
     :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select){background:var(--gc-input-bg, transparent);color:var(--gc-input-text, inherit);border-color:var(--gc-input-border, currentColor);font-family:var(--gc-input-text-font, inherit);font-size:var(--gc-input-text-size, inherit);font-weight:var(--gc-input-text-weight, inherit);font-style:var(--gc-input-text-style, inherit);text-decoration:var(--gc-input-text-decoration, inherit);}

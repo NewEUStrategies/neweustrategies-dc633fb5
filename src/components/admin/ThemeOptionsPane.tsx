@@ -159,6 +159,7 @@ const SECTIONS = [
   { id: "text_fields", labelKey: "themeOptions.sections.textFields", icon: Pencil },
   { id: "input_colors", labelKey: "themeOptions.sections.inputColors", icon: Palette },
   { id: "icon_colors", labelKey: "themeOptions.sections.iconColors", icon: Palette },
+  { id: "link_colors", labelKey: "themeOptions.sections.linkColors", icon: Palette },
 
   { id: "design", labelKey: "themeOptions.sections.contentStyling", icon: Brush },
 ] as const;
@@ -239,6 +240,12 @@ export function ThemeOptionsPane() {
             groupId="icons"
             title={t("themeOptions.sections.iconColors")}
             description={t("themeOptions.iconColorsDescription")}
+          />
+        ) : active === "link_colors" ? (
+          <ThemeBackgroundsPane
+            groupId="links"
+            title={t("themeOptions.sections.linkColors")}
+            description={t("themeOptions.linkColorsDescription")}
           />
         ) : active === "design" ? (
           <ThemeDesignPane />
