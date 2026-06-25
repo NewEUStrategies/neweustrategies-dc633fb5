@@ -176,6 +176,23 @@ function PublicPage() {
     ? (lang === "en" ? post.takeaways_en : post.takeaways_pl) ?? []
     : [];
 
+  const currentPostCtx: CurrentPostCtx = {
+    kind: isPost ? "post" : "page",
+    id: it.id,
+    slug: it.slug ?? undefined,
+    title_pl: it.title_pl ?? undefined,
+    title_en: it.title_en ?? undefined,
+    excerpt_pl: post?.excerpt_pl ?? undefined,
+    excerpt_en: post?.excerpt_en ?? undefined,
+    coverUrl: it.cover_image_url ?? undefined,
+    publishedAt: it.published_at ?? undefined,
+    readingTimeMin: post?.read_minutes ?? undefined,
+    author: post?.author ? { name: post.author.name, slug: post.author.slug, avatarUrl: post.author.avatar_url ?? undefined, bio_pl: post.author.bio_pl ?? undefined, bio_en: post.author.bio_en ?? undefined } : null,
+    tags: postTags ?? [],
+    categories: (data as { categories?: Array<{ slug: string; name: string }> }).categories ?? [],
+    breadcrumbs: crumbs.map((b) => ({ label: b.label, href: b.href ?? undefined })),
+  };
+
   const contentBlock = (
     <div ref={articleRef}>
       {access.rule && !access.hasAccess ? (
@@ -186,7 +203,9 @@ function PublicPage() {
           {isBlocks ? (
             <BlocksRenderer doc={blocksDoc} lang={lang} postId={isPost ? it.id : undefined} />
           ) : isBuilder ? (
-            <BuilderRenderer doc={doc} lang={lang} />
+            <CurrentPostProvider value={currentPostCtx}>
+              <BuilderRenderer doc={doc} lang={lang} />
+            </CurrentPostProvider>
           ) : (
             <article className="single-post-content prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(processedHtml) }} />
           )}
