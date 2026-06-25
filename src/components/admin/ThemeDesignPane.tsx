@@ -2,7 +2,7 @@
 // "Read more" buttons, meta info, toolbar buttons, mode switcher, social icons
 // + global slider/carousel defaults.
 // Embedded as a section inside ThemeOptionsPane (under "Style treści").
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Save, Sun, Moon, Undo, Redo, Monitor, Tablet, Smartphone, Facebook, Instagram, Youtube, Linkedin, Mail } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
