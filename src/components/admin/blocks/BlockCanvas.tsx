@@ -45,6 +45,10 @@ import { NewsletterBlock } from "./edit/Newsletter";
 import { AffiliateBlock } from "./edit/Affiliate";
 import { XQuoteBlock } from "./edit/XQuote";
 import { CompareBlock } from "./edit/Compare";
+import { LoginFormBlock } from "./edit/LoginForm";
+import { RegisterFormBlock } from "./edit/RegisterForm";
+import { LostPasswordFormBlock } from "./edit/LostPasswordForm";
+import { ResetPasswordFormBlock } from "./edit/ResetPasswordForm";
 
 interface Props {
   doc: BlocksDoc;
@@ -211,6 +215,10 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "affiliate": return <AffiliateBlock block={block} onChange={onChange} />;
     case "xquote":    return <XQuoteBlock block={block} onChange={onChange} />;
     case "compare":   return <CompareBlock block={block} onChange={onChange} />;
+    case "login-form":         return <LoginFormBlock block={block} onChange={onChange} />;
+    case "register-form":      return <RegisterFormBlock block={block} onChange={onChange} />;
+    case "lost-password-form": return <LostPasswordFormBlock block={block} onChange={onChange} />;
+    case "reset-password-form": return <ResetPasswordFormBlock block={block} onChange={onChange} />;
     default:
       return (
         <div className="text-xs text-muted-foreground italic py-2">
