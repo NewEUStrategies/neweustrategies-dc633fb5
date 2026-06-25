@@ -392,7 +392,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
             <PropField label="Rozmiar (px)">
               <Input
                 type="number" min={12} max={240}
-                value={num(c, "indexSizePx", 88)}
+                value={num(c, "indexSizePx", 32)}
                 onChange={(e) => setContent("indexSizePx", Number(e.target.value) || 0)}
                 className="h-8 text-xs"
               />
