@@ -234,6 +234,8 @@ function Page() {
             </TabsContent>
           </Tabs>
         </section>
+
+        <PopupBilingualPreview settings={cur} />
           </div>
 
           <NewsletterPreview settings={cur} />
