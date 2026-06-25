@@ -24,6 +24,7 @@ import { SpacingControl } from "./ui/molecules/SpacingControl";
 import { TypographyControl } from "./ui/molecules/TypographyControl";
 import { MotionControl } from "./ui/molecules/MotionControl";
 import { VisibilityControl } from "./ui/molecules/VisibilityControl";
+import { AccessControl } from "./ui/molecules/AccessControl";
 import { HoverControl } from "./ui/molecules/HoverControl";
 import { SchemaFieldControl } from "./ui/molecules/SchemaFieldControl";
 
