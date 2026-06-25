@@ -22,8 +22,8 @@ interface BaseData {
   variant?: Variant;
 }
 
-function pickLang<T extends Record<string, unknown>>(data: T, key: string, lang: Lang, fallback = ""): string {
-  return String((data as Record<string, unknown>)[`${key}_${lang}`] ?? (data as Record<string, unknown>)[`${key}_pl`] ?? fallback);
+function pickLang(data: Record<string, unknown>, key: string, lang: Lang, fallback = ""): string {
+  return String(data[`${key}_${lang}`] ?? data[`${key}_pl`] ?? fallback);
 }
 
 function wrap(variant: Variant | undefined, children: React.ReactNode) {
