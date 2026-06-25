@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { latestPodcastsQueryOptions } from "@/lib/queries/podcasts";
 import { formatDuration, podcastEpisodeLabel, podcastTitle } from "@/lib/podcast/types";
 import { PodcastPlayer } from "@/components/atoms/PodcastPlayer";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 
 interface Props {
   c: Record<string, unknown>;
@@ -37,7 +38,9 @@ export function PodcastLatestView({ c, lang }: Props) {
     return (
       <article className="grid lg:grid-cols-2 gap-6 border border-border rounded-xl overflow-hidden bg-card">
         {p.cover_image_url ? (
-          <img src={p.cover_image_url} alt="" loading="lazy" className="w-full aspect-square object-cover" />
+          <span data-widget-media className="relative block aspect-square w-full overflow-hidden bg-muted">
+            <OptimizedImage src={p.cover_image_url} alt="" responsive sizes="(max-width: 1024px) 100vw, 50vw" className="absolute inset-0 block h-full w-full object-cover" />
+          </span>
         ) : <div className="aspect-square bg-muted" />}
         <div className="p-6 flex flex-col gap-3 justify-center">
           {podcastEpisodeLabel(p, lang) && <span className="text-xs uppercase tracking-wider text-muted-foreground">{podcastEpisodeLabel(p, lang)}</span>}
@@ -61,7 +64,9 @@ export function PodcastLatestView({ c, lang }: Props) {
         {data.map((p) => (
           <li key={p.id} className="p-4 flex items-center gap-4">
             {p.cover_image_url ? (
-              <img src={p.cover_image_url} alt="" loading="lazy" className="w-14 h-14 rounded object-cover shrink-0" />
+              <span data-widget-media className="relative block h-14 w-14 shrink-0 overflow-hidden rounded bg-muted">
+                <OptimizedImage src={p.cover_image_url} alt="" responsive responsiveWidths={[56, 112, 168]} sizes="56px" className="absolute inset-0 block h-full w-full object-cover" />
+              </span>
             ) : <div className="w-14 h-14 rounded bg-muted shrink-0" />}
             <div className="flex-1 min-w-0">
               {podcastEpisodeLabel(p, lang) && <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{podcastEpisodeLabel(p, lang)}</div>}
@@ -84,7 +89,9 @@ export function PodcastLatestView({ c, lang }: Props) {
         <article key={p.id} className="border border-border rounded-lg overflow-hidden bg-card hover:shadow-md transition-shadow">
           {p.cover_image_url ? (
             <Link to="/podcast/$slug" params={{ slug: p.slug }}>
-              <img src={p.cover_image_url} alt="" loading="lazy" className="w-full aspect-square object-cover" />
+              <span data-widget-media className="relative block aspect-square w-full overflow-hidden bg-muted">
+                <OptimizedImage src={p.cover_image_url} alt="" responsive sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" className="absolute inset-0 block h-full w-full object-cover" />
+              </span>
             </Link>
           ) : <div className="aspect-square bg-muted" />}
           <div className="p-4 space-y-2">
