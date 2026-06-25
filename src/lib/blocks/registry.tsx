@@ -29,6 +29,10 @@ import {
   ShoppingBag as AffiliateIcon,
   Twitter as XIcon,
   GitCompareArrows as CompareIcon,
+  LogIn as LoginIcon,
+  UserPlus as RegisterIcon,
+  KeyRound as LostPasswordIcon,
+  ShieldCheck as ResetPasswordIcon,
   type LucideIcon,
 } from "lucide-react";
 
