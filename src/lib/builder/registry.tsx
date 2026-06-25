@@ -10,7 +10,7 @@ import {
   Globe, Sun, Search, User, Facebook,
   Flame, Bookmark, Megaphone as AdIcon,
   LayoutGrid, LogIn, ShieldCheck, Lock,
-
+  Hash, Clock, BookOpen, Eye, Slash, Image as CoverIcon, FileText,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
