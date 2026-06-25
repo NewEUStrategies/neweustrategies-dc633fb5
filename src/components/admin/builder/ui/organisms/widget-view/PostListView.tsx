@@ -217,7 +217,11 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
       <div className="w-full flex flex-col divide-y divide-border">
 
         {rows.map((p) => (
-          <a key={p.id} href={`/post/${p.slug}`} className="grid grid-cols-[96px_minmax(0,1fr)] items-start gap-3 py-3 group">
+          <a
+            key={p.id}
+            href={`/post/${p.slug}`}
+            className={`grid ${p.cover_image_url ? "grid-cols-[96px_minmax(0,1fr)]" : "grid-cols-1"} items-start gap-3 py-3 group`}
+          >
             {p.cover_image_url && (
               <OptimizedImage src={p.cover_image_url} alt="" responsive responsiveWidths={[96, 192, 288]} sizes="96px" className={LIST_IMAGE_CLASS} />
             )}
