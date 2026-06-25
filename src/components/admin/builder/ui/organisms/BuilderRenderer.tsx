@@ -151,7 +151,9 @@ function SectionsList({ sections, lang, device }: { sections: SectionNode[]; lan
 }
 
 function RenderSection({ section, lang, device }: { section: SectionNode; lang: "pl"|"en"; device: Device }) {
-  const colsSum = section.children.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12), 0) || 12;
+  const accessCtx = useAccessContext();
+  const visibleCols = section.children.filter((c) => evaluateAccess(c.advanced?.access, accessCtx));
+  const colsSum = visibleCols.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12), 0) || 12;
   const Tag = (section.layout?.htmlTag ?? "section") as ElementType;
   const bgStyle = backgroundLayerStyle(section.background);
   const wrapStyle: CSSProperties = {
