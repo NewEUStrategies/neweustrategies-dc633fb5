@@ -364,9 +364,15 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   display: block;
   width: 100% !important;
   height: 100% !important;
-  object-fit: contain !important;
-  object-position: center !important;
-  transform: none !important;
+  object-position: center;
+  transform: none;
+}
+/* Default to cover so thumbnails fill the 4:3 frame; components can opt into contain via .object-contain */
+:is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] :is(img, .oi-img):not(.object-contain):not(.object-fill):not(.object-none):not(.object-scale-down) {
+  object-fit: cover;
+}
+:is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] :is(img, .oi-img).object-contain {
+  object-fit: contain;
 }
 
 /* Mobile: horizontal scroll for grid widgets (post-list etc.) */
