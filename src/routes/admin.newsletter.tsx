@@ -456,3 +456,39 @@ function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
   );
 }
 
+function MailingListsEditor({
+  lists,
+  onChange,
+}: {
+  lists: NewsletterMailingList[];
+  onChange: (next: NewsletterMailingList[]) => void;
+}) {
+  const add = () => onChange([...lists, { id: crypto.randomUUID().slice(0, 8), label_pl: "", label_en: "" }]);
+  const upd = (i: number, patch: Partial<NewsletterMailingList>) =>
+    onChange(lists.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+  const del = (i: number) => onChange(lists.filter((_, idx) => idx !== i));
+
+  return (
+    <div className="space-y-2 pt-2 border-t border-border">
+      <div className="flex items-center justify-between">
+        <Label>Listy mailingowe (select w popupie)</Label>
+        <Button type="button" size="sm" variant="outline" onClick={add}>+ Dodaj listę</Button>
+      </div>
+      {lists.length === 0 && (
+        <p className="text-xs text-muted-foreground">Brak list - select nie zostanie wyświetlony.</p>
+      )}
+      {lists.map((l, i) => (
+        <div key={i} className="grid grid-cols-[80px_1fr_1fr_auto] gap-2 items-center">
+          <Input value={l.id} onChange={(e) => upd(i, { id: e.target.value })} placeholder="id" className="font-mono text-xs" />
+          <Input value={l.label_pl} onChange={(e) => upd(i, { label_pl: e.target.value })} placeholder="Etykieta PL" />
+          <Input value={l.label_en} onChange={(e) => upd(i, { label_en: e.target.value })} placeholder="Label EN" />
+          <Button type="button" size="sm" variant="ghost" onClick={() => del(i)} aria-label="Usuń">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
