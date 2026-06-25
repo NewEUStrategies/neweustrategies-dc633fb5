@@ -207,7 +207,10 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
 
 function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   const va = column.verticalAlign ?? "start";
-  const visibleChildren = column.children.filter((w) => !hiddenOnDevice(w.advanced, device));
+  const accessCtx = useAccessContext();
+  const visibleChildren = column.children.filter(
+    (w) => !hiddenOnDevice(w.advanced, device) && evaluateAccess(w.advanced?.access, accessCtx),
+  );
   const isToolbar =
     visibleChildren.length > 1 &&
     visibleChildren.every((w) => COMPACT_WIDGET_TYPES.has(w.type) || AUTO_SIZE_WIDGETS.has(w.type));
