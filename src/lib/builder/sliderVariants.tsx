@@ -105,14 +105,20 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     },
     staleTime: 120_000,
   });
+  const [failedImages, setFailedImages] = useState<ReadonlySet<string>>(() => new Set());
   const items = resolvedItems
     .filter((it): it is SliderItem => Boolean(it))
-    .map((it, i) => ({
-      ...it,
-      image: safeImageUrl(it.image) || fallbackImages[i % Math.max(1, fallbackImages.length)] || "",
-    }))
+    .map((it, i) => {
+      const safe = safeImageUrl(it.image);
+      return {
+        ...it,
+        image: !safe || failedImages.has(safe)
+          ? fallbackImages[i % Math.max(1, fallbackImages.length)] || safe
+          : safe,
+      };
+    })
     .filter((it) => it.image);
-  const ratio = config.ratio ?? "4/3";
+  const ratio = "4/3";
   const autoplay = config.autoplay !== false;
   const intervalMs = Math.max(1500, config.intervalMs ?? 4500);
   const rounded = radiusMap[config.rounded ?? "md"];
@@ -213,6 +219,11 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
             }}
             onError={(e) => {
               const target = e.currentTarget;
+              setFailedImages((prev) => {
+                const next = new Set(prev);
+                next.add(it.image);
+                return next;
+              });
               // Inline neutral SVG placeholder - prevents "broken image" icon
               // and white-hole layout when storage returns 404.
               if (typeof console !== "undefined") {
