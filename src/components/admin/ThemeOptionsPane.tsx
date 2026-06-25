@@ -227,9 +227,16 @@ export function ThemeOptionsPane() {
           <GlobalColorsEditor />
         ) : active === "backgrounds" ? (
           <ThemeBackgroundsPane />
+        ) : active === "input_colors" ? (
+          <ThemeBackgroundsPane
+            groupId="input"
+            title={t("themeOptions.sections.inputColors")}
+            description={t("themeOptions.inputColorsDescription")}
+          />
         ) : active === "design" ? (
           <ThemeDesignPane />
         ) : (
+
 
         <>
         <div className="flex items-center justify-between">
