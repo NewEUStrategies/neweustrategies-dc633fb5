@@ -4,6 +4,7 @@ export { MotionControl } from "./MotionControl";
 export { SpacingControl } from "./SpacingControl";
 export { TypographyControl } from "./TypographyControl";
 export { VisibilityControl } from "./VisibilityControl";
+export { AccessControl } from "./AccessControl";
 export { SchemaFieldControl } from "./SchemaFieldControl";
 export { BackgroundEditor } from "./BackgroundEditor";
 export { OverlayEditor } from "./OverlayEditor";
