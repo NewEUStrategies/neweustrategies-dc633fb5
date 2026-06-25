@@ -56,6 +56,7 @@ export function OptimizedImage({
   ...rest
 }: OptimizedImageProps) {
   const [loaded, setLoaded] = useState(priority);
+  const [errored, setErrored] = useState(false);
 
   const ratio =
     aspectRatio ?? (width && height ? width / height : undefined);
@@ -67,14 +68,28 @@ export function OptimizedImage({
 
   const computedStyle: CSSProperties = {
     ...(ratio ? { aspectRatio: String(ratio) } : null),
-    ...(fadeIn
-      ? {
-          opacity: loaded ? 1 : 0,
-          transition: "opacity 240ms ease-out",
-        }
+    ...(fadeIn && !errored
+      ? { opacity: loaded ? 1 : 0, transition: "opacity 240ms ease-out" }
       : null),
     ...style,
   };
+
+  if (errored || !finalSrc) {
+    return (
+      <span
+        aria-label={alt}
+        role="img"
+        className={`inline-flex items-center justify-center bg-muted/40 text-muted-foreground ${className ?? ""}`}
+        style={{ ...(ratio ? { aspectRatio: String(ratio) } : null), ...style }}
+      >
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <path d="m21 15-5-5L5 21" />
+        </svg>
+      </span>
+    );
+  }
 
   const imgEl = (
     <img
@@ -93,6 +108,13 @@ export function OptimizedImage({
       onLoad={(e) => {
         setLoaded(true);
         onLoad?.(e);
+      }}
+      onError={() => {
+        if (typeof console !== "undefined") {
+          // eslint-disable-next-line no-console
+          console.warn("[OptimizedImage] failed to load", finalSrc);
+        }
+        setErrored(true);
       }}
     />
   );
