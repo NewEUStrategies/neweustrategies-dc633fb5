@@ -431,16 +431,36 @@ function PagesList() {
                       </td>
                       <td className="p-2">
                         <div className="flex items-center gap-2">
-                          <div className="font-medium text-[13px] truncate max-w-[360px]">
-                            {(lang === "en" ? p.title_en : p.title_pl) || (lang === "en" ? p.title_pl : p.title_en) || <span className="italic text-muted-foreground">- {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -</span>}
-                          </div>
+                          {isTrash ? (
+                            <div className="font-medium text-[13px] truncate max-w-[360px]">
+                              {(lang === "en" ? p.title_en : p.title_pl) || (lang === "en" ? p.title_pl : p.title_en) || <span className="italic text-muted-foreground">- {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -</span>}
+                            </div>
+                          ) : (
+                            <Link
+                              to="/admin/pages/$slug"
+                              params={{ slug: p.slug }}
+                              className="font-medium text-[13px] truncate max-w-[360px] hover:text-primary hover:underline"
+                            >
+                              {(lang === "en" ? p.title_en : p.title_pl) || (lang === "en" ? p.title_pl : p.title_en) || <span className="italic text-muted-foreground">- {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -</span>}
+                            </Link>
+                          )}
                           {!isTrash && currentHome === p.slug && (
                             <Badge variant="outline" className="gap-1 text-[10px] py-0 px-1.5">
                               <Home className="w-3 h-3" /> {t("admin.list.home", { defaultValue: "Strona główna" })}
                             </Badge>
                           )}
                         </div>
-                        <div className="text-[10px] text-muted-foreground truncate max-w-[360px]">/{p.slug}</div>
+                        {isTrash ? (
+                          <div className="text-[10px] text-muted-foreground truncate max-w-[360px]">/{p.slug}</div>
+                        ) : (
+                          <Link
+                            to="/admin/pages/$slug"
+                            params={{ slug: p.slug }}
+                            className="block text-[10px] text-muted-foreground truncate max-w-[360px] hover:text-primary hover:underline"
+                          >
+                            /{p.slug}
+                          </Link>
+                        )}
                       </td>
                       <td className="p-2">
                         <LangCoverageBadges
