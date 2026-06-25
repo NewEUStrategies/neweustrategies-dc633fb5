@@ -117,7 +117,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       {
         key: "icon-active",
         label: "Global Icon - Active",
-        description: "Kolor ikon SVG w stanie aktywnym (np. zaznaczona pozycja menu, włączony toggle).",
+        description: "Kolor wybranej ikony - po najechaniu i kliknięciu (zaznaczona/aktywna pozycja, np. bieżąca zakładka, włączony toggle).",
         hasDark: true,
         defaultLight: "#fa9346",
         defaultDark: "#fbbf24",
