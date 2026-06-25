@@ -57,7 +57,18 @@ export function ImageSlot({
         {icon}{label}
       </div>
       {value && (
-        <div className="rounded-md border border-border p-2 bg-muted/30 flex items-center justify-center min-h-[80px]">
+        <div
+          className="rounded-md border border-border p-2 flex items-center justify-center min-h-[80px]"
+          style={{
+            background:
+              previewMode === "dark"
+                ? "#131822"
+                : previewMode === "light"
+                ? "#f8f6f4"
+                : undefined,
+          }}
+          data-preview-mode={previewMode}
+        >
           <img src={value} alt="" className="max-h-24 max-w-full object-contain" />
         </div>
       )}
