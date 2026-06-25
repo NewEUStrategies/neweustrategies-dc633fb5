@@ -185,7 +185,7 @@ function Page() {
               value={cur.popup_cover_url ?? ""}
               onChange={(v) => upd({ popup_cover_url: v || null })}
               folder="newsletter"
-              hint="Wyświetlana u góry popupu w układzie klasycznym (proporcje ~16:7)."
+              hint="Wyświetlana u góry popupu w układzie klasycznym (zalecane 800×350 px)."
             />
             <ImageSlot
               label="Grafika boczna - układ split"
@@ -193,7 +193,7 @@ function Page() {
               value={cur.popup_side_image_url ?? ""}
               onChange={(v) => upd({ popup_side_image_url: v || null })}
               folder="newsletter"
-              hint="Wyświetlana z lewej strony popupu w układzie split (proporcje pionowe ~4:5)."
+              hint="Wyświetlana z lewej strony popupu w układzie split (zalecane 400×500 px)."
             />
           </div>
 
