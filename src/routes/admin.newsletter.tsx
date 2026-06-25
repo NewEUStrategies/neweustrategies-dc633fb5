@@ -465,7 +465,7 @@ function MailingListsEditor({
 }) {
   const add = () => onChange([...lists, { id: crypto.randomUUID().slice(0, 8), label_pl: "", label_en: "" }]);
   const upd = (i: number, patch: Partial<NewsletterMailingList>) =>
-    onChange(lists.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+    onChange(lists.map((l, idx) => (idx === i ? ({ ...l, ...patch } as NewsletterMailingList) : l)));
   const del = (i: number) => onChange(lists.filter((_, idx) => idx !== i));
 
   return (
