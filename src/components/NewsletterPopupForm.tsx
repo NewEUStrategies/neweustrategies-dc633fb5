@@ -163,9 +163,35 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
   const termsHtml = (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
 
   if (state === "ok") {
+    const doi = settings.double_opt_in;
+    const headline = doi
+      ? t("Sprawdź swoją skrzynkę!", "Check your inbox!")
+      : t("Zapisano. Dziękujemy!", "You're in. Thanks!");
+    const body = doi
+      ? t(
+          "Wysłaliśmy link potwierdzający - kliknij go w ciągu 48 godzin, aby aktywować subskrypcję. Sprawdź też folder Spam.",
+          "We've sent you a confirmation link - click it within 48 hours to activate your subscription. Please also check your Spam folder.",
+        )
+      : successMsg;
     return (
-      <div className="rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-sm p-4">
-        {successMsg}
+      <div
+        role="status"
+        aria-live="polite"
+        className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-5 space-y-3"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+            {doi ? <Mail className="w-5 h-5 text-emerald-300" /> : <Check className="w-5 h-5 text-emerald-300" />}
+          </div>
+          <h3 className="font-display text-lg text-emerald-100">{headline}</h3>
+        </div>
+        <p className="text-sm text-emerald-100/80 leading-relaxed">{body}</p>
+        {doi && (
+          <p className="text-[11px] text-emerald-100/60">
+            {t("Status: oczekuje potwierdzenia (double opt-in).",
+               "Status: pending confirmation (double opt-in).")}
+          </p>
+        )}
       </div>
     );
   }
