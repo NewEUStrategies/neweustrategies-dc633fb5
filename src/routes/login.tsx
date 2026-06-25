@@ -293,8 +293,17 @@ function LoginPage() {
             </Button>
 
             <p className="text-[11px] leading-relaxed text-muted-foreground text-center pt-2">
-              {t.legal}
+              {t.legalPre}
+              <a href={settings.privacy_url || "/polityka-prywatnosci"} target="_blank" rel="noreferrer" className="underline hover:text-foreground">
+                {t.legalPrivacy}
+              </a>
+              {t.legalAnd}
+              <a href={settings.terms_url || "/regulamin"} target="_blank" rel="noreferrer" className="underline hover:text-foreground">
+                {t.legalTerms}
+              </a>
+              {t.legalSuf}
             </p>
+
           </form>
         </main>
       </div>
