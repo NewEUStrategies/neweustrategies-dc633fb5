@@ -13,6 +13,7 @@ export function ImageSlot({
   hint,
   bucket = "media",
   folder = "theme",
+  previewMode = "auto",
 }: {
   label: string;
   icon?: React.ReactNode;
@@ -21,6 +22,8 @@ export function ImageSlot({
   hint?: string;
   bucket?: string;
   folder?: string;
+  /** Background of the preview box. 'light' uses theme body bg, 'dark' uses dark body bg, 'auto' uses neutral muted. */
+  previewMode?: "auto" | "light" | "dark";
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
