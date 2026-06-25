@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ArrowLeft, Eye, EyeOff, Loader2, Mail, Lock, User, ShieldCheck, Sparkles } from "lucide-shim";
+import { ArrowLeft, Eye, EyeOff, Loader2, Mail, Lock, User, ShieldCheck, Sparkles } from "@/lib/lucide-shim";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>) => ({
