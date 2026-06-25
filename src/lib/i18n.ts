@@ -1340,8 +1340,23 @@ function detectBrowserLang(): "pl" | "en" {
   return "pl";
 }
 
+function readUrlLang(): "pl" | "en" | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const l = new URLSearchParams(window.location.search).get("lang");
+    if (l === "pl" || l === "en") return l;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 function readStoredLang(): "pl" | "en" {
   if (typeof window === "undefined") return "pl";
+  // An explicit ?lang= (e.g. from an hreflang alternate or a shared deep link)
+  // wins over the stored preference so language-addressable URLs work.
+  const fromUrl = readUrlLang();
+  if (fromUrl) return fromUrl;
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY) || readCookie(COOKIE_KEY);
     if (stored === "pl" || stored === "en") return stored;

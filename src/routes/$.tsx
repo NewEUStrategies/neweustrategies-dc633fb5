@@ -35,6 +35,9 @@ import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
 import { useUnlockedContent } from "@/hooks/useUnlockedContent";
 import { isGatedMode, hasRenderableBody, shouldShowPaywall, pickBody, type BodyParts } from "@/lib/access/gating";
+import { getRequestUrl } from "@/lib/seo/request";
+import { buildContentHead, buildArticleJsonLd } from "@/lib/seo/meta";
+import { activeLang } from "@/lib/seo/head";
 import { Paywall } from "@/components/Paywall";
 import { PostLayoutRenderer } from "@/components/PostLayoutRenderer";
 import { PostFooterBars } from "@/components/PostFooterBars";
@@ -54,6 +57,11 @@ function splatToSegments(splat: string): string[] {
   return splat.split("/").filter(Boolean);
 }
 
+function metaDescription(raw: string | null | undefined, fallback: string): string {
+  const clean = (raw ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return clean ? clean.slice(0, 160) : fallback;
+}
+
 export const Route = createFileRoute("/$")({
   loader: async ({ params, context }) => {
     const splat = (params as { _splat?: string })._splat ?? "";
@@ -68,27 +76,25 @@ export const Route = createFileRoute("/$")({
   head: ({ loaderData, params }) => {
     const it = loaderData?.item;
     if (!it) return { meta: [] };
-    const title = it.title_pl || it.title_en || "Strona";
-    const desc = ("excerpt_pl" in it ? (it.excerpt_pl || it.excerpt_en) : null)
-      || (it.content_pl || it.content_en || "").replace(/<[^>]+>/g, "").slice(0, 155);
     const splat = (params as { _splat?: string })._splat ?? "";
-    const path = `/${splat}`;
-    const meta: Array<Record<string, string>> = [
-      { title },
-      { name: "description", content: desc },
-      { property: "og:title", content: title },
-      { property: "og:description", content: desc },
-      { property: "og:type", content: "article" },
-      { property: "og:url", content: path },
-    ];
-    if (it.cover_image_url) {
-      meta.push({ property: "og:image", content: it.cover_image_url });
-      meta.push({ name: "twitter:image", content: it.cover_image_url });
-    }
-    return {
-      meta,
-      links: [{ rel: "canonical", href: path }],
-    };
+    const url = getRequestUrl() || `/${splat}`;
+    const lang = activeLang(url);
+    const isPost = loaderData.kind === "post";
+    const title = (lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en) || "Strona";
+    const excerpt =
+      "excerpt_pl" in it ? (lang === "en" ? it.excerpt_en || it.excerpt_pl : it.excerpt_pl || it.excerpt_en) : null;
+    const tags = "tags" in loaderData ? (loaderData.tags ?? []).map((t) => t.name) : [];
+    return buildContentHead({
+      url,
+      lang,
+      type: isPost ? "article" : "website",
+      title,
+      description: metaDescription(excerpt, title),
+      image: it.cover_image_url,
+      publishedAt: it.published_at,
+      modifiedAt: it.updated_at,
+      tags,
+    });
   },
 
   component: PublicPage,
@@ -178,14 +184,17 @@ function PublicPage() {
     setCrumbs(buildBreadcrumbs(data.crumbs, lang, isPost ? title : undefined));
   }, [data, lang, title, isPost]);
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": isPost ? "Article" : "WebPage",
-    headline: title, name: title,
-    description: excerpt ?? "",
-    image: it.cover_image_url ?? undefined,
-    datePublished: it.published_at ?? undefined,
-  };
+  const jsonLd = buildArticleJsonLd({
+    url: getRequestUrl(),
+    lang,
+    isArticle: isPost,
+    title,
+    description: metaDescription(excerpt, title),
+    image: it.cover_image_url,
+    publishedAt: it.published_at,
+    modifiedAt: it.updated_at,
+    gated: isGatedMode(accessRule?.mode),
+  });
 
   const maxW = "max-w-[1200px]";
   const showPaywall = shouldShowPaywall(accessRule?.mode, body);
@@ -212,7 +221,7 @@ function PublicPage() {
   };
 
   const contentBlock = (
-    <div ref={articleRef}>
+    <div ref={articleRef} className="article-body">
       {accessRule && showPaywall ? (
         <Paywall rule={accessRule} lang={lang} fallbackText={excerpt} />
       ) : (

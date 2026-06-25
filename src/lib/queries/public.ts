@@ -78,6 +78,7 @@ export interface PageData {
   builder_data: unknown;
   cover_image_url: string | null;
   published_at: string | null;
+  updated_at: string | null;
   template_type?: string | null;
   header_override?: string | null;
 }
@@ -230,7 +231,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
           supabase
             .from("posts")
             .select(
-              "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, custom_meta, related_override",
+              "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, custom_meta, related_override",
             )
             .eq("id", hit.post_id)
             .maybeSingle(),
@@ -258,7 +259,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
         supabase
           .from("pages")
           .select(
-            "id, slug, title_pl, title_en, editor, cover_image_url, published_at, template_type, header_override",
+            "id, slug, title_pl, title_en, editor, cover_image_url, published_at, updated_at, template_type, header_override",
           )
           .eq("id", hit.page_id)
           .maybeSingle(),

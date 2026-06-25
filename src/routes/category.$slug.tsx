@@ -8,6 +8,9 @@ import { Footer } from "@/components/Footer";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { taxonomyArchiveQueryOptions } from "@/lib/queries/archives";
+import { getRequestUrl } from "@/lib/seo/request";
+import { activeLang } from "@/lib/seo/head";
+import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/category/$slug")({
   loader: async ({ params, context }) => {
@@ -17,16 +20,21 @@ export const Route = createFileRoute("/category/$slug")({
     if (!data) throw notFound();
     return data;
   },
-  head: ({ loaderData }) => {
-    const name = loaderData?.taxonomy.name_pl ?? "Kategoria";
-    return {
-      meta: [
-        { title: `${name} - kategoria` },
-        { name: "description", content: loaderData?.taxonomy.description_pl?.slice(0, 155) ?? `Wpisy w kategorii ${name}.` },
-        { property: "og:title", content: name },
-        { property: "og:type", content: "website" },
-      ],
-    };
+  head: ({ loaderData, params }) => {
+    const tax = loaderData?.taxonomy;
+    const url = getRequestUrl() || `/category/${params.slug}`;
+    const lang = activeLang(url);
+    const name = tax ? (lang === "en" ? tax.name_en || tax.name_pl : tax.name_pl || tax.name_en) : "Kategoria";
+    const desc = tax ? (lang === "en" ? tax.description_en || tax.description_pl : tax.description_pl || tax.description_en) : null;
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title: lang === "en" ? `${name} - category` : `${name} - kategoria`,
+      description:
+        (desc ?? "").replace(/<[^>]+>/g, " ").trim().slice(0, 160) ||
+        (lang === "en" ? `Posts in the ${name} category.` : `Wpisy w kategorii ${name}.`),
+    });
   },
   component: () => <TaxonomyPage kind="category" />,
   notFoundComponent: NotFound,
