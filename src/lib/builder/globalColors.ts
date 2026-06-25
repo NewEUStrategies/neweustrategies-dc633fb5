@@ -100,22 +100,31 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     slots: [
       {
         key: "icon",
-        label: "Global Icon Color",
-        description: "Domyślny kolor ikon SVG w treści strony (poza nagłówkiem i przyciskami). Domyślnie używa Global Highlight Color.",
+        label: "Global Icon — Inactive",
+        description: "Domyślny kolor ikon SVG (stan nieaktywny). Stosowany w treści strony.",
+        hasDark: true,
+        defaultLight: "#6b7280",
+        defaultDark: "#9ca3af",
+      },
+      {
+        key: "icon-hover",
+        label: "Global Icon — Hover",
+        description: "Kolor ikon SVG po najechaniu kursorem (bez kliknięcia).",
+        hasDark: true,
+        defaultLight: "#fa9346",
+        defaultDark: "#fdb078",
+      },
+      {
+        key: "icon-active",
+        label: "Global Icon — Active",
+        description: "Kolor ikon SVG w stanie aktywnym (np. zaznaczona pozycja menu, włączony toggle).",
         hasDark: true,
         defaultLight: "#fa9346",
         defaultDark: "#fbbf24",
       },
-      {
-        key: "icon-hover",
-        label: "Icon Hover Color",
-        description: "Kolor ikon SVG po najechaniu.",
-        hasDark: true,
-        defaultLight: "#d97706",
-        defaultDark: "#fcd34d",
-      },
     ],
   },
+
 
   {
     id: "dark-accent",
