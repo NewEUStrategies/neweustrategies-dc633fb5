@@ -718,7 +718,7 @@ export function renderSimpleWidget(
         return (
           <div className={`flex ${gapCls} overflow-x-auto snap-x pb-2`}>
             {imgs.map((src, i) => (
-              <span key={i} data-widget-media className="relative block h-48 flex-[0_0_80%] snap-start overflow-hidden rounded bg-muted sm:flex-[0_0_42%] lg:flex-[0_0_30%]">
+              <span key={i} data-widget-media className="relative block aspect-[4/3] flex-[0_0_80%] snap-start overflow-hidden rounded bg-muted sm:flex-[0_0_42%] lg:flex-[0_0_30%]">
                 <OptimizedImage src={src} alt="" responsive sizes="(max-width: 640px) 80vw, (max-width: 1024px) 42vw, 30vw" className="absolute inset-0 block h-full w-full object-cover" />
               </span>
             ))}
@@ -737,7 +737,7 @@ export function renderSimpleWidget(
           <div className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
             {imgs.map((src, i) => (
               <div key={i} className="bg-white p-2 pb-5 shadow-lg rotate-[-1deg] hover:rotate-0 transition">
-                <span data-widget-media className="relative block h-32 w-full overflow-hidden bg-muted">
+                <span data-widget-media className="relative block aspect-[4/3] w-full overflow-hidden bg-muted">
                   <OptimizedImage src={src} alt="" responsive sizes="(max-width: 767px) 100vw, 33vw" className="absolute inset-0 block h-full w-full object-cover" />
                 </span>
               </div>
@@ -748,7 +748,7 @@ export function renderSimpleWidget(
       return (
         <div className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
           {imgs.map((src, i) => (
-            <span key={i} data-widget-media className="relative block h-32 w-full overflow-hidden rounded bg-muted">
+            <span key={i} data-widget-media className="relative block aspect-[4/3] w-full overflow-hidden rounded bg-muted">
               <OptimizedImage src={src} alt="" responsive sizes="(max-width: 767px) 100vw, 33vw" className="absolute inset-0 block h-full w-full object-cover" />
             </span>
           ))}
