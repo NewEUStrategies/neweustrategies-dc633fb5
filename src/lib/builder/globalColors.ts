@@ -100,22 +100,31 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     slots: [
       {
         key: "icon",
-        label: "Global Icon Color",
-        description: "Domyślny kolor ikon SVG w treści strony (poza nagłówkiem i przyciskami). Domyślnie używa Global Highlight Color.",
+        label: "Global Icon — Inactive",
+        description: "Domyślny kolor ikon SVG (stan nieaktywny). Stosowany w treści strony.",
+        hasDark: true,
+        defaultLight: "#6b7280",
+        defaultDark: "#9ca3af",
+      },
+      {
+        key: "icon-hover",
+        label: "Global Icon — Hover",
+        description: "Kolor ikon SVG po najechaniu kursorem (bez kliknięcia).",
+        hasDark: true,
+        defaultLight: "#fa9346",
+        defaultDark: "#fdb078",
+      },
+      {
+        key: "icon-active",
+        label: "Global Icon — Active",
+        description: "Kolor ikon SVG w stanie aktywnym (np. zaznaczona pozycja menu, włączony toggle).",
         hasDark: true,
         defaultLight: "#fa9346",
         defaultDark: "#fbbf24",
       },
-      {
-        key: "icon-hover",
-        label: "Icon Hover Color",
-        description: "Kolor ikon SVG po najechaniu.",
-        hasDark: true,
-        defaultLight: "#d97706",
-        defaultDark: "#fcd34d",
-      },
     ],
   },
+
 
   {
     id: "dark-accent",
@@ -682,6 +691,7 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(button.btn-primary:hover, .btn-primary:hover, button.bg-primary:hover, .bg-primary:hover){background:var(--gc-btn-hover-bg, var(--gc-btn-bg, var(--primary)));color:var(--gc-btn-hover-text, var(--gc-btn-text, var(--primary-foreground)));}
     :where(main svg, article svg, .content svg, .card svg, [class*="card"] svg, [data-card] svg){color:var(--gc-icon, var(--gc-highlight, currentColor));}
     :where(main a:hover svg, article a:hover svg, .content a:hover svg, main button:hover svg, article button:hover svg, .card a:hover svg, [class*="card"] a:hover svg){color:var(--gc-icon-hover, var(--gc-icon, var(--gc-highlight, currentColor)));}
+    :where([data-active="true"] svg, [aria-current="page"] svg, .active > svg, a.active svg, button.active svg, [data-state="active"] svg, [data-state="on"] svg){color:var(--gc-icon-active, var(--gc-icon-hover, var(--gc-icon, currentColor)));}
     :where(header svg){color:var(--gc-header-icon, currentColor);}
     :where(header a, header button){color:var(--gc-header-icon, inherit);font-family:var(--gc-header-icon-font, inherit);font-size:var(--gc-header-icon-size, inherit);font-weight:var(--gc-header-icon-weight, inherit);font-style:var(--gc-header-icon-style, inherit);text-decoration:var(--gc-header-icon-decoration, inherit);}
     :where(header a:hover, header button:hover, header a:hover svg, header button:hover svg){color:var(--gc-header-icon-hover, var(--gc-header-icon, inherit));}
