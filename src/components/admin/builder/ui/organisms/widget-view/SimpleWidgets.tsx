@@ -22,6 +22,7 @@ import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import {
   LoginFormView, RegisterFormView, LostPasswordFormView, ResetPasswordFormView,
 } from "@/components/blocks/AuthFormBlocks";
+import { DynamicTagWidget } from "./DynamicTagWidgets";
 
 type AuthCfg = Record<string, unknown>;
 function AuthFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
