@@ -187,6 +187,9 @@ export function MegaMenu({ config, lang, mobile = false }: Props) {
 }
 
 function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }) {
+  if ((col.kind ?? "links") === "category") {
+    return <CategoryColumn col={col} lang={lang} />;
+  }
   const title = pickLang(lang === "pl" ? col.title_pl : col.title_en, col.title_pl);
   const links = Array.isArray(col.links) ? col.links : [];
   const featured = col.featured;
@@ -225,6 +228,131 @@ function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang 
       )}
     </div>
   );
+}
+
+/**
+ * Category column: Foxiz-style "Category Mega Menu" - fetches recent posts
+ * from the chosen category and renders a 2-column thumbnail grid with title.
+ */
+function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }) {
+  const slug = (col.categorySlug ?? "").trim();
+  const limit = Math.min(Math.max(Number(col.postCount) || 4, 1), 8);
+  const title = pickLang(lang === "pl" ? col.title_pl : col.title_en, col.title_pl);
+  const viewAll = safeUrl(col.viewAllHref || (slug ? `/category/${slug}` : "#"));
+
+  const { data, isLoading } = useQuery({
+    enabled: slug.length > 0,
+    queryKey: ["mega-menu-cat", slug, limit, lang] as const,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data: cat } = await supabase
+        .from("categories")
+        .select("id, name_pl, name_en")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (!cat?.id) return { posts: [] as PostCard[], catName: "" };
+      const { data: pivot } = await supabase
+        .from("post_categories")
+        .select("post_id")
+        .eq("category_id", cat.id as string)
+        .limit(limit * 4);
+      const ids = (pivot ?? []).map((r) => r.post_id as string);
+      if (ids.length === 0) return { posts: [], catName: pickLang(cat.name_pl as string, cat.name_en as string) };
+      const { data: posts } = await supabase
+        .from("posts")
+        .select("id, slug, title_pl, title_en, cover_image_url, published_at")
+        .in("id", ids)
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .order("published_at", { ascending: false })
+        .limit(limit);
+      return {
+        posts: (posts ?? []).map((p) => ({
+          id: p.id as string,
+          slug: p.slug as string,
+          title: pickLang(
+            lang === "pl" ? (p.title_pl as string) : (p.title_en as string),
+            p.title_pl as string,
+          ),
+          cover: (p.cover_image_url as string | null) ?? "",
+          href: `/blog/${p.slug as string}`,
+        })),
+        catName: pickLang(cat.name_pl as string, cat.name_en as string),
+      };
+    },
+  });
+
+  const heading = title || data?.catName || "";
+
+  return (
+    <div className="min-w-0 space-y-3">
+      {heading && (
+        <div className="flex items-center justify-between">
+          <h4 className="text-[11px] font-bold tracking-widest uppercase text-muted-foreground">
+            {heading}
+          </h4>
+          {slug && (
+            <a href={viewAll} className="text-[10px] font-semibold text-brand hover:underline uppercase tracking-wider">
+              {lang === "pl" ? "Zobacz" : "View all"} →
+            </a>
+          )}
+        </div>
+      )}
+      {isLoading && (
+        <div className="grid grid-cols-2 gap-2">
+          {Array.from({ length: limit }).map((_, i) => (
+            <div key={i} className="space-y-1.5">
+              <div className="aspect-[4/3] rounded-md bg-muted animate-pulse" />
+              <div className="h-3 rounded bg-muted animate-pulse" />
+              <div className="h-3 w-2/3 rounded bg-muted animate-pulse" />
+            </div>
+          ))}
+        </div>
+      )}
+      {!isLoading && data && data.posts.length > 0 && (
+        <ul className="grid grid-cols-2 gap-3">
+          {data.posts.map((p) => (
+            <li key={p.id}>
+              <a href={p.href} className="group block space-y-1.5">
+                <div className="aspect-[4/3] rounded-md overflow-hidden bg-muted">
+                  {p.cover ? (
+                    <img
+                      src={safeImageUrl(p.cover)}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : null}
+                </div>
+                <div className="text-xs font-semibold text-foreground leading-snug line-clamp-3 group-hover:text-brand transition">
+                  {p.title}
+                </div>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!isLoading && data && data.posts.length === 0 && slug && (
+        <div className="text-xs text-muted-foreground italic">
+          {lang === "pl" ? "Brak wpisów w kategorii." : "No posts in this category."}
+        </div>
+      )}
+      {!slug && (
+        <div className="text-xs text-muted-foreground italic">
+          {lang === "pl" ? "Wybierz kategorię w edytorze." : "Pick a category in the editor."}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface PostCard {
+  id: string;
+  slug: string;
+  title: string;
+  cover: string;
+  href: string;
 }
 
 /** Allowed aspect ratios; used for legacy normalization. */
