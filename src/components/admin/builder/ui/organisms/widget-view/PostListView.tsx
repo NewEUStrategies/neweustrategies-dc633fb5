@@ -16,7 +16,7 @@ const GRID_COVER_SIZES = "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25
 const COVER_IMG_CLASS = "absolute inset-0 block h-full w-full object-cover";
 const TILE_FRAME_CLASS = "relative block h-28 w-full shrink-0 overflow-hidden bg-muted";
 const OVERLAY_FRAME_CLASS = "relative block h-40 w-full shrink-0 overflow-hidden bg-muted";
-const LIST_FRAME_CLASS = "relative block h-16 w-24 shrink-0 overflow-hidden rounded-sm bg-muted";
+const LIST_FRAME_CLASS = "relative block aspect-[4/3] w-[112px] sm:w-[128px] shrink-0 overflow-hidden rounded-sm bg-muted";
 
 type Lang = "pl" | "en";
 
