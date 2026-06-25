@@ -130,12 +130,23 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
     <UsedPostIdsProvider>
       <style dangerouslySetInnerHTML={{ __html: DEBUG_CSS }} />
       <div data-builder-renderer data-debug={debug ? "1" : "0"}>
-        {doc.sections.map((s) => <RenderSection key={s.id} section={s} lang={lang} device={effectiveDevice} />)}
+        <SectionsList sections={doc.sections} lang={lang} device={effectiveDevice} />
       </div>
       <button type="button" className="builder-debug-toggle" data-on={debug ? "1" : "0"} onClick={toggleDebug}>
         {debug ? "Debug: ON" : "Debug: OFF"}
       </button>
     </UsedPostIdsProvider>
+  );
+}
+
+function SectionsList({ sections, lang, device }: { sections: SectionNode[]; lang: "pl"|"en"; device: Device }) {
+  const accessCtx = useAccessContext();
+  return (
+    <>
+      {sections
+        .filter((s) => evaluateAccess(s.advanced?.access, accessCtx))
+        .map((s) => <RenderSection key={s.id} section={s} lang={lang} device={device} />)}
+    </>
   );
 }
 
