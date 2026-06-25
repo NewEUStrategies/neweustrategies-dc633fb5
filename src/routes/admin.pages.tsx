@@ -456,7 +456,7 @@ function PagesList() {
                           <Link
                             to="/admin/pages/$slug"
                             params={{ slug: p.slug }}
-                            className="block text-[10px] text-[#F8F6F4] truncate max-w-[360px] hover:text-[#FDB078] hover:underline"
+                            className="block text-[10px] text-[#231f20] dark:text-[#F8F6F4] truncate max-w-[360px] hover:text-[#FDB078] hover:underline"
                           >
                             /{p.slug}
                           </Link>
