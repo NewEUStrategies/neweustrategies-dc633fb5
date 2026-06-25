@@ -28,6 +28,7 @@ import {
   type SectionLabelVariant,
 } from "@/lib/builder/sectionLabelVariants";
 import { SliderRender, type SliderVariant } from "@/lib/builder/sliderVariants";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import {
   AnimatedHeadingRender,
   type AnimatedHeadingConfig,
@@ -592,13 +593,13 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       if (badgeBg) { badgeStyle.background = badgeBg; badgeStyle.borderColor = badgeBg; }
       if (badgeText) badgeStyle.color = badgeText;
       const imageHover = getStr(c, "imageHover") || "zoom-in";
-      // For zoom-in / zoom-out we animate the inset of an object-contain image,
-      // so the picture grows/shrinks WITHIN the frame and is never cropped.
+      // Keep dynamic-feature-card imagery consistent with other card widgets:
+      // fixed frame, responsive source candidates, and object-cover crop.
       const imgAnimCls =
         imageHover === "zoom-in"
-          ? "transition-[inset] duration-500 ease-out inset-[8%] group-hover/dfcimg:inset-0"
+          ? "inset-0 transition-transform duration-500 ease-out group-hover/dfcimg:scale-105"
         : imageHover === "zoom-out"
-          ? "transition-[inset] duration-500 ease-out inset-0 group-hover/dfcimg:inset-[8%]"
+          ? "inset-0 scale-105 transition-transform duration-500 ease-out group-hover/dfcimg:scale-100"
         : imageHover === "fade"
           ? "inset-0 transition-[filter,opacity] duration-500 ease-out group-hover/dfcimg:brightness-75"
         : imageHover === "brighten"
@@ -623,8 +624,8 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
               : <div className={badgeCls} style={badgeStyle}>{badge}</div>
           )}
           {img && (
-            <div className="group/dfcimg relative w-full overflow-hidden rounded bg-black/20" style={{ aspectRatio: "16 / 9" }}>
-              <img src={img} alt="" className={`absolute w-auto h-auto max-w-full max-h-full m-auto object-contain ${imgAnimCls}`} loading="lazy" />
+            <div data-widget-media className="group/dfcimg relative w-full overflow-hidden rounded bg-black/20" style={{ aspectRatio: "16 / 9" }}>
+              <OptimizedImage src={img} alt="" responsive sizes="(max-width: 767px) 100vw, 50vw" className={`absolute block h-full w-full object-cover ${imgAnimCls}`} />
             </div>
           )}
           <h3 className="mt-4 font-display text-2xl font-bold">{title}</h3>
