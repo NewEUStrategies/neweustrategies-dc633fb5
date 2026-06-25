@@ -8,7 +8,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
       onClick={toggle}
       aria-label="Przełącz motyw"
       type="button"
-      className={`p-2 rounded-full hover:bg-muted transition ${className}`}
+      className={`p-[5px] rounded-full hover:bg-muted transition ${className}`}
     >
       {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
     </button>
