@@ -29,7 +29,7 @@ function LoginPage() {
   const { session, isStaff, loading } = useAuth();
   const settings = useAuthSettings();
   const { mode: initialMode } = Route.useSearch();
-  const [mode, setMode] = useState<Mode>(initialMode as Mode);
+  const [mode, setMode] = useState<Mode>((initialMode ?? "signin") as Mode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
