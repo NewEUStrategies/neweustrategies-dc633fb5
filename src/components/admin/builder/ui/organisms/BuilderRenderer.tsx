@@ -1,6 +1,6 @@
 // Read-only renderer for public pages. Applies all Section settings
 // (layout, background layers, overlay, border, shape dividers, typography).
-import { Fragment, useEffect, useState, type CSSProperties, type ElementType } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type ElementType } from "react";
 import type { BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, Device, ResponsiveValue } from "@/lib/builder/types";
 import { WidgetView, getWidgetFrameStyle, hiddenOnDevice } from "@/components/admin/builder/WidgetView";
 import { AUTO_SIZE_WIDGETS, COMPACT_WIDGET_TYPES } from "@/components/admin/builder/ui/organisms/widget-view/frame";
@@ -30,12 +30,15 @@ interface Props {
 const MOBILE_BREAKPOINT = 768;
 const TABLET_BREAKPOINT = 1024;
 
-function detectViewportDevice(): Device {
-  if (typeof window === "undefined") return "desktop";
-  const width = window.innerWidth;
+function deviceForWidth(width: number): Device {
   if (width < MOBILE_BREAKPOINT) return "mobile";
   if (width < TABLET_BREAKPOINT) return "tablet";
   return "desktop";
+}
+
+function detectViewportDevice(): Device {
+  if (typeof window === "undefined") return "desktop";
+  return deviceForWidth(window.innerWidth);
 }
 
 function readDebugFlag(): boolean {
