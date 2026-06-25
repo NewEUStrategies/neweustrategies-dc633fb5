@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import logoSrc from "@/assets/logo.png";
+
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 
