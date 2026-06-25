@@ -11,6 +11,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { BlocksRenderer } from "@/components/blocks/BlocksRenderer";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { parseBuilderDoc } from "@/lib/builder/parse";
