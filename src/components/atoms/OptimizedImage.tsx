@@ -53,6 +53,7 @@ export function OptimizedImage({
   className,
   style,
   onLoad,
+  onError,
   ...rest
 }: OptimizedImageProps) {
   const [loaded, setLoaded] = useState(priority);
@@ -109,7 +110,8 @@ export function OptimizedImage({
         setLoaded(true);
         onLoad?.(e);
       }}
-      onError={() => {
+      onError={(event) => {
+        onError?.(event);
         if (typeof console !== "undefined") {
           // eslint-disable-next-line no-console
           console.warn("[OptimizedImage] failed to load", finalSrc);
