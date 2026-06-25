@@ -40,7 +40,7 @@ type Lang = "pl" | "en";
 import {
   styleToCSS, getWidgetFrameStyle, hiddenOnDevice,
   DEFAULT_WIDGET_WIDTH_BY_DEVICE, DEFAULT_WIDGET_MIN_HEIGHT, AUTO_SIZE_WIDGETS,
-  COMPACT_WIDGET_MIN_HEIGHT,
+  COMPACT_WIDGET_MIN_HEIGHT, COMPACT_WIDGET_TYPES,
   getStr, getNum, getStrArr, normalizeNewsletterVariant,
 } from "./ui/organisms/widget-view/frame";
 import { MOTION_INITIAL, MOTION_FINAL } from "./ui/organisms/widget-view/motion";
@@ -194,13 +194,14 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
 
   const isImage = node.type === "image";
   const isMedia = isImage || node.type === "slider" || node.type === "video" || node.type === "gallery" || node.type === "map";
+  const isCompactWidget = COMPACT_WIDGET_TYPES.has(node.type);
   const wrap = (children: React.ReactNode) => (
     <div
       id={htmlId}
       data-w-id={node.id}
       ref={motion ? motionRef : undefined}
       className={`text-foreground ${cls}`.trim()}
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", width: "100%", minWidth: 0, height: isMedia ? "auto" : "100%", maxWidth: isImage ? "none" : "100%", boxSizing: "border-box", overflow: isImage ? "visible" : (isMedia ? "visible" : "hidden"), ...baseStyle, marginTop: 0, marginBottom: 0, ...motionStyle }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: isCompactWidget ? "center" : "flex-start", width: "100%", minWidth: 0, height: isMedia ? "auto" : "100%", maxWidth: isImage ? "none" : "100%", boxSizing: "border-box", overflow: isImage ? "visible" : (isMedia ? "visible" : "hidden"), ...baseStyle, marginTop: 0, marginBottom: 0, ...motionStyle }}
     >
       {children}
       {hover && <style dangerouslySetInnerHTML={{ __html: hover }} />}
