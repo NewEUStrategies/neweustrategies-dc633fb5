@@ -1,4 +1,4 @@
-// Atomic Design — Molecules barrel.
+// Atomic Design - Molecules barrel.
 export { HoverControl } from "./HoverControl";
 export { MotionControl } from "./MotionControl";
 export { SpacingControl } from "./SpacingControl";

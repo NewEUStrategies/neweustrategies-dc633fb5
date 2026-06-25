@@ -1,4 +1,4 @@
-// HTML5 audio podcast player atom — variants: mini/full/sticky.
+// HTML5 audio podcast player atom - variants: mini/full/sticky.
 // World-class UX: keyboard accessible, A11Y labelled, speed control,
 // 15s skip, seek slider, time display.
 import { useEffect, useRef, useState } from "react";

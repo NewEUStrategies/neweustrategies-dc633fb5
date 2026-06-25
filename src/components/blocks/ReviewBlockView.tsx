@@ -1,4 +1,4 @@
-// Review Box — Foxiz style. Score badge + criterion bars + verdict + CTA.
+// Review Box - Foxiz style. Score badge + criterion bars + verdict + CTA.
 // Emits schema.org Review JSON-LD when title/score are present.
 interface Criterion { label: string; score: number }
 interface Props {

@@ -1,4 +1,4 @@
-// `podcast-latest` builder widget view — renders a grid of recent episodes.
+// `podcast-latest` builder widget view - renders a grid of recent episodes.
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { latestPodcastsQueryOptions } from "@/lib/queries/podcasts";

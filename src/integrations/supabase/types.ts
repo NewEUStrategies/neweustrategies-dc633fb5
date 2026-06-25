@@ -2164,6 +2164,18 @@ export type Database = {
     }
     Functions: {
       current_tenant_id: { Args: never; Returns: string }
+      get_entity_content: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+        }
+        Returns: {
+          blocks_data: Json | null
+          builder_data: Json | null
+          content_en: string | null
+          content_pl: string | null
+        }[]
+      }
       has_content_access: {
         Args: {
           _entity_id: string

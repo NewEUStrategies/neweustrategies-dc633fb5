@@ -80,3 +80,58 @@ export function buildTransformedImageUrl(
     return src;
   }
 }
+
+/** True for Supabase Storage public/transform URLs (the ones we can scale). */
+export function isSupabaseStorageUrl(src: string): boolean {
+  if (!src) return false;
+  try {
+    const { pathname } = new URL(src);
+    return (
+      pathname.includes("/storage/v1/object/public/") ||
+      pathname.includes("/storage/v1/render/image/public/")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Width-only scaled variant (preserves aspect ratio, unlike the cropping
+ * buildTransformedImageUrl). Used to build responsive srcSets.
+ */
+export function buildScaledImageUrl(src: string, width: number, quality = 75): string {
+  if (!src) return src;
+  try {
+    const url = new URL(src);
+    if (url.pathname.includes("/storage/v1/object/public/")) {
+      url.pathname = url.pathname.replace(
+        "/storage/v1/object/public/",
+        "/storage/v1/render/image/public/",
+      );
+      url.searchParams.set("width", String(width));
+      url.searchParams.set("quality", String(quality));
+      return url.toString();
+    }
+    url.searchParams.set("w", String(width));
+    return url.toString();
+  } catch {
+    return src;
+  }
+}
+
+/** Default responsive breakpoints (device-ish widths) for cover/card imagery. */
+export const RESPONSIVE_WIDTHS = [320, 480, 640, 768, 1024, 1280, 1536] as const;
+
+/**
+ * Build a `srcSet` of width-scaled candidates for a Supabase storage image.
+ * Returns "" for non-transformable URLs so callers can omit srcSet entirely
+ * (the browser then just uses the original src - no broken candidates).
+ */
+export function buildImageSrcSet(
+  src: string,
+  widths: readonly number[] = RESPONSIVE_WIDTHS,
+  quality = 75,
+): string {
+  if (!isSupabaseStorageUrl(src)) return "";
+  return widths.map((w) => `${buildScaledImageUrl(src, w, quality)} ${w}w`).join(", ");
+}

@@ -5,7 +5,7 @@ import type { LayoutPreset, PostLayoutSettings } from "@/lib/postLayouts";
 
 interface Props {
   preset: LayoutPreset;
-  /** Pełne ustawienia globalne — używane do wyliczenia ratio i centrowania. */
+  /** Pełne ustawienia globalne - używane do wyliczenia ratio i centrowania. */
   settings?: Pick<
     PostLayoutSettings,
     "featured_ratio_l6" | "featured_ratio_l10" | "featured_ratio_l11" | "center_header"

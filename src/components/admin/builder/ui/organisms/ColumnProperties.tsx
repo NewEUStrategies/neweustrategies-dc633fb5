@@ -1,6 +1,6 @@
 // Column properties: width per device, padding/margin, background, border,
 // vertical alignment, HTML tag, advanced (id/class/hide on).
-// Composed from atomic-design molecules — shares vocabulary with WidgetProperties.
+// Composed from atomic-design molecules - shares vocabulary with WidgetProperties.
 import type { ColumnNode, Device, CommonStyle, AdvancedSettings, Mode, Themed } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";

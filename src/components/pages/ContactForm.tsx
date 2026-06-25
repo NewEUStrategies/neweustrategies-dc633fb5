@@ -25,7 +25,7 @@ export function ContactForm({ lang, recipient }: Props) {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const to = recipient || "hello@example.com";
-    const body = `${form.message}\n\n— ${form.name} <${form.email}>`;
+    const body = `${form.message}\n\n- ${form.name} <${form.email}>`;
     const href = `mailto:${to}?subject=${encodeURIComponent(form.subject)}&body=${encodeURIComponent(body)}`;
     if (typeof window !== "undefined") window.location.href = href;
     toast.success(t.ok);

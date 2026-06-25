@@ -34,7 +34,7 @@ const ORDER_BY = [
 ] as const;
 
 const POST_FORMATS = [
-  { v: "", l: "— Wszystkie —" },
+  { v: "", l: "- Wszystkie -" },
   { v: "standard", l: "Standard" },
   { v: "video", l: "Wideo" },
   { v: "audio", l: "Audio" },
@@ -88,7 +88,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
   });
 
   const authorLabel = (a: { display_name: string | null; email: string | null }) =>
-    (a.display_name && a.display_name.trim()) || a.email || "—";
+    (a.display_name && a.display_name.trim()) || a.email || "-";
 
   // Live count preview for current query (best-effort, lightweight).
   const countKey = useMemo(
@@ -161,7 +161,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               mode="categories"
               value={excludeCategoriesCsv}
               onChange={(v) => setContent("excludeCategoriesCsv", v)}
-              placeholder="— Brak —"
+              placeholder="- Brak -"
             />
           </PropField>
           <PropField label="Tagi (uwzględnij)">
@@ -176,7 +176,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               mode="tags"
               value={excludeTagsCsv}
               onChange={(v) => setContent("excludeTagsCsv", v)}
-              placeholder="— Brak —"
+              placeholder="- Brak -"
             />
           </PropField>
 
@@ -201,9 +201,9 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                 value={authorId || "__all__"}
                 onValueChange={(v) => setContent("authorId", v === "__all__" ? "" : v)}
               >
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="— Wszyscy —" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="- Wszyscy -" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__" className="text-xs">— Wszyscy —</SelectItem>
+                  <SelectItem value="__all__" className="text-xs">- Wszyscy -</SelectItem>
                   {authors.map((a) => (
                     <SelectItem key={a.id} value={a.id} className="text-xs">
                       {authorLabel(a)}
@@ -382,7 +382,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
           </PropField>
         </div>
         <div className="mt-1 text-[10px] text-muted-foreground">
-          Działa we wszystkich wariantach (karty, lista, numerowana, overlay) — identycznie na desktop / tablet / mobile.
+          Działa we wszystkich wariantach (karty, lista, numerowana, overlay) - identycznie na desktop / tablet / mobile.
         </div>
       </Collapsible>
 
@@ -416,7 +416,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               <ColorField value={str(c, "indexColorDark", "")} onChange={(v) => setContent("indexColorDark", v ?? "")} />
             </PropField>
           </div>
-          <PropField label={`Przezroczystość (${Math.round(((num(c, "indexOpacity", -1) < 0 ? 0.05 : num(c, "indexOpacity", 0.05))) * 100)}%) — używana gdy brak własnego koloru`}>
+          <PropField label={`Przezroczystość (${Math.round(((num(c, "indexOpacity", -1) < 0 ? 0.05 : num(c, "indexOpacity", 0.05))) * 100)}%) - używana gdy brak własnego koloru`}>
             <Input
               type="range" min={0} max={1} step={0.01}
               value={num(c, "indexOpacity", -1) < 0 ? 0.05 : num(c, "indexOpacity", 0.05)}

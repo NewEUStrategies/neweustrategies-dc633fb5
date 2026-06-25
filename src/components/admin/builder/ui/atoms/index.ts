@@ -1,4 +1,4 @@
-// Atomic Design — Atoms barrel.
+// Atomic Design - Atoms barrel.
 export { ColorField } from "./ColorField";
 export { PropField } from "./PropField";
 export { ResponsiveInput } from "./ResponsiveInput";

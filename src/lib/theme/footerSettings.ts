@@ -1,5 +1,5 @@
 // Footer chrome settings stored under site_settings.key='footer'.
-// Independent from the builder document — controls the strip rendered
+// Independent from the builder document - controls the strip rendered
 // around the builder content (copyright bar, back-to-top, layout variant).
 import { z } from "zod";
 

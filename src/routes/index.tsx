@@ -7,21 +7,32 @@ import { Footer } from "@/components/Footer";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import { homePageQueryOptions } from "@/lib/queries/public";
+import { getRequestUrl } from "@/lib/seo/request";
+import { activeLang } from "@/lib/seo/head";
+import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/")({
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData(homePageQueryOptions());
     return null;
   },
-  head: () => ({
-    meta: [
-      { title: "New European Strategies - Strategic thinking, new perspectives" },
-      { name: "description", content: "Think-tank o europejskim bezpieczeństwie, geopolityce i grze mocarstw. Analizy, raporty, wywiady i policy papers." },
-      { property: "og:title", content: "New European Strategies" },
-      { property: "og:description", content: "Strategic thinking, new perspectives. European security, geopolitics, great-power rivalry." },
-      { property: "og:type", content: "website" },
-    ],
-  }),
+  head: () => {
+    const url = getRequestUrl() || "/";
+    const lang = activeLang(url);
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title:
+        lang === "en"
+          ? "New European Strategies - Strategic thinking, new perspectives"
+          : "New European Strategies - Strategiczne myślenie, nowe perspektywy",
+      description:
+        lang === "en"
+          ? "A think-tank on European security, geopolitics and great-power rivalry. Analyses, reports, interviews and policy papers."
+          : "Think-tank o europejskim bezpieczeństwie, geopolityce i grze mocarstw. Analizy, raporty, wywiady i policy papers.",
+    });
+  },
   component: Index,
 });
 

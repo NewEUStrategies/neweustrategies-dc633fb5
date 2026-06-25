@@ -70,7 +70,7 @@ export function AccessSettingsPane({ entityType, entityId }: Props) {
         <Select value={rule.mode ?? "public"} onValueChange={(v) => setRule({ ...rule, mode: v as AccessMode })}>
           <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="public">Publiczny — wszyscy widzą</SelectItem>
+            <SelectItem value="public">Publiczny - wszyscy widzą</SelectItem>
             <SelectItem value="members">Tylko zalogowani (members-only)</SelectItem>
             <SelectItem value="paid">Płatny (plan lub zakup jednorazowy)</SelectItem>
           </SelectContent>

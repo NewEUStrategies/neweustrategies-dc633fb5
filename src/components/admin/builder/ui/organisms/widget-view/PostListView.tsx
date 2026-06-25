@@ -8,6 +8,10 @@ import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import { getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+
+// Cover renders across a 1-4 column responsive grid.
+const GRID_COVER_SIZES = "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw";
 
 type Lang = "pl" | "en";
 
@@ -213,7 +217,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
         {rows.map((p) => (
           <a key={p.id} href={`/post/${p.slug}`} className="flex gap-3 py-3 group">
             {p.cover_image_url && (
-              <img src={p.cover_image_url} alt="" className="w-24 h-16 object-cover rounded-sm shrink-0" />
+              <OptimizedImage src={p.cover_image_url} alt="" responsive responsiveWidths={[96, 192, 288]} sizes="96px" className="w-24 h-16 object-cover rounded-sm shrink-0" />
             )}
             <div className="min-w-0">
               <h4 className="font-display text-sm leading-snug line-clamp-2 group-hover:text-brand transition" style={tStyle}>
@@ -294,7 +298,7 @@ function PostCard({
   if (variant === "overlay" && p.cover_image_url) {
     return (
       <a href={`/post/${p.slug}`} className={`relative block rounded-md overflow-hidden ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
-        <img src={p.cover_image_url} alt="" className="w-full h-40 object-cover" />
+        <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className="w-full h-40 object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-2.5 text-white">
           <h4 className="font-display text-sm leading-tight line-clamp-2" style={titleStyle}>{title}</h4>
@@ -307,18 +311,18 @@ function PostCard({
     return (
       <a href={`/post/${p.slug}`} className={`block ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
         {p.cover_image_url && (
-          <img src={p.cover_image_url} alt="" className="w-full h-28 object-cover rounded-sm mb-2" />
+          <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className="w-full h-28 object-cover rounded-sm mb-2" />
         )}
         <h4 className="font-display text-sm leading-snug line-clamp-2 hover:text-brand transition" style={titleStyle}>{title}</h4>
       </a>
     );
   }
 
-  // default — card
+  // default - card
   return (
     <a href={`/post/${p.slug}`} className={base}>
       {p.cover_image_url && (
-        <img src={p.cover_image_url} alt="" className="w-full h-28 object-cover" />
+        <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className="w-full h-28 object-cover" />
       )}
       <div className="p-2.5">
         <h4 className="font-display text-sm font-medium leading-snug mb-1 line-clamp-2" style={titleStyle}>{title}</h4>

@@ -8,19 +8,28 @@ import { Footer } from "@/components/Footer";
 import { AdSlotView } from "@/components/AdSlot";
 import { useAdPlacements } from "@/lib/ads/queries";
 import { blogListQueryOptions } from "@/lib/queries/public";
+import { getRequestUrl } from "@/lib/seo/request";
+import { activeLang } from "@/lib/seo/head";
+import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/blog/")({
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(blogListQueryOptions()),
 
-  head: () => ({
-    meta: [
-      { title: "Blog - New European Strategies" },
-      { name: "description", content: "Analizy, wywiady i raporty - blog NES." },
-      { property: "og:title", content: "Blog" },
-      { property: "og:type", content: "website" },
-    ],
-  }),
+  head: () => {
+    const url = getRequestUrl() || "/blog";
+    const lang = activeLang(url);
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title: lang === "en" ? "Blog - New European Strategies" : "Blog - New European Strategies",
+      description:
+        lang === "en"
+          ? "Analyses, interviews and reports - the New European Strategies blog."
+          : "Analizy, wywiady i raporty - blog New European Strategies.",
+    });
+  },
   component: BlogIndex,
   errorComponent: ({ error, reset }) => {
     const router = useRouter();

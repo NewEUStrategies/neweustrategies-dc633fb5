@@ -360,7 +360,7 @@ export const listWpComSites = createServerFn({ method: "GET" })
       };
     } catch (e) {
       // Site-scoped OAuth tokens (the common case when the connector was authorized
-      // for a single blog) cannot call /me/sites — WP.com returns 400
+      // for a single blog) cannot call /me/sites - WP.com returns 400
       // "authorization_required". Degrade gracefully so the UI still works.
       const msg = e instanceof Error ? e.message : String(e);
       return {
@@ -375,7 +375,7 @@ const ListInput = z.object({
   number: z.number().int().min(1).max(100).default(20),
   offset: z.number().int().min(0).max(10_000).default(0),
   status: z.enum(["publish", "draft", "any"]).default("publish"),
-  // Content type filter — default to "post" so pages/attachments are never imported by accident.
+  // Content type filter - default to "post" so pages/attachments are never imported by accident.
   type: z.enum(["post", "page", "any"]).default("post"),
 });
 
@@ -517,7 +517,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
         try {
           const desiredSlug = wp.slug || slugify(stripTags(wp.title)) || `wp-${wp.ID}`;
 
-          // Inline media (optional) — rewrite first so we can pick a cover from content if needed.
+          // Inline media (optional) - rewrite first so we can pick a cover from content if needed.
           let html = wp.content || "";
           if (importer && html) {
             html = await rewriteHtmlMedia(html, importer, siteHost, (u, err) => {

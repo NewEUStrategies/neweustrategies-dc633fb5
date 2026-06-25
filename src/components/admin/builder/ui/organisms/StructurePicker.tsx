@@ -1,4 +1,4 @@
-// Visual structure picker — shows Elementor-like column-layout thumbnails.
+// Visual structure picker - shows Elementor-like column-layout thumbnails.
 // Each variant renders a small preview of the column proportions, click to insert.
 import { Plus } from "@/lib/lucide-shim";
 

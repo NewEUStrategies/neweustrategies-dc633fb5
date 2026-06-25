@@ -1,4 +1,4 @@
-// News ticker — horizontal marquee of latest posts. Used as a builder widget.
+// News ticker - horizontal marquee of latest posts. Used as a builder widget.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -81,7 +81,7 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   }, [rows, used]);
 
   const title = (p: TickerPost) =>
-    (lang === "pl" ? p.title_pl : p.title_en) || p.title_pl || p.title_en || "—";
+    (lang === "pl" ? p.title_pl : p.title_en) || p.title_pl || p.title_en || "-";
 
   if (isLoading && !rows.length) {
     return (

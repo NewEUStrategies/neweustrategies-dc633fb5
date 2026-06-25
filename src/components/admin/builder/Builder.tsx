@@ -58,7 +58,7 @@ interface Props {
   onLangChange: (l: "pl" | "en") => void;
   /** Hide the surrounding site Header/Footer preview chrome. */
   hideChrome?: boolean;
-  /** Editor scope — controls empty-state copy and drop-zone labels. */
+  /** Editor scope - controls empty-state copy and drop-zone labels. */
   scope?: "page" | "header" | "footer" | "menu";
 }
 
@@ -66,7 +66,7 @@ const SCOPE_COPY = {
   page:   { title: "Zacznij budować stronę", hint: "Wybierz strukturę pierwszej sekcji. Pojawi się między nagłówkiem a stopką.", first: "Wstaw sekcję pod nagłówkiem", last: "Wstaw sekcję nad stopką" },
   header: { title: "Zbuduj nagłówek",        hint: "Dodaj pierwszą sekcję nagłówka (logo, menu, wyszukiwarka).",                first: "Wstaw sekcję nagłówka",      last: "Dodaj sekcję na końcu nagłówka" },
   footer: { title: "Zbuduj stopkę",          hint: "Dodaj pierwszą sekcję stopki (kolumny linków, kontakt, copyright).",       first: "Wstaw sekcję stopki",        last: "Dodaj sekcję na końcu stopki" },
-  menu:   { title: "Zbuduj menu",            hint: "Dodaj sekcję z linkami menu — użyj widgetu Link nawigacji.",               first: "Wstaw sekcję menu",          last: "Dodaj sekcję na końcu menu" },
+  menu:   { title: "Zbuduj menu",            hint: "Dodaj sekcję z linkami menu - użyj widgetu Link nawigacji.",               first: "Wstaw sekcję menu",          last: "Dodaj sekcję na końcu menu" },
 } as const;
 
 
@@ -97,7 +97,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   const doc = history.doc;
   const [device, setDevice] = useState<Device>("desktop");
   // Default canvas preview mode follows the live site theme so the editor
-  // shows the same colors/tokens visitors see — keeps admin and prod parity.
+  // shows the same colors/tokens visitors see - keeps admin and prod parity.
   const { theme } = useTheme();
   const [mode, setMode] = useState<Mode>(theme === "dark" ? "dark" : "light");
   const [selection, setSelection] = useState<Selection>({ kind: null, id: null });
@@ -651,7 +651,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                       onChange={(mut) => updateColumn(selectedColumn.id, mut)} />
                   )}
                   {selectedInner && (
-                    <div className="text-xs text-muted-foreground">Sekcja wewnętrzna — wybierz kolumnę aby ją edytować.</div>
+                    <div className="text-xs text-muted-foreground">Sekcja wewnętrzna - wybierz kolumnę aby ją edytować.</div>
                   )}
                 </div>
               </div>
@@ -707,7 +707,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
               : "max-w-[390px]"
             } ${scope !== "page" ? "rounded-md" : ""}`}
           >
-            {/* Site chrome — Header preview with hover edit overlay (page editor only) */}
+            {/* Site chrome - Header preview with hover edit overlay (page editor only) */}
             {!hideChrome && scope === "page" && (
               <ChromeFrame label="Nagłówek strony" editTo="/admin/settings/general">
                 <Header />

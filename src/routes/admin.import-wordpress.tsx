@@ -70,7 +70,7 @@ function ImportWordpressPage() {
   useEffect(() => {
     if (site) return;
     const list = sites.data;
-    // If the connector token is site-scoped, /me/sites returns nothing —
+    // If the connector token is site-scoped, /me/sites returns nothing -
     // fall back to the known default site so the form is still usable.
     if (!list) return;
     if (!list.length) {

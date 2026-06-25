@@ -20,7 +20,7 @@ async function fetchPlacements({ position, pageType, pageId }: FetchArgs): Promi
     .order("sort_order");
 
   if (error) throw error;
-  // Filtrujemy page_id po stronie klienta — jeśli placement ma page_id ≠ null, musi pasować.
+  // Filtrujemy page_id po stronie klienta - jeśli placement ma page_id ≠ null, musi pasować.
   return ((data as AdPlacementWithSlot[]) ?? []).filter(
     (p) => p.page_id == null || p.page_id === pageId,
   );

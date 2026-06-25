@@ -1,4 +1,4 @@
-// Tag archive: /tag/$slug — same shape as category, reuses TaxonomyPage logic.
+// Tag archive: /tag/$slug - same shape as category, reuses TaxonomyPage logic.
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -7,6 +7,9 @@ import { Footer } from "@/components/Footer";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { taxonomyArchiveQueryOptions } from "@/lib/queries/archives";
+import { getRequestUrl } from "@/lib/seo/request";
+import { activeLang } from "@/lib/seo/head";
+import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/tag/$slug")({
   loader: async ({ params, context }) => {
@@ -16,16 +19,18 @@ export const Route = createFileRoute("/tag/$slug")({
     if (!data) throw notFound();
     return data;
   },
-  head: ({ loaderData }) => {
-    const name = loaderData?.taxonomy.name_pl ?? "Tag";
-    return {
-      meta: [
-        { title: `#${name} - tag` },
-        { name: "description", content: `Wpisy oznaczone tagiem ${name}.` },
-        { property: "og:title", content: `#${name}` },
-        { property: "og:type", content: "website" },
-      ],
-    };
+  head: ({ loaderData, params }) => {
+    const tax = loaderData?.taxonomy;
+    const url = getRequestUrl() || `/tag/${params.slug}`;
+    const lang = activeLang(url);
+    const name = tax ? (lang === "en" ? tax.name_en || tax.name_pl : tax.name_pl || tax.name_en) : "Tag";
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title: lang === "en" ? `#${name} - tag` : `#${name} - tag`,
+      description: lang === "en" ? `Posts tagged ${name}.` : `Wpisy oznaczone tagiem ${name}.`,
+    });
   },
   component: TagArchivePage,
   notFoundComponent: NotFound,

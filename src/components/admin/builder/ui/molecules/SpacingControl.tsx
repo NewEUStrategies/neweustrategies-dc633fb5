@@ -1,6 +1,6 @@
 // Molecule: padding + margin (per-side) + align.
 // Wartości są wspólne dla wszystkich urządzeń (desktop / tablet / mobile)
-// — zapisujemy je jednocześnie do każdego breakpointa.
+// - zapisujemy je jednocześnie do każdego breakpointa.
 import type { Align, CommonStyle, Device, ResponsiveValue } from "@/lib/builder/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -95,14 +95,14 @@ export function SpacingControl({ style, onChange }: Props) {
 
   return (
     <div className="space-y-3">
-      <PropField label="Padding — wewnętrzne odstępy">
+      <PropField label="Padding - wewnętrzne odstępy">
         <SideInputs
           value={style?.padding}
           placeholder="0"
           onChange={(padding) => onChange((s) => { s.padding = padding; })}
         />
       </PropField>
-      <PropField label="Margin — zewnętrzne odstępy">
+      <PropField label="Margin - zewnętrzne odstępy">
         <SideInputs
           value={style?.margin}
           placeholder="0"

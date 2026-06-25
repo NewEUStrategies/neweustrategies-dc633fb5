@@ -1,5 +1,5 @@
 import { useState, type ImgHTMLAttributes, type CSSProperties } from "react";
-import { buildTransformedImageUrl } from "@/lib/cropSizes";
+import { buildTransformedImageUrl, buildImageSrcSet, RESPONSIVE_WIDTHS } from "@/lib/cropSizes";
 
 export type HoverEffect = "none" | "zoom" | "fade" | "slide";
 
@@ -15,6 +15,16 @@ type OptimizedImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "loading" |
   hoverEffect?: HoverEffect;
   /** Optional crop preset - applies Supabase image transform. */
   crop?: { width: number; height: number; resize?: "cover" | "contain" | "fill" };
+  /**
+   * Opt into a responsive srcSet of width-scaled variants (Supabase storage
+   * images only). Mutually exclusive with `crop`. Pair with `sizes` to tell the
+   * browser how wide the image renders so it can pick the smallest sufficient
+   * candidate - a real bandwidth/LCP win on cards and covers.
+   */
+  responsive?: boolean;
+  responsiveWidths?: readonly number[];
+  sizes?: string;
+  quality?: number;
 };
 
 /**
@@ -36,6 +46,10 @@ export function OptimizedImage({
   fadeIn = true,
   hoverEffect = "none",
   crop,
+  responsive = false,
+  responsiveWidths = RESPONSIVE_WIDTHS,
+  sizes,
+  quality,
   className,
   style,
   onLoad,
@@ -47,6 +61,9 @@ export function OptimizedImage({
     aspectRatio ?? (width && height ? width / height : undefined);
 
   const finalSrc = crop ? buildTransformedImageUrl(src, crop) : src;
+  // Responsive srcSet only when opted-in, no fixed crop, and the source is a
+  // transformable storage URL (else "" -> we omit srcSet, no broken candidates).
+  const srcSet = !crop && responsive ? buildImageSrcSet(src, responsiveWidths, quality) : "";
 
   const computedStyle: CSSProperties = {
     ...(ratio ? { aspectRatio: String(ratio) } : null),
@@ -63,6 +80,8 @@ export function OptimizedImage({
     <img
       {...rest}
       src={finalSrc}
+      srcSet={srcSet || undefined}
+      sizes={srcSet ? (sizes ?? "100vw") : sizes}
       alt={alt}
       width={width}
       height={height}

@@ -268,7 +268,7 @@ export const WIDGETS: WidgetDef[] = [
       variant: "carousel", // carousel | grid
       aspect: "9/16",
     }) },
-  // Auth forms — structural widgets, never raw HTML
+  // Auth forms - structural widgets, never raw HTML
   { type: "login-form", label: "Logowanie", category: "form", icon: LogIn,
     defaults: () => ({
       variant: "card",

@@ -14,7 +14,7 @@ export interface FontOption {
   hint?: string;
 }
 
-/** Sample dla nagłówków + treści — pokrywa popularne kierunki. */
+/** Sample dla nagłówków + treści - pokrywa popularne kierunki. */
 export const DEFAULT_FONT_STACK = '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif';
 
 export const FONT_OPTIONS: FontOption[] = [
@@ -63,7 +63,7 @@ interface Props {
 }
 
 export function FontPicker({
-  value, onChange, sampleText = "Aa — The quick brown fox", customFonts = [],
+  value, onChange, sampleText = "Aa - The quick brown fox", customFonts = [],
 }: Props) {
   useLoadGoogleFonts();
   const [open, setOpen] = useState(false);

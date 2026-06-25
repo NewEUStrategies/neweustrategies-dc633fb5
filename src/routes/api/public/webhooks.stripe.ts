@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { grantEntitlement } from "@/lib/billing/grant.server";
 
 // Stripe webhook endpoint.
 // Receives Checkout / Subscription events, verifies signature, and reconciles
@@ -111,35 +112,19 @@ async function handle(request: Request): Promise<Response> {
         if (currency) updates.currency = currency.toUpperCase();
         if (customerEmail) updates.receipt_email = customerEmail;
 
-        const query = supabaseAdmin.from("payment_orders").update(updates);
+        // `.neq("status","paid")` makes this idempotent: a Stripe retry of an
+        // already-paid order updates zero rows -> order is null -> we skip the
+        // grant instead of double-provisioning.
+        const cols = "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, amount_cents, currency";
+        const base = supabaseAdmin.from("payment_orders").update(updates).neq("status", "paid");
         const { data: order, error: orderErr } = orderId
-          ? await query.eq("id", orderId).select("id, user_id, tenant_id, plan_id, kind").maybeSingle()
-          : await query.eq("provider_session_id", sessionId!).select("id, user_id, tenant_id, plan_id, kind").maybeSingle();
+          ? await base.eq("id", orderId).select(cols).maybeSingle()
+          : await base.eq("provider_session_id", sessionId!).select(cols).maybeSingle();
         if (orderErr) throw orderErr;
 
-
-        if (order?.kind === "subscription" && order.plan_id && order.user_id && order.tenant_id) {
-          // Resolve period end from plan interval (default 30d)
-          const { data: plan } = await supabaseAdmin
-            .from("access_plans")
-            .select("interval")
-            .eq("id", order.plan_id)
-            .maybeSingle();
-          const interval = (plan?.interval as string | undefined) ?? "month";
-          const periodEnd = new Date();
-          if (interval === "year") periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-          else if (interval === "week") periodEnd.setDate(periodEnd.getDate() + 7);
-          else if (interval === "day") periodEnd.setDate(periodEnd.getDate() + 1);
-          else periodEnd.setMonth(periodEnd.getMonth() + 1);
-
-          await supabaseAdmin.from("user_subscriptions").insert({
-            user_id: order.user_id,
-            tenant_id: order.tenant_id,
-            plan_id: order.plan_id,
-            status: "active",
-            external_ref: subscriptionId ?? sessionId,
-            current_period_end: periodEnd.toISOString(),
-          });
+        // Turn the paid order into access (subscription or one-time purchase).
+        if (order) {
+          await grantEntitlement(order, subscriptionId ?? sessionId);
         }
         break;
       }

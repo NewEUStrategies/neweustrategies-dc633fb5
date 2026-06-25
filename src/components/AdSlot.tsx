@@ -1,6 +1,6 @@
 // Renderer pojedynczego slotu reklamowego.
 // Obsługuje 3 typy: html (raw HTML), script (np. AdSense), image (grafika + link).
-// Respektuje flagę requires_consent — bez zgody marketingowej slot nie ładuje się.
+// Respektuje flagę requires_consent - bez zgody marketingowej slot nie ładuje się.
 
 import { memo, useEffect, useRef } from "react";
 import { useMarketingConsent } from "@/lib/ads/consent";
@@ -47,7 +47,7 @@ export const AdSlotView = memo(function AdSlotView({ placement, className }: Sin
         role="complementary"
         aria-label="Miejsce reklamowe"
       >
-        Treść reklamowa zablokowana — wymaga zgody marketingowej.
+        Treść reklamowa zablokowana - wymaga zgody marketingowej.
       </div>
     );
   }

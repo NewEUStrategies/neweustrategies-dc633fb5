@@ -1,10 +1,10 @@
-// Animated heading widget — separate from the regular "heading" widget.
+// Animated heading widget - separate from the regular "heading" widget.
 // Two modes:
 //  • highlight: a single emphasized phrase with an SVG shape drawn over/under
 //    it (underline, circle, curly, zigzag, diagonal, strike, x, double, …).
 //  • rotate: cycles through a list of words in the highlighted spot.
-// Colors are split into two: `color` (static text — non-animated) and
-// `accentColor` (animated text + the shape stroke — duo tone).
+// Colors are split into two: `color` (static text - non-animated) and
+// `accentColor` (animated text + the shape stroke - duo tone).
 import { useEffect, useState, type CSSProperties } from "react";
 
 export type AnimatedHeadingMode = "highlight" | "rotate";
@@ -49,9 +49,9 @@ export interface AnimatedHeadingConfig {
   // STATIC (non-animated) text
   textBefore?: string;
   textAfter?: string;
-  // ANIMATED text — used when mode = "highlight"
+  // ANIMATED text - used when mode = "highlight"
   highlight?: string;
-  // ANIMATED text — used when mode = "rotate" (one word per line)
+  // ANIMATED text - used when mode = "rotate" (one word per line)
   rotateWords?: string[];
   // Duo-tone colors
   color?: string;        // static text color (textBefore + textAfter)
@@ -108,7 +108,7 @@ function ShapeSvg({
 }) {
   if (shape === "none") return null;
 
-  // Special case: hand-drawn scribble — two slightly curvy underlines drawn
+  // Special case: hand-drawn scribble - two slightly curvy underlines drawn
   // sequentially (second shorter, slightly offset), mimicking a marker.
   if (shape === "scribble") {
     const iter = loop ? "infinite" : "1";

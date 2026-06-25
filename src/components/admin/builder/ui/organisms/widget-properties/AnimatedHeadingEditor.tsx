@@ -168,7 +168,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
             />
           </PropField>
         ) : (
-          <PropField label={`Słowa do rotacji (${lang.toUpperCase()}) — jedno na linię`}>
+          <PropField label={`Słowa do rotacji (${lang.toUpperCase()}) - jedno na linię`}>
             <Textarea
               rows={4}
               value={rotateWords.join("\n")}

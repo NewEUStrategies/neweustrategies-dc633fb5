@@ -1,4 +1,4 @@
-// Global Colors editor — pozwala ustawić kolory dla light/dark mode
+// Global Colors editor - pozwala ustawić kolory dla light/dark mode
 // dla każdego slotu z GLOBAL_COLOR_GROUPS. Wybór z palety presetów,
 // pełny color picker oraz przycisk przywracania domyślnych wartości.
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -23,7 +23,7 @@ import { useSettings } from "@/lib/admin/useSettings";
 import { SIDEBAR_ICON_FIELDS, SIDEBAR_STYLES, SidebarStylePreview, type SidebarStyle } from "@/lib/builder/sidebarStyles";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 
-// Paleta marki — edytowalna przez użytkownika, trzymana w localStorage.
+// Paleta marki - edytowalna przez użytkownika, trzymana w localStorage.
 type BrandColor = { name: string; value: string };
 const BRAND_STORAGE_KEY = "lovable.globalColors.brandPalette.v1";
 const RECENT_STORAGE_KEY = "lovable.globalColors.recentColors.v1";
@@ -67,7 +67,7 @@ function isHexColor(v: string): boolean {
 
 
 /**
- * Sidebar Style picker — renderowany na górze taba "Sidebar" w Global Colors.
+ * Sidebar Style picker - renderowany na górze taba "Sidebar" w Global Colors.
  * Zapisuje wybór w site_settings.theme_options.sidebars.style.
  */
 type ThemeOptsLite = {
@@ -217,7 +217,7 @@ export function GlobalColorsEditor() {
   const canUndo = past.length > 0;
   const canRedo = future.length > 0;
 
-  // Centralna funkcja zmiany draftu — automatycznie zapisuje historię.
+  // Centralna funkcja zmiany draftu - automatycznie zapisuje historię.
   const applyDraft = useCallback((next: GlobalColorsValue) => {
     setDraft((prev) => {
       if (prev && !skipHistoryRef.current) {
@@ -303,7 +303,7 @@ export function GlobalColorsEditor() {
     });
   };
 
-  // Live preview — natychmiast nadpisuje :root / .dark tokenami z draftu.
+  // Live preview - natychmiast nadpisuje :root / .dark tokenami z draftu.
   const liveCss = globalColorsToCss(draft);
 
 
@@ -559,7 +559,7 @@ function ColorRow({
           <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Marka</div>
           <div className="flex flex-wrap gap-1">
             {brandPalette.length === 0 && (
-              <span className="text-[10px] text-muted-foreground italic">Brak kolorów — dodaj w sekcji „Paleta marki" powyżej.</span>
+              <span className="text-[10px] text-muted-foreground italic">Brak kolorów - dodaj w sekcji „Paleta marki" powyżej.</span>
             )}
             {brandPalette.map((c) => (
               <button
@@ -572,7 +572,7 @@ function ColorRow({
                     : "border-border hover:scale-110"
                 }`}
                 style={{ background: c.value }}
-                title={`${c.name} — ${c.value}`}
+                title={`${c.name} - ${c.value}`}
               />
             ))}
           </div>
@@ -811,7 +811,7 @@ function BrandPaletteEditor({
                 onClick={() => startEdit(i)}
                 className="w-8 h-8 rounded border border-border hover:scale-110 transition block"
                 style={{ background: c.value }}
-                title={`${c.name} — ${c.value} (kliknij aby edytować)`}
+                title={`${c.name} - ${c.value} (kliknij aby edytować)`}
               />
               <button
                 type="button"
@@ -1075,13 +1075,13 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
       );
     }
     case "h1":
-      return <h1 style={{ color: c }} className="text-2xl font-black leading-tight m-0">Nagłówek H1 — tytuł</h1>;
+      return <h1 style={{ color: c }} className="text-2xl font-black leading-tight m-0">Nagłówek H1 - tytuł</h1>;
     case "h2":
-      return <h2 style={{ color: c }} className="text-xl font-bold leading-tight m-0">Nagłówek H2 — sekcja</h2>;
+      return <h2 style={{ color: c }} className="text-xl font-bold leading-tight m-0">Nagłówek H2 - sekcja</h2>;
     case "h3":
-      return <h3 style={{ color: c }} className="text-lg font-bold leading-snug m-0">Nagłówek H3 — podsekcja</h3>;
+      return <h3 style={{ color: c }} className="text-lg font-bold leading-snug m-0">Nagłówek H3 - podsekcja</h3>;
     case "h4":
-      return <h4 style={{ color: c }} className="text-base font-semibold leading-snug m-0">Nagłówek H4 — akapit</h4>;
+      return <h4 style={{ color: c }} className="text-base font-semibold leading-snug m-0">Nagłówek H4 - akapit</h4>;
     case "h5":
       return <h5 style={{ color: c }} className="text-sm font-semibold uppercase tracking-wide m-0">Nagłówek H5</h5>;
     case "h6":
@@ -1114,7 +1114,7 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
 }
 
 /**
- * Funkcjonalny mini-podgląd — pokazuje fragment UI jednocześnie w trybie
+ * Funkcjonalny mini-podgląd - pokazuje fragment UI jednocześnie w trybie
  * jasnym i ciemnym, używając aktualnych kolorów z draftu.
  */
 function SlotPreview({ slot, draft }: { slot: GlobalColorSlot; draft: GlobalColorsValue }) {

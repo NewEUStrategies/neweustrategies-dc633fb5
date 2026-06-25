@@ -47,7 +47,7 @@ export function PricingEditor({ c, lang, setContent }: Props) {
               <PropField label={`Okres (${lang.toUpperCase()})`}>
                 <Input value={(p[`period_${lang}`] as string) ?? ""} onChange={(e) => upd(i, { [`period_${lang}`]: e.target.value })} placeholder="/mies." className="h-8 text-xs" />
               </PropField>
-              <PropField label={`Funkcje (${lang.toUpperCase()}) — po jednej na linię`}>
+              <PropField label={`Funkcje (${lang.toUpperCase()}) - po jednej na linię`}>
                 <Textarea rows={4}
                   value={features.join("\n")}
                   onChange={(e) => upd(i, { [`features_${lang}`]: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}

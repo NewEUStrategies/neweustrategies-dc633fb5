@@ -1,7 +1,7 @@
-// Wstrzykuje reklamy typu `mid_post` w środek treści wpisu —
+// Wstrzykuje reklamy typu `mid_post` w środek treści wpisu -
 // po N-tym paragrafie zgodnie z konfiguracją placement.config.paragraph.
 // Renderuje React do dynamicznie utworzonych kontenerów wewnątrz articleRef
-// (poprzez createPortal) — bez modyfikowania samego HTML treści.
+// (poprzez createPortal) - bez modyfikowania samego HTML treści.
 import { useEffect, useMemo, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useAdPlacements } from "@/lib/ads/queries";

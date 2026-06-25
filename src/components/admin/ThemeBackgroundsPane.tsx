@@ -1,4 +1,4 @@
-// Theme Options — sekcja "Tła motywu" i "Kolory pól tekstowych".
+// Theme Options - sekcja "Tła motywu" i "Kolory pól tekstowych".
 // Edytuje globalne kolory (light + dark) z wybranej grupy w Global Colors.
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";

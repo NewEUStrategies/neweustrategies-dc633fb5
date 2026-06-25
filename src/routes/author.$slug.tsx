@@ -8,6 +8,9 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { authorBySlugQueryOptions } from "@/lib/queries/archives";
+import { getRequestUrl } from "@/lib/seo/request";
+import { activeLang } from "@/lib/seo/head";
+import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/author/$slug")({
   loader: async ({ params, context }) => {
@@ -15,16 +18,22 @@ export const Route = createFileRoute("/author/$slug")({
     if (!data) throw notFound();
     return data;
   },
-  head: ({ loaderData }) => {
-    const name = loaderData?.author.display_name ?? "Autor";
-    return {
-      meta: [
-        { title: `${name} - autor` },
-        { name: "description", content: loaderData?.author.bio_pl?.slice(0, 155) ?? `Wpisy autora ${name}.` },
-        { property: "og:title", content: name },
-        { property: "og:type", content: "profile" },
-      ],
-    };
+  head: ({ loaderData, params }) => {
+    const author = loaderData?.author;
+    const url = getRequestUrl() || `/author/${params.slug}`;
+    const lang = activeLang(url);
+    const name = author?.display_name ?? "Autor";
+    const bio = author ? (lang === "en" ? author.bio_en || author.bio_pl : author.bio_pl || author.bio_en) : null;
+    return buildContentHead({
+      url,
+      lang,
+      type: "website",
+      title: lang === "en" ? `${name} - author` : `${name} - autor`,
+      description:
+        (bio ?? "").replace(/<[^>]+>/g, " ").trim().slice(0, 160) ||
+        (lang === "en" ? `Articles by ${name}.` : `Wpisy autora ${name}.`),
+      image: author?.avatar_url ?? null,
+    });
   },
   component: AuthorArchivePage,
   notFoundComponent: AuthorNotFound,

@@ -79,6 +79,8 @@ function CardThumb({ p, cfg }: { p: BlogListItem; cfg: RelatedPostsConfig }) {
       <OptimizedImage
         src={p.cover_image_url}
         alt=""
+        responsive
+        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
         className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
       />
     </div>
@@ -133,7 +135,7 @@ function RelatedList({ posts, cfg, lang }: ViewProps) {
         <li key={p.id} className="py-3 flex gap-3 items-start">
           {cfg.show_cover && p.cover_image_url && (
             <div className="w-20 h-20 shrink-0 overflow-hidden rounded-md bg-muted">
-              <OptimizedImage src={p.cover_image_url} alt="" className="w-full h-full object-cover" />
+              <OptimizedImage src={p.cover_image_url} alt="" responsive responsiveWidths={[80, 160, 240]} sizes="80px" className="w-full h-full object-cover" />
             </div>
           )}
           <div className="min-w-0 flex-1">

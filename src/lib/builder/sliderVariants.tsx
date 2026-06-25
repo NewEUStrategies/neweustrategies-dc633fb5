@@ -1,5 +1,5 @@
 // Slider widget - styled variants. Self-contained renderer (no external slider
-// library). Variants are being rebuilt from scratch — currently one available.
+// library). Variants are being rebuilt from scratch - currently one available.
 import { useEffect, useState, type CSSProperties } from "react";
 import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
@@ -91,7 +91,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     );
   }
 
-  // System-wide limits — applied uniformly to every slide so layout height
+  // System-wide limits - applied uniformly to every slide so layout height
   // is stable regardless of content length. Counts include spaces.
   const TITLE_MAX = 80;   // ~2 linie na desktopie
   const EXCERPT_MAX = 160; // ~3 linie na desktopie
@@ -167,7 +167,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         )}
       </div>
 
-      {/* Title + excerpt — stała wysokość (rezerwacja 2 linii tytułu + 3 linii excerptu) */}
+      {/* Title + excerpt - stała wysokość (rezerwacja 2 linii tytułu + 3 linii excerptu) */}
       <div
         key={safeIdx}
         className="px-4 pt-8 pb-2 text-center"

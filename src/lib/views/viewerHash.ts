@@ -12,7 +12,7 @@ export function getViewerHash(): string {
     window.localStorage.setItem(KEY, next);
     return next;
   } catch {
-    // localStorage unavailable (private mode, SSR) — return ephemeral hash.
+    // localStorage unavailable (private mode, SSR) - return ephemeral hash.
     return generate();
   }
 }

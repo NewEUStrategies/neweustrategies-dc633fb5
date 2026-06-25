@@ -43,7 +43,7 @@ export const styleToCSS = (
 ): CSSProperties => {
   if (!s) return {};
   // Layout properties (padding, margin, sizes, typography metrics, radii,
-  // border widths, opacity) must NOT change when toggling light/dark — only
+  // border widths, opacity) must NOT change when toggling light/dark - only
   // colors do. We collapse themed values to a single shared value by
   // preferring light and falling back to dark.
   const css: CSSProperties = {};
@@ -119,7 +119,7 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
 
   const sj = node.style?.selfJustify;
   const saRaw = node.style?.selfAlign;
-  // Default: no per-widget vertical anchor — column-level verticalAlign decides.
+  // Default: no per-widget vertical anchor - column-level verticalAlign decides.
   const sa = !saRaw || saRaw === "auto" ? undefined : saRaw;
   const horizontalAnchored = sj && sj !== "auto";
 
@@ -159,7 +159,7 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
   } else if (node.style?.minHeight) {
     style.minHeight = node.style.minHeight;
   }
-  // No default min-height — widgets hug their content.
+  // No default min-height - widgets hug their content.
 
   // Horizontal alignment (cross axis in a flex-col column).
   if (horizontalAnchored) {

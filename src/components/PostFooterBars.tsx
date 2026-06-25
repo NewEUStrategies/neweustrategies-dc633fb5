@@ -1,4 +1,4 @@
-// Stopka pojedynczego wpisu — paski tagów / źródeł / via / karta autora / paginacja.
+// Stopka pojedynczego wpisu - paski tagów / źródeł / via / karta autora / paginacja.
 // Każdy element renderuje się tylko gdy odpowiedni flag w settings jest true.
 import { Link } from "@tanstack/react-router";
 import type { PostLayoutSettings } from "@/lib/postLayouts";

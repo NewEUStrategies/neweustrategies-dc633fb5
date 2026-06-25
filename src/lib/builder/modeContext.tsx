@@ -1,4 +1,4 @@
-// Editor mode context — used by the CMS Builder to override the visual
+// Editor mode context - used by the CMS Builder to override the visual
 // light/dark mode independently of the global ThemeProvider (which still
 // drives the rest of the admin UI). When this context is present, widgets
 // and properties resolve ThemedValue<T> against the editor's chosen mode.

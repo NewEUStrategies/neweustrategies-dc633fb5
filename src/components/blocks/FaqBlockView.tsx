@@ -1,4 +1,4 @@
-// FAQ block — accordion + schema.org FAQPage JSON-LD.
+// FAQ block - accordion + schema.org FAQPage JSON-LD.
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 

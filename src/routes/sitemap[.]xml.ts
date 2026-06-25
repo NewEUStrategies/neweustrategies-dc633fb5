@@ -4,12 +4,34 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { SUPPORTED_LANGS } from "@/lib/seo/meta";
 
 interface SitemapEntry {
   loc: string;
   lastmod?: string;
   changefreq?: "daily" | "weekly" | "monthly";
   priority?: string;
+}
+
+function xmlEscape(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// hreflang alternates per URL (x-default + one self-addressable ?lang= per
+// language). Mirrors the in-page <link rel="alternate"> cluster so crawlers get
+// the language graph from both the sitemap and the rendered head.
+function alternateLinks(loc: string): string[] {
+  const lines = [
+    `    <xhtml:link rel="alternate" hreflang="x-default" href="${xmlEscape(loc)}"/>`,
+  ];
+  for (const l of SUPPORTED_LANGS) {
+    lines.push(`    <xhtml:link rel="alternate" hreflang="${l}" href="${xmlEscape(`${loc}?lang=${l}`)}"/>`);
+  }
+  return lines;
 }
 
 function originFromRequest(): string {
@@ -75,11 +97,12 @@ export const Route = createFileRoute("/sitemap.xml")({
 
         const xml = [
           `<?xml version="1.0" encoding="UTF-8"?>`,
-          `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`,
+          `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">`,
           ...entries.map((e) =>
             [
               "  <url>",
-              `    <loc>${e.loc}</loc>`,
+              `    <loc>${xmlEscape(e.loc)}</loc>`,
+              ...alternateLinks(e.loc),
               e.lastmod ? `    <lastmod>${e.lastmod}</lastmod>` : null,
               e.changefreq ? `    <changefreq>${e.changefreq}</changefreq>` : null,
               e.priority ? `    <priority>${e.priority}</priority>` : null,

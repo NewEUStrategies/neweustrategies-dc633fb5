@@ -1,4 +1,4 @@
-// Hook + helpery dla "Global Colors" — strukturalnej palety zapisywanej w
+// Hook + helpery dla "Global Colors" - strukturalnej palety zapisywanej w
 // `site_design_tokens.global_colors`. Współistnieje z dowolnymi `colors` marki.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";

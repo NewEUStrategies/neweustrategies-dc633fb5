@@ -72,7 +72,7 @@ export function WidgetLibrary({ onPickStructure, onPickTemplate }: Props) {
           <button type="button" onClick={() => toggle("__struct")}
             className="w-full text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider inline-flex items-center gap-1 hover:text-foreground">
             {collapsed.__struct ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            Nowa sekcja — wybierz strukturę
+            Nowa sekcja - wybierz strukturę
           </button>
           {!collapsed.__struct && <StructurePicker onPick={onPickStructure} cols={2} />}
         </section>

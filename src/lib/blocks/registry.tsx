@@ -87,7 +87,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     category: "text",
     create: () => ({ id: newBlockId(), type: "quote", data: { text: "", cite: "" } }),
   },
-  // Stuby — pełne implementacje w kolejnym etapie. Tworzenie blokuje fallback.
+  // Stuby - pełne implementacje w kolejnym etapie. Tworzenie blokuje fallback.
   code: {
     type: "code",
     label: "Kod",
@@ -99,7 +99,7 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
   embed: {
     type: "embed",
     label: "Embed",
-    description: "YouTube, Vimeo, X — z URL.",
+    description: "YouTube, Vimeo, X - z URL.",
     icon: PlaySquare,
     category: "media",
     create: () => ({ id: newBlockId(), type: "embed", data: { url: "" } }),

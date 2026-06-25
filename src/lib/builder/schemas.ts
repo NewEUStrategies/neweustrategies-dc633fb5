@@ -133,7 +133,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   ],
   image: [
     { key: "src", type: "url", label: "URL obrazka", placeholder: "https://..." },
-    { key: "srcDark", type: "url", label: "URL obrazka (dark mode)", placeholder: "opcjonalnie — pusty = używa głównej grafiki", hint: "Osobna grafika dla trybu ciemnego. Pozostaw puste, aby użyć tej samej." },
+    { key: "srcDark", type: "url", label: "URL obrazka (dark mode)", placeholder: "opcjonalnie - pusty = używa głównej grafiki", hint: "Osobna grafika dla trybu ciemnego. Pozostaw puste, aby użyć tej samej." },
     { key: "alt", type: "i18nText", label: "Alt" },
     { key: "caption", type: "i18nText", label: "Podpis (opcjonalny)" },
     {
@@ -430,7 +430,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   "section-label": [
     { key: "label", type: "i18nText", label: "Etykieta sekcji" },
     // `variant` and `color`/`accentColor` are rendered by a custom visual picker
-    // (SectionLabelEditor) — not by the generic schema renderer.
+    // (SectionLabelEditor) - not by the generic schema renderer.
     { key: "action", type: "i18nText", label: "Tekst linku (opcjonalny)", placeholder: "więcej" },
     { key: "href", type: "url", label: "URL linku (opcjonalny)", placeholder: "/kategoria/..." },
   ],

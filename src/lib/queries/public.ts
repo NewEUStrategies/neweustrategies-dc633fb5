@@ -3,7 +3,55 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchPageBreadcrumbs, type BreadcrumbRow } from "@/lib/breadcrumbs";
+import { EMPTY_BODY, type BodyParts } from "@/lib/access/gating";
+import type { ContentAccessRule } from "@/hooks/useContentAccess";
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
+
+// Non-sensitive columns of the access rule. Safe to ship to anonymous SSR so the
+// paywall teaser renders server-side (good for SEO); the body itself stays gated
+// behind get_entity_content.
+const ACCESS_RULE_COLS =
+  "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en";
+
+async function fetchAccessRule(
+  entityType: "post" | "page",
+  entityId: string,
+): Promise<ContentAccessRule | null> {
+  const { data } = await supabase
+    .from("content_access")
+    .select(ACCESS_RULE_COLS)
+    .eq("entity_type", entityType)
+    .eq("entity_id", entityId)
+    .maybeSingle();
+  return (data as ContentAccessRule | null) ?? null;
+}
+
+/**
+ * Fetches the gated body (content_pl/en, builder_data, blocks_data) of a
+ * post/page through the SECURITY DEFINER `get_entity_content` RPC. The server
+ * returns the body only when the current caller satisfies `has_content_access`;
+ * unentitled callers (including anonymous SSR) get an all-null body, so premium
+ * content never reaches an unauthorized client. Single source of truth shared by
+ * the SSR resolver and the client-side unlock hook.
+ */
+export async function fetchGatedBody(
+  entityType: "post" | "page",
+  entityId: string,
+): Promise<BodyParts> {
+  const { data, error } = await supabase.rpc("get_entity_content", {
+    _entity_type: entityType,
+    _entity_id: entityId,
+  });
+  if (error) throw error;
+  const row = (data ?? [])[0];
+  if (!row) return EMPTY_BODY;
+  return {
+    content_pl: row.content_pl,
+    content_en: row.content_en,
+    builder_data: row.builder_data,
+    blocks_data: row.blocks_data,
+  };
+}
 
 export interface BlogListItem {
   id: string;
@@ -30,6 +78,7 @@ export interface PageData {
   builder_data: unknown;
   cover_image_url: string | null;
   published_at: string | null;
+  updated_at: string | null;
   template_type?: string | null;
   header_override?: string | null;
 }
@@ -54,12 +103,14 @@ export type ResolvedContent =
       crumbs: BreadcrumbRow[];
       parentPageId: string;
       tags: Array<{ slug: string; name: string }>;
+      access: ContentAccessRule | null;
     }
   | {
       kind: "page";
       item: PageData;
       crumbs: BreadcrumbRow[];
       parentPageId: string;
+      access: ContentAccessRule | null;
     };
 
 const PAGE_PATH_TTL = 10 * 60_000;
@@ -172,16 +223,22 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
       if (!hit?.page_id) return null;
 
       if (hit.post_id) {
-        const [{ data, error }, { data: tagRows }, crumbs] = await Promise.all([
+        // Body columns (content_*/builder_data/blocks_data) are fetched via the
+        // gated RPC, never selected directly - the row select carries only the
+        // non-sensitive display metadata. All four requests run in parallel so
+        // gating adds no extra latency.
+        const [{ data, error }, body, { data: tagRows }, crumbs, access] = await Promise.all([
           supabase
             .from("posts")
             .select(
-              "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, content_pl, content_en, editor, builder_data, blocks_data, cover_image_url, published_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, custom_meta, related_override",
+              "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, custom_meta, related_override",
             )
             .eq("id", hit.post_id)
             .maybeSingle(),
+          fetchGatedBody("post", hit.post_id),
           supabase.from("post_tags").select("tags(slug, name)").eq("post_id", hit.post_id),
           fetchPageBreadcrumbs(hit.page_id),
+          fetchAccessRule("post", hit.post_id),
         ]);
         if (error) throw error;
         if (!data) return null;
@@ -190,30 +247,34 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
           .filter((t): t is { slug: string; name: string } => !!t);
         return {
           kind: "post",
-          item: data as PostData,
+          item: { ...data, ...body } as PostData,
           crumbs,
           parentPageId: hit.page_id,
           tags,
+          access,
         };
       }
 
-      const [{ data, error }, crumbs] = await Promise.all([
+      const [{ data, error }, body, crumbs, access] = await Promise.all([
         supabase
           .from("pages")
           .select(
-            "id, slug, title_pl, title_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at, template_type, header_override",
+            "id, slug, title_pl, title_en, editor, cover_image_url, published_at, updated_at, template_type, header_override",
           )
           .eq("id", hit.page_id)
           .maybeSingle(),
+        fetchGatedBody("page", hit.page_id),
         fetchPageBreadcrumbs(hit.page_id),
+        fetchAccessRule("page", hit.page_id),
       ]);
       if (error) throw error;
       if (!data) return null;
       return {
         kind: "page",
-        item: data as PageData,
+        item: { ...data, ...body } as PageData,
         crumbs,
         parentPageId: hit.page_id,
+        access,
       };
     },
     staleTime: PAGE_PATH_TTL,

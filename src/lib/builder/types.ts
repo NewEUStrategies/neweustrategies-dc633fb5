@@ -25,7 +25,7 @@ export type Themed<T> = T | ThemedValue<T>;
 
 export interface WidgetTypography {
   fontFamily?: string;
-  fontSize?: ResponsiveValue<string>;     // tytuł / nagłówki — e.g. "16px"
+  fontSize?: ResponsiveValue<string>;     // tytuł / nagłówki - e.g. "16px"
   descriptionFontSize?: ResponsiveValue<string>; // opisy / paragrafy
   titleDescriptionGapPx?: number;         // odstęp px między tytułem a opisem
   fontWeight?: string;                    // "400" | "700" | "bold" ...
@@ -110,7 +110,7 @@ export interface AdvancedSettings {
   animationDuration?: number;    // ms
   animationOnce?: boolean;       // play only once on first view (default true)
   animationEasing?: MotionEasing;
-  animationDistance?: number;    // px — for slide/reveal presets
+  animationDistance?: number;    // px - for slide/reveal presets
   hideOn?: { desktop?: boolean; tablet?: boolean; mobile?: boolean };
   /** Gate widget by authentication state and roles. Public renderer only. */
   access?: AccessControlSettings;
@@ -122,7 +122,7 @@ export interface AdvancedSettings {
   layout?: "block" | "inline";
   htmlId?: string;
   // Per-breakpoint widget frame size. `number` = px, "auto" = hug content.
-  // Legacy projects may still use a flat number — read with `pickWidgetSize`.
+  // Legacy projects may still use a flat number - read with `pickWidgetSize`.
   width?: ResponsiveValue<WidgetSize> | number;
   height?: ResponsiveValue<WidgetSize> | number;
 }

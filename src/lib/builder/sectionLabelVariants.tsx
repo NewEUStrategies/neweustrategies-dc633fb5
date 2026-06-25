@@ -16,17 +16,17 @@ export type SectionLabelVariant =
   | "double-rule-centered";
 
 export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string }[] = [
-  { value: "left-bar",             label: "01 — Pionowy pasek" },
-  { value: "left-border",          label: "02 — Lewa krawędź" },
-  { value: "small-corners",        label: "04 — Narożniki" },
-  { value: "only-text",            label: "05 — Tylko tekst" },
-  { value: "badge-filled",         label: "06 — Etykieta pełna" },
-  { value: "centered-rule",        label: "07 — Wycentrowany z linią (np. Poznaj nasze raporty)" },
-  { value: "centered-short-rule",  label: "08 — Wycentrowany z krótkimi liniami (np. Materiały partnerów)" },
-  { value: "filled-bar",           label: "09 — Pełny pasek (np. Najnowszy raport)" },
-  { value: "centered-underline",   label: "10 — Wycentrowany z podkreśleniem (np. Poznaj nasze raporty)" },
-  { value: "slanted-ribbon-rule",  label: "11 — Wstęga ze spadem i linią (np. Najnowszy raport)" },
-  { value: "double-rule-centered", label: "12 — Subtelne linie (np. Wywiady | Podcasty)" },
+  { value: "left-bar",             label: "01 - Pionowy pasek" },
+  { value: "left-border",          label: "02 - Lewa krawędź" },
+  { value: "small-corners",        label: "04 - Narożniki" },
+  { value: "only-text",            label: "05 - Tylko tekst" },
+  { value: "badge-filled",         label: "06 - Etykieta pełna" },
+  { value: "centered-rule",        label: "07 - Wycentrowany z linią (np. Poznaj nasze raporty)" },
+  { value: "centered-short-rule",  label: "08 - Wycentrowany z krótkimi liniami (np. Materiały partnerów)" },
+  { value: "filled-bar",           label: "09 - Pełny pasek (np. Najnowszy raport)" },
+  { value: "centered-underline",   label: "10 - Wycentrowany z podkreśleniem (np. Poznaj nasze raporty)" },
+  { value: "slanted-ribbon-rule",  label: "11 - Wstęga ze spadem i linią (np. Najnowszy raport)" },
+  { value: "double-rule-centered", label: "12 - Subtelne linie (np. Wywiady | Podcasty)" },
 ];
 
 
@@ -70,7 +70,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
     ? "text-[8px] text-muted-foreground"
     : "text-xs text-muted-foreground hover:opacity-80 transition";
   // Margins between widgets are owned by the column gap (see BuilderRenderer)
-  // so each section-label sits flush with its slot — no per-variant mb-* that
+  // so each section-label sits flush with its slot - no per-variant mb-* that
   // would double the spacing on top of the column gap.
   const wrapperBase = isSm ? "mb-1" : "";
 
@@ -91,7 +91,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
   const labelEl = <span className={`${textCls} min-w-0`} style={labelStyle}>{label}</span>;
   const padY = isSm ? "py-1" : "py-2";
 
-  // Common row wrapper — every variant must be width-fluid and never overflow.
+  // Common row wrapper - every variant must be width-fluid and never overflow.
   const rowBase = `flex items-center justify-between gap-2 w-full min-w-0 ${wrapperBase} ${padY}`;
 
   switch (variant) {

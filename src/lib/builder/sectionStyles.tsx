@@ -76,7 +76,7 @@ export function sectionWrapperStyle(node: SectionNode | InnerSectionNode): CSSPr
   return css;
 }
 
-/** Style for the inner container — full width with 8px side padding. */
+/** Style for the inner container - full width with 8px side padding. */
 export function sectionContainerStyle(_node: SectionNode | InnerSectionNode): CSSProperties {
   return {
     position: "relative",

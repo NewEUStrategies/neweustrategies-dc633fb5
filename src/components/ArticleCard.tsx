@@ -1,5 +1,6 @@
 import { Clock, User } from "@/lib/lucide-shim";
 import { CategoryTag } from "./CategoryTag";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 
 type Props = {
   image?: string;
@@ -11,6 +12,8 @@ type Props = {
   size?: "sm" | "md" | "lg";
   rating?: number;
   horizontal?: boolean;
+  /** Mark the cover as the LCP image (eager + high priority). Use on the lead card. */
+  priority?: boolean;
 };
 
 export function ArticleCard({
@@ -23,6 +26,7 @@ export function ArticleCard({
   size = "md",
   rating,
   horizontal = false,
+  priority = false,
 }: Props) {
   const titleClass =
     size === "lg" ? "text-2xl md:text-3xl" : size === "sm" ? "text-base" : "text-xl";
@@ -31,10 +35,12 @@ export function ArticleCard({
     <article className={`group ${horizontal ? "flex gap-4" : ""}`}>
       {image && (
         <div className={`relative overflow-hidden ${horizontal ? "w-32 h-24 shrink-0" : "aspect-[16/10] mb-4"}`}>
-          <img
+          <OptimizedImage
             src={image}
             alt={title}
-            loading="lazy"
+            responsive
+            priority={priority}
+            sizes={horizontal ? "128px" : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"}
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           />
           {category && !horizontal && (

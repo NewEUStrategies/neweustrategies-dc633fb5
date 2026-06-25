@@ -1,5 +1,5 @@
 // Atom: collapsible section box used in property panels.
-// Two variants — "details" (native, open by default) for SectionProperties and
+// Two variants - "details" (native, open by default) for SectionProperties and
 // "button" (controlled, closed by default) for WidgetProperties.
 import { useState } from "react";
 
