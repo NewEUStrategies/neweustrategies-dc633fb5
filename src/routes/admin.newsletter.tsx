@@ -359,30 +359,82 @@ function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
           )
         ) : (
           settings.popup_enabled ? (
-            <div className="relative bg-card border border-border rounded-xl shadow-xl overflow-hidden">
-              <button
-                type="button"
-                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-muted-foreground hover:text-foreground z-10"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              {settings.popup_cover_url && (
-                <img src={settings.popup_cover_url} alt="" className="w-full h-32 object-cover" />
-              )}
-              <div className="p-5 space-y-3">
-                <h3 className="font-display text-xl">{popupTitle || "—"}</h3>
-                {popupDesc && <p className="text-sm text-muted-foreground">{popupDesc}</p>}
-                <Input placeholder={emailPh} readOnly />
-                <Button className="w-full" type="button">{popupCta || submitLabel}</Button>
-                {policyHtml && (
-                  <p
-                    className="text-[11px] text-muted-foreground leading-relaxed [&_a]:underline"
-                    dangerouslySetInnerHTML={{ __html: policyHtml }}
-                  />
-                )}
+            settings.popup_layout === "split" ? (
+              <div className="relative rounded-xl shadow-2xl overflow-hidden border border-white/10 bg-[#0a0a0a] text-white grid grid-cols-[40%_1fr] min-h-[420px]">
+                <button type="button" aria-label="Close"
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center z-10">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+                <div
+                  className="bg-cover bg-center"
+                  style={{
+                    backgroundImage: settings.popup_side_image_url
+                      ? `url(${settings.popup_side_image_url})`
+                      : "linear-gradient(135deg, oklch(0.25 0.04 260), oklch(0.15 0.02 260))",
+                  }}
+                  aria-hidden="true"
+                />
+                <div className="p-5 space-y-3 overflow-y-auto max-h-[520px]">
+                  <h3 className="font-display text-2xl">{popupTitle || "—"}</h3>
+                  {popupDesc && <p className="text-xs text-white/70">{popupDesc}</p>}
+                  {settings.popup_extended_fields && (
+                    <>
+                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Imię" : "Name"} readOnly />
+                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Nazwisko" : "Surname"} readOnly />
+                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Stanowisko" : "Job position"} readOnly />
+                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Firma" : "Company"} readOnly />
+                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder="LinkedIn" readOnly />
+                    </>
+                  )}
+                  <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={emailPh} readOnly />
+                  {settings.popup_extended_fields && (
+                    <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Telefon" : "Phone"} readOnly />
+                  )}
+                  {settings.popup_mailing_lists.length > 0 && (
+                    <select className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white">
+                      <option>{lang === "pl" ? "Wybierz listę" : "Choose mailing list"}</option>
+                      {settings.popup_mailing_lists.map((l) => (
+                        <option key={l.id}>{lang === "pl" ? l.label_pl : l.label_en}</option>
+                      ))}
+                    </select>
+                  )}
+                  <button type="button" className="px-4 py-1.5 rounded bg-[var(--brand,#f97316)] text-white text-xs font-medium">
+                    {popupCta || submitLabel}
+                  </button>
+                  {settings.popup_require_terms && (
+                    <label className="flex items-start gap-2 text-[10px] text-white/60">
+                      <input type="checkbox" className="mt-0.5" />
+                      <span>{lang === "pl" ? "Akceptuję regulamin" : "I accept the terms"}</span>
+                    </label>
+                  )}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="relative bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+                <button
+                  type="button"
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-muted-foreground hover:text-foreground z-10"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                {settings.popup_cover_url && (
+                  <img src={settings.popup_cover_url} alt="" className="w-full h-32 object-cover" />
+                )}
+                <div className="p-5 space-y-3">
+                  <h3 className="font-display text-xl">{popupTitle || "—"}</h3>
+                  {popupDesc && <p className="text-sm text-muted-foreground">{popupDesc}</p>}
+                  <Input placeholder={emailPh} readOnly />
+                  <Button className="w-full" type="button">{popupCta || submitLabel}</Button>
+                  {policyHtml && (
+                    <p
+                      className="text-[11px] text-muted-foreground leading-relaxed [&_a]:underline"
+                      dangerouslySetInnerHTML={{ __html: policyHtml }}
+                    />
+                  )}
+                </div>
+              </div>
+            )
           ) : (
             <div className="text-center text-sm text-muted-foreground py-12">
               Popup newslettera jest wyłączony.
