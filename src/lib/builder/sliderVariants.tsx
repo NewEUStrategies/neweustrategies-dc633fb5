@@ -60,18 +60,24 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     [rawItems],
   );
   const refMap = useResolvedPostRefs(postIds, lang);
-  const resolvedItems = useMemo(
+  const resolvedItems = useMemo<SliderItem[]>(
     () =>
       rawItems.map((it) => {
         if (!it || !it.postId) return it;
-        const ref = refMap.get(it.postId) ?? null;
-        return mergePostRefOverride(it, ref, {
-          image: "image",
-          title: `title_${lang}` as keyof SliderItem,
-          subtitle: `subtitle_${lang}` as keyof SliderItem,
-          href: "href",
-          author: "author",
-        });
+        const ref = refMap.get(it.postId);
+        if (!ref) return it;
+        const pickStr = (cur: string | undefined, live: string): string =>
+          cur && cur.trim() !== "" ? cur : live;
+        const titleKey = `title_${lang}` as const;
+        const subKey = `subtitle_${lang}` as const;
+        return {
+          ...it,
+          image: pickStr(it.image, ref.cover),
+          href: pickStr(it.href, ref.href),
+          author: pickStr(it.author, ref.authorName),
+          [titleKey]: pickStr(it[titleKey], ref.title),
+          [subKey]: pickStr(it[subKey], ref.excerpt),
+        };
       }),
     [rawItems, refMap, lang],
   );
