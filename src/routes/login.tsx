@@ -33,7 +33,7 @@ function LoginPage() {
   const navigate = useNavigate();
   const { session, isStaff, loading } = useAuth();
   const settings = useAuthSettings();
-  const { theme } = useTheme();
+  const { theme, toggle: toggleTheme } = useTheme();
   const { mode: initialMode } = Route.useSearch();
   const [mode, setMode] = useState<Mode>((initialMode ?? "signin") as Mode);
   const [email, setEmail] = useState("");
