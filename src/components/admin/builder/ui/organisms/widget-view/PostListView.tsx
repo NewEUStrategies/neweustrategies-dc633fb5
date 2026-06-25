@@ -10,10 +10,13 @@ import { getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 
-// Cover renders across a 1-4 column responsive grid.
+// Cover renders across a 1-4 column responsive grid. Images are always painted
+// into a stable frame so mobile CSS cannot stretch/squash their crop.
 const GRID_COVER_SIZES = "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw";
-const TILE_IMAGE_CLASS = "w-full h-28 object-cover";
-const LIST_IMAGE_CLASS = "w-24 h-16 object-cover rounded-sm shrink-0";
+const COVER_IMG_CLASS = "absolute inset-0 block h-full w-full object-cover";
+const TILE_FRAME_CLASS = "relative block h-28 w-full shrink-0 overflow-hidden bg-muted";
+const OVERLAY_FRAME_CLASS = "relative block h-40 w-full shrink-0 overflow-hidden bg-muted";
+const LIST_FRAME_CLASS = "relative block h-16 w-24 shrink-0 overflow-hidden rounded-sm bg-muted";
 
 type Lang = "pl" | "en";
 
@@ -223,7 +226,9 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
             className={`grid ${p.cover_image_url ? "grid-cols-[96px_minmax(0,1fr)]" : "grid-cols-1"} items-start gap-3 py-3 group`}
           >
             {p.cover_image_url && (
-              <OptimizedImage src={p.cover_image_url} alt="" responsive responsiveWidths={[96, 192, 288]} sizes="96px" className={LIST_IMAGE_CLASS} />
+              <span data-widget-media className={LIST_FRAME_CLASS}>
+                <OptimizedImage src={p.cover_image_url} alt="" responsive responsiveWidths={[96, 192, 288]} sizes="96px" className={COVER_IMG_CLASS} />
+              </span>
             )}
             <div className="min-w-0">
               <h4 className="font-display text-sm leading-snug line-clamp-2 group-hover:text-brand transition" style={tStyle}>
@@ -304,7 +309,9 @@ function PostCard({
   if (variant === "overlay" && p.cover_image_url) {
     return (
       <a href={`/post/${p.slug}`} className={`relative block rounded-md overflow-hidden ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
-        <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className="w-full h-40 object-cover" />
+        <span data-widget-media className={OVERLAY_FRAME_CLASS}>
+          <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className={COVER_IMG_CLASS} />
+        </span>
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-2.5 text-white">
           <h4 className="font-display text-sm leading-tight line-clamp-2" style={titleStyle}>{title}</h4>
@@ -317,7 +324,9 @@ function PostCard({
     return (
       <a href={`/post/${p.slug}`} className={`block ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
         {p.cover_image_url && (
-          <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className={`${TILE_IMAGE_CLASS} rounded-sm mb-2`} />
+          <span data-widget-media className={`${TILE_FRAME_CLASS} rounded-sm mb-2`}>
+            <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className={COVER_IMG_CLASS} />
+          </span>
         )}
         <h4 className="font-display text-sm leading-snug line-clamp-2 hover:text-brand transition" style={titleStyle}>{title}</h4>
       </a>
@@ -328,7 +337,9 @@ function PostCard({
   return (
     <a href={`/post/${p.slug}`} className={base}>
       {p.cover_image_url && (
-        <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className={TILE_IMAGE_CLASS} />
+        <span data-widget-media className={TILE_FRAME_CLASS}>
+          <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className={COVER_IMG_CLASS} />
+        </span>
       )}
       <div className="p-2.5">
         <h4 className="font-display text-sm font-medium leading-snug mb-1 line-clamp-2" style={titleStyle}>{title}</h4>

@@ -24,6 +24,7 @@ import {
 } from "@/components/blocks/AuthFormBlocks";
 import { DynamicTagWidget } from "./DynamicTagWidgets";
 import { ContactFormView } from "@/components/blocks/ContactFormView";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 
 type AuthCfg = Record<string, unknown>;
 function AuthFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
@@ -97,13 +98,20 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
   if (widthPx > 0) caps.push(widthPx);
   if (maxWidthPx > 0) caps.push(maxWidthPx);
   const effectiveMaxPx = caps.length ? Math.min(...caps) : 0;
-  const imgStyle: CSSProperties = {
-    objectFit: fit,
-    aspectRatio: ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined,
+  const ratioCss = ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined;
+  const wrapperStyle: CSSProperties = {
     width: effectiveMaxPx > 0 ? `min(100%, ${effectiveMaxPx}px)` : "100%",
     maxWidth: "100%",
-    height: "auto",
+    ...(ratioCss ? { aspectRatio: ratioCss } : null),
   };
+  const imgStyle: CSSProperties = ratioCss
+    ? { objectFit: fit, width: "100%", height: "100%" }
+    : {
+      objectFit: fit,
+      width: "100%",
+      maxWidth: "100%",
+      height: "auto",
+    };
   if (!src && !srcDark) {
     return <div className="bg-muted rounded h-32 flex items-center justify-center text-xs text-muted-foreground">brak obrazka</div>;
   }
@@ -112,7 +120,8 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
   const hasBoth = !!src && !!srcDark && src !== srcDark;
   const figureAlign = align === "left" ? "items-start" : align === "right" ? "items-end" : "items-center";
   const showResize = editable && !!onContentChange;
-  const imgCls = `max-w-full h-auto ${variantCls}`;
+  const isFramed = !!ratioCss;
+  const imgCls = isFramed ? `absolute inset-0 block h-full w-full ${variantCls}` : `block max-w-full h-auto ${variantCls}`;
   const applyLogoFallback = (event: SyntheticEvent<HTMLImageElement>) => {
     if (!wantsSiteLogo) return;
     const img = event.currentTarget;
@@ -121,12 +130,17 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
   };
   const imgEl = hasBoth ? (
     <>
-      <img src={lightSrc} alt={alt} className={`${imgCls} gc-img-light`} style={imgStyle} loading="lazy" onError={applyLogoFallback} />
-      <img src={darkSrc} alt={alt} className={`${imgCls} gc-img-dark`} style={imgStyle} loading="lazy" onError={applyLogoFallback} />
+      <OptimizedImage src={lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} gc-img-light`} style={imgStyle} onError={applyLogoFallback} />
+      <OptimizedImage src={darkSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} gc-img-dark`} style={imgStyle} onError={applyLogoFallback} />
     </>
   ) : (
-    <img src={theme === "dark" ? darkSrc : lightSrc} alt={alt} className={imgCls} style={imgStyle} loading="lazy" onError={applyLogoFallback} />
+    <OptimizedImage src={theme === "dark" ? darkSrc : lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={imgCls} style={imgStyle} onError={applyLogoFallback} />
   );
+  const framedImgEl = isFramed ? (
+    <span data-widget-media className="relative block w-full overflow-hidden rounded bg-muted" style={wrapperStyle}>
+      {imgEl}
+    </span>
+  ) : imgEl;
   return (
     <figure className={`space-y-2 flex flex-col ${figureAlign}`}>
       <ResizableImageWrap
@@ -134,7 +148,7 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
         currentPx={widthPx > 0 ? widthPx : undefined}
         onCommit={(px) => onContentChange?.("widthPx", Math.round(px))}
       >
-        {imgEl}
+        {framedImgEl}
       </ResizableImageWrap>
       {caption && <figcaption className="text-xs text-muted-foreground text-center">{caption}</figcaption>}
     </figure>
@@ -703,14 +717,18 @@ export function renderSimpleWidget(
       if (variant === "carousel") {
         return (
           <div className={`flex ${gapCls} overflow-x-auto snap-x pb-2`}>
-            {imgs.map((src, i) => <img key={i} src={src} alt="" className="snap-start h-48 w-auto rounded object-cover" loading="lazy" />)}
+            {imgs.map((src, i) => (
+              <span key={i} data-widget-media className="relative block h-48 flex-[0_0_80%] snap-start overflow-hidden rounded bg-muted sm:flex-[0_0_42%] lg:flex-[0_0_30%]">
+                <OptimizedImage src={src} alt="" responsive sizes="(max-width: 640px) 80vw, (max-width: 1024px) 42vw, 30vw" className="absolute inset-0 block h-full w-full object-cover" />
+              </span>
+            ))}
           </div>
         );
       }
       if (variant === "masonry") {
         return (
           <div style={{ columnCount: cols, columnGap: gap === "lg" ? "1.5rem" : gap === "md" ? "1rem" : "0.5rem" }}>
-            {imgs.map((src, i) => <img key={i} src={src} alt="" className="w-full mb-2 rounded break-inside-avoid" loading="lazy" />)}
+            {imgs.map((src, i) => <OptimizedImage key={i} src={src} alt="" responsive sizes="(max-width: 767px) 100vw, 33vw" className="mb-2 block w-full break-inside-avoid rounded" />)}
           </div>
         );
       }
@@ -719,7 +737,9 @@ export function renderSimpleWidget(
           <div className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
             {imgs.map((src, i) => (
               <div key={i} className="bg-white p-2 pb-5 shadow-lg rotate-[-1deg] hover:rotate-0 transition">
-                <img src={src} alt="" className="w-full h-32 object-cover" loading="lazy" />
+                <span data-widget-media className="relative block h-32 w-full overflow-hidden bg-muted">
+                  <OptimizedImage src={src} alt="" responsive sizes="(max-width: 767px) 100vw, 33vw" className="absolute inset-0 block h-full w-full object-cover" />
+                </span>
               </div>
             ))}
           </div>
@@ -727,7 +747,11 @@ export function renderSimpleWidget(
       }
       return (
         <div className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-          {imgs.map((src, i) => <img key={i} src={src} alt="" className="w-full h-32 object-cover rounded" loading="lazy" />)}
+          {imgs.map((src, i) => (
+            <span key={i} data-widget-media className="relative block h-32 w-full overflow-hidden rounded bg-muted">
+              <OptimizedImage src={src} alt="" responsive sizes="(max-width: 767px) 100vw, 33vw" className="absolute inset-0 block h-full w-full object-cover" />
+            </span>
+          ))}
         </div>
       );
     }
@@ -1118,8 +1142,8 @@ function ResizableImageWrap({
   const wrapStyle: CSSProperties = {
     position: "relative",
     display: "inline-block",
-    maxWidth: "none",
-    width: displayPx ? `${displayPx}px` : "auto",
+    maxWidth: "100%",
+    width: displayPx ? `min(100%, ${displayPx}px)` : "100%",
   };
   return (
     <div ref={ref} style={wrapStyle}>

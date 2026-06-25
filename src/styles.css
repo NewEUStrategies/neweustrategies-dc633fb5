@@ -351,6 +351,24 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 
 /* Builder: mobile horizontal-scroll for grid widgets (post-list etc.) */
 @media (max-width: 767px) {
+  :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] {
+    display: block;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] > :is(img, .oi-wrap, span[role="img"]) {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] img {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+
   .cms-mobile-hscroll {
     display: flex !important;
     grid-template-columns: none !important;
