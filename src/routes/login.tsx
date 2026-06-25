@@ -157,11 +157,11 @@ function LoginPage() {
         </div>
       )}
 
-      <div className="relative w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)] gap-0 lg:gap-6 isolate">
+      <div className="relative w-full max-w-[1280px] grid grid-cols-1 lg:grid-cols-[140px_minmax(0,1.7fr)_minmax(0,1fr)] gap-0 lg:gap-5 isolate">
         {/* LEFT: vertical mode rail */}
-        <aside className="hidden lg:flex flex-col items-center gap-2 bg-card rounded-2xl shadow-lg shadow-foreground/5 border border-border py-6 px-3">
+        <aside className="hidden lg:flex flex-col items-center gap-2 bg-card rounded-2xl shadow-lg shadow-foreground/5 border border-border py-6 px-2">
           <div className="mb-3 flex items-center justify-center w-full">
-            <Logo size="xl" withWordmark={false} />
+            <Logo size="lg" withWordmark={false} />
           </div>
           <div className="w-10 h-px bg-border my-2" />
 
@@ -173,11 +173,12 @@ function LoginPage() {
         {/* CENTER: hero illustration card */}
         <section
           key={`hero-${theme}-${illustration}`}
-          className="relative hidden lg:flex flex-col justify-between rounded-2xl overflow-hidden text-primary-foreground shadow-2xl shadow-primary/20 min-h-[620px] animate-[fadeInUp_.6s_ease-out]"
+          className="relative hidden lg:flex flex-col justify-between rounded-2xl overflow-hidden text-white shadow-2xl shadow-primary/20 min-h-[640px] animate-[fadeInUp_.6s_ease-out] bg-muted"
           style={{
-            backgroundImage: `linear-gradient(180deg, hsl(var(--primary) / 0.55) 0%, hsl(var(--primary) / 0.25) 40%, hsl(var(--primary) / 0.75) 100%), url(${illustration})`,
+            backgroundImage: `linear-gradient(180deg, rgba(15,23,42,0.35) 0%, rgba(15,23,42,0.15) 45%, rgba(15,23,42,0.65) 100%), url("${illustration}")`,
             backgroundSize: "cover",
             backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
           }}
         >
           <div className="p-8 relative z-10">
