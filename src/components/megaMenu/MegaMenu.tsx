@@ -41,11 +41,20 @@ export interface MegaMenuFeatured {
   placeholderColor?: string;
 }
 
+export type MegaMenuColumnKind = "links" | "category";
+
 export interface MegaMenuColumn {
+  kind?: MegaMenuColumnKind;
   title_pl?: string;
   title_en?: string;
   links?: MegaMenuLink[];
   featured?: MegaMenuFeatured | null;
+  /** When kind === "category": slug of the category to show recent posts from. */
+  categorySlug?: string;
+  /** When kind === "category": number of posts (1-8). Default 4. */
+  postCount?: number;
+  /** When kind === "category": URL of the "See all" link (defaults to /category/<slug>). */
+  viewAllHref?: string;
 }
 
 export interface MegaMenuConfig {
