@@ -127,8 +127,16 @@ const DEBUG_CSS = `
   /* Inline rows (logo + actions + menu, social rows) wrap & center */
   [data-builder-renderer] [data-col-id] > .flex,
   [data-builder-renderer] [data-col-id] [data-widget-row]{flex-wrap:wrap !important;justify-content:center !important;row-gap:8px !important;column-gap:8px !important;width:100% !important;}
-  /* Images & logos: scale DOWN to fit column, never overflow, keep ratio */
-  [data-builder-renderer] img,[data-builder-renderer] svg{max-width:100% !important;height:auto !important;object-fit:contain !important;}
+  /* Images & logos: scale DOWN to fit column, never overflow, keep ratio.
+     Exclude images that declare an explicit crop (object-cover/object-fill),
+     a fixed height utility (h-*), or are slider/hero fills (data-fill-image) -
+     those must keep their constrained aspect ratio on mobile too, identical
+     to desktop. */
+  [data-builder-renderer] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]),
+  [data-builder-renderer] svg:not([class*="h-"]){max-width:100% !important;height:auto !important;object-fit:contain !important;}
+  [data-builder-renderer] img[class*="object-cover"],
+  [data-builder-renderer] img[class*="object-fill"],
+  [data-builder-renderer] img[data-fill-image]{max-width:100% !important;width:100% !important;}
   [data-builder-renderer] [data-widget-id] figure{width:100% !important;align-items:center !important;}
   [data-builder-renderer] [data-widget-id] figure > *{max-width:100% !important;}
   /* Links / buttons: keep words intact but allow wrap, never collapse next to each other */
