@@ -157,7 +157,7 @@ function LoginPage() {
         </div>
       )}
 
-      <div className="relative w-full max-w-[1280px] grid grid-cols-1 lg:grid-cols-[140px_minmax(0,1.7fr)_minmax(0,1fr)] gap-0 lg:gap-5 isolate">
+      <div className="relative w-full max-w-[1280px] grid grid-cols-1 lg:grid-cols-[100px_minmax(0,1.7fr)_minmax(0,1fr)] gap-0 lg:gap-5 isolate">
         {/* LEFT: vertical mode rail */}
         <aside className="hidden lg:flex flex-col items-center gap-2 bg-card rounded-2xl shadow-lg shadow-foreground/5 border border-border py-6 px-2">
           <div className="mb-3 flex items-center justify-center w-full">
