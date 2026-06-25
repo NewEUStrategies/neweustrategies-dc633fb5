@@ -178,10 +178,12 @@ const resources = {
             buttons: "Przyciski",
             textFields: "Pola tekstowe",
             inputColors: "Kolory pól tekstowych",
+            iconColors: "Kolory ikon",
             contentStyling: "Style treści",
 
           },
           inputColorsDescription: "Ustaw kolory tła, tekstu, placeholdera, obramowania oraz stanów hover/focus pól tekstowych - dla trybu jasnego i ciemnego.",
+          iconColorsDescription: "Ustaw kolory ikon SVG: stan nieaktywny, po najechaniu (hover) oraz aktywny - dla trybu jasnego i ciemnego.",
 
           mainMenu: {
             navTopLevel: "Nawigacja (najwyższy poziom)",
