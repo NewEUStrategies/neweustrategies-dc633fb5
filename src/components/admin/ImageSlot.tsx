@@ -58,7 +58,7 @@ export function ImageSlot({
       </div>
       {value && (
         <div
-          className="rounded-md border border-border p-2 flex items-center justify-center min-h-[80px]"
+          className={`rounded-md border border-border p-2 flex items-center justify-center min-h-[80px] ${previewMode === "auto" ? "bg-muted/30" : ""}`}
           style={{
             background:
               previewMode === "dark"
