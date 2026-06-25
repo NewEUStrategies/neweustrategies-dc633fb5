@@ -147,6 +147,7 @@ const DEFAULTS: ThemeOptions = {
 const SECTIONS = [
   { id: "logo", labelKey: "themeOptions.sections.logo", icon: ImageIcon },
   { id: "global_colors", labelKey: "themeOptions.sections.globalColors", icon: Eye },
+  { id: "backgrounds", labelKey: "themeOptions.sections.backgrounds", icon: Palette },
   { id: "header.layout", labelKey: "themeOptions.sections.headerLayout", icon: Layers },
   { id: "header.main_menu", labelKey: "themeOptions.sections.mainMenu", icon: Menu },
   { id: "header.search", labelKey: "themeOptions.sections.headerSearch", icon: Search },
