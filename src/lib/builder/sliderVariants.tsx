@@ -1,8 +1,9 @@
 // Slider widget - styled variants. Self-contained renderer (no external slider
 // library). Variants are being rebuilt from scratch - currently one available.
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
+import { useResolvedPostRefs, mergePostRefOverride } from "./contentRefs";
 
 export type SliderVariant = "editorial-hero";
 
