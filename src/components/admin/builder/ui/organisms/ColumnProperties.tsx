@@ -215,6 +215,12 @@ export function ColumnProperties({ column, device, mode = "light", onModeChange,
           <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Widoczność</h4>
           <VisibilityControl value={column.advanced} onChange={setAdvanced} />
         </section>
+
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Dostęp (auth/role)</h4>
+          <AccessControl value={column.advanced} onChange={setAdvanced} />
+          <p className="text-[10px] text-muted-foreground">Reguły obowiązują tylko na opublikowanej stronie. W edytorze kolumna jest zawsze widoczna.</p>
+        </section>
       </TabsContent>
     </Tabs>
   );
