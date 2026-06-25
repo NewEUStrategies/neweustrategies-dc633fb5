@@ -9,6 +9,7 @@ import type { WidgetContent } from "@/lib/builder/types";
 import { getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 
 // Cover renders across a 1-4 column responsive grid. Images are always painted
 // into a stable frame so mobile CSS cannot stretch/squash their crop.
@@ -225,16 +226,14 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
             className={`grid ${p.cover_image_url ? "grid-cols-[112px_minmax(0,1fr)] sm:grid-cols-[128px_minmax(0,1fr)]" : "grid-cols-1"} items-start gap-3 sm:gap-4 py-3 group`}
           >
             {p.cover_image_url && (
-              <span data-widget-media className={LIST_FRAME_CLASS}>
-                <OptimizedImage
-                  src={p.cover_image_url}
-                  alt=""
-                  responsive
-                  responsiveWidths={[128, 256, 384]}
-                  sizes="(max-width: 640px) 112px, 128px"
-                  className={COVER_IMG_CLASS}
-                />
-              </span>
+              <WidgetMediaImage
+                src={p.cover_image_url}
+                alt=""
+                frameClassName={LIST_FRAME_CLASS}
+                responsiveWidths={[128, 256, 384]}
+                sizes="(max-width: 640px) 112px, 128px"
+                foregroundClassName={COVER_IMG_CLASS}
+              />
             )}
             <div className="min-w-0">
               <h4
@@ -320,9 +319,7 @@ function PostCard({
   if (variant === "overlay" && p.cover_image_url) {
     return (
       <a href={`/post/${p.slug}`} className={`relative block rounded-md overflow-hidden ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
-        <span data-widget-media className={OVERLAY_FRAME_CLASS}>
-          <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className={COVER_IMG_CLASS} />
-        </span>
+        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={OVERLAY_FRAME_CLASS} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-3 text-white">
           <h4 className="font-display text-base md:text-lg font-semibold leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
@@ -335,9 +332,7 @@ function PostCard({
     return (
       <a href={`/post/${p.slug}`} className={`block group ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
         {p.cover_image_url && (
-          <span data-widget-media className={`${TILE_FRAME_CLASS} rounded-sm mb-3`}>
-            <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className={COVER_IMG_CLASS} />
-          </span>
+          <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${TILE_FRAME_CLASS} rounded-sm mb-3`} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
         )}
         <h4 className="font-display text-base md:text-lg font-semibold leading-snug line-clamp-2 group-hover:text-brand transition" style={titleStyle}>{title}</h4>
         {excerpt && <p className="text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug" style={excerptStyle}>{excerpt}</p>}
@@ -349,9 +344,7 @@ function PostCard({
   return (
     <a href={`/post/${p.slug}`} className={base}>
       {p.cover_image_url && (
-        <span data-widget-media className={TILE_FRAME_CLASS}>
-          <OptimizedImage src={p.cover_image_url} alt="" responsive sizes={GRID_COVER_SIZES} className={COVER_IMG_CLASS} />
-        </span>
+        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={TILE_FRAME_CLASS} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
       )}
       <div className="p-3">
         <h4 className="font-display text-base md:text-lg font-semibold leading-snug mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>

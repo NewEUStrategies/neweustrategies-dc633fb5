@@ -25,6 +25,7 @@ import {
 import { DynamicTagWidget } from "./DynamicTagWidgets";
 import { ContactFormView } from "@/components/blocks/ContactFormView";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 
 type AuthCfg = Record<string, unknown>;
 function AuthFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
@@ -128,13 +129,26 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
     const fallback = img.classList.contains("gc-img-dark") ? srcDark || src : src || srcDark;
     if (fallback && img.src !== fallback) img.src = fallback;
   };
+  const fgImgStyle: CSSProperties = ratioCss ? { ...imgStyle, objectFit: "contain" } : imgStyle;
+  const bgImgStyle: CSSProperties = { ...imgStyle, objectFit: "cover" };
   const imgEl = hasBoth ? (
     <>
-      <OptimizedImage src={lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} gc-img-light`} style={imgStyle} onError={applyLogoFallback} />
-      <OptimizedImage src={darkSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} gc-img-dark`} style={imgStyle} onError={applyLogoFallback} />
+      {isFramed && <OptimizedImage src={lightSrc} alt="" aria-hidden responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} widget-media-bg gc-img-light`} style={bgImgStyle} fadeIn={false} />}
+      {isFramed && <OptimizedImage src={darkSrc} alt="" aria-hidden responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} widget-media-bg gc-img-dark`} style={bgImgStyle} fadeIn={false} />}
+      {isFramed && <span aria-hidden className="widget-media-scrim absolute inset-0" />}
+      <OptimizedImage src={lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-light`} style={fgImgStyle} onError={applyLogoFallback} />
+      <OptimizedImage src={darkSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-dark`} style={fgImgStyle} onError={applyLogoFallback} />
     </>
   ) : (
-    <OptimizedImage src={theme === "dark" ? darkSrc : lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={imgCls} style={imgStyle} onError={applyLogoFallback} />
+    isFramed ? (
+      <>
+        <OptimizedImage src={theme === "dark" ? darkSrc : lightSrc} alt="" aria-hidden responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} widget-media-bg`} style={bgImgStyle} fadeIn={false} />
+        <span aria-hidden className="widget-media-scrim absolute inset-0" />
+        <OptimizedImage src={theme === "dark" ? darkSrc : lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} widget-media-fg`} style={fgImgStyle} onError={applyLogoFallback} />
+      </>
+    ) : (
+      <OptimizedImage src={theme === "dark" ? darkSrc : lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={imgCls} style={imgStyle} onError={applyLogoFallback} />
+    )
   );
   const framedImgEl = isFramed ? (
     <span data-widget-media className="relative block w-full overflow-hidden rounded bg-muted" style={wrapperStyle}>
@@ -718,9 +732,7 @@ export function renderSimpleWidget(
         return (
           <div className={`flex ${gapCls} overflow-x-auto snap-x pb-2`}>
             {imgs.map((src, i) => (
-              <span key={i} data-widget-media className="relative block aspect-[4/3] flex-[0_0_80%] snap-start overflow-hidden rounded bg-muted sm:flex-[0_0_42%] lg:flex-[0_0_30%]">
-                <OptimizedImage src={src} alt="" responsive sizes="(max-width: 640px) 80vw, (max-width: 1024px) 42vw, 30vw" className="absolute inset-0 block h-full w-full object-contain" />
-              </span>
+              <WidgetMediaImage key={i} src={src} alt="" frameClassName="relative block aspect-[4/3] flex-[0_0_80%] snap-start overflow-hidden rounded bg-muted sm:flex-[0_0_42%] lg:flex-[0_0_30%]" sizes="(max-width: 640px) 80vw, (max-width: 1024px) 42vw, 30vw" />
             ))}
           </div>
         );
@@ -737,9 +749,7 @@ export function renderSimpleWidget(
           <div className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
             {imgs.map((src, i) => (
               <div key={i} className="bg-white p-2 pb-5 shadow-lg rotate-[-1deg] hover:rotate-0 transition">
-                <span data-widget-media className="relative block aspect-[4/3] w-full overflow-hidden bg-muted">
-                  <OptimizedImage src={src} alt="" responsive sizes="(max-width: 767px) 100vw, 33vw" className="absolute inset-0 block h-full w-full object-contain" />
-                </span>
+                <WidgetMediaImage src={src} alt="" frameClassName="relative block aspect-[4/3] w-full overflow-hidden bg-muted" sizes="(max-width: 767px) 100vw, 33vw" />
               </div>
             ))}
           </div>
@@ -748,9 +758,7 @@ export function renderSimpleWidget(
       return (
         <div className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
           {imgs.map((src, i) => (
-            <span key={i} data-widget-media className="relative block aspect-[4/3] w-full overflow-hidden rounded bg-muted">
-              <OptimizedImage src={src} alt="" responsive sizes="(max-width: 767px) 100vw, 33vw" className="absolute inset-0 block h-full w-full object-contain" />
-            </span>
+            <WidgetMediaImage key={i} src={src} alt="" frameClassName="relative block aspect-[4/3] w-full overflow-hidden rounded bg-muted" sizes="(max-width: 767px) 100vw, 33vw" />
           ))}
         </div>
       );
