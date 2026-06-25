@@ -2,6 +2,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";
+export type NewsletterPopupLayout = "stacked" | "split";
+
+export interface NewsletterMailingList {
+  id: string;
+  label_pl: string;
+  label_en: string;
+}
 
 export interface NewsletterSettings {
   tenant_id: string;
@@ -28,6 +35,14 @@ export interface NewsletterSettings {
   popup_description_en: string;
   popup_cta_pl: string;
   popup_cta_en: string;
+  // Extended popup
+  popup_layout: NewsletterPopupLayout;
+  popup_side_image_url: string | null;
+  popup_extended_fields: boolean;
+  popup_require_terms: boolean;
+  popup_terms_html_pl: string | null;
+  popup_terms_html_en: string | null;
+  popup_mailing_lists: NewsletterMailingList[];
 }
 
 export function defaultNewsletterSettings(): NewsletterSettings {
@@ -49,12 +64,19 @@ export function defaultNewsletterSettings(): NewsletterSettings {
     popup_scroll_percent: 50,
     popup_frequency_days: 7,
     popup_cover_url: null,
-    popup_title_pl: "Zostań w kontakcie",
-    popup_title_en: "Stay in touch",
-    popup_description_pl: "Cotygodniowy przegląd najlepszych treści.",
-    popup_description_en: "A weekly digest of the best stories.",
+    popup_title_pl: "Dołącz do nas!",
+    popup_title_en: "Join us!",
+    popup_description_pl: "Poznaj kulisy europejskich strategii. Dołącz do unikalnej społeczności.",
+    popup_description_en: "Explore the behind-the-scenes of European strategies. Become a member of a unique community!",
     popup_cta_pl: "Zapisz się",
     popup_cta_en: "Subscribe",
+    popup_layout: "stacked",
+    popup_side_image_url: null,
+    popup_extended_fields: false,
+    popup_require_terms: false,
+    popup_terms_html_pl: 'Akceptuję <a href="/regulamin">regulamin</a>.',
+    popup_terms_html_en: 'I accept the <a href="/terms">terms &amp; conditions</a>.',
+    popup_mailing_lists: [],
   };
 }
 
@@ -64,7 +86,15 @@ export function useNewsletterSettings() {
     queryFn: async (): Promise<NewsletterSettings> => {
       const { data, error } = await supabase.from("newsletter_settings").select("*").maybeSingle();
       if (error && error.code !== "PGRST116") throw error;
-      return (data as NewsletterSettings | null) ?? defaultNewsletterSettings();
+      const def = defaultNewsletterSettings();
+      if (!data) return def;
+      const row = data as Record<string, unknown>;
+      const lists = row.popup_mailing_lists;
+      return {
+        ...def,
+        ...(data as Partial<NewsletterSettings>),
+        popup_mailing_lists: Array.isArray(lists) ? (lists as NewsletterMailingList[]) : [],
+      };
     },
     staleTime: 60_000,
   });
