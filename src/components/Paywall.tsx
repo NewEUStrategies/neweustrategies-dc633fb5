@@ -34,9 +34,9 @@ const T = {
     perMonth: "/ mies.",
     perYear: "/ rok",
     oneTime: "jednorazowo",
-    soonNotice: "Płatności online zostaną włączone wkrótce — zapisz się, aby otrzymać dostęp jako pierwszy.",
+    soonNotice: "Płatności online zostaną włączone wkrótce - zapisz się, aby otrzymać dostęp jako pierwszy.",
     interestSaved: "Zapisaliśmy Twoje zainteresowanie tym materiałem.",
-    interestFail: "Nie udało się zapisać — spróbuj ponownie.",
+    interestFail: "Nie udało się zapisać - spróbuj ponownie.",
   },
   en: {
     membersOnly: "Members-only content",
@@ -50,14 +50,14 @@ const T = {
     perMonth: "/ mo",
     perYear: "/ yr",
     oneTime: "one-time",
-    soonNotice: "Online payments are coming soon — register your interest to get access first.",
+    soonNotice: "Online payments are coming soon - register your interest to get access first.",
     interestSaved: "Saved your interest in this content.",
-    interestFail: "Couldn't save — please try again.",
+    interestFail: "Couldn't save - please try again.",
   },
 };
 
 export function Paywall({ rule, lang, fallbackText }: Props) {
-  const { session } = useAuth();
+  const { session, tenantId } = useAuth();
   const t = T[lang];
   const teaser =
     (lang === "pl" ? rule.teaser_pl : rule.teaser_en) ||
@@ -76,9 +76,9 @@ export function Paywall({ rule, lang, fallbackText }: Props) {
   }, [rule.plan_ids, rule.mode]);
 
   const registerInterest = async () => {
-    if (!session) return;
+    if (!session || !tenantId) return;
     const { error } = await supabase.from("user_purchases").insert({
-      tenant_id: (session.user.user_metadata as any)?.tenant_id ?? null,
+      tenant_id: tenantId,
       user_id: session.user.id,
       entity_type: rule.entity_type,
       entity_id: rule.entity_id,
@@ -122,7 +122,7 @@ export function Paywall({ rule, lang, fallbackText }: Props) {
           </div>
         )}
 
-        {/* Paid — logged in, show plans + one-time */}
+        {/* Paid - logged in, show plans + one-time */}
         {session && rule.mode === "paid" && (
           <div className="space-y-4">
             {plans.length > 0 && (

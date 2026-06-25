@@ -33,7 +33,8 @@ import { useQuery } from "@tanstack/react-query";
 import { listCustomMetaDefs } from "@/lib/customMeta";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
-import { useContentAccess } from "@/hooks/useContentAccess";
+import { useUnlockedContent } from "@/hooks/useUnlockedContent";
+import { isGatedMode, hasRenderableBody, shouldShowPaywall, pickBody, type BodyParts } from "@/lib/access/gating";
 import { Paywall } from "@/components/Paywall";
 import { PostLayoutRenderer } from "@/components/PostLayoutRenderer";
 import { PostFooterBars } from "@/components/PostFooterBars";
@@ -123,16 +124,32 @@ function PublicPage() {
   const excerpt = post ? (lang === "en" ? post.excerpt_en : post.excerpt_pl) : null;
   const postTags = isPost ? (data as { tags?: Array<{ slug: string; name: string }> }).tags : undefined;
 
-  const access = useContentAccess(isPost ? "post" : "page", it.id);
+  // Access rule (mode/teaser/plans/price) is non-sensitive and arrives from the
+  // resolver, so the paywall teaser renders correctly even in anonymous SSR.
+  const accessRule = data.access;
   const { data: globalLayoutSettings } = usePostLayoutSettings();
   useRecordPostView(isPost ? it.id : null);
 
-  const rawDoc = parseBuilderDoc(it.builder_data);
-  const isBuilder = it.editor === "builder" && rawDoc.sections.length > 0;
-  const rawHtml = lang === "en" ? it.content_en || it.content_pl : it.content_pl || it.content_en;
+  // Body columns arrive gated from the server: an unentitled / anonymous (SSR)
+  // caller gets an all-null body, so premium content is never shipped. For an
+  // entitled user who hard-loaded the page (anon SSR), re-request the body
+  // client-side; `pickBody` then prefers the unlocked copy.
+  const ssrBody: BodyParts = {
+    content_pl: it.content_pl,
+    content_en: it.content_en,
+    builder_data: it.builder_data,
+    blocks_data: (it as { blocks_data?: LocalizedBlocks | null }).blocks_data ?? null,
+  };
+  const needsUnlock = isGatedMode(accessRule?.mode) && !hasRenderableBody(ssrBody);
+  const unlocked = useUnlockedContent(isPost ? "post" : "page", it.id, needsUnlock);
+  const body = pickBody(ssrBody, unlocked);
 
-  // Block editor (Gutenberg/Foxiz-style) — wpisy w nowym formacie
-  const blocksData = (it as { blocks_data?: LocalizedBlocks | null }).blocks_data ?? null;
+  const rawDoc = parseBuilderDoc(body.builder_data);
+  const isBuilder = it.editor === "builder" && rawDoc.sections.length > 0;
+  const rawHtml = lang === "en" ? body.content_en || body.content_pl : body.content_pl || body.content_en;
+
+  // Block editor (Gutenberg/Foxiz-style) - wpisy w nowym formacie
+  const blocksData = (body.blocks_data as LocalizedBlocks | null) ?? null;
   const blocksDoc: BlocksDoc | null = blocksData ? (blocksData[lang] ?? blocksData.pl ?? blocksData.en ?? null) : null;
   const isBlocks = it.editor === "blocks" && !!blocksDoc?.blocks?.length;
 
@@ -170,7 +187,8 @@ function PublicPage() {
     datePublished: it.published_at ?? undefined,
   };
 
-  const maxW = isPost ? "max-w-[1200px]" : "max-w-[1200px]";
+  const maxW = "max-w-[1200px]";
+  const showPaywall = shouldShowPaywall(accessRule?.mode, body);
 
   const takeaways: readonly string[] = post
     ? (lang === "en" ? post.takeaways_en : post.takeaways_pl) ?? []
@@ -195,8 +213,8 @@ function PublicPage() {
 
   const contentBlock = (
     <div ref={articleRef}>
-      {access.rule && !access.hasAccess ? (
-        <Paywall rule={access.rule} lang={lang} fallbackText={rawHtml} />
+      {accessRule && showPaywall ? (
+        <Paywall rule={accessRule} lang={lang} fallbackText={excerpt} />
       ) : (
         <>
           {isPost && takeaways.length > 0 && <KeyTakeaways items={takeaways} />}
