@@ -67,10 +67,13 @@ const DEBUG_CSS = `
 .builder-debug-toggle{position:fixed;bottom:16px;right:16px;z-index:99999;background:#111;color:#fff;border:1px solid #444;border-radius:9999px;padding:8px 14px;font:600 12px/1 ui-monospace,monospace;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);}
 .builder-debug-toggle[data-on="1"]{background:#ef4444;}
 
-/* ---------- Mobile safety net (works regardless of JS device detection) ---------- */
+/* ---------- Responsive safety net (works regardless of JS device detection) ---------- */
 [data-builder-renderer]{max-width:100%;overflow-x:clip;}
 [data-builder-renderer] *{min-width:0;}
-[data-builder-renderer] img,[data-builder-renderer] video,[data-builder-renderer] iframe,[data-builder-renderer] svg,[data-builder-renderer] canvas,[data-builder-renderer] object{max-width:100%;height:auto;}
+[data-builder-renderer] video,[data-builder-renderer] iframe,[data-builder-renderer] svg,[data-builder-renderer] canvas,[data-builder-renderer] object{max-width:100%;height:auto;}
+[data-builder-renderer] img{max-width:100%;}
+[data-builder-renderer] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]){height:auto;object-fit:contain;}
+[data-builder-renderer] img[data-fill-image]{width:100%;height:100%;}
 [data-builder-renderer] pre,[data-builder-renderer] code{max-width:100%;overflow-x:auto;white-space:pre-wrap;word-break:break-word;}
 [data-builder-renderer] table{max-width:100%;display:block;overflow-x:auto;}
 
@@ -95,7 +98,8 @@ const DEBUG_CSS = `
 [data-builder-renderer][data-device="mobile"] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]),
 [data-builder-renderer][data-device="mobile"] svg:not([class*="h-"]){max-width:100% !important;height:auto !important;object-fit:contain !important;}
 [data-builder-renderer][data-device="mobile"] img[class*="object-cover"],
-[data-builder-renderer][data-device="mobile"] img[class*="object-fill"]{max-width:100% !important;width:100% !important;}
+[data-builder-renderer][data-device="mobile"] img[class*="object-fill"]{max-width:100% !important;}
+[data-builder-renderer][data-device="mobile"] img[data-fill-image]{max-width:100% !important;width:100% !important;height:100% !important;}
 [data-builder-renderer][data-device="mobile"] [data-widget-id] figure{width:100% !important;align-items:center !important;}
 [data-builder-renderer][data-device="mobile"] a,
 [data-builder-renderer][data-device="mobile"] button{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:100% !important;}
@@ -135,8 +139,8 @@ const DEBUG_CSS = `
   [data-builder-renderer] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]),
   [data-builder-renderer] svg:not([class*="h-"]){max-width:100% !important;height:auto !important;object-fit:contain !important;}
   [data-builder-renderer] img[class*="object-cover"],
-  [data-builder-renderer] img[class*="object-fill"],
-  [data-builder-renderer] img[data-fill-image]{max-width:100% !important;width:100% !important;}
+  [data-builder-renderer] img[class*="object-fill"]{max-width:100% !important;}
+  [data-builder-renderer] img[data-fill-image]{max-width:100% !important;width:100% !important;height:100% !important;}
   [data-builder-renderer] [data-widget-id] figure{width:100% !important;align-items:center !important;}
   [data-builder-renderer] [data-widget-id] figure > *{max-width:100% !important;}
   /* Links / buttons: keep words intact but allow wrap, never collapse next to each other */
@@ -164,7 +168,9 @@ const DEBUG_CSS = `
 @media (min-width: 768px) and (max-width: 1023px){
   [data-builder-renderer] [data-columns-row]{gap:14px !important;}
   [data-builder-renderer] [data-widget-id]{max-width:100% !important;}
-  [data-builder-renderer] img,[data-builder-renderer] svg{max-width:100% !important;height:auto !important;}
+  [data-builder-renderer] img,[data-builder-renderer] svg{max-width:100% !important;}
+  [data-builder-renderer] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]),
+  [data-builder-renderer] svg:not([class*="h-"]){height:auto !important;object-fit:contain !important;}
 }
 
 `;
