@@ -230,7 +230,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   }
 
   if (variant === "numbered") {
-    const idxSize = getNum(c, "indexSizePx", 88);
+    const idxSize = getNum(c, "indexSizePx", 32);
     const idxColor = getStr(c, "indexColor") || "";
     const idxColorDark = getStr(c, "indexColorDark") || "";
     const idxOpacity = (() => {
