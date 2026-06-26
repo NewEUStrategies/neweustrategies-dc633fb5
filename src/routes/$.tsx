@@ -10,12 +10,11 @@ import { useTranslation } from "react-i18next";
 // Header/Footer are owned by SiteChrome (mounted in __root.tsx) so they
 // persist across navigations - never re-import them here.
 import { Breadcrumbs } from "@/components/Breadcrumbs";
-import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
-import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
-import { BlocksRenderer } from "@/components/blocks/BlocksRenderer";
+import { type CurrentPostCtx } from "@/lib/builder/currentPostContext";
+import { ContentRenderer } from "@/components/content/ContentRenderer";
+import { resolveContentEngine } from "@/lib/content/contentEngine";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { parseBuilderDoc } from "@/lib/builder/parse";
-import { sanitizeMarkdownHtml } from "@/lib/sanitize";
 import { processManualToc } from "@/lib/manualToc";
 import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
@@ -53,6 +52,8 @@ import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import type { AdPageType } from "@/lib/ads/types";
 import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
 import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { contentCacheControl } from "@/lib/http/cachePolicy";
 
 
 function splatToSegments(splat: string): string[] {
@@ -73,6 +74,10 @@ export const Route = createFileRoute("/$")({
     if (segments.length === 0) throw notFound();
     const data = await context.queryClient.ensureQueryData(resolvedContentQueryOptions(segments));
     if (!data) throw notFound();
+    // ISR-like edge caching: the public SSR is the anonymous shell (gated bodies
+    // are fetched client-side after hydration), so it is safe to share-cache and
+    // serve stale-while-revalidate from the CDN.
+    setCacheControlHeader(contentCacheControl());
     const url = getRequestUrl() || `/${splat}`;
     const lang: "pl" | "en" = activeLang(url) === "en" ? "en" : "pl";
     const doc = parseBuilderDoc(data.item.builder_data);
@@ -161,20 +166,20 @@ function PublicPage() {
   const body = pickBody(ssrBody, unlocked);
 
   const rawDoc = parseBuilderDoc(body.builder_data);
-  const isBuilder = it.editor === "builder" && rawDoc.sections.length > 0;
   const rawHtml = lang === "en" ? body.content_en || body.content_pl : body.content_pl || body.content_en;
 
   // Block editor (Gutenberg/Foxiz-style) - wpisy w nowym formacie
   const blocksData = (body.blocks_data as LocalizedBlocks | null) ?? null;
   const blocksDoc: BlocksDoc | null = blocksData ? (blocksData[lang] ?? blocksData.pl ?? blocksData.en ?? null) : null;
-  const isBlocks = it.editor === "blocks" && !!blocksDoc?.blocks?.length;
 
   const { doc, notes: builderNotes } = processDocFootnotes(rawDoc, lang);
   const { html: footnoteHtml, notes: htmlNotes } = processHtmlFootnotes(rawHtml ?? "", 1);
   // Manual <!--TOC--> marker -> inline auto-generated table of contents;
   // also assigns stable IDs to h2/h3 so deep links work.
   const { html: processedHtml } = processManualToc(footnoteHtml, lang);
-  const notes = isBuilder ? builderNotes : htmlNotes;
+  // Single source of truth for the rendering engine (builder | blocks | html).
+  const engine = resolveContentEngine({ editor: it.editor, builderDoc: doc, blocksDoc });
+  const notes = engine === "builder" ? builderNotes : htmlNotes;
   const articleRef = useRef<HTMLDivElement>(null);
 
   // Custom meta definitions (publicly readable, cached).
@@ -237,15 +242,15 @@ function PublicPage() {
       ) : (
         <>
           {isPost && takeaways.length > 0 && <KeyTakeaways items={takeaways} />}
-          {isBlocks ? (
-            <BlocksRenderer doc={blocksDoc} lang={lang} postId={isPost ? it.id : undefined} />
-          ) : isBuilder ? (
-            <CurrentPostProvider value={currentPostCtx}>
-              <BuilderRenderer doc={doc} lang={lang} />
-            </CurrentPostProvider>
-          ) : (
-            <article className="single-post-content prose prose-lg dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeMarkdownHtml(processedHtml) }} />
-          )}
+          <ContentRenderer
+            editor={it.editor}
+            builderDoc={doc}
+            blocksDoc={blocksDoc}
+            html={processedHtml}
+            lang={lang}
+            postId={isPost ? it.id : undefined}
+            currentPostCtx={currentPostCtx}
+          />
           <FootnotesList notes={notes} lang={lang} />
         </>
       )}

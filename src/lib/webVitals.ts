@@ -50,8 +50,13 @@ function report(metric: VitalMetric): void {
       url: location.pathname,
       ts: Date.now(),
     });
+    // Route to a configurable APM/RUM sink when set (VITE_OBSERVABILITY_ENDPOINT),
+    // else the built-in vitals collector endpoint.
+    const endpoint =
+      (import.meta.env as unknown as Record<string, string | undefined>).VITE_OBSERVABILITY_ENDPOINT ||
+      "/api/public/vitals";
     if (typeof navigator.sendBeacon === "function") {
-      navigator.sendBeacon("/api/public/vitals", body);
+      navigator.sendBeacon(endpoint, body);
     }
   } catch {
     /* swallow - reporting must never break the page */

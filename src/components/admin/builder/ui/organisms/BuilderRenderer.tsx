@@ -4,6 +4,7 @@ import { Fragment, memo, useEffect, useLayoutEffect, useRef, useState, type CSSP
 import type { BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, Device, ResponsiveValue } from "@/lib/builder/types";
 import { WidgetView, getWidgetFrameStyle, hiddenOnDevice } from "@/components/admin/builder/WidgetView";
 import { AUTO_SIZE_WIDGETS, COMPACT_WIDGET_TYPES } from "@/components/admin/builder/ui/organisms/widget-view/frame";
+import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
 import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl } from "@/lib/sanitize";
 import {
   sectionWrapperStyle, sectionContainerStyle, columnsRowStyle,
@@ -258,7 +259,11 @@ const SectionsList = memo(function SectionsList({ sections, lang, device }: { se
     <>
       {sections
         .filter((s) => evaluateAccess(s.advanced?.access, accessCtx))
-        .map((s) => <RenderSection key={s.id} section={s} lang={lang} device={device} />)}
+        .map((s) => (
+          <RenderErrorBoundary key={s.id} label={`section:${s.id}`}>
+            <RenderSection section={s} lang={lang} device={device} />
+          </RenderErrorBoundary>
+        ))}
     </>
   );
 });
@@ -410,7 +415,9 @@ const RenderColumn = memo(function RenderColumn({ column, lang, device }: { colu
                 boxSizing: "border-box",
               }}
             >
-              <WidgetView node={w} lang={lang} device={device} />
+              <RenderErrorBoundary label={`widget:${w.type}:${w.id}`}>
+                <WidgetView node={w} lang={lang} device={device} />
+              </RenderErrorBoundary>
             </div>
           );
         };

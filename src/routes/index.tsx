@@ -9,9 +9,14 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
+import { setCacheControlHeader } from "@/lib/http/responseHeaders";
+import { contentCacheControl } from "@/lib/http/cachePolicy";
 
 export const Route = createFileRoute("/")({
   loader: async ({ context }) => {
+    // ISR-like edge caching: the homepage SSR is the anonymous shell, so it is
+    // safe to share-cache and serve stale-while-revalidate from the CDN.
+    setCacheControlHeader(contentCacheControl());
     const homePage = await context.queryClient.ensureQueryData(homePageQueryOptions());
     const doc = homePage?.editor === "builder" ? parseBuilderDoc(homePage.builder_data) : null;
     if (doc?.sections.length) {

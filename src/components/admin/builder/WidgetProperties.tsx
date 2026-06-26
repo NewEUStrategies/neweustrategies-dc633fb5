@@ -40,6 +40,7 @@ import {
   AnimatedHeadingEditor,
   PostListEditor,
   MegaMenuEditor,
+  RichTextEditor,
 } from "./ui/organisms/widget-properties";
 import { ShadowEditor } from "./ui/molecules/ShadowEditor";
 
@@ -594,6 +595,8 @@ function ContentFields({ widget, lang, setContent }: {
       return <PostListEditor c={c} lang={lang} setContent={setContent} />;
     case "mega-menu":
       return <MegaMenuEditor c={c} lang={lang} setContent={setContent} />;
+    case "rich-text":
+      return <RichTextEditor c={c} lang={lang} setContent={setContent} />;
     case "ad-slot":
       return <AdSlotEditor c={c} setContent={setContent} />;
   }
