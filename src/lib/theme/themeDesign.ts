@@ -88,6 +88,26 @@ export const ThemeDesignSchema = z.object({
     opacity: z.number().min(0).max(1).default(0.18),
     weight: z.number().min(100).max(900).default(800),
   }).default({}),
+  postTitle: z.object({
+    // Unified title styling shared by every post card / list / slider / grid widget.
+    fontFamily: z.string().default('"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif'),
+    fontSize: PX.default("18px"),
+    fontSizeSm: PX.default("16px"),
+    fontWeight: z.number().min(100).max(900).default(600),
+    lineHeight: z.union([z.number(), z.string()]).default(1.3),
+    color: COLOR.default("hsl(var(--foreground))"),
+    hoverColor: COLOR.default("hsl(var(--brand))"),
+    textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]).default("none"),
+    letterSpacing: PX.default("0px"),
+  }).default({}),
+  postExcerpt: z.object({
+    fontFamily: z.string().default('"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif'),
+    fontSize: PX.default("13px"),
+    fontWeight: z.number().min(100).max(900).default(400),
+    lineHeight: z.union([z.number(), z.string()]).default(1.5),
+    color: COLOR.default("hsl(var(--muted-foreground))"),
+    marginTop: PX.default("6px"),
+  }).default({}),
 }).default({});
 
 export type ThemeDesign = z.infer<typeof ThemeDesignSchema>;
@@ -194,6 +214,23 @@ export function themeDesignToCss(t: ThemeDesign): string {
   v.push(`--td-li-dark:${t.listIndex.colorDark};`);
   v.push(`--td-li-opacity:${t.listIndex.opacity};`);
   v.push(`--td-li-weight:${t.listIndex.weight};`);
+  // Unified post title
+  v.push(`--td-pt-family:${t.postTitle.fontFamily};`);
+  v.push(`--td-pt-size:${t.postTitle.fontSize};`);
+  v.push(`--td-pt-size-sm:${t.postTitle.fontSizeSm};`);
+  v.push(`--td-pt-weight:${t.postTitle.fontWeight};`);
+  v.push(`--td-pt-lh:${t.postTitle.lineHeight};`);
+  v.push(`--td-pt-color:${t.postTitle.color};`);
+  v.push(`--td-pt-hover:${t.postTitle.hoverColor};`);
+  v.push(`--td-pt-transform:${t.postTitle.textTransform};`);
+  v.push(`--td-pt-spacing:${t.postTitle.letterSpacing};`);
+  // Unified post excerpt
+  v.push(`--td-pe-family:${t.postExcerpt.fontFamily};`);
+  v.push(`--td-pe-size:${t.postExcerpt.fontSize};`);
+  v.push(`--td-pe-weight:${t.postExcerpt.fontWeight};`);
+  v.push(`--td-pe-lh:${t.postExcerpt.lineHeight};`);
+  v.push(`--td-pe-color:${t.postExcerpt.color};`);
+  v.push(`--td-pe-mt:${t.postExcerpt.marginTop};`);
   return `:root{${v.join("")}}`;
 }
 

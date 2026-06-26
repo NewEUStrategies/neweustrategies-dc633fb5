@@ -942,7 +942,7 @@ export function renderSimpleWidget(
             const featured = !!p.featured;
             return (
               <div key={i} className={`rounded-lg border p-6 flex flex-col ${featured ? "border-brand bg-brand/5 shadow-lg" : "border-border bg-card"}`}>
-                <h3 className="font-display text-xl mb-2">{name}</h3>
+                <h3 className="cms-post-title mb-2">{name}</h3>
                 <div className="flex items-baseline gap-1 mb-4">
                   <span className="text-3xl font-bold">{price}</span>
                   <span className="text-sm text-muted-foreground">{currency}{period}</span>

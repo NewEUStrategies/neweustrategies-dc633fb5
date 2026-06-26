@@ -295,6 +295,96 @@ export function ThemeDesignPane() {
         </Preview>
       </Section>
 
+      <Section title="Tytuły wpisów (wszystkie widgety)">
+        <p className="text-xs text-muted-foreground -mt-2">
+          Ujednolicony styl tytułów we wszystkich widgetach (lista, slider, grid, galeria, ranking,
+          ticker, podcast). Aplikowane przez klasę <code>.cms-post-title</code>.
+        </p>
+        <Grid>
+          <Field label="Krój pisma (CSS font-family)">
+            <Input value={draft.postTitle.fontFamily} onChange={(e) => set("postTitle", { fontFamily: e.target.value })} />
+          </Field>
+          <Field label="Rozmiar desktop (px)">
+            <Input value={px(draft.postTitle.fontSize)} onChange={(e) => set("postTitle", { fontSize: `${e.target.value}px` })} />
+          </Field>
+          <Field label="Rozmiar mobile (px)">
+            <Input value={px(draft.postTitle.fontSizeSm)} onChange={(e) => set("postTitle", { fontSizeSm: `${e.target.value}px` })} />
+          </Field>
+          <Field label="Grubość">
+            <Input type="number" value={draft.postTitle.fontWeight} onChange={(e) => set("postTitle", { fontWeight: Number(e.target.value) })} />
+          </Field>
+          <Field label="Interlinia (line-height)">
+            <Input value={String(draft.postTitle.lineHeight)} onChange={(e) => set("postTitle", { lineHeight: e.target.value })} />
+          </Field>
+          <Field label="Kolor"><Input value={draft.postTitle.color} onChange={(e) => set("postTitle", { color: e.target.value })} /></Field>
+          <Field label="Kolor hover"><Input value={draft.postTitle.hoverColor} onChange={(e) => set("postTitle", { hoverColor: e.target.value })} /></Field>
+          <Field label="Transformacja">
+            <Select value={draft.postTitle.textTransform} onValueChange={(v) => set("postTitle", { textTransform: v as ThemeDesign["postTitle"]["textTransform"] })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Brak</SelectItem>
+                <SelectItem value="uppercase">WIELKIE</SelectItem>
+                <SelectItem value="lowercase">małe</SelectItem>
+                <SelectItem value="capitalize">Tytuł</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Odstęp liter (px)">
+            <Input value={px(draft.postTitle.letterSpacing)} onChange={(e) => set("postTitle", { letterSpacing: `${e.target.value}px` })} />
+          </Field>
+        </Grid>
+        <Preview>
+          <div
+            style={{
+              ["--td-pt-family" as string]: draft.postTitle.fontFamily,
+              ["--td-pt-size" as string]: draft.postTitle.fontSize,
+              ["--td-pt-size-sm" as string]: draft.postTitle.fontSizeSm,
+              ["--td-pt-weight" as string]: String(draft.postTitle.fontWeight),
+              ["--td-pt-lh" as string]: String(draft.postTitle.lineHeight),
+              ["--td-pt-color" as string]: draft.postTitle.color,
+              ["--td-pt-hover" as string]: draft.postTitle.hoverColor,
+              ["--td-pt-transform" as string]: draft.postTitle.textTransform,
+              ["--td-pt-spacing" as string]: draft.postTitle.letterSpacing,
+            } as CSSProperties}
+          >
+            <h3 className="cms-post-title">Przykładowy tytuł artykułu - jak będzie wyglądać w widgetach</h3>
+          </div>
+        </Preview>
+      </Section>
+
+      <Section title="Excerpt / lead wpisów">
+        <Grid>
+          <Field label="Krój pisma (CSS font-family)">
+            <Input value={draft.postExcerpt.fontFamily} onChange={(e) => set("postExcerpt", { fontFamily: e.target.value })} />
+          </Field>
+          <Field label="Rozmiar (px)">
+            <Input value={px(draft.postExcerpt.fontSize)} onChange={(e) => set("postExcerpt", { fontSize: `${e.target.value}px` })} />
+          </Field>
+          <Field label="Grubość">
+            <Input type="number" value={draft.postExcerpt.fontWeight} onChange={(e) => set("postExcerpt", { fontWeight: Number(e.target.value) })} />
+          </Field>
+          <Field label="Interlinia">
+            <Input value={String(draft.postExcerpt.lineHeight)} onChange={(e) => set("postExcerpt", { lineHeight: e.target.value })} />
+          </Field>
+          <Field label="Kolor"><Input value={draft.postExcerpt.color} onChange={(e) => set("postExcerpt", { color: e.target.value })} /></Field>
+          <Field label="Margines górny (px)"><Input value={px(draft.postExcerpt.marginTop)} onChange={(e) => set("postExcerpt", { marginTop: `${e.target.value}px` })} /></Field>
+        </Grid>
+        <Preview>
+          <div
+            style={{
+              ["--td-pe-family" as string]: draft.postExcerpt.fontFamily,
+              ["--td-pe-size" as string]: draft.postExcerpt.fontSize,
+              ["--td-pe-weight" as string]: String(draft.postExcerpt.fontWeight),
+              ["--td-pe-lh" as string]: String(draft.postExcerpt.lineHeight),
+              ["--td-pe-color" as string]: draft.postExcerpt.color,
+              ["--td-pe-mt" as string]: draft.postExcerpt.marginTop,
+            } as CSSProperties}
+          >
+            <p className="cms-post-excerpt">Krótki opis artykułu pojawiający się pod tytułem w kartach widgetów. Zachowuje spójność na całej platformie.</p>
+          </div>
+        </Preview>
+      </Section>
+
       <Section title="Numeracja list (warianty „Numbered” / „Ranking”)">
         <p className="text-xs text-muted-foreground -mt-2">
           Globalne kolory dużych translucentnych cyfr (01, 02, 03...) za tytułami w listach
