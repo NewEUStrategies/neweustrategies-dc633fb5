@@ -299,7 +299,6 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   if (variant === "ranked") {
     // Ranked list - no image, big translucent number on the right, title + "By <author>".
     const idxSize = getNum(c, "indexSizePx", 96);
-    // Empty widget color = fall back to global Theme Design tokens (--td-li-*).
     const idxColor = getStr(c, "indexColor") || "var(--td-li-light, rgb(35,31,32))";
     const idxColorDark = getStr(c, "indexColorDark") || "var(--td-li-dark, rgb(250,147,70))";
     const idxOpacity = (() => {
@@ -308,6 +307,16 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     })();
     const idxWeight = getStr(c, "indexWeight") || "var(--td-li-weight, 800)";
     const idxSide = (getStr(c, "indexSide") || "right") === "left" ? "left" : "right";
+    const idxVAlign = (() => {
+      const v = getStr(c, "indexVAlign") || "top";
+      return v === "middle" || v === "bottom" ? v : "top";
+    })();
+    const vPos: React.CSSProperties =
+      idxVAlign === "top"
+        ? { top: "0.25rem", bottom: "auto" }
+        : idxVAlign === "bottom"
+        ? { top: "auto", bottom: "0.25rem" }
+        : { top: "50%", transform: "translateY(-50%)" };
     return (
       <div
         className="w-full flex flex-col divide-y divide-border"
@@ -346,9 +355,8 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                 position: "absolute",
                 left: idxSide === "left" ? "0.25rem" : "auto",
                 right: idxSide === "right" ? "0.25rem" : "auto",
-                top: "50%",
-                transform: idxSide === "right" ? "translateY(-50%)" : "translate(-0.08em, -50%)",
-                textAlign: idxSide === "right" ? "right" : "left",
+                ...vPos,
+                textAlign: idxSide,
                 pointerEvents: "none",
                 zIndex: 0,
               } as React.CSSProperties}
@@ -360,6 +368,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
       </div>
     );
   }
+
 
   if (variant === "numbered") {
     // Big faint index on the left, title in the middle, thumbnail on the right.
