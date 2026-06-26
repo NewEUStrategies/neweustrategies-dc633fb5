@@ -210,6 +210,29 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   const rows = (data ?? []).map((p) =>
     overrides[p.id] ? { ...p, cover_image_url: overrides[p.id] } : p,
   );
+
+  // Fetch author display names for variants that show "By <author>".
+  const authorIds = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x))),
+    [rows],
+  );
+  const { data: authorMap = {} } = useQuery<Record<string, string>>({
+    queryKey: ["builder-post-authors", authorIds],
+    enabled: authorIds.length > 0 && (variant === "ranked" || variant === "numbered"),
+    queryFn: async () => {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", authorIds);
+      const m: Record<string, string> = {};
+      for (const r of (profs ?? []) as Array<{ id: string; display_name: string | null }>) {
+        if (r.display_name) m[r.id] = r.display_name;
+      }
+      return m;
+    },
+  });
+  const authorName = (p: PostRow) => (p.author_id ? authorMap[p.author_id] ?? "" : "");
+
   const effectiveCols = Math.max(1, Math.min(cols, rows.length || 1));
   if (!rows.length) {
     return (
