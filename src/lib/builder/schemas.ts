@@ -425,6 +425,16 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       { value: "centered", label: "wycentrowany" },
     ]},
   ],
+  "search-button": [
+    { key: "label", type: "i18nText", label: "Placeholder", placeholder: "Szukaj" },
+    { key: "height", type: "number", label: "Wysokość pola (px)", min: 24, max: 120, hint: "Domyślnie 40 px." },
+    { key: "radius", type: "number", label: "Zaokrąglenie (px)", min: 0, max: 60 },
+    { key: "fontSize", type: "number", label: "Rozmiar tekstu (px)", min: 10, max: 32 },
+    { key: "limit", type: "number", label: "Limit wyników", min: 1, max: 20 },
+    { key: "liveResults", type: "select", label: "Wyniki na żywo", options: [
+      { value: "on", label: "włączone" },
+      { value: "off", label: "wyłączone" },
+    ]},
 
   // ---------- Home-page building blocks ----------
   "section-label": [
