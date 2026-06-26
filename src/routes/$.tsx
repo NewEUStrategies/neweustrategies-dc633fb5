@@ -116,15 +116,11 @@ export const Route = createFileRoute("/$")({
   errorComponent: ({ error, reset }) => {
     const router = useRouter();
     return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
-          <h1 className="font-display text-2xl">Nie udało się załadować strony</h1>
-          <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
-          <button onClick={() => { router.invalidate(); reset(); }} className="mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Spróbuj ponownie</button>
-        </main>
-        <Footer />
-      </div>
+      <main className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
+        <h1 className="font-display text-2xl">Nie udało się załadować strony</h1>
+        <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
+        <button onClick={() => { router.invalidate(); reset(); }} className="mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Spróbuj ponownie</button>
+      </main>
     );
   },
 });
