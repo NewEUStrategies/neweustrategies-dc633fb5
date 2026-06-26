@@ -11,6 +11,7 @@ interface Translations {
 const ITEMS: NavItem[] = [
   { to: "/profile", key: "overview" },
   { to: "/profile/account", key: "account" },
+  { to: "/profile/interests", key: "interests" },
   { to: "/profile/billing", key: "billing" },
   { to: "/profile/subscription", key: "subscription" },
   { to: "/profile/orders", key: "orders" },
