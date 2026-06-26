@@ -718,7 +718,11 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     [data-sidebar="separator"]{background:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
     [data-sidebar="group-label"]{color:var(--gc-sidebar-title, inherit) !important;font-family:var(--gc-sidebar-title-font, inherit);font-size:var(--gc-sidebar-title-size, inherit);font-weight:var(--gc-sidebar-title-weight, inherit);font-style:var(--gc-sidebar-title-style, inherit);text-decoration:var(--gc-sidebar-title-decoration, inherit);}
     [data-sidebar="group-subtitle"], [data-sidebar="menu-sub-label"]{color:var(--gc-sidebar-subtitle, inherit) !important;font-family:var(--gc-sidebar-subtitle-font, inherit);font-size:var(--gc-sidebar-subtitle-size, inherit);font-weight:var(--gc-sidebar-subtitle-weight, inherit);font-style:var(--gc-sidebar-subtitle-style, inherit);text-decoration:var(--gc-sidebar-subtitle-decoration, inherit);}
-    :where(html:not(.dark) main h1, html:not(.dark) main h2, html:not(.dark) main h3, html:not(.dark) main h4, html:not(.dark) main h5, html:not(.dark) main h6, html:not(.dark) main p, html:not(.dark) article h1, html:not(.dark) article h2, html:not(.dark) article h3, html:not(.dark) article h4, html:not(.dark) article p){color:var(--gc-dark-accent, inherit);}
+    /* "Dark accent" text color — scoped strictly to CMS prose so widgets,
+       cards, navigation chrome and listing pages keep their native
+       Tailwind / shadcn colors (text-foreground / text-muted-foreground)
+       and only the article body adopts the user-picked accent color. */
+    :where(html:not(.dark) .article-body, html:not(.dark) .prose, html:not(.dark) [data-cms-prose]) :where(h1, h2, h3, h4, h5, h6, p, li){color:var(--gc-dark-accent, inherit);}
     /* Typography bridge — wrapped in @layer utilities so :where() (0,0,0)
        loses to Tailwind utilities like text-base / text-xl (0,1,0) that
        live in the same cascade layer. Without this layer, the inline
