@@ -1,18 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AUTH_DEFAULTS, AUTH_SETTINGS_KEY, type AuthSettings } from "@/lib/authSettings";
+import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
 export function useAuthSettings(): AuthSettings {
   const { data } = useQuery({
     queryKey: ["site_settings_public", AUTH_SETTINGS_KEY],
-    queryFn: async (): Promise<AuthSettings> => {
-      const { data, error } = await supabase
-        .from("site_settings")
-        .select("value")
-        .eq("key", AUTH_SETTINGS_KEY)
-        .maybeSingle();
-      if (error) throw error;
-      return { ...AUTH_DEFAULTS, ...((data?.value as Partial<AuthSettings> | null) ?? {}) };
+    queryFn: async ({ client }): Promise<AuthSettings> => {
+      const settings = await client.ensureQueryData(siteSettingsQueryOptions);
+      return { ...AUTH_DEFAULTS, ...((settings[AUTH_SETTINGS_KEY] as Partial<AuthSettings> | null) ?? {}) };
     },
     staleTime: 60_000,
   });
@@ -31,6 +27,7 @@ export function useSaveAuthSettings() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["site_settings_public", AUTH_SETTINGS_KEY] });
+      qc.invalidateQueries({ queryKey: ["site_settings_public", "all"] });
     },
   });
 }
