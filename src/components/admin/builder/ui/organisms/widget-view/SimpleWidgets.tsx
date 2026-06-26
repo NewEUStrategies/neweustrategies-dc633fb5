@@ -413,8 +413,8 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang, height, 
               <ul className="divide-y divide-border/70">
                 {results.map((r) => (
                   <li key={r.id}>
-                    <a
-                      href={`/posts/${r.slug}`}
+                    <AppLink
+                      href={`/post/${r.slug}`}
                       onClick={() => setFocused(false)}
                       className="block px-4 py-3 transition-colors hover:bg-muted/50"
                     >
@@ -422,7 +422,7 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang, height, 
                       {r.excerpt && (
                         <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{r.excerpt}</div>
                       )}
-                    </a>
+                    </AppLink>
                   </li>
                 ))}
               </ul>
