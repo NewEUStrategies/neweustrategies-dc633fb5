@@ -121,7 +121,8 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
   };
 
   return (
-    <div className={`min-h-screen bg-muted/30 ${hideSidebar ? "" : "flex"}`}>
+    <div className={`admin-compact min-h-screen bg-muted/30 ${hideSidebar ? "" : "flex"}`}>
+
       {hideSidebar && <AdminLangBar />}
       {!hideSidebar && (
         <aside
