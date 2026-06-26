@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { Suspense, useEffect, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -21,15 +21,23 @@ import { DesignTokensStyle } from "../components/DesignTokensStyle";
 import { ContentAreaStyle } from "../components/ContentAreaStyle";
 import { ThemeOptionsStyle } from "../components/ThemeOptionsStyle";
 import { ThemeDesignStyle } from "../components/theme/ThemeDesignStyle";
-import { LoginPopup } from "../components/LoginPopup";
 import { ConsentBanner } from "../components/ConsentBanner";
-import { NewsletterPopup } from "../components/NewsletterPopup";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { CommandPalette } from "../components/search/CommandPalette";
 import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
 import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
 import { siteSettingsQueryOptions } from "../lib/useSiteSetting";
 import { SiteChrome } from "../components/SiteChrome";
+
+// Non-critical overlays: not visible at first paint (they open on trigger/delay),
+// so they are code-split out of the entry to shrink the critical hydration bundle.
+// Streaming SSR still resolves them server-side, so the rendered HTML is unchanged.
+const LoginPopup = lazy(() => import("../components/LoginPopup").then((m) => ({ default: m.LoginPopup })));
+const NewsletterPopup = lazy(() =>
+  import("../components/NewsletterPopup").then((m) => ({ default: m.NewsletterPopup })),
+);
+const CommandPalette = lazy(() =>
+  import("../components/search/CommandPalette").then((m) => ({ default: m.CommandPalette })),
+);
 
 
 function NotFoundComponent() {
@@ -193,10 +201,12 @@ function RootComponent() {
             </Suspense>
           </SiteChrome>
         </ErrorBoundary>
-        <LoginPopup />
         <ConsentBanner />
-        <NewsletterPopup />
-        <CommandPalette />
+        <Suspense fallback={null}>
+          <LoginPopup />
+          <NewsletterPopup />
+          <CommandPalette />
+        </Suspense>
         <Toaster />
       </AuthProvider>
     </ThemeProvider>
