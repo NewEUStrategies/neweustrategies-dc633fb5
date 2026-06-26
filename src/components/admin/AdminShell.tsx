@@ -274,7 +274,10 @@ data-sidebar="group-label"
           </div>
         </aside>
       )}
-      <main className={`${isEditRoute ? "min-w-0" : "overflow-x-auto"} ${hideSidebar ? "w-full" : "flex-1"}`}>
+      <main
+        className={`${isEditRoute ? "min-w-0" : "overflow-x-auto"} ${hideSidebar ? "w-full" : "flex-1"}`}
+        style={{ viewTransitionName: "admin-main" }}
+      >
         <div className={isEditRoute ? "p-2" : isThemeOptions ? "max-w-6xl mr-auto ml-0 py-4 lg:py-6 pl-3 lg:pl-4 pr-4 lg:pr-6" : "max-w-6xl mx-auto p-4 lg:p-6"}>{children}</div>
       </main>
 
