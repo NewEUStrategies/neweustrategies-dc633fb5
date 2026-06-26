@@ -34,6 +34,6 @@ export const getRouter = () => {
     defaultPreload: "intent",
   });
 
-  return routerWithQueryClient(router, queryClient);
+  return router;
 };
 
