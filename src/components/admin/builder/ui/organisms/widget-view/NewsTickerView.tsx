@@ -112,7 +112,7 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
         <span key={`${p.id}-${i}`} className="inline-flex items-center gap-3 shrink-0">
           <a
             href={`/post/${p.slug}`}
-            className="text-sm font-medium hover:text-brand transition whitespace-nowrap"
+            className="cms-post-title whitespace-nowrap"
           >
             {title(p)}
           </a>
