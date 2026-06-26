@@ -75,7 +75,7 @@ function BlogIndex() {
                   <Link to={p.href} className="bg-card border border-border rounded-lg overflow-hidden hover:border-brand transition">
                     {p.cover_image_url && <img src={p.cover_image_url} alt="" className="w-full h-44 object-cover" loading="lazy" />}
                     <div className="p-5">
-                      <h2 className="font-display text-xl mb-2 line-clamp-2">{title}</h2>
+                      <h2 className="font-display text-base mb-2 line-clamp-2">{title}</h2>
                       {excerpt && <p className="text-sm text-muted-foreground line-clamp-3">{excerpt}</p>}
                       {p.published_at && (
                         <time className="block mt-3 text-xs text-muted-foreground">
