@@ -740,7 +740,7 @@ export function renderSimpleWidget(
       }
       if (variant === "polaroid") {
         return (
-          <div className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          <div data-widget-grid className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
             {imgs.map((src, i) => (
               <div key={i} className="bg-white p-2 pb-5 shadow-lg rotate-[-1deg] hover:rotate-0 transition">
                 <WidgetMediaImage src={src} alt="" frameClassName="relative block aspect-[4/3] w-full overflow-hidden bg-muted" sizes="(max-width: 767px) 100vw, 33vw" />
@@ -750,12 +750,13 @@ export function renderSimpleWidget(
         );
       }
       return (
-        <div className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+        <div data-widget-grid className={`grid ${gapCls}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
           {imgs.map((src, i) => (
             <WidgetMediaImage key={i} src={src} alt="" frameClassName="relative block aspect-[4/3] w-full overflow-hidden rounded bg-muted" sizes="(max-width: 767px) 100vw, 33vw" />
           ))}
         </div>
       );
+
     }
     case "image": {
       return (
