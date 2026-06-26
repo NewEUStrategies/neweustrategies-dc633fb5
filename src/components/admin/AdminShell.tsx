@@ -138,7 +138,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
               <Link
                 to="/admin"
                 data-sidebar-brand
-                className={`font-display font-bold text-base flex items-center justify-center min-w-0 ${compact ? "" : "flex-1"} bg-transparent hover:bg-transparent`}
+                className={`font-display font-bold text-sm flex items-center justify-center min-w-0 ${compact ? "" : "flex-1"} bg-transparent hover:bg-transparent`}
                 style={{ background: "transparent" }}
                 title="Kokpit"
               >
