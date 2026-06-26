@@ -281,36 +281,38 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
             href={`/post/${p.slug}`}
             className={`grid items-center gap-3 sm:gap-4 py-4 sm:py-5 group ${
               p.cover_image_url
-                ? "grid-cols-[auto_minmax(0,1fr)_minmax(90px,32%)] sm:grid-cols-[auto_minmax(0,1fr)_minmax(120px,28%)]"
-                : "grid-cols-[auto_minmax(0,1fr)]"
+                ? "grid-cols-[minmax(0,1fr)_minmax(90px,32%)] sm:grid-cols-[minmax(0,1fr)_minmax(120px,28%)]"
+                : "grid-cols-1"
             }`}
 
           >
-            <span
-              aria-hidden
-              className="pl-num-light font-display tabular-nums leading-none select-none shrink-0"
-              style={{
-                fontSize: `clamp(48px, ${idxSize * 0.6}px + 1vw, ${idxSize}px)`,
-                fontWeight: idxWeight as React.CSSProperties["fontWeight"],
-              }}
-            >
-              {String(i + 1).padStart(2, "0")}
-            </span>
-            <div className="min-w-0 text-left">
-              <h4
-                className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
-                style={tStyle}
+            <div className="relative min-w-0 text-left">
+              <span
+                aria-hidden
+                className="pl-num-light font-display tabular-nums leading-none select-none absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none z-0"
+                style={{
+                  fontSize: `clamp(56px, ${idxSize * 0.7}px + 1vw, ${idxSize}px)`,
+                  fontWeight: idxWeight as React.CSSProperties["fontWeight"],
+                }}
               >
-                {title(p)}
-              </h4>
-              {showExcerpt && excerpt(p) && (
-                <p
-                  className="hidden sm:block text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug"
-                  style={eStyle}
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <div className="relative z-10 pl-7 sm:pl-10">
+                <h4
+                  className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
+                  style={tStyle}
                 >
-                  {excerpt(p)}
-                </p>
-              )}
+                  {title(p)}
+                </h4>
+                {showExcerpt && excerpt(p) && (
+                  <p
+                    className="hidden sm:block text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug"
+                    style={eStyle}
+                  >
+                    {excerpt(p)}
+                  </p>
+                )}
+              </div>
             </div>
             {p.cover_image_url && (
               <WidgetMediaImage
@@ -322,6 +324,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                 foregroundClassName={COVER_IMG_CLASS}
               />
             )}
+
 
           </a>
         ))}
