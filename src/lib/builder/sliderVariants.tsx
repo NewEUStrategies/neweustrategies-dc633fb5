@@ -1,6 +1,6 @@
 // Slider widget - styled variants. Self-contained renderer (no external slider
 // library). Variants are being rebuilt from scratch - currently one available.
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
@@ -65,6 +65,61 @@ interface FallbackPostImage {
   cover_image_url: string | null;
 }
 
+interface ResilientSliderImageProps {
+  src: string;
+  fallbackSrc?: string;
+  placeholderSrc: string;
+  active: boolean;
+  onBrokenSource: (src: string) => void;
+}
+
+function ResilientSliderImage({
+  src,
+  fallbackSrc,
+  placeholderSrc,
+  active,
+  onBrokenSource,
+}: ResilientSliderImageProps) {
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const originalSrc = safeImageUrl(src) || src;
+  const fallback = fallbackSrc && fallbackSrc !== originalSrc ? fallbackSrc : placeholderSrc;
+  const [displaySrc, setDisplaySrc] = useState(originalSrc || fallback);
+
+  useEffect(() => {
+    setDisplaySrc(originalSrc || fallback);
+  }, [fallback, originalSrc]);
+
+  useEffect(() => {
+    const img = imgRef.current;
+    if (!img) return;
+    if (img.complete && img.naturalWidth === 0) {
+      onBrokenSource(originalSrc);
+      setDisplaySrc(fallback);
+    }
+  }, [displaySrc, fallback, onBrokenSource, originalSrc]);
+
+  return (
+    <img
+      ref={imgRef}
+      src={displaySrc}
+      alt=""
+      draggable={false}
+      data-fill-image
+      className="eh-img absolute inset-0 w-full h-full object-cover widget-media-fg"
+      style={{
+        opacity: active ? 1 : 0,
+        transition: "opacity 700ms cubic-bezier(.22,.61,.36,1)",
+      }}
+      onError={(e) => {
+        onBrokenSource(originalSrc);
+        const nextSrc = displaySrc !== fallback ? fallback : placeholderSrc;
+        e.currentTarget.onerror = null;
+        setDisplaySrc(nextSrc);
+      }}
+    />
+  );
+}
+
 export function sliderFallbackImagesQueryOptions(fallbackCount: number) {
   const count = Math.max(3, fallbackCount || 3);
   return {
@@ -117,6 +172,18 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const fallbackCount = Math.max(3, rawItems.length || 3);
   const { data: fallbackImages = [] } = useQuery(sliderFallbackImagesQueryOptions(fallbackCount));
   const [failedImages, setFailedImages] = useState<ReadonlySet<string>>(() => new Set());
+  const markImageFailed = useMemo(
+    () => (src: string) => {
+      if (!src) return;
+      setFailedImages((prev) => {
+        if (prev.has(src)) return prev;
+        const next = new Set(prev);
+        next.add(src);
+        return next;
+      });
+    },
+    [],
+  );
   const items = resolvedItems
     .filter((it): it is SliderItem => Boolean(it))
     .map((it, i) => {
@@ -224,38 +291,13 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       {/* Image */}
       <div data-widget-media className="relative w-full overflow-hidden bg-muted/40" style={{ ...aspectStyle, borderRadius: 4 }}>
         {items.map((it, i) => (
-          <img
+          <ResilientSliderImage
             key={i}
             src={safeImageUrl(it.image) || it.image}
-            alt=""
-            draggable={false}
-            data-fill-image
-            className="eh-img absolute inset-0 w-full h-full object-cover widget-media-fg"
-            style={{
-              opacity: i === safeIdx ? 1 : 0,
-              transition: "opacity 700ms cubic-bezier(.22,.61,.36,1)",
-            }}
-            onError={(e) => {
-              const target = e.currentTarget;
-              setFailedImages((prev) => {
-                const next = new Set(prev);
-                next.add(it.image);
-                return next;
-              });
-              // Inline neutral SVG placeholder - prevents "broken image" icon
-              // and white-hole layout when storage returns 404.
-              if (typeof console !== "undefined") {
-                // eslint-disable-next-line no-console
-                console.warn("[slider] image failed to load", target.src);
-              }
-              const fallback = fallbackImages[i % Math.max(1, fallbackImages.length)] ?? "";
-              if (fallback && target.src !== fallback) {
-                target.src = fallback;
-                return;
-              }
-              target.onerror = null;
-              target.src = SLIDER_IMAGE_PLACEHOLDER;
-            }}
+            fallbackSrc={fallbackImages[i % Math.max(1, fallbackImages.length)]}
+            placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
+            active={i === safeIdx}
+            onBrokenSource={markImageFailed}
           />
         ))}
 
