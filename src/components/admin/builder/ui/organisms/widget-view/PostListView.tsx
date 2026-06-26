@@ -299,13 +299,14 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   if (variant === "ranked") {
     // Ranked list - no image, big translucent number on the right, title + "By <author>".
     const idxSize = getNum(c, "indexSizePx", 96);
-    const idxColor = getStr(c, "indexColor") || "rgb(35,31,32)";
-    const idxColorDark = getStr(c, "indexColorDark") || "rgb(250,147,70)";
+    // Empty widget color = fall back to global Theme Design tokens (--td-li-*).
+    const idxColor = getStr(c, "indexColor") || "var(--td-li-light, rgb(35,31,32))";
+    const idxColorDark = getStr(c, "indexColorDark") || "var(--td-li-dark, rgb(250,147,70))";
     const idxOpacity = (() => {
       const v = getNum(c, "indexOpacity", -1);
-      return v < 0 ? 0.18 : Math.max(0, Math.min(1, v));
+      return v < 0 ? "var(--td-li-opacity, 0.18)" : String(Math.max(0, Math.min(1, v)));
     })();
-    const idxWeight = getStr(c, "indexWeight") || "800";
+    const idxWeight = getStr(c, "indexWeight") || "var(--td-li-weight, 800)";
     const idxSide = (getStr(c, "indexSide") || "right") === "left" ? "left" : "right";
     return (
       <div
@@ -313,7 +314,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
         style={{
           "--pl-num-light": idxColor,
           "--pl-num-dark": idxColorDark,
-          "--pl-num-opacity": String(idxOpacity),
+          "--pl-num-opacity": idxOpacity,
         } as React.CSSProperties}
       >
         {rows.map((p, i) => (
