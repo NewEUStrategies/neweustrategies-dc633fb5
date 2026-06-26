@@ -2,7 +2,7 @@
 // canvas via `editable` + `onContentChange`). Used in the live preview inside
 // the builder canvas and on public pages. All user-authored strings (custom
 // CSS, ids, classes, html, urls) go through src/lib/sanitize.ts.
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
@@ -43,6 +43,7 @@ import {
 } from "@/lib/builder/sectionLabelVariants";
 import { SliderRender, type SliderVariant } from "@/lib/builder/sliderVariants";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { AppLink } from "@/components/atoms/AppLink";
 import {
   AnimatedHeadingRender,
   type AnimatedHeadingConfig,
@@ -99,7 +100,7 @@ function pickResponsiveValue<T>(
   return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
 }
 
-export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
+export const WidgetView = memo(function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
   const { theme } = useTheme();
   const builderMode = useBuilderMode();
   const effectiveMode = builderMode ?? theme;
@@ -287,7 +288,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       };
       const block = (
         <div className="space-y-1">
-          {href ? <a href={href} target={target} rel={target === "_blank" ? "noopener noreferrer" : undefined} className="hover:opacity-80 transition">{titleRow}</a> : titleRow}
+          {href ? <AppLink href={href} target={target} rel={target === "_blank" ? "noopener noreferrer" : undefined} className="hover:opacity-80 transition">{titleRow}</AppLink> : titleRow}
           {subtitle && (
             <p
               className={`text-sm text-muted-foreground${subtitleSizePx > 0 ? "" : ""}`}
@@ -342,7 +343,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const Icon = iconName ? (reg[iconName] ?? null) : null;
       const inner = canEdit
         ? <span className={cls}>{Icon && <Icon size={14} />}<Editable as="span" value={label} onCommit={(v) => commit(key, v)} placeholder="Etykieta…" /></span>
-        : <a href={href} target={target} rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{Icon && <Icon size={14} />}{label}</a>;
+        : <AppLink href={href} target={target} rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{Icon && <Icon size={14} />}{label}</AppLink>;
       return wrap(
         <ResizableBox
           enabled={canEdit}
@@ -380,7 +381,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         );
       }
       return wrap(
-        <a
+        <AppLink
           href={href}
           target={target}
           rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined}
@@ -388,7 +389,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         >
           {Cmp ? <Cmp size={14} /> : null}
           {label}
-        </a>,
+        </AppLink>,
       );
     }
     case "mega-menu": {
@@ -554,7 +555,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
       const ctaBtnCls = "inline-flex items-center justify-center w-full h-full bg-brand-foreground text-brand px-3.5 py-2 rounded font-medium text-xs leading-none";
       const ctaInner = canEdit
         ? <Editable as="span" value={cta} onCommit={(v) => commit(cKey, v)} className={ctaBtnCls} placeholder="Etykieta…" />
-        : <a href={href} className={`${ctaBtnCls} hover:opacity-90 transition`}>{cta}</a>;
+        : <AppLink href={href} className={`${ctaBtnCls} hover:opacity-90 transition`}>{cta}</AppLink>;
       const ctaBtn = (
         <ResizableBox
           enabled={canEdit}
@@ -663,7 +664,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
           {excerpt && <p className="mt-2 text-sm opacity-70">{excerpt}</p>}
         </div>
       );
-      return wrap(href ? <a href={href} className="block hover:opacity-95 transition">{card}</a> : card);
+      return wrap(href ? <AppLink href={href} className="block hover:opacity-95 transition">{card}</AppLink> : card);
     }
     case "ad-slot": {
       const slotId = getStr(c, "slotId");
@@ -672,5 +673,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     default:
       return null;
   }
-}
+});
+
+WidgetView.displayName = "WidgetView";
 

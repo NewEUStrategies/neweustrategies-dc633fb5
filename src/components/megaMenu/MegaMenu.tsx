@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "@/lib/lucide-shim";
 import { safeUrl, safeImageUrl } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
+import { AppLink } from "@/components/atoms/AppLink";
 
 export type MegaMenuLang = "pl" | "en";
 
@@ -81,7 +82,7 @@ export function MegaMenu({ config, lang, mobile = false }: Props) {
     lang === "pl" ? config.trigger_pl : config.trigger_en,
     config.trigger_pl,
   ) || (lang === "pl" ? "Menu" : "Menu");
-  const triggerHref = safeUrl(config.href ?? "");
+  const triggerHref = safeUrl(config.href ?? "", "");
   const columns = Array.isArray(config.columns) ? config.columns : [];
   const triggerOn = config.triggerOn ?? "hover";
   const panelId = useId();
@@ -113,7 +114,7 @@ export function MegaMenu({ config, lang, mobile = false }: Props) {
       <details className="group/mega border-b border-border last:border-0 w-full">
         <summary className="flex items-center justify-between gap-2 py-3 cursor-pointer list-none select-none text-sm font-bold tracking-wider uppercase">
           {triggerHref ? (
-            <a href={triggerHref} className="hover:text-brand transition flex-1">{trigger}</a>
+            <AppLink href={triggerHref} className="hover:text-brand transition flex-1">{trigger}</AppLink>
           ) : (
             <span className="flex-1">{trigger}</span>
           )}
@@ -152,20 +153,32 @@ export function MegaMenu({ config, lang, mobile = false }: Props) {
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <button
-        type="button"
-        className="inline-flex items-center gap-1.5 h-10 px-1 text-xs font-bold tracking-wider uppercase leading-none text-foreground hover:opacity-80 transition"
-        aria-haspopup="true"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => {
-          if (triggerOn === "click") setOpen((v) => !v);
-          else if (triggerHref) window.location.assign(triggerHref);
-        }}
-      >
-        {trigger}
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
+      {triggerHref && triggerOn !== "click" ? (
+        <AppLink
+          href={triggerHref}
+          className="inline-flex items-center gap-1.5 h-10 px-1 text-xs font-bold tracking-wider uppercase leading-none text-foreground hover:opacity-80 transition"
+          aria-haspopup="true"
+          aria-expanded={open}
+          aria-controls={panelId}
+        >
+          {trigger}
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        </AppLink>
+      ) : (
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 h-10 px-1 text-xs font-bold tracking-wider uppercase leading-none text-foreground hover:opacity-80 transition"
+          aria-haspopup="true"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => {
+            if (triggerOn === "click") setOpen((v) => !v);
+          }}
+        >
+          {trigger}
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+      )}
 
       {open && columns.length > 0 && (
         <div
@@ -209,7 +222,7 @@ function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang 
             if (!label) return null;
             return (
               <li key={i}>
-                <a
+                <AppLink
                   href={href}
                   className="block rounded-md px-2 py-1.5 -mx-2 hover:bg-muted transition"
                 >
@@ -217,7 +230,7 @@ function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang 
                   {desc && (
                     <span className="block text-xs text-muted-foreground mt-0.5">{desc}</span>
                   )}
-                </a>
+                </AppLink>
               </li>
             );
           })}
@@ -275,7 +288,7 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
             p.title_pl as string,
           ),
           cover: (p.cover_image_url as string | null) ?? "",
-          href: `/blog/${p.slug as string}`,
+          href: `/post/${p.slug as string}`,
         })),
         catName: pickLang(cat.name_pl as string, cat.name_en as string),
       };
@@ -292,9 +305,9 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
             {heading}
           </h4>
           {slug && (
-            <a href={viewAll} className="text-[10px] font-semibold text-brand hover:underline uppercase tracking-wider">
+            <AppLink href={viewAll} className="text-[10px] font-semibold text-brand hover:underline uppercase tracking-wider">
               {lang === "pl" ? "Zobacz" : "View all"} →
-            </a>
+            </AppLink>
           )}
         </div>
       )}
@@ -313,7 +326,7 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
         <ul className="grid grid-cols-2 gap-3">
           {data.posts.map((p) => (
             <li key={p.id}>
-              <a href={p.href} className="group block space-y-1.5">
+              <AppLink href={p.href} className="group block space-y-1.5">
                 <div className="aspect-[4/3] rounded-md overflow-hidden bg-muted">
                   {p.cover ? (
                     <img
@@ -328,7 +341,7 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
                 <div className="text-xs font-semibold text-foreground leading-snug line-clamp-3 group-hover:text-brand transition">
                   {p.title}
                 </div>
-              </a>
+              </AppLink>
             </li>
           ))}
         </ul>
@@ -392,7 +405,7 @@ function FeaturedCard({ featured, lang }: { featured: MegaMenuFeatured; lang: Me
     : "aspect-[16/10]";
   const placeholderStyle = f.placeholderColor ? { background: f.placeholderColor } : undefined;
   return (
-    <a href={href} className="block group rounded-lg overflow-hidden border border-border hover:border-brand transition">
+    <AppLink href={href} className="block group rounded-lg overflow-hidden border border-border hover:border-brand transition">
       {img && (
         <div className={`${aspectCls} overflow-hidden bg-muted relative`} style={placeholderStyle}>
           <img
@@ -411,7 +424,7 @@ function FeaturedCard({ featured, lang }: { featured: MegaMenuFeatured; lang: Me
         {excerpt && <div className="text-xs text-muted-foreground line-clamp-2">{excerpt}</div>}
         {cta && (<div className="text-xs font-semibold text-brand pt-1">{cta} →</div>)}
       </div>
-    </a>
+    </AppLink>
   );
 }
 
@@ -448,9 +461,9 @@ function MobileColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }
           if (!label) return null;
           return (
             <li key={i}>
-              <a href={href} className="block py-2 text-sm text-foreground hover:text-brand transition">
+              <AppLink href={href} className="block py-2 text-sm text-foreground hover:text-brand transition">
                 {label}
-              </a>
+              </AppLink>
             </li>
           );
         })}

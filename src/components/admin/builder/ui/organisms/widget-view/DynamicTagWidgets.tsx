@@ -2,7 +2,7 @@
 // in a structural, non-HTML way. Falls back to placeholder data in the
 // admin canvas so authors see realistic previews.
 import { createElement, type ReactElement } from "react";
-import { Link } from "@tanstack/react-router";
+import { AppLink } from "@/components/atoms/AppLink";
 import type { WidgetNode } from "@/lib/builder/types";
 import { useCurrentPostCtx, PLACEHOLDER_POST_CTX, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { sanitizeHtml, safeUrl } from "@/lib/sanitize";
@@ -53,7 +53,7 @@ export function PostTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }
     || (lang === "en" ? getStr(c, "fallback_en", "Post title") : getStr(c, "fallback_pl", "Tytuł wpisu"));
   const linkToPost = getBool(c, "linkToPost", false);
   const inner = linkToPost && ctx.slug
-    ? <a href={`/${ctx.slug}`} className="hover:text-brand transition">{title}</a>
+    ? <AppLink href={`/${ctx.slug}`} className="hover:text-brand transition">{title}</AppLink>
     : title;
   return createElement(tag, { className: "cms-post-title leading-tight" }, inner);
 }
@@ -65,11 +65,11 @@ export function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang })
   const dateFmt = getStr(c, "dateFormat", "long");
   const parts: ReactElement[] = [];
   if (getBool(c, "showAuthor", true) && ctx.author?.name) {
-    parts.push(<span key="a" className="inline-flex items-center gap-1.5"><UserIcon className="w-3.5 h-3.5" />{ctx.author.slug ? <a href={`/author/${ctx.author.slug}`} className="hover:text-brand">{ctx.author.name}</a> : ctx.author.name}</span>);
+    parts.push(<span key="a" className="inline-flex items-center gap-1.5"><UserIcon className="w-3.5 h-3.5" />{ctx.author.slug ? <AppLink href={`/author/${ctx.author.slug}`} className="hover:text-brand">{ctx.author.name}</AppLink> : ctx.author.name}</span>);
   }
   if (getBool(c, "showCategory", true) && ctx.categories?.[0]) {
     const cat = ctx.categories[0];
-    parts.push(<a key="c" href={`/category/${cat.slug}`} className="hover:text-brand uppercase tracking-wider text-[11px] font-bold">{cat.name}</a>);
+    parts.push(<AppLink key="c" href={`/category/${cat.slug}`} className="hover:text-brand uppercase tracking-wider text-[11px] font-bold">{cat.name}</AppLink>);
   }
   if (getBool(c, "showDate", true) && ctx.publishedAt) {
     parts.push(<time key="d" dateTime={ctx.publishedAt}>{fmtDate(ctx.publishedAt, lang, dateFmt)}</time>);
@@ -98,9 +98,9 @@ function PillList({ items, base }: { items: Array<{ slug: string; name: string }
     <ul className="flex flex-wrap gap-2 list-none p-0 m-0">
       {items.map((t) => (
         <li key={t.slug}>
-          <a href={`/${base}/${t.slug}`} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-muted hover:bg-brand hover:text-brand-foreground transition">
+          <AppLink href={`/${base}/${t.slug}`} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-muted hover:bg-brand hover:text-brand-foreground transition">
             {t.name}
-          </a>
+          </AppLink>
         </li>
       ))}
     </ul>
@@ -147,7 +147,7 @@ export function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: L
       <div className="flex-1 min-w-0">
         <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">{lang === "en" ? "Author" : "Autor"}</div>
         <div className="cms-post-title">
-          {a.slug ? <a href={`/author/${a.slug}`} className="hover:text-brand">{a.name}</a> : a.name}
+          {a.slug ? <AppLink href={`/author/${a.slug}`} className="hover:text-brand">{a.name}</AppLink> : a.name}
         </div>
         {getBool(c, "showBio", true) && bio && <p className="text-sm text-muted-foreground mt-1.5">{bio}</p>}
       </div>
@@ -172,7 +172,7 @@ export function PostBreadcrumbsWidget({ node, lang }: { node: WidgetNode; lang: 
           return (
             <li key={`${i}-${b.label}`} className="inline-flex items-center gap-1.5">
               {i > 0 && (sep === "/" ? <span aria-hidden className="opacity-60">/</span> : <ChevronRight className="w-3.5 h-3.5 opacity-60" />)}
-              {b.href && !isLast ? <a href={b.href} className="hover:text-brand transition">{b.label}</a> : <span aria-current={isLast ? "page" : undefined} className={isLast ? "text-foreground font-medium" : ""}>{b.label}</span>}
+              {b.href && !isLast ? <AppLink href={b.href} className="hover:text-brand transition">{b.label}</AppLink> : <span aria-current={isLast ? "page" : undefined} className={isLast ? "text-foreground font-medium" : ""}>{b.label}</span>}
             </li>
           );
         })}
@@ -272,7 +272,5 @@ export function DynamicTagWidget({ node, lang }: { node: WidgetNode; lang: Lang 
   }
 }
 
-// Avoid an unused import warning if Link tree-shakes out.
-export const __keepLink = Link;
 // sanitizeHtml is imported for parity with sibling files; suppress unused
 export const __keepSanitize = sanitizeHtml;

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { memo } from "react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { defaultDocFor } from "@/lib/builder/chromeDefaults";
@@ -13,7 +14,7 @@ type FooterSettings = {
   chrome?: Partial<FooterChrome>;
 };
 
-export function Footer() {
+export const Footer = memo(function Footer() {
   const { i18n } = useTranslation();
   const isPl = (i18n.language ?? "pl").startsWith("pl");
 
@@ -43,4 +44,6 @@ export function Footer() {
       {chromeCfg.back_to_top ? <BackToTop thresholdPx={chromeCfg.back_to_top_threshold_px} /> : null}
     </>
   );
-}
+});
+
+Footer.displayName = "Footer";

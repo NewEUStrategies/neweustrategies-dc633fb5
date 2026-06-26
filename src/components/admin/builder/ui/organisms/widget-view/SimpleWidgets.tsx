@@ -26,6 +26,7 @@ import { DynamicTagWidget } from "./DynamicTagWidgets";
 import { ContactFormView } from "@/components/blocks/ContactFormView";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
+import { AppLink } from "@/components/atoms/AppLink";
 
 type AuthCfg = Record<string, unknown>;
 function AuthFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
@@ -156,14 +157,14 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
   const isExternal = /^https?:\/\//i.test(href);
   const linkedImg = href
     ? (
-      <a
+      <AppLink
         href={href}
         {...(isExternal ? { target: "_blank", rel: "noopener noreferrer" } : null)}
         className="block"
         aria-label={alt || undefined}
       >
         {framedImgEl}
-      </a>
+      </AppLink>
     )
     : framedImgEl;
   return (
@@ -412,8 +413,8 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang, height, 
               <ul className="divide-y divide-border/70">
                 {results.map((r) => (
                   <li key={r.id}>
-                    <a
-                      href={`/posts/${r.slug}`}
+                    <AppLink
+                      href={`/post/${r.slug}`}
                       onClick={() => setFocused(false)}
                       className="block px-4 py-3 transition-colors hover:bg-muted/50"
                     >
@@ -421,7 +422,7 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang, height, 
                       {r.excerpt && (
                         <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{r.excerpt}</div>
                       )}
-                    </a>
+                    </AppLink>
                   </li>
                 ))}
               </ul>
@@ -625,7 +626,7 @@ export function renderSimpleWidget(
             };
             const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-80" : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
             return active ? (
-              <a key={k} href={safeUrl(href)} aria-label={label} className={cls} style={style}><Cmp size={size} /></a>
+              <AppLink key={k} href={safeUrl(href)} aria-label={label} className={cls} style={style}><Cmp size={size} /></AppLink>
             ) : (
               <span key={k} aria-label={`${label} (brak linku)`} className={cls} style={style}><Cmp size={size} /></span>
             );
@@ -643,7 +644,7 @@ export function renderSimpleWidget(
             };
             const cls = `inline-flex items-center justify-center ${radiusCls} transition-colors shrink-0 ${active ? "hover:opacity-80" : "cursor-not-allowed"} ${!bg ? "hover:bg-muted/40" : ""}`;
             return active ? (
-              <a href={`mailto:${email}`} aria-label="Email" className={cls} style={style}><MailIcon size={size} /></a>
+              <AppLink href={`mailto:${email}`} aria-label="Email" className={cls} style={style}><MailIcon size={size} /></AppLink>
             ) : (
               <span aria-label="Email (brak)" className={cls} style={style}><MailIcon size={size} /></span>
             );
@@ -670,11 +671,11 @@ export function renderSimpleWidget(
       const signup = getStr(c, `signup_${lang}`) || getStr(c, "signup_pl") || "Zarejestruj";
       return (
         <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-none max-w-full" style={compactRowStyle}>
-          <a href="/login" className="inline-flex h-7 items-center gap-1 whitespace-nowrap text-foreground hover:opacity-80 transition-colors">
+          <AppLink href="/login" className="inline-flex h-7 items-center gap-1 whitespace-nowrap text-foreground hover:opacity-80 transition-colors">
             <LucideIcons.LogIn className="w-3 h-3" /> {signin}
-          </a>
+          </AppLink>
           <span className="text-muted-foreground/40" aria-hidden>|</span>
-          <a href="/login?mode=signup" className="inline-flex h-7 items-center whitespace-nowrap text-brand hover:underline">{signup}</a>
+          <AppLink href="/login?mode=signup" className="inline-flex h-7 items-center whitespace-nowrap text-brand hover:underline">{signup}</AppLink>
         </span>
       );
     }
@@ -980,7 +981,7 @@ export function renderSimpleWidget(
                     <li key={j} className="flex items-start gap-2"><span className="text-brand mt-0.5">✓</span>{f}</li>
                   ))}
                 </ul>
-                <a href={href} className={`text-center px-4 py-2 rounded font-medium text-sm ${featured ? "bg-brand text-brand-foreground" : "border border-border hover:bg-muted"}`}>{cta}</a>
+                <AppLink href={href} className={`text-center px-4 py-2 rounded font-medium text-sm ${featured ? "bg-brand text-brand-foreground" : "border border-border hover:bg-muted"}`}>{cta}</AppLink>
               </div>
             );
           })}
@@ -1029,7 +1030,7 @@ export function renderSimpleWidget(
       );
       return (
         <div className="border-y border-border bg-muted/40 py-3 px-4">
-          {href ? <a href={href} className="block hover:opacity-90 transition">{inner}</a> : inner}
+          {href ? <AppLink href={href} className="block hover:opacity-90 transition">{inner}</AppLink> : inner}
         </div>
       );
     }

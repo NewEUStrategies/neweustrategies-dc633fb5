@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
+import { AppLink } from "@/components/atoms/AppLink";
 
 type Lang = "pl" | "en";
 
@@ -110,12 +111,12 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
     >
       {items.map((p, i) => (
         <span key={`${p.id}-${i}`} className="inline-flex items-center gap-3 shrink-0">
-          <a
+          <AppLink
             href={`/post/${p.slug}`}
             className="cms-post-title whitespace-nowrap"
           >
             {title(p)}
-          </a>
+          </AppLink>
           <span aria-hidden className="text-muted-foreground/70 select-none">{separator}</span>
         </span>
       ))}

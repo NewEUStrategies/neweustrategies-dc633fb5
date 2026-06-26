@@ -10,6 +10,7 @@ import type { WidgetContent } from "@/lib/builder/types";
 import { getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
+import { AppLink } from "@/components/atoms/AppLink";
 import { readThumbnailOverrides } from "@/lib/builder/thumbnailOverrides";
 import { postListInput, postListQueryOptions, type Lang, type PostRow } from "@/lib/builder/postListQuery";
 
@@ -152,7 +153,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     return (
       <div className="w-full flex flex-col divide-y divide-border">
         {rows.map((p) => (
-          <a
+          <AppLink
             key={p.id}
             href={`/post/${p.slug}`}
             className={`grid ${p.cover_image_url ? "grid-cols-[112px_minmax(0,1fr)] sm:grid-cols-[128px_minmax(0,1fr)]" : "grid-cols-1"} items-start gap-3 sm:gap-4 py-3 group`}
@@ -180,7 +181,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                 </p>
               )}
             </div>
-          </a>
+          </AppLink>
         ))}
       </div>
     );
@@ -219,7 +220,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
         } as React.CSSProperties}
       >
         {rows.map((p, i) => (
-          <a
+          <AppLink
             key={p.id}
             href={`/post/${p.slug}`}
             className="block py-4 sm:py-5 group"
@@ -260,7 +261,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                 )}
               </div>
             </div>
-          </a>
+          </AppLink>
         ))}
       </div>
     );
@@ -307,7 +308,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
         } as React.CSSProperties}
       >
         {rows.map((p, i) => (
-          <a
+          <AppLink
             key={p.id}
             href={`/post/${p.slug}`}
             className={`grid items-start gap-3 sm:gap-4 py-4 sm:py-5 group ${
@@ -362,7 +363,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
             )}
 
 
-          </a>
+          </AppLink>
         ))}
       </div>
     );
@@ -402,31 +403,31 @@ function PostCard({
 
   if (variant === "overlay" && p.cover_image_url) {
     return (
-      <a href={`/post/${p.slug}`} className={`relative block rounded-md overflow-hidden ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
+      <AppLink href={`/post/${p.slug}`} className={`relative block rounded-md overflow-hidden ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
         <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={overlayFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-3 text-white">
           <h4 className="cms-post-title leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
         </div>
-      </a>
+      </AppLink>
     );
   }
 
   if (variant === "minimal") {
     return (
-      <a href={`/post/${p.slug}`} className={`block group ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
+      <AppLink href={`/post/${p.slug}`} className={`block group ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
         {p.cover_image_url && (
           <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-sm mb-3`} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
         )}
         <h4 className="cms-post-title leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
         {excerpt && <p className="text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug" style={excerptStyle}>{excerpt}</p>}
-      </a>
+      </AppLink>
     );
   }
 
   // default - card
   return (
-    <a href={`/post/${p.slug}`} className={base}>
+    <AppLink href={`/post/${p.slug}`} className={base}>
       {p.cover_image_url && (
         <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={tileFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
       )}
@@ -434,6 +435,6 @@ function PostCard({
         <h4 className="cms-post-title leading-snug mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>
         {excerpt && <p className="text-[13px] text-muted-foreground leading-snug line-clamp-2" style={excerptStyle}>{excerpt}</p>}
       </div>
-    </a>
+    </AppLink>
   );
 }

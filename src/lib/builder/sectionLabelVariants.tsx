@@ -1,6 +1,7 @@
 // Shared variants for the "section-label" widget.
 // Used by both the live renderer (WidgetView) and the visual picker (WidgetProperties).
 import * as React from "react";
+import { AppLink } from "@/components/atoms/AppLink";
 
 export type SectionLabelVariant =
   | "left-bar"
@@ -84,7 +85,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
 
   const ActionEl = action ? (
     href && !isSm
-      ? <a href={href} className={`${actionCls} shrink-0`} style={{ color: actionColor || accent, ...actionStyle }}>{action} →</a>
+      ? <AppLink href={href} className={`${actionCls} shrink-0`} style={{ color: actionColor || accent, ...actionStyle }}>{action} →</AppLink>
       : <span className={`${actionCls} shrink-0`} style={actionStyle}>{action} →</span>
   ) : null;
 
@@ -186,7 +187,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
           <span className={`${labelCls} min-w-0 flex-1`} style={labelSize && !isSm ? { fontSize: labelSize } : undefined}>{label}</span>
           {action && (
             href && !isSm
-              ? <a href={href} className={actCls} style={{ color: actionColor || fg, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action} →</a>
+              ? <AppLink href={href} className={actCls} style={{ color: actionColor || fg, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action} →</AppLink>
               : <span className={actCls} style={{ color: actionColor || fg, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action} →</span>
           )}
         </div>
@@ -232,7 +233,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
                 style={{ paddingLeft: isSm ? 4 : 12, paddingRight: isSm ? 4 : 8 }}
               >
                 {href && !isSm
-                  ? <a href={href} className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</a>
+                  ? <AppLink href={href} className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</AppLink>
                   : <span className={actCls} style={{ color: actionColor, ...(actionSize && !isSm ? { fontSize: actionSize } : {}) }}>{action}</span>}
               </span>
             )}
