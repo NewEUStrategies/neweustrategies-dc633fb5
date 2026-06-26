@@ -27,6 +27,7 @@ import { Route as TagSlugRouteImport } from './routes/tag.$slug'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
+import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
 import { Route as ProfileBillingRouteImport } from './routes/profile.billing'
 import { Route as ProfileAccountRouteImport } from './routes/profile.account'
 import { Route as PostSlugRouteImport } from './routes/post.$slug'
@@ -171,6 +172,11 @@ const ProfileSecurityRoute = ProfileSecurityRouteImport.update({
 const ProfileOrdersRoute = ProfileOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileInterestsRoute = ProfileInterestsRouteImport.update({
+  id: '/interests',
+  path: '/interests',
   getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileBillingRoute = ProfileBillingRouteImport.update({
@@ -497,6 +503,7 @@ export interface FileRoutesByFullPath {
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/billing': typeof ProfileBillingRoute
+  '/profile/interests': typeof ProfileInterestsRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
@@ -569,6 +576,7 @@ export interface FileRoutesByTo {
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/billing': typeof ProfileBillingRoute
+  '/profile/interests': typeof ProfileInterestsRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
@@ -645,6 +653,7 @@ export interface FileRoutesById {
   '/post/$slug': typeof PostSlugRoute
   '/profile/account': typeof ProfileAccountRoute
   '/profile/billing': typeof ProfileBillingRoute
+  '/profile/interests': typeof ProfileInterestsRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
@@ -722,6 +731,7 @@ export interface FileRouteTypes {
     | '/post/$slug'
     | '/profile/account'
     | '/profile/billing'
+    | '/profile/interests'
     | '/profile/orders'
     | '/profile/security'
     | '/profile/subscription'
@@ -794,6 +804,7 @@ export interface FileRouteTypes {
     | '/post/$slug'
     | '/profile/account'
     | '/profile/billing'
+    | '/profile/interests'
     | '/profile/orders'
     | '/profile/security'
     | '/profile/subscription'
@@ -869,6 +880,7 @@ export interface FileRouteTypes {
     | '/post/$slug'
     | '/profile/account'
     | '/profile/billing'
+    | '/profile/interests'
     | '/profile/orders'
     | '/profile/security'
     | '/profile/subscription'
@@ -1054,6 +1066,13 @@ declare module '@tanstack/react-router' {
       path: '/orders'
       fullPath: '/profile/orders'
       preLoaderRoute: typeof ProfileOrdersRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/interests': {
+      id: '/profile/interests'
+      path: '/interests'
+      fullPath: '/profile/interests'
+      preLoaderRoute: typeof ProfileInterestsRouteImport
       parentRoute: typeof ProfileRoute
     }
     '/profile/billing': {
@@ -1577,6 +1596,7 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 interface ProfileRouteChildren {
   ProfileAccountRoute: typeof ProfileAccountRoute
   ProfileBillingRoute: typeof ProfileBillingRoute
+  ProfileInterestsRoute: typeof ProfileInterestsRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
   ProfileSecurityRoute: typeof ProfileSecurityRoute
   ProfileSubscriptionRoute: typeof ProfileSubscriptionRoute
@@ -1586,6 +1606,7 @@ interface ProfileRouteChildren {
 const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileAccountRoute: ProfileAccountRoute,
   ProfileBillingRoute: ProfileBillingRoute,
+  ProfileInterestsRoute: ProfileInterestsRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,
   ProfileSecurityRoute: ProfileSecurityRoute,
   ProfileSubscriptionRoute: ProfileSubscriptionRoute,

@@ -589,6 +589,25 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "1/1", label: "Kwadrat" },
       ] },
   ],
+  "join-us": [
+    { key: "variant", type: "select", label: "Wariant", options: [
+      { value: "card", label: "karta" },
+      { value: "split", label: "split (lewo: korzyści, prawo: formularz)" },
+      { value: "inline", label: "inline" },
+    ]},
+    { key: "showInterests", type: "select", label: "Pokaż wybór zainteresowań",
+      options: [ { value: "1", label: "tak" }, { value: "0", label: "nie" } ] },
+    { key: "title", type: "i18nText", label: "Tytuł (opcjonalny - zastępuje domyślny)" },
+    { key: "subtitle", type: "i18nText", label: "Podtytuł (opcjonalny)" },
+  ],
+  "customize-interests": [
+    { key: "variant", type: "select", label: "Wariant", options: [
+      { value: "full", label: "pełny" },
+      { value: "compact", label: "kompaktowy" },
+    ]},
+    { key: "showHeader", type: "select", label: "Pokaż nagłówek",
+      options: [ { value: "1", label: "tak" }, { value: "0", label: "nie" } ] },
+  ],
 };
 
 

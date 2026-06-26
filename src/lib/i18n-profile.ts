@@ -9,6 +9,7 @@ const pl = {
     nav: {
       overview: "Przegląd",
       account: "Konto",
+      interests: "Zainteresowania",
       billing: "Dane rozliczeniowe",
       subscription: "Subskrypcja",
       orders: "Historia płatności",
@@ -150,6 +151,7 @@ const en: typeof pl = {
     nav: {
       overview: "Overview",
       account: "Account",
+      interests: "Interests",
       billing: "Billing details",
       subscription: "Subscription",
       orders: "Payment history",
