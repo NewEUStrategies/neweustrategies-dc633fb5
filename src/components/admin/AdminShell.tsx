@@ -187,11 +187,11 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
                         title={label}
                         data-sidebar="menu-button"
                         data-active={active ? "true" : "false"}
-                        className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] leading-tight transition ${
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] leading-tight transition ${
                           active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted"
                         }`}
                       >
-                        <Icon className="w-3.5 h-3.5 shrink-0" />
+                        <Icon className="w-3 h-3 shrink-0" />
                         <span className={`truncate ${compact ? "hidden" : ""}`}>{label}</span>
                       </Link>
                     );
