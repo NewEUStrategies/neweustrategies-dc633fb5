@@ -33,7 +33,7 @@ const listFrame = (a: ImageAspect) => `relative block ${ASPECT_CLASS[a]} w-[112p
 
 type Lang = "pl" | "en";
 
-type Variant = "card" | "minimal" | "overlay" | "list" | "numbered";
+type Variant = "card" | "minimal" | "overlay" | "list" | "numbered" | "ranked";
 
 interface PostRow {
   id: string;
