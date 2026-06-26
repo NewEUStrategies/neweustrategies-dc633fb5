@@ -19,19 +19,36 @@ type SettingsMap = Readonly<Record<string, unknown>>;
 
 const SETTINGS_QUERY_KEY = ["site_settings_public", "all"] as const;
 
+// Edge / SSR persistent cache. The TanStack Start QueryClient is created
+// per-request (correctly, to avoid cross-tenant leakage), so without this
+// module-level memo every SSR navigation would re-hit site_settings. The
+// cache lives in the Worker isolate, is automatically dropped on cold start,
+// and is short-lived enough to pick up admin edits within ~60s.
+const SSR_TTL_MS = 60_000;
+let ssrCache: { at: number; data: SettingsMap } | null = null;
+
 async function fetchAllSiteSettings(): Promise<SettingsMap> {
+  const isServer = typeof window === "undefined";
+  if (isServer && ssrCache && Date.now() - ssrCache.at < SSR_TTL_MS) {
+    return ssrCache.data;
+  }
   const { data, error } = await supabase.from("site_settings").select("key,value");
   if (error) throw error;
   const map: Record<string, unknown> = {};
   for (const row of data ?? []) map[row.key] = row.value;
-  return map;
+  const frozen = Object.freeze(map) as SettingsMap;
+  if (isServer) ssrCache = { at: Date.now(), data: frozen };
+  return frozen;
 }
 
 export const siteSettingsQueryOptions = {
   queryKey: SETTINGS_QUERY_KEY,
   queryFn: fetchAllSiteSettings,
-  staleTime: 5 * 60_000,
-  gcTime: 30 * 60_000,
+  // Long staleTime: site_settings rarely change; this query also feeds the
+  // header, footer, navigation and alert bar, so a single fetch covers every
+  // layout chunk for the whole session.
+  staleTime: 10 * 60_000,
+  gcTime: 60 * 60_000,
 } as const;
 
 /** Prefetch all site_settings from a route loader (server-friendly). */
