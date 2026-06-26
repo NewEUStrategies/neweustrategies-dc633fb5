@@ -306,6 +306,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
       return v < 0 ? 0.18 : Math.max(0, Math.min(1, v));
     })();
     const idxWeight = getStr(c, "indexWeight") || "800";
+    const idxSide = (getStr(c, "indexSide") || "right") === "left" ? "left" : "right";
     return (
       <div
         className="w-full flex flex-col divide-y divide-border"
@@ -319,11 +320,11 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
           <a
             key={p.id}
             href={`/post/${p.slug}`}
-            className="relative isolate overflow-hidden flex items-start gap-3 py-4 sm:py-5 pr-2 group"
+            className="relative isolate overflow-hidden block py-4 sm:py-5 group"
           >
-            <div className="min-w-0 flex-1 text-left relative z-10">
+            <div className="min-w-0 w-full text-left relative z-10">
               <h4
-                className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition pr-[28%]"
+                className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
                 style={tStyle}
               >
                 {title(p)}
@@ -342,12 +343,12 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                 ["--pl-num-fs" as string]: `min(${idxSize}px, 26vw)`,
                 fontWeight: idxWeight as React.CSSProperties["fontWeight"],
                 position: "absolute",
-                right: "0.25rem",
+                [idxSide]: "0.25rem",
                 top: "50%",
                 transform: "translateY(-50%)",
                 pointerEvents: "none",
                 zIndex: 0,
-              }}
+              } as React.CSSProperties}
             >
               {String(i + 1).padStart(2, "0")}
             </span>
