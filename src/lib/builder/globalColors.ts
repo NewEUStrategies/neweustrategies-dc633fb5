@@ -744,9 +744,9 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
       /* Link styling is scoped to CMS prose only (article/post body),
          so links inside widgets, cards, navigation and chrome render as
          plain text and inherit the surrounding color. */
-      :where(.article-body a:not(.btn):not([class*="button"]), .prose a:not(.btn):not([class*="button"]), [data-cms-prose] a:not(.btn):not([class*="button"])){color:var(--gc-link, var(--gc-highlight, inherit));font-family:var(--gc-link-font, inherit);font-size:var(--gc-link-size, inherit);font-weight:var(--gc-link-weight, inherit);font-style:var(--gc-link-style, inherit);text-decoration:var(--gc-link-decoration, inherit);}
-      :where(.article-body a:not(.btn):not([class*="button"]):hover, .prose a:not(.btn):not([class*="button"]):hover, [data-cms-prose] a:not(.btn):not([class*="button"]):hover){color:var(--gc-link-hover, var(--gc-link, inherit));}
-      :where(.article-body a:not(.btn):not([class*="button"])[aria-current="page"], .article-body a:not(.btn):not([class*="button"]).active, .prose a:not(.btn):not([class*="button"])[aria-current="page"], .prose a:not(.btn):not([class*="button"]).active, [data-cms-prose] a:not(.btn):not([class*="button"])[aria-current="page"], [data-cms-prose] a:not(.btn):not([class*="button"]).active){color:var(--gc-link-active, var(--gc-link-hover, var(--gc-link, inherit)));}
+      :where(.article-body a:not(.btn):not([class*="button"]), [data-cms-prose] a:not(.btn):not([class*="button"])){color:var(--gc-link, var(--gc-highlight, inherit));font-family:var(--gc-link-font, inherit);font-size:var(--gc-link-size, inherit);font-weight:var(--gc-link-weight, inherit);font-style:var(--gc-link-style, inherit);text-decoration:var(--gc-link-decoration, inherit);}
+      :where(.article-body a:not(.btn):not([class*="button"]):hover, [data-cms-prose] a:not(.btn):not([class*="button"]):hover){color:var(--gc-link-hover, var(--gc-link, inherit));}
+      :where(.article-body a:not(.btn):not([class*="button"])[aria-current="page"], .article-body a:not(.btn):not([class*="button"]).active, [data-cms-prose] a:not(.btn):not([class*="button"])[aria-current="page"], [data-cms-prose] a:not(.btn):not([class*="button"]).active){color:var(--gc-link-active, var(--gc-link-hover, var(--gc-link, inherit)));}
     }
     :where(.highlight, .text-brand, [data-highlight]){color:var(--gc-highlight, inherit);}
     :where(.highlight:hover, .text-brand:hover, [data-highlight]:hover){color:var(--gc-highlight-hover, var(--gc-highlight, inherit));}
