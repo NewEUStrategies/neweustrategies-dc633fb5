@@ -689,7 +689,7 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(.rl-wrap .rl-format){color:var(--gc-highlight, currentColor);}
     :where(.rl-wrap .rl-bookmark){color:var(--gc-bookmark-hover, currentColor);}
     :where(.rl-wrap .rl-read-more){color:var(--gc-highlight, currentColor);}
-    :where(main a, article a, .content a, .link){color:var(--gc-highlight, inherit);}
+    :where(.article-body a, .prose a, [data-cms-prose] a){color:var(--gc-highlight, inherit);}
     :where(.review-star-bg){background:var(--gc-review-bg, transparent);}
     :where(.review-star-icon){color:var(--gc-review-icon, currentColor);}
     :where(.sponsor-label){color:var(--gc-sponsor-label, currentColor);font-family:var(--gc-sponsor-label-font, inherit);font-size:var(--gc-sponsor-label-size, inherit);font-weight:var(--gc-sponsor-label-weight, inherit);font-style:var(--gc-sponsor-label-style, inherit);text-decoration:var(--gc-sponsor-label-decoration, inherit);}
@@ -734,9 +734,12 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
       :where(main h6, article h6){color:var(--gc-h6, inherit);font-family:var(--gc-h6-font, inherit);font-size:var(--gc-h6-size, inherit);font-weight:var(--gc-h6-weight, inherit);font-style:var(--gc-h6-style, inherit);text-decoration:var(--gc-h6-decoration, inherit);}
       :where(main p, article p, main li, article li){color:var(--gc-body-text, inherit);font-family:var(--gc-body-text-font, inherit);font-size:var(--gc-body-text-size, inherit);font-weight:var(--gc-body-text-weight, inherit);font-style:var(--gc-body-text-style, inherit);text-decoration:var(--gc-body-text-decoration, inherit);}
       :where(main small, article small, .text-muted, .muted){color:var(--gc-body-text-muted, inherit);font-family:var(--gc-body-text-muted-font, inherit);font-size:var(--gc-body-text-muted-size, inherit);font-weight:var(--gc-body-text-muted-weight, inherit);font-style:var(--gc-body-text-muted-style, inherit);text-decoration:var(--gc-body-text-muted-decoration, inherit);}
-      :where(main a:not(.btn):not([class*="button"]), article a:not(.btn):not([class*="button"])){color:var(--gc-link, var(--gc-highlight, inherit));font-family:var(--gc-link-font, inherit);font-size:var(--gc-link-size, inherit);font-weight:var(--gc-link-weight, inherit);font-style:var(--gc-link-style, inherit);text-decoration:var(--gc-link-decoration, inherit);}
-      :where(main a:not(.btn):not([class*="button"]):hover, article a:not(.btn):not([class*="button"]):hover){color:var(--gc-link-hover, var(--gc-link, inherit));}
-      :where(main a:not(.btn):not([class*="button"])[aria-current="page"], article a:not(.btn):not([class*="button"])[aria-current="page"], main a:not(.btn):not([class*="button"]).active, article a:not(.btn):not([class*="button"]).active){color:var(--gc-link-active, var(--gc-link-hover, var(--gc-link, inherit)));}
+      /* Link styling is scoped to CMS prose only (article/post body),
+         so links inside widgets, cards, navigation and chrome render as
+         plain text and inherit the surrounding color. */
+      :where(.article-body a:not(.btn):not([class*="button"]), .prose a:not(.btn):not([class*="button"]), [data-cms-prose] a:not(.btn):not([class*="button"])){color:var(--gc-link, var(--gc-highlight, inherit));font-family:var(--gc-link-font, inherit);font-size:var(--gc-link-size, inherit);font-weight:var(--gc-link-weight, inherit);font-style:var(--gc-link-style, inherit);text-decoration:var(--gc-link-decoration, inherit);}
+      :where(.article-body a:not(.btn):not([class*="button"]):hover, .prose a:not(.btn):not([class*="button"]):hover, [data-cms-prose] a:not(.btn):not([class*="button"]):hover){color:var(--gc-link-hover, var(--gc-link, inherit));}
+      :where(.article-body a:not(.btn):not([class*="button"])[aria-current="page"], .article-body a:not(.btn):not([class*="button"]).active, .prose a:not(.btn):not([class*="button"])[aria-current="page"], .prose a:not(.btn):not([class*="button"]).active, [data-cms-prose] a:not(.btn):not([class*="button"])[aria-current="page"], [data-cms-prose] a:not(.btn):not([class*="button"]).active){color:var(--gc-link-active, var(--gc-link-hover, var(--gc-link, inherit)));}
     }
     :where(.highlight, .text-brand, [data-highlight]){color:var(--gc-highlight, inherit);}
     :where(.highlight:hover, .text-brand:hover, [data-highlight]:hover){color:var(--gc-highlight-hover, var(--gc-highlight, inherit));}
