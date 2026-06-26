@@ -32,7 +32,7 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
   const source = getStr(c, "source") || "manual";
   const numFont = getStr(c, "numberFont") || "display";
   const numWeight = getStr(c, "numberWeight") || "700";
-  const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 48;
+  const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 52;
   const numColor = getStr(c, "numberColor") || "#000000";
   const numColorDarkRaw = getStr(c, "numberColorDark");
   const numColorDark = numColorDarkRaw || autoInvertColor(numColor, "dark");

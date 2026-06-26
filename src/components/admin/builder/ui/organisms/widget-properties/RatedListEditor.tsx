@@ -25,7 +25,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
 
   const numFont = typeof c.numberFont === "string" ? c.numberFont : "display";
   const numWeight = typeof c.numberWeight === "string" ? c.numberWeight : "700";
-  const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 48;
+  const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 52;
   const numColor = typeof c.numberColor === "string" ? c.numberColor : "#000000";
   const numColorDark = typeof c.numberColorDark === "string" ? c.numberColorDark : "#ffffff";
   const numOpacity = typeof c.numberOpacity === "number" ? c.numberOpacity : 0.05;

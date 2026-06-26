@@ -582,7 +582,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 /* ===== Unified post title / excerpt across every widget ===== */
 .cms-post-title {
   font-family: var(--td-pt-family, "Red Hat Display", system-ui, sans-serif);
-  font-size: var(--td-pt-size, 18px);
+  font-size: var(--td-pt-size, 15px);
   font-weight: var(--td-pt-weight, 600);
   line-height: var(--td-pt-lh, 1.3);
   color: var(--td-pt-color, hsl(var(--foreground)));
@@ -598,7 +598,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   transition: color .2s ease, text-decoration-color .35s ease;
 }
 @media (max-width: 640px) {
-  .cms-post-title { font-size: var(--td-pt-size-sm, 16px); }
+  .cms-post-title { font-size: var(--td-pt-size-sm, 14px); }
 }
 .group:hover .cms-post-title,
 a:hover .cms-post-title,
