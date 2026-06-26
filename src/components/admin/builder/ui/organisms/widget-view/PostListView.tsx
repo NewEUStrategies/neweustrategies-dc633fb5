@@ -124,8 +124,9 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
       dateFrom, dateTo, popularDays, usedSnapshot },
   ] as const;
 
-  const { data } = useQuery<PostRow[]>({
+  const { data, isPending, isFetching } = useQuery<PostRow[]>({
     queryKey,
+
     queryFn: async () => {
       // Resolve include/exclude ID sets from taxonomy filters first.
       const [incCatIds, incTagIds, excCatIds, excTagIds] = await Promise.all([
