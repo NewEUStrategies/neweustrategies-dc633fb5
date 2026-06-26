@@ -11,7 +11,7 @@ import { Suspense, useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import "../lib/i18n";
+import i18n, { syncI18nToRequest } from "../lib/i18n";
 import "../lib/i18n-profile";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { AuthProvider } from "../hooks/useAuth";
@@ -140,7 +140,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   // backs Header, Footer, navigation menus, AlertBar and CopyrightBar - one
   // round-trip on the edge hydrates every layout chunk so chrome renders
   // in lockstep with the route body instead of popping in after hydration.
-  loader: ({ context }) => context.queryClient.ensureQueryData(siteSettingsQueryOptions),
+  loader: async ({ context }) => {
+    await syncI18nToRequest();
+    return context.queryClient.ensureQueryData(siteSettingsQueryOptions);
+  },
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -150,8 +153,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark';document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`;
 
 function RootShell({ children }: { children: ReactNode }) {
+  const lang = i18n.language === "en" ? "en" : "pl";
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={lang} suppressHydrationWarning>
       <head>
         <HeadContent />
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />

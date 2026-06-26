@@ -1,5 +1,7 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
+import { createIsomorphicFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 
 const resources = {
   pl: {
@@ -1318,6 +1320,19 @@ const resources = {
 const STORAGE_KEY = "lovable.lang";
 const COOKIE_KEY = "lovable_lang";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 rok
+type AppLang = "pl" | "en";
+
+function normalizeLang(value: string | null | undefined): AppLang | null {
+  const code = (value ?? "").toLowerCase().split("-")[0];
+  return code === "pl" || code === "en" ? code : null;
+}
+
+function readCookieFromHeader(header: string | null | undefined, name: string): string | null {
+  if (!header) return null;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = header.match(new RegExp(`(?:^|;\\s*)${escaped}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 function readCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
@@ -1351,19 +1366,42 @@ function readUrlLang(): "pl" | "en" | null {
   return null;
 }
 
+export const getRequestInitialLang = createIsomorphicFn()
+  .server((): AppLang => {
+    try {
+      const req = getRequest();
+      const urlLang = normalizeLang(new URL(req.url).searchParams.get("lang"));
+      if (urlLang) return urlLang;
+      return normalizeLang(readCookieFromHeader(req.headers.get("cookie"), COOKIE_KEY)) ?? "pl";
+    } catch {
+      return "pl";
+    }
+  })
+  .client((): AppLang => {
+    // During hydration the client must not guess from navigator.language, because
+    // the server cannot know that value. Use only explicit, SSR-repeatable state.
+    return readUrlLang() ?? normalizeLang(readCookie(COOKIE_KEY)) ?? "pl";
+  });
+
 function readStoredLang(): "pl" | "en" {
-  if (typeof window === "undefined") return "pl";
   // An explicit ?lang= (e.g. from an hreflang alternate or a shared deep link)
   // wins over the stored preference so language-addressable URLs work.
+  if (typeof window === "undefined") return getRequestInitialLang();
   const fromUrl = readUrlLang();
   if (fromUrl) return fromUrl;
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY) || readCookie(COOKIE_KEY);
+    const stored = readCookie(COOKIE_KEY) || window.localStorage.getItem(STORAGE_KEY);
     if (stored === "pl" || stored === "en") return stored;
   } catch {
     /* ignore */
   }
-  return detectBrowserLang();
+  return "pl";
+}
+
+export async function syncI18nToRequest(): Promise<AppLang> {
+  const lang = getRequestInitialLang();
+  if (i18n.language !== lang) await i18n.changeLanguage(lang);
+  return lang;
 }
 
 if (!i18n.isInitialized) {
