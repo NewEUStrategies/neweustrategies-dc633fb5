@@ -4,7 +4,7 @@ import { Fragment, memo, useEffect, useLayoutEffect, useRef, useState, type CSSP
 import type { BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, Device, ResponsiveValue } from "@/lib/builder/types";
 import { WidgetView, getWidgetFrameStyle, hiddenOnDevice } from "@/components/admin/builder/WidgetView";
 import { AUTO_SIZE_WIDGETS, COMPACT_WIDGET_TYPES } from "@/components/admin/builder/ui/organisms/widget-view/frame";
-import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
+import { RenderErrorBoundary, isDevEnv } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
 import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl } from "@/lib/sanitize";
 import {
   sectionWrapperStyle, sectionContainerStyle, columnsRowStyle,
@@ -15,6 +15,7 @@ import {
 import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
 import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
+import { useBuilderDebug, toggleBuilderDebug } from "@/lib/builder/builderDebug";
 
 // SSR has no viewport, so the first render is "desktop". On a phone the client
 // must correct to "mobile" - running that correction in a *layout* effect lands
@@ -51,22 +52,11 @@ function detectViewportDevice(): Device {
   return deviceForWidth(window.innerWidth);
 }
 
-function readDebugFlag(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("debug") === "1") return true;
-    if (url.searchParams.get("debug") === "0") return false;
-    return window.localStorage.getItem("builder-debug") === "1";
-  } catch {
-    return false;
-  }
-}
-
-const DEBUG_CSS = `
-[data-builder-renderer] [data-widget-id][data-widget-layout="block"] > [data-w-id]{margin-top:0 !important;margin-bottom:0 !important;}
-[data-builder-renderer] [data-widget-id][data-widget-layout="block"] > [data-w-id] > :first-child{margin-top:0 !important;}
-[data-builder-renderer] [data-widget-id][data-widget-layout="block"] > [data-w-id] > :last-child{margin-bottom:0 !important;}
+// Debug-only overlay rules. Injected ONCE per page (by the primary renderer) and
+// ONLY while debug is active - everything functional/responsive now lives in the
+// global stylesheet (see styles.css → "Builder public renderer"). Kept inline
+// because it is a dev affordance that should add zero bytes to a normal page.
+const DEBUG_OVERLAY_CSS = `
 [data-builder-renderer][data-debug="1"] [data-sec-id]{outline:2px solid rgba(239,68,68,.9) !important;outline-offset:-2px;position:relative;}
 [data-builder-renderer][data-debug="1"] [data-sec-id]::before{content:"SECTION " attr(data-sec-id) " · " attr(data-debug-h) "px";position:absolute;top:0;left:0;background:rgba(239,68,68,.95);color:#fff;font:600 10px/1.4 ui-monospace,monospace;padding:2px 6px;z-index:9999;pointer-events:none;}
 [data-builder-renderer][data-debug="1"] [data-column-slot]{outline:1px dashed rgba(59,130,246,.9) !important;outline-offset:-1px;position:relative;}
@@ -74,121 +64,14 @@ const DEBUG_CSS = `
 [data-builder-renderer][data-debug="1"] [data-col-id]::before{content:"COL " attr(data-col-id) " · " attr(data-debug-h) "px";position:absolute;top:0;right:0;background:rgba(16,185,129,.95);color:#fff;font:600 10px/1.4 ui-monospace,monospace;padding:1px 5px;z-index:9999;pointer-events:none;}
 [data-builder-renderer][data-debug="1"] [data-widget-id]{outline:1px solid rgba(234,179,8,.95) !important;outline-offset:-1px;position:relative;}
 [data-builder-renderer][data-debug="1"] [data-widget-id]::after{content:attr(data-debug-type) " · " attr(data-debug-h) "px";position:absolute;bottom:0;left:0;background:rgba(234,179,8,.95);color:#111;font:600 10px/1.4 ui-monospace,monospace;padding:1px 5px;z-index:9999;pointer-events:none;}
-.builder-debug-toggle{position:fixed;bottom:16px;right:16px;z-index:99999;background:#111;color:#fff;border:1px solid #444;border-radius:9999px;padding:8px 14px;font:600 12px/1 ui-monospace,monospace;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);}
-.builder-debug-toggle[data-on="1"]{background:#ef4444;}
-
-/* ---------- Responsive safety net (works regardless of JS device detection) ---------- */
-[data-builder-renderer]{max-width:100%;overflow-x:clip;}
-[data-builder-renderer] *{min-width:0;}
-[data-builder-renderer] video,[data-builder-renderer] iframe,[data-builder-renderer] svg,[data-builder-renderer] canvas,[data-builder-renderer] object{max-width:100%;height:auto;}
-[data-builder-renderer] img{max-width:100%;}
-[data-builder-renderer] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]){height:auto;object-fit:contain;}
-[data-builder-renderer] img[data-fill-image]{width:100%;height:100%;}
-[data-builder-renderer] pre,[data-builder-renderer] code{max-width:100%;overflow-x:auto;white-space:pre-wrap;word-break:break-word;}
-[data-builder-renderer] table{max-width:100%;display:block;overflow-x:auto;}
-
-@media (max-width: 767px){
-  [data-builder-renderer] [data-columns-row]{grid-template-columns:minmax(0,1fr) !important;gap:10px !important;}
-  [data-builder-renderer] [data-column-slot]{grid-column:1 / -1 !important;width:100% !important;max-width:100% !important;min-width:0 !important;}
-}
-/* Apply the same mobile layout when the renderer's container is mobile-sized
-   (e.g. admin canvas constrained to 390px while the browser window is wide). */
-[data-builder-renderer][data-device="mobile"] [data-columns-row]{grid-template-columns:minmax(0,1fr) !important;gap:10px !important;}
-[data-builder-renderer][data-device="mobile"] [data-column-slot]{grid-column:1 / -1 !important;width:100% !important;max-width:100% !important;min-width:0 !important;}
-[data-builder-renderer][data-device="mobile"] [data-col-id]{width:100% !important;max-width:100% !important;min-width:0 !important;display:flex !important;flex-direction:column !important;align-items:center !important;padding:8px !important;}
-[data-builder-renderer][data-device="mobile"] [data-widget-id]{max-width:100% !important;}
-[data-builder-renderer][data-device="mobile"] [data-widget-id][data-widget-layout="block"]{width:100% !important;}
-[data-builder-renderer][data-device="mobile"] [data-widget-id][data-widget-layout="inline"]{flex:0 1 auto;min-width:0;max-width:100%;}
-[data-builder-renderer][data-device="mobile"] [data-col-id] > .flex,
-[data-builder-renderer][data-device="mobile"] [data-col-id] [data-widget-row]{flex-wrap:wrap !important;justify-content:center !important;row-gap:8px !important;column-gap:8px !important;width:100% !important;}
-/* Mobile fluid imagery: only shrink images that don't already declare a fixed
-   crop (object-cover/object-fill) or an explicit height utility. Post-list
-   covers, slider tiles, and hero backgrounds keep their constrained aspect
-   ratio; only logos and free-flowing media auto-scale. */
-[data-builder-renderer][data-device="mobile"] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]),
-[data-builder-renderer][data-device="mobile"] svg:not([class*="h-"]){max-width:100% !important;height:auto !important;object-fit:contain !important;}
-[data-builder-renderer][data-device="mobile"] img[class*="object-cover"],
-[data-builder-renderer][data-device="mobile"] img[class*="object-fill"]{max-width:100% !important;}
-[data-builder-renderer][data-device="mobile"] img[data-fill-image]{max-width:100% !important;width:100% !important;height:100% !important;}
-[data-builder-renderer][data-device="mobile"] [data-widget-id] figure{width:100% !important;align-items:center !important;}
-[data-builder-renderer][data-device="mobile"] a,
-[data-builder-renderer][data-device="mobile"] button{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:100% !important;}
-[data-builder-renderer][data-device="mobile"] nav ul,
-[data-builder-renderer][data-device="mobile"] nav ol,
-[data-builder-renderer][data-device="mobile"] [role="menubar"]{
-  display:flex !important;flex-direction:row !important;flex-wrap:wrap !important;
-  align-items:center !important;justify-content:center !important;
-  gap:6px 12px !important;width:100% !important;padding:0 !important;
-}
-[data-builder-renderer][data-device="mobile"] nav li,
-[data-builder-renderer][data-device="mobile"] [role="menubar"] > *{width:auto !important;text-align:center !important;}
-[data-builder-renderer][data-device="mobile"] nav a{display:inline-flex !important;padding:4px 6px !important;}
-[data-builder-renderer][data-device="mobile"] h1{font-size:clamp(1.4rem,7vw,2rem) !important;line-height:1.15 !important;}
-[data-builder-renderer][data-device="mobile"] h2{font-size:clamp(1.25rem,6vw,1.75rem) !important;line-height:1.2 !important;}
-[data-builder-renderer][data-device="mobile"] h3{font-size:clamp(1.1rem,5vw,1.5rem) !important;line-height:1.25 !important;}
-/* Search widget fills the column on mobile */
-[data-builder-renderer][data-device="mobile"] .builder-search-widget{width:100% !important;}
-/* Mega menu trigger button shrinks/wraps */
-[data-builder-renderer][data-device="mobile"] [aria-haspopup="true"]{white-space:normal !important;}
-
-@media (max-width: 767px){
-  [data-builder-renderer] [data-col-id]{width:100% !important;max-width:100% !important;min-width:0 !important;display:flex !important;flex-direction:column !important;align-items:center !important;padding:8px !important;}
-  [data-builder-renderer] [data-widget-id]{max-width:100% !important;}
-  [data-builder-renderer] [data-widget-id][data-widget-layout="block"]{width:100% !important;}
-  [data-builder-renderer] [data-widget-id][data-widget-layout="inline"]{flex:0 1 auto;min-width:0;max-width:100%;}
-  [data-builder-renderer] [data-sec-id]{max-width:100vw;overflow-x:clip;}
-  [data-builder-renderer] [data-sec-id] > * > *{padding-left:max(8px,env(safe-area-inset-left)) !important;padding-right:max(8px,env(safe-area-inset-right)) !important;}
-  /* Inline rows (logo + actions + menu, social rows) wrap & center */
-  [data-builder-renderer] [data-col-id] > .flex,
-  [data-builder-renderer] [data-col-id] [data-widget-row]{flex-wrap:wrap !important;justify-content:center !important;row-gap:8px !important;column-gap:8px !important;width:100% !important;}
-  /* Images & logos: scale DOWN to fit column, never overflow, keep ratio.
-     Exclude images that declare an explicit crop (object-cover/object-fill),
-     a fixed height utility (h-*), or are slider/hero fills (data-fill-image) -
-     those must keep their constrained aspect ratio on mobile too, identical
-     to desktop. */
-  [data-builder-renderer] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]),
-  [data-builder-renderer] svg:not([class*="h-"]){max-width:100% !important;height:auto !important;object-fit:contain !important;}
-  [data-builder-renderer] img[class*="object-cover"],
-  [data-builder-renderer] img[class*="object-fill"]{max-width:100% !important;}
-  [data-builder-renderer] img[data-fill-image]{max-width:100% !important;width:100% !important;height:100% !important;}
-  [data-builder-renderer] [data-widget-id] figure{width:100% !important;align-items:center !important;}
-  [data-builder-renderer] [data-widget-id] figure > *{max-width:100% !important;}
-  /* Links / buttons: keep words intact but allow wrap, never collapse next to each other */
-  [data-builder-renderer] a,[data-builder-renderer] button{white-space:nowrap !important;overflow:visible !important;text-overflow:clip !important;max-width:100% !important;}
-  /* Navigation menus: keep horizontal but wrap to next line */
-  [data-builder-renderer] nav ul,[data-builder-renderer] nav ol,
-  [data-builder-renderer] [role="menubar"]{
-    display:flex !important;flex-direction:row !important;flex-wrap:wrap !important;
-    align-items:center !important;justify-content:center !important;
-    gap:6px 12px !important;width:100% !important;padding:0 !important;
-  }
-  [data-builder-renderer] nav li,[data-builder-renderer] [role="menubar"] > *{width:auto !important;text-align:center !important;}
-  [data-builder-renderer] nav a{display:inline-flex !important;padding:4px 6px !important;}
-  /* Typography: prevent overflow + scale down headings */
-  [data-builder-renderer] h1,[data-builder-renderer] h2,[data-builder-renderer] h3,
-  [data-builder-renderer] h4,[data-builder-renderer] h5,[data-builder-renderer] h6,
-  [data-builder-renderer] p,[data-builder-renderer] a,[data-builder-renderer] span,
-  [data-builder-renderer] li{overflow-wrap:anywhere;word-break:normal;hyphens:auto;}
-  [data-builder-renderer] h1{font-size:clamp(1.4rem,7vw,2rem) !important;line-height:1.15 !important;}
-  [data-builder-renderer] h2{font-size:clamp(1.25rem,6vw,1.75rem) !important;line-height:1.2 !important;}
-  [data-builder-renderer] h3{font-size:clamp(1.1rem,5vw,1.5rem) !important;line-height:1.25 !important;}
-  /* Inline groups (account-link, lang switcher) keep items together */
-  [data-builder-renderer] .inline-flex{max-width:100% !important;flex-wrap:wrap;}
-}
-@media (min-width: 768px) and (max-width: 1023px){
-  [data-builder-renderer] [data-columns-row]{gap:14px !important;}
-  [data-builder-renderer] [data-widget-id]{max-width:100% !important;}
-  [data-builder-renderer] img,[data-builder-renderer] svg{max-width:100% !important;}
-  [data-builder-renderer] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]),
-  [data-builder-renderer] svg:not([class*="h-"]){height:auto !important;object-fit:contain !important;}
-}
-
 `;
 
 export function BuilderRenderer({ doc, lang, device }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? detectViewportDevice());
-  const [debug, setDebug] = useState<boolean>(() => readDebugFlag());
+  // Debug state is shared across every BuilderRenderer on the page; only the
+  // "primary" instance renders the overlay (toggle + debug CSS) - see builderDebug.
+  const { debug, isPrimary } = useBuilderDebug();
 
   useIsomorphicLayoutEffect(() => {
     if (device) {
@@ -215,11 +98,28 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
     };
   }, [device]);
 
+  const effectiveDevice = device ?? viewportDevice;
+
+  return (
+    <UsedPostIdsProvider>
+      <div ref={rootRef} data-builder-renderer data-debug={debug ? "1" : "0"} data-device={effectiveDevice}>
+        <SectionsList sections={doc.sections} lang={lang} device={effectiveDevice} />
+      </div>
+      {isPrimary && <BuilderDebugOverlay debug={debug} doc={doc} />}
+    </UsedPostIdsProvider>
+  );
+}
+
+// Single, page-wide debug overlay owned by the primary renderer. The toggle is a
+// dev affordance: it only appears in dev or when debug was explicitly enabled
+// (e.g. `?debug=1`), so production visitors never see it. The height-annotation
+// loop runs once and labels every renderer on the page.
+function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocument }) {
   useEffect(() => {
     if (!debug || typeof window === "undefined") return;
     const annotate = () => {
       document.querySelectorAll<HTMLElement>(
-        "[data-builder-renderer] [data-sec-id], [data-builder-renderer] [data-col-id], [data-builder-renderer] [data-widget-id]"
+        "[data-builder-renderer] [data-sec-id], [data-builder-renderer] [data-col-id], [data-builder-renderer] [data-widget-id]",
       ).forEach((el) => {
         el.setAttribute("data-debug-h", String(Math.round(el.getBoundingClientRect().height)));
       });
@@ -230,26 +130,21 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
     return () => { window.clearInterval(id); window.removeEventListener("resize", annotate); };
   }, [debug, doc]);
 
-  const toggleDebug = () => {
-    setDebug((prev) => {
-      const next = !prev;
-      try { window.localStorage.setItem("builder-debug", next ? "1" : "0"); } catch { /* ignore */ }
-      return next;
-    });
-  };
-
-  const effectiveDevice = device ?? viewportDevice;
-
+  const showToggle = isDevEnv() || debug;
   return (
-    <UsedPostIdsProvider>
-      <style dangerouslySetInnerHTML={{ __html: DEBUG_CSS }} />
-      <div ref={rootRef} data-builder-renderer data-debug={debug ? "1" : "0"} data-device={effectiveDevice}>
-        <SectionsList sections={doc.sections} lang={lang} device={effectiveDevice} />
-      </div>
-      <button type="button" className="builder-debug-toggle" data-on={debug ? "1" : "0"} onClick={toggleDebug}>
-        {debug ? "Debug: ON" : "Debug: OFF"}
-      </button>
-    </UsedPostIdsProvider>
+    <>
+      {debug && <style dangerouslySetInnerHTML={{ __html: DEBUG_OVERLAY_CSS }} />}
+      {showToggle && (
+        <button
+          type="button"
+          className="builder-debug-toggle"
+          data-on={debug ? "1" : "0"}
+          onClick={toggleBuilderDebug}
+        >
+          {debug ? "Debug: ON" : "Debug: OFF"}
+        </button>
+      )}
+    </>
   );
 }
 

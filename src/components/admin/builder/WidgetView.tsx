@@ -8,7 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import {
-  sanitizeHtml,
   sanitizeHtmlId,
   sanitizeCssClass,
   scopeCustomCss,
@@ -68,6 +67,7 @@ import { MegaMenu, type MegaMenuConfig } from "@/components/megaMenu/MegaMenu";
 import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
 import { TagsView } from "./ui/organisms/widget-view/TagsView";
 import { renderSimpleWidget, ResizableBox } from "./ui/organisms/widget-view/SimpleWidgets";
+import { RichHtmlView } from "./ui/organisms/widget-view/RichHtmlView";
 export {
   styleToCSS, getWidgetFrameStyle, hiddenOnDevice,
   DEFAULT_WIDGET_WIDTH_BY_DEVICE, DEFAULT_WIDGET_MIN_HEIGHT, AUTO_SIZE_WIDGETS,
@@ -206,6 +206,11 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
   const isImage = node.type === "image";
   const isMedia = isImage || node.type === "slider" || node.type === "video" || node.type === "gallery" || node.type === "map";
   const isCompactWidget = COMPACT_WIDGET_TYPES.has(node.type);
+  // Coalesce every per-widget CSS source (hover, typography, color override,
+  // user custom CSS) into a SINGLE <style> node instead of up to four. All four
+  // are already scoped to `[data-w-id="<id>"]`, so concatenation is order-safe
+  // and shrinks the per-widget DOM/style-node count on widget-heavy pages.
+  const widgetCss = [hover, typographyCss, overrideCss, scopedCss].filter(Boolean).join("\n");
   const wrap = (children: React.ReactNode) => (
     <div
       id={htmlId}
@@ -215,10 +220,7 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
       style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: isCompactWidget ? "center" : "flex-start", width: "100%", minWidth: 0, height: isMedia ? "auto" : "100%", maxWidth: isImage ? "none" : "100%", boxSizing: "border-box", overflow: isImage ? "visible" : (isMedia ? "visible" : "hidden"), ...baseStyle, marginTop: 0, marginBottom: 0, ...motionStyle }}
     >
       {children}
-      {hover && <style dangerouslySetInnerHTML={{ __html: hover }} />}
-      {typographyCss && <style dangerouslySetInnerHTML={{ __html: typographyCss }} />}
-      {overrideCss && <style dangerouslySetInnerHTML={{ __html: overrideCss }} />}
-      {scopedCss && <style dangerouslySetInnerHTML={{ __html: scopedCss }} />}
+      {widgetCss && <style dangerouslySetInnerHTML={{ __html: widgetCss }} />}
     </div>
   );
 
@@ -315,7 +317,9 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
       if (canEdit) {
         return wrap(<Editable as="div" html multiline value={html} onCommit={(v) => commit(key, v)} className={proseCls} style={singleColumnCompactStyle} placeholder="Wpisz tekst…" />);
       }
-      return wrap(<div className={proseCls} style={{ ...colStyle, ...singleColumnCompactStyle }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />);
+      // RichHtmlView sanitizes + injects the HTML and re-mounts footnote tooltips
+      // for migrated content whose footnote refs/list are baked into the markup.
+      return wrap(<RichHtmlView html={html} className={proseCls} style={{ ...colStyle, ...singleColumnCompactStyle }} />);
     }
     case "button": {
       const key = `label_${lang}`;

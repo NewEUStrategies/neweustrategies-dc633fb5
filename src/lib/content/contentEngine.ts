@@ -1,11 +1,14 @@
-// Single source of truth for *which* rendering engine owns a piece of content.
+// Single source of truth for *which* render strategy owns a piece of content.
 //
 // The public site historically chose between three renderers with inline checks
 // duplicated across routes (the post/page resolver, the homepage, …). Centralizing
-// the decision here removes that duplication and makes the convergence explicit:
-// the Elementor-style **builder** is the canonical page-composition engine; the
-// **blocks** engine renders rich article bodies; legacy/empty content falls back
-// to sanitized **html**. The ContentRenderer façade renders whatever this returns.
+// the decision here removes that duplication: the Elementor-style **builder** is
+// the canonical page-composition engine; the **blocks** engine renders rich
+// article bodies (and is also embeddable inside the builder via the `rich-text`
+// widget); legacy/empty content falls back to sanitized **html**. These remain
+// three distinct strategies behind one façade (ContentRenderer) - the
+// "convergence" is the single dispatch point + shared cross-cutting infra
+// (sanitization, footnotes, render-error isolation), not one literal engine.
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { BlocksDoc } from "@/lib/blocks/types";
 

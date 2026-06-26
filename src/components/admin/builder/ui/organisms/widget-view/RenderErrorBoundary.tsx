@@ -59,7 +59,13 @@ export class RenderErrorBoundary extends Component<Props, State> {
     if (!error) return this.props.children;
     if (this.props.fallback !== undefined) return this.props.fallback;
     const dev = this.props.dev ?? isDevEnv();
-    if (!dev) return null;
+    // Production: keep the page visually clean (no broken box), but DO leave a
+    // hidden, zero-layout DOM breadcrumb so a crashed widget is detectable by
+    // QA / automated checks / support instead of vanishing without a trace.
+    // The error itself is already reported in componentDidCatch.
+    if (!dev) {
+      return <span hidden aria-hidden="true" data-render-error={this.props.label} data-render-error-message={error.message} />;
+    }
     return (
       <div
         data-render-error={this.props.label}

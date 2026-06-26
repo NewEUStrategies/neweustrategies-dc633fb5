@@ -1,12 +1,19 @@
-// Unified public content renderer. ONE entry point that dispatches a piece of
-// content to the correct engine (builder / blocks / sanitized html), replacing
-// the three-way conditional that used to live inline in every content route.
+// Unified public content façade. ONE entry point that dispatches a piece of
+// content to one of three render strategies (builder / blocks / sanitized html),
+// replacing the three-way conditional that used to live inline in every content
+// route.
 //
-// The builder is the canonical page-composition engine; the blocks renderer is
-// reused for rich article bodies; legacy/markdown content falls back to
-// sanitized HTML. Footnote/TOC processing happens upstream in the route - this
-// component is purely the engine switch so the decision lives in exactly one
-// place (`resolveContentEngine`).
+// Honest architecture note: this is a single FAÇADE over three strategies, not
+// a single rendering engine. The builder is the canonical page-composition
+// engine; the blocks renderer still renders rich article bodies (and is embedded
+// inside the builder via the `rich-text` widget, so the builder can host it);
+// legacy/markdown content falls back to sanitized HTML. What is genuinely shared
+// is the cross-cutting infrastructure - sanitization (lib/sanitize), the
+// footnote pipeline (lib/footnotes), and per-node render-error isolation
+// (RenderErrorBoundary, now wrapping both builder widgets AND blocks). Footnote/
+// TOC processing happens upstream in the route; this component is purely the
+// strategy switch so the decision lives in exactly one place
+// (`resolveContentEngine`).
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { BlocksDoc } from "@/lib/blocks/types";
 import { BlocksRenderer } from "@/components/blocks/BlocksRenderer";
