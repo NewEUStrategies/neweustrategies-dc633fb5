@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
-import { useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { SectionNode } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
 import {
   collectSectionWidgets,
   prefetchSectionQueries,
-  sectionQueryKeys,
+  sectionCacheTargets,
 } from "@/lib/builder/prefetch";
 
 /**
@@ -34,9 +34,9 @@ function dedupeKey(section: SectionNode, lang: Lang): string {
 
 /**
  * Stale-while-revalidate gate: a section is "fresh" when EVERY query it owns
- * has cached data whose age is below the query's configured `staleTime`. In
- * that case we skip the prefetch entirely - the cached payload will be served
- * synchronously, and TanStack Query will revalidate on its own schedule.
+ * has cached data whose age is below the matching `staleTime`. In that case
+ * we skip the prefetch entirely - the cached payload renders synchronously
+ * and TanStack Query revalidates on its own schedule.
  */
 export function isSectionFresh(
   client: QueryClient,
@@ -44,14 +44,12 @@ export function isSectionFresh(
   lang: Lang,
 ): boolean {
   const widgets = collectSectionWidgets(section);
-  const keys: QueryKey[] = sectionQueryKeys(widgets, lang);
-  if (keys.length === 0) return true;
+  const targets = sectionCacheTargets(widgets, lang);
+  if (targets.length === 0) return true;
   const now = Date.now();
-  return keys.every((key) => {
+  return targets.every(({ key, staleTime }) => {
     const state = client.getQueryState(key);
     if (!state || state.data === undefined) return false;
-    const query = client.getQueryCache().find({ queryKey: key });
-    const staleTime = (query?.options.staleTime as number | undefined) ?? 0;
     return now - state.dataUpdatedAt < staleTime;
   });
 }
