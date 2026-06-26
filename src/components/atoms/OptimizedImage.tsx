@@ -1,4 +1,4 @@
-import { useState, type ImgHTMLAttributes, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type ImgHTMLAttributes, type CSSProperties } from "react";
 import { buildTransformedImageUrl, buildImageSrcSet, RESPONSIVE_WIDTHS } from "@/lib/cropSizes";
 
 export type HoverEffect = "none" | "zoom" | "fade" | "slide";
