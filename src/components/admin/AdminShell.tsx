@@ -203,7 +203,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
             {extras && !compact && (
               <div className="mt-4 pt-3 border-t border-border space-y-0.5">
                 {extras.title && (
-                  <div data-sidebar="group-label" className="px-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                  <div data-sidebar="group-label" className="px-2 pb-1 text-[8px] uppercase tracking-wider text-muted-foreground font-medium">
                     {extras.title}
                   </div>
                 )}
