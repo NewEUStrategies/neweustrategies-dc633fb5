@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { emitSiteSettingsInvalidate } from "@/lib/builder/siteSettingsLiveSync";
 
 type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
 export type SettingsRecord = { [k: string]: Json };
