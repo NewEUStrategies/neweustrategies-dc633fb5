@@ -342,6 +342,8 @@ export function PostListEditor({ c, lang, setContent }: Props) {
         </div>
       </Collapsible>
 
+      <PerPostThumbnailsSection c={c} lang={lang} setContent={setContent} />
+
       {/* ── Typografia tytułu i excerpt ───────────────────────── */}
       <Collapsible title="Styl tekstu (tytuł, excerpt)" defaultOpen={false}>
         <div className="grid grid-cols-2 gap-2">
