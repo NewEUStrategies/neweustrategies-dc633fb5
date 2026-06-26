@@ -269,7 +269,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
       return v < 0 ? 0.12 : Math.max(0, Math.min(1, v));
     })();
     const idxWeight = getStr(c, "indexWeight") || "800";
-    const showExcerpt = getStr(c, "showExcerpt") !== "false";
+    const showExcerpt = false;
     const lightColor = idxColor || `rgba(0,0,0,${idxOpacity})`;
     const darkColor = idxColorDark || `rgba(255,255,255,${idxOpacity})`;
     return (
