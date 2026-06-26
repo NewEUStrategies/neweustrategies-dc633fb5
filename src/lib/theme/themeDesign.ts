@@ -80,6 +80,14 @@ export const ThemeDesignSchema = z.object({
     paddingX: PX.default("6px"),
     paddingY: PX.default("6px"),
   }).default({}),
+  listIndex: z.object({
+    // Global defaults for "numbered" / "ranked" post-list variants.
+    // Used when the individual widget does not override colors.
+    colorLight: COLOR.default("#231f20"),
+    colorDark: COLOR.default("#fa9346"),
+    opacity: z.number().min(0).max(1).default(0.18),
+    weight: z.number().min(100).max(900).default(800),
+  }).default({}),
 }).default({});
 
 export type ThemeDesign = z.infer<typeof ThemeDesignSchema>;
@@ -181,6 +189,11 @@ export function themeDesignToCss(t: ThemeDesign): string {
   v.push(`--td-si-radius:${t.socialIcons.radius};`);
   v.push(`--td-si-px:${t.socialIcons.paddingX};`);
   v.push(`--td-si-py:${t.socialIcons.paddingY};`);
+  // List index (numbered / ranked variant)
+  v.push(`--td-li-light:${t.listIndex.colorLight};`);
+  v.push(`--td-li-dark:${t.listIndex.colorDark};`);
+  v.push(`--td-li-opacity:${t.listIndex.opacity};`);
+  v.push(`--td-li-weight:${t.listIndex.weight};`);
   return `:root{${v.join("")}}`;
 }
 
