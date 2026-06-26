@@ -311,12 +311,14 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
       const v = getStr(c, "indexVAlign") || "top";
       return v === "middle" || v === "bottom" ? v : "top";
     })();
+    // Override the CSS class transform that defaults to translate(-0.08em, -50%).
     const vPos: React.CSSProperties =
       idxVAlign === "top"
-        ? { top: 0, bottom: "auto" }
+        ? { top: 0, bottom: "auto", transform: "translate(0, 0)" }
         : idxVAlign === "bottom"
-        ? { top: "auto", bottom: 0 }
-        : { top: "50%", transform: "translateY(-50%)" };
+        ? { top: "auto", bottom: 0, transform: "translate(0, 0)" }
+        : { top: "50%", bottom: "auto", transform: "translateY(-50%)" };
+
     return (
       <div
         className="w-full flex flex-col divide-y divide-border"
