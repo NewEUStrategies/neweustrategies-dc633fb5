@@ -31,10 +31,19 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
+    // Query owns cache freshness; router never serves stale preloaded data.
     defaultPreloadStaleTime: 0,
+    // Aggressive intent preloading on hover/focus - by the time the user
+    // clicks, the next route's loader has already resolved.
     defaultPreload: "intent",
-    defaultPendingMs: 150,
-    defaultPendingMinMs: 350,
+    defaultPreloadDelay: 50,
+    // Only show pending UI for genuinely slow navigations (>500ms). Fast
+    // intent-preloaded clicks resolve instantly and never flash a skeleton.
+    defaultPendingMs: 500,
+    defaultPendingMinMs: 250,
+    // Modern crossfade between routes via the View Transitions API. Header
+    // and footer hold their position; only the <main> content morphs.
+    defaultViewTransition: true,
   });
 
   return routerWithQueryClient(router, queryClient);
