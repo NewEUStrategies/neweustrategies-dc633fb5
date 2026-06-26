@@ -578,3 +578,30 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   color: var(--td-si-hover-color, #fa9346);
   background: var(--td-si-hover-bg, transparent);
 }
+
+/* ===== Unified post title / excerpt across every widget ===== */
+.cms-post-title {
+  font-family: var(--td-pt-family, "Red Hat Display", system-ui, sans-serif);
+  font-size: var(--td-pt-size, 18px);
+  font-weight: var(--td-pt-weight, 600);
+  line-height: var(--td-pt-lh, 1.3);
+  color: var(--td-pt-color, hsl(var(--foreground)));
+  text-transform: var(--td-pt-transform, none);
+  letter-spacing: var(--td-pt-spacing, 0);
+  transition: color .2s ease;
+}
+@media (max-width: 640px) {
+  .cms-post-title { font-size: var(--td-pt-size-sm, 16px); }
+}
+.group:hover .cms-post-title,
+a:hover .cms-post-title,
+.cms-post-title:hover { color: var(--td-pt-hover, hsl(var(--brand))); }
+
+.cms-post-excerpt {
+  font-family: var(--td-pe-family, "Red Hat Display", system-ui, sans-serif);
+  font-size: var(--td-pe-size, 13px);
+  font-weight: var(--td-pe-weight, 400);
+  line-height: var(--td-pe-lh, 1.5);
+  color: var(--td-pe-color, hsl(var(--muted-foreground)));
+  margin-top: var(--td-pe-mt, 6px);
+}
