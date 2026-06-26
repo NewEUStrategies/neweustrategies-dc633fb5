@@ -97,9 +97,13 @@ function planRow(r: Row): { builder: BuilderDocument; desc: string } | null {
 }
 
 async function migrateTable(table: string): Promise<{ candidates: number; migrated: number; skippedEmpty: number }> {
+  // `pages` has no `blocks_data` column - only posts carry legacy block payloads.
+  const cols = table === "posts"
+    ? "id, slug, editor, blocks_data, content_pl, content_en"
+    : "id, slug, editor, content_pl, content_en";
   const { data, error } = await supabase
     .from(table)
-    .select("id, slug, editor, blocks_data, content_pl, content_en")
+    .select(cols)
     .in("editor", SOURCE_EDITORS as unknown as string[]);
   if (error) fail(`Reading ${table}: ${error.message}`);
 
