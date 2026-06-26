@@ -105,6 +105,7 @@ export function OptimizedImage({
   const imgEl = (
     <img
       {...rest}
+      ref={imgRef}
       src={finalSrc}
       srcSet={srcSet || undefined}
       sizes={srcSet ? (sizes ?? "100vw") : sizes}
