@@ -531,7 +531,7 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
 
       let q = supabase
         .from("posts")
-        .select("id, slug, title_pl, title_en, cover_image_url")
+        .select("id, slug, title_pl, title_en, cover_image_url, author_id")
         .eq("status", "published");
       if (postFormat) q = q.eq("post_format", postFormat);
       if (authorId) q = q.eq("author_id", authorId);
