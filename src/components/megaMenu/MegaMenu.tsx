@@ -77,7 +77,7 @@ interface Props {
 
 const pickLang = (a?: string, b?: string): string => (a && a.length ? a : (b ?? ""));
 
-export function MegaMenu({ config, lang, mobile = false }: Props) {
+export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }: Props) {
   const trigger = pickLang(
     lang === "pl" ? config.trigger_pl : config.trigger_en,
     config.trigger_pl,
