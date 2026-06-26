@@ -397,6 +397,27 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   z-index: 2;
 }
 
+/* Widget grids: collapse to fewer columns on small viewports so tiles stay
+   large and readable. Inline `grid-template-columns: repeat(N, 1fr)` set on
+   the widget needs !important to be overridden. `cms-mobile-hscroll` opts
+   into a horizontal scroller instead and is left untouched. */
+@media (max-width: 767px) {
+  [data-widget-grid]:not(.cms-mobile-hscroll) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  [data-widget-grid]:not(.cms-mobile-hscroll) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+[data-builder-renderer][data-device="mobile"] [data-widget-grid]:not(.cms-mobile-hscroll) {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+[data-builder-renderer][data-device="tablet"] [data-widget-grid]:not(.cms-mobile-hscroll) {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
 /* Mobile: horizontal scroll for grid widgets (post-list etc.) */
 @media (max-width: 767px) {
   .cms-mobile-hscroll {
@@ -414,6 +435,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
     min-width: 0;
   }
 }
+
 
 
 /* ===== Module H: Theme Design utility classes ===== */
