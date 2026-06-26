@@ -201,21 +201,11 @@ export function TypographyControl({ value, onChange }: Props) {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <PropField label="Wysokość linii">
-          <Input
-            value={v.lineHeight ?? ""}
-            placeholder="1.4"
-            onChange={(e) => set({ lineHeight: e.target.value || undefined })}
-            className="h-8 text-xs"
-          />
+        <PropField label="Wysokość linii (px)">
+          {renderSizeInput(lineHeightPx, setLineHeightPx, "Wysokość linii", "24", "px")}
         </PropField>
-        <PropField label="Odstęp znaków">
-          <Input
-            value={v.letterSpacing ?? ""}
-            placeholder="0.02em"
-            onChange={(e) => set({ letterSpacing: e.target.value || undefined })}
-            className="h-8 text-xs"
-          />
+        <PropField label="Odstęp znaków (px)">
+          {renderSizeInput(letterSpacingPx, setLetterSpacingPx, "Odstęp znaków", "0", "px")}
         </PropField>
       </div>
 
