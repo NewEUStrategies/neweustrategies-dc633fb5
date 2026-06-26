@@ -1,8 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 import { useAuth } from "@/hooks/useAuth";
 import { useBookmarks } from "@/hooks/useBookmarks";
 import { useFollows } from "@/hooks/useFollows";
@@ -25,7 +23,6 @@ interface PostRow {
 }
 
 export const Route = createFileRoute("/reading-list")({
-  staticData: { ownChrome: true },
   component: ReadingListPage,
   head: () => ({ meta: [{ title: "Twoja lista do przeczytania" }, { name: "robots", content: "noindex" }] }),
 });
@@ -40,7 +37,6 @@ function ReadingListPage() {
   if (!user) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Header />
         <main className="flex-1 max-w-2xl mx-auto px-4 py-20 text-center">
           <h1 className="font-display text-3xl mb-3">{settings.restrictedTitle}</h1>
           <p className="text-muted-foreground mb-6">{settings.restrictedDescription}</p>
@@ -48,7 +44,6 @@ function ReadingListPage() {
             Zaloguj się
           </Button>
         </main>
-        <Footer />
       </div>
     );
   }
@@ -65,7 +60,6 @@ function ReadingListPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Header />
       <main className="flex-1 max-w-6xl mx-auto px-4 lg:px-8 py-10 w-full">
         <header className="text-center mb-8">
           <h1 className="font-display text-4xl mb-2">{currentSection.heading}</h1>
@@ -92,7 +86,6 @@ function ReadingListPage() {
           <RecommendedSection columns={settings.sections.recommended.columns} limit={settings.sections.recommended.postsPerPage ?? 9} lang={lang} />
         )}
       </main>
-      <Footer />
     </div>
   );
 }

@@ -6,8 +6,6 @@ import { z } from "zod";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Search as SearchIcon, X } from "lucide-react";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
@@ -24,7 +22,6 @@ const SearchParams = z.object({
 type SearchInput = z.infer<typeof SearchParams>;
 
 export const Route = createFileRoute("/search")({
-  staticData: { ownChrome: true },
   validateSearch: (s: Record<string, unknown>): SearchInput => SearchParams.parse(s),
   head: () => ({
     meta: [
@@ -71,7 +68,6 @@ function SearchPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <Header />
       <main className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
         <h1 className="font-display text-3xl lg:text-4xl mb-6">{t("search.title", { defaultValue: "Szukaj" })}</h1>
         <form onSubmit={submit} className="flex gap-2 mb-8">
@@ -186,7 +182,6 @@ function SearchPage() {
           </div>
         )}
       </main>
-      <Footer />
     </div>
   );
 }

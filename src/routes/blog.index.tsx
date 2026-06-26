@@ -3,8 +3,6 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 import { AdSlotView } from "@/components/AdSlot";
 import { useAdPlacements } from "@/lib/ads/queries";
 import { blogListQueryOptions } from "@/lib/queries/public";
@@ -13,7 +11,6 @@ import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/blog/")({
-  staticData: { ownChrome: true },
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(blogListQueryOptions()),
 
@@ -36,13 +33,11 @@ export const Route = createFileRoute("/blog/")({
     const router = useRouter();
     return (
       <div className="min-h-screen flex flex-col">
-        <Header />
         <main className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
           <h1 className="font-display text-2xl">Nie udało się załadować listy</h1>
           <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
           <button onClick={() => { router.invalidate(); reset(); }} className="mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Spróbuj ponownie</button>
         </main>
-        <Footer />
       </div>
     );
   },
@@ -57,7 +52,6 @@ function BlogIndex() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <Header />
       <main className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
         <h1 className="font-display text-4xl lg:text-5xl mb-8">Blog</h1>
         {posts.length === 0 ? (
@@ -96,7 +90,6 @@ function BlogIndex() {
           </div>
         )}
       </main>
-      <Footer />
     </div>
   );
 }
