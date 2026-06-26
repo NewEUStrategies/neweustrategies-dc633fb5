@@ -149,6 +149,23 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
       {imgEl}
     </span>
   ) : imgEl;
+  // Optional link wrapper - the editor exposes a "Link (opcjonalnie)" field
+  // (`href`). When set, wrap the image in an <a> so logos and banners actually
+  // navigate. External URLs open in a new tab; same-origin paths stay in-app.
+  const href = (getStr(c, "href") || "").trim();
+  const isExternal = /^https?:\/\//i.test(href);
+  const linkedImg = href
+    ? (
+      <a
+        href={href}
+        {...(isExternal ? { target: "_blank", rel: "noopener noreferrer" } : null)}
+        className="block"
+        aria-label={alt || undefined}
+      >
+        {framedImgEl}
+      </a>
+    )
+    : framedImgEl;
   return (
     <figure className={`space-y-2 flex flex-col ${figureAlign}`}>
       <ResizableImageWrap
@@ -156,7 +173,7 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
         currentPx={widthPx > 0 ? widthPx : undefined}
         onCommit={(px) => onContentChange?.("widthPx", Math.round(px))}
       >
-        {framedImgEl}
+        {linkedImg}
       </ResizableImageWrap>
       {caption && <figcaption className="text-xs text-muted-foreground text-center">{caption}</figcaption>}
     </figure>
