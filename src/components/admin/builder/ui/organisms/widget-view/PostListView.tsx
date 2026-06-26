@@ -279,17 +279,17 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
           <a
             key={p.id}
             href={`/post/${p.slug}`}
-            className={`grid items-center gap-3 sm:gap-5 py-4 sm:py-5 group ${
+            className={`grid items-center gap-4 sm:gap-6 py-5 sm:py-6 group ${
               p.cover_image_url
-                ? "grid-cols-[auto_minmax(0,1fr)_120px] sm:grid-cols-[auto_minmax(0,1fr)_180px] md:grid-cols-[auto_minmax(0,1fr)_220px]"
+                ? "grid-cols-[auto_minmax(0,1fr)_96px] sm:grid-cols-[auto_minmax(0,1fr)_140px] md:grid-cols-[auto_minmax(0,1fr)_180px]"
                 : "grid-cols-[auto_minmax(0,1fr)]"
             }`}
           >
             <span
               aria-hidden
-              className="pl-num-light font-display tabular-nums leading-none select-none shrink-0 pr-1 sm:pr-2"
+              className="pl-num-light font-display tabular-nums leading-none select-none shrink-0"
               style={{
-                fontSize: `clamp(40px, ${idxSize * 0.5}px + 1.5vw, ${idxSize}px)`,
+                fontSize: `clamp(48px, ${idxSize * 0.6}px + 1vw, ${idxSize}px)`,
                 fontWeight: idxWeight as React.CSSProperties["fontWeight"],
               }}
             >
@@ -316,11 +316,12 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                 src={p.cover_image_url}
                 alt=""
                 frameClassName="relative block aspect-[4/3] w-full shrink-0 overflow-hidden rounded-md bg-muted"
-                responsiveWidths={[160, 240, 320, 480]}
-                sizes="(max-width: 640px) 120px, (max-width: 1024px) 180px, 220px"
+                responsiveWidths={[120, 160, 240, 320]}
+                sizes="(max-width: 640px) 96px, (max-width: 1024px) 140px, 180px"
                 foregroundClassName={COVER_IMG_CLASS}
               />
             )}
+
           </a>
         ))}
       </div>
