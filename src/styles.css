@@ -337,6 +337,26 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .cms-builder-compact input, .cms-builder-compact select, .cms-builder-compact textarea, .cms-builder-compact button { font-size: inherit; }
 .cms-builder-compact .h-8 { height: 1.75rem; }
 
+.post-list-numbered-index {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  z-index: 0;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+  color: var(--pl-num-light);
+  opacity: var(--pl-num-opacity, 0.22);
+  font-size: var(--pl-num-size, 96px) !important;
+  line-height: 0.82 !important;
+  letter-spacing: 0;
+  transform: translate(-0.08em, -50%);
+}
+
+.dark .post-list-numbered-index {
+  color: var(--pl-num-dark);
+}
+
 /* OptimizedImage hover effects */
 .oi-wrap { position: relative; display: block; }
 .oi-wrap .oi-img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 480ms ease, opacity 240ms ease-out, filter 320ms ease; }
