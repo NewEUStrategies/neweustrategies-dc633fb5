@@ -171,8 +171,8 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
               <div key={group.id} className={idx > 0 ? "pt-2 border-t border-border/60" : ""}>
                 {group.label && !compact && (
                   <div
-                    data-sidebar="group-label"
-                    className="px-2 pt-1 pb-0 text-[8px] uppercase tracking-wider text-muted-foreground font-semibold"
+data-sidebar="group-label"
+                    className="px-2 pt-1 pb-0 text-[9px] uppercase tracking-wider text-muted-foreground font-semibold"
                   >
                     {group.label}
                   </div>
