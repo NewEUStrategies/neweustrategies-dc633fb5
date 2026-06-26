@@ -32,7 +32,12 @@ export function SiteChrome({ children }: { children: ReactNode }) {
   const isLogin = pathname === "/login" || pathname.startsWith("/login/");
 
   if (isAdmin || isLogin || ownChrome) {
-    return <>{children}</>;
+    return (
+      <>
+        <RouteProgress />
+        {children}
+      </>
+    );
   }
 
   return (
