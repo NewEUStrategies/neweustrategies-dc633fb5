@@ -151,6 +151,7 @@ const en: typeof pl = {
     nav: {
       overview: "Overview",
       account: "Account",
+      interests: "Interests",
       billing: "Billing details",
       subscription: "Subscription",
       orders: "Payment history",
