@@ -7,8 +7,8 @@ import { createFileRoute, notFound, Link, useRouter } from "@tanstack/react-rout
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
+// Header/Footer are owned by SiteChrome (mounted in __root.tsx) so they
+// persist across navigations - never re-import them here.
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
@@ -65,7 +65,8 @@ function metaDescription(raw: string | null | undefined, fallback: string): stri
 }
 
 export const Route = createFileRoute("/$")({
-  staticData: { ownChrome: true },
+  // Chrome (Header/Footer) is centralized in SiteChrome at the root - never
+  // opt out here, or navigations remount the whole header/menu.
   loader: async ({ params, context }) => {
     const splat = (params as { _splat?: string })._splat ?? "";
     const segments = splatToSegments(splat);
