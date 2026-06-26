@@ -109,6 +109,12 @@ export function buildScaledImageUrl(src: string, width: number, quality = 75): s
         "/storage/v1/render/image/public/",
       );
       url.searchParams.set("width", String(width));
+      // CRITICAL: without `resize`, Supabase render endpoint does NOT scale
+      // proportionally on width-only requests - it returns the original
+      // height with a width-cropped slice (e.g. 1920x1169 -> 320x1169),
+      // which manifests as extreme "zoom" in widget thumbnails.
+      // `contain` keeps aspect ratio and shrinks the longer side to fit.
+      url.searchParams.set("resize", "contain");
       url.searchParams.set("quality", String(quality));
       return url.toString();
     }
