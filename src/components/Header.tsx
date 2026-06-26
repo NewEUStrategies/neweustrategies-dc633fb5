@@ -29,6 +29,7 @@ function HeaderInner() {
 
   return (
     <header
+      data-site-header
       className="bg-background border-b border-border"
       style={{ viewTransitionName: "site-header" }}
     >
