@@ -42,7 +42,7 @@ export function PodcastLatestView({ c, lang }: Props) {
         ) : <div className="aspect-square bg-muted" />}
         <div className="p-6 flex flex-col gap-3 justify-center">
           {podcastEpisodeLabel(p, lang) && <span className="text-xs uppercase tracking-wider text-muted-foreground">{podcastEpisodeLabel(p, lang)}</span>}
-          <Link to="/podcast/$slug" params={{ slug: p.slug }} className="font-display text-2xl hover:underline">
+          <Link to="/podcast/$slug" params={{ slug: p.slug }} className="cms-post-title hover:underline">
             {podcastTitle(p, lang)}
           </Link>
           <p className="text-sm text-muted-foreground line-clamp-3">

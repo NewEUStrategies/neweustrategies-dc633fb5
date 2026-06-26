@@ -55,7 +55,7 @@ export function PostTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }
   const inner = linkToPost && ctx.slug
     ? <a href={`/${ctx.slug}`} className="hover:text-brand transition">{title}</a>
     : title;
-  return createElement(tag, { className: "font-display font-bold leading-tight" }, inner);
+  return createElement(tag, { className: "cms-post-title leading-tight" }, inner);
 }
 
 export function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
@@ -146,7 +146,7 @@ export function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: L
       )}
       <div className="flex-1 min-w-0">
         <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">{lang === "en" ? "Author" : "Autor"}</div>
-        <div className="font-display font-bold text-lg">
+        <div className="cms-post-title">
           {a.slug ? <a href={`/author/${a.slug}`} className="hover:text-brand">{a.name}</a> : a.name}
         </div>
         {getBool(c, "showBio", true) && bio && <p className="text-sm text-muted-foreground mt-1.5">{bio}</p>}
@@ -222,7 +222,7 @@ export function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lan
   return (
     <header className="space-y-2">
       <div className="text-xs uppercase tracking-wider text-brand font-bold">{lang === "en" ? kind.en : kind.pl}</div>
-      <h1 className="font-display font-bold text-3xl md:text-4xl leading-tight">{a.label}</h1>
+      <h1 className="cms-post-title leading-tight">{a.label}</h1>
       {getBool(c, "showDescription", true) && a.description && <p className="text-muted-foreground max-w-2xl">{a.description}</p>}
       {getBool(c, "showCount", true) && typeof a.count === "number" && (
         <div className="text-sm text-muted-foreground">{a.count} {lang === "en" ? "posts" : "wpisów"}</div>

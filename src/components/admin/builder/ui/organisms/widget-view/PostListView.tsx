@@ -279,13 +279,13 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
             )}
             <div className="min-w-0">
               <h4
-                className="font-display text-[15px] sm:text-base md:text-lg font-semibold leading-snug line-clamp-2 group-hover:text-brand transition"
+                className="cms-post-title leading-snug line-clamp-2"
                 style={tStyle}
               >
                 {title(p)}
               </h4>
               {excerpt(p) && (
-                <p className="text-[13px] text-muted-foreground line-clamp-2 mt-1 leading-snug" style={eStyle}>
+                <p className="cms-post-excerpt line-clamp-2" style={eStyle}>
                   {excerpt(p)}
                 </p>
               )}
@@ -357,7 +357,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               </span>
               <div className="relative z-10">
                 <h4
-                  className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
+                  className="cms-post-title leading-snug line-clamp-3"
                   style={tStyle}
                 >
                   {title(p)}
@@ -445,14 +445,14 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               <div className={`relative z-10 ${idxSide === "left" ? "pl-1 pr-1" : "pr-1 pl-1"}`}>
 
                 <h4
-                  className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
+                  className="cms-post-title leading-snug line-clamp-3"
                   style={tStyle}
                 >
                   {title(p)}
                 </h4>
                 {showExcerpt && excerpt(p) && (
                   <p
-                    className="hidden sm:block text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug"
+                    className="cms-post-excerpt hidden sm:block line-clamp-2"
                     style={eStyle}
                   >
                     {excerpt(p)}
@@ -516,7 +516,7 @@ function PostCard({
         <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={overlayFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-3 text-white">
-          <h4 className="font-display text-base md:text-lg font-semibold leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
+          <h4 className="cms-post-title leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
         </div>
       </a>
     );
@@ -528,7 +528,7 @@ function PostCard({
         {p.cover_image_url && (
           <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-sm mb-3`} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
         )}
-        <h4 className="font-display text-base md:text-lg font-semibold leading-snug line-clamp-2 group-hover:text-brand transition" style={titleStyle}>{title}</h4>
+        <h4 className="cms-post-title leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
         {excerpt && <p className="text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug" style={excerptStyle}>{excerpt}</p>}
       </a>
     );
@@ -541,7 +541,7 @@ function PostCard({
         <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={tileFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
       )}
       <div className="p-3">
-        <h4 className="font-display text-base md:text-lg font-semibold leading-snug mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>
+        <h4 className="cms-post-title leading-snug mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>
         {excerpt && <p className="text-[13px] text-muted-foreground leading-snug line-clamp-2" style={excerptStyle}>{excerpt}</p>}
       </div>
     </a>
