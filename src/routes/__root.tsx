@@ -113,9 +113,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;600;700;800;900&display=swap" },
     ],
   }),
-  // Prefetch site_settings on the server so the Header renders in the SSR
-  // payload instead of popping in after client-side hydration finishes the
-  // first network round-trip.
+  // Prefetch the entire site_settings bulk map on the server. The same query
+  // backs Header, Footer, navigation menus, AlertBar and CopyrightBar - one
+  // round-trip on the edge hydrates every layout chunk so chrome renders
+  // in lockstep with the route body instead of popping in after hydration.
   loader: ({ context }) => context.queryClient.ensureQueryData(siteSettingsQueryOptions),
   shellComponent: RootShell,
   component: RootComponent,
