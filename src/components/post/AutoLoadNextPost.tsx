@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchNextPost, type NextPostSummary } from "@/lib/queries/nextPost";
 import { sanitizeMarkdownHtml } from "@/lib/sanitize";
+import { AppLink } from "@/components/atoms/AppLink";
 
 interface Props {
   currentPostId: string;
@@ -113,9 +114,9 @@ export function AutoLoadNextPost({
               id={`nextpost-${c.post.id}`}
               className="font-display text-3xl lg:text-4xl mb-4"
             >
-              <a href={c.post.href} className="hover:text-primary">
+              <AppLink href={c.post.href} className="hover:text-primary">
                 {title}
-              </a>
+              </AppLink>
             </h2>
             {c.post.cover_image_url && (
               <img

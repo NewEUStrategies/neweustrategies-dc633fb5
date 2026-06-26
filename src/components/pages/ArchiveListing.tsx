@@ -3,6 +3,7 @@
 // `posts.parent_page_id = parentPageId`.
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { AppLink } from "@/components/atoms/AppLink";
 
 interface Props {
   parentPageId: string;
@@ -57,18 +58,18 @@ export function ArchiveListing({ parentPageId, lang, parentPath }: Props) {
         return (
           <li key={r.id} className="group rounded-lg border border-border overflow-hidden bg-card hover:border-primary transition-colors">
             {r.cover_image_url && (
-              <a href={href} className="block overflow-hidden">
+              <AppLink href={href} className="block overflow-hidden">
                 <img
                   src={r.cover_image_url}
                   alt={title}
                   loading="lazy"
                   className="w-full h-44 object-cover transition-transform duration-500 group-hover:scale-105"
                 />
-              </a>
+              </AppLink>
             )}
             <div className="p-4">
               <h3 className="font-display text-lg mb-2 line-clamp-2">
-                <a href={href} className="hover:text-primary">{title}</a>
+                <AppLink href={href} className="hover:text-primary">{title}</AppLink>
               </h3>
               {excerpt && <p className="text-sm text-muted-foreground line-clamp-3">{excerpt}</p>}
               {r.published_at && (

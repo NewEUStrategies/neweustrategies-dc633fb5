@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import * as Icons from "@/lib/lucide-shim";
+import { AppLink } from "@/components/atoms/AppLink";
 
 type AlertStyle = "info" | "warning" | "success" | "brand";
 export const ALERT_ICONS = ["Megaphone", "Bell", "Info", "AlertTriangle", "Check", "Sparkles", "Flame", "Mail"] as const;
@@ -97,18 +98,18 @@ export function AlertBar() {
     <div className={`w-full text-xs ${styleCls}`} role="region" aria-label={isPl ? "Pasek alertu" : "Alert bar"}>
       <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-2 flex items-center gap-3">
         {hasLink && !cta ? (
-          <a href={bar.link_url} className="flex-1 min-w-0 flex justify-center hover:underline">{Message}</a>
+          <AppLink href={bar.link_url} className="flex-1 min-w-0 flex justify-center hover:underline">{Message}</AppLink>
         ) : (
           <div className="flex-1 min-w-0 flex justify-center">{Message}</div>
         )}
 
         {cta && hasLink && (
-          <a
+          <AppLink
             href={bar.link_url}
             className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-medium transition ${btnCls}`}
           >
             {cta}
-          </a>
+          </AppLink>
         )}
 
         {bar.dismissible && (

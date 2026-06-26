@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Flame } from "lucide-react";
 import { getTrendingPosts } from "@/lib/views/postViews.functions";
+import { AppLink } from "@/components/atoms/AppLink";
 
 interface Props {
   days?: number;
@@ -44,7 +45,7 @@ export function TrendingTicker({ days = 7, limit = 8, className }: Props) {
           {data.map((p, i) => {
             const title = lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
             return (
-              <a
+              <AppLink
                 key={p.id}
                 href={p.href}
                 className="group flex items-center gap-2 text-sm whitespace-nowrap hover:text-brand transition"
@@ -54,7 +55,7 @@ export function TrendingTicker({ days = 7, limit = 8, className }: Props) {
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <span className="truncate max-w-[260px] font-medium">{title}</span>
-              </a>
+              </AppLink>
             );
           })}
         </div>

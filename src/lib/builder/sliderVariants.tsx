@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { useResolvedPostRefs } from "./contentRefs";
 import { supabase } from "@/integrations/supabase/client";
+import { AppLink } from "@/components/atoms/AppLink";
 
 export type SliderVariant = "editorial-hero";
 
@@ -321,14 +322,14 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
       >
         {href ? (
-          <a href={href} className="inline-block w-full">
+          <AppLink href={href} className="inline-block w-full">
             <h3
               className="eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
               style={{ minHeight: "calc(2 * 1.25em)", ...titleStyle }}
             >
               <span className="eh-title-text">{title || "\u00A0"}</span>
             </h3>
-          </a>
+          </AppLink>
         ) : (
           <h3
             className="eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
