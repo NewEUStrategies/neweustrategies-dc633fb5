@@ -153,8 +153,8 @@ describe("slider non-string item fields", () => {
   it("coerces non-string item fields to empty strings", () => {
     const { container } = widget("slider", {
       items: [
-        { image: 123, title_pl: 5, title_en: null, subtitle_pl: {}, href: 7, cta_pl: undefined },
-      ],
+        { image: 123, title_pl: 5, title_en: null, subtitle_pl: {}, href: 7, cta_pl: null },
+      ] as unknown as Record<string, unknown>[ ] as never,
     });
     expect(container).toBeTruthy();
   });
