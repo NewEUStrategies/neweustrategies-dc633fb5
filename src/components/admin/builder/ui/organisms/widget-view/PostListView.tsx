@@ -478,7 +478,7 @@ function PostCard({
   titleStyle?: React.CSSProperties;
   excerptStyle?: React.CSSProperties;
 }) {
-  const base = `bg-card border border-border rounded-md overflow-hidden hover:border-brand transition ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`;
+  const base = `bg-transparent border border-border rounded-md overflow-hidden hover:border-brand transition ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`;
 
   if (variant === "overlay" && p.cover_image_url) {
     return (
