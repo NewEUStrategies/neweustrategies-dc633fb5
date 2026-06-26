@@ -239,12 +239,36 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
   const effectiveCols = Math.max(1, Math.min(cols, rows.length || 1));
   if (!rows.length) {
+    // While the query is still running (initial mount or background refetch
+    // with no cached data yet) render a neutral skeleton instead of the
+    // "no results" copy - that copy was flashing on first paint before the
+    // network request resolved, which read like a broken render.
+    if (isPending || (isFetching && data === undefined)) {
+      const skeletonCount = Math.max(1, Math.min(limit, cols * 2));
+      return (
+        <div
+          className="grid gap-4 w-full"
+          style={{ gridTemplateColumns: `repeat(${Math.max(1, cols)}, minmax(0, 1fr))` }}
+          aria-busy="true"
+          aria-live="polite"
+        >
+          {Array.from({ length: skeletonCount }).map((_, i) => (
+            <div key={i} className="flex flex-col gap-2">
+              <div className="aspect-[4/3] w-full rounded-md bg-muted/60 animate-pulse" />
+              <div className="h-4 w-3/4 rounded bg-muted/60 animate-pulse" />
+              <div className="h-3 w-1/2 rounded bg-muted/40 animate-pulse" />
+            </div>
+          ))}
+        </div>
+      );
+    }
     return (
       <div className="w-full text-xs text-muted-foreground border border-dashed border-border rounded-md p-4 text-center">
         Brak wpisów spełniających kryteria.
       </div>
     );
   }
+
 
   const title = (p: PostRow) => (lang === "pl" ? p.title_pl : p.title_en) || p.title_pl || p.title_en || "(bez tytułu)";
   const excerpt = (p: PostRow) => (lang === "pl" ? p.excerpt_pl : p.excerpt_en) || "";
