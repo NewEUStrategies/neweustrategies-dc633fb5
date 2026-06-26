@@ -88,6 +88,26 @@ export const ThemeDesignSchema = z.object({
     opacity: z.number().min(0).max(1).default(0.18),
     weight: z.number().min(100).max(900).default(800),
   }).default({}),
+  postTitle: z.object({
+    // Unified title styling shared by every post card / list / slider / grid widget.
+    fontFamily: z.string().default('"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif'),
+    fontSize: PX.default("18px"),
+    fontSizeSm: PX.default("16px"),
+    fontWeight: z.number().min(100).max(900).default(600),
+    lineHeight: z.union([z.number(), z.string()]).default(1.3),
+    color: COLOR.default("hsl(var(--foreground))"),
+    hoverColor: COLOR.default("hsl(var(--brand))"),
+    textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]).default("none"),
+    letterSpacing: PX.default("0px"),
+  }).default({}),
+  postExcerpt: z.object({
+    fontFamily: z.string().default('"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif'),
+    fontSize: PX.default("13px"),
+    fontWeight: z.number().min(100).max(900).default(400),
+    lineHeight: z.union([z.number(), z.string()]).default(1.5),
+    color: COLOR.default("hsl(var(--muted-foreground))"),
+    marginTop: PX.default("6px"),
+  }).default({}),
 }).default({});
 
 export type ThemeDesign = z.infer<typeof ThemeDesignSchema>;
