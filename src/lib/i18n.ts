@@ -150,6 +150,7 @@ const resources = {
           podcasts: "Podcasty",
           webStories: "Web Stories",
           personalized: "Personalizacja",
+          performance: "Wydajność",
           settings: "Ustawienia",
         },
         navGroups: {
@@ -158,6 +159,23 @@ const resources = {
           engagement: "Zaangażowanie",
           design: "Wygląd",
           system: "System",
+        },
+        performance: {
+          title: "Wydajność (RUM)",
+          subtitle:
+            "Dane Core Web Vitals zbierane od rzeczywistych użytkowników w produkcji. Wartość p75 to wynik raportowany przez Web Vitals.",
+          window: { "1": "24 godz.", "7": "7 dni", "28": "28 dni" },
+          loading: "Wczytywanie danych…",
+          error: "Nie udało się wczytać danych.",
+          sampleCount: "Próbki: {{count}}",
+          capped: "Pokazano najnowsze próbki (przekroczono limit).",
+          emptyTitle: "Brak danych w tym oknie",
+          emptyBody:
+            "Metryki pojawią się, gdy użytkownicy zaczną wczytywać strony w produkcji. W trybie deweloperskim dane nie są wysyłane.",
+          p75: "p75",
+          median: "Mediana",
+          range: "Zakres",
+          rating: { good: "Dobre", ni: "Wymaga poprawy", poor: "Słabe" },
         },
         sidebar: { expand: "Rozszerz", collapse: "Zwiń" },
         appearance: {
@@ -806,6 +824,7 @@ const resources = {
           podcasts: "Podcasts",
           webStories: "Web Stories",
           personalized: "Personalization",
+          performance: "Performance",
           settings: "Settings",
         },
         navGroups: {
@@ -814,6 +833,23 @@ const resources = {
           engagement: "Engagement",
           design: "Appearance",
           system: "System",
+        },
+        performance: {
+          title: "Performance (RUM)",
+          subtitle:
+            "Core Web Vitals collected from real users in production. The p75 value is the score Web Vitals reports.",
+          window: { "1": "24 h", "7": "7 days", "28": "28 days" },
+          loading: "Loading data…",
+          error: "Failed to load data.",
+          sampleCount: "Samples: {{count}}",
+          capped: "Showing the most recent samples (limit reached).",
+          emptyTitle: "No data in this window",
+          emptyBody:
+            "Metrics appear once visitors start loading pages in production. In development nothing is sent.",
+          p75: "p75",
+          median: "Median",
+          range: "Range",
+          rating: { good: "Good", ni: "Needs work", poor: "Poor" },
         },
         sidebar: { expand: "Expand", collapse: "Collapse" },
         appearance: {

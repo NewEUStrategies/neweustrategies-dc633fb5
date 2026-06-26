@@ -33,6 +33,14 @@ export default defineConfig({
         "src/lib/observability/report.ts",
         "src/lib/seo/meta.ts",
         "src/lib/access/gating.ts",
+        // Public critical path: the URL-splat resolver helpers and the single-post
+        // layout renderer (cover LCP optimization + layout presets).
+        "src/lib/routing/publicSegments.ts",
+        "src/components/PostLayoutRenderer.tsx",
+        // RUM analytics: the pure Web Vitals aggregator + shared thresholds that
+        // back the admin performance dashboard.
+        "src/lib/observability/aggregate.ts",
+        "src/lib/observability/vitalsThresholds.ts",
       ],
       exclude: [
         "**/__tests__/**",
@@ -66,6 +74,15 @@ export default defineConfig({
         // OpenGraph/article/paywall arms keep branch coverage lower.
         "src/lib/seo/meta.ts": { statements: 100, functions: 100, lines: 100, branches: 70 },
         "src/lib/access/gating.ts": { statements: 95, functions: 100, lines: 100, branches: 95 },
+        // publicSegments: two pure helpers, fully exercised.
+        "src/lib/routing/publicSegments.ts": { statements: 100, functions: 100, lines: 100, branches: 100 },
+        // PostLayoutRenderer: every statement/line/function hit; the remaining
+        // branch arms are unreachable `hasSidebar`/center fallbacks on presets
+        // that never take them (floored just below the achieved ~91%).
+        "src/components/PostLayoutRenderer.tsx": { statements: 100, functions: 100, lines: 100, branches: 90 },
+        // RUM aggregator + thresholds: pure, fully exercised.
+        "src/lib/observability/aggregate.ts": { statements: 100, functions: 100, lines: 100, branches: 100 },
+        "src/lib/observability/vitalsThresholds.ts": { statements: 100, functions: 100, lines: 100, branches: 100 },
       },
     },
   },

@@ -4,7 +4,7 @@ import { Fragment, memo, useEffect, useLayoutEffect, useRef, useState, type CSSP
 import type { BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, Device, ResponsiveValue } from "@/lib/builder/types";
 import { WidgetView, getWidgetFrameStyle, hiddenOnDevice } from "@/components/admin/builder/WidgetView";
 import { AUTO_SIZE_WIDGETS, COMPACT_WIDGET_TYPES } from "@/components/admin/builder/ui/organisms/widget-view/frame";
-import { RenderErrorBoundary, isDevEnv } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
+import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
 import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl } from "@/lib/sanitize";
 import {
   sectionWrapperStyle, sectionContainerStyle, columnsRowStyle,
@@ -116,7 +116,7 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
 // loop runs once and labels every renderer on the page.
 function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocument }) {
   useEffect(() => {
-    if (!debug || typeof window === "undefined") return;
+    if (!import.meta.env.DEV || !debug || typeof window === "undefined") return;
     const annotate = () => {
       document.querySelectorAll<HTMLElement>(
         "[data-builder-renderer] [data-sec-id], [data-builder-renderer] [data-col-id], [data-builder-renderer] [data-widget-id]",
@@ -130,20 +130,23 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
     return () => { window.clearInterval(id); window.removeEventListener("resize", annotate); };
   }, [debug, doc]);
 
-  const showToggle = isDevEnv() || debug;
+  // The debug overlay (CSS + toggle) is a DEV-only affordance. Gating the whole
+  // output behind import.meta.env.DEV means the CSS string and the button
+  // tree-shake out of production builds entirely - they can never reach a
+  // visitor, even via ?debug=1. (The functional/responsive CSS lives in the
+  // global stylesheet, so production layout is unaffected.)
+  if (!import.meta.env.DEV) return null;
   return (
     <>
       {debug && <style dangerouslySetInnerHTML={{ __html: DEBUG_OVERLAY_CSS }} />}
-      {showToggle && (
-        <button
-          type="button"
-          className="builder-debug-toggle"
-          data-on={debug ? "1" : "0"}
-          onClick={toggleBuilderDebug}
-        >
-          {debug ? "Debug: ON" : "Debug: OFF"}
-        </button>
-      )}
+      <button
+        type="button"
+        className="builder-debug-toggle"
+        data-on={debug ? "1" : "0"}
+        onClick={toggleBuilderDebug}
+      >
+        {debug ? "Debug: ON" : "Debug: OFF"}
+      </button>
     </>
   );
 }
