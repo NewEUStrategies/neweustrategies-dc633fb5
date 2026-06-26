@@ -45,17 +45,17 @@ export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppL
   { href = "#", target, onClick, onMouseEnter, onFocus, onTouchStart, preload = "intent", ...props },
   ref,
 ) {
-  const router = useRouter();
+  const router = useRouter({ warn: false });
   const clientHref = toClientHref(href);
 
   const preloadRoute = () => {
-    if (!clientHref || preload === "none") return;
+    if (!router || !clientHref || preload === "none") return;
     void router.preloadRoute({ href: clientHref } as never).catch(() => undefined);
   };
 
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(event);
-    if (event.defaultPrevented || !clientHref) return;
+    if (event.defaultPrevented || !router || !clientHref) return;
     const elementTarget = event.currentTarget.getAttribute("target");
     const effectiveTarget = target ?? elementTarget;
     if (event.button !== 0 || isModifiedEvent(event) || (effectiveTarget && effectiveTarget !== "_self")) return;
