@@ -812,9 +812,22 @@ select option {
   ::view-transition-old(site-header),
   ::view-transition-new(site-header),
   ::view-transition-old(site-footer),
-  ::view-transition-new(site-footer) {
+  ::view-transition-new(site-footer),
+  ::view-transition-old(admin-sidebar),
+  ::view-transition-new(admin-sidebar) {
     animation: none !important;
     mix-blend-mode: normal;
+  }
+  ::view-transition-old(admin-main),
+  ::view-transition-new(admin-main) {
+    animation-duration: 180ms;
+    animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  ::view-transition-old(admin-main) {
+    animation-name: vt-fade-out;
+  }
+  ::view-transition-new(admin-main) {
+    animation-name: vt-fade-in;
   }
 }
 @keyframes vt-fade-out {
