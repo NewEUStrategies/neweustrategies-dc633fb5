@@ -11,6 +11,35 @@ export function hasFootnotes(html: string | null | undefined): boolean {
   return !!html && html.includes("[fn]");
 }
 
+/**
+ * Recover the footnote list from ALREADY-RENDERED markup (the "baked" output of
+ * processHtmlFootnotes + footnotesSectionHtml that migrated content stores in a
+ * builder `text` widget). Reads the `<ol data-footnotes-list>` items: each
+ * `<li id="fn-N">` carries a `[N]` marker span (`data-fn-marker`) and a note
+ * body span. Used to re-attach interactive footnote tooltips to baked `data-fn`
+ * references at render time, with no [fn] reprocessing.
+ *
+ * `root` is any DOM ParentNode (a widget container) - kept DOM-based so it works
+ * uniformly for the migrated builder path and is unit-testable under jsdom.
+ */
+export function parseBakedFootnotes(root: ParentNode): Footnote[] {
+  const out: Footnote[] = [];
+  const items = root.querySelectorAll('[data-footnotes-list] > li[id^="fn-"]');
+  items.forEach((li) => {
+    const id = Number(li.id.replace(/^fn-/, ""));
+    if (!Number.isInteger(id) || id <= 0) return;
+    // The note body is the direct-child span that is NOT the "[N]" marker.
+    let html = "";
+    for (const child of Array.from(li.children)) {
+      if (child.tagName === "SPAN" && !child.hasAttribute("data-fn-marker")) {
+        html = child.innerHTML;
+      }
+    }
+    if (html.trim()) out.push({ id, html });
+  });
+  return out;
+}
+
 export function processHtmlFootnotes(
   html: string,
   startIndex: number,

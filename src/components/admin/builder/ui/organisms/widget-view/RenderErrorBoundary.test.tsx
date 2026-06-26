@@ -27,13 +27,18 @@ describe("RenderErrorBoundary", () => {
     expect(screen.getByText("healthy")).toBeTruthy();
   });
 
-  it("renders nothing in production when a child throws", () => {
+  it("leaves a hidden, zero-layout diagnostic breadcrumb in production", () => {
     const { container } = render(
       <RenderErrorBoundary label="widget:heading:w1" dev={false}>
-        <Boom />
+        <Boom message="prod boom" />
       </RenderErrorBoundary>,
     );
-    expect(container.querySelector("[data-render-error]")).toBeNull();
+    const marker = container.querySelector("[data-render-error]") as HTMLElement | null;
+    // Present (so a crash is detectable) but invisible (no broken box for users).
+    expect(marker).not.toBeNull();
+    expect(marker?.hidden).toBe(true);
+    expect(marker?.getAttribute("data-render-error")).toBe("widget:heading:w1");
+    expect(marker?.getAttribute("data-render-error-message")).toBe("prod boom");
     expect(container.textContent).toBe("");
   });
 
@@ -91,10 +96,15 @@ describe("RenderErrorBoundary", () => {
         <Boom />
       </RenderErrorBoundary>,
     );
+    // Both branches leave a `[data-render-error]` node; dev shows a visible
+    // alert, prod a hidden breadcrumb.
+    const marker = container.querySelector("[data-render-error='auto']") as HTMLElement | null;
+    expect(marker).not.toBeNull();
     if (dev) {
-      expect(container.querySelector("[data-render-error='auto']")).not.toBeNull();
+      expect(marker?.getAttribute("role")).toBe("alert");
+      expect(marker?.hidden).toBe(false);
     } else {
-      expect(container.querySelector("[data-render-error]")).toBeNull();
+      expect(marker?.hidden).toBe(true);
     }
   });
 });

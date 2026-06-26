@@ -11,6 +11,7 @@ export {
   buildErrorPayload,
   sendBeaconPayload,
   reportClientError,
+  reportBoundaryError,
 } from "./report";
 export type { ClientErrorPayload } from "./report";
 

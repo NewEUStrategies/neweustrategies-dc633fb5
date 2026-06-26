@@ -19,9 +19,11 @@ export interface ClientErrorPayload {
   type: "error";
   message: string;
   stack?: string;
-  source: "onerror" | "unhandledrejection";
+  source: "onerror" | "unhandledrejection" | "react_error_boundary";
   path: string;
   ts: number;
+  /** Optional structured context (boundary label, component stack, …). */
+  meta?: Record<string, unknown>;
 }
 
 export function buildErrorPayload(
@@ -29,12 +31,15 @@ export function buildErrorPayload(
   source: ClientErrorPayload["source"],
   path: string,
   ts: number,
+  meta?: Record<string, unknown>,
 ): ClientErrorPayload {
   const err =
     error instanceof Error
       ? error
       : new Error(typeof error === "string" ? error : "Unknown client error");
-  return { type: "error", message: err.message, stack: err.stack, source, path, ts };
+  const payload: ClientErrorPayload = { type: "error", message: err.message, stack: err.stack, source, path, ts };
+  if (meta && Object.keys(meta).length > 0) payload.meta = meta;
+  return payload;
 }
 
 /** Beacon a JSON payload. Returns false (never throws) when unsupported. */
@@ -54,4 +59,17 @@ export function reportClientError(error: unknown, source: ClientErrorPayload["so
   if (!endpoint) return false;
   const path = typeof location !== "undefined" ? location.pathname : "";
   return sendBeaconPayload(endpoint, buildErrorPayload(error, source, path, Date.now()));
+}
+
+/**
+ * Report an error caught by a React error boundary, with structured context
+ * (the boundary label and React component stack). Beacons to the configured
+ * endpoint; no-op when unset. This gives per-widget/section render crashes a
+ * real telemetry consumer independent of any host (Lovable) integration.
+ */
+export function reportBoundaryError(error: unknown, meta: Record<string, unknown>): boolean {
+  const endpoint = observabilityEndpoint();
+  if (!endpoint) return false;
+  const path = typeof location !== "undefined" ? location.pathname : "";
+  return sendBeaconPayload(endpoint, buildErrorPayload(error, "react_error_boundary", path, Date.now(), meta));
 }

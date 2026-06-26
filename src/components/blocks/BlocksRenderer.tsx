@@ -15,6 +15,7 @@ import { CompareSlider } from "./CompareSlider";
 import { LoginFormView, RegisterFormView, LostPasswordFormView, ResetPasswordFormView } from "./AuthFormBlocks";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 
 interface Props {
@@ -69,7 +70,14 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
   const L = FN_LABELS[lang] ?? FN_LABELS.pl;
   return (
     <article className="blocks-content prose prose-lg dark:prose-invert max-w-none" lang={lang}>
-      {safe.blocks.map((b) => <BlockView key={b.id} block={b} fnHtml={fnHtml} lang={lang} postId={postId} allBlocks={safe.blocks} />)}
+      {safe.blocks.map((b) => (
+        // Per-block isolation, mirroring the builder's per-widget boundary: one
+        // malformed block degrades to nothing (prod) / a diagnostic (dev) instead
+        // of crashing the whole article via the global boundary.
+        <RenderErrorBoundary key={b.id} label={`block:${b.type}:${b.id}`}>
+          <BlockView block={b} fnHtml={fnHtml} lang={lang} postId={postId} allBlocks={safe.blocks} />
+        </RenderErrorBoundary>
+      ))}
       {fn.notes.length > 0 && (
         <section className="footnotes mt-10 pt-6 border-t border-border text-sm" aria-labelledby="footnotes-heading">
           <h2 id="footnotes-heading" data-footnotes-title className="text-base font-semibold mb-3">{L.title}</h2>
