@@ -24,6 +24,7 @@ const SearchParams = z.object({
 type SearchInput = z.infer<typeof SearchParams>;
 
 export const Route = createFileRoute("/search")({
+  staticData: { ownChrome: true },
   validateSearch: (s: Record<string, unknown>): SearchInput => SearchParams.parse(s),
   head: () => ({
     meta: [

@@ -25,6 +25,7 @@ interface PostRow {
 }
 
 export const Route = createFileRoute("/reading-list")({
+  staticData: { ownChrome: true },
   component: ReadingListPage,
   head: () => ({ meta: [{ title: "Twoja lista do przeczytania" }, { name: "robots", content: "noindex" }] }),
 });

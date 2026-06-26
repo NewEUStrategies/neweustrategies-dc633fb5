@@ -28,6 +28,7 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { CommandPalette } from "../components/search/CommandPalette";
 import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
 import { siteSettingsQueryOptions } from "../lib/useSiteSetting";
+import { SiteChrome } from "../components/SiteChrome";
 
 
 function NotFoundComponent() {
@@ -159,7 +160,9 @@ function RootComponent() {
           <ThemeOptionsStyle />
           <ThemeDesignStyle />
           <ErrorBoundary>
-            <Outlet />
+            <SiteChrome>
+              <Outlet />
+            </SiteChrome>
           </ErrorBoundary>
           <LoginPopup />
           <ConsentBanner />

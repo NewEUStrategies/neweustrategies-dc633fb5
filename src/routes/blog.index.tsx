@@ -13,6 +13,7 @@ import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/blog/")({
+  staticData: { ownChrome: true },
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(blogListQueryOptions()),
 

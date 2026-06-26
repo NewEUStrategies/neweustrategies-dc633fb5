@@ -12,6 +12,7 @@ import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/")({
+  staticData: { ownChrome: true },
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData(homePageQueryOptions());
     return null;
