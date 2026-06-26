@@ -36,7 +36,7 @@ export function Footer() {
 
   return (
     <>
-      <footer data-footer-layout={chromeCfg.layout} style={{ viewTransitionName: "site-footer" }}>
+      <footer data-site-footer data-footer-layout={chromeCfg.layout} style={{ viewTransitionName: "site-footer" }}>
         <BuilderRenderer doc={doc} lang={isPl ? "pl" : "en"} />
         <CopyrightBar chrome={chromeCfg} lang={isPl ? "pl" : "en"} />
       </footer>

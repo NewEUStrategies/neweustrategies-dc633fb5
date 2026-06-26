@@ -845,3 +845,19 @@ select option {
 @media (prefers-reduced-motion: reduce) {
   .skeleton-shimmer { animation: none; }
 }
+
+/* ============================================================
+ * Per-page chrome overrides (driven by data-* on the page body)
+ * ------------------------------------------------------------
+ * SiteChrome always mounts the header/footer (so navigation never
+ * remounts them and View Transitions stay smooth). Individual CMS
+ * pages opt out declaratively via data-* attributes on their root
+ * wrapper:
+ *   data-page-header-override="hidden"   -> hide site header
+ *   data-page-template="landing"         -> hide header + footer
+ * ============================================================ */
+body:has([data-page-header-override="hidden"]) header[data-site-header],
+body:has([data-page-template="landing"]) header[data-site-header],
+body:has([data-page-template="landing"]) footer[data-site-footer] {
+  display: none !important;
+}
