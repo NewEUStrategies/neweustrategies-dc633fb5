@@ -617,13 +617,21 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
         {isRanked && rows.map((p, i) => {
           const authorName = p.author_id ? authorMap[p.author_id] ?? "" : "";
           const side = str(c, "indexSide", "right") === "left" ? "left" : "right";
+          const vAlignRaw = str(c, "indexVAlign", "top");
+          const vAlign = vAlignRaw === "middle" || vAlignRaw === "bottom" ? vAlignRaw : "top";
           const sizePx = (() => {
             const raw = c["indexSizePx"];
             const n = typeof raw === "number" ? raw : Number(raw);
-            return Number.isFinite(n) && n > 0 ? n : 64;
+            return Number.isFinite(n) && n > 0 ? n : 96;
           })();
           // Cap preview size so it fits the narrow sidebar without clipping.
           const previewSize = Math.min(sizePx, 64);
+          const vStyle: React.CSSProperties =
+            vAlign === "top"
+              ? { top: "0.5rem", bottom: "auto" }
+              : vAlign === "bottom"
+              ? { top: "auto", bottom: "0.5rem" }
+              : { top: "50%", transform: "translateY(-50%)" };
           return (
             <div
               key={p.id}
@@ -631,10 +639,11 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
             >
               <span
                 aria-hidden
-                className="pointer-events-none absolute top-1/2 -translate-y-1/2 font-display tabular-nums leading-none select-none"
+                className="pointer-events-none absolute font-display tabular-nums leading-none select-none"
                 style={{
                   left: side === "left" ? "0.5rem" : "auto",
                   right: side === "right" ? "0.5rem" : "auto",
+                  ...vStyle,
                   textAlign: side,
                   fontSize: `${previewSize}px`,
                   fontWeight: 800,
@@ -658,6 +667,7 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
             </div>
           );
         })}
+
 
 
         {!isRanked && rows.map((p) => {
