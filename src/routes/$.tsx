@@ -262,9 +262,8 @@ function PublicPage() {
     const layoutId = pickLayoutId(globalLayoutSettings, format, overrides?.layout);
     const merged = mergeOverrides(globalLayoutSettings, overrides);
     return (
-      <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <div className="flex flex-col bg-background text-foreground" data-page-template="post">
         <PostContentStyle />
-        <Header />
         <main className={`flex-1 ${maxW} w-full mx-auto px-4 lg:px-8 py-10`}>
           <Breadcrumbs items={crumbs} />
           <AdZone position="top_of_post" pageType={adPageType} pageId={it.id} className="mb-6" />
