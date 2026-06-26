@@ -9,6 +9,7 @@ import type { WidgetContent } from "@/lib/builder/types";
 import { getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
+import { readThumbnailOverrides } from "@/lib/builder/thumbnailOverrides";
 
 // Cover renders across a 1-4 column responsive grid. Images are always painted
 // into a stable frame so mobile CSS cannot stretch/squash their crop.
