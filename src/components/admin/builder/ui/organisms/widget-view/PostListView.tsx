@@ -3,6 +3,7 @@
 // limit, offset, date range, popularity) are driven by widget content and
 // edited via PostListEditor.
 import { useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
