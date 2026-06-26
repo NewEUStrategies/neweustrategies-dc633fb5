@@ -411,13 +411,13 @@ export function PostListEditor({ c, lang, setContent }: Props) {
             <PropField label="Rozmiar (px)">
               <Input
                 type="number" min={12} max={240}
-                value={num(c, "indexSizePx", 32)}
+                value={num(c, "indexSizePx", 96)}
                 onChange={(e) => setContent("indexSizePx", Number(e.target.value) || 0)}
                 className="h-8 text-xs"
               />
             </PropField>
             <PropField label="Grubość">
-              <Select value={str(c, "indexWeight", "700")} onValueChange={(v) => setContent("indexWeight", v)}>
+              <Select value={str(c, "indexWeight", "800")} onValueChange={(v) => setContent("indexWeight", v)}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {["300","400","500","600","700","800","900"].map((w) => (
@@ -426,7 +426,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                 </SelectContent>
               </Select>
             </PropField>
-            <PropField label="Pozycja licznika">
+            <PropField label="Pozycja pozioma">
               <Select value={str(c, "indexSide", "right")} onValueChange={(v) => setContent("indexSide", v)}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -435,7 +435,18 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                 </SelectContent>
               </Select>
             </PropField>
+            <PropField label="Pozycja pionowa">
+              <Select value={str(c, "indexVAlign", "top")} onValueChange={(v) => setContent("indexVAlign", v)}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="top">Góra (równo z tytułem)</SelectItem>
+                  <SelectItem value="middle">Środek</SelectItem>
+                  <SelectItem value="bottom">Dół</SelectItem>
+                </SelectContent>
+              </Select>
+            </PropField>
           </div>
+
 
           <div className="grid grid-cols-2 gap-2 mt-2">
             <PropField label="Kolor (light)">
