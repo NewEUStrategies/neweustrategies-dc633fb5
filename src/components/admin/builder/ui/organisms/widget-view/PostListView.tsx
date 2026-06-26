@@ -261,20 +261,25 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     // Big faint index on the left, title in the middle, thumbnail on the right.
     // Sizes/colors are configurable via widget content; sensible defaults match
     // an editorial "ranking" list with a translucent numeral behind the title.
-    const idxSize = getNum(c, "indexSizePx", 88);
+    const idxSize = getNum(c, "indexSizePx", 124);
     const idxColor = getStr(c, "indexColor") || "";
     const idxColorDark = getStr(c, "indexColorDark") || "";
     const idxOpacity = (() => {
       const v = getNum(c, "indexOpacity", -1);
-      return v < 0 ? 0.12 : Math.max(0, Math.min(1, v));
+      return v < 0 ? 0.22 : Math.max(0, Math.min(1, v));
     })();
     const idxWeight = getStr(c, "indexWeight") || "800";
     const showExcerpt = false;
-    const lightColor = idxColor || `rgba(0,0,0,${idxOpacity})`;
-    const darkColor = idxColorDark || `rgba(255,255,255,${idxOpacity})`;
+    const lightColor = idxColor || `rgba(250,147,70,${idxOpacity})`;
+    const darkColor = idxColorDark || `rgba(250,147,70,${idxOpacity})`;
     return (
-      <div className="w-full flex flex-col divide-y divide-border">
-        <style>{`.pl-num-light{color:${lightColor};} .dark .pl-num-light{color:${darkColor};}`}</style>
+      <div
+        className="w-full flex flex-col divide-y divide-border"
+        style={{
+          "--pl-num-light": lightColor,
+          "--pl-num-dark": darkColor,
+        } as React.CSSProperties}
+      >
         {rows.map((p, i) => (
           <a
             key={p.id}
@@ -286,18 +291,18 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
             }`}
 
           >
-            <div className="relative min-w-0 text-left">
+            <div className="relative min-w-0 overflow-hidden text-left isolate">
               <span
                 aria-hidden
-                className="pl-num-light font-display tabular-nums leading-none select-none absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none z-0"
+                className="font-display tabular-nums leading-none select-none absolute -left-2 sm:-left-3 top-1/2 -translate-y-1/2 pointer-events-none z-0 text-[var(--pl-num-light)] dark:text-[var(--pl-num-dark)]"
                 style={{
-                  fontSize: `clamp(56px, ${idxSize * 0.7}px + 1vw, ${idxSize}px)`,
+                  fontSize: `clamp(72px, ${idxSize * 0.72}px + 1.8vw, ${idxSize}px)`,
                   fontWeight: idxWeight as React.CSSProperties["fontWeight"],
                 }}
               >
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <div className="relative z-10">
+              <div className="relative z-10 py-2 sm:py-3">
                 <h4
                   className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
                   style={tStyle}
