@@ -27,6 +27,7 @@ import { NewsletterPopup } from "../components/NewsletterPopup";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { CommandPalette } from "../components/search/CommandPalette";
 import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
+import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
 import { siteSettingsQueryOptions } from "../lib/useSiteSetting";
 import { SiteChrome } from "../components/SiteChrome";
 
@@ -178,6 +179,7 @@ function RootComponent() {
       <AuthProvider>
         <IconPackSync />
         <WidgetLiveSync />
+        <SiteSettingsLiveSync />
         <DesignTokensStyle />
         <ContentAreaStyle />
         <ThemeOptionsStyle />
