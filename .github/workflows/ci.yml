@@ -52,6 +52,12 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
 
+      # Blocking perf gate: fails the build if the gzipped client bundle grows
+      # past budget (largest chunk / total). Reliable - no server or browser
+      # needed - unlike the separate Lighthouse job.
+      - name: Bundle size budget
+        run: bun run check:bundle
+
       # Lint runs for visibility only: the existing tree has a large backlog of
       # Prettier formatting findings, so it must not gate merges yet. Flip
       # continue-on-error to false once the backlog is cleared.

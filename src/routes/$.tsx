@@ -103,17 +103,35 @@ export const Route = createFileRoute("/$")({
     const excerpt =
       "excerpt_pl" in it ? (lang === "en" ? it.excerpt_en || it.excerpt_pl : it.excerpt_pl || it.excerpt_en) : null;
     const tags = "tags" in loaderData ? (loaderData.tags ?? []).map((t) => t.name) : [];
-    return buildContentHead({
+    const description = metaDescription(excerpt, title);
+    const head = buildContentHead({
       url,
       lang,
       type: isPost ? "article" : "website",
       title,
-      description: metaDescription(excerpt, title),
+      description,
       image: it.cover_image_url,
       publishedAt: it.published_at,
       modifiedAt: it.updated_at,
       tags,
     });
+    // Emit the article/page JSON-LD in <head> (not the body) so crawlers parse
+    // the structured-data graph early, before the full document streams.
+    const jsonLd = buildArticleJsonLd({
+      url,
+      lang,
+      isArticle: isPost,
+      title,
+      description,
+      image: it.cover_image_url,
+      publishedAt: it.published_at,
+      modifiedAt: it.updated_at,
+      gated: isGatedMode(loaderData.access?.mode),
+    });
+    return {
+      ...head,
+      scripts: [{ type: "application/ld+json", children: JSON.stringify(jsonLd) }],
+    };
   },
 
   component: PublicPage,
@@ -199,17 +217,7 @@ function PublicPage() {
     setCrumbs(buildBreadcrumbs(data.crumbs, lang, isPost ? title : undefined));
   }, [data, lang, title, isPost]);
 
-  const jsonLd = buildArticleJsonLd({
-    url: getRequestUrl(),
-    lang,
-    isArticle: isPost,
-    title,
-    description: metaDescription(excerpt, title),
-    image: it.cover_image_url,
-    publishedAt: it.published_at,
-    modifiedAt: it.updated_at,
-    gated: isGatedMode(accessRule?.mode),
-  });
+  // JSON-LD is emitted in <head> via the route head() above, not in the body.
 
   const maxW = "max-w-[1200px]";
   const showPaywall = shouldShowPaywall(accessRule?.mode, body);
@@ -356,7 +364,6 @@ function PublicPage() {
               lang={lang}
             />
           )}
-          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
         </main>
 
         <FooterSlideup pageType={adPageType} pageId={it.id} />
@@ -389,7 +396,6 @@ function PublicPage() {
       {tpl.id === "contact" && <ContactForm lang={lang} />}
       <AdZone position="bottom_of_post" pageType={adPageType} pageId={it.id} className="my-6" />
       <FootnoteTooltips notes={notes} containerRef={articleRef} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
     </>
   );
 

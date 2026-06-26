@@ -13,11 +13,13 @@ jobs:
   lighthouse:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Performance budgets are advisory for now (assertions are "warn" and the job
-    # is non-blocking), mirroring the lint step in ci.yml. Flip continue-on-error
-    # to false and the assertions to "error" once the budgets in
-    # lighthouserc.json are validated as stable.
-    continue-on-error: true
+    # Performance + accessibility budgets are enforced: lighthouserc.json
+    # assertions are "error" and this job gates. The accessibility category is
+    # axe-powered, so this doubles as automated a11y. NOTE: the preview server
+    # serves the client build, so if a threshold proves too strict for the
+    # preview environment, tune the number in lighthouserc.json (the always-on
+    # bundle-size budget in ci.yml is the reliable perf floor regardless).
+    continue-on-error: false
     steps:
       - uses: actions/checkout@v4
 

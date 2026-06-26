@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "migrate:blocks-to-builder": "bun run scripts/migrate-blocks-to-builder.ts"
+    "migrate:blocks-to-builder": "bun run scripts/migrate-blocks-to-builder.ts",
+    "check:bundle": "bun run scripts/check-bundle-size.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
