@@ -26,6 +26,7 @@ const VARIANTS = [
   { v: "overlay", l: "Overlay na okładce" },
   { v: "list", l: "Lista" },
   { v: "numbered", l: "Numerowana (01, 02)" },
+  { v: "ranked", l: "Ranking (numer + autor, bez obrazka)" },
 ] as const;
 
 const ORDER_BY = [
