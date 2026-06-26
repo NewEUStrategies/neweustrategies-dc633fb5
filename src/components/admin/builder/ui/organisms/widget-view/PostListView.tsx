@@ -363,17 +363,18 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     >
 
       {rows.map((p) => (
-        <PostCard key={p.id} p={p} variant={variant} title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
+        <PostCard key={p.id} p={p} variant={variant} aspect={aspect} title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
       ))}
     </div>
   );
 }
 
 function PostCard({
-  p, variant, carousel = false, title, excerpt, titleStyle, excerptStyle,
+  p, variant, aspect, carousel = false, title, excerpt, titleStyle, excerptStyle,
 }: {
   p: PostRow;
   variant: Variant;
+  aspect: ImageAspect;
   carousel?: boolean;
   title: string;
   excerpt: string;
@@ -385,7 +386,7 @@ function PostCard({
   if (variant === "overlay" && p.cover_image_url) {
     return (
       <a href={`/post/${p.slug}`} className={`relative block rounded-md overflow-hidden ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
-        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={OVERLAY_FRAME_CLASS} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
+        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={overlayFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-3 text-white">
           <h4 className="font-display text-base md:text-lg font-semibold leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
@@ -398,7 +399,7 @@ function PostCard({
     return (
       <a href={`/post/${p.slug}`} className={`block group ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
         {p.cover_image_url && (
-          <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${TILE_FRAME_CLASS} rounded-sm mb-3`} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
+          <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-sm mb-3`} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
         )}
         <h4 className="font-display text-base md:text-lg font-semibold leading-snug line-clamp-2 group-hover:text-brand transition" style={titleStyle}>{title}</h4>
         {excerpt && <p className="text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug" style={excerptStyle}>{excerpt}</p>}
@@ -410,7 +411,7 @@ function PostCard({
   return (
     <a href={`/post/${p.slug}`} className={base}>
       {p.cover_image_url && (
-        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={TILE_FRAME_CLASS} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
+        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={tileFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
       )}
       <div className="p-3">
         <h4 className="font-display text-base md:text-lg font-semibold leading-snug mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>
