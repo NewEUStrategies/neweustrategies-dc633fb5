@@ -279,11 +279,12 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
           <a
             key={p.id}
             href={`/post/${p.slug}`}
-            className={`grid items-center gap-4 sm:gap-6 py-5 sm:py-6 group ${
+            className={`grid items-center gap-3 sm:gap-4 py-4 sm:py-5 group ${
               p.cover_image_url
-                ? "grid-cols-[auto_minmax(0,1fr)_96px] sm:grid-cols-[auto_minmax(0,1fr)_140px] md:grid-cols-[auto_minmax(0,1fr)_180px]"
+                ? "grid-cols-[auto_minmax(0,1fr)_minmax(90px,32%)] sm:grid-cols-[auto_minmax(0,1fr)_minmax(120px,28%)]"
                 : "grid-cols-[auto_minmax(0,1fr)]"
             }`}
+
           >
             <span
               aria-hidden
