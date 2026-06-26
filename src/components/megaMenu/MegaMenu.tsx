@@ -288,7 +288,7 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
             p.title_pl as string,
           ),
           cover: (p.cover_image_url as string | null) ?? "",
-          href: `/blog/${p.slug as string}`,
+          href: `/post/${p.slug as string}`,
         })),
         catName: pickLang(cat.name_pl as string, cat.name_en as string),
       };
