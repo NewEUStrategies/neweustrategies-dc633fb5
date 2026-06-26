@@ -160,7 +160,9 @@ function RootComponent() {
           <ThemeOptionsStyle />
           <ThemeDesignStyle />
           <ErrorBoundary>
-            <Outlet />
+            <SiteChrome>
+              <Outlet />
+            </SiteChrome>
           </ErrorBoundary>
           <LoginPopup />
           <ConsentBanner />
