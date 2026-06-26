@@ -14,6 +14,7 @@ import { XQuoteShare } from "./XQuoteShare";
 import { CompareSlider } from "./CompareSlider";
 import { LoginFormView, RegisterFormView, LostPasswordFormView, ResetPasswordFormView } from "./AuthFormBlocks";
 import { NewsletterForm } from "@/components/NewsletterForm";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 
 interface Props {
@@ -58,11 +59,17 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
   if (!doc?.blocks?.length) return null;
   const safe = safeParseBlocks(doc);
   if (!safe.blocks.length) return null;
+  // Pre-pass: collect footnotes (and the transformed HTML) BEFORE rendering so
+  // the footnotes section is known up front and renders on first paint / SSR.
+  // Previously the collector was mutated during child render, so the parent read
+  // `fn.notes.length` as 0 and the section never appeared.
   const fn: FootnoteCollector = { notes: [] };
+  const fnHtml = new Map<string, string>();
+  precomputeFootnotes(safe.blocks, fn, fnHtml);
   const L = FN_LABELS[lang] ?? FN_LABELS.pl;
   return (
     <article className="blocks-content prose prose-lg dark:prose-invert max-w-none" lang={lang}>
-      {safe.blocks.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} allBlocks={safe.blocks} />)}
+      {safe.blocks.map((b) => <BlockView key={b.id} block={b} fnHtml={fnHtml} lang={lang} postId={postId} allBlocks={safe.blocks} />)}
       {fn.notes.length > 0 && (
         <section className="footnotes mt-10 pt-6 border-t border-border text-sm" aria-labelledby="footnotes-heading">
           <h2 id="footnotes-heading" data-footnotes-title className="text-base font-semibold mb-3">{L.title}</h2>
@@ -78,6 +85,23 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
       )}
     </article>
   );
+}
+
+/**
+ * Walk blocks in render order (columns: left then right), transforming the
+ * footnote shortcodes in paragraph/html blocks exactly once and collecting the
+ * notes. Rendering then becomes a pure lookup by block id, and the footnotes
+ * section is known before the first paint. Numbering matches render order.
+ */
+function precomputeFootnotes(blocks: Block[], fn: FootnoteCollector, out: Map<string, string>): void {
+  for (const b of blocks) {
+    if (b.type === "paragraph" || b.type === "html") {
+      out.set(b.id, replaceFootnotes(sanitize(String(b.data.html ?? "")), fn));
+    } else if (b.type === "columns") {
+      precomputeFootnotes(readBlocksArray(b.data.left), fn, out);
+      precomputeFootnotes(readBlocksArray(b.data.right), fn, out);
+    }
+  }
 }
 
 function alignClass(b: Block): string {
@@ -120,12 +144,12 @@ function readObjArray<T>(raw: Json | undefined, map: (o: Record<string, unknown>
   return out;
 }
 
-function BlockView({ block, fn, lang = "pl", postId, allBlocks }: { block: Block; fn: FootnoteCollector; lang?: "pl" | "en"; postId?: string; allBlocks?: Block[] }) {
+function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: Block; fnHtml: Map<string, string>; lang?: "pl" | "en"; postId?: string; allBlocks?: Block[] }) {
   const cls = alignClass(block);
 
   switch (block.type) {
     case "paragraph": {
-      const safe = replaceFootnotes(sanitize(String(block.data.html ?? "")), fn);
+      const safe = fnHtml.get(block.id) ?? sanitize(String(block.data.html ?? ""));
       return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
     }
     case "heading": {
@@ -142,7 +166,7 @@ function BlockView({ block, fn, lang = "pl", postId, allBlocks }: { block: Block
       const cap = String(block.data.caption ?? "");
       const href = String(block.data.href ?? "");
       if (!url) return null;
-      const img = <img src={url} alt={alt} className="rounded-lg" loading="lazy" />;
+      const img = <OptimizedImage src={url} alt={alt} className="rounded-lg" responsive sizes="(max-width: 768px) 100vw, 800px" />;
       const wrapped = href ? <a href={href} target="_blank" rel="noopener noreferrer">{img}</a> : img;
       return (
         <figure className={cls}>
@@ -270,13 +294,13 @@ function BlockView({ block, fn, lang = "pl", postId, allBlocks }: { block: Block
       const right = readBlocksArray(block.data.right);
       return (
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 not-prose ${cls}`}>
-          <div className="prose dark:prose-invert max-w-none">{left.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} allBlocks={allBlocks} />)}</div>
-          <div className="prose dark:prose-invert max-w-none">{right.map((b) => <BlockView key={b.id} block={b} fn={fn} lang={lang} postId={postId} allBlocks={allBlocks} />)}</div>
+          <div className="prose dark:prose-invert max-w-none">{left.map((b) => <BlockView key={b.id} block={b} fnHtml={fnHtml} lang={lang} postId={postId} allBlocks={allBlocks} />)}</div>
+          <div className="prose dark:prose-invert max-w-none">{right.map((b) => <BlockView key={b.id} block={b} fnHtml={fnHtml} lang={lang} postId={postId} allBlocks={allBlocks} />)}</div>
         </div>
       );
     }
     case "html": {
-      const safe = replaceFootnotes(sanitize(String(block.data.html ?? "")), fn);
+      const safe = fnHtml.get(block.id) ?? sanitize(String(block.data.html ?? ""));
       return <div className={cls} dangerouslySetInnerHTML={{ __html: safe }} />;
     }
     case "liveblog": {

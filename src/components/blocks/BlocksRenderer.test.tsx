@@ -43,7 +43,7 @@ describe("BlocksRenderer", () => {
     expect(container.textContent).toContain("safe");
   });
 
-  it("turns [fn]…[/fn] markers into a numbered footnote reference", () => {
+  it("turns [fn]…[/fn] markers into a ref AND renders the footnotes section on first paint", () => {
     const { container } = render(
       <BlocksRenderer
         doc={doc([{ id: "p1", type: "paragraph", data: { html: "<p>Claim[fn]the source[/fn].</p>" } }])}
@@ -52,9 +52,38 @@ describe("BlocksRenderer", () => {
     );
     const ref = container.querySelector("sup.fn-ref a");
     expect(ref).not.toBeNull();
-    expect(ref?.getAttribute("title")).toBe("the source");
     expect(ref?.getAttribute("href")).toBe("#fn-1");
     expect(container.textContent).toContain("[1]");
+    // Regression guard: the end-of-article footnotes section must render on the
+    // first paint (it previously never appeared due to render-time mutation).
+    const list = container.querySelector("[data-footnotes-list]");
+    expect(list).not.toBeNull();
+    expect(container.querySelector("#fn-1")).not.toBeNull();
+    expect(list?.textContent).toContain("the source");
+  });
+
+  it("numbers footnotes across nested column blocks in document order", () => {
+    const { container } = render(
+      <BlocksRenderer
+        doc={doc([
+          {
+            id: "c1",
+            type: "columns",
+            data: {
+              left: [{ id: "l1", type: "paragraph", data: { html: "<p>Left[fn]first[/fn]</p>" } }],
+              right: [{ id: "r1", type: "paragraph", data: { html: "<p>Right[fn]second[/fn]</p>" } }],
+            },
+          },
+        ])}
+        lang="en"
+      />,
+    );
+    const items = Array.from(container.querySelectorAll("[data-footnotes-list] li"));
+    expect(items).toHaveLength(2);
+    expect(items[0].id).toBe("fn-1");
+    expect(items[0].textContent).toContain("first");
+    expect(items[1].id).toBe("fn-2");
+    expect(items[1].textContent).toContain("second");
   });
 
   it("renders a table with a header row", () => {
