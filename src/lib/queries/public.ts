@@ -215,7 +215,6 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
   queryOptions({
     queryKey: ["public", "resolved", segments] as const,
     queryFn: async (): Promise<ResolvedContent | null> => {
-      return edgeTtlCache(`public:resolved:${segments.join("/")}`, 30_000, async () => {
       if (segments.length === 0) return null;
       const { data: resolved, error: rErr } = await supabase.rpc("resolve_path", {
         _segments: segments,
@@ -280,7 +279,6 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
         parentPageId: hit.page_id,
         access,
       };
-      });
     },
     staleTime: PAGE_PATH_TTL,
   });
