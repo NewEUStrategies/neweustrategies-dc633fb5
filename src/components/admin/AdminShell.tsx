@@ -237,36 +237,36 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
               to="/"
               title={t("admin.viewSite")}
               data-sidebar="menu-button"
-              className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] text-muted-foreground hover:bg-muted"
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-muted-foreground hover:bg-muted"
             >
-              <Home className="w-3.5 h-3.5 shrink-0" />
+              <Home className="w-3 h-3 shrink-0" />
               <span className={compact ? "hidden" : ""}>{t("admin.viewSite")}</span>
             </Link>
             <button
               onClick={toggle}
               title={t("admin.theme")}
               data-sidebar="menu-button"
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] text-muted-foreground hover:bg-muted"
+              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-muted-foreground hover:bg-muted"
             >
-              {theme === "dark" ? <Sun className="w-3.5 h-3.5 shrink-0" /> : <Moon className="w-3.5 h-3.5 shrink-0" />}
+              {theme === "dark" ? <Sun className="w-3 h-3 shrink-0" /> : <Moon className="w-3 h-3 shrink-0" />}
               <span className={compact ? "hidden" : ""}>{t("admin.theme")}</span>
             </button>
             <button
               onClick={() => i18n.changeLanguage(lang.startsWith("pl") ? "en" : "pl")}
               title={lang.startsWith("pl") ? "PL" : "EN"}
               data-sidebar="menu-button"
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] text-muted-foreground hover:bg-muted"
+              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-muted-foreground hover:bg-muted"
             >
-              <Globe className="w-3.5 h-3.5 shrink-0" />
+              <Globe className="w-3 h-3 shrink-0" />
               <span className={compact ? "hidden" : ""}>{lang.startsWith("pl") ? "PL" : "EN"}</span>
             </button>
             <button
               onClick={handleSignOut}
               title={t("admin.signout")}
               data-sidebar="menu-button"
-              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] text-destructive hover:bg-destructive/10"
+              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-destructive hover:bg-destructive/10"
             >
-              <LogOut className="w-3.5 h-3.5 shrink-0" />
+              <LogOut className="w-3 h-3 shrink-0" />
               <span className={compact ? "hidden" : ""}>{t("admin.signout")}</span>
             </button>
           </div>
