@@ -143,7 +143,15 @@ async function fetchPopularPostIds(
 ): Promise<string[] | null> {
   // 200 candidates is ample for any post-list (limit is clamped to 100) while
   // keeping the follow-up `.in("id", ...)` URL comfortably within length limits.
-  const { data, error } = await supabase.rpc("popular_post_ids", {
+  // Cast RPC name through `unknown` because generated types lag behind the
+  // `popular_post_ids` migration; the function is defined in
+  // supabase/migrations/20260626120000_popular_post_ids.sql.
+  const { data, error } = await (
+    supabase.rpc as unknown as (
+      fn: string,
+      args: { _days: number; _limit: number },
+    ) => Promise<{ data: unknown; error: { message: string } | null }>
+  )("popular_post_ids", {
     _days: Math.max(1, Math.min(365, Math.round(days))),
     _limit: 200,
   });
