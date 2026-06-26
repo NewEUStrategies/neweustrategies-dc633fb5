@@ -405,7 +405,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
         </div>
       </Collapsible>
 
-      {variant === "numbered" && (
+      {(variant === "numbered" || variant === "ranked") && (
         <Collapsible title="Numeracja (01, 02, 03…)" defaultOpen>
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Rozmiar (px)">
