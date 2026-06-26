@@ -699,3 +699,50 @@ a:hover .cms-post-title,
   line-height: 1.4 !important;
   font-size: 12.5px !important;
 }
+
+/* Native <select> styling — unified across the whole platform.
+   Removes the OS-native look and matches our themed inputs (border, bg,
+   rounded, custom chevron, focus ring in brand color). */
+select:not([multiple]):not([size]) {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.375rem;
+  padding: 0.4rem 2rem 0.4rem 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  min-height: 32px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.625rem center;
+  background-size: 12px 12px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+select:not([multiple]):not([size]):hover {
+  border-color: hsl(var(--brand) / 0.5);
+}
+select:not([multiple]):not([size]):focus,
+select:not([multiple]):not([size]):focus-visible {
+  outline: none;
+  border-color: hsl(var(--brand));
+  box-shadow: 0 0 0 2px hsl(var(--brand) / 0.25);
+}
+select:not([multiple]):not([size]):disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+select option {
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+}
+
+.admin-compact select:not([multiple]):not([size]) {
+  min-height: 30px;
+  font-size: 12.5px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
