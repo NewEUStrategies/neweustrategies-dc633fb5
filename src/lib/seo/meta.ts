@@ -33,13 +33,13 @@ export function absoluteUrl(origin: string, path: string): string {
 export function hreflangLinks(
   origin: string,
   path: string,
-): Array<{ rel: string; hreflang: string; href: string }> {
+): Array<{ rel: string; hrefLang: string; href: string }> {
   const base = absoluteUrl(origin, path);
   return [
-    { rel: "alternate", hreflang: "x-default", href: base },
+    { rel: "alternate", hrefLang: "x-default", href: base },
     ...SUPPORTED_LANGS.map((l) => ({
       rel: "alternate",
-      hreflang: l,
+      hrefLang: l,
       href: `${base}?lang=${l}`,
     })),
   ];

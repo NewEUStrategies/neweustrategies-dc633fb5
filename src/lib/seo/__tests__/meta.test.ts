@@ -38,9 +38,9 @@ describe("hreflangLinks", () => {
   it("emits x-default + one self-addressable url per language", () => {
     const links = hreflangLinks("https://nes.eu", "/a");
     expect(links).toEqual([
-      { rel: "alternate", hreflang: "x-default", href: "https://nes.eu/a" },
-      { rel: "alternate", hreflang: "pl", href: "https://nes.eu/a?lang=pl" },
-      { rel: "alternate", hreflang: "en", href: "https://nes.eu/a?lang=en" },
+      { rel: "alternate", hrefLang: "x-default", href: "https://nes.eu/a" },
+      { rel: "alternate", hrefLang: "pl", href: "https://nes.eu/a?lang=pl" },
+      { rel: "alternate", hrefLang: "en", href: "https://nes.eu/a?lang=en" },
     ]);
   });
 });
