@@ -9,6 +9,7 @@ const pl = {
     nav: {
       overview: "Przegląd",
       account: "Konto",
+      interests: "Zainteresowania",
       billing: "Dane rozliczeniowe",
       subscription: "Subskrypcja",
       orders: "Historia płatności",
