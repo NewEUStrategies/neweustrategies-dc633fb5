@@ -35,6 +35,7 @@ import {
   RatedListView,
   TabsBlock,
   AdSlotById,
+  RichTextView,
 } from "./ui/organisms/widget-view/lazyWidgets";
 import {
   SectionLabelRender,
@@ -670,6 +671,9 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
       const slotId = getStr(c, "slotId");
       return wrap(<AdSlotById slotId={slotId} />);
     }
+    case "rich-text":
+      // Embeds the blocks engine: the builder hosts full article-style content.
+      return wrap(<RichTextView content={c} lang={lang} />);
     default:
       return null;
   }

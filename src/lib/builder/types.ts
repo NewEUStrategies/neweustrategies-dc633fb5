@@ -246,6 +246,9 @@ export type WidgetType =
   | "account-link" | "search-button" | "copyright"
   // Rich blocks
   | "accordion" | "tabs" | "testimonial" | "pricing"
+  // Rich content: embeds the full blocks engine (article-style content) inside
+  // a builder layout, so the builder is the single page-composition engine.
+  | "rich-text"
   // Home-page building blocks
   | "section-label" | "hot-topic-bar" | "rated-list" | "dark-featured-card"
   // Slider

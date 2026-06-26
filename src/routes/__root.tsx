@@ -171,7 +171,9 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   useEffect(() => {
-    void import("../lib/webVitals").then((m) => m.initWebVitals());
+    // Consolidated client observability: Core Web Vitals (RUM) + global error
+    // capture, beaconed to the configurable observability endpoint.
+    void import("../lib/observability").then((m) => m.initObservability());
   }, []);
 
   return (

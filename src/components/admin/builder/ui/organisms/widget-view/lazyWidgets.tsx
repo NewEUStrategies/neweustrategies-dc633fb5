@@ -147,3 +147,19 @@ export function AdSlotById(props: ComponentProps<typeof AdSlotByIdImpl>) {
     </Suspense>
   );
 }
+
+// The rich-text widget pulls in the whole blocks renderer (DOMPurify + every
+// block view), so it is split out of the shared Header/Footer bundle and only
+// downloaded on pages that actually embed rich content.
+const RichTextViewImpl = lazy(() =>
+  import("@/components/admin/builder/ui/organisms/widget-view/RichTextView").then((m) => ({
+    default: m.RichTextView,
+  })),
+);
+export function RichTextView(props: ComponentProps<typeof RichTextViewImpl>) {
+  return (
+    <Suspense fallback={FALLBACK}>
+      <RichTextViewImpl {...props} />
+    </Suspense>
+  );
+}

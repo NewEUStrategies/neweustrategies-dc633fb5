@@ -189,6 +189,13 @@ export const WIDGETS: WidgetDef[] = [
       role_en: "CEO, ACME",
       avatar: "",
     }) },
+  { type: "rich-text", label: "Treść (bloki)", category: "blocks", icon: FileText,
+    defaults: () => ({
+      // Localized blocks document, authored with the same block editor used for
+      // article bodies. Lets the builder host full rich content (callouts, FAQ,
+      // pros/cons, TOC, embeds, …) so it is the one page-composition engine.
+      doc: { pl: { version: 1, blocks: [] }, en: { version: 1, blocks: [] } },
+    }) },
   { type: "pricing", label: "Cennik", category: "blocks", icon: Check,
     defaults: () => ({
       plans: [

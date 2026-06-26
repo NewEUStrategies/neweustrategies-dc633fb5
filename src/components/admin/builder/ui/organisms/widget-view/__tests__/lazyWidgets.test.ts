@@ -17,6 +17,7 @@ const SPLIT_WIDGETS = [
   "RatedListView",
   "TabsBlock",
   "AdSlotById",
+  "RichTextView",
 ] as const;
 
 describe("lazyWidgets registry", () => {

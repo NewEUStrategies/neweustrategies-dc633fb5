@@ -23,6 +23,16 @@ export default defineConfig({
         "src/lib/builder/sliderVariants.tsx",
         "src/lib/builder/sectionLabelVariants.tsx",
         "src/lib/builder/animatedHeadingVariants.tsx",
+        // Public-pipeline modules guarded beyond the widget surface: content
+        // engine selection, builder-doc validation, cache policy, the
+        // observability transport, SEO meta and access gating. Each carries its
+        // own per-file threshold below, so the widget gate stays independent.
+        "src/lib/content/contentEngine.ts",
+        "src/lib/builder/schema.ts",
+        "src/lib/http/cachePolicy.ts",
+        "src/lib/observability/report.ts",
+        "src/lib/seo/meta.ts",
+        "src/lib/access/gating.ts",
       ],
       exclude: [
         "**/__tests__/**",
@@ -32,6 +42,9 @@ export default defineConfig({
         "**/widget-view/lazyWidgets.tsx",
       ],
       thresholds: {
+        // Global bar = the builder widget rendering surface. Files with a
+        // per-glob threshold below are checked against that instead and excluded
+        // from this aggregate.
         statements: 98,
         functions: 98,
         lines: 98,
@@ -40,6 +53,19 @@ export default defineConfig({
         // 98% statements/functions/lines already exercise every widget behaviour.
         // Floored a touch below the achieved level to guard against regressions.
         branches: 90,
+        // Per-file bars for the newly-guarded public-pipeline modules. Floored a
+        // touch below the achieved coverage to catch regressions without being
+        // brittle.
+        "src/lib/content/contentEngine.ts": { statements: 100, functions: 100, lines: 100, branches: 100 },
+        "src/lib/http/cachePolicy.ts": { statements: 100, functions: 100, lines: 100, branches: 95 },
+        "src/lib/builder/schema.ts": { statements: 98, functions: 100, lines: 100, branches: 95 },
+        // report.ts line 14 is the defensive `catch` around import.meta.env,
+        // which cannot be exercised from a test - hence < 100 here.
+        "src/lib/observability/report.ts": { statements: 94, functions: 100, lines: 93, branches: 90 },
+        // meta.ts: statements/lines/functions are fully covered; the optional
+        // OpenGraph/article/paywall arms keep branch coverage lower.
+        "src/lib/seo/meta.ts": { statements: 100, functions: 100, lines: 100, branches: 70 },
+        "src/lib/access/gating.ts": { statements: 95, functions: 100, lines: 100, branches: 95 },
       },
     },
   },
