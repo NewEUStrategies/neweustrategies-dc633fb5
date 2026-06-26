@@ -66,7 +66,7 @@ export function PodcastLatestView({ c, lang }: Props) {
             ) : <div className="w-14 h-14 rounded bg-muted shrink-0" />}
             <div className="flex-1 min-w-0">
               {podcastEpisodeLabel(p, lang) && <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{podcastEpisodeLabel(p, lang)}</div>}
-              <Link to="/podcast/$slug" params={{ slug: p.slug }} className="font-medium hover:underline truncate block">
+              <Link to="/podcast/$slug" params={{ slug: p.slug }} className="cms-post-title truncate block">
                 {podcastTitle(p, lang)}
               </Link>
               <div className="text-xs text-muted-foreground">{formatDuration(p.duration_seconds)}</div>
@@ -90,7 +90,7 @@ export function PodcastLatestView({ c, lang }: Props) {
           ) : <div className="aspect-square bg-muted" />}
           <div className="p-4 space-y-2">
             {podcastEpisodeLabel(p, lang) && <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{podcastEpisodeLabel(p, lang)}</div>}
-            <Link to="/podcast/$slug" params={{ slug: p.slug }} className="font-medium hover:underline line-clamp-2 block">
+            <Link to="/podcast/$slug" params={{ slug: p.slug }} className="cms-post-title line-clamp-2 block">
               {podcastTitle(p, lang)}
             </Link>
             <div className="text-xs text-muted-foreground">{formatDuration(p.duration_seconds)}</div>
