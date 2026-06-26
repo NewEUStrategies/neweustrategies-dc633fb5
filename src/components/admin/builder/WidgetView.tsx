@@ -21,9 +21,21 @@ import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 import { useTheme } from "@/components/ThemeProvider";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { pickMode } from "@/lib/builder/themed";
-import { NewsletterForm as NewsletterFormLive } from "@/components/NewsletterForm";
-import { JoinUsForm } from "@/components/interests/JoinUsForm";
-import { InterestsCustomizer } from "@/components/interests/InterestsCustomizer";
+// Heavy, non-critical widgets are code-split via lazyWidgets so they never
+// weigh down the shared Header/Footer bundle on pages that don't render them.
+// SSR streaming still renders them server-side, so the HTML is unchanged.
+import {
+  NewsletterForm as NewsletterFormLive,
+  JoinUsForm,
+  InterestsCustomizer,
+  TtsPlayerHost,
+  PodcastLatestView,
+  WebStoriesCarouselView,
+  NewsTickerView,
+  RatedListView,
+  TabsBlock,
+  AdSlotById,
+} from "./ui/organisms/widget-view/lazyWidgets";
 import {
   SectionLabelRender,
   resolveAccentColor,
@@ -48,17 +60,11 @@ import {
 } from "./ui/organisms/widget-view/frame";
 import { MOTION_INITIAL, MOTION_FINAL } from "./ui/organisms/widget-view/motion";
 import { Editable } from "./ui/molecules/Editable";
-import { TtsPlayerHost } from "./ui/molecules/TtsPlayerHost";
+// Eager: layout-critical / above-the-fold / navigation widgets.
 import { PostListView } from "./ui/organisms/widget-view/PostListView";
-import { NewsTickerView } from "./ui/organisms/widget-view/NewsTickerView";
-import { PodcastLatestView } from "./ui/organisms/widget-view/PodcastLatestView";
-import { WebStoriesCarouselView } from "./ui/organisms/widget-view/WebStoriesCarouselView";
-import { RatedListView } from "./ui/organisms/widget-view/RatedListView";
-import { AdSlotById } from "@/components/ads/AdSlotById";
 import { MegaMenu, type MegaMenuConfig } from "@/components/megaMenu/MegaMenu";
 import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
 import { TagsView } from "./ui/organisms/widget-view/TagsView";
-import { TabsBlock } from "./ui/organisms/widget-view/TabsBlock";
 import { renderSimpleWidget, ResizableBox } from "./ui/organisms/widget-view/SimpleWidgets";
 export {
   styleToCSS, getWidgetFrameStyle, hiddenOnDevice,

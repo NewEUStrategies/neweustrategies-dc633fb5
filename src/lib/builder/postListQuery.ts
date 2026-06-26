@@ -109,6 +109,61 @@ async function fetchPostIdsBySlugs(
   return new Set((links ?? []).map((r: { post_id: string }) => r.post_id));
 }
 
+/**
+ * Reorder fetched rows to match a popularity ranking (most-popular first), then
+ * apply the widget's offset/limit window. Pure and exported so the ordering
+ * contract is unit-testable without the database. Rows whose id is absent from
+ * `rankedIds` sort last, preserving their relative order.
+ */
+export function rankAndSlicePopular<T extends { id: string }>(
+  rows: readonly T[],
+  rankedIds: readonly string[],
+  offset: number,
+  limit: number,
+): T[] {
+  const order = new Map(rankedIds.map((id, i) => [id, i] as const));
+  const sorted = [...rows].sort(
+    (a, b) =>
+      (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+      (order.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+  );
+  const start = Math.max(0, offset);
+  return sorted.slice(start, start + Math.max(0, limit));
+}
+
+/**
+ * Resolve the popularity ranking via the tenant-scoped `popular_post_ids` RPC
+ * (post_views aggregate, bounded server-side). Returns most-popular-first ids,
+ * or `null` when the RPC is unavailable so the caller can degrade to recency
+ * instead of rendering an empty widget.
+ */
+async function fetchPopularPostIds(
+  days: number,
+  orderDir: "asc" | "desc",
+): Promise<string[] | null> {
+  // 200 candidates is ample for any post-list (limit is clamped to 100) while
+  // keeping the follow-up `.in("id", ...)` URL comfortably within length limits.
+  const { data, error } = await supabase.rpc("popular_post_ids", {
+    _days: Math.max(1, Math.min(365, Math.round(days))),
+    _limit: 200,
+  });
+  if (error) {
+    if (typeof console !== "undefined") {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[postList] popular_post_ids RPC unavailable; falling back to recency:",
+        error.message,
+      );
+    }
+    return null;
+  }
+  const rows = (data ?? []) as Array<{ post_id: string }>;
+  const ids = rows.map((r) => r.post_id);
+  // The RPC returns most-popular-first; "asc" flips to least-popular-first to
+  // honour the widget's orderDir.
+  return orderDir === "asc" ? ids.reverse() : ids;
+}
+
 async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
   const [incCatIds, incTagIds, excCatIds, excTagIds] = await Promise.all([
     fetchPostIdsBySlugs("post_categories", input.includeCats),
@@ -136,23 +191,23 @@ async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
     ...input.usedSnapshot,
   ]);
 
+  // "popular" ranking comes from the tenant-scoped popular_post_ids RPC, which
+  // aggregates post_views server-side behind a hard LIMIT - no full-table scan
+  // of user_read_history. If the RPC is unavailable we degrade to recency
+  // ordering (effectiveOrderBy) rather than rendering an empty widget.
   let popularIds: string[] | null = null;
+  let effectiveOrderBy: PostListInput["orderByRaw"] = input.orderByRaw;
   if (input.orderByRaw === "popular") {
-    const sinceIso = new Date(Date.now() - input.popularDays * 86_400_000).toISOString();
-    const { data: hist } = await supabase
-      .from("user_read_history")
-      .select("post_id")
-      .gte("read_at", sinceIso);
-    const counts = new Map<string, number>();
-    for (const row of (hist ?? []) as { post_id: string }[]) {
-      counts.set(row.post_id, (counts.get(row.post_id) ?? 0) + 1);
+    const ranked = await fetchPopularPostIds(input.popularDays, input.orderDir);
+    if (ranked === null) {
+      effectiveOrderBy = "published_at";
+    } else if (ranked.length === 0) {
+      return [];
+    } else {
+      popularIds = ranked;
+      const popSet = new Set(popularIds);
+      includeSet = includeSet ? new Set([...includeSet].filter((x) => popSet.has(x))) : popSet;
     }
-    popularIds = Array.from(counts.entries())
-      .sort((a, b) => (input.orderDir === "asc" ? a[1] - b[1] : b[1] - a[1]))
-      .map(([id]) => id);
-    if (!popularIds.length) return [];
-    const popSet = new Set(popularIds);
-    includeSet = includeSet ? new Set([...includeSet].filter((x) => popSet.has(x))) : popSet;
   }
 
   let q = supabase
@@ -169,24 +224,22 @@ async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
   if (excludeSet.size) q = q.not("id", "in", `(${Array.from(excludeSet).join(",")})`);
 
   const orderCol =
-    input.orderByRaw === "title" ? `title_${input.lang}`
-    : input.orderByRaw === "random" || input.orderByRaw === "popular" ? "published_at"
-    : input.orderByRaw;
-  if (input.orderByRaw !== "random" && input.orderByRaw !== "popular") {
+    effectiveOrderBy === "title" ? `title_${input.lang}`
+    : effectiveOrderBy === "random" || effectiveOrderBy === "popular" ? "published_at"
+    : effectiveOrderBy;
+  if (effectiveOrderBy !== "random" && effectiveOrderBy !== "popular") {
     q = q.order(orderCol, { ascending: input.orderDir === "asc" });
   }
-  if (input.orderByRaw !== "popular") {
+  if (effectiveOrderBy !== "popular") {
     q = q.range(input.offset, input.offset + input.limit - 1);
   }
 
   const { data, error } = await q;
   if (error) throw error;
   let rows = (data ?? []) as PostRow[];
-  if (input.orderByRaw === "random") rows = [...rows].sort(() => Math.random() - 0.5);
-  if (input.orderByRaw === "popular" && popularIds) {
-    const order = new Map(popularIds.map((id, i) => [id, i]));
-    rows = [...rows].sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9));
-    rows = rows.slice(input.offset, input.offset + input.limit);
+  if (effectiveOrderBy === "random") rows = [...rows].sort(() => Math.random() - 0.5);
+  if (effectiveOrderBy === "popular" && popularIds) {
+    rows = rankAndSlicePopular(rows, popularIds, input.offset, input.limit);
   }
   return rows;
 }

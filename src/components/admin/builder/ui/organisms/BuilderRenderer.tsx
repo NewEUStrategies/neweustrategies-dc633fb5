@@ -1,6 +1,6 @@
 // Read-only renderer for public pages. Applies all Section settings
 // (layout, background layers, overlay, border, shape dividers, typography).
-import { Fragment, useEffect, useRef, useState, type CSSProperties, type ElementType } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ElementType } from "react";
 import type { BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, Device, ResponsiveValue } from "@/lib/builder/types";
 import { WidgetView, getWidgetFrameStyle, hiddenOnDevice } from "@/components/admin/builder/WidgetView";
 import { AUTO_SIZE_WIDGETS, COMPACT_WIDGET_TYPES } from "@/components/admin/builder/ui/organisms/widget-view/frame";
@@ -14,6 +14,14 @@ import {
 import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
 import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
+
+// SSR has no viewport, so the first render is "desktop". On a phone the client
+// must correct to "mobile" - running that correction in a *layout* effect lands
+// it synchronously before the browser paints, so the user never sees a
+// desktop->mobile flash and the (mobile-only) re-render is imperceptible.
+// useLayoutEffect warns under SSR, so fall back to useEffect there (it never
+// runs on the server anyway).
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 function resolveSpan(span: ResponsiveValue<number>, device: Device, deskDefault: number): number {
   if (device === "mobile") return span.mobile ?? 12;
@@ -181,7 +189,7 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
   const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? detectViewportDevice());
   const [debug, setDebug] = useState<boolean>(() => readDebugFlag());
 
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (device) {
       setViewportDevice(device);
       return;

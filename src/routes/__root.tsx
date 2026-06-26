@@ -128,13 +128,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
     ],
+    // Red Hat Display is self-hosted via @font-face in styles.css (see there),
+    // so no Google Fonts stylesheet / preconnect is needed - one fewer
+    // render-blocking third-party request, and no visitor IPs sent to Google.
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "dns-prefetch", href: "https://unnltowbgszpdzwpawdu.supabase.co" },
       { rel: "preconnect", href: "https://unnltowbgszpdzwpawdu.supabase.co", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;600;700;800;900&display=swap" },
     ],
   }),
   // Prefetch the entire site_settings bulk map on the server. The same query
