@@ -14,7 +14,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const CLIENT_DIR = ".output/public";
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 450); // largest single gzipped JS chunk
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 250); // largest single gzipped JS chunk (post vendor-split: ~169KB)
 const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 1000); // total gzipped JS
 
 function walkJs(dir: string): string[] {
