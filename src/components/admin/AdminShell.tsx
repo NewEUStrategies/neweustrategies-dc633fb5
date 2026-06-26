@@ -216,13 +216,13 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
                       type="button"
                       onClick={() => extras.onSelect(it.id)}
                       data-sidebar="menu-button"
-                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left border-l-2 transition ${
+                      className={`w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-left border-l-2 transition ${
                         isActive
                           ? "border-brand bg-brand/10 text-brand font-medium"
                           : "border-transparent hover:bg-muted text-foreground"
                       }`}
                     >
-                      {Icon && <Icon className="w-4 h-4 shrink-0" />}
+                      {Icon && <Icon className="w-3 h-3 shrink-0" />}
                       <span className={cn("flex-1 truncate", compact && "hidden")}>{it.label}</span>
                       {isActive && <ChevronRight className="w-3 h-3" />}
                     </button>
