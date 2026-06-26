@@ -71,6 +71,8 @@ async function fetchPostIdsBySlugs(table: "post_categories" | "post_tags", slugs
 }
 
 export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; lang: Lang; carousel?: boolean }) {
+  const { t } = useTranslation();
+  const byLabel = t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
   const titleSizePx = getNum(c, "titleSizePx", 0);
   const titleWeight = getStr(c, "titleWeight");
   const excerptSizePx = getNum(c, "excerptSizePx", 0);
