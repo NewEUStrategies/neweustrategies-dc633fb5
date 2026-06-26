@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Suspense } from "react";
+import { memo, Suspense } from "react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
@@ -43,7 +43,7 @@ function HeaderInner() {
   );
 }
 
-export function Header() {
+export const Header = memo(function Header() {
   // Suspense fallback only fires when the loader hasn't pre-warmed the cache
   // (e.g. routes that opt out of the prefetch). In normal navigation the
   // inner component resolves synchronously and this boundary is a no-op.
@@ -52,4 +52,6 @@ export function Header() {
       <HeaderInner />
     </Suspense>
   );
-}
+});
+
+Header.displayName = "Header";

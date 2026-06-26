@@ -1,6 +1,6 @@
 // Read-only renderer for public pages. Applies all Section settings
 // (layout, background layers, overlay, border, shape dividers, typography).
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ElementType } from "react";
+import { Fragment, memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ElementType } from "react";
 import type { BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, Device, ResponsiveValue } from "@/lib/builder/types";
 import { WidgetView, getWidgetFrameStyle, hiddenOnDevice } from "@/components/admin/builder/WidgetView";
 import { AUTO_SIZE_WIDGETS, COMPACT_WIDGET_TYPES } from "@/components/admin/builder/ui/organisms/widget-view/frame";
@@ -252,7 +252,7 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
   );
 }
 
-function SectionsList({ sections, lang, device }: { sections: SectionNode[]; lang: "pl"|"en"; device: Device }) {
+const SectionsList = memo(function SectionsList({ sections, lang, device }: { sections: SectionNode[]; lang: "pl"|"en"; device: Device }) {
   const accessCtx = useAccessContext();
   return (
     <>
@@ -261,9 +261,11 @@ function SectionsList({ sections, lang, device }: { sections: SectionNode[]; lan
         .map((s) => <RenderSection key={s.id} section={s} lang={lang} device={device} />)}
     </>
   );
-}
+});
 
-function RenderSection({ section, lang, device }: { section: SectionNode; lang: "pl"|"en"; device: Device }) {
+SectionsList.displayName = "SectionsList";
+
+const RenderSection = memo(function RenderSection({ section, lang, device }: { section: SectionNode; lang: "pl"|"en"; device: Device }) {
   const accessCtx = useAccessContext();
   const visibleCols = section.children.filter((c) => evaluateAccess(c.advanced?.access, accessCtx));
   const colsSum = visibleCols.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12), 0) || 12;
@@ -315,9 +317,11 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
       {typoCss && <style dangerouslySetInnerHTML={{ __html: typoCss }} />}
     </Tag>
   );
-}
+});
 
-function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "pl"|"en"; device: Device }) {
+RenderSection.displayName = "RenderSection";
+
+const RenderInner = memo(function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "pl"|"en"; device: Device }) {
   const colsSum = inner.columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()} style={{ ...sectionWrapperStyle(inner), ...backgroundLayerStyle(inner.background), ...borderStyle(inner.border), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
@@ -331,9 +335,11 @@ function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "
       </div>
     </div>
   );
-}
+});
 
-function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
+RenderInner.displayName = "RenderInner";
+
+const RenderColumn = memo(function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   const va = column.verticalAlign ?? "start";
   const accessCtx = useAccessContext();
   const visibleChildren = column.children.filter(
@@ -419,6 +425,8 @@ function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"
       })}
     </div>
   );
-}
+});
+
+RenderColumn.displayName = "RenderColumn";
 
 
