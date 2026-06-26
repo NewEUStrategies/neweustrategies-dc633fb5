@@ -42,6 +42,7 @@ export function useSettings<T extends SettingsRecord>(key: string, defaults: T) 
           [key]: next,
         }),
       );
+      emitSiteSettingsInvalidate();
       toast.success("Zapisano");
     },
     onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
