@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "migrate:blocks-to-builder": "bun run scripts/migrate-blocks-to-builder.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
