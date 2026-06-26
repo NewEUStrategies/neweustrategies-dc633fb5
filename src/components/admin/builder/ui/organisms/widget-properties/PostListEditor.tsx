@@ -559,17 +559,75 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
   const titleOf = (p: PreviewRow) =>
     (lang === "pl" ? p.title_pl : p.title_en) || p.title_pl || p.title_en || p.slug;
 
+  const variant = str(c, "variant", "card");
+  const isRanked = variant === "ranked";
+  const byLabel = lang === "pl" ? "Autor" : "By";
+
+  const authorIds = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x))),
+    [rows],
+  );
+  const { data: authorMap = {} } = useQuery<Record<string, string>>({
+    queryKey: ["post-list-editor-authors", authorIds],
+    enabled: isRanked && authorIds.length > 0,
+    queryFn: async () => {
+      const { data: profs } = await supabase.from("profiles").select("id, display_name").in("id", authorIds);
+      const m: Record<string, string> = {};
+      for (const r of (profs ?? []) as Array<{ id: string; display_name: string | null }>) {
+        if (r.display_name) m[r.id] = r.display_name;
+      }
+      return m;
+    },
+  });
+
   return (
-    <Collapsible title="Miniatury (override per wpis)" defaultOpen={false}>
+    <Collapsible title={isRanked ? "Podgląd rankingu" : "Miniatury (override per wpis)"} defaultOpen={false}>
       <div className="space-y-3">
         <div className="text-[10px] text-muted-foreground">
-          Nadpisz miniaturkę okładki indywidualnie dla każdego wpisu wyświetlanego w tym widgecie. Puste pole = oryginalna okładka wpisu.
+          {isRanked
+            ? "Podgląd wariantu Ranking - numer po prawej, autor jako zwykły tekst. Miniatury nie są używane w tym wariancie."
+            : "Nadpisz miniaturkę okładki indywidualnie dla każdego wpisu wyświetlanego w tym widgecie. Puste pole = oryginalna okładka wpisu."}
         </div>
         {isLoading && <div className="text-xs text-muted-foreground">Ładowanie…</div>}
         {!isLoading && rows.length === 0 && (
-          <div className="text-xs text-muted-foreground">Brak wpisów do nadpisania.</div>
+          <div className="text-xs text-muted-foreground">Brak wpisów.</div>
         )}
-        {rows.map((p) => {
+
+        {isRanked && rows.map((p, i) => {
+          const authorName = p.author_id ? authorMap[p.author_id] ?? "" : "";
+          return (
+            <div
+              key={p.id}
+              className="relative isolate overflow-hidden rounded-md border border-border bg-card px-3 py-3"
+            >
+              <span
+                aria-hidden
+                className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-display tabular-nums leading-none select-none"
+                style={{
+                  fontSize: "64px",
+                  fontWeight: 800,
+                  color: "rgb(250,147,70)",
+                  opacity: 0.18,
+                  zIndex: 0,
+                }}
+              >
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <div className="relative z-10 pr-[34%]">
+                <div className="text-xs font-semibold leading-snug line-clamp-2">{titleOf(p)}</div>
+                {authorName && (
+                  <div className="mt-1.5 text-[11px] text-muted-foreground">
+                    <span className="opacity-70">{byLabel}</span>{" "}
+                    <span className="font-medium text-foreground">{authorName}</span>
+                  </div>
+                )}
+                <div className="mt-1 text-[10px] text-muted-foreground/70 truncate font-mono">{p.slug}</div>
+              </div>
+            </div>
+          );
+        })}
+
+        {!isRanked && rows.map((p) => {
           const current = overrides[p.id] || "";
           const preview = current || p.cover_image_url || "";
           return (
