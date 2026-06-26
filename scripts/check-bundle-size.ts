@@ -13,8 +13,14 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const CLIENT_DIR = process.env.CLIENT_DIR ?? "dist/client";
-const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 250); // largest single gzipped JS chunk (post vendor-split: ~169KB)
+// The client build dir differs by adapter (Nitro/TanStack Start -> .output/public,
+// plain Vite SSR -> dist/client). Auto-detect the first candidate that actually
+// contains JS so the gate works regardless of target; override with CLIENT_DIR.
+const CLIENT_DIR =
+  process.env.CLIENT_DIR ??
+  [".output/public", "dist/client", "dist"].find((d) => walkJs(d).length > 0) ??
+  ".output/public";
+const MAX_CHUNK_KB = Number(process.env.MAX_CHUNK_KB ?? 250); // largest single gzipped JS chunk (post vendor-split: ~159KB)
 const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 1000); // total gzipped JS
 
 function walkJs(dir: string): string[] {
