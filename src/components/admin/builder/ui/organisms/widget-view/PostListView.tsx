@@ -33,7 +33,7 @@ const listFrame = (a: ImageAspect) => `relative block ${ASPECT_CLASS[a]} w-[112p
 
 type Lang = "pl" | "en";
 
-type Variant = "card" | "minimal" | "overlay" | "list" | "numbered";
+type Variant = "card" | "minimal" | "overlay" | "list" | "numbered" | "ranked";
 
 interface PostRow {
   id: string;
@@ -210,6 +210,29 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   const rows = (data ?? []).map((p) =>
     overrides[p.id] ? { ...p, cover_image_url: overrides[p.id] } : p,
   );
+
+  // Fetch author display names for variants that show "By <author>".
+  const authorIds = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x))),
+    [rows],
+  );
+  const { data: authorMap = {} } = useQuery<Record<string, string>>({
+    queryKey: ["builder-post-authors", authorIds],
+    enabled: authorIds.length > 0 && (variant === "ranked" || variant === "numbered"),
+    queryFn: async () => {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", authorIds);
+      const m: Record<string, string> = {};
+      for (const r of (profs ?? []) as Array<{ id: string; display_name: string | null }>) {
+        if (r.display_name) m[r.id] = r.display_name;
+      }
+      return m;
+    },
+  });
+  const authorName = (p: PostRow) => (p.author_id ? authorMap[p.author_id] ?? "" : "");
+
   const effectiveCols = Math.max(1, Math.min(cols, rows.length || 1));
   if (!rows.length) {
     return (
@@ -264,6 +287,63 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                 </p>
               )}
             </div>
+          </a>
+        ))}
+      </div>
+    );
+  }
+
+  if (variant === "ranked") {
+    // Ranked list - no image, big translucent number on the right, title + "By <author>".
+    const idxSize = getNum(c, "indexSizePx", 96);
+    const idxColor = getStr(c, "indexColor") || "rgb(35,31,32)";
+    const idxColorDark = getStr(c, "indexColorDark") || "rgb(250,147,70)";
+    const idxOpacity = (() => {
+      const v = getNum(c, "indexOpacity", -1);
+      return v < 0 ? 0.18 : Math.max(0, Math.min(1, v));
+    })();
+    const idxWeight = getStr(c, "indexWeight") || "800";
+    return (
+      <div
+        className="w-full flex flex-col divide-y divide-border"
+        style={{
+          "--pl-num-light": idxColor,
+          "--pl-num-dark": idxColorDark,
+          "--pl-num-opacity": String(idxOpacity),
+        } as React.CSSProperties}
+      >
+        {rows.map((p, i) => (
+          <a
+            key={p.id}
+            href={`/post/${p.slug}`}
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-4 sm:py-5 group"
+          >
+            <div className="min-w-0 text-left">
+              <h4
+                className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
+                style={tStyle}
+              >
+                {title(p)}
+              </h4>
+              {authorName(p) && (
+                <div className="mt-2 inline-flex items-center gap-2 text-[12px] text-muted-foreground">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded border border-border text-[11px] uppercase tracking-wide">By</span>
+                  <span className="font-medium text-foreground">{authorName(p)}</span>
+                </div>
+              )}
+            </div>
+            <span
+              aria-hidden
+              className="post-list-numbered-index font-display tabular-nums select-none leading-none pr-1"
+              style={{
+                ["--pl-num-fs" as string]: `min(${idxSize}px, 18vw)`,
+                fontWeight: idxWeight as React.CSSProperties["fontWeight"],
+                position: "static",
+                transform: "none",
+              }}
+            >
+              {String(i + 1).padStart(2, "0")}
+            </span>
           </a>
         ))}
       </div>
