@@ -147,8 +147,8 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     if (!typography) return "";
 
     const sel = `[data-w-id="${node.id}"]`;
-    const descendants = `${sel}, ${sel} :is(p,span,a,strong,em,small,li,dt,dd,blockquote,cite,label,button,input,textarea,select,option,figcaption,legend,time,h1,h2,h3,h4,h5,h6,.prose,.prose *)`;
-    const headingSel = `${sel} :is(h1,h2,h3,h4,h5,h6), ${sel}[data-title-root]`;
+    const descendants = `${sel}, ${sel} :is(p,span,a,strong,em,small,li,dt,dd,blockquote,cite,label,button,input,textarea,select,option,figcaption,legend,time,h1,h2,h3,h4,h5,h6,.prose,.prose *):not(.cms-post-title):not(.cms-post-excerpt)`;
+    const headingSel = `${sel} :is(h1,h2,h3,h4,h5,h6):not(.cms-post-title), ${sel}[data-title-root]`;
     const descriptionSel = `${sel} :is(p,.prose p,li,dd,blockquote,figcaption,small)`;
     const rules: string[] = [];
 
