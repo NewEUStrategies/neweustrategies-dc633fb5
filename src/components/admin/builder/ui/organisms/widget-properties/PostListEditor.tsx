@@ -437,3 +437,151 @@ export function PostListEditor({ c, lang, setContent }: Props) {
     </div>
   );
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Per-post thumbnail overrides
+// ──────────────────────────────────────────────────────────────────────────────
+
+interface PreviewRow {
+  id: string;
+  slug: string;
+  title_pl: string | null;
+  title_en: string | null;
+  cover_image_url: string | null;
+}
+
+async function resolveTaxonomyIds(table: "post_categories" | "post_tags", slugs: string[]): Promise<Set<string>> {
+  if (!slugs.length) return new Set();
+  if (table === "post_categories") {
+    const { data: cats } = await supabase.from("categories").select("id").in("slug", slugs);
+    const ids = (cats ?? []).map((r: { id: string }) => r.id);
+    if (!ids.length) return new Set();
+    const { data: links } = await supabase.from("post_categories").select("post_id").in("category_id", ids);
+    return new Set((links ?? []).map((r: { post_id: string }) => r.post_id));
+  }
+  const { data: tags } = await supabase.from("tags").select("id").in("slug", slugs);
+  const ids = (tags ?? []).map((r: { id: string }) => r.id);
+  if (!ids.length) return new Set();
+  const { data: links } = await supabase.from("post_tags").select("post_id").in("tag_id", ids);
+  return new Set((links ?? []).map((r: { post_id: string }) => r.post_id));
+}
+
+function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
+  const limit = Math.max(1, Math.min(100, num(c, "limit", 6)));
+  const offset = Math.max(0, num(c, "offset", 0));
+  const orderByRaw = str(c, "orderBy", "published_at");
+  const orderDir = (str(c, "orderDir", "desc") === "asc" ? "asc" : "desc") as "asc" | "desc";
+  const postFormat = str(c, "postFormat", "");
+  const authorId = str(c, "authorId", "");
+  const dateFrom = str(c, "dateFrom", "");
+  const dateTo = str(c, "dateTo", "");
+  const csv = (k: string) => str(c, k, "").split(",").map((s) => s.trim()).filter(Boolean);
+  const includeCats = csv("categoriesCsv");
+  const excludeCats = csv("excludeCategoriesCsv");
+  const includeTags = csv("tagsCsv");
+  const excludeTags = csv("excludeTagsCsv");
+  const includeIds = csv("includeIdsCsv");
+  const excludeIds = csv("excludeIdsCsv");
+
+  const overrides = readThumbnailOverrides(c);
+
+  const queryKey = useMemo(
+    () => ["post-list-editor-preview", {
+      limit, offset, orderByRaw, orderDir, postFormat, authorId, dateFrom, dateTo,
+      includeCats, excludeCats, includeTags, excludeTags, includeIds, excludeIds, lang,
+    }],
+    [limit, offset, orderByRaw, orderDir, postFormat, authorId, dateFrom, dateTo,
+     includeCats, excludeCats, includeTags, excludeTags, includeIds, excludeIds, lang],
+  );
+
+  const { data: rows = [], isLoading } = useQuery<PreviewRow[]>({
+    queryKey,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const [incCatIds, incTagIds, excCatIds, excTagIds] = await Promise.all([
+        resolveTaxonomyIds("post_categories", includeCats),
+        resolveTaxonomyIds("post_tags", includeTags),
+        resolveTaxonomyIds("post_categories", excludeCats),
+        resolveTaxonomyIds("post_tags", excludeTags),
+      ]);
+      let includeSet: Set<string> | null = null;
+      const seed = (s: Set<string>) => {
+        includeSet = includeSet ? new Set([...includeSet].filter((x) => s.has(x))) : new Set(s);
+      };
+      if (includeCats.length) seed(incCatIds);
+      if (includeTags.length) seed(incTagIds);
+      if (includeIds.length) seed(new Set(includeIds));
+      if (includeSet !== null && (includeSet as Set<string>).size === 0) return [];
+      const excludeSet = new Set<string>([...excCatIds, ...excTagIds, ...excludeIds]);
+
+      let q = supabase
+        .from("posts")
+        .select("id, slug, title_pl, title_en, cover_image_url")
+        .eq("status", "published");
+      if (postFormat) q = q.eq("post_format", postFormat);
+      if (authorId) q = q.eq("author_id", authorId);
+      if (dateFrom) q = q.gte("published_at", `${dateFrom}T00:00:00Z`);
+      if (dateTo) q = q.lte("published_at", `${dateTo}T23:59:59Z`);
+      if (includeSet) q = q.in("id", Array.from(includeSet));
+      if (excludeSet.size) q = q.not("id", "in", `(${Array.from(excludeSet).join(",")})`);
+
+      const orderCol =
+        orderByRaw === "title" ? `title_${lang}`
+        : orderByRaw === "random" || orderByRaw === "popular" ? "published_at"
+        : orderByRaw;
+      q = q.order(orderCol, { ascending: orderDir === "asc" });
+      q = q.range(offset, offset + limit - 1);
+      const { data } = await q;
+      return (data ?? []) as PreviewRow[];
+    },
+  });
+
+  const updateOverride = (postId: string, url: string) => {
+    const next = setThumbnailOverride(overrides, postId, url);
+    setContent("thumbnailOverrides", next as unknown as import("@/lib/builder/types").Json);
+  };
+
+  const titleOf = (p: PreviewRow) =>
+    (lang === "pl" ? p.title_pl : p.title_en) || p.title_pl || p.title_en || p.slug;
+
+  return (
+    <Collapsible title="Miniatury (override per wpis)" defaultOpen={false}>
+      <div className="space-y-3">
+        <div className="text-[10px] text-muted-foreground">
+          Nadpisz miniaturkę okładki indywidualnie dla każdego wpisu wyświetlanego w tym widgecie. Puste pole = oryginalna okładka wpisu.
+        </div>
+        {isLoading && <div className="text-xs text-muted-foreground">Ładowanie…</div>}
+        {!isLoading && rows.length === 0 && (
+          <div className="text-xs text-muted-foreground">Brak wpisów do nadpisania.</div>
+        )}
+        {rows.map((p) => {
+          const current = overrides[p.id] || "";
+          const preview = current || p.cover_image_url || "";
+          return (
+            <div key={p.id} className="rounded-md border border-border p-2 space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="relative w-14 aspect-[4/3] shrink-0 overflow-hidden rounded-sm bg-muted">
+                  {preview && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={preview} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-medium truncate">{titleOf(p)}</div>
+                  <div className="text-[10px] text-muted-foreground truncate font-mono">{p.slug}</div>
+                </div>
+              </div>
+              <ImageSlot
+                label="Miniatura (override)"
+                icon={<ImageIcon className="w-3 h-3" />}
+                value={current}
+                onChange={(v) => updateOverride(p.id, v)}
+                hint={current ? "Nadpisana miniatura aktywna." : "Puste = oryginalna okładka wpisu."}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </Collapsible>
+  );
+}
