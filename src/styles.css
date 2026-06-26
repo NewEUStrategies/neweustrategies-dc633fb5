@@ -588,14 +588,19 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   color: var(--td-pt-color, hsl(var(--foreground)));
   text-transform: var(--td-pt-transform, none);
   letter-spacing: var(--td-pt-spacing, 0);
-  /* Per-line underline that wipes in on hover. text-decoration underlines
-     every wrapped line of the title (unlike a single ::after bar). The color
-     transitions from transparent -> currentColor for a subtle reveal. */
-  text-decoration-line: underline;
-  text-decoration-color: transparent;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  transition: color .2s ease, text-decoration-color .3s ease;
+  /* Per-line wipe underline: background-image painted behind each line box,
+     animated from 0% to 100% width left -> right. box-decoration-break: clone
+     ensures the background origin resets on every wrapped line. */
+  display: inline;
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0% 1px;
+  padding-bottom: 3px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition: color .2s ease, background-size .4s ease;
 }
 @media (max-width: 640px) {
   .cms-post-title { font-size: var(--td-pt-size-sm, 16px); }
@@ -603,7 +608,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .group:hover .cms-post-title,
 a:hover .cms-post-title,
 .cms-post-title:hover {
-  text-decoration-color: currentColor;
+  background-size: 100% 1px;
 }
 
 .cms-post-excerpt {
