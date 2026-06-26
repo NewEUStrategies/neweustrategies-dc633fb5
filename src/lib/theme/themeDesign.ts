@@ -189,6 +189,11 @@ export function themeDesignToCss(t: ThemeDesign): string {
   v.push(`--td-si-radius:${t.socialIcons.radius};`);
   v.push(`--td-si-px:${t.socialIcons.paddingX};`);
   v.push(`--td-si-py:${t.socialIcons.paddingY};`);
+  // List index (numbered / ranked variant)
+  v.push(`--td-li-light:${t.listIndex.colorLight};`);
+  v.push(`--td-li-dark:${t.listIndex.colorDark};`);
+  v.push(`--td-li-opacity:${t.listIndex.opacity};`);
+  v.push(`--td-li-weight:${t.listIndex.weight};`);
   return `:root{${v.join("")}}`;
 }
 
