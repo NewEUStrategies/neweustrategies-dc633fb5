@@ -23,6 +23,9 @@ export interface SchemaField {
   /** For number fields. */
   min?: number;
   max?: number;
+  step?: number;
+  /** Optional default value used when content has no value yet (number fields). */
+  default?: number;
   /** For select fields. */
   options?: ReadonlyArray<{ value: string; label?: string }>;
   /** For textarea fields. */
@@ -427,10 +430,10 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   ],
   "search-button": [
     { key: "label", type: "i18nText", label: "Placeholder", placeholder: "Szukaj" },
-    { key: "height", type: "number", label: "Wysokość pola (px)", min: 24, max: 120, hint: "Domyślnie 40 px." },
-    { key: "radius", type: "number", label: "Zaokrąglenie (px)", min: 0, max: 60 },
-    { key: "fontSize", type: "number", label: "Rozmiar tekstu (px)", min: 10, max: 32 },
-    { key: "limit", type: "number", label: "Limit wyników", min: 1, max: 20 },
+    { key: "height", type: "number", label: "Wysokość pola (px)", min: 24, max: 120, default: 40, hint: "Domyślnie 40 px." },
+    { key: "radius", type: "number", label: "Zaokrąglenie (px)", min: 0, max: 60, default: 8 },
+    { key: "fontSize", type: "number", label: "Rozmiar tekstu (px)", min: 10, max: 32, default: 14 },
+    { key: "limit", type: "number", label: "Limit wyników", min: 1, max: 20, default: 8 },
     { key: "liveResults", type: "select", label: "Wyniki na żywo", options: [
       { value: "on", label: "włączone" },
       { value: "off", label: "wyłączone" },
