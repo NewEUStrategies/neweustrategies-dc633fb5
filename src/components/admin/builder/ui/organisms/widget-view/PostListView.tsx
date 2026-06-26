@@ -293,6 +293,63 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     );
   }
 
+  if (variant === "ranked") {
+    // Ranked list - no image, big translucent number on the right, title + "By <author>".
+    const idxSize = getNum(c, "indexSizePx", 96);
+    const idxColor = getStr(c, "indexColor") || "rgb(35,31,32)";
+    const idxColorDark = getStr(c, "indexColorDark") || "rgb(250,147,70)";
+    const idxOpacity = (() => {
+      const v = getNum(c, "indexOpacity", -1);
+      return v < 0 ? 0.18 : Math.max(0, Math.min(1, v));
+    })();
+    const idxWeight = getStr(c, "indexWeight") || "800";
+    return (
+      <div
+        className="w-full flex flex-col divide-y divide-border"
+        style={{
+          "--pl-num-light": idxColor,
+          "--pl-num-dark": idxColorDark,
+          "--pl-num-opacity": String(idxOpacity),
+        } as React.CSSProperties}
+      >
+        {rows.map((p, i) => (
+          <a
+            key={p.id}
+            href={`/post/${p.slug}`}
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-4 sm:py-5 group"
+          >
+            <div className="min-w-0 text-left">
+              <h4
+                className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
+                style={tStyle}
+              >
+                {title(p)}
+              </h4>
+              {authorName(p) && (
+                <div className="mt-2 inline-flex items-center gap-2 text-[12px] text-muted-foreground">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded border border-border text-[11px] uppercase tracking-wide">By</span>
+                  <span className="font-medium text-foreground">{authorName(p)}</span>
+                </div>
+              )}
+            </div>
+            <span
+              aria-hidden
+              className="post-list-numbered-index font-display tabular-nums select-none leading-none pr-1"
+              style={{
+                ["--pl-num-fs" as string]: `min(${idxSize}px, 18vw)`,
+                fontWeight: idxWeight as React.CSSProperties["fontWeight"],
+                position: "static",
+                transform: "none",
+              }}
+            >
+              {String(i + 1).padStart(2, "0")}
+            </span>
+          </a>
+        ))}
+      </div>
+    );
+  }
+
   if (variant === "numbered") {
     // Big faint index on the left, title in the middle, thumbnail on the right.
     // Sizes/colors are configurable via widget content; sensible defaults match
