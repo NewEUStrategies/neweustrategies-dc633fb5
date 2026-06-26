@@ -442,7 +442,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               >
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <div className={`relative z-10 py-2 sm:py-3 ${idxSide === "left" ? "pl-1 pr-1" : "pr-1 pl-1"}`}>
+              <div className={`relative z-10 ${idxSide === "left" ? "pl-1 pr-1" : "pr-1 pl-1"}`}>
 
                 <h4
                   className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
