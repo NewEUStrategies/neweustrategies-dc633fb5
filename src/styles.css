@@ -685,3 +685,17 @@ a:hover .cms-post-title,
 
 /* Section dividers softer */
 .admin-compact hr { opacity: 0.6; }
+
+/* Force textareas inside admin to behave as single-line inputs */
+.admin-compact textarea {
+  min-height: 30px !important;
+  height: 30px !important;
+  max-height: 30px !important;
+  resize: none !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  line-height: 1.4 !important;
+  font-size: 12.5px !important;
+}
