@@ -337,7 +337,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .cms-builder-compact input, .cms-builder-compact select, .cms-builder-compact textarea, .cms-builder-compact button { font-size: inherit; }
 .cms-builder-compact .h-8 { height: 1.75rem; }
 
-.post-list-numbered-index {
+.post-list-numbered-index.post-list-numbered-index.post-list-numbered-index {
   position: absolute;
   left: 0;
   top: 50%;
