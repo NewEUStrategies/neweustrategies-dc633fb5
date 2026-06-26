@@ -9,6 +9,7 @@ import type { WidgetContent } from "@/lib/builder/types";
 import { getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
+import { readThumbnailOverrides } from "@/lib/builder/thumbnailOverrides";
 
 // Cover renders across a 1-4 column responsive grid. Images are always painted
 // into a stable frame so mobile CSS cannot stretch/squash their crop.
@@ -192,7 +193,10 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     if (data && data.length) used.register(data.map((r) => r.id));
   }, [data, used]);
 
-  const rows = data ?? [];
+  const overrides = useMemo(() => readThumbnailOverrides(c), [c]);
+  const rows = (data ?? []).map((p) =>
+    overrides[p.id] ? { ...p, cover_image_url: overrides[p.id] } : p,
+  );
   const effectiveCols = Math.max(1, Math.min(cols, rows.length || 1));
   if (!rows.length) {
     return (
