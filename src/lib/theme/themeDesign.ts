@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { z } from "zod";
 import { deepMerge } from "@/lib/deepMerge";
+import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
 const PX = z.union([z.number(), z.string()]).transform((v) => (typeof v === "number" ? `${v}px` : v));
 const COLOR = z.string().min(1);
@@ -120,14 +121,9 @@ const QUERY_KEY = ["site_settings", KEY] as const;
 export function useThemeDesign() {
   return useQuery({
     queryKey: QUERY_KEY,
-    queryFn: async (): Promise<ThemeDesign> => {
-      const { data, error } = await supabase
-        .from("site_settings").select("value").eq("key", KEY).maybeSingle();
-      if (error) throw error;
-      const raw = data?.value ?? {};
-      const merged = deepMerge(THEME_DESIGN_DEFAULTS, raw as Record<string, unknown>);
-      const parsed = ThemeDesignSchema.safeParse(merged);
-      return parsed.success ? parsed.data : THEME_DESIGN_DEFAULTS;
+    queryFn: async ({ client }): Promise<ThemeDesign> => {
+      const settings = await client.ensureQueryData(siteSettingsQueryOptions);
+      return resolveSetting(settings, KEY, THEME_DESIGN_DEFAULTS, ThemeDesignSchema);
     },
     staleTime: 5 * 60_000,
   });
