@@ -197,7 +197,8 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
       )}
     </div>
   );
-}
+});
+MegaMenu.displayName = "MegaMenu";
 
 function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }) {
   if ((col.kind ?? "links") === "category") {
