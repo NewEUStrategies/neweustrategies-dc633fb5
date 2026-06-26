@@ -311,12 +311,14 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
       const v = getStr(c, "indexVAlign") || "top";
       return v === "middle" || v === "bottom" ? v : "top";
     })();
+    // Override the CSS class transform that defaults to translate(-0.08em, -50%).
     const vPos: React.CSSProperties =
       idxVAlign === "top"
-        ? { top: "0.25rem", bottom: "auto" }
+        ? { top: 0, bottom: "auto", transform: "translate(0, 0)" }
         : idxVAlign === "bottom"
-        ? { top: "auto", bottom: "0.25rem" }
-        : { top: "50%", transform: "translateY(-50%)" };
+        ? { top: "auto", bottom: 0, transform: "translate(0, 0)" }
+        : { top: "50%", bottom: "auto", transform: "translateY(-50%)" };
+
     return (
       <div
         className="w-full flex flex-col divide-y divide-border"
@@ -330,44 +332,50 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
           <a
             key={p.id}
             href={`/post/${p.slug}`}
-            className="relative isolate overflow-hidden block py-4 sm:py-5 group"
+            className="block py-4 sm:py-5 group"
           >
-            <div className="min-w-0 w-full text-left relative z-10">
-              <h4
-                className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
-                style={tStyle}
+            {/* Title-anchored wrapper - the number is positioned relative to this
+                box so its top edge aligns exactly with the title's top edge and
+                never overflows the row. */}
+            <div className="relative isolate overflow-hidden min-w-0 w-full text-left">
+              <span
+                aria-hidden
+                className="post-list-numbered-index font-display tabular-nums select-none leading-none"
+                style={{
+                  ["--pl-num-fs" as string]: `${idxSize}px`,
+                  fontWeight: idxWeight as React.CSSProperties["fontWeight"],
+                  position: "absolute",
+                  left: idxSide === "left" ? 0 : "auto",
+                  right: idxSide === "right" ? 0 : "auto",
+                  ...vPos,
+                  textAlign: idxSide,
+                  pointerEvents: "none",
+                  zIndex: 0,
+                } as React.CSSProperties}
               >
-                {title(p)}
-              </h4>
-              {authorName(p) && (
-                <div className="mt-2 text-[13px] text-muted-foreground">
-                  <span className="opacity-70">{byLabel}</span>{" "}
-                  <span className="font-medium text-foreground">{authorName(p)}</span>
-                </div>
-              )}
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <div className="relative z-10">
+                <h4
+                  className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
+                  style={tStyle}
+                >
+                  {title(p)}
+                </h4>
+                {authorName(p) && (
+                  <div className="mt-2 text-[13px] text-muted-foreground">
+                    <span className="opacity-70">{byLabel}</span>{" "}
+                    <span className="font-medium text-foreground">{authorName(p)}</span>
+                  </div>
+                )}
+              </div>
             </div>
-            <span
-              aria-hidden
-              className="post-list-numbered-index font-display tabular-nums select-none leading-none"
-              style={{
-                ["--pl-num-fs" as string]: `${idxSize}px`,
-                fontWeight: idxWeight as React.CSSProperties["fontWeight"],
-                position: "absolute",
-                left: idxSide === "left" ? "0.25rem" : "auto",
-                right: idxSide === "right" ? "0.25rem" : "auto",
-                ...vPos,
-                textAlign: idxSide,
-                pointerEvents: "none",
-                zIndex: 0,
-              } as React.CSSProperties}
-            >
-              {String(i + 1).padStart(2, "0")}
-            </span>
           </a>
         ))}
       </div>
     );
   }
+
 
 
   if (variant === "numbered") {
@@ -434,7 +442,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               >
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <div className={`relative z-10 py-2 sm:py-3 ${idxSide === "left" ? "pl-1 pr-1" : "pr-1 pl-1"}`}>
+              <div className={`relative z-10 ${idxSide === "left" ? "pl-1 pr-1" : "pr-1 pl-1"}`}>
 
                 <h4
                   className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
