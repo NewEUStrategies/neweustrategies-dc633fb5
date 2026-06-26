@@ -264,13 +264,16 @@ function PostsSliderWidget({ c, lang }: { c: WidgetNode["content"]; lang: Lang }
 
 type SearchResult = { id: string; slug: string; title: string; excerpt: string | null };
 
-function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
+function SearchButtonWidget({ label, heading, liveResults, limit, lang, height, radius, fontSize }: {
   label: string;
   mode: "standalone" | "dropdown" | "fullscreen";
   heading: string;
   liveResults: boolean;
   limit: number;
   lang: Lang;
+  height: number;
+  radius: number;
+  fontSize: number;
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -327,13 +330,16 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
   const showEmpty = hasQuery && !loading && searched && results.length === 0;
   const showPopover = focused && hasQuery;
 
+  const h = Math.max(24, Math.min(120, height || 40));
+  const pad = Math.max(8, Math.round(h * 0.3));
+
   return (
     <div ref={wrapRef} className="builder-search-widget relative w-full max-w-full min-w-0">
       <div
-        className="flex min-h-10 w-full items-center gap-2 rounded-md border border-input bg-card px-3 text-foreground shadow-sm transition-colors"
-        style={{ direction: "ltr" }}
+        className="flex w-full items-center gap-2 border border-input bg-card text-foreground shadow-sm transition-colors"
+        style={{ direction: "ltr", height: `${h}px`, minHeight: `${h}px`, borderRadius: `${radius}px`, paddingLeft: `${pad}px`, paddingRight: `${pad}px` }}
       >
-        <LucideIcons.Search className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden />
+        <LucideIcons.Search className="text-muted-foreground shrink-0" style={{ width: Math.round(h * 0.4), height: Math.round(h * 0.4) }} aria-hidden />
         <input
           ref={inputRef}
           type="text"
@@ -363,8 +369,10 @@ function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
             appearance: "none",
             WebkitAppearance: "none",
             MozAppearance: "none",
+            height: "100%",
+            fontSize: `${fontSize}px`,
           }}
-          className="h-10 flex-1 min-w-0 bg-transparent border-0 px-0 py-0 text-sm text-foreground outline-none ring-0 shadow-none [appearance:none] [-webkit-appearance:none] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-muted-foreground/70"
+          className="flex-1 min-w-0 bg-transparent border-0 text-foreground outline-none ring-0 shadow-none [appearance:none] [-webkit-appearance:none] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-muted-foreground/70"
         />
         {loading && <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />}
         {q && (
@@ -676,7 +684,10 @@ export function renderSimpleWidget(
       const heading = getStr(c, `heading_${lang}`) || getStr(c, "heading_pl") || "";
       const liveResults = getStr(c, "liveResults") !== "off";
       const limit = getNum(c, "limit", 8);
-      return <SearchButtonWidget label={label} mode={mode} heading={heading} liveResults={liveResults} limit={limit} lang={lang} />;
+      const height = getNum(c, "height", 40);
+      const radius = getNum(c, "radius", 8);
+      const fontSize = getNum(c, "fontSize", 14);
+      return <SearchButtonWidget label={label} mode={mode} heading={heading} liveResults={liveResults} limit={limit} lang={lang} height={height} radius={radius} fontSize={fontSize} />;
     }
 
     case "copyright": {

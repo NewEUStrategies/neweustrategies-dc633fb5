@@ -157,7 +157,7 @@ export const WIDGETS: WidgetDef[] = [
       panel_pl: "Panel", panel_en: "Dashboard",
     }) },
   { type: "search-button", label: "Wyszukiwarka", category: "navigation", icon: Search,
-    defaults: () => ({ label_pl: "Szukaj", label_en: "Search" }) },
+    defaults: () => ({ label_pl: "Szukaj", label_en: "Search", height: 40, radius: 8, fontSize: 14, limit: 8, liveResults: "on" }) },
   { type: "copyright", label: "Copyright", category: "navigation", icon: TypeIcon,
     defaults: () => ({
       text_pl: "Wszelkie prawa zastrzeżone",
