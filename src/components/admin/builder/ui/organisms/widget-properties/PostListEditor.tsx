@@ -462,6 +462,7 @@ interface PreviewRow {
   title_pl: string | null;
   title_en: string | null;
   cover_image_url: string | null;
+  author_id: string | null;
 }
 
 async function resolveTaxonomyIds(table: "post_categories" | "post_tags", slugs: string[]): Promise<Set<string>> {
