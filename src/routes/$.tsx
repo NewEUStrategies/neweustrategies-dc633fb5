@@ -398,15 +398,13 @@ function PublicPage() {
 
   return (
     <div
-      className="min-h-screen flex flex-col bg-background text-foreground"
-      data-template={tpl.id}
-      data-header-override={page.header_override ?? "default"}
+      className="flex flex-col bg-background text-foreground"
+      data-page-template={tpl.id}
+      data-page-header-override={page.header_override ?? "default"}
     >
-      {page.header_override !== "hidden" && <Header />}
       <main className={`flex-1 ${pageMaxW} w-full mx-auto px-4 lg:px-8 py-10`}>
         {pageBody}
       </main>
-      <Footer />
       <FooterSlideup pageType={adPageType} pageId={it.id} />
     </div>
   );
@@ -414,15 +412,11 @@ function PublicPage() {
 
 function PublicNotFound() {
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
-      <main className="flex-1 flex items-center justify-center px-4">
-        <div className="text-center">
-          <h1 className="font-display text-3xl">404 - nie znaleziono</h1>
-          <Link to="/" className="inline-block mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Strona główna</Link>
-        </div>
-      </main>
-      <Footer />
-    </div>
+    <main className="flex-1 flex items-center justify-center px-4 py-20">
+      <div className="text-center">
+        <h1 className="font-display text-3xl">404 - nie znaleziono</h1>
+        <Link to="/" className="inline-block mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Strona główna</Link>
+      </div>
+    </main>
   );
 }
