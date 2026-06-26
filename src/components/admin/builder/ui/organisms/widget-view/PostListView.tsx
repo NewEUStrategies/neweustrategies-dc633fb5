@@ -272,15 +272,13 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     const showExcerpt = false;
     const lightColor = idxColor || "rgb(35,31,32)";
     const darkColor = idxColorDark || "rgb(250,147,70)";
-    const indexFontSize = `clamp(76px, calc(${idxSize * 0.72}px + 1.8vw), ${idxSize}px)`;
     return (
       <div
         className="w-full flex flex-col divide-y divide-border"
         style={{
           "--pl-num-light": lightColor,
           "--pl-num-dark": darkColor,
-          "--pl-num-opacity": idxOpacity,
-          "--pl-num-size": indexFontSize,
+          "--pl-num-opacity": String(idxOpacity),
         } as React.CSSProperties}
       >
         {rows.map((p, i) => (
@@ -299,6 +297,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                 aria-hidden
                 className="post-list-numbered-index font-display tabular-nums"
                 style={{
+                  fontSize: `min(${idxSize}px, 22vw)`,
                   fontWeight: idxWeight as React.CSSProperties["fontWeight"],
                 }}
               >
