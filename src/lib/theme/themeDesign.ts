@@ -80,6 +80,14 @@ export const ThemeDesignSchema = z.object({
     paddingX: PX.default("6px"),
     paddingY: PX.default("6px"),
   }).default({}),
+  listIndex: z.object({
+    // Global defaults for "numbered" / "ranked" post-list variants.
+    // Used when the individual widget does not override colors.
+    colorLight: COLOR.default("#231f20"),
+    colorDark: COLOR.default("#fa9346"),
+    opacity: z.number().min(0).max(1).default(0.18),
+    weight: z.number().min(100).max(900).default(800),
+  }).default({}),
 }).default({});
 
 export type ThemeDesign = z.infer<typeof ThemeDesignSchema>;
