@@ -580,15 +580,11 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 }
 
 /* ===== Unified post title / excerpt across every widget =====
-   Underline: subtle, readable on light + dark. Each wrapped line gets its
-   own underline thanks to box-decoration-break: clone. Animation goes
-   left-to-right per line via background-size transition. */
+   Each wrapped line of the title gets its own underline via native
+   text-decoration (which natively underlines per visual line, without
+   forcing display:inline and without breaking line-clamp / flex layout). */
 .cms-post-title {
-  /* underline color follows the title color (light + dark mode) */
-  --pt-ul-color: color-mix(in oklab, currentColor 75%, transparent);
-  --pt-ul-thickness: 1.5px;
-  --pt-ul-offset: 3px;
-
+  display: block;
   font-family: var(--td-pt-family, "Red Hat Display", system-ui, sans-serif);
   font-size: var(--td-pt-size, 15px);
   font-weight: var(--td-pt-weight, 600);
@@ -596,54 +592,33 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   color: var(--td-pt-color, hsl(var(--foreground)));
   text-transform: var(--td-pt-transform, none);
   letter-spacing: var(--td-pt-spacing, 0);
+
+  /* underline tokens — color follows the title (light + dark mode) */
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  text-decoration-skip-ink: auto;
+  transition: text-decoration-color .35s ease, color .2s ease;
 }
-.dark .cms-post-title {
-  --pt-ul-color: color-mix(in oklab, currentColor 85%, transparent);
+.group:hover .cms-post-title,
+a:hover .cms-post-title,
+.cms-post-title:hover {
+  text-decoration-color: color-mix(in oklab, currentColor 75%, transparent);
 }
-/* Per-line underline: must live on an *inline* element so the gradient
-   wraps per line via box-decoration-break: clone. We render it on an
-   inner span that components include, OR on the title itself when it
-   is inlined via this rule. */
-.cms-post-title > .cms-pt-ink,
-.cms-post-title.is-inline {
-  display: inline;
-  background-image: linear-gradient(var(--pt-ul-color), var(--pt-ul-color));
-  background-repeat: no-repeat;
-  background-position: 0 100%;
-  background-size: 0% var(--pt-ul-thickness);
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-  padding-bottom: var(--pt-ul-offset);
-  transition: background-size .6s cubic-bezier(.22,.61,.36,1), color .2s ease;
-}
-/* Fallback: if the title has plain text (no inner span), make the
-   heading itself inline so per-line clone works. */
-.cms-post-title:not(:has(.cms-pt-ink)) {
-  display: inline;
-  background-image: linear-gradient(var(--pt-ul-color), var(--pt-ul-color));
-  background-repeat: no-repeat;
-  background-position: 0 100%;
-  background-size: 0% var(--pt-ul-thickness);
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-  padding-bottom: var(--pt-ul-offset);
-  transition: background-size .6s cubic-bezier(.22,.61,.36,1), color .2s ease;
-}
-.group:hover .cms-post-title > .cms-pt-ink,
-.group:hover .cms-post-title:not(:has(.cms-pt-ink)),
-a:hover .cms-post-title > .cms-pt-ink,
-a:hover .cms-post-title:not(:has(.cms-pt-ink)),
-.cms-post-title:hover > .cms-pt-ink,
-.cms-post-title:hover:not(:has(.cms-pt-ink)) {
-  background-size: 100% var(--pt-ul-thickness);
+.dark .group:hover .cms-post-title,
+.dark a:hover .cms-post-title,
+.dark .cms-post-title:hover {
+  text-decoration-color: color-mix(in oklab, currentColor 85%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
-  .cms-post-title, .cms-post-title > .cms-pt-ink { transition: none; }
+  .cms-post-title { transition: none; }
 }
-
 @media (max-width: 640px) {
   .cms-post-title { font-size: var(--td-pt-size-sm, 14px); }
 }
+
+
 
 
 .cms-post-excerpt {
