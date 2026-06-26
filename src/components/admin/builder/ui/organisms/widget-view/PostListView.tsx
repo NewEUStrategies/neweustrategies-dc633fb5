@@ -296,7 +296,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                 aria-hidden
                 className="font-display tabular-nums leading-none select-none absolute -left-2 sm:-left-3 top-1/2 -translate-y-1/2 pointer-events-none z-0 text-[var(--pl-num-light)] dark:text-[var(--pl-num-dark)]"
                 style={{
-                  fontSize: `clamp(72px, ${idxSize * 0.72}px + 1.8vw, ${idxSize}px)`,
+                  fontSize: `clamp(72px, calc(${idxSize * 0.72}px + 1.8vw), ${idxSize}px)`,
                   fontWeight: idxWeight as React.CSSProperties["fontWeight"],
                 }}
               >
