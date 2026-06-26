@@ -10,7 +10,7 @@ import {
   Globe, Sun, Search, User, Facebook,
   Flame, Bookmark, Megaphone as AdIcon,
   LayoutGrid, LogIn, ShieldCheck, Lock,
-  ChevronRight, Clock, BookOpen, Eye, Image as CoverIcon, FileText,
+  ChevronRight, Clock, BookOpen, Eye, Image as CoverIcon, FileText, Sparkles,
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 
@@ -85,6 +85,15 @@ export const WIDGETS: WidgetDef[] = [
     defaults: () => ({ to: "" }) },
   { type: "cta", label: "Wezwanie do akcji", category: "form", icon: Megaphone,
     defaults: () => ({ title_pl: "Działajmy razem", title_en: "Let's act together", href: "#", cta_pl: "Skontaktuj się", cta_en: "Contact us" }) },
+  { type: "join-us", label: "Dołącz do nas", category: "form", icon: Sparkles,
+    defaults: () => ({
+      variant: "split",
+      showInterests: "1",
+      title_pl: "", title_en: "",
+      subtitle_pl: "", subtitle_en: "",
+    }) },
+  { type: "customize-interests", label: "Dopasuj zainteresowania", category: "form", icon: Sparkles,
+    defaults: () => ({ variant: "full", showHeader: "1" }) },
   // Navigation
   { type: "nav-link", label: "Link menu", category: "navigation", icon: LinkIcon,
     defaults: () => ({

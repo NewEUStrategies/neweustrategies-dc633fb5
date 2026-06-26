@@ -22,6 +22,8 @@ import { useTheme } from "@/components/ThemeProvider";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 import { pickMode } from "@/lib/builder/themed";
 import { NewsletterForm as NewsletterFormLive } from "@/components/NewsletterForm";
+import { JoinUsForm } from "@/components/interests/JoinUsForm";
+import { InterestsCustomizer } from "@/components/interests/InterestsCustomizer";
 import {
   SectionLabelRender,
   resolveAccentColor,
@@ -500,6 +502,29 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
         </div>,
       );
     }
+
+    case "join-us": {
+      const variant = (getStr(c, "variant") || "split") as "card" | "split" | "inline";
+      const showInterests = (getStr(c, "showInterests") ?? "1") !== "0";
+      const title = getStr(c, `title_${lang}`) || getStr(c, "title_pl") || undefined;
+      const subtitle = getStr(c, `subtitle_${lang}`) || getStr(c, "subtitle_pl") || undefined;
+      return wrap(
+        <JoinUsForm
+          variant={variant}
+          showInterests={showInterests}
+          title={title || undefined}
+          subtitle={subtitle || undefined}
+          source={`widget:${node.id}`}
+        />,
+      );
+    }
+
+    case "customize-interests": {
+      const variant = (getStr(c, "variant") || "full") as "full" | "compact";
+      const showHeader = (getStr(c, "showHeader") ?? "1") !== "0";
+      return wrap(<InterestsCustomizer variant={variant} showHeader={showHeader} />);
+    }
+
 
     case "cta": {
       const tKey = `title_${lang}`;

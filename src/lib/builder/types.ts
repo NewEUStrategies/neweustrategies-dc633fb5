@@ -238,7 +238,7 @@ export type WidgetType =
   // Dynamic
   | "post-list" | "carousel" | "categories" | "tags"
   // Forms
-  | "newsletter" | "contact" | "cta"
+  | "newsletter" | "contact" | "cta" | "join-us" | "customize-interests"
   // Navigation
   | "nav-link" | "mega-menu"
   // Site chrome (header/footer/menu)
