@@ -614,3 +614,15 @@ a:hover .cms-post-title,
   color: var(--td-pe-color, hsl(var(--muted-foreground)));
   margin-top: var(--td-pe-mt, 6px);
 }
+
+/* Smaller widget headings (h2/h3) site-wide for post cards & widget tiles */
+:is([data-builder-renderer], [data-visual-canvas]) h2,
+.cms-widget h2 { font-size: 17px; line-height: 1.25; }
+:is([data-builder-renderer], [data-visual-canvas]) h3,
+.cms-widget h3 { font-size: 15px; line-height: 1.3; }
+@media (max-width: 640px) {
+  :is([data-builder-renderer], [data-visual-canvas]) h2,
+  .cms-widget h2 { font-size: 15px; }
+  :is([data-builder-renderer], [data-visual-canvas]) h3,
+  .cms-widget h3 { font-size: 14px; }
+}
