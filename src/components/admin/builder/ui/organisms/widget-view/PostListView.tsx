@@ -337,7 +337,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               <WidgetMediaImage
                 src={p.cover_image_url}
                 alt=""
-                frameClassName="relative block aspect-[4/3] w-full shrink-0 overflow-hidden rounded-md bg-muted"
+                frameClassName={`relative block ${ASPECT_CLASS[aspect]} w-full shrink-0 overflow-hidden rounded-md bg-muted`}
                 responsiveWidths={[120, 160, 240, 320]}
                 sizes="(max-width: 640px) 96px, (max-width: 1024px) 140px, 180px"
                 foregroundClassName={COVER_IMG_CLASS}
