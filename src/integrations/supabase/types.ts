@@ -451,6 +451,7 @@ export type Database = {
           recipient: string | null
           status: string
           subject: string | null
+          tenant_id: string
           updated_at: string
         }
         Insert: {
@@ -466,6 +467,7 @@ export type Database = {
           recipient?: string | null
           status?: string
           subject?: string | null
+          tenant_id?: string
           updated_at?: string
         }
         Update: {
@@ -481,6 +483,7 @@ export type Database = {
           recipient?: string | null
           status?: string
           subject?: string | null
+          tenant_id?: string
           updated_at?: string
         }
         Relationships: []
@@ -1745,18 +1748,21 @@ export type Database = {
       site_settings: {
         Row: {
           key: string
+          tenant_id: string
           updated_at: string
           updated_by: string | null
           value: Json
         }
         Insert: {
           key: string
+          tenant_id?: string
           updated_at?: string
           updated_by?: string | null
           value?: Json
         }
         Update: {
           key?: string
+          tenant_id?: string
           updated_at?: string
           updated_by?: string | null
           value?: Json
