@@ -146,8 +146,19 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               />
             </PropField>
           )}
+          <PropField label="Proporcje obrazu">
+            <Select value={str(c, "imageAspect", "4/3")} onValueChange={(v) => setContent("imageAspect", v)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="4/3" className="text-xs">Poziome 4:3</SelectItem>
+                <SelectItem value="3/4" className="text-xs">Pionowe 3:4</SelectItem>
+                <SelectItem value="1/1" className="text-xs">Kwadrat 1:1</SelectItem>
+                <SelectItem value="16/9" className="text-xs">Szerokie 16:9</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
         </div>
-      </Collapsible>
+      </Collapsible>{/* anchor */}
 
       {/* ── Query ──────────────────────────────────────────── */}
       <Collapsible title="Filtry zapytania" defaultOpen>
