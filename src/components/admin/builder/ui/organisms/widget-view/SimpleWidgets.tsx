@@ -264,13 +264,16 @@ function PostsSliderWidget({ c, lang }: { c: WidgetNode["content"]; lang: Lang }
 
 type SearchResult = { id: string; slug: string; title: string; excerpt: string | null };
 
-function SearchButtonWidget({ label, heading, liveResults, limit, lang }: {
+function SearchButtonWidget({ label, heading, liveResults, limit, lang, height, radius, fontSize }: {
   label: string;
   mode: "standalone" | "dropdown" | "fullscreen";
   heading: string;
   liveResults: boolean;
   limit: number;
   lang: Lang;
+  height: number;
+  radius: number;
+  fontSize: number;
 }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
