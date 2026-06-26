@@ -17,7 +17,7 @@ interface Props {
 }
 
 const asString = (v: unknown): string => (typeof v === "string" ? v : "");
-const asNumber = (v: unknown, d = 0): number => (typeof v === "number" ? v : d);
+
 const asStringArray = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 
