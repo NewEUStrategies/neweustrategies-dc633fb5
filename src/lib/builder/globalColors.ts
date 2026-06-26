@@ -718,9 +718,9 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     [data-sidebar="menu-button"][data-active="true"] svg, [data-sidebar="sidebar"] .active svg{color:var(--gc-sidebar-icon-active, var(--gc-sidebar-btn-text, currentColor)) !important;}
     [data-sidebar="separator"]{background:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
     [data-sidebar="group-label"]{color:var(--gc-sidebar-title, inherit) !important;}
-    :where([data-sidebar="group-label"]){font-family:var(--gc-sidebar-title-font, inherit);font-size:var(--gc-sidebar-title-size, inherit);font-weight:var(--gc-sidebar-title-weight, inherit);font-style:var(--gc-sidebar-title-style, inherit);text-decoration:var(--gc-sidebar-title-decoration, inherit);}
+    @layer utilities { :where([data-sidebar="group-label"]){font-family:var(--gc-sidebar-title-font, inherit);font-size:var(--gc-sidebar-title-size, inherit);font-weight:var(--gc-sidebar-title-weight, inherit);font-style:var(--gc-sidebar-title-style, inherit);text-decoration:var(--gc-sidebar-title-decoration, inherit);} }
     [data-sidebar="group-subtitle"], [data-sidebar="menu-sub-label"]{color:var(--gc-sidebar-subtitle, inherit) !important;}
-    :where([data-sidebar="group-subtitle"], [data-sidebar="menu-sub-label"]){font-family:var(--gc-sidebar-subtitle-font, inherit);font-size:var(--gc-sidebar-subtitle-size, inherit);font-weight:var(--gc-sidebar-subtitle-weight, inherit);font-style:var(--gc-sidebar-subtitle-style, inherit);text-decoration:var(--gc-sidebar-subtitle-decoration, inherit);}
+    @layer utilities { :where([data-sidebar="group-subtitle"], [data-sidebar="menu-sub-label"]){font-family:var(--gc-sidebar-subtitle-font, inherit);font-size:var(--gc-sidebar-subtitle-size, inherit);font-weight:var(--gc-sidebar-subtitle-weight, inherit);font-style:var(--gc-sidebar-subtitle-style, inherit);text-decoration:var(--gc-sidebar-subtitle-decoration, inherit);} }
     /* "Dark accent" text color — scoped strictly to CMS prose so widgets,
        cards, navigation chrome and listing pages keep their native
        Tailwind / shadcn colors (text-foreground / text-muted-foreground)
