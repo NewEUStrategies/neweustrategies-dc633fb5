@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { z } from "zod";
 import { deepMerge } from "@/lib/deepMerge";
+import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
 export const CarouselDefaultsSchema = z.object({
   autoplay: z.boolean().default(true),
@@ -26,11 +27,9 @@ const QUERY_KEY = ["site_settings", KEY] as const;
 export function useCarouselDefaults() {
   return useQuery({
     queryKey: QUERY_KEY,
-    queryFn: async (): Promise<CarouselDefaults> => {
-      const { data, error } = await supabase
-        .from("site_settings").select("value").eq("key", KEY).maybeSingle();
-      if (error) throw error;
-      const raw = data?.value ?? {};
+    queryFn: async ({ client }): Promise<CarouselDefaults> => {
+      const settings = await client.ensureQueryData(siteSettingsQueryOptions);
+      const raw = settings[KEY] ?? {};
       const merged = deepMerge(CAROUSEL_DEFAULTS, raw as Record<string, unknown>);
       const parsed = CarouselDefaultsSchema.safeParse(merged);
       return parsed.success ? parsed.data : CAROUSEL_DEFAULTS;

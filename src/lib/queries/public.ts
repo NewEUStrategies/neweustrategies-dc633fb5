@@ -6,6 +6,7 @@ import { fetchPageBreadcrumbs, type BreadcrumbRow } from "@/lib/breadcrumbs";
 import { EMPTY_BODY, type BodyParts } from "@/lib/access/gating";
 import type { ContentAccessRule } from "@/hooks/useContentAccess";
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
+import { edgeTtlCache } from "@/lib/ssrCache";
 
 // Non-sensitive columns of the access rule. Safe to ship to anonymous SSR so the
 // paywall teaser renders server-side (good for SEO); the body itself stays gated
@@ -125,6 +126,7 @@ export const homePageQueryOptions = () =>
   queryOptions({
     queryKey: ["public", "home-page"] as const,
     queryFn: async (): Promise<PageData | null> => {
+      return edgeTtlCache("public:home-page", 60_000, async () => {
       // 1. Read reading-settings to find the designated homepage.
       const { data: setting } = await supabase
         .from("site_settings")
@@ -171,6 +173,7 @@ export const homePageQueryOptions = () =>
         .maybeSingle();
       if (error) throw error;
       return (data as PageData | null) ?? null;
+      });
     },
     staleTime: PAGE_PATH_TTL,
   });

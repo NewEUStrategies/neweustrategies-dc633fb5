@@ -51,6 +51,8 @@ import { AdZone } from "@/components/AdSlot";
 import { MidPostAds } from "@/components/ads/MidPostAds";
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import type { AdPageType } from "@/lib/ads/types";
+import { prefetchBuilderDocumentQueries } from "@/lib/builder/prefetch";
+import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
 
 
 function splatToSegments(splat: string): string[] {
@@ -68,10 +70,20 @@ export const Route = createFileRoute("/$")({
     const splat = (params as { _splat?: string })._splat ?? "";
     const segments = splatToSegments(splat);
     if (segments.length === 0) throw notFound();
-    const data = await context.queryClient.ensureQueryData(
-      resolvedContentQueryOptions(segments),
-    );
+    const data = await context.queryClient.ensureQueryData(resolvedContentQueryOptions(segments));
     if (!data) throw notFound();
+    const url = getRequestUrl() || `/${splat}`;
+    const lang: "pl" | "en" = activeLang(url) === "en" ? "en" : "pl";
+    const doc = parseBuilderDoc(data.item.builder_data);
+    await Promise.allSettled([
+      data.kind === "post"
+        ? context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions())
+        : Promise.resolve(),
+      doc.sections.length > 0
+        ? prefetchBuilderDocumentQueries(context.queryClient, doc, lang)
+        : Promise.resolve(),
+      context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions()),
+    ]);
     return data;
   },
   head: ({ loaderData, params }) => {

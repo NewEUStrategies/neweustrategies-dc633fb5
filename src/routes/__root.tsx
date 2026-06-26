@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 import {
   Outlet,
   Link,
@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { Suspense, useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -91,6 +91,28 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
+function RouteLoadingSkeleton() {
+  return (
+    <main className="min-h-[55vh] w-full animate-pulse px-4 py-8 lg:px-8" aria-busy="true">
+      <div className="mx-auto max-w-[1200px] space-y-6">
+        <div className="h-5 w-40 rounded bg-muted" />
+        <div className="h-10 w-2/3 max-w-2xl rounded bg-muted" />
+        <div className="grid gap-5 md:grid-cols-3">
+          <div className="md:col-span-2 space-y-4">
+            <div className="aspect-[16/7] rounded-xl bg-muted" />
+            <div className="h-4 w-full rounded bg-muted" />
+            <div className="h-4 w-5/6 rounded bg-muted" />
+          </div>
+          <div className="space-y-3">
+            <div className="h-24 rounded-xl bg-muted" />
+            <div className="h-24 rounded-xl bg-muted" />
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
@@ -143,35 +165,33 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 function RootComponent() {
-  const { queryClient } = Route.useRouteContext();
-
   useEffect(() => {
     void import("../lib/webVitals").then((m) => m.initWebVitals());
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <IconPackSync />
-          <WidgetLiveSync />
-          <DesignTokensStyle />
-          <ContentAreaStyle />
-          <ThemeOptionsStyle />
-          <ThemeDesignStyle />
-          <ErrorBoundary>
-            <SiteChrome>
+    <ThemeProvider>
+      <AuthProvider>
+        <IconPackSync />
+        <WidgetLiveSync />
+        <DesignTokensStyle />
+        <ContentAreaStyle />
+        <ThemeOptionsStyle />
+        <ThemeDesignStyle />
+        <ErrorBoundary>
+          <SiteChrome>
+            <Suspense fallback={<RouteLoadingSkeleton />}>
               <Outlet />
-            </SiteChrome>
-          </ErrorBoundary>
-          <LoginPopup />
-          <ConsentBanner />
-          <NewsletterPopup />
-          <CommandPalette />
-          <Toaster />
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+            </Suspense>
+          </SiteChrome>
+        </ErrorBoundary>
+        <LoginPopup />
+        <ConsentBanner />
+        <NewsletterPopup />
+        <CommandPalette />
+        <Toaster />
+      </AuthProvider>
+    </ThemeProvider>
 
   );
 }

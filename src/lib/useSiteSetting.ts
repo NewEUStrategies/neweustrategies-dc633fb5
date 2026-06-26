@@ -14,31 +14,22 @@ import { useMemo } from "react";
 import type { ZodType } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { deepMerge } from "./deepMerge";
+import { edgeTtlCache } from "./ssrCache";
 
 type SettingsMap = Readonly<Record<string, unknown>>;
 
 const SETTINGS_QUERY_KEY = ["site_settings_public", "all"] as const;
 
-// Edge / SSR persistent cache. The TanStack Start QueryClient is created
-// per-request (correctly, to avoid cross-tenant leakage), so without this
-// module-level memo every SSR navigation would re-hit site_settings. The
-// cache lives in the Worker isolate, is automatically dropped on cold start,
-// and is short-lived enough to pick up admin edits within ~60s.
 const SSR_TTL_MS = 60_000;
-let ssrCache: { at: number; data: SettingsMap } | null = null;
 
 async function fetchAllSiteSettings(): Promise<SettingsMap> {
-  const isServer = typeof window === "undefined";
-  if (isServer && ssrCache && Date.now() - ssrCache.at < SSR_TTL_MS) {
-    return ssrCache.data;
-  }
-  const { data, error } = await supabase.from("site_settings").select("key,value");
-  if (error) throw error;
-  const map: Record<string, unknown> = {};
-  for (const row of data ?? []) map[row.key] = row.value;
-  const frozen = Object.freeze(map) as SettingsMap;
-  if (isServer) ssrCache = { at: Date.now(), data: frozen };
-  return frozen;
+  return edgeTtlCache("site_settings_public:all", SSR_TTL_MS, async () => {
+    const { data, error } = await supabase.from("site_settings").select("key,value");
+    if (error) throw error;
+    const map: Record<string, unknown> = {};
+    for (const row of data ?? []) map[row.key] = row.value;
+    return Object.freeze(map) as SettingsMap;
+  });
 }
 
 export const siteSettingsQueryOptions = {

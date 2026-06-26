@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { defaultPostLayoutSettings, type PostLayoutSettings } from "@/lib/postLayouts";
 
-export function usePostLayoutSettings() {
-  return useQuery({
-    queryKey: ["post-layout-settings"],
+export const postLayoutSettingsQueryOptions = () =>
+  queryOptions({
+    queryKey: ["post-layout-settings"] as const,
     queryFn: async (): Promise<PostLayoutSettings> => {
       const { data, error } = await supabase
         .from("post_layout_settings")
@@ -13,8 +14,11 @@ export function usePostLayoutSettings() {
       if (error && error.code !== "PGRST116") throw error;
       return (data as PostLayoutSettings | null) ?? defaultPostLayoutSettings();
     },
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
   });
+
+export function usePostLayoutSettings() {
+  return useQuery(postLayoutSettingsQueryOptions());
 }
 
 export function useSavePostLayoutSettings() {
