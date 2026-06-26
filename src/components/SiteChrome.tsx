@@ -2,6 +2,7 @@ import { useRouterState } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { RouteProgress } from "@/components/RouteProgress";
 
 /**
  * Global layout chrome. Renders <Header/> and <Footer/> around every route
@@ -31,11 +32,17 @@ export function SiteChrome({ children }: { children: ReactNode }) {
   const isLogin = pathname === "/login" || pathname.startsWith("/login/");
 
   if (isAdmin || isLogin || ownChrome) {
-    return <>{children}</>;
+    return (
+      <>
+        <RouteProgress />
+        {children}
+      </>
+    );
   }
 
   return (
     <div className="flex min-h-screen flex-col">
+      <RouteProgress />
       <Header />
       <main
         className="flex-1"

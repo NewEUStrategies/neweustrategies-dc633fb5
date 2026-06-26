@@ -119,9 +119,9 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
         >
           {Array.from({ length: skeletonCount }).map((_, i) => (
             <div key={i} className="flex flex-col gap-2">
-              <div className="aspect-[4/3] w-full rounded-md bg-muted/60 animate-pulse" />
-              <div className="h-4 w-3/4 rounded bg-muted/60 animate-pulse" />
-              <div className="h-3 w-1/2 rounded bg-muted/40 animate-pulse" />
+              <div className="aspect-[4/3] w-full rounded-md skeleton-shimmer" />
+              <div className="h-4 w-3/4 rounded skeleton-shimmer" />
+              <div className="h-3 w-1/2 rounded skeleton-shimmer" />
             </div>
           ))}
         </div>
