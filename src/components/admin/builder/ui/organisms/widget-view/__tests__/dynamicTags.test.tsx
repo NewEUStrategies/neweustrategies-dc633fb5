@@ -46,7 +46,7 @@ const FULL: CurrentPostCtx = {
 const EMPTY: CurrentPostCtx = { kind: "archive" };
 
 function node(type: WidgetType, content: Record<string, unknown> = {}): WidgetNode {
-  return { id: `${type}-1`, kind: "widget", type, content };
+  return { id: `${type}-1`, kind: "widget", type, content: content as WidgetNode["content"] };
 }
 
 function renderTag(ui: ReactElement, ctx: CurrentPostCtx | null = FULL) {
