@@ -390,7 +390,7 @@ function PublicPage() {
 
   if (tpl.bare) {
     return (
-      <div className="min-h-screen flex flex-col bg-background text-foreground" data-template={tpl.id}>
+      <div className="flex flex-col bg-background text-foreground" data-page-template={tpl.id}>
         <main className="flex-1 w-full">{pageBody}</main>
       </div>
     );
