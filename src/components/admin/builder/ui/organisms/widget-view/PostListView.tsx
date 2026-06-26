@@ -340,12 +340,14 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               aria-hidden
               className="post-list-numbered-index font-display tabular-nums select-none leading-none"
               style={{
-                ["--pl-num-fs" as string]: `min(${idxSize}px, 26vw)`,
+                ["--pl-num-fs" as string]: `${idxSize}px`,
                 fontWeight: idxWeight as React.CSSProperties["fontWeight"],
                 position: "absolute",
-                [idxSide]: "0.25rem",
+                left: idxSide === "left" ? "0.25rem" : "auto",
+                right: idxSide === "right" ? "0.25rem" : "auto",
                 top: "50%",
-                transform: "translateY(-50%)",
+                transform: idxSide === "right" ? "translateY(-50%)" : "translate(-0.08em, -50%)",
+                textAlign: idxSide === "right" ? "right" : "left",
                 pointerEvents: "none",
                 zIndex: 0,
               } as React.CSSProperties}
@@ -399,11 +401,12 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                 aria-hidden
                 className="post-list-numbered-index font-display tabular-nums"
                 style={{
-                  ["--pl-num-fs" as string]: `min(${idxSize}px, 22vw)`,
+                  ["--pl-num-fs" as string]: `${idxSize}px`,
                   fontWeight: idxWeight as React.CSSProperties["fontWeight"],
                   left: idxSide === "left" ? "0" : "auto",
                   right: idxSide === "right" ? "0" : "auto",
                   transform: idxSide === "left" ? "translate(-0.08em, -50%)" : "translate(0.08em, -50%)",
+                  textAlign: idxSide === "right" ? "right" : "left",
                 } as React.CSSProperties}
               >
                 {String(i + 1).padStart(2, "0")}

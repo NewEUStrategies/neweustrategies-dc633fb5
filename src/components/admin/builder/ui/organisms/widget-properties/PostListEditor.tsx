@@ -606,6 +606,13 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
         {isRanked && rows.map((p, i) => {
           const authorName = p.author_id ? authorMap[p.author_id] ?? "" : "";
           const side = str(c, "indexSide", "right") === "left" ? "left" : "right";
+          const sizePx = (() => {
+            const raw = c["indexSizePx"];
+            const n = typeof raw === "number" ? raw : Number(raw);
+            return Number.isFinite(n) && n > 0 ? n : 64;
+          })();
+          // Cap preview size so it fits the narrow sidebar without clipping.
+          const previewSize = Math.min(sizePx, 64);
           return (
             <div
               key={p.id}
@@ -615,8 +622,10 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
                 aria-hidden
                 className="pointer-events-none absolute top-1/2 -translate-y-1/2 font-display tabular-nums leading-none select-none"
                 style={{
-                  [side]: "0.5rem",
-                  fontSize: "64px",
+                  left: side === "left" ? "0.5rem" : "auto",
+                  right: side === "right" ? "0.5rem" : "auto",
+                  textAlign: side,
+                  fontSize: `${previewSize}px`,
                   fontWeight: 800,
                   color: "rgb(250,147,70)",
                   opacity: 0.18,
