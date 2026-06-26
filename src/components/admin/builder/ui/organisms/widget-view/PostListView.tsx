@@ -370,20 +370,21 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     const idxColorDark = getStr(c, "indexColorDark") || "";
     const idxOpacity = (() => {
       const v = getNum(c, "indexOpacity", -1);
-      return v < 0 ? 0.22 : Math.max(0, Math.min(1, v));
+      return v < 0 ? "var(--td-li-opacity, 0.22)" : String(Math.max(0, Math.min(1, v)));
     })();
-    const idxWeight = getStr(c, "indexWeight") || "800";
+    const idxWeight = getStr(c, "indexWeight") || "var(--td-li-weight, 800)";
     const idxSide = (getStr(c, "indexSide") || "right") === "left" ? "left" : "right";
     const showExcerpt = false;
-    const lightColor = idxColor || "rgb(35,31,32)";
-    const darkColor = idxColorDark || "rgb(250,147,70)";
+    // Fall back to global Theme Design tokens when widget colors are empty.
+    const lightColor = idxColor || "var(--td-li-light, rgb(35,31,32))";
+    const darkColor = idxColorDark || "var(--td-li-dark, rgb(250,147,70))";
     return (
       <div
         className="w-full flex flex-col divide-y divide-border"
         style={{
           "--pl-num-light": lightColor,
           "--pl-num-dark": darkColor,
-          "--pl-num-opacity": String(idxOpacity),
+          "--pl-num-opacity": idxOpacity,
         } as React.CSSProperties}
       >
         {rows.map((p, i) => (
