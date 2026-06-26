@@ -57,7 +57,7 @@ export function WebStoriesCarouselView({ c, lang }: Props) {
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
               <div className="absolute bottom-2 left-2 right-2">
-                <div className="text-white text-xs sm:text-sm font-medium line-clamp-2 drop-shadow">{title}</div>
+                <div className="cms-post-title text-xs sm:text-sm font-medium line-clamp-2 drop-shadow" style={{ color: 'white' }}>{title}</div>
               </div>
             </button>
           );
