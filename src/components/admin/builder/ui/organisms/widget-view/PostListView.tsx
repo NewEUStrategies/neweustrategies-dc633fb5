@@ -73,16 +73,16 @@ async function fetchPostIdsBySlugs(table: "post_categories" | "post_tags", slugs
 export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; lang: Lang; carousel?: boolean }) {
   const { t } = useTranslation();
   const byLabel = t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
-  const titleSizePx = getNum(c, "titleSizePx", 0);
+  // Per-widget title/excerpt sizes are intentionally NOT applied as inline overrides:
+  // typography is unified across every post widget via the global `.cms-post-title`
+  // / `.cms-post-excerpt` tokens defined in Theme Design. Only weight remains
+  // configurable per widget.
   const titleWeight = getStr(c, "titleWeight");
-  const excerptSizePx = getNum(c, "excerptSizePx", 0);
   const excerptWeight = getStr(c, "excerptWeight");
   const titleStyle: React.CSSProperties = {
-    ...(titleSizePx > 0 ? { fontSize: `${titleSizePx}px`, lineHeight: 1.25 } : {}),
     ...(titleWeight ? { fontWeight: titleWeight as React.CSSProperties["fontWeight"] } : {}),
   };
   const excerptStyle: React.CSSProperties = {
-    ...(excerptSizePx > 0 ? { fontSize: `${excerptSizePx}px`, lineHeight: 1.4 } : {}),
     ...(excerptWeight ? { fontWeight: excerptWeight as React.CSSProperties["fontWeight"] } : {}),
   };
   const tStyle = Object.keys(titleStyle).length ? titleStyle : undefined;
