@@ -100,13 +100,14 @@ export function useResolvedPostRef(id: string | null | undefined, lang: Lang) {
 
 /** Batch resolver - one query per id, dedup'd via React Query cache. */
 export function useResolvedPostRefs(ids: ReadonlyArray<string | null | undefined>, lang: Lang) {
+  const uniqueIds = Array.from(new Set(ids.filter((id): id is string => Boolean(id))));
   const results = useQueries({
-    queries: ids.map((id) => postRefQueryOptions(id ?? null, lang)),
+    queries: uniqueIds.map((id) => postRefQueryOptions(id, lang)),
   });
   const map = new Map<string, PostRefData>();
   results.forEach((r, i) => {
-    const id = ids[i];
-    if (id && r.data) map.set(id, r.data);
+    const id = uniqueIds[i];
+    if (r.data) map.set(id, r.data);
   });
   return map;
 }

@@ -65,6 +65,27 @@ interface FallbackPostImage {
   cover_image_url: string | null;
 }
 
+export function sliderFallbackImagesQueryOptions(fallbackCount: number) {
+  const count = Math.max(3, fallbackCount || 3);
+  return {
+    queryKey: ["builder-slider-fallback-images", count] as const,
+    queryFn: async (): Promise<string[]> => {
+      const { data } = await supabase
+        .from("posts")
+        .select("cover_image_url")
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .not("cover_image_url", "is", null)
+        .order("published_at", { ascending: false })
+        .limit(count);
+      return ((data ?? []) as FallbackPostImage[])
+        .map((row) => safeImageUrl(row.cover_image_url ?? ""))
+        .filter((src) => src.length > 0);
+    },
+    staleTime: 120_000,
+  };
+}
+
 export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const rawItems = useMemo(() => config.items || [], [config.items]);
   const postIds = useMemo(
@@ -94,23 +115,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     [rawItems, refMap, lang],
   );
   const fallbackCount = Math.max(3, rawItems.length || 3);
-  const { data: fallbackImages = [] } = useQuery({
-    queryKey: ["builder-slider-fallback-images", fallbackCount] as const,
-    queryFn: async (): Promise<string[]> => {
-      const { data } = await supabase
-        .from("posts")
-        .select("cover_image_url")
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .not("cover_image_url", "is", null)
-        .order("published_at", { ascending: false })
-        .limit(fallbackCount);
-      return ((data ?? []) as FallbackPostImage[])
-        .map((row) => safeImageUrl(row.cover_image_url ?? ""))
-        .filter((src) => src.length > 0);
-    },
-    staleTime: 120_000,
-  });
+  const { data: fallbackImages = [] } = useQuery(sliderFallbackImagesQueryOptions(fallbackCount));
   const [failedImages, setFailedImages] = useState<ReadonlySet<string>>(() => new Set());
   const items = resolvedItems
     .filter((it): it is SliderItem => Boolean(it))
