@@ -187,7 +187,7 @@ data-sidebar="group-label"
                         title={label}
                         data-sidebar="menu-button"
                         data-active={active ? "true" : "false"}
-                        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] leading-tight transition ${
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] leading-tight transition ${
                           active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted"
                         }`}
                       >
@@ -216,7 +216,7 @@ data-sidebar="group-label"
                       type="button"
                       onClick={() => extras.onSelect(it.id)}
                       data-sidebar="menu-button"
-                      className={`w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-left border-l-2 transition ${
+                      className={`w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] text-left border-l-2 transition ${
                         isActive
                           ? "border-brand bg-brand/10 text-brand font-medium"
                           : "border-transparent hover:bg-muted text-foreground"
@@ -237,7 +237,7 @@ data-sidebar="group-label"
               to="/"
               title={t("admin.viewSite")}
               data-sidebar="menu-button"
-              className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-muted-foreground hover:bg-muted"
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] text-muted-foreground hover:bg-muted"
             >
               <Home className="w-3 h-3 shrink-0" />
               <span className={compact ? "hidden" : ""}>{t("admin.viewSite")}</span>
@@ -246,7 +246,7 @@ data-sidebar="group-label"
               onClick={toggle}
               title={t("admin.theme")}
               data-sidebar="menu-button"
-              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-muted-foreground hover:bg-muted"
+              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] text-muted-foreground hover:bg-muted"
             >
               {theme === "dark" ? <Sun className="w-3 h-3 shrink-0" /> : <Moon className="w-3 h-3 shrink-0" />}
               <span className={compact ? "hidden" : ""}>{t("admin.theme")}</span>
@@ -255,7 +255,7 @@ data-sidebar="group-label"
               onClick={() => i18n.changeLanguage(lang.startsWith("pl") ? "en" : "pl")}
               title={lang.startsWith("pl") ? "PL" : "EN"}
               data-sidebar="menu-button"
-              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-muted-foreground hover:bg-muted"
+              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] text-muted-foreground hover:bg-muted"
             >
               <Globe className="w-3 h-3 shrink-0" />
               <span className={compact ? "hidden" : ""}>{lang.startsWith("pl") ? "PL" : "EN"}</span>
@@ -264,7 +264,7 @@ data-sidebar="group-label"
               onClick={handleSignOut}
               title={t("admin.signout")}
               data-sidebar="menu-button"
-              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-destructive hover:bg-destructive/10"
+              className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] text-destructive hover:bg-destructive/10"
             >
               <LogOut className="w-3 h-3 shrink-0" />
               <span className={compact ? "hidden" : ""}>{t("admin.signout")}</span>
