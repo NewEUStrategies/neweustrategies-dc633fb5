@@ -579,26 +579,35 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   background: var(--td-si-hover-bg, transparent);
 }
 
-/* ===== Unified post title / excerpt across every widget ===== */
+/* ===== Unified post title / excerpt across every widget =====
+   Underline: subtle, readable on light + dark. Each wrapped line gets its
+   own underline thanks to box-decoration-break: clone. Animation goes
+   left-to-right per line via background-size transition. */
 .cms-post-title {
+  /* tunable tokens (also overridable from Theme Design) */
+  --pt-ul-color: color-mix(in oklab, var(--brand, #FA9346) 70%, transparent);
+  --pt-ul-thickness: 1.5px;
+  --pt-ul-offset: 3px;
+
   font-family: var(--td-pt-family, "Red Hat Display", system-ui, sans-serif);
   font-size: var(--td-pt-size, 15px);
   font-weight: var(--td-pt-weight, 600);
-  line-height: var(--td-pt-lh, 1.3);
+  line-height: var(--td-pt-lh, 1.4);
   color: var(--td-pt-color, hsl(var(--foreground)));
   text-transform: var(--td-pt-transform, none);
   letter-spacing: var(--td-pt-spacing, 0);
-  /* Subtle left-to-right underline wipe, per wrapped line.
-     Uses a linear-gradient as background, cloned per line via
-     box-decoration-break so each visual line animates in sequence. */
-  background-image: linear-gradient(currentColor, currentColor);
+
+  background-image: linear-gradient(var(--pt-ul-color), var(--pt-ul-color));
   background-repeat: no-repeat;
   background-position: 0 100%;
-  background-size: 0% 1px;
+  background-size: 0% var(--pt-ul-thickness);
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
-  padding-bottom: 2px;
-  transition: background-size .55s cubic-bezier(.22,.61,.36,1), color .2s ease;
+  padding-bottom: var(--pt-ul-offset);
+  transition: background-size .6s cubic-bezier(.22,.61,.36,1), color .2s ease;
+}
+.dark .cms-post-title {
+  --pt-ul-color: color-mix(in oklab, var(--brand, #FA9346) 80%, transparent);
 }
 @media (max-width: 640px) {
   .cms-post-title { font-size: var(--td-pt-size-sm, 14px); }
@@ -606,7 +615,10 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .group:hover .cms-post-title,
 a:hover .cms-post-title,
 .cms-post-title:hover {
-  background-size: 100% 1px;
+  background-size: 100% var(--pt-ul-thickness);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cms-post-title { transition: none; }
 }
 
 .cms-post-excerpt {
