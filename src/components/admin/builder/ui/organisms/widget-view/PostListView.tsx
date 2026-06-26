@@ -226,7 +226,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     return (
       <div className="w-full min-w-0 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
         {rows.map((p) => (
-          <PostCard key={p.id} p={p} variant={variant} carousel title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
+          <PostCard key={p.id} p={p} variant={variant} aspect={aspect} carousel title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
         ))}
       </div>
     );
