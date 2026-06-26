@@ -6,10 +6,39 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+// Vendor code-splitting: pull heavy third-party libraries out of the single
+// entry chunk into cacheable per-library chunks. This shrinks the largest chunk,
+// lets the browser fetch vendors in parallel, and keeps long-lived vendor code
+// cached across app deploys. App/route code keeps the router plugin's per-route
+// splitting (we only assign node_modules here).
+function manualChunks(id: string): string | undefined {
+  if (!id.includes("node_modules")) return undefined;
+  if (/node_modules\/(react-dom|react|scheduler)\//.test(id)) return "vendor-react";
+  if (id.includes("node_modules/@tanstack/")) return "vendor-tanstack";
+  if (id.includes("node_modules/@radix-ui/")) return "vendor-radix";
+  if (id.includes("node_modules/@supabase/")) return "vendor-supabase";
+  if (/node_modules\/(recharts|d3-|victory|internmap)/.test(id)) return "vendor-charts";
+  if (/node_modules\/(@tiptap|prosemirror)/.test(id)) return "vendor-editor";
+  if (/node_modules\/(lucide-react|@fortawesome)/.test(id)) return "vendor-icons";
+  if (/node_modules\/(isomorphic-)?dompurify/.test(id)) return "vendor-dompurify";
+  if (/node_modules\/(date-fns|embla-carousel|yet-another-react-lightbox|react-day-picker|cmdk|vaul|sonner)/.test(id)) {
+    return "vendor-ui";
+  }
+  if (/node_modules\/(i18next|react-i18next)/.test(id)) return "vendor-i18n";
+  return "vendor";
+}
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+  },
+  vite: {
+    build: {
+      rollupOptions: {
+        output: { manualChunks },
+      },
+    },
   },
 });
