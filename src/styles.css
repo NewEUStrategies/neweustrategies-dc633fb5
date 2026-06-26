@@ -346,7 +346,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   pointer-events: none;
   user-select: none;
   color: var(--pl-num-light);
-  opacity: var(--pl-num-opacity, 0.22);
+  opacity: var(--pl-num-opacity, 0.18);
   font-size: var(--pl-num-fs, 96px) !important;
   line-height: 0.82 !important;
   letter-spacing: 0;

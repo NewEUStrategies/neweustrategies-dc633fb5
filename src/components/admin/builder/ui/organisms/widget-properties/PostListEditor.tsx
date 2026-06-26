@@ -411,13 +411,13 @@ export function PostListEditor({ c, lang, setContent }: Props) {
             <PropField label="Rozmiar (px)">
               <Input
                 type="number" min={12} max={240}
-                value={num(c, "indexSizePx", 32)}
+                value={num(c, "indexSizePx", 96)}
                 onChange={(e) => setContent("indexSizePx", Number(e.target.value) || 0)}
                 className="h-8 text-xs"
               />
             </PropField>
             <PropField label="Grubość">
-              <Select value={str(c, "indexWeight", "700")} onValueChange={(v) => setContent("indexWeight", v)}>
+              <Select value={str(c, "indexWeight", "800")} onValueChange={(v) => setContent("indexWeight", v)}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {["300","400","500","600","700","800","900"].map((w) => (
@@ -426,7 +426,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                 </SelectContent>
               </Select>
             </PropField>
-            <PropField label="Pozycja licznika">
+            <PropField label="Pozycja pozioma">
               <Select value={str(c, "indexSide", "right")} onValueChange={(v) => setContent("indexSide", v)}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -435,7 +435,18 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                 </SelectContent>
               </Select>
             </PropField>
+            <PropField label="Pozycja pionowa">
+              <Select value={str(c, "indexVAlign", "top")} onValueChange={(v) => setContent("indexVAlign", v)}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="top">Góra (równo z tytułem)</SelectItem>
+                  <SelectItem value="middle">Środek</SelectItem>
+                  <SelectItem value="bottom">Dół</SelectItem>
+                </SelectContent>
+              </Select>
+            </PropField>
           </div>
+
 
           <div className="grid grid-cols-2 gap-2 mt-2">
             <PropField label="Kolor (light)">
@@ -606,13 +617,21 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
         {isRanked && rows.map((p, i) => {
           const authorName = p.author_id ? authorMap[p.author_id] ?? "" : "";
           const side = str(c, "indexSide", "right") === "left" ? "left" : "right";
+          const vAlignRaw = str(c, "indexVAlign", "top");
+          const vAlign = vAlignRaw === "middle" || vAlignRaw === "bottom" ? vAlignRaw : "top";
           const sizePx = (() => {
             const raw = c["indexSizePx"];
             const n = typeof raw === "number" ? raw : Number(raw);
-            return Number.isFinite(n) && n > 0 ? n : 64;
+            return Number.isFinite(n) && n > 0 ? n : 96;
           })();
           // Cap preview size so it fits the narrow sidebar without clipping.
           const previewSize = Math.min(sizePx, 64);
+          const vStyle: React.CSSProperties =
+            vAlign === "top"
+              ? { top: "0.5rem", bottom: "auto" }
+              : vAlign === "bottom"
+              ? { top: "auto", bottom: "0.5rem" }
+              : { top: "50%", transform: "translateY(-50%)" };
           return (
             <div
               key={p.id}
@@ -620,10 +639,11 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
             >
               <span
                 aria-hidden
-                className="pointer-events-none absolute top-1/2 -translate-y-1/2 font-display tabular-nums leading-none select-none"
+                className="pointer-events-none absolute font-display tabular-nums leading-none select-none"
                 style={{
                   left: side === "left" ? "0.5rem" : "auto",
                   right: side === "right" ? "0.5rem" : "auto",
+                  ...vStyle,
                   textAlign: side,
                   fontSize: `${previewSize}px`,
                   fontWeight: 800,
@@ -647,6 +667,7 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
             </div>
           );
         })}
+
 
 
         {!isRanked && rows.map((p) => {
