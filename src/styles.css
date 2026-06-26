@@ -760,3 +760,47 @@ select option {
   padding-bottom: 4px;
 }
 
+
+/* ==========================================================================
+   Page transitions (View Transitions API)
+   --------------------------------------------------------------------------
+   The router emits a View Transition on every navigation. The site header
+   and footer keep their boxes (no re-animation), while <main> crossfades.
+   This eliminates the legacy "everything pops in again" feel and gives the
+   public site a native-app feel on Chromium/Edge/Safari TP. Older browsers
+   simply skip the transition - the markup is unaffected.
+   ========================================================================== */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(site-main),
+  ::view-transition-new(site-main) {
+    animation-duration: 220ms;
+    animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  ::view-transition-old(site-main) {
+    animation-name: vt-fade-out;
+  }
+  ::view-transition-new(site-main) {
+    animation-name: vt-fade-in;
+  }
+  ::view-transition-old(site-header),
+  ::view-transition-new(site-header),
+  ::view-transition-old(site-footer),
+  ::view-transition-new(site-footer) {
+    animation: none !important;
+    mix-blend-mode: normal;
+  }
+}
+@keyframes vt-fade-out {
+  to { opacity: 0; transform: translateY(-4px); }
+}
+@keyframes vt-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+/* Off-screen sections skip layout/paint until they scroll close to the
+   viewport. Massive paint-time win on long blog/article pages without
+   changing visual output. */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 600px;
+}
