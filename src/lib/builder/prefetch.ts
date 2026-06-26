@@ -97,6 +97,41 @@ export async function prefetchSectionQueries(
   await prefetchWidgets(queryClient, collectSectionWidgets(section), lang);
 }
 
+/**
+ * Enumerate the cache targets (query key + stale-time) covered by a widget.
+ * Used by the SWR gate in useSectionPreload to decide whether a prefetch is
+ * even necessary.
+ */
+export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheTarget[] {
+  const out: WidgetCacheTarget[] = [];
+  if (widget.type === "post-list" || widget.type === "carousel") {
+    const opts = postListQueryOptions(widget.content, lang);
+    out.push({ key: opts.queryKey, staleTime: opts.staleTime ?? 0 });
+  }
+  if (widget.type === "slider") {
+    const items = contentItems(widget.content);
+    const postIds = Array.from(
+      new Set(
+        items
+          .map((item) => item.postId)
+          .filter((id): id is string => typeof id === "string" && id.length > 0),
+      ),
+    );
+    postIds.forEach((id) => {
+      const opts = postRefQueryOptions(id, lang);
+      out.push({ key: opts.queryKey, staleTime: opts.staleTime ?? 0 });
+    });
+    const opts = sliderFallbackImagesQueryOptions(Math.max(3, items.length || 3));
+    out.push({ key: opts.queryKey, staleTime: opts.staleTime ?? 0 });
+  }
+  return out;
+}
+
+/** Aggregate cache targets across all widgets in a list (e.g. one section). */
+export function sectionCacheTargets(widgets: WidgetNode[], lang: Lang): WidgetCacheTarget[] {
+  return widgets.flatMap((w) => widgetCacheTargets(w, lang));
+}
+
 export async function prefetchBuilderDocumentQueries(
   queryClient: QueryClient,
   doc: BuilderDocument,
