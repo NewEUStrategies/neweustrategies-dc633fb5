@@ -435,6 +435,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       { value: "on", label: "włączone" },
       { value: "off", label: "wyłączone" },
     ]},
+  ],
+
+
 
   // ---------- Home-page building blocks ----------
   "section-label": [
