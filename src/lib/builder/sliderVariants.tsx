@@ -191,17 +191,24 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         @keyframes ehFadeImg { from { opacity: 0; } to { opacity: 1; } }
         @keyframes ehFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
         .eh-slider .eh-title-text {
+          position: relative;
           display: inline;
-          background-image: linear-gradient(currentColor, currentColor);
-          background-repeat: no-repeat;
-          background-size: 0% 2px;
-          background-position: 0 100%;
-          transition: background-size 500ms cubic-bezier(.22,.61,.36,1);
-          padding-bottom: 2px;
-          box-decoration-break: clone;
-          -webkit-box-decoration-break: clone;
+          text-decoration: none;
         }
-        .eh-slider:hover .eh-title-text { background-size: 100% 2px; }
+        .eh-slider .eh-title-text::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          bottom: 0;
+          width: 100%;
+          height: 1px;
+          background: currentColor;
+          transform: scaleX(0);
+          transform-origin: left;
+          transition: transform 0.3s ease, opacity 0.3s ease;
+          opacity: 0.55;
+        }
+        .eh-slider:hover .eh-title-text::after { transform: scaleX(1); opacity: 0.55; }
 
         .eh-slider .eh-img { transform: none; transform-origin: center center; backface-visibility: hidden; }
         .eh-slider:hover .eh-img { transform: none; }
