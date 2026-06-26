@@ -330,7 +330,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               </h4>
               {authorName(p) && (
                 <div className="mt-2 text-[13px] text-muted-foreground">
-                  <span className="opacity-70">By</span>{" "}
+                  <span className="opacity-70">{byLabel}</span>{" "}
                   <span className="font-medium text-foreground">{authorName(p)}</span>
                 </div>
               )}
