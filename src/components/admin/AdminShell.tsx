@@ -128,6 +128,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
         <aside
           data-sidebar="sidebar"
           data-sidebar-style={sidebarStyle}
+          style={{ viewTransitionName: "admin-sidebar" }}
           className={cn(
             compact ? "w-12" : "w-56",
             "bg-card border-r border-border flex flex-col transition-all duration-200 sticky top-0 self-start h-screen max-h-screen sidebar-shell",
