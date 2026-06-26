@@ -588,20 +588,31 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   color: var(--td-pt-color, hsl(var(--foreground)));
   text-transform: var(--td-pt-transform, none);
   letter-spacing: var(--td-pt-spacing, 0);
-  transition: color .2s ease, text-decoration-color .2s ease;
-  text-decoration: underline;
-  text-decoration-color: transparent;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 1.5px;
+  transition: color .2s ease;
+  position: relative;
+  text-decoration: none;
+}
+.cms-post-title::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  opacity: 0.55;
 }
 @media (max-width: 640px) {
   .cms-post-title { font-size: var(--td-pt-size-sm, 16px); }
 }
-.group:hover .cms-post-title,
-a:hover .cms-post-title,
-.cms-post-title:hover {
-  color: var(--td-pt-hover, hsl(var(--brand)));
-  text-decoration-color: currentColor;
+.group:hover .cms-post-title::after,
+a:hover .cms-post-title::after,
+.cms-post-title:hover::after {
+  transform: scaleX(1);
+  opacity: 0.55;
 }
 
 .cms-post-excerpt {
