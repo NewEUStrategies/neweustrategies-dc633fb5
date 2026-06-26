@@ -297,7 +297,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                 aria-hidden
                 className="post-list-numbered-index font-display tabular-nums"
                 style={{
-                  fontSize: `min(${idxSize}px, 22vw)`,
+                  ["--pl-num-fs" as string]: `min(${idxSize}px, 22vw)`,
                   fontWeight: idxWeight as React.CSSProperties["fontWeight"],
                 }}
               >
