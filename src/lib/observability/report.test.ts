@@ -4,6 +4,7 @@ import {
   buildErrorPayload,
   sendBeaconPayload,
   reportClientError,
+  reportBoundaryError,
 } from "./report";
 
 describe("observabilityEndpoint", () => {
@@ -36,6 +37,19 @@ describe("buildErrorPayload", () => {
 
   it("coerces a non-error object to a generic message", () => {
     expect(buildErrorPayload({ weird: true }, "onerror", "/z", 1).message).toBe("Unknown client error");
+  });
+
+  it("attaches structured meta when provided", () => {
+    const p = buildErrorPayload(new Error("boom"), "react_error_boundary", "/x", 1, {
+      boundary: "builder_render_boundary",
+      label: "widget:heading:w3",
+    });
+    expect(p.meta).toEqual({ boundary: "builder_render_boundary", label: "widget:heading:w3" });
+  });
+
+  it("omits meta when it is undefined or empty", () => {
+    expect(buildErrorPayload(new Error("x"), "onerror", "/x", 1).meta).toBeUndefined();
+    expect(buildErrorPayload(new Error("x"), "onerror", "/x", 1, {}).meta).toBeUndefined();
   });
 });
 
@@ -91,5 +105,34 @@ describe("reportClientError", () => {
     vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "https://rum.example.com");
     expect(reportClientError(new Error("x"), "unhandledrejection")).toBe(true);
     expect(navigator.sendBeacon).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("reportBoundaryError", () => {
+  const original = navigator.sendBeacon;
+  beforeEach(() => {
+    Object.defineProperty(navigator, "sendBeacon", { value: vi.fn(() => true), configurable: true, writable: true });
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    Object.defineProperty(navigator, "sendBeacon", { value: original, configurable: true, writable: true });
+  });
+
+  it("is a no-op (returns false) when no endpoint is configured", () => {
+    vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+    expect(reportBoundaryError(new Error("x"), { label: "section:s1" })).toBe(false);
+    expect(navigator.sendBeacon).not.toHaveBeenCalled();
+  });
+
+  it("beacons a react_error_boundary payload with structured meta", () => {
+    vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "https://rum.example.com");
+    const beacon = vi.fn((_url: string, _body?: BodyInit) => true);
+    Object.defineProperty(navigator, "sendBeacon", { value: beacon, configurable: true, writable: true });
+    expect(reportBoundaryError(new Error("crash"), { boundary: "builder_render_boundary", label: "widget:w1" })).toBe(
+      true,
+    );
+    expect(beacon).toHaveBeenCalledTimes(1);
+    expect(beacon.mock.calls[0][0]).toBe("https://rum.example.com");
+    expect(beacon.mock.calls[0][1]).toBeInstanceOf(Blob);
   });
 });

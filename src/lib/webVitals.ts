@@ -12,26 +12,19 @@
  * to `/api/public/vitals` in production (no-op if endpoint is absent).
  */
 
+import { rateVital, type VitalName, type VitalRating } from "@/lib/observability/vitalsThresholds";
+
 export interface VitalMetric {
-  name: "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
+  name: Extract<VitalName, "LCP" | "CLS" | "INP" | "FCP" | "TTFB">;
   value: number;
-  rating: "good" | "needs-improvement" | "poor";
+  rating: VitalRating;
   id: string;
 }
 
-const thresholds: Record<VitalMetric["name"], [number, number]> = {
-  LCP: [2500, 4000],
-  CLS: [0.1, 0.25],
-  INP: [200, 500],
-  FCP: [1800, 3000],
-  TTFB: [800, 1800],
-};
-
+// Thresholds + rating live in the shared vitalsThresholds module so the client
+// reporter and the server-side analytics aggregator stay in lockstep.
 function rate(name: VitalMetric["name"], v: number): VitalMetric["rating"] {
-  const [good, poor] = thresholds[name];
-  if (v <= good) return "good";
-  if (v <= poor) return "needs-improvement";
-  return "poor";
+  return rateVital(name, v);
 }
 
 function uid(): string {

@@ -54,16 +54,8 @@ import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
 import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
+import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
 
-
-function splatToSegments(splat: string): string[] {
-  return splat.split("/").filter(Boolean);
-}
-
-function metaDescription(raw: string | null | undefined, fallback: string): string {
-  const clean = (raw ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  return clean ? clean.slice(0, 160) : fallback;
-}
 
 export const Route = createFileRoute("/$")({
   // Chrome (Header/Footer) is centralized in SiteChrome at the root - never

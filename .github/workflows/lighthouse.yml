@@ -9,17 +9,28 @@ concurrency:
   group: lhci-${{ github.ref }}
   cancel-in-progress: true
 
+# Lighthouse runs in one of two HONEST modes, chosen by whether a real deployed
+# URL is configured in the repository variable `LHCI_URL`:
+#
+#   MODE A - blocking, representative (LHCI_URL is set)
+#     Audits the actual deployed SSR app at LHCI_URL and ENFORCES the budgets in
+#     lighthouserc.deployed.json (assertions are "error"; the job gates merges).
+#     This is the trustworthy gate: it measures what users actually get.
+#     To enable: set a repo variable LHCI_URL to a deployed preview/prod URL
+#     (Settings -> Secrets and variables -> Actions -> Variables).
+#
+#   MODE B - non-blocking smoke (LHCI_URL is empty, the default)
+#     Builds the client and audits the local `bun run preview` static server.
+#     That preview is NOT the SSR/edge runtime users hit, so its scores are not
+#     representative enough to BLOCK merges - assertions are "warn" and the step
+#     is continue-on-error. It runs purely for visibility.
+#
+# Either way, the always-on bundle-size budget in ci.yml is the reliable BLOCKING
+# performance floor (deterministic, no browser/server required).
 jobs:
   lighthouse:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Performance + accessibility budgets are enforced: lighthouserc.json
-    # assertions are "error" and this job gates. The accessibility category is
-    # axe-powered, so this doubles as automated a11y. NOTE: the preview server
-    # serves the client build, so if a threshold proves too strict for the
-    # preview environment, tune the number in lighthouserc.json (the always-on
-    # bundle-size budget in ci.yml is the reliable perf floor regardless).
-    continue-on-error: false
     steps:
       - uses: actions/checkout@v4
 
@@ -27,18 +38,27 @@ jobs:
         with:
           bun-version: "1.2.23"
 
+      # ---- MODE A: real deployed URL configured -> blocking gate ----
+      - name: Lighthouse against deployed URL (blocking)
+        if: ${{ vars.LHCI_URL != '' }}
+        run: bunx @lhci/cli@0.16.x autorun --config=lighthouserc.deployed.json --collect.url="${{ vars.LHCI_URL }}"
+
+      # ---- MODE B: no deployed URL -> non-blocking local-preview smoke ----
       # See ci.yml: the committed bun.lock pins tarballs to Lovable's private GAR
       # cache; repoint to the public npm registry for CI (edit is never committed).
       - name: Repoint lockfile to the public npm registry
+        if: ${{ vars.LHCI_URL == '' }}
         run: |
           sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
 
       - name: Install dependencies
+        if: ${{ vars.LHCI_URL == '' }}
         run: bun install
         env:
           npm_config_registry: https://registry.npmjs.org
 
       - name: Build
+        if: ${{ vars.LHCI_URL == '' }}
         run: bun run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
@@ -47,8 +67,10 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
 
-      - name: Run Lighthouse CI
-        run: bunx @lhci/cli@0.16.x autorun
+      - name: Lighthouse smoke on local preview (non-blocking)
+        if: ${{ vars.LHCI_URL == '' }}
+        continue-on-error: true
+        run: bunx @lhci/cli@0.16.x autorun --config=lighthouserc.json
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}

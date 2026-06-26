@@ -50,6 +50,7 @@ import { Route as AdminPostsRouteImport } from './routes/admin.posts'
 import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layouts'
 import { Route as AdminPodcastsRouteImport } from './routes/admin.podcasts'
 import { Route as AdminPersonalizedRouteImport } from './routes/admin.personalized'
+import { Route as AdminPerformanceRouteImport } from './routes/admin.performance'
 import { Route as AdminPaywallRouteImport } from './routes/admin.paywall'
 import { Route as AdminPagesRouteImport } from './routes/admin.pages'
 import { Route as AdminNewsletterRouteImport } from './routes/admin.newsletter'
@@ -290,6 +291,11 @@ const AdminPersonalizedRoute = AdminPersonalizedRouteImport.update({
   path: '/personalized',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminPerformanceRoute = AdminPerformanceRouteImport.update({
+  id: '/performance',
+  path: '/performance',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPaywallRoute = AdminPaywallRouteImport.update({
   id: '/paywall',
   path: '/paywall',
@@ -487,6 +493,7 @@ export interface FileRoutesByFullPath {
   '/admin/newsletter': typeof AdminNewsletterRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
+  '/admin/performance': typeof AdminPerformanceRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
@@ -562,6 +569,7 @@ export interface FileRoutesByTo {
   '/admin/newsletter': typeof AdminNewsletterRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
+  '/admin/performance': typeof AdminPerformanceRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
@@ -639,6 +647,7 @@ export interface FileRoutesById {
   '/admin/newsletter': typeof AdminNewsletterRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
+  '/admin/performance': typeof AdminPerformanceRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
@@ -718,6 +727,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter'
     | '/admin/pages'
     | '/admin/paywall'
+    | '/admin/performance'
     | '/admin/personalized'
     | '/admin/podcasts'
     | '/admin/post-layouts'
@@ -793,6 +803,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter'
     | '/admin/pages'
     | '/admin/paywall'
+    | '/admin/performance'
     | '/admin/personalized'
     | '/admin/podcasts'
     | '/admin/post-layouts'
@@ -869,6 +880,7 @@ export interface FileRouteTypes {
     | '/admin/newsletter'
     | '/admin/pages'
     | '/admin/paywall'
+    | '/admin/performance'
     | '/admin/personalized'
     | '/admin/podcasts'
     | '/admin/post-layouts'
@@ -1242,6 +1254,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPersonalizedRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/performance': {
+      id: '/admin/performance'
+      path: '/performance'
+      fullPath: '/admin/performance'
+      preLoaderRoute: typeof AdminPerformanceRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/paywall': {
       id: '/admin/paywall'
       path: '/paywall'
@@ -1569,6 +1588,7 @@ interface AdminRouteChildren {
   AdminNewsletterRoute: typeof AdminNewsletterRoute
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
   AdminPaywallRoute: typeof AdminPaywallRoute
+  AdminPerformanceRoute: typeof AdminPerformanceRoute
   AdminPersonalizedRoute: typeof AdminPersonalizedRoute
   AdminPodcastsRoute: typeof AdminPodcastsRoute
   AdminPostLayoutsRoute: typeof AdminPostLayoutsRoute
@@ -1597,6 +1617,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminNewsletterRoute: AdminNewsletterRoute,
   AdminPagesRoute: AdminPagesRouteWithChildren,
   AdminPaywallRoute: AdminPaywallRoute,
+  AdminPerformanceRoute: AdminPerformanceRoute,
   AdminPersonalizedRoute: AdminPersonalizedRoute,
   AdminPodcastsRoute: AdminPodcastsRoute,
   AdminPostLayoutsRoute: AdminPostLayoutsRoute,
@@ -1668,3 +1689,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
