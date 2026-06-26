@@ -298,7 +298,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
   if (variant === "ranked") {
     // Ranked list - no image, big translucent number on the right, title + "By <author>".
-    const idxSize = getNum(c, "indexSizePx", 96);
+    const idxSize = getNum(c, "indexSizePx", 52);
     const idxColor = getStr(c, "indexColor") || "var(--td-li-light, rgb(35,31,32))";
     const idxColorDark = getStr(c, "indexColorDark") || "var(--td-li-dark, rgb(250,147,70))";
     const idxOpacity = (() => {
@@ -380,9 +380,9 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
   if (variant === "numbered") {
     // Big faint index on the left, title in the middle, thumbnail on the right.
-    // Defaults unified with the "ranked" variant (size 96, opacity 0.18) so both
+    // Defaults unified with the "ranked" variant (size 52, opacity 0.18) so both
     // numbered styles share the same visual rhythm out of the box.
-    const idxSize = getNum(c, "indexSizePx", 96);
+    const idxSize = getNum(c, "indexSizePx", 52);
     const idxColor = getStr(c, "indexColor") || "";
     const idxColorDark = getStr(c, "indexColorDark") || "";
     const idxOpacity = (() => {
