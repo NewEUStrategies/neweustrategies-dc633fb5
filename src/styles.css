@@ -333,7 +333,20 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .py-1\.5 { padding-top: 0.375rem; padding-bottom: 0.375rem; }
 .cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-2 { gap: 0.5rem; }
 .cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-3 { gap: 0.75rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-1 { gap: 0.25rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-1\.5 { gap: 0.375rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-4 { gap: 1rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .gap-6 { gap: 1.5rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .px-1 { padding-left: 0.25rem; padding-right: 0.25rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .px-4 { padding-left: 1rem; padding-right: 1rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .py-4 { padding-top: 1rem; padding-bottom: 1rem; }
 .cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .h-8 { height: 2rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .h-9 { height: 2.25rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .h-10 { height: 2.5rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .h-11 { height: 2.75rem; }
+.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .h-12 { height: 3rem; }
 .cms-builder-compact input, .cms-builder-compact select, .cms-builder-compact textarea, .cms-builder-compact button { font-size: inherit; }
 .cms-builder-compact .h-8 { height: 1.75rem; }
 
