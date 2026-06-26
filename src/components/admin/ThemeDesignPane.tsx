@@ -295,6 +295,58 @@ export function ThemeDesignPane() {
         </Preview>
       </Section>
 
+      <Section title="Numeracja list (warianty „Numbered” / „Ranking”)">
+        <p className="text-xs text-muted-foreground -mt-2">
+          Globalne kolory dużych translucentnych cyfr (01, 02, 03...) za tytułami w listach
+          rankingowych. Każdy widget może je nadpisać swoim własnym kolorem.
+        </p>
+        <Grid>
+          <Field label="Kolor (light mode)">
+            <Input value={draft.listIndex.colorLight} onChange={(e) => set("listIndex", { colorLight: e.target.value })} />
+          </Field>
+          <Field label="Kolor (dark mode)">
+            <Input value={draft.listIndex.colorDark} onChange={(e) => set("listIndex", { colorDark: e.target.value })} />
+          </Field>
+          <Field label="Przezroczystość (0 - 1)">
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              max="1"
+              value={draft.listIndex.opacity}
+              onChange={(e) => set("listIndex", { opacity: Math.max(0, Math.min(1, Number(e.target.value) || 0)) })}
+            />
+          </Field>
+          <Field label="Grubość">
+            <Input
+              type="number"
+              value={draft.listIndex.weight}
+              onChange={(e) => set("listIndex", { weight: Number(e.target.value) || 800 })}
+            />
+          </Field>
+        </Grid>
+        <Preview>
+          <div className="flex items-center gap-6">
+            {[1, 2, 3].map((n) => (
+              <span
+                key={n}
+                className="font-display tabular-nums leading-none"
+                style={{
+                  fontSize: "72px",
+                  fontWeight: draft.listIndex.weight,
+                  color: draft.listIndex.colorLight,
+                  opacity: draft.listIndex.opacity,
+                }}
+              >
+                {String(n).padStart(2, "0")}
+              </span>
+            ))}
+          </div>
+        </Preview>
+      </Section>
+
+
+
 
 
       <Section title="Slider / karuzela - ustawienia globalne">
