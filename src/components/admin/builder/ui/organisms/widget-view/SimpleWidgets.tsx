@@ -684,7 +684,10 @@ export function renderSimpleWidget(
       const heading = getStr(c, `heading_${lang}`) || getStr(c, "heading_pl") || "";
       const liveResults = getStr(c, "liveResults") !== "off";
       const limit = getNum(c, "limit", 8);
-      return <SearchButtonWidget label={label} mode={mode} heading={heading} liveResults={liveResults} limit={limit} lang={lang} />;
+      const height = getNum(c, "height", 40);
+      const radius = getNum(c, "radius", 8);
+      const fontSize = getNum(c, "fontSize", 14);
+      return <SearchButtonWidget label={label} mode={mode} heading={heading} liveResults={liveResults} limit={limit} lang={lang} height={height} radius={radius} fontSize={fontSize} />;
     }
 
     case "copyright": {
