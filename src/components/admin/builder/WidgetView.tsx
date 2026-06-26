@@ -2,7 +2,7 @@
 // canvas via `editable` + `onContentChange`). Used in the live preview inside
 // the builder canvas and on public pages. All user-authored strings (custom
 // CSS, ids, classes, html, urls) go through src/lib/sanitize.ts.
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
@@ -99,7 +99,7 @@ function pickResponsiveValue<T>(
   return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
 }
 
-export function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
+export const WidgetView = memo(function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
   const { theme } = useTheme();
   const builderMode = useBuilderMode();
   const effectiveMode = builderMode ?? theme;
@@ -672,5 +672,7 @@ export function WidgetView({ node, lang, device, editable = false, onContentChan
     default:
       return null;
   }
-}
+});
+
+WidgetView.displayName = "WidgetView";
 
