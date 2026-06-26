@@ -15,9 +15,21 @@ import { readThumbnailOverrides } from "@/lib/builder/thumbnailOverrides";
 // into a stable frame so mobile CSS cannot stretch/squash their crop.
 const GRID_COVER_SIZES = "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw";
 const COVER_IMG_CLASS = "absolute inset-0 block h-full w-full object-cover";
-const TILE_FRAME_CLASS = "relative block aspect-[4/3] w-full shrink-0 overflow-hidden bg-muted";
-const OVERLAY_FRAME_CLASS = "relative block aspect-[4/3] w-full shrink-0 overflow-hidden bg-muted";
-const LIST_FRAME_CLASS = "relative block aspect-[4/3] w-[112px] sm:w-[128px] shrink-0 overflow-hidden rounded-sm bg-muted";
+
+export type ImageAspect = "4/3" | "3/4" | "1/1" | "16/9";
+const ASPECT_CLASS: Record<ImageAspect, string> = {
+  "4/3": "aspect-[4/3]",
+  "3/4": "aspect-[3/4]",
+  "1/1": "aspect-square",
+  "16/9": "aspect-[16/9]",
+};
+function aspectOf(c: WidgetContent): ImageAspect {
+  const v = getStr(c, "imageAspect");
+  return (v === "3/4" || v === "1/1" || v === "16/9" || v === "4/3") ? v : "4/3";
+}
+const tileFrame = (a: ImageAspect) => `relative block ${ASPECT_CLASS[a]} w-full shrink-0 overflow-hidden bg-muted`;
+const overlayFrame = (a: ImageAspect) => `relative block ${ASPECT_CLASS[a]} w-full shrink-0 overflow-hidden bg-muted`;
+const listFrame = (a: ImageAspect) => `relative block ${ASPECT_CLASS[a]} w-[112px] sm:w-[128px] shrink-0 overflow-hidden rounded-sm bg-muted`;
 
 type Lang = "pl" | "en";
 
@@ -73,6 +85,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   const tStyle = Object.keys(titleStyle).length ? titleStyle : undefined;
   const eStyle = Object.keys(excerptStyle).length ? excerptStyle : undefined;
   const variant = (getStr(c, "variant") || (carousel ? "card" : "card")) as Variant;
+  const aspect = aspectOf(c);
   const limit = Math.max(1, Math.min(100, getNum(c, "limit", 6)));
   const offset = Math.max(0, getNum(c, "offset", 0));
   const cols = Math.max(1, Math.min(6, getNum(c, "columns", 3)));
@@ -213,7 +226,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     return (
       <div className="w-full min-w-0 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
         {rows.map((p) => (
-          <PostCard key={p.id} p={p} variant={variant} carousel title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
+          <PostCard key={p.id} p={p} variant={variant} aspect={aspect} carousel title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
         ))}
       </div>
     );
@@ -232,7 +245,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               <WidgetMediaImage
                 src={p.cover_image_url}
                 alt=""
-                frameClassName={LIST_FRAME_CLASS}
+                frameClassName={listFrame(aspect)}
                 responsiveWidths={[128, 256, 384]}
                 sizes="(max-width: 640px) 112px, 128px"
                 foregroundClassName={COVER_IMG_CLASS}
@@ -324,7 +337,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               <WidgetMediaImage
                 src={p.cover_image_url}
                 alt=""
-                frameClassName="relative block aspect-[4/3] w-full shrink-0 overflow-hidden rounded-md bg-muted"
+                frameClassName={`relative block ${ASPECT_CLASS[aspect]} w-full shrink-0 overflow-hidden rounded-md bg-muted`}
                 responsiveWidths={[120, 160, 240, 320]}
                 sizes="(max-width: 640px) 96px, (max-width: 1024px) 140px, 180px"
                 foregroundClassName={COVER_IMG_CLASS}
@@ -350,17 +363,18 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     >
 
       {rows.map((p) => (
-        <PostCard key={p.id} p={p} variant={variant} title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
+        <PostCard key={p.id} p={p} variant={variant} aspect={aspect} title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
       ))}
     </div>
   );
 }
 
 function PostCard({
-  p, variant, carousel = false, title, excerpt, titleStyle, excerptStyle,
+  p, variant, aspect, carousel = false, title, excerpt, titleStyle, excerptStyle,
 }: {
   p: PostRow;
   variant: Variant;
+  aspect: ImageAspect;
   carousel?: boolean;
   title: string;
   excerpt: string;
@@ -372,7 +386,7 @@ function PostCard({
   if (variant === "overlay" && p.cover_image_url) {
     return (
       <a href={`/post/${p.slug}`} className={`relative block rounded-md overflow-hidden ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
-        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={OVERLAY_FRAME_CLASS} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
+        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={overlayFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-3 text-white">
           <h4 className="font-display text-base md:text-lg font-semibold leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
@@ -385,7 +399,7 @@ function PostCard({
     return (
       <a href={`/post/${p.slug}`} className={`block group ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
         {p.cover_image_url && (
-          <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${TILE_FRAME_CLASS} rounded-sm mb-3`} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
+          <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-sm mb-3`} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
         )}
         <h4 className="font-display text-base md:text-lg font-semibold leading-snug line-clamp-2 group-hover:text-brand transition" style={titleStyle}>{title}</h4>
         {excerpt && <p className="text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug" style={excerptStyle}>{excerpt}</p>}
@@ -397,7 +411,7 @@ function PostCard({
   return (
     <a href={`/post/${p.slug}`} className={base}>
       {p.cover_image_url && (
-        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={TILE_FRAME_CLASS} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
+        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={tileFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
       )}
       <div className="p-3">
         <h4 className="font-display text-base md:text-lg font-semibold leading-snug mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>
