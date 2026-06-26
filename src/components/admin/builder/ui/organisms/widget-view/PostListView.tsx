@@ -316,30 +316,34 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
           <a
             key={p.id}
             href={`/post/${p.slug}`}
-            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 py-4 sm:py-5 group"
+            className="relative isolate overflow-hidden flex items-start gap-3 py-4 sm:py-5 pr-2 group"
           >
-            <div className="min-w-0 text-left">
+            <div className="min-w-0 flex-1 text-left relative z-10">
               <h4
-                className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
+                className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition pr-[28%]"
                 style={tStyle}
               >
                 {title(p)}
               </h4>
               {authorName(p) && (
-                <div className="mt-2 inline-flex items-center gap-2 text-[12px] text-muted-foreground">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded border border-border text-[11px] uppercase tracking-wide">By</span>
+                <div className="mt-2 text-[13px] text-muted-foreground">
+                  <span className="opacity-70">By</span>{" "}
                   <span className="font-medium text-foreground">{authorName(p)}</span>
                 </div>
               )}
             </div>
             <span
               aria-hidden
-              className="post-list-numbered-index font-display tabular-nums select-none leading-none pr-1"
+              className="post-list-numbered-index font-display tabular-nums select-none leading-none"
               style={{
-                ["--pl-num-fs" as string]: `min(${idxSize}px, 18vw)`,
+                ["--pl-num-fs" as string]: `min(${idxSize}px, 26vw)`,
                 fontWeight: idxWeight as React.CSSProperties["fontWeight"],
-                position: "static",
-                transform: "none",
+                position: "absolute",
+                right: "0.25rem",
+                top: "50%",
+                transform: "translateY(-50%)",
+                pointerEvents: "none",
+                zIndex: 0,
               }}
             >
               {String(i + 1).padStart(2, "0")}
