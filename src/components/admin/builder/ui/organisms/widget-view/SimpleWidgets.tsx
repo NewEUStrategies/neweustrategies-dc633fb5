@@ -42,6 +42,7 @@ function AuthFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
 
 type SiteLogoVariant = "main" | "mobile" | "transparent";
 type SiteLogoCfg = { logo?: { main?: string; main_dark?: string; mobile?: string; mobile_dark?: string; transparent?: string; transparent_dark?: string } };
+type WidgetMediaFrameStyle = CSSProperties & { "--widget-media-fit"?: CSSProperties["objectFit"] };
 function useSiteLogo(variant: SiteLogoVariant = "main"): { light: string; dark: string } {
   const { data } = useQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<SiteLogoCfg>(data, "theme_options", {});
@@ -100,10 +101,11 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
   if (maxWidthPx > 0) caps.push(maxWidthPx);
   const effectiveMaxPx = caps.length ? Math.min(...caps) : 0;
   const ratioCss = ratio && ratio !== "auto" ? ratio.replace("/", " / ") : undefined;
-  const wrapperStyle: CSSProperties = {
+  const wrapperStyle: WidgetMediaFrameStyle = {
     width: effectiveMaxPx > 0 ? `min(100%, ${effectiveMaxPx}px)` : "100%",
     maxWidth: "100%",
     ...(ratioCss ? { aspectRatio: ratioCss } : null),
+    ...(ratioCss ? { "--widget-media-fit": fit } : null),
   };
   const imgStyle: CSSProperties = ratioCss
     ? { objectFit: fit, width: "100%", height: "100%" }
@@ -129,7 +131,7 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
     const fallback = img.classList.contains("gc-img-dark") ? srcDark || src : src || srcDark;
     if (fallback && img.src !== fallback) img.src = fallback;
   };
-  const fgImgStyle: CSSProperties = ratioCss ? { ...imgStyle, objectFit: "contain" } : imgStyle;
+  const fgImgStyle: CSSProperties = ratioCss ? { ...imgStyle, objectFit: fit } : imgStyle;
   const imgEl = hasBoth ? (
     <>
       <OptimizedImage src={lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-light`} style={fgImgStyle} onError={applyLogoFallback} />

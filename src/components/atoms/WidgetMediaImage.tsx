@@ -8,15 +8,21 @@ interface WidgetMediaImageProps {
   sizes?: string;
   responsiveWidths?: readonly number[];
   priority?: boolean;
+  objectFit?: CSSProperties["objectFit"];
   style?: CSSProperties;
   foregroundClassName?: string;
   foregroundStyle?: CSSProperties;
   onError?: ReactEventHandler<HTMLImageElement>;
 }
 
+type WidgetMediaFrameStyle = CSSProperties & {
+  "--widget-media-fit"?: CSSProperties["objectFit"];
+};
+
 /**
- * Shared widget image frame: shows the original image fully inside the tile,
- * without synthetic fills, blurred backgrounds, crop, or zoom.
+ * Shared widget image frame: paints one real image into a stable widget tile.
+ * The default is cover, so media fills the reserved image field instead of
+ * collapsing visually into a narrow strip. Components can opt into contain.
  */
 export function WidgetMediaImage({
   src,
@@ -25,13 +31,19 @@ export function WidgetMediaImage({
   sizes,
   responsiveWidths,
   priority = false,
+  objectFit = "cover",
   style,
-  foregroundClassName = "absolute inset-0 block h-full w-full object-contain",
+  foregroundClassName = "absolute inset-0 block h-full w-full object-cover",
   foregroundStyle,
   onError,
 }: WidgetMediaImageProps) {
+  const frameStyle: WidgetMediaFrameStyle = {
+    ...style,
+    "--widget-media-fit": objectFit,
+  };
+
   if (!src) {
-    return <span data-widget-media className={frameClassName} style={style} />;
+    return <span data-widget-media className={frameClassName} style={frameStyle} />;
   }
 
   const responsiveProps = {
@@ -42,7 +54,7 @@ export function WidgetMediaImage({
   };
 
   return (
-    <span data-widget-media className={frameClassName} style={style}>
+    <span data-widget-media className={frameClassName} style={frameStyle}>
       <OptimizedImage
         src={src}
         alt={alt}
