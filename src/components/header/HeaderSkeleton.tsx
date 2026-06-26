@@ -5,8 +5,8 @@
  */
 export function HeaderSkeleton() {
   return (
-    <header
-      className="bg-background border-b border-border"
+    <div
+      className="bg-background"
       aria-hidden="true"
       data-skeleton="header"
     >
@@ -23,6 +23,6 @@ export function HeaderSkeleton() {
           <div className="h-8 w-20 rounded-md bg-muted animate-pulse" />
         </div>
       </div>
-    </header>
+    </div>
   );
 }
