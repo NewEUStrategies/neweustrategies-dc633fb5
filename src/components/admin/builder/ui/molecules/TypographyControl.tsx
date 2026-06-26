@@ -46,12 +46,14 @@ export function TypographyControl({ value, onChange }: Props) {
     current: string,
     setter: (raw: string) => void,
     ariaLabel: string,
+    placeholder = "16",
+    unitLabel = "px",
   ) => (
     <div className="relative">
       <Input
         value={current}
         inputMode="numeric"
-        placeholder="16"
+        placeholder={placeholder}
         aria-label={ariaLabel}
         onChange={(e) => setter(e.target.value)}
         onKeyDown={(e) => {
@@ -61,12 +63,12 @@ export function TypographyControl({ value, onChange }: Props) {
           } else if (e.key === "ArrowDown") {
             e.preventDefault();
             const next = (parseInt(current || "0", 10) || 0) - 1;
-            setter(next > 0 ? String(next) : "");
+            setter(next >= 0 ? String(next) : "");
           }
         }}
         className="h-8 text-xs pr-12"
       />
-      <span className="pointer-events-none absolute right-7 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">px</span>
+      <span className="pointer-events-none absolute right-7 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">{unitLabel}</span>
       <div className="absolute right-0 top-0 h-8 w-6 flex flex-col border-l border-border">
         <button
           type="button"
@@ -83,7 +85,7 @@ export function TypographyControl({ value, onChange }: Props) {
           aria-label="Zmniejsz"
           onClick={() => {
             const next = (parseInt(current || "0", 10) || 0) - 1;
-            setter(next > 0 ? String(next) : "");
+            setter(next >= 0 ? String(next) : "");
           }}
           className="flex-1 flex items-center justify-center border-t border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
         >
@@ -92,6 +94,17 @@ export function TypographyControl({ value, onChange }: Props) {
       </div>
     </div>
   );
+
+  const lineHeightPx = String(v.lineHeight ?? "").replace(/[^0-9]/g, "");
+  const setLineHeightPx = (raw: string) => {
+    const digits = raw.replace(/[^0-9]/g, "");
+    set({ lineHeight: digits ? `${digits}px` : undefined });
+  };
+  const letterSpacingPx = String(v.letterSpacing ?? "").replace(/[^0-9-]/g, "");
+  const setLetterSpacingPx = (raw: string) => {
+    const digits = raw.replace(/[^0-9-]/g, "");
+    set({ letterSpacing: digits ? `${digits}px` : undefined });
+  };
 
   return (
     <div className="space-y-2">
