@@ -1,4 +1,4 @@
-import type { QueryClient } from "@tanstack/react-query";
+import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import type {
   BuilderDocument,
   SectionChild,
@@ -10,6 +10,12 @@ import type { Lang } from "@/lib/builder/postListQuery";
 import { postListQueryOptions } from "@/lib/builder/postListQuery";
 import { postRefQueryOptions } from "@/lib/builder/contentRefs";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderVariants";
+
+/** A single cache target for a widget: its query key + matching stale-time. */
+export interface WidgetCacheTarget {
+  key: QueryKey;
+  staleTime: number;
+}
 
 function isWidget(node: SectionChild | WidgetNode): node is WidgetNode {
   return node.kind === "widget";
