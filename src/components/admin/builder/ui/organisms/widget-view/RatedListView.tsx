@@ -296,7 +296,7 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
             lineHeight: 1.3,
           };
           const titleEl = (
-            <h3 className={`rl-title ${titleFontCls} cursor-pointer ${isLeft || isTop ? "" : "pr-12"}`} style={titleStyle}>{it.title}</h3>
+            <h3 className={`rl-title cms-post-title ${titleFontCls} cursor-pointer ${isLeft || isTop ? "" : "pr-12"}`} style={titleStyle}>{it.title}</h3>
           );
           return (
             <li key={i} className={`rl-item relative ${isLeft ? "flex items-start gap-4" : ""}`} style={itemStyle}>
