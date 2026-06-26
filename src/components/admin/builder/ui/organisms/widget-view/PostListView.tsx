@@ -3,6 +3,7 @@
 // limit, offset, date range, popularity) are driven by widget content and
 // edited via PostListEditor.
 import { useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
@@ -70,6 +71,8 @@ async function fetchPostIdsBySlugs(table: "post_categories" | "post_tags", slugs
 }
 
 export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; lang: Lang; carousel?: boolean }) {
+  const { t } = useTranslation();
+  const byLabel = t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
   const titleSizePx = getNum(c, "titleSizePx", 0);
   const titleWeight = getStr(c, "titleWeight");
   const excerptSizePx = getNum(c, "excerptSizePx", 0);
@@ -327,7 +330,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               </h4>
               {authorName(p) && (
                 <div className="mt-2 text-[13px] text-muted-foreground">
-                  <span className="opacity-70">By</span>{" "}
+                  <span className="opacity-70">{byLabel}</span>{" "}
                   <span className="font-medium text-foreground">{authorName(p)}</span>
                 </div>
               )}
