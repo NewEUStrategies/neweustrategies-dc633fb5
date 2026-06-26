@@ -383,6 +383,7 @@ export function ThemeDesignPane() {
             <p className="cms-post-excerpt">Krótki opis artykułu pojawiający się pod tytułem w kartach widgetów. Zachowuje spójność na całej platformie.</p>
           </div>
         </Preview>
+      </Section>
 
       <Section title="Numeracja list (warianty „Numbered” / „Ranking”)">
         <p className="text-xs text-muted-foreground -mt-2">
