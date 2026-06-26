@@ -258,38 +258,75 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   }
 
   if (variant === "numbered") {
-    const idxSize = getNum(c, "indexSizePx", 32);
+    // Big faint index on the left, title in the middle, thumbnail on the right.
+    // Sizes/colors are configurable via widget content; sensible defaults match
+    // an editorial "ranking" list with a translucent numeral behind the title.
+    const idxSize = getNum(c, "indexSizePx", 88);
     const idxColor = getStr(c, "indexColor") || "";
     const idxColorDark = getStr(c, "indexColorDark") || "";
     const idxOpacity = (() => {
       const v = getNum(c, "indexOpacity", -1);
-      return v < 0 ? 0.05 : Math.max(0, Math.min(1, v));
+      return v < 0 ? 0.12 : Math.max(0, Math.min(1, v));
     })();
-    const idxWeight = getStr(c, "indexWeight") || "700";
+    const idxWeight = getStr(c, "indexWeight") || "800";
+    const showExcerpt = getStr(c, "showExcerpt") !== "false";
     const lightColor = idxColor || `rgba(0,0,0,${idxOpacity})`;
     const darkColor = idxColorDark || `rgba(255,255,255,${idxOpacity})`;
     return (
       <div className="w-full flex flex-col divide-y divide-border">
         <style>{`.pl-num-light{color:${lightColor};} .dark .pl-num-light{color:${darkColor};}`}</style>
         {rows.map((p, i) => (
-          <a key={p.id} href={`/post/${p.slug}`} className="relative flex items-center gap-3 py-3 group overflow-hidden">
+          <a
+            key={p.id}
+            href={`/post/${p.slug}`}
+            className={`grid items-center gap-3 sm:gap-5 py-4 sm:py-5 group ${
+              p.cover_image_url
+                ? "grid-cols-[auto_minmax(0,1fr)_120px] sm:grid-cols-[auto_minmax(0,1fr)_180px] md:grid-cols-[auto_minmax(0,1fr)_220px]"
+                : "grid-cols-[auto_minmax(0,1fr)]"
+            }`}
+          >
             <span
               aria-hidden
-              className="pl-num-light pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 font-display tabular-nums leading-none select-none"
-              style={{ fontSize: `${idxSize}px`, fontWeight: idxWeight as React.CSSProperties["fontWeight"] }}
+              className="pl-num-light font-display tabular-nums leading-none select-none shrink-0 pr-1 sm:pr-2"
+              style={{
+                fontSize: `clamp(40px, ${idxSize * 0.5}px + 1.5vw, ${idxSize}px)`,
+                fontWeight: idxWeight as React.CSSProperties["fontWeight"],
+              }}
             >
               {String(i + 1).padStart(2, "0")}
             </span>
-            <div className="min-w-0 flex-1 relative text-left">
-              <h4 className="font-display text-sm md:text-[15px] font-medium leading-snug group-hover:text-brand transition" style={tStyle}>
+            <div className="min-w-0 text-left">
+              <h4
+                className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
+                style={tStyle}
+              >
                 {title(p)}
               </h4>
+              {showExcerpt && excerpt(p) && (
+                <p
+                  className="hidden sm:block text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug"
+                  style={eStyle}
+                >
+                  {excerpt(p)}
+                </p>
+              )}
             </div>
+            {p.cover_image_url && (
+              <WidgetMediaImage
+                src={p.cover_image_url}
+                alt=""
+                frameClassName="relative block aspect-[4/3] w-full shrink-0 overflow-hidden rounded-md bg-muted"
+                responsiveWidths={[160, 240, 320, 480]}
+                sizes="(max-width: 640px) 120px, (max-width: 1024px) 180px, 220px"
+                foregroundClassName={COVER_IMG_CLASS}
+              />
+            )}
           </a>
         ))}
       </div>
     );
   }
+
 
 
 
