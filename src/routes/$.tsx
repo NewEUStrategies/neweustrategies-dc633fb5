@@ -51,7 +51,7 @@ import { AdZone } from "@/components/AdSlot";
 import { MidPostAds } from "@/components/ads/MidPostAds";
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import type { AdPageType } from "@/lib/ads/types";
-import { prefetchBuilderDocumentQueries } from "@/lib/builder/prefetch";
+import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
 import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
 
 
@@ -81,7 +81,7 @@ export const Route = createFileRoute("/$")({
         ? context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions())
         : Promise.resolve(),
       doc.sections.length > 0
-        ? prefetchBuilderDocumentQueries(context.queryClient, doc, lang)
+        ? prefetchAboveFoldQueries(context.queryClient, doc, lang)
         : Promise.resolve(),
       context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions()),
     ]);

@@ -8,7 +8,7 @@ import { homePageQueryOptions } from "@/lib/queries/public";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
-import { prefetchBuilderDocumentQueries } from "@/lib/builder/prefetch";
+import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
 
 export const Route = createFileRoute("/")({
   loader: async ({ context }) => {
@@ -16,7 +16,9 @@ export const Route = createFileRoute("/")({
     const doc = homePage?.editor === "builder" ? parseBuilderDoc(homePage.builder_data) : null;
     if (doc?.sections.length) {
       const lang = activeLang(getRequestUrl() || "/") === "en" ? "en" : "pl";
-      await prefetchBuilderDocumentQueries(context.queryClient, doc, lang);
+      // Block SSR only on the above-the-fold sections; the rest stream in on the
+      // client via useSectionPreload. Keeps first paint fast on long homepages.
+      await prefetchAboveFoldQueries(context.queryClient, doc, lang);
     }
     return null;
   },
