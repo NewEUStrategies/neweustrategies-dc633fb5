@@ -13,6 +13,7 @@ import {
 } from "@/lib/builder/sectionStyles";
 import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
 import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
+import { useSectionPreload } from "@/lib/builder/useSectionPreload";
 
 function resolveSpan(span: ResponsiveValue<number>, device: Device, deskDefault: number): number {
   if (device === "mobile") return span.mobile ?? 12;
@@ -268,9 +269,11 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
   };
   const typoCss = typographyCss(section.id, section.typography);
   const videoUrl = section.background?.type === "video" ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl : "";
+  const preloadRef = useSectionPreload(section, lang);
 
   return (
     <Tag
+      ref={preloadRef as React.Ref<HTMLElement>}
       id={sanitizeHtmlId(section.advanced?.htmlId)}
       data-sec-id={section.id}
       className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(section.advanced?.cssClass) ?? ""}`.trim()}
