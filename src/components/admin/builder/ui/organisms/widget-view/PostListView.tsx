@@ -372,21 +372,33 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
   if (variant === "numbered") {
     // Big faint index on the left, title in the middle, thumbnail on the right.
-    // Sizes/colors are configurable via widget content; sensible defaults match
-    // an editorial "ranking" list with a translucent numeral behind the title.
-    const idxSize = getNum(c, "indexSizePx", 124);
+    // Defaults unified with the "ranked" variant (size 96, opacity 0.18) so both
+    // numbered styles share the same visual rhythm out of the box.
+    const idxSize = getNum(c, "indexSizePx", 96);
     const idxColor = getStr(c, "indexColor") || "";
     const idxColorDark = getStr(c, "indexColorDark") || "";
     const idxOpacity = (() => {
       const v = getNum(c, "indexOpacity", -1);
-      return v < 0 ? "var(--td-li-opacity, 0.22)" : String(Math.max(0, Math.min(1, v)));
+      return v < 0 ? "var(--td-li-opacity, 0.18)" : String(Math.max(0, Math.min(1, v)));
     })();
     const idxWeight = getStr(c, "indexWeight") || "var(--td-li-weight, 800)";
     const idxSide = (getStr(c, "indexSide") || "right") === "left" ? "left" : "right";
+    const idxVAlign = (() => {
+      const v = getStr(c, "indexVAlign") || "top";
+      return v === "middle" || v === "bottom" ? v : "top";
+    })();
     const showExcerpt = false;
     // Fall back to global Theme Design tokens when widget colors are empty.
     const lightColor = idxColor || "var(--td-li-light, rgb(35,31,32))";
     const darkColor = idxColorDark || "var(--td-li-dark, rgb(250,147,70))";
+    // Inline vertical position - aligns numeral to the title row (top) by default
+    // so it shares the baseline with the headline, not the geometric row center.
+    const vPos: React.CSSProperties =
+      idxVAlign === "top"
+        ? { top: "0", bottom: "auto", transform: "translateY(0)" }
+        : idxVAlign === "bottom"
+        ? { top: "auto", bottom: "0", transform: "translateY(0)" }
+        : { top: "50%", bottom: "auto", transform: "translateY(-50%)" };
     return (
       <div
         className="w-full flex flex-col divide-y divide-border"
@@ -400,7 +412,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
           <a
             key={p.id}
             href={`/post/${p.slug}`}
-            className={`grid items-center gap-3 sm:gap-4 py-4 sm:py-5 group ${
+            className={`grid items-start gap-3 sm:gap-4 py-4 sm:py-5 group ${
               p.cover_image_url
                 ? "grid-cols-[minmax(0,1fr)_minmax(90px,32%)] sm:grid-cols-[minmax(0,1fr)_minmax(120px,28%)]"
                 : "grid-cols-1"
@@ -416,13 +428,14 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                   fontWeight: idxWeight as React.CSSProperties["fontWeight"],
                   left: idxSide === "left" ? "0" : "auto",
                   right: idxSide === "right" ? "0" : "auto",
-                  transform: idxSide === "left" ? "translate(-0.08em, -50%)" : "translate(0.08em, -50%)",
-                  textAlign: idxSide === "right" ? "right" : "left",
+                  ...vPos,
+                  textAlign: idxSide,
                 } as React.CSSProperties}
               >
                 {String(i + 1).padStart(2, "0")}
               </span>
               <div className={`relative z-10 py-2 sm:py-3 ${idxSide === "left" ? "pl-1 pr-1" : "pr-1 pl-1"}`}>
+
                 <h4
                   className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
                   style={tStyle}
