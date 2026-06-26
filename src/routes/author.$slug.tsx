@@ -4,8 +4,6 @@ import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ExternalLink, Globe, Linkedin, Twitter } from "lucide-react";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { authorBySlugQueryOptions } from "@/lib/queries/archives";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -13,7 +11,6 @@ import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/author/$slug")({
-  staticData: { ownChrome: true },
   loader: async ({ params, context }) => {
     const data = await context.queryClient.ensureQueryData(authorBySlugQueryOptions(params.slug));
     if (!data) throw notFound();
@@ -42,13 +39,11 @@ export const Route = createFileRoute("/author/$slug")({
     const router = useRouter();
     return (
       <div className="min-h-screen flex flex-col">
-        <Header />
         <main className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
           <h1 className="font-display text-2xl">Nie udało się załadować profilu</h1>
           <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
           <button onClick={() => { router.invalidate(); reset(); }} className="mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Spróbuj ponownie</button>
         </main>
-        <Footer />
       </div>
     );
   },
@@ -66,7 +61,6 @@ function AuthorArchivePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <Header />
       <main className="flex-1 w-full">
         <header className="relative">
           {author.cover_url && (
@@ -112,7 +106,6 @@ function AuthorArchivePage() {
           <ArchivePostList posts={posts} lang={lang} emptyText="Brak opublikowanych wpisów." />
         </section>
       </main>
-      <Footer />
     </div>
   );
 }
@@ -120,7 +113,6 @@ function AuthorArchivePage() {
 function AuthorNotFound() {
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="text-center space-y-3">
           <h1 className="font-display text-3xl">Autor nie znaleziony</h1>
@@ -129,7 +121,6 @@ function AuthorNotFound() {
           </a>
         </div>
       </main>
-      <Footer />
     </div>
   );
 }

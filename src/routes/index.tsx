@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { parseBuilderDoc } from "@/lib/builder/parse";
@@ -13,7 +11,6 @@ import { buildContentHead } from "@/lib/seo/meta";
 import { prefetchBuilderDocumentQueries } from "@/lib/builder/prefetch";
 
 export const Route = createFileRoute("/")({
-  staticData: { ownChrome: true },
   loader: async ({ context }) => {
     const homePage = await context.queryClient.ensureQueryData(homePageQueryOptions());
     const doc = homePage?.editor === "builder" ? parseBuilderDoc(homePage.builder_data) : null;
@@ -54,7 +51,6 @@ function Index() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <Header />
       <main className="flex-1 w-full">
         {doc && doc.sections.length > 0 ? (
           <BuilderRenderer doc={doc} lang={lang} />
@@ -67,7 +63,6 @@ function Index() {
           </div>
         )}
       </main>
-      <Footer />
     </div>
   );
 }

@@ -3,8 +3,6 @@
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { taxonomyArchiveQueryOptions } from "@/lib/queries/archives";
@@ -13,7 +11,6 @@ import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/category/$slug")({
-  staticData: { ownChrome: true },
   loader: async ({ params, context }) => {
     const data = await context.queryClient.ensureQueryData(
       taxonomyArchiveQueryOptions("category", params.slug),
@@ -43,12 +40,10 @@ export const Route = createFileRoute("/category/$slug")({
     const router = useRouter();
     return (
       <div className="min-h-screen flex flex-col">
-        <Header />
         <main className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
           <p className="text-sm text-destructive">{error.message}</p>
           <button onClick={() => { router.invalidate(); reset(); }} className="mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Spróbuj ponownie</button>
         </main>
-        <Footer />
       </div>
     );
   },
@@ -66,7 +61,6 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <Header />
       <main className="flex-1 w-full">
         {taxonomy.featured_section && (
           <section className="border-b border-border">
@@ -84,7 +78,6 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
           <ArchivePostList posts={posts} lang={lang} emptyText="Brak opublikowanych wpisów." />
         </section>
       </main>
-      <Footer />
     </div>
   );
 }
@@ -92,11 +85,9 @@ export function TaxonomyPage({ kind }: { kind: "category" | "tag" }) {
 function NotFound() {
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
       <main className="flex-1 flex items-center justify-center px-4">
         <h1 className="font-display text-3xl">Nie znaleziono</h1>
       </main>
-      <Footer />
     </div>
   );
 }
