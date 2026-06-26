@@ -98,9 +98,17 @@ export function useResolvedPostRef(id: string | null | undefined, lang: Lang) {
   return q.data ?? null;
 }
 
-/** Batch resolver - one query per id, dedup'd via React Query cache. */
+/** Batch resolver - one query per id, dedup'd before useQueries receives keys. */
 export function useResolvedPostRefs(ids: ReadonlyArray<string | null | undefined>, lang: Lang) {
-  const uniqueIds = Array.from(new Set(ids.filter((id): id is string => Boolean(id))));
+  const seen = new Set<string>();
+  const uniqueIds = ids.reduce<string[]>((acc, id) => {
+    if (typeof id !== "string") return acc;
+    const normalized = id.trim();
+    if (!normalized || seen.has(normalized)) return acc;
+    seen.add(normalized);
+    acc.push(normalized);
+    return acc;
+  }, []);
   const results = useQueries({
     queries: uniqueIds.map((id) => postRefQueryOptions(id, lang)),
   });

@@ -16,7 +16,8 @@ export const Route = createFileRoute("/post/$slug")({
     const { data: pathRow } = await supabase
       .rpc("page_full_path", { _page_id: data.parent_page_id });
     const path = typeof pathRow === "string" ? pathRow : null;
-    throw redirect({ to: path ? `/${path}/${data.slug}` : "/blog" });
+    if (!path) throw redirect({ to: "/blog" });
+    throw redirect({ to: "/$", params: { _splat: `${path}/${data.slug}` } });
   },
   component: () => null,
 });
