@@ -58,6 +58,16 @@ export function OptimizedImage({
 }: OptimizedImageProps) {
   const [loaded, setLoaded] = useState(priority);
   const [errored, setErrored] = useState(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+
+  // SSR/hydration race: if the browser already finished loading the image
+  // before React attached the onLoad listener, opacity would stay at 0
+  // forever. Sync state from img.complete after mount.
+  useEffect(() => {
+    const img = imgRef.current;
+    if (!img || loaded) return;
+    if (img.complete && img.naturalWidth > 0) setLoaded(true);
+  }, [loaded]);
 
   const ratio =
     aspectRatio ?? (width && height ? width / height : undefined);
