@@ -584,8 +584,8 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
    own underline thanks to box-decoration-break: clone. Animation goes
    left-to-right per line via background-size transition. */
 .cms-post-title {
-  /* tunable tokens (also overridable from Theme Design) */
-  --pt-ul-color: color-mix(in oklab, var(--brand, #FA9346) 70%, transparent);
+  /* underline color follows the title color (light + dark mode) */
+  --pt-ul-color: color-mix(in oklab, currentColor 75%, transparent);
   --pt-ul-thickness: 1.5px;
   --pt-ul-offset: 3px;
 
@@ -607,8 +607,9 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   transition: background-size .6s cubic-bezier(.22,.61,.36,1), color .2s ease;
 }
 .dark .cms-post-title {
-  --pt-ul-color: color-mix(in oklab, var(--brand, #FA9346) 80%, transparent);
+  --pt-ul-color: color-mix(in oklab, currentColor 85%, transparent);
 }
+
 @media (max-width: 640px) {
   .cms-post-title { font-size: var(--td-pt-size-sm, 14px); }
 }
