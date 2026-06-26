@@ -88,19 +88,30 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
         </PropField>
       );
 
-    case "number":
+    case "number": {
+      const raw = content[field.key];
+      const hasValue = typeof raw === "number" && Number.isFinite(raw);
+      const display = hasValue ? String(raw) : (typeof field.default === "number" ? String(field.default) : "");
       return (
         <PropField label={field.label} hint={field.hint}>
           <Input
             type="number"
             min={field.min}
             max={field.max}
-            value={asNumber(content[field.key])}
-            onChange={(e) => setContent(field.key, Number(e.target.value))}
+            step={field.step}
+            value={display}
+            placeholder={typeof field.default === "number" ? String(field.default) : undefined}
+            onChange={(e) => {
+              const s = e.target.value;
+              if (s === "") { setContent(field.key, null as unknown as Json); return; }
+              const n = Number(s);
+              if (Number.isFinite(n)) setContent(field.key, n);
+            }}
             className="h-8 text-xs"
           />
         </PropField>
       );
+    }
 
     case "select":
       return (
