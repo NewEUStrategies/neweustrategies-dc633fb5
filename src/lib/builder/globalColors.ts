@@ -725,7 +725,7 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
        cards, navigation chrome and listing pages keep their native
        Tailwind / shadcn colors (text-foreground / text-muted-foreground)
        and only the article body adopts the user-picked accent color. */
-    :where(html:not(.dark) .article-body, html:not(.dark) .prose, html:not(.dark) [data-cms-prose]) :where(h1, h2, h3, h4, h5, h6, p, li){color:var(--gc-dark-accent, inherit);}
+    :where(html:not(.dark) .article-body, html:not(.dark) [data-cms-prose]) :where(h1, h2, h3, h4, h5, h6, p, li){color:var(--gc-dark-accent, inherit);}
     /* Typography bridge — wrapped in @layer utilities so :where() (0,0,0)
        loses to Tailwind utilities like text-base / text-xl (0,1,0) that
        live in the same cascade layer. Without this layer, the inline
