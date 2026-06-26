@@ -85,6 +85,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   const tStyle = Object.keys(titleStyle).length ? titleStyle : undefined;
   const eStyle = Object.keys(excerptStyle).length ? excerptStyle : undefined;
   const variant = (getStr(c, "variant") || (carousel ? "card" : "card")) as Variant;
+  const aspect = aspectOf(c);
   const limit = Math.max(1, Math.min(100, getNum(c, "limit", 6)));
   const offset = Math.max(0, getNum(c, "offset", 0));
   const cols = Math.max(1, Math.min(6, getNum(c, "columns", 3)));
