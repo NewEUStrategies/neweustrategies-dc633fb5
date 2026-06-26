@@ -130,22 +130,14 @@ function ImageWidget({ c, lang, theme, editable, onContentChange }: {
     if (fallback && img.src !== fallback) img.src = fallback;
   };
   const fgImgStyle: CSSProperties = ratioCss ? { ...imgStyle, objectFit: "contain" } : imgStyle;
-  const bgImgStyle: CSSProperties = { ...imgStyle, objectFit: "cover" };
   const imgEl = hasBoth ? (
     <>
-      {isFramed && <OptimizedImage src={lightSrc} alt="" aria-hidden responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} widget-media-bg gc-img-light`} style={bgImgStyle} fadeIn={false} />}
-      {isFramed && <OptimizedImage src={darkSrc} alt="" aria-hidden responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} widget-media-bg gc-img-dark`} style={bgImgStyle} fadeIn={false} />}
-      {isFramed && <span aria-hidden className="widget-media-scrim absolute inset-0" />}
       <OptimizedImage src={lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-light`} style={fgImgStyle} onError={applyLogoFallback} />
       <OptimizedImage src={darkSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-dark`} style={fgImgStyle} onError={applyLogoFallback} />
     </>
   ) : (
     isFramed ? (
-      <>
-        <OptimizedImage src={theme === "dark" ? darkSrc : lightSrc} alt="" aria-hidden responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} widget-media-bg`} style={bgImgStyle} fadeIn={false} />
-        <span aria-hidden className="widget-media-scrim absolute inset-0" />
-        <OptimizedImage src={theme === "dark" ? darkSrc : lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} widget-media-fg`} style={fgImgStyle} onError={applyLogoFallback} />
-      </>
+      <OptimizedImage src={theme === "dark" ? darkSrc : lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} widget-media-fg`} style={fgImgStyle} onError={applyLogoFallback} />
     ) : (
       <OptimizedImage src={theme === "dark" ? darkSrc : lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={imgCls} style={imgStyle} onError={applyLogoFallback} />
     )

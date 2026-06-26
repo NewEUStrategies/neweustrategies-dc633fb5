@@ -11,13 +11,12 @@ interface WidgetMediaImageProps {
   style?: CSSProperties;
   foregroundClassName?: string;
   foregroundStyle?: CSSProperties;
-  backgroundClassName?: string;
   onError?: ReactEventHandler<HTMLImageElement>;
 }
 
 /**
- * Shared widget image frame: fills the tile visually with a soft cover layer,
- * while the foreground image stays fully visible without crop or zoom.
+ * Shared widget image frame: shows the original image fully inside the tile,
+ * without synthetic fills, blurred backgrounds, crop, or zoom.
  */
 export function WidgetMediaImage({
   src,
@@ -29,7 +28,6 @@ export function WidgetMediaImage({
   style,
   foregroundClassName = "absolute inset-0 block h-full w-full object-contain",
   foregroundStyle,
-  backgroundClassName = "absolute inset-0 block h-full w-full object-cover widget-media-bg",
   onError,
 }: WidgetMediaImageProps) {
   if (!src) {
@@ -45,15 +43,6 @@ export function WidgetMediaImage({
 
   return (
     <span data-widget-media className={frameClassName} style={style}>
-      <OptimizedImage
-        src={src}
-        alt=""
-        aria-hidden
-        {...responsiveProps}
-        className={backgroundClassName}
-        fadeIn={false}
-      />
-      <span aria-hidden className="widget-media-scrim absolute inset-0" />
       <OptimizedImage
         src={src}
         alt={alt}
