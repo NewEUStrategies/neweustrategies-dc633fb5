@@ -102,11 +102,15 @@ export async function prefetchSectionQueries(
  * Used by the SWR gate in useSectionPreload to decide whether a prefetch is
  * even necessary.
  */
+function coerceStaleTime(st: unknown): number {
+  return typeof st === "number" ? st : 0;
+}
+
 export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheTarget[] {
   const out: WidgetCacheTarget[] = [];
   if (widget.type === "post-list" || widget.type === "carousel") {
     const opts = postListQueryOptions(widget.content, lang);
-    out.push({ key: opts.queryKey, staleTime: opts.staleTime ?? 0 });
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
   if (widget.type === "slider") {
     const items = contentItems(widget.content);
@@ -119,10 +123,10 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
     );
     postIds.forEach((id) => {
       const opts = postRefQueryOptions(id, lang);
-      out.push({ key: opts.queryKey, staleTime: opts.staleTime ?? 0 });
+      out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
     });
     const opts = sliderFallbackImagesQueryOptions(Math.max(3, items.length || 3));
-    out.push({ key: opts.queryKey, staleTime: opts.staleTime ?? 0 });
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
   return out;
 }
