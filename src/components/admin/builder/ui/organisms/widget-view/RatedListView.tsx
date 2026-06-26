@@ -6,6 +6,7 @@ import * as LucideIcons from "@/lib/lucide-shim";
 import type { WidgetContent } from "@/lib/builder/types";
 import { getStr } from "./frame";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
+import { AppLink } from "@/components/atoms/AppLink";
 
 // Auto-derive a dark-mode color from the light value when the user hasn't
 // explicitly set one (and vice versa). Empty string === inherit/default.
@@ -323,7 +324,7 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
                 )}
                 <div className="flex items-center gap-1.5">
                   {FmtIcon && <FmtIcon className="rl-format w-3.5 h-3.5" />}
-                  {it.href ? <a href={it.href} className="block flex-1">{titleEl}</a> : <div className="flex-1">{titleEl}</div>}
+                  {it.href ? <AppLink href={it.href} className="block flex-1">{titleEl}</AppLink> : <div className="flex-1">{titleEl}</div>}
                 </div>
                 {showExcerpt && it.excerpt && (
                   <p className="rl-exc text-muted-foreground mt-2" style={{
@@ -353,7 +354,7 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
                   </p>
                 ) : null}
                 {showReadMore && it.href && (
-                  <a href={it.href} className="rl-more inline-block mt-2 text-xs font-semibold hover:underline">{readMoreText} →</a>
+                  <AppLink href={it.href} className="rl-more inline-block mt-2 text-xs font-semibold hover:underline">{readMoreText} →</AppLink>
                 )}
               </div>
             </li>
