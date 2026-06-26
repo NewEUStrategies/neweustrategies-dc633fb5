@@ -191,7 +191,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
                           active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted"
                         }`}
                       >
-                        <Icon className="w-4 h-4 shrink-0" />
+                        <Icon className="w-3.5 h-3.5 shrink-0" />
                         <span className={`truncate ${compact ? "hidden" : ""}`}>{label}</span>
                       </Link>
                     );
