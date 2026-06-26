@@ -2202,10 +2202,6 @@ export type Database = {
         }[]
       }
       page_full_path: { Args: { _page_id: string }; Returns: string }
-      popular_post_ids: {
-        Args: { _days?: number; _limit?: number }
-        Returns: { post_id: string }[]
-      }
       public_tenant_id: { Args: never; Returns: string }
       record_post_view: {
         Args: { _post_id: string; _viewer_hash: string }
