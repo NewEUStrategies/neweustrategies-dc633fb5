@@ -588,19 +588,14 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   color: var(--td-pt-color, hsl(var(--foreground)));
   text-transform: var(--td-pt-transform, none);
   letter-spacing: var(--td-pt-spacing, 0);
-  /* Per-line wipe underline: background-image painted behind each line box,
-     animated from 0% to 100% width left -> right. box-decoration-break: clone
-     ensures the background origin resets on every wrapped line. */
-  display: inline;
-  text-decoration: none;
-  background-image: linear-gradient(currentColor, currentColor);
-  background-repeat: no-repeat;
-  background-position: 0 100%;
-  background-size: 0% 1px;
-  padding-bottom: 3px;
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-  transition: color .2s ease, background-size .4s ease;
+  /* Native underline guarantees identical thickness on every wrapped line.
+     The colour animates from transparent to currentColor for a subtle
+     left-to-right feel rendered by the browser per fragment. */
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: transparent;
+  transition: color .2s ease, text-decoration-color .35s ease;
 }
 @media (max-width: 640px) {
   .cms-post-title { font-size: var(--td-pt-size-sm, 16px); }
@@ -608,7 +603,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .group:hover .cms-post-title,
 a:hover .cms-post-title,
 .cms-post-title:hover {
-  background-size: 100% 1px;
+  text-decoration-color: currentColor;
 }
 
 .cms-post-excerpt {
