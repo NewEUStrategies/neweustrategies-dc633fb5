@@ -269,9 +269,11 @@ function RenderSection({ section, lang, device }: { section: SectionNode; lang: 
   };
   const typoCss = typographyCss(section.id, section.typography);
   const videoUrl = section.background?.type === "video" ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl : "";
+  const preloadRef = useSectionPreload(section, lang);
 
   return (
     <Tag
+      ref={preloadRef as React.Ref<HTMLElement>}
       id={sanitizeHtmlId(section.advanced?.htmlId)}
       data-sec-id={section.id}
       className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(section.advanced?.cssClass) ?? ""}`.trim()}
