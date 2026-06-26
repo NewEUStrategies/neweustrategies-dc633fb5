@@ -4,12 +4,12 @@
 // Supports two column kinds (Foxiz parity):
 //   - "links"    : title + list of links + optional featured banner
 //   - "category" : recent posts from a category with thumbnails (AJAX-style)
-import { useEffect, useId, useRef, useState } from "react";
+import { memo, useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "@/lib/lucide-shim";
 import { safeUrl, safeImageUrl } from "@/lib/sanitize";
-import { supabase } from "@/integrations/supabase/client";
 import { AppLink } from "@/components/atoms/AppLink";
+import { megaMenuCategoryQueryOptions } from "@/lib/queries/megaMenu";
 
 export type MegaMenuLang = "pl" | "en";
 
@@ -77,7 +77,7 @@ interface Props {
 
 const pickLang = (a?: string, b?: string): string => (a && a.length ? a : (b ?? ""));
 
-export function MegaMenu({ config, lang, mobile = false }: Props) {
+export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }: Props) {
   const trigger = pickLang(
     lang === "pl" ? config.trigger_pl : config.trigger_en,
     config.trigger_pl,
@@ -197,7 +197,8 @@ export function MegaMenu({ config, lang, mobile = false }: Props) {
       )}
     </div>
   );
-}
+});
+MegaMenu.displayName = "MegaMenu";
 
 function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }) {
   if ((col.kind ?? "links") === "category") {
@@ -253,47 +254,7 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
   const title = pickLang(lang === "pl" ? col.title_pl : col.title_en, col.title_pl);
   const viewAll = safeUrl(col.viewAllHref || (slug ? `/category/${slug}` : "#"));
 
-  const { data, isLoading } = useQuery({
-    enabled: slug.length > 0,
-    queryKey: ["mega-menu-cat", slug, limit, lang] as const,
-    staleTime: 5 * 60_000,
-    queryFn: async () => {
-      const { data: cat } = await supabase
-        .from("categories")
-        .select("id, name_pl, name_en")
-        .eq("slug", slug)
-        .maybeSingle();
-      if (!cat?.id) return { posts: [] as PostCard[], catName: "" };
-      const { data: pivot } = await supabase
-        .from("post_categories")
-        .select("post_id")
-        .eq("category_id", cat.id as string)
-        .limit(limit * 4);
-      const ids = (pivot ?? []).map((r) => r.post_id as string);
-      if (ids.length === 0) return { posts: [], catName: pickLang(cat.name_pl as string, cat.name_en as string) };
-      const { data: posts } = await supabase
-        .from("posts")
-        .select("id, slug, title_pl, title_en, cover_image_url, published_at")
-        .in("id", ids)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(limit);
-      return {
-        posts: (posts ?? []).map((p) => ({
-          id: p.id as string,
-          slug: p.slug as string,
-          title: pickLang(
-            lang === "pl" ? (p.title_pl as string) : (p.title_en as string),
-            p.title_pl as string,
-          ),
-          cover: (p.cover_image_url as string | null) ?? "",
-          href: `/post/${p.slug as string}`,
-        })),
-        catName: pickLang(cat.name_pl as string, cat.name_en as string),
-      };
-    },
-  });
+  const { data, isLoading } = useQuery(megaMenuCategoryQueryOptions(slug, limit, lang));
 
   const heading = title || data?.catName || "";
 
