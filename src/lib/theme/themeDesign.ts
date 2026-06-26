@@ -91,8 +91,8 @@ export const ThemeDesignSchema = z.object({
   postTitle: z.object({
     // Unified title styling shared by every post card / list / slider / grid widget.
     fontFamily: z.string().default('"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif'),
-    fontSize: PX.default("18px"),
-    fontSizeSm: PX.default("16px"),
+    fontSize: PX.default("15px"),
+    fontSizeSm: PX.default("14px"),
     fontWeight: z.number().min(100).max(900).default(600),
     lineHeight: z.union([z.number(), z.string()]).default(1.3),
     color: COLOR.default("hsl(var(--foreground))"),
