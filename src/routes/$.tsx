@@ -353,7 +353,7 @@ function PublicPage() {
           )}
           <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
         </main>
-        <Footer />
+
         <FooterSlideup pageType={adPageType} pageId={it.id} />
         {merged.show_floating_share_bar && (
           <FloatingShareBar title={title} lang={lang} />
