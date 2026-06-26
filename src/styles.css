@@ -641,14 +641,10 @@ a:hover .cms-post-title:not(:has(.cms-pt-ink)),
   .cms-post-title, .cms-post-title > .cms-pt-ink { transition: none; }
 }
 
-.group:hover .cms-post-title,
-a:hover .cms-post-title,
-.cms-post-title:hover {
-  background-size: 100% var(--pt-ul-thickness);
+@media (max-width: 640px) {
+  .cms-post-title { font-size: var(--td-pt-size-sm, 14px); }
 }
-@media (prefers-reduced-motion: reduce) {
-  .cms-post-title { transition: none; }
-}
+
 
 .cms-post-excerpt {
   font-family: var(--td-pe-family, "Red Hat Display", system-ui, sans-serif);
