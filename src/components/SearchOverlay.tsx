@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "@tanstack/react-router";
 import { Search, X, Loader2, ArrowRight } from "@/lib/lucide-shim";
 import { supabase } from "@/integrations/supabase/client";
+import { AppLink } from "@/components/atoms/AppLink";
 
 type Mode = "standalone" | "dropdown" | "fullscreen";
 type Result = { id: string; slug: string; title: string; excerpt: string | null };
@@ -16,6 +18,7 @@ type Props = {
 };
 
 export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit, lang }: Props) {
+  const router = useRouter();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(false);
@@ -79,12 +82,15 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
         setActive((i) => Math.max(i - 1, 0));
       } else if (e.key === "Enter") {
         const r = results[active];
-        if (r) window.location.href = `/posts/${r.slug}`;
+        if (r) {
+          onClose();
+          void router.navigate({ href: `/post/${r.slug}` } as never);
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, results, active]);
+  }, [open, onClose, results, active, router]);
 
   useEffect(() => {
     if (!open) return;
@@ -212,8 +218,8 @@ function ResultsList({
         const isActive = i === active;
         return (
           <li key={r.id}>
-            <a
-              href={`/posts/${r.slug}`}
+            <AppLink
+              href={`/post/${r.slug}`}
               onClick={onClose}
               onMouseEnter={() => setActive(i)}
               className={`group flex items-start gap-3 px-5 py-3.5 transition ${
@@ -229,7 +235,7 @@ function ResultsList({
               <ArrowRight className={`w-4 h-4 mt-0.5 shrink-0 transition ${
                 isActive ? "text-foreground translate-x-0.5" : "text-muted-foreground/40 group-hover:text-muted-foreground"
               }`} />
-            </a>
+            </AppLink>
           </li>
         );
       })}
