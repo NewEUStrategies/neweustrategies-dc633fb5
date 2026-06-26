@@ -370,6 +370,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
       return v < 0 ? 0.22 : Math.max(0, Math.min(1, v));
     })();
     const idxWeight = getStr(c, "indexWeight") || "800";
+    const idxSide = (getStr(c, "indexSide") || "right") === "left" ? "left" : "right";
     const showExcerpt = false;
     const lightColor = idxColor || "rgb(35,31,32)";
     const darkColor = idxColorDark || "rgb(250,147,70)";
@@ -400,11 +401,14 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
                 style={{
                   ["--pl-num-fs" as string]: `min(${idxSize}px, 22vw)`,
                   fontWeight: idxWeight as React.CSSProperties["fontWeight"],
-                }}
+                  left: idxSide === "left" ? "0" : "auto",
+                  right: idxSide === "right" ? "0" : "auto",
+                  transform: idxSide === "left" ? "translate(-0.08em, -50%)" : "translate(0.08em, -50%)",
+                } as React.CSSProperties}
               >
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <div className="relative z-10 py-2 sm:py-3 pl-1">
+              <div className={`relative z-10 py-2 sm:py-3 ${idxSide === "left" ? "pl-1 pr-1" : "pr-1 pl-1"}`}>
                 <h4
                   className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
                   style={tStyle}
