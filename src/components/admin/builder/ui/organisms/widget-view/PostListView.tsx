@@ -297,7 +297,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
               >
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <div className="relative z-10 pl-7 sm:pl-10">
+              <div className="relative z-10">
                 <h4
                   className="font-display text-base sm:text-lg md:text-xl font-semibold leading-snug line-clamp-3 group-hover:text-brand transition"
                   style={tStyle}
