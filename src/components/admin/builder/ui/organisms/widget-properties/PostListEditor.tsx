@@ -605,6 +605,7 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
 
         {isRanked && rows.map((p, i) => {
           const authorName = p.author_id ? authorMap[p.author_id] ?? "" : "";
+          const side = str(c, "indexSide", "right") === "left" ? "left" : "right";
           return (
             <div
               key={p.id}
@@ -612,18 +613,19 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
             >
               <span
                 aria-hidden
-                className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-display tabular-nums leading-none select-none"
+                className="pointer-events-none absolute top-1/2 -translate-y-1/2 font-display tabular-nums leading-none select-none"
                 style={{
+                  [side]: "0.5rem",
                   fontSize: "64px",
                   fontWeight: 800,
                   color: "rgb(250,147,70)",
                   opacity: 0.18,
                   zIndex: 0,
-                }}
+                } as React.CSSProperties}
               >
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <div className="relative z-10 pr-[34%]">
+              <div className="relative z-10 w-full">
                 <div className="text-xs font-semibold leading-snug line-clamp-2">{titleOf(p)}</div>
                 {authorName && (
                   <div className="mt-1.5 text-[11px] text-muted-foreground">
@@ -636,6 +638,7 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
             </div>
           );
         })}
+
 
         {!isRanked && rows.map((p) => {
           const current = overrides[p.id] || "";
