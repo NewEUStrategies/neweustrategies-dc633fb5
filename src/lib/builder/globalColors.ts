@@ -657,8 +657,11 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
         if (hDark) darkLines.push(`--gc-${slot.key}-hover: ${hDark};`);
       }
       if (slot.typography) {
-        const ff = v?.fontFamily || slot.defaultFontFamily;
-        const fs = v?.fontSize || slot.defaultFontSize;
+        // Only emit typography vars when the user explicitly set them.
+        // Falling back to slot defaults here would force-override Tailwind
+        // utilities (e.g. text-base on a card h2) once the header loads.
+        const ff = v?.fontFamily;
+        const fs = v?.fontSize;
         const fw = v?.fontWeight;
         const fst = v?.fontStyle;
         const ftd = v?.textDecoration;
@@ -668,6 +671,7 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
         if (fst) rootLines.push(`--gc-${slot.key}-style: ${fst};`);
         if (ftd) rootLines.push(`--gc-${slot.key}-decoration: ${ftd};`);
       }
+
     }
   }
 
