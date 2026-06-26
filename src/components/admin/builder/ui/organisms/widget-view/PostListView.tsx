@@ -193,7 +193,10 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     if (data && data.length) used.register(data.map((r) => r.id));
   }, [data, used]);
 
-  const rows = data ?? [];
+  const overrides = useMemo(() => readThumbnailOverrides(c), [c]);
+  const rows = (data ?? []).map((p) =>
+    overrides[p.id] ? { ...p, cover_image_url: overrides[p.id] } : p,
+  );
   const effectiveCols = Math.max(1, Math.min(cols, rows.length || 1));
   if (!rows.length) {
     return (
