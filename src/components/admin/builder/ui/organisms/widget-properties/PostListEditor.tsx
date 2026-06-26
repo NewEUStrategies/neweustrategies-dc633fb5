@@ -10,6 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PropField, CollapsibleSection as Collapsible, ColorField } from "../../atoms";
 import { TaxonomyPicker } from "./TaxonomyPicker";
+import { ImageSlot } from "./ImageSlot";
+import { readThumbnailOverrides, setThumbnailOverride } from "@/lib/builder/thumbnailOverrides";
+import { Image as ImageIcon } from "lucide-react";
 
 interface Props {
   c: WidgetNode["content"];
