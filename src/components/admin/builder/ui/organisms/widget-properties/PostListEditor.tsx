@@ -426,7 +426,17 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                 </SelectContent>
               </Select>
             </PropField>
+            <PropField label="Pozycja licznika">
+              <Select value={str(c, "indexSide", "right")} onValueChange={(v) => setContent("indexSide", v)}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Lewa</SelectItem>
+                  <SelectItem value="right">Prawa</SelectItem>
+                </SelectContent>
+              </Select>
+            </PropField>
           </div>
+
           <div className="grid grid-cols-2 gap-2 mt-2">
             <PropField label="Kolor (light)">
               <ColorField value={str(c, "indexColor", "")} onChange={(v) => setContent("indexColor", v ?? "")} />
