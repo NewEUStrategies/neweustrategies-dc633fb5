@@ -13,6 +13,7 @@ import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/author/$slug")({
+  staticData: { ownChrome: true },
   loader: async ({ params, context }) => {
     const data = await context.queryClient.ensureQueryData(authorBySlugQueryOptions(params.slug));
     if (!data) throw notFound();

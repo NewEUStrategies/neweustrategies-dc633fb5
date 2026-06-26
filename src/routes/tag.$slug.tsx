@@ -12,6 +12,7 @@ import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/tag/$slug")({
+  staticData: { ownChrome: true },
   loader: async ({ params, context }) => {
     const data = await context.queryClient.ensureQueryData(
       taxonomyArchiveQueryOptions("tag", params.slug),

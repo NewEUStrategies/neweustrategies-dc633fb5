@@ -63,6 +63,7 @@ function metaDescription(raw: string | null | undefined, fallback: string): stri
 }
 
 export const Route = createFileRoute("/$")({
+  staticData: { ownChrome: true },
   loader: async ({ params, context }) => {
     const splat = (params as { _splat?: string })._splat ?? "";
     const segments = splatToSegments(splat);
