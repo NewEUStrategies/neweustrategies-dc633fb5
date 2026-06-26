@@ -596,7 +596,17 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   color: var(--td-pt-color, hsl(var(--foreground)));
   text-transform: var(--td-pt-transform, none);
   letter-spacing: var(--td-pt-spacing, 0);
-
+}
+.dark .cms-post-title {
+  --pt-ul-color: color-mix(in oklab, currentColor 85%, transparent);
+}
+/* Per-line underline: must live on an *inline* element so the gradient
+   wraps per line via box-decoration-break: clone. We render it on an
+   inner span that components include, OR on the title itself when it
+   is inlined via this rule. */
+.cms-post-title > .cms-pt-ink,
+.cms-post-title.is-inline {
+  display: inline;
   background-image: linear-gradient(var(--pt-ul-color), var(--pt-ul-color));
   background-repeat: no-repeat;
   background-position: 0 100%;
@@ -606,13 +616,31 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   padding-bottom: var(--pt-ul-offset);
   transition: background-size .6s cubic-bezier(.22,.61,.36,1), color .2s ease;
 }
-.dark .cms-post-title {
-  --pt-ul-color: color-mix(in oklab, currentColor 85%, transparent);
+/* Fallback: if the title has plain text (no inner span), make the
+   heading itself inline so per-line clone works. */
+.cms-post-title:not(:has(.cms-pt-ink)) {
+  display: inline;
+  background-image: linear-gradient(var(--pt-ul-color), var(--pt-ul-color));
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0% var(--pt-ul-thickness);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  padding-bottom: var(--pt-ul-offset);
+  transition: background-size .6s cubic-bezier(.22,.61,.36,1), color .2s ease;
+}
+.group:hover .cms-post-title > .cms-pt-ink,
+.group:hover .cms-post-title:not(:has(.cms-pt-ink)),
+a:hover .cms-post-title > .cms-pt-ink,
+a:hover .cms-post-title:not(:has(.cms-pt-ink)),
+.cms-post-title:hover > .cms-pt-ink,
+.cms-post-title:hover:not(:has(.cms-pt-ink)) {
+  background-size: 100% var(--pt-ul-thickness);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cms-post-title, .cms-post-title > .cms-pt-ink { transition: none; }
 }
 
-@media (max-width: 640px) {
-  .cms-post-title { font-size: var(--td-pt-size-sm, 14px); }
-}
 .group:hover .cms-post-title,
 a:hover .cms-post-title,
 .cms-post-title:hover {
