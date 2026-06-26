@@ -704,9 +704,19 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(main svg, article svg, .content svg, .card svg, [class*="card"] svg, [data-card] svg){color:var(--gc-icon, var(--gc-highlight, currentColor));}
     :where(main a:hover svg, article a:hover svg, .content a:hover svg, main button:hover svg, article button:hover svg, .card a:hover svg, [class*="card"] a:hover svg){color:var(--gc-icon-hover, var(--gc-icon, var(--gc-highlight, currentColor)));}
     :where([data-active="true"] svg, [aria-current="page"] svg, .active > svg, a.active svg, button.active svg, [data-state="active"] svg, [data-state="on"] svg){color:var(--gc-icon-active, var(--gc-icon-hover, var(--gc-icon, currentColor)));}
-    :where(header svg){color:var(--gc-header-icon, currentColor);}
-    :where(header a, header button){color:var(--gc-header-icon, inherit);font-family:var(--gc-header-icon-font, inherit);font-size:var(--gc-header-icon-size, inherit);font-weight:var(--gc-header-icon-weight, inherit);font-style:var(--gc-header-icon-style, inherit);text-decoration:var(--gc-header-icon-decoration, inherit);}
-    :where(header a:hover, header button:hover, header a:hover svg, header button:hover svg){color:var(--gc-header-icon-hover, var(--gc-header-icon, inherit));}
+    /* Header link styling is wrapped in @layer utilities so Tailwind utility
+       classes used inside widgets (text-xs, font-bold, tracking-wider, ...)
+       still win on the public site. Without the layer wrapper these unlayered
+       rules would trump every Tailwind class because unlayered CSS beats any
+       cascade layer regardless of specificity - that was the root cause of
+       the menu rendering with a different font/size on the public site than
+       in the CMS canvas (which has no <header> wrapper, so the rule never
+       applied there). */
+    @layer utilities {
+      :where(header svg){color:var(--gc-header-icon, currentColor);}
+      :where(header a, header button){color:var(--gc-header-icon, inherit);font-family:var(--gc-header-icon-font, inherit);font-size:var(--gc-header-icon-size, inherit);font-weight:var(--gc-header-icon-weight, inherit);font-style:var(--gc-header-icon-style, inherit);text-decoration:var(--gc-header-icon-decoration, inherit);}
+      :where(header a:hover, header button:hover, header a:hover svg, header button:hover svg){color:var(--gc-header-icon-hover, var(--gc-header-icon, inherit));}
+    }
     aside[data-sidebar="sidebar"], [data-sidebar="sidebar"]{background-color:var(--gc-sidebar-bg, var(--sidebar-background)) !important;color:var(--gc-sidebar-text, var(--sidebar-foreground)) !important;border-color:var(--gc-sidebar-border, var(--sidebar-border)) !important;}
     [data-sidebar="sidebar"] a, [data-sidebar="sidebar"] button, [data-sidebar="menu-button"]{color:var(--gc-sidebar-text, inherit);}
     @layer utilities { :where([data-sidebar="sidebar"] a, [data-sidebar="sidebar"] button, [data-sidebar="menu-button"]){font-family:var(--gc-sidebar-text-font, inherit);font-size:var(--gc-sidebar-text-size, inherit);font-weight:var(--gc-sidebar-text-weight, inherit);font-style:var(--gc-sidebar-text-style, inherit);text-decoration:var(--gc-sidebar-text-decoration, inherit);} }
