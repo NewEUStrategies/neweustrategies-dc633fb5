@@ -175,11 +175,12 @@ export function TypographyControl({ value, onChange }: Props) {
       <div className="grid grid-cols-2 gap-2">
         <PropField label="Grubość">
           <Select
-            value={v.fontWeight ?? ""}
-            onValueChange={(w) => set({ fontWeight: w || undefined })}
+            value={v.fontWeight ?? "__unset"}
+            onValueChange={(w) => set({ fontWeight: w === "__unset" ? undefined : w })}
           >
             <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="__unset">-</SelectItem>
               {["300", "400", "500", "600", "700", "800", "900"].map((w) => (
                 <SelectItem key={w} value={w}>{w}</SelectItem>
               ))}
