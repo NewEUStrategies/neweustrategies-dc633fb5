@@ -320,7 +320,17 @@ function PublicPage() {
             }
             sidebar={
               <>
-                <FloatingShareBar title={title} lang={lang} variant="sidebar" />
+                {post ? (
+                  <PostSidebarRenderer
+                    postId={post.id}
+                    postTitle={title}
+                    lang={lang}
+                    tags={postTags}
+                    layoutId={(post as unknown as { sidebar_layout_id?: string | null }).sidebar_layout_id ?? null}
+                  />
+                ) : (
+                  <FloatingShareBar title={title} lang={lang} variant="sidebar" />
+                )}
               </>
             }
             footer={
