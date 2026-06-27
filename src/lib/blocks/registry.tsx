@@ -48,7 +48,7 @@ import {
   Rows3 as RowIcon,
   StretchVertical as StackIcon,
   LayoutGrid as GridIcon,
-  MousePointerSquare as ButtonsIcon,
+  MousePointer as ButtonsIcon,
   Share2 as SocialIcon,
   Search as SearchIcon,
   Newspaper as LatestPostsIcon,
