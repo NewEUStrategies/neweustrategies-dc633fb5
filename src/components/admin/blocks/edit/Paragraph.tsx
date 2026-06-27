@@ -8,13 +8,19 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
+import Underline from "@tiptap/extension-underline";
+import { TextStyle } from "@tiptap/extension-text-style";
+import { Color } from "@tiptap/extension-color";
+import Highlight from "@tiptap/extension-highlight";
+import TextAlign from "@tiptap/extension-text-align";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Block } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
 import { detectMarkdownShortcut, htmlToPlain, shortcutToBlock } from "@/lib/blocks/markdown";
-import { Bold, Italic, Link as LinkIcon } from "@/lib/lucide-shim";
-import { Code2 as Code } from "lucide-react";
+import { WordStyleToolbar } from "../WordStyleToolbar";
 import { BlockInserter } from "../BlockInserter";
 
 interface Props {
@@ -45,8 +51,15 @@ export function ParagraphBlock({
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: false, bulletList: false, orderedList: false, blockquote: false, codeBlock: false }),
+      StarterKit.configure({ heading: { levels: [1, 2, 3] }, codeBlock: false }),
       Link.configure({ openOnClick: false, HTMLAttributes: { class: "underline text-primary" } }),
+      Underline,
+      TextStyle,
+      Color,
+      Highlight.configure({ multicolor: true }),
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      Subscript,
+      Superscript,
     ],
     content: html || "<p></p>",
     editorProps: {
@@ -111,30 +124,7 @@ export function ParagraphBlock({
 
   return (
     <div className="relative">
-      {isActive && !slashOpen && (
-        <div className="absolute -top-9 left-0 z-10 flex items-center gap-1 rounded-md border border-border bg-popover px-1 py-1 shadow">
-          <button type="button" onClick={() => editor.chain().focus().toggleBold().run()}
-            className={`p-1 rounded hover:bg-accent ${editor.isActive("bold") ? "bg-accent" : ""}`} title="Bold">
-            <Bold className="w-3.5 h-3.5" />
-          </button>
-          <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()}
-            className={`p-1 rounded hover:bg-accent ${editor.isActive("italic") ? "bg-accent" : ""}`} title="Italic">
-            <Italic className="w-3.5 h-3.5" />
-          </button>
-          <button type="button" onClick={() => editor.chain().focus().toggleCode().run()}
-            className={`p-1 rounded hover:bg-accent ${editor.isActive("code") ? "bg-accent" : ""}`} title="Code">
-            <Code className="w-3.5 h-3.5" />
-          </button>
-          <button type="button" onClick={() => {
-            const url = window.prompt("URL:", editor.getAttributes("link").href ?? "https://");
-            if (url === null) return;
-            if (url === "") editor.chain().focus().extendMarkRange("link").unsetLink().run();
-            else editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
-          }} className={`p-1 rounded hover:bg-accent ${editor.isActive("link") ? "bg-accent" : ""}`} title="Link">
-            <LinkIcon className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
+      {isActive && !slashOpen && <WordStyleToolbar editor={editor} />}
 
       <EditorContent editor={editor} />
 
