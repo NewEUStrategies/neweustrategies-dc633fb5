@@ -18,6 +18,7 @@ function AppearanceLayout() {
     { to: "/admin/appearance/header", label: t("admin.appearance.header") },
     { to: "/admin/appearance/footer", label: t("admin.appearance.footer") },
     { to: "/admin/appearance/menu", label: t("admin.appearance.menu") },
+    { to: "/admin/appearance/post-sidebar", label: t("admin.appearance.postSidebar") },
     { to: "/admin/appearance/global-colors", label: t("admin.appearance.globalColors") },
   ];
   return (
