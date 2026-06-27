@@ -1,4 +1,5 @@
 // Organism: slider widget editor (variant grid + slide list + live preview).
+import { toJson } from "@/lib/builder/types";
 import { Image as ImageIcon } from "lucide-react";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
@@ -63,7 +64,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     }));
 
   const updateItems = (next: SliderItem[]) =>
-    setContent("items", next as unknown as Json);
+    setContent("items", toJson(next));
   const updateItem = (i: number, patch: Partial<SliderItem>) => {
     const next = items.slice();
     next[i] = { ...next[i], ...patch };

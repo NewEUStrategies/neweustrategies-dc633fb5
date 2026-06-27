@@ -1,3 +1,4 @@
+import { toJson } from "@/lib/builder/types";
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ export function GalleryBlock({ block, onChange }: Props) {
   const images = readImages(block);
 
   const update = (next: GalleryImage[]) => {
-    onChange({ ...block, data: { ...block.data, images: next as unknown as never } });
+    onChange({ ...block, data: { ...block.data, images: toJson(next) } });
   };
 
   if (images.length === 0) {

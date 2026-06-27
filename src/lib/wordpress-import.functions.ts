@@ -19,6 +19,7 @@
 // uploads to the `media` bucket and rewrites URLs in the imported HTML
 // before parsing.
 
+import { toJson } from "@/lib/builder/types";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -431,16 +432,16 @@ export const createWpImportJob = createServerFn({ method: "POST" })
         tenant_id: tenantId, actor_id: userId,
         site: data.site, language: data.language,
         status: "running",
-        options: {
+        options: toJson({
           number: data.number, offset: data.offset, status: data.status,
           type: data.type,
           sync_existing: data.sync_existing, import_media: data.import_media,
           only_ids: data.only_ids ?? null,
-        } as unknown as Json,
-        log: [{
+        }),
+        log: toJson([{
           ts: new Date().toISOString(), level: "info",
           msg: `Job queued for ${data.site}`,
-        }] as unknown as Json,
+        }]),
       })
       .select("id").single();
     if (error || !row) throw new Error(error?.message || "cannot create job");

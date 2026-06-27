@@ -13,7 +13,7 @@ interface SitemapEntry {
   priority?: string;
 }
 
-function xmlEscape(value: string): string {
+export function xmlEscape(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -24,7 +24,7 @@ function xmlEscape(value: string): string {
 // hreflang alternates per URL (x-default + one self-addressable ?lang= per
 // language). Mirrors the in-page <link rel="alternate"> cluster so crawlers get
 // the language graph from both the sitemap and the rendered head.
-function alternateLinks(loc: string): string[] {
+export function alternateLinks(loc: string): string[] {
   const lines = [
     `    <xhtml:link rel="alternate" hreflang="x-default" href="${xmlEscape(loc)}"/>`,
   ];

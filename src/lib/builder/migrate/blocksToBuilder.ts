@@ -7,6 +7,7 @@
 // It performs NO data loss: the produced builder doc embeds the blocks doc
 // verbatim, and the migration runner keeps the original `blocks_data` column, so
 // the change is reversible (flip `editor` back to "blocks").
+import { toJson } from "@/lib/builder/types";
 import type { BuilderDocument, Json } from "../types";
 import { newId } from "../types";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
@@ -44,7 +45,7 @@ export function localizedBlocksToBuilderDoc(blocks: LocalizedBlocks): BuilderDoc
                 id: newId(),
                 kind: "widget",
                 type: "rich-text",
-                content: { doc: blocks as unknown as Json },
+                content: { doc: toJson(blocks) },
               },
             ],
           },

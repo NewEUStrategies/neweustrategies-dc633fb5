@@ -197,6 +197,9 @@ export const hiddenOnDevice = (a: AdvancedSettings | undefined, device: Device):
 
 // -------- content getters --------
 
+/** Shared UI language for widget renderers. */
+export type Lang = "pl" | "en";
+
 export function getStr(c: WidgetContent, k: string): string {
   const v = c[k];
   return typeof v === "string" ? v : "";

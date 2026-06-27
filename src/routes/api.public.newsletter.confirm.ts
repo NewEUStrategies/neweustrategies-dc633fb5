@@ -4,13 +4,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+/** A confirmation token is 16-128 lowercase-hex chars. Exported for tests. */
+export function isValidConfirmToken(token: string | null): token is string {
+  return !!token && token.length >= 16 && token.length <= 128 && /^[a-f0-9]+$/i.test(token);
+}
+
 export const Route = createFileRoute("/api/public/newsletter/confirm")({
   server: {
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);
         const token = url.searchParams.get("token");
-        if (!token || token.length < 16 || token.length > 128 || !/^[a-f0-9]+$/i.test(token)) {
+        if (!isValidConfirmToken(token)) {
           return Response.json({ ok: false, error: "invalid_token" }, { status: 400 });
         }
 

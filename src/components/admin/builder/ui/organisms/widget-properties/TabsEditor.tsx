@@ -1,4 +1,5 @@
 // Organism: tab content editor (HTML per language).
+import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +15,7 @@ interface Props {
 
 export function TabsEditor({ c, lang, setContent }: Props) {
   const tabs = itemsOf(c, "tabs");
-  const update = (next: Item[]) => setContent("tabs", next as unknown as Json);
+  const update = (next: Item[]) => setContent("tabs", toJson(next));
   return (
     <ListShell
       title="Zakładki"

@@ -66,8 +66,6 @@ import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
 import { Route as AdminAdsRouteImport } from './routes/admin.ads'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
-import { Route as ApiPublicSitemapDotxmlRouteImport } from './routes/api/public/sitemap[.]xml'
-import { Route as ApiPublicRobotsDottxtRouteImport } from './routes/api/public/robots[.]txt'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
 import { Route as AdminSettingsReadingRouteImport } from './routes/admin.settings.reading'
 import { Route as AdminSettingsPrivacyRouteImport } from './routes/admin.settings.privacy'
@@ -372,16 +370,6 @@ const ApiPublicVitalsRoute = ApiPublicVitalsRouteImport.update({
   path: '/api/public/vitals',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicSitemapDotxmlRoute = ApiPublicSitemapDotxmlRouteImport.update({
-  id: '/api/public/sitemap.xml',
-  path: '/api/public/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicRobotsDottxtRoute = ApiPublicRobotsDottxtRouteImport.update({
-  id: '/api/public/robots.txt',
-  path: '/api/public/robots.txt',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicClientErrorsRoute = ApiPublicClientErrorsRouteImport.update({
   id: '/api/public/client-errors',
   path: '/api/public/client-errors',
@@ -547,8 +535,6 @@ export interface FileRoutesByFullPath {
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
-  '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
-  '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
@@ -623,8 +609,6 @@ export interface FileRoutesByTo {
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
-  '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
-  '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
@@ -703,8 +687,6 @@ export interface FileRoutesById {
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
-  '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
-  '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
@@ -784,8 +766,6 @@ export interface FileRouteTypes {
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
     | '/api/public/client-errors'
-    | '/api/public/robots.txt'
-    | '/api/public/sitemap.xml'
     | '/api/public/vitals'
     | '/admin/settings/'
     | '/api/public/newsletter/confirm'
@@ -860,8 +840,6 @@ export interface FileRouteTypes {
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
     | '/api/public/client-errors'
-    | '/api/public/robots.txt'
-    | '/api/public/sitemap.xml'
     | '/api/public/vitals'
     | '/admin/settings'
     | '/api/public/newsletter/confirm'
@@ -939,8 +917,6 @@ export interface FileRouteTypes {
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
     | '/api/public/client-errors'
-    | '/api/public/robots.txt'
-    | '/api/public/sitemap.xml'
     | '/api/public/vitals'
     | '/admin/settings/'
     | '/api/public/newsletter/confirm'
@@ -971,8 +947,6 @@ export interface RootRouteChildren {
   WebStoriesSlugRoute: typeof WebStoriesSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
-  ApiPublicRobotsDottxtRoute: typeof ApiPublicRobotsDottxtRoute
-  ApiPublicSitemapDotxmlRoute: typeof ApiPublicSitemapDotxmlRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
   ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
@@ -1379,20 +1353,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicVitalsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/sitemap.xml': {
-      id: '/api/public/sitemap.xml'
-      path: '/api/public/sitemap.xml'
-      fullPath: '/api/public/sitemap.xml'
-      preLoaderRoute: typeof ApiPublicSitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/robots.txt': {
-      id: '/api/public/robots.txt'
-      path: '/api/public/robots.txt'
-      fullPath: '/api/public/robots.txt'
-      preLoaderRoute: typeof ApiPublicRobotsDottxtRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/client-errors': {
       id: '/api/public/client-errors'
       path: '/api/public/client-errors'
@@ -1701,8 +1661,6 @@ const rootRouteChildren: RootRouteChildren = {
   WebStoriesSlugRoute: WebStoriesSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
-  ApiPublicRobotsDottxtRoute: ApiPublicRobotsDottxtRoute,
-  ApiPublicSitemapDotxmlRoute: ApiPublicSitemapDotxmlRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
   ApiPublicWebhooksStripeRoute: ApiPublicWebhooksStripeRoute,
@@ -1710,3 +1668,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

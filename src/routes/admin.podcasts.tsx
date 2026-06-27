@@ -16,6 +16,7 @@ import { parseDuration, formatDuration } from "@/lib/podcast/types";
 import { PODCAST_FIELDS } from "@/lib/queries/podcasts";
 import { useAuth } from "@/hooks/useAuth";
 import { PodcastPlayer } from "@/components/atoms/PodcastPlayer";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 export const Route = createFileRoute("/admin/podcasts")({ component: Page });
 
@@ -276,7 +277,7 @@ function EditorPane({ p, onSave, onCancel, saving }: { p: Podcast; onSave: (p: P
 
   const previewTitle = previewLang === "pl" ? d.title_pl : d.title_en;
   const previewExcerpt = previewLang === "pl" ? d.excerpt_pl : d.excerpt_en;
-  const previewNotes = previewLang === "pl" ? d.show_notes_pl : d.show_notes_en;
+  const previewNotes = sanitizeHtml((previewLang === "pl" ? d.show_notes_pl : d.show_notes_en) ?? "");
   const episodeLabel = [d.season ? `S${d.season}` : null, d.episode_number ? `E${d.episode_number}` : null].filter(Boolean).join(" · ");
 
   return (

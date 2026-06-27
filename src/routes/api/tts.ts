@@ -1,6 +1,27 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 const MAX_CHARS = 5000;
+const DEFAULT_VOICE = "JBFqnCBsd6RMkjVDRZzb";
+const DEFAULT_MODEL = "eleven_multilingual_v2";
+
+export type TtsBody = { text?: string; voiceId?: string; model?: string };
+export type TtsNormalized =
+  | { ok: true; safeText: string; voiceId: string; model: string }
+  | { ok: false; error: string };
+
+/**
+ * Validate + normalize a TTS request body: trims text, applies voice/model
+ * defaults, enforces a voiceId allowlist regex and clamps text length.
+ * Exported for tests; the handler calls this before hitting ElevenLabs.
+ */
+export function normalizeTtsInput(body: TtsBody): TtsNormalized {
+  const text = typeof body.text === "string" ? body.text.trim() : "";
+  const voiceId = typeof body.voiceId === "string" && body.voiceId.length > 0 ? body.voiceId : DEFAULT_VOICE;
+  const model = typeof body.model === "string" && body.model.length > 0 ? body.model : DEFAULT_MODEL;
+  if (!text) return { ok: false, error: "Missing text" };
+  if (!/^[A-Za-z0-9]{8,40}$/.test(voiceId)) return { ok: false, error: "Invalid voiceId" };
+  return { ok: true, safeText: text.slice(0, MAX_CHARS), voiceId, model };
+}
 
 export const Route = createFileRoute("/api/tts")({
   server: {
@@ -24,28 +45,14 @@ export const Route = createFileRoute("/api/tts")({
           });
         }
 
-        const text = typeof body.text === "string" ? body.text.trim() : "";
-        const voiceId = typeof body.voiceId === "string" && body.voiceId.length > 0
-          ? body.voiceId
-          : "JBFqnCBsd6RMkjVDRZzb";
-        const model = typeof body.model === "string" && body.model.length > 0
-          ? body.model
-          : "eleven_multilingual_v2";
-
-        if (!text) {
-          return new Response(JSON.stringify({ error: "Missing text" }), {
+        const norm = normalizeTtsInput(body);
+        if (!norm.ok) {
+          return new Response(JSON.stringify({ error: norm.error }), {
             status: 400,
             headers: { "Content-Type": "application/json" },
           });
         }
-        if (!/^[A-Za-z0-9]{8,40}$/.test(voiceId)) {
-          return new Response(JSON.stringify({ error: "Invalid voiceId" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-
-        const safeText = text.slice(0, MAX_CHARS);
+        const { safeText, voiceId, model } = norm;
 
         const upstream = await fetch(
           `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,

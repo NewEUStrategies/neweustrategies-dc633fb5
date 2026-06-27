@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Save, Eye, Mail, X, Image as ImageIcon } from "@/lib/lucide-shim";
 import { ImageSlot } from "@/components/admin/ImageSlot";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 export const Route = createFileRoute("/admin/newsletter")({ component: Page });
 
@@ -297,7 +298,7 @@ function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
   const [mode, setMode] = useState<"inline" | "popup">("inline");
   const heading = lang === "pl" ? settings.heading_pl : settings.heading_en;
   const description = lang === "pl" ? settings.description_pl : settings.description_en;
-  const policyHtml = (lang === "pl" ? settings.policy_html_pl : settings.policy_html_en) ?? "";
+  const policyHtml = sanitizeHtml((lang === "pl" ? settings.policy_html_pl : settings.policy_html_en) ?? "");
   const popupTitle = lang === "pl" ? settings.popup_title_pl : settings.popup_title_en;
   const popupDesc = lang === "pl" ? settings.popup_description_pl : settings.popup_description_en;
   const popupCta = lang === "pl" ? settings.popup_cta_pl : settings.popup_cta_en;
@@ -524,7 +525,7 @@ function PopupMini({ settings, lang }: { settings: NewsletterSettings; lang: "pl
   const title = isPl ? settings.popup_title_pl : settings.popup_title_en;
   const desc = isPl ? settings.popup_description_pl : settings.popup_description_en;
   const cta = isPl ? settings.popup_cta_pl : settings.popup_cta_en;
-  const terms = (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
+  const terms = sanitizeHtml((isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "");
   const emailPh = isPl ? "twoj@email.pl" : "you@email.com";
 
   const split = settings.popup_layout === "split";

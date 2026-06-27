@@ -1,3 +1,4 @@
+import { toJson } from "@/lib/builder/types";
 import type { Block } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
 import { Plus } from "lucide-react";
@@ -23,7 +24,7 @@ export function ColumnsBlock({ block, onChange }: Props) {
   const right = readSide(block, "right");
 
   const setSide = (side: Side, next: Block[]) => {
-    onChange({ ...block, data: { ...block.data, [side]: next as unknown as never } });
+    onChange({ ...block, data: { ...block.data, [side]: toJson(next) } });
   };
 
   const updateInSide = (side: Side, id: string, next: Block) => {

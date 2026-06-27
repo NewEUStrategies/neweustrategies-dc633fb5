@@ -2,6 +2,7 @@
 // editor used for article bodies in a modal, bound to the widget's stored
 // localized blocks document - so authors compose rich content (callouts, FAQ,
 // pros/cons, TOC, embeds, …) without leaving the builder.
+import { toJson } from "@/lib/builder/types";
 import { lazy, Suspense } from "react";
 import type { Json } from "@/lib/builder/types";
 import type { LocalizedBlocks } from "@/lib/blocks/types";
@@ -58,7 +59,7 @@ export function RichTextEditor({ c, setContent }: Props) {
             >
               <PostBlockEditor
                 value={value ?? { pl: EMPTY_BLOCKS_DOC, en: EMPTY_BLOCKS_DOC }}
-                onChange={(next: LocalizedBlocks) => setContent("doc", next as unknown as Json)}
+                onChange={(next: LocalizedBlocks) => setContent("doc", toJson(next))}
                 documentPane={
                   <div className="p-3 text-xs text-muted-foreground">
                     Treść tego widgetu jest zapisywana w dwóch językach (PL/EN).

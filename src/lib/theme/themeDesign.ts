@@ -5,6 +5,7 @@
 // Stored in `site_settings` under key `theme_design`. Applied via
 // <ThemeDesignStyle /> as CSS variables under `--td-*` that components reference
 // through utility classes (e.g. `.cms-block-heading`, `.cms-read-more`).
+import { toJson } from "@/lib/builder/types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -137,7 +138,7 @@ export function useSaveThemeDesign() {
   return useMutation({
     mutationFn: async (next: ThemeDesign) => {
       const { error } = await supabase.from("site_settings").upsert(
-        { key: KEY, value: next as unknown as never },
+        { key: KEY, value: toJson(next) },
         { onConflict: "key" },
       );
       if (error) throw error;

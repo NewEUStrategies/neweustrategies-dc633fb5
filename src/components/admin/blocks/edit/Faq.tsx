@@ -1,3 +1,4 @@
+import { toJson } from "@/lib/builder/types";
 import type { Block, Json } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, HelpCircle } from "lucide-react";
@@ -25,7 +26,7 @@ export function FaqBlock({ block, onChange }: Props) {
   const title = String(block.data.title ?? "");
   const items = readItems(block.data.items);
   const setItems = (next: FaqItem[]) =>
-    onChange({ ...block, data: { ...block.data, items: next as unknown as Json } });
+    onChange({ ...block, data: { ...block.data, items: toJson(next) } });
 
   return (
     <div className="not-prose space-y-2">

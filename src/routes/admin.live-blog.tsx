@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 interface SearchParams {
   postId?: string;
@@ -198,7 +199,7 @@ function LiveBlogAdmin() {
                     </Button>
                   </div>
                 </div>
-                <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: e.body_html }} />
+                <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeHtml(e.body_html) }} />
               </li>
             ))}
             {entries.length === 0 && !isLoading && (
