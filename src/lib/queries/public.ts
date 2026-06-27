@@ -204,7 +204,11 @@ export const blogListQueryOptions = () =>
       );
       const posts: BlogListItem[] = rows.map((r) => ({
         ...r,
-        href: `/${paths.get(r.parent_page_id) ?? "blog"}/${r.slug}`,
+        // Always link posts via the dedicated `/post/$slug` route. The optional
+        // parent-page path is only used by the universal splat resolver when a
+        // post is genuinely nested under a CMS page; routing through `/post`
+        // guarantees the link resolves even when the parent path is missing.
+        href: `/post/${r.slug}`,
       }));
       return { posts };
     },
