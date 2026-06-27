@@ -33,6 +33,7 @@ import {
   Bell as LBell, Info as LInfo,
   Mic as LMic, Film as LFilm, Brush as LBrush, Rss as LRss, ShieldCheck as LShieldCheck,
   Cog as LCog, Wand2 as LWand2, Share2 as LShare2, Gauge as LGauge,
+  Printer as LPrinter, Download as LDownload,
   Facebook as LFacebook, Instagram as LInstagram, Linkedin as LLinkedin,
   Twitter as LTwitter, Youtube as LYoutube,
   type LucideIcon as LucideIconImpl,
