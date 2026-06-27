@@ -74,6 +74,25 @@ interface PostForm {
 interface CategoryOpt { id: string; name_pl: string; name_en: string }
 interface TagOpt { id: string; name: string }
 
+function SidebarSection({ title, icon: Icon, children, defaultOpen = true }: { title: string; icon: React.ElementType; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 p-4 text-left hover:bg-muted/30 transition-colors"
+      >
+        <h3 className="text-sm font-semibold inline-flex items-center gap-2">
+          <Icon className="w-4 h-4" /> {title}
+        </h3>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && <div className="px-4 pb-4 space-y-3">{children}</div>}
+    </div>
+  );
+}
+
 function EditPost() {
   const { slug: routeSlug } = Route.useParams();
   const { t } = useTranslation();
