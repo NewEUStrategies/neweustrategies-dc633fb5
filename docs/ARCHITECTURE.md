@@ -46,9 +46,9 @@ so they were removed in favour of the convention above.
 
 ## 2. Content engines & the `blocks` → `builder` consolidation
 
-> **Status:** planning / not started. Nothing below has been executed yet — the
-> blocks editor is fully functional and is still the default for new posts. This
-> section is the agreed direction, not a description of work already done.
+> **Status:** Stage 1 shipped — new posts now default to the builder. Stages 2–4
+> pending. The blocks editor remains fully functional: existing posts are
+> unaffected, and it still powers article bodies via the `rich-text` widget.
 
 ### 2.0 TL;DR for content authors
 
@@ -145,35 +145,65 @@ Footprint: the standalone blocks code is ~61 files / ~7k lines across
 Each stage is independently shippable and reversible. Do **not** start a stage
 until the previous stage's exit criteria hold.
 
-#### Stage 1 — Make `builder` the default authoring path for posts
+#### Stage 1 — Make `builder` the default authoring path for posts ✅ SHIPPED
 
 - **Goal:** new posts are created as `builder` (with a `rich-text` widget for the
   article body), so the `blocks` pool stops growing. No content is migrated yet.
-- **Precondition (gate):** authoring an article through the `rich-text` widget is
-  at least as good as the standalone block editor. The editor itself is already
-  identical (same `PostBlockEditor`), so this is a UX/workflow check — e.g. a
-  post template that seeds a one-section builder doc containing an empty
-  `rich-text` widget — not an engine gap.
-- **Touchpoints:** flip the default in `content.functions.ts:166` (and the WP
-  import defaults at `wordpress-import.functions.ts:571,602`) from `"blocks"` to
-  `"builder"`; reorder/relabel the selector so Builder is primary and "blocks"
-  is marked legacy (`admin.posts.$slug.tsx:251-254`). Keep the `blocks` option
-  available for now.
-- **Exit criteria:** newly created posts have `editor === "builder"`; existing
-  `blocks` posts still open and render unchanged.
-- **Rollback:** revert the default value; one-line change.
+- **What shipped:** `createPost` (`content.functions.ts`) now inserts
+  `editor: "builder"` + `builder_data` seeded by `emptyArticleBuilderDoc()`
+  (`lib/builder/newArticleDoc.ts`) — one section/column holding a `rich-text`
+  widget, so authors land straight in the (same) block editor inside a builder
+  layout. The post editor selector lists Builder first / recommended and marks
+  `blocks` legacy (`admin.posts.$slug.tsx`), with the `blocks` option still
+  available. A unit test round-trips the seed doc through `parseBuilderDoc`.
+- **Deliberately NOT changed:** the WordPress importer still writes
+  `editor: "blocks"` — it produces `blocks_data` from WP HTML, so flipping it
+  without converting would render nothing. Imported content is handled by the
+  Stage 2 migration instead.
+- **Exit criteria (met):** newly created posts have `editor === "builder"`;
+  existing `blocks` posts still open and render unchanged.
+- **Rollback:** revert the `createPost` default + selector commit.
 
-#### Stage 2 — Migrate existing `blocks` content
+#### Stage 2 — Migrate existing `blocks` content — TOOLING READY (run against prod)
 
 - **Goal:** no row has `editor === "blocks"` anymore.
-- **Touchpoints:** `migrate:blocks-to-builder` (dry-run → `--apply`), gated by
-  `verify:migration`. Run per-tenant; spot-check rendered output against the
-  pre-migration page (the migration preserves `blocks_data`, so it is reversible
-  per row by flipping `editor` back).
+- **Status:** the tooling is built, tested and consistent with Stage 1 — the
+  migration and the new-post seed share ONE wrapper
+  (`localizedBlocksToBuilderDoc`), so a migrated post and a freshly-created post
+  have identical structure. The migration must be **run against the production
+  database**, which requires DB network access and (for `--apply`) the
+  `SUPABASE_SERVICE_ROLE_KEY` — so it is run from a trusted machine / the Lovable
+  platform, not from CI or a code sandbox.
+- **Runbook:**
+
+  ```bash
+  # 0. From a machine that can reach the project's Supabase and has the keys.
+  #    Bun auto-loads .env (SUPABASE_URL + a key).
+
+  # 1. DRY-RUN (no writes). Publishable key → published rows only;
+  #    service-role key → also drafts. Review the printed plan.
+  bun run migrate:blocks-to-builder                      # all editors
+  bun run migrate:blocks-to-builder -- --only=blocks     # blocks only
+
+  # 2. APPLY (writes builder_data + flips editor='builder'; preserves the
+  #    original blocks_data/content_* columns). Requires the service-role key.
+  SUPABASE_SERVICE_ROLE_KEY=… bun run migrate:blocks-to-builder -- --apply
+
+  # 3. VERIFY (read-only audit: footnote parity, leftover [fn] markers,
+  #    stripped inline styles). Non-zero exit on drift.
+  bun run verify:migration
+
+  # 4. CONFIRM no blocks rows remain:
+  #    select count(*) from posts where editor = 'blocks';   -- expect 0
+  #    select count(*) from pages where editor = 'blocks';   -- expect 0
+  ```
+
 - **Exit criteria:** `select count(*) … where editor = 'blocks'` is 0 across
-  tenants; `verify:migration` exits 0.
-- **Rollback:** flip affected rows' `editor` back to `"blocks"` (data was never
-  destroyed).
+  tenants; `verify:migration` exits 0; spot-check a few migrated pages render
+  identically to before.
+- **Rollback (per row, non-destructive):**
+  `UPDATE <table> SET editor='blocks' WHERE id='…';` — `blocks_data` was never
+  touched.
 
 #### Stage 3 — Retire the standalone `blocks` post mode
 

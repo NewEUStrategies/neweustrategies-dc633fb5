@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   cacheControlHeader,
   contentCacheControl,
+  langOverridesSharedCache,
   PUBLIC_CONTENT_MAX_AGE,
   PUBLIC_CONTENT_S_MAXAGE,
   PUBLIC_CONTENT_SWR,
@@ -43,5 +44,28 @@ describe("contentCacheControl", () => {
     expect(contentCacheControl({ personalized: true })).toBe("private, no-store");
     expect(contentCacheControl({ preview: true })).toBe("private, no-store");
     expect(contentCacheControl({ personalized: false, preview: false })).toContain("public");
+  });
+});
+
+describe("langOverridesSharedCache", () => {
+  it("is shareable when language is in the URL (?lang=)", () => {
+    // URL keys the CDN entry, so even a conflicting cookie is safe.
+    expect(langOverridesSharedCache("en", "pl")).toBe(false);
+    expect(langOverridesSharedCache("pl", "en")).toBe(false);
+    expect(langOverridesSharedCache("en", null)).toBe(false);
+  });
+
+  it("is shareable with no cookie or a default-language cookie", () => {
+    expect(langOverridesSharedCache(null, null)).toBe(false);
+    expect(langOverridesSharedCache(null, "pl")).toBe(false); // cookie === default → identical to default render
+  });
+
+  it("is NOT shareable when a cookie overrides the default with no ?lang=", () => {
+    expect(langOverridesSharedCache(null, "en")).toBe(true);
+  });
+
+  it("honours a custom default language", () => {
+    expect(langOverridesSharedCache(null, "en", "en")).toBe(false);
+    expect(langOverridesSharedCache(null, "pl", "en")).toBe(true);
   });
 });

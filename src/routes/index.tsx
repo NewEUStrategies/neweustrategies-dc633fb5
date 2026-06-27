@@ -11,12 +11,15 @@ import { buildContentHead } from "@/lib/seo/meta";
 import { prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
+import { requestLangOverridesCache } from "@/lib/i18n";
 
 export const Route = createFileRoute("/")({
   loader: async ({ context }) => {
     // ISR-like edge caching: the homepage SSR is the anonymous shell, so it is
-    // safe to share-cache and serve stale-while-revalidate from the CDN.
-    setCacheControlHeader(contentCacheControl());
+    // safe to share-cache and serve stale-while-revalidate from the CDN. EXCEPT
+    // when the language was chosen by a cookie (no ?lang=, cookie ≠ default):
+    // the CDN keys on URL only, so that render must not be shared-cached.
+    setCacheControlHeader(contentCacheControl({ personalized: requestLangOverridesCache() }));
     const homePage = await context.queryClient.ensureQueryData(homePageQueryOptions());
     const doc = homePage?.editor === "builder" ? parseBuilderDoc(homePage.builder_data) : null;
     if (doc?.sections.length) {
