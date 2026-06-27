@@ -315,12 +315,14 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
       ].join(" ")}
     >
       {/* Top progress bar */}
-      <div className="h-1 w-full bg-muted/60" aria-hidden>
-        <div
-          className="h-full bg-brand transition-[width] duration-150"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      {cfg.showProgress && (
+        <div className="h-1 w-full bg-muted/60" aria-hidden>
+          <div
+            className="h-full bg-brand transition-[width] duration-150"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
 
       {/* Header row: book icon + title + counter */}
       <div className="flex items-center gap-2.5 px-3 pt-3 pb-2">
