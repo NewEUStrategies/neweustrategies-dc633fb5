@@ -51,7 +51,7 @@ export function IconBoxView({ icon = "star", title, description, href, linkLabel
       {description ? <p className="text-sm text-muted-foreground leading-relaxed">{description}</p> : null}
       {href && linkLabel ? (
         <AppLink
-          to={href}
+          href={href}
           className="inline-flex items-center gap-1 text-sm font-medium text-primary mt-3 hover:underline"
         >
           {linkLabel} <ChevronRight className="w-3.5 h-3.5" aria-hidden />
@@ -316,7 +316,7 @@ export function PricingTableView({ plans, cls }: PricingProps) {
             ) : <div className="flex-1" />}
             {p.ctaLabel && p.ctaHref ? (
               <AppLink
-                to={p.ctaHref}
+                href={p.ctaHref}
                 className={[
                   "mt-6 inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium transition-colors",
                   featured
