@@ -61,6 +61,10 @@ import { PullquoteBlock } from "./edit/Pullquote";
 import { PreformattedBlock } from "./edit/Preformatted";
 import { VerseBlock } from "./edit/Verse";
 import { DetailsBlock } from "./edit/Details";
+import { ButtonsBlock } from "./edit/Buttons";
+import { SocialIconsBlock } from "./edit/SocialIcons";
+import { SearchBlock } from "./edit/Search";
+import { LatestPostsBlock } from "./edit/LatestPosts";
 
 interface Props {
   doc: BlocksDoc;
