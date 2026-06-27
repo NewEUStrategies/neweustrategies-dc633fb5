@@ -385,7 +385,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
                 rel="noopener noreferrer"
                 aria-label={l.label}
                 title={l.label}
-                className="inline-flex items-center justify-center h-9 rounded-lg text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
+                className="inline-flex items-center justify-center h-9 rounded-[5px] text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
               >
                 <Icon className="w-[15px] h-[15px]" />
               </a>
@@ -396,7 +396,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
             onClick={onCopy}
             aria-label={t.copy}
             title={t.copy}
-            className="inline-flex items-center justify-center h-9 rounded-lg text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
+            className="inline-flex items-center justify-center h-9 rounded-[5px] text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
           >
             <Copy className="w-[15px] h-[15px]" />
           </button>
@@ -412,7 +412,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
             onClick={onPdf}
             aria-label={t.pdf}
             title={t.pdf}
-            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-lg bg-brand text-brand-foreground text-[11px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
+            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] bg-brand text-brand-foreground text-[11px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
           >
             <Download className="w-[14px] h-[14px]" />
             PDF
@@ -422,7 +422,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
             onClick={onPrint}
             aria-label={t.print}
             title={t.print}
-            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-border bg-background text-foreground text-[11px] font-semibold tracking-tight hover:bg-muted active:scale-[0.98] transition"
+            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] border border-border bg-background text-foreground text-[11px] font-semibold tracking-tight hover:bg-muted active:scale-[0.98] transition"
           >
             <Printer className="w-[14px] h-[14px]" />
             {lang === "pl" ? "Drukuj" : "Print"}
