@@ -78,6 +78,10 @@ import {
   Star as RatingIcon,
   LogIn as LoginOutIcon,
   Layers as MorePostsIcon,
+  ChevronDownSquare as AccordionIcon,
+  LayoutPanelTop as TabsIcon,
+  TimerReset as CountdownIcon,
+  Gauge as ProgressIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -717,6 +721,38 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
       data: { limit: 4, strategy: "latest", heading: "" },
     }),
   },
+  accordion: {
+    type: "accordion", label: "Akordeon", description: "Rozwijane sekcje z tytułem i treścią.",
+    icon: AccordionIcon, category: "layout",
+    create: () => ({
+      id: newBlockId(), type: "accordion",
+      data: { allowMultiple: false, items: [{ title: "", body: "" }, { title: "", body: "" }] },
+    }),
+  },
+  tabs: {
+    type: "tabs", label: "Zakładki", description: "Treść w przełączalnych zakładkach.",
+    icon: TabsIcon, category: "layout",
+    create: () => ({
+      id: newBlockId(), type: "tabs",
+      data: { orientation: "horizontal", items: [{ label: "", body: "" }, { label: "", body: "" }] },
+    }),
+  },
+  countdown: {
+    type: "countdown", label: "Odliczanie", description: "Licznik do wybranej daty (kampanie, premiery).",
+    icon: CountdownIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "countdown",
+      data: { targetAt: "", label: "", expiredText: "" },
+    }),
+  },
+  progress: {
+    type: "progress", label: "Pasek postępu", description: "Wskaźnik wypełnienia z etykietą.",
+    icon: ProgressIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "progress",
+      data: { value: 50, label: "", showValue: true, color: "primary" },
+    }),
+  },
 };
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
@@ -736,4 +772,5 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "breadcrumbs", "reading-time", "share-buttons", "post-views",
   "author-bio", "related-posts",
   "post-stats", "post-rating", "loginout", "more-posts",
+  "accordion", "tabs", "countdown", "progress",
 ];

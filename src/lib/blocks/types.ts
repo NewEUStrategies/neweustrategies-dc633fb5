@@ -84,7 +84,12 @@ export type BlockType =
   | "post-stats"
   | "post-rating"
   | "loginout"
-  | "more-posts";
+  | "more-posts"
+  // Phase 4 - interactive
+  | "accordion"
+  | "tabs"
+  | "countdown"
+  | "progress";
 
 export type Json =
   | string

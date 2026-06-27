@@ -39,6 +39,7 @@ const BlockSchema = z.object({
     "breadcrumbs", "reading-time", "share-buttons", "post-views",
     "author-bio", "related-posts",
     "post-stats", "post-rating", "loginout", "more-posts",
+    "accordion", "tabs", "countdown", "progress",
   ]),
   data: z.record(z.string(), JsonSchema),
   style: BlockStyleSchema.optional(),
