@@ -34,7 +34,11 @@ export function getAnchorScrollOffset(defaultOffset = 80): number {
 export function replaceHashPreservingRouterState(id: string): void {
   if (typeof window === "undefined") return;
   const nextUrl = `${window.location.pathname}${window.location.search}#${id}`;
-  window.history.replaceState(window.history.state, "", nextUrl);
+  const currentState: unknown = window.history.state;
+  const nextState = currentState && typeof currentState === "object" && !Array.isArray(currentState)
+    ? { ...(currentState as Record<string, unknown>), __hashScrollIntoViewOptions: false }
+    : { __hashScrollIntoViewOptions: false };
+  window.history.replaceState(nextState, "", nextUrl);
 }
 
 export function cancelSmoothAnchorScroll(): void {
