@@ -72,6 +72,8 @@ import {
   Timer as ReadingTimeIcon,
   Share2 as ShareIcon,
   Eye as ViewsIcon,
+  UserCircle2 as AuthorBioIcon,
+  Sparkles as RelatedIcon,
   type LucideIcon,
 } from "lucide-react";
 
