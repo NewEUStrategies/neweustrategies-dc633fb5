@@ -10,17 +10,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
-  ArrowDown,
-  ArrowUp,
   Bookmark,
+  ChevronDown,
+  ChevronUp,
   Eye,
-  EyeOff,
   Megaphone,
   Plus,
   Trash2,
   Users,
   Mail,
-  Tag as TagIcon,
+  Tags as TagIcon,
   PanelLeft,
   Newspaper,
 } from "@/lib/lucide-shim";
