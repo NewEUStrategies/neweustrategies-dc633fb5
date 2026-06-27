@@ -118,7 +118,7 @@ function WidgetView(
             postId={postId}
             lang={lang}
             forceLayout="list"
-            forceColumns={1}
+            forceColumns={2}
           />
         </Suspense>
       );
@@ -133,7 +133,7 @@ function WidgetView(
     case "ad-slot": {
       return (
         <Suspense fallback={null}>
-          <AdZone position="sidebar_top" pageType="post" pageId={postId} />
+          <AdZone position="sidebar" pageType="post" pageId={postId} />
         </Suspense>
       );
     }
