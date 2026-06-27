@@ -758,6 +758,63 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
       data: { value: 50, label: "", showValue: true, color: "primary" },
     }),
   },
+  "icon-box": {
+    type: "icon-box", label: "Karta z ikoną", description: "Ikona, tytuł, opis i opcjonalny link.",
+    icon: IconBoxIcon, category: "layout",
+    create: () => ({
+      id: newBlockId(), type: "icon-box",
+      data: { icon: "star", title: "", description: "", href: "", linkLabel: "", align: "center" },
+    }),
+  },
+  "stats-counter": {
+    type: "stats-counter", label: "Liczniki / statystyki", description: "Animowane liczby z etykietami.",
+    icon: StatsCounterIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "stats-counter",
+      data: {
+        duration: 1500,
+        items: [
+          { value: "100", suffix: "+", label: "" },
+          { value: "50", suffix: "K", label: "" },
+          { value: "99", suffix: "%", label: "" },
+        ],
+      },
+    }),
+  },
+  testimonials: {
+    type: "testimonials", label: "Opinie / Testimoniale", description: "Karty opinii z oceną, awatarami.",
+    icon: TestimonialsIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "testimonials",
+      data: {
+        layout: "grid",
+        items: [
+          { quote: "", author: "", role: "", avatar: "", rating: 5 },
+        ],
+      },
+    }),
+  },
+  "pricing-table": {
+    type: "pricing-table", label: "Tabela cenowa", description: "Plany cenowe z funkcjami i CTA.",
+    icon: PricingIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "pricing-table",
+      data: {
+        plans: [
+          { name: "Basic", price: "0", period: "/mies.", description: "", features: [], ctaLabel: "Zacznij", ctaHref: "#", featured: false },
+          { name: "Pro", price: "49", period: "/mies.", description: "", features: [], ctaLabel: "Wybierz", ctaHref: "#", featured: true },
+        ],
+      },
+    }),
+  },
+  timeline: {
+    type: "timeline", label: "Oś czasu", description: "Lista wydarzeń z datami.",
+    icon: TimelineIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "timeline",
+      data: { items: [{ date: "", title: "", description: "" }] },
+    }),
+  },
 };
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
@@ -778,4 +835,5 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "author-bio", "related-posts",
   "post-stats", "post-rating", "loginout", "more-posts",
   "accordion", "tabs", "countdown", "progress",
+  "icon-box", "stats-counter", "testimonials", "pricing-table", "timeline",
 ];

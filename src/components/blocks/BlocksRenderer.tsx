@@ -33,6 +33,9 @@ import {
 import { AuthorBioView, RelatedPostsView } from "./PostContextViews";
 import { PostStatsView, PostRatingView, LoginOutView, MorePostsView } from "./FoxizExtraViews";
 import { AccordionView, TabsView, CountdownView, ProgressView } from "./InteractiveViews";
+import {
+  IconBoxView, StatsCounterView, TestimonialsView, PricingTableView, TimelineView,
+} from "./PresentationViews";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
