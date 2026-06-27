@@ -16,6 +16,7 @@ import { Save, Undo as RotateCcw } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { ThemeOptionsPane } from "@/components/admin/ThemeOptionsPane";
 import { FooterChromePane } from "@/components/admin/FooterChromePane";
+import { TrendingTickerPane } from "@/components/admin/TrendingTickerPane";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface Props {
