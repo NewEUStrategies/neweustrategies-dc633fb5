@@ -2,7 +2,7 @@
 // library). Variants are being rebuilt from scratch - currently one available.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { useResolvedPostRefs } from "./contentRefs";
 import { supabase } from "@/integrations/supabase/client";
