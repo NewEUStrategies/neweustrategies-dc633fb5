@@ -21,6 +21,7 @@ import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon, Layers } from "@/lib/lucide-shim";
+import { ChevronDown } from "lucide-react";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
 import type { LocalizedBlocks, BlocksDoc } from "@/lib/blocks/types";
 import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
