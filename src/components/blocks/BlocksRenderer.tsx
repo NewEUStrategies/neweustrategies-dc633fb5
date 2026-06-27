@@ -39,6 +39,10 @@ import {
 import {
   HeroView, CtaSectionView, ImageCarouselView, ContactFormView, MapView,
 } from "./MarketingViews";
+import {
+  TeamGridView, LogoGridView, FeatureGridView, AlertBannerView, DividerTextView,
+} from "./DataSocialViews";
+
 
 
 interface Props {

@@ -321,7 +321,13 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "image-carousel":         return <ImageCarouselBlock block={block} onChange={onChange} />;
     case "contact-form":           return <ContactFormBlock block={block} onChange={onChange} />;
     case "map":                    return <MapBlock block={block} onChange={onChange} />;
+    case "team-grid":              return <TeamGridBlock block={block} onChange={onChange} />;
+    case "logo-grid":              return <LogoGridBlock block={block} onChange={onChange} />;
+    case "feature-grid":           return <FeatureGridBlock block={block} onChange={onChange} />;
+    case "alert-banner":           return <AlertBannerBlock block={block} onChange={onChange} />;
+    case "divider-text":           return <DividerTextBlock block={block} onChange={onChange} />;
     default:
+
 
       return (
         <div className="text-xs text-muted-foreground italic py-2">
