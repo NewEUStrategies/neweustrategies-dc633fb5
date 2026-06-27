@@ -1065,8 +1065,74 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
           cls={cls}
         />
       );
+    case "team-grid": {
+      const s = String(block.data.shape ?? "circle");
+      return (
+        <TeamGridView
+          title={String(block.data.title ?? "")}
+          items={Array.isArray(block.data.items) ? (block.data.items as Json[]) : []}
+          columns={Number(block.data.columns ?? 3)}
+          shape={s === "square" ? "square" : "circle"}
+          cls={cls}
+        />
+      );
+    }
+    case "logo-grid":
+      return (
+        <LogoGridView
+          title={String(block.data.title ?? "")}
+          items={Array.isArray(block.data.items) ? (block.data.items as Json[]) : []}
+          columns={Number(block.data.columns ?? 5)}
+          grayscale={block.data.grayscale !== false}
+          bordered={block.data.bordered === true}
+          cls={cls}
+        />
+      );
+    case "feature-grid": {
+      const st = String(block.data.style ?? "card");
+      const style = st === "minimal" || st === "bordered" ? st : "card";
+      return (
+        <FeatureGridView
+          title={String(block.data.title ?? "")}
+          subtitle={String(block.data.subtitle ?? "")}
+          items={Array.isArray(block.data.items) ? (block.data.items as Json[]) : []}
+          columns={Number(block.data.columns ?? 3)}
+          style={style}
+          cls={cls}
+        />
+      );
+    }
+    case "alert-banner": {
+      const v = String(block.data.variant ?? "info");
+      const variant = v === "success" || v === "warning" || v === "danger" || v === "neutral" ? v : "info";
+      return (
+        <AlertBannerView
+          variant={variant}
+          title={String(block.data.title ?? "")}
+          message={String(block.data.message ?? "")}
+          ctaLabel={String(block.data.ctaLabel ?? "")}
+          ctaHref={String(block.data.ctaHref ?? "")}
+          dismissible={block.data.dismissible === true}
+          showIcon={block.data.showIcon !== false}
+          cls={cls}
+        />
+      );
+    }
+    case "divider-text": {
+      const a = String(block.data.align ?? "center");
+      const ls = String(block.data.lineStyle ?? "solid");
+      return (
+        <DividerTextView
+          text={String(block.data.text ?? "")}
+          align={a === "left" || a === "right" ? a : "center"}
+          lineStyle={ls === "dashed" || ls === "dotted" ? ls : "solid"}
+          cls={cls}
+        />
+      );
+    }
     default:
       return null;
   }
 }
+
 
