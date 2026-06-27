@@ -19,7 +19,7 @@ interface Props {
 interface TocItem {
   id: string;
   text: string;
-  level: 2 | 3;
+  level: 1 | 2 | 3 | 4 | 5;
 }
 
 const COPY = {
@@ -89,7 +89,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
     if (!url && typeof window !== "undefined") setHref(window.location.href);
   }, [url]);
 
-  // Scan headings (h2/h3) within the article body. Assign IDs when missing.
+  // Scan headings (h1-h5) within the article body. Assign IDs when missing.
   useEffect(() => {
     const scan = (): void => {
       const root = getArticleRoot();
@@ -97,17 +97,20 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
         setItems([]);
         return;
       }
-      const hs = Array.from(root.querySelectorAll("h2, h3")) as HTMLHeadingElement[];
+      const hs = Array.from(root.querySelectorAll("h1, h2, h3, h4, h5")) as HTMLHeadingElement[];
       const seen = new Set<string>();
-      const next: TocItem[] = hs.map((h) => {
-        const text = (h.textContent ?? "").trim();
-        let id = h.id || slugifyHeading(text);
-        let n = 2;
-        while (seen.has(id)) id = `${id}-${n++}`;
-        seen.add(id);
-        if (!h.id) h.id = id;
-        return { id, text, level: h.tagName === "H2" ? 2 : 3 };
-      });
+      const next: TocItem[] = hs
+        .filter((h) => (h.textContent ?? "").trim().length > 0)
+        .map((h) => {
+          const text = (h.textContent ?? "").trim();
+          let id = h.id || slugifyHeading(text);
+          let n = 2;
+          while (seen.has(id)) id = `${id}-${n++}`;
+          seen.add(id);
+          if (!h.id) h.id = id;
+          const lvl = Number(h.tagName.substring(1)) as 1 | 2 | 3 | 4 | 5;
+          return { id, text, level: lvl };
+        });
       setItems(next);
     };
     scan();
@@ -260,7 +263,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
       className={[
         "hidden lg:flex flex-col fixed left-5 top-1/2 -translate-y-1/2 z-40",
         "w-[248px] max-h-[min(86vh,720px)]",
-        "rounded-2xl border border-border/70 bg-background/90 backdrop-blur-xl",
+        "rounded-[5px] border border-border/70 bg-background/90 backdrop-blur-xl",
         "shadow-[0_10px_40px_-12px_rgba(0,0,0,0.25)] px-3 py-3 gap-2",
         "transition-all duration-300 ease-out",
         visible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 pointer-events-none",
@@ -328,8 +331,12 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
                     aria-current={isActive ? "true" : undefined}
                     title={it.text}
                     className={[
-                      "group relative w-full text-left flex gap-2 items-start py-1.5 pr-1 rounded-md transition-colors",
-                      it.level === 3 ? "pl-7" : "pl-4",
+                      "group relative w-full text-left flex gap-2 items-start py-1.5 pr-1 rounded-[5px] transition-colors",
+                      it.level === 1 ? "pl-4"
+                        : it.level === 2 ? "pl-5"
+                        : it.level === 3 ? "pl-7"
+                        : it.level === 4 ? "pl-9"
+                        : "pl-11",
                       isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                     ].join(" ")}
                   >
@@ -361,7 +368,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
       )}
 
       {/* Share + Actions card - visually distinct, premium */}
-      <div className="rounded-xl border border-border/70 bg-gradient-to-b from-muted/40 to-muted/10 p-2.5 mt-1">
+      <div className="rounded-[5px] border border-border/70 bg-gradient-to-b from-muted/40 to-muted/10 p-2.5 mt-1">
         <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground inline-flex items-center gap-1.5 mb-2 px-0.5">
           <Share2 className="w-3 h-3" /> {t.share}
         </span>
@@ -378,7 +385,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
                 rel="noopener noreferrer"
                 aria-label={l.label}
                 title={l.label}
-                className="inline-flex items-center justify-center h-9 rounded-lg text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
+                className="inline-flex items-center justify-center h-9 rounded-[5px] text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
               >
                 <Icon className="w-[15px] h-[15px]" />
               </a>
@@ -389,7 +396,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
             onClick={onCopy}
             aria-label={t.copy}
             title={t.copy}
-            className="inline-flex items-center justify-center h-9 rounded-lg text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
+            className="inline-flex items-center justify-center h-9 rounded-[5px] text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
           >
             <Copy className="w-[15px] h-[15px]" />
           </button>
@@ -405,7 +412,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
             onClick={onPdf}
             aria-label={t.pdf}
             title={t.pdf}
-            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-lg bg-brand text-brand-foreground text-[11px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
+            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] bg-brand text-brand-foreground text-[11px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
           >
             <Download className="w-[14px] h-[14px]" />
             PDF
@@ -415,7 +422,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
             onClick={onPrint}
             aria-label={t.print}
             title={t.print}
-            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-border bg-background text-foreground text-[11px] font-semibold tracking-tight hover:bg-muted active:scale-[0.98] transition"
+            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] border border-border bg-background text-foreground text-[11px] font-semibold tracking-tight hover:bg-muted active:scale-[0.98] transition"
           >
             <Printer className="w-[14px] h-[14px]" />
             {lang === "pl" ? "Drukuj" : "Print"}
