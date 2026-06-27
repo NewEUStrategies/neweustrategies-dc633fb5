@@ -690,6 +690,33 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
       data: { limit: 3, strategy: "category", layout: "grid", heading: "" },
     }),
   },
+  // ===== Phase 3 - Foxiz/Ruby custom =====
+  "post-stats": {
+    type: "post-stats", label: "Pasek meta wpisu", description: "Data, autor, kategoria, czas, wyświetlenia w jednej linii.",
+    icon: StatsIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "post-stats",
+      data: { items: ["date", "author", "reading"], separator: "•" },
+    }),
+  },
+  "post-rating": {
+    type: "post-rating", label: "Ocena czytelnika", description: "5 lub 10 gwiazdek do oceny wpisu.",
+    icon: RatingIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "post-rating", data: { max: 5, label: "" } }),
+  },
+  loginout: {
+    type: "loginout", label: "Zaloguj / Wyloguj", description: "Dynamiczny link logowania / awatar + wyloguj.",
+    icon: LoginOutIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "loginout", data: { loginHref: "/auth", showAvatar: true } }),
+  },
+  "more-posts": {
+    type: "more-posts", label: "Polecane wpisy (pasek)", description: "Siatka miniaturek - najnowsze, popularne lub z kategorii.",
+    icon: MorePostsIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "more-posts",
+      data: { limit: 4, strategy: "latest", heading: "" },
+    }),
+  },
 };
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
@@ -708,4 +735,5 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "navigation", "post-navigation-link", "query-loop",
   "breadcrumbs", "reading-time", "share-buttons", "post-views",
   "author-bio", "related-posts",
+  "post-stats", "post-rating", "loginout", "more-posts",
 ];
