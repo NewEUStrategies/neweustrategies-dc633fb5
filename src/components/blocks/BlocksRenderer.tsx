@@ -827,6 +827,37 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
     }
     case "post-views":
       return <PostViewsView suffix={String(block.data.suffix ?? "")} lang={lang} cls={cls} />;
+    case "author-bio": {
+      const v = String(block.data.variant ?? "card");
+      const variant: "card" | "inline" | "minimal" = v === "inline" ? "inline" : v === "minimal" ? "minimal" : "card";
+      return (
+        <AuthorBioView
+          showAvatar={block.data.showAvatar !== false}
+          showSocial={block.data.showSocial !== false}
+          showPostsCount={block.data.showPostsCount !== false}
+          variant={variant}
+          lang={lang}
+          cls={cls}
+        />
+      );
+    }
+    case "related-posts": {
+      const s = String(block.data.strategy ?? "category");
+      const strategy: "category" | "tag" | "author" | "latest" =
+        s === "tag" ? "tag" : s === "author" ? "author" : s === "latest" ? "latest" : "category";
+      const l = String(block.data.layout ?? "grid");
+      const layout: "grid" | "list" | "compact" = l === "list" ? "list" : l === "compact" ? "compact" : "grid";
+      return (
+        <RelatedPostsView
+          limit={Number(block.data.limit ?? 3)}
+          strategy={strategy}
+          layout={layout}
+          heading={String(block.data.heading ?? "")}
+          lang={lang}
+          cls={cls}
+        />
+      );
+    }
     default:
       return null;
   }
