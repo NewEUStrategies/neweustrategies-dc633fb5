@@ -2,7 +2,7 @@
 // Combines: reading progress ring + interactive article ToC (scrollspy + jump)
 // + social share actions. Desktop only (>= lg). Uses semantic tokens.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Twitter, Facebook, Linkedin, Mail, Copy, Share2, Printer, Download, List, X, BookOpen } from "@/lib/lucide-shim";
+import { Twitter, Facebook, Linkedin, Mail, Copy, Share2, Printer, Download, List, X, BookOpen, Bookmark, BookmarkCheck } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { smoothScrollToAnchor } from "@/lib/smoothAnchorScroll";
 
