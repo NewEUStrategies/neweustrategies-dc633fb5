@@ -16,8 +16,8 @@ import { LoginFormView, RegisterFormView, LostPasswordFormView, ResetPasswordFor
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
+import type { ComponentType } from "react";
 import { ThumbsUp, ThumbsDown, Facebook, Twitter, Instagram, Youtube, Linkedin, Github, Mail, Rss, Search as SearchIcon, Music as TikTokIcon } from "lucide-react";
-import { AppLink } from "@/components/atoms/AppLink";
 import { LatestPostsView } from "./LatestPostsView";
 
 interface Props {
