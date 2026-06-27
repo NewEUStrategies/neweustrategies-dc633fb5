@@ -29,6 +29,8 @@ const BlockSchema = z.object({
     "review", "proscons", "spoiler", "faq", "toc",
     "newsletter", "affiliate", "xquote", "compare",
     "login-form", "register-form", "lost-password-form", "reset-password-form",
+    "audio", "cover", "file", "media-text", "group", "spacer",
+    "page-break", "read-more", "pullquote", "preformatted", "verse", "details",
   ]),
   data: z.record(z.string(), JsonSchema),
   style: BlockStyleSchema.optional(),
