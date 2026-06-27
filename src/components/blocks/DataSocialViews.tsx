@@ -316,16 +316,18 @@ interface DividerProps {
 
 export function DividerTextView({ text, align = "center", lineStyle = "solid", cls }: DividerProps) {
   const lineCls = `flex-1 border-t border-border ${lineStyle === "dashed" ? "border-dashed" : lineStyle === "dotted" ? "border-dotted" : ""}`;
-  const label = text ? (
-    <span className="px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium">{text}</span>
-  ) : null;
+  if (!text) {
+    return <hr className={`border-0 border-t border-border my-6 ${lineStyle === "dashed" ? "border-dashed" : lineStyle === "dotted" ? "border-dotted" : ""} ${cls ?? ""}`} />;
+  }
+  const label = (
+    <span className="px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium whitespace-nowrap">{text}</span>
+  );
   return (
-    <div className={`flex items-center w-full my-6 ${cls ?? ""}`} role="separator" aria-label={text || undefined}>
-      {align === "left" ? null : <span className={lineCls} aria-hidden />}
+    <div className={`flex items-center w-full my-6 ${cls ?? ""}`} role="separator" aria-label={text}>
+      {align !== "left" ? <span className={lineCls} aria-hidden /> : null}
       {label}
-      {align === "right" ? null : <span className={lineCls} aria-hidden />}
-      {align === "left" ? <span className={lineCls} aria-hidden /> : null}
-      {align === "right" ? <span className={lineCls} aria-hidden /> : null}
+      {align !== "right" ? <span className={lineCls} aria-hidden /> : null}
     </div>
   );
 }
+
