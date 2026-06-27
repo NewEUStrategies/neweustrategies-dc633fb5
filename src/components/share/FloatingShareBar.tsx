@@ -40,6 +40,10 @@ const COPY = {
     actions: "Akcje",
     tocTitle: "SPIS TREŚCI",
     read: "przeczytano",
+    saveLater: "Zapisz później",
+    saved: "Zapisano",
+    savedToast: "Dodano do zapisanych",
+    removedToast: "Usunięto z zapisanych",
   },
   en: {
     share: "Share",
@@ -57,6 +61,10 @@ const COPY = {
     actions: "Actions",
     tocTitle: "ON THIS PAGE",
     read: "read",
+    saveLater: "Save for later",
+    saved: "Saved",
+    savedToast: "Added to saved",
+    removedToast: "Removed from saved",
   },
 } as const;
 
