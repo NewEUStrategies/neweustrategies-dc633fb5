@@ -42,6 +42,10 @@ import {
 import {
   TeamGridView, LogoGridView, FeatureGridView, AlertBannerView, DividerTextView,
 } from "./DataSocialViews";
+import {
+  StepListView, ComparisonTableView, BannerImageView, VideoHeroView,
+} from "./ConversionViews";
+
 
 
 
@@ -1130,9 +1134,73 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
         />
       );
     }
+    case "step-list": {
+      const o = String(block.data.orientation ?? "vertical");
+      const ns = String(block.data.numberStyle ?? "circle");
+      return (
+        <StepListView
+          title={String(block.data.title ?? "")}
+          items={Array.isArray(block.data.items) ? (block.data.items as Json[]) : []}
+          orientation={o === "horizontal" ? "horizontal" : "vertical"}
+          numberStyle={ns === "square" || ns === "plain" ? ns : "circle"}
+          cls={cls}
+        />
+      );
+    }
+    case "comparison-table": {
+      return (
+        <ComparisonTableView
+          title={String(block.data.title ?? "")}
+          columns={Array.isArray(block.data.columns) ? (block.data.columns as Json[]) : []}
+          rows={Array.isArray(block.data.rows) ? (block.data.rows as Json[]) : []}
+          featuredIndex={Number(block.data.featuredIndex ?? -1)}
+          cls={cls}
+        />
+      );
+    }
+    case "banner-image": {
+      const pos = String(block.data.position ?? "left");
+      const th = String(block.data.theme ?? "dark");
+      return (
+        <BannerImageView
+          image={String(block.data.image ?? "")}
+          alt={String(block.data.alt ?? "")}
+          title={String(block.data.title ?? "")}
+          description={String(block.data.description ?? "")}
+          ctaLabel={String(block.data.ctaLabel ?? "")}
+          ctaHref={String(block.data.ctaHref ?? "")}
+          position={pos === "center" || pos === "right" ? pos : "left"}
+          theme={th === "light" ? "light" : "dark"}
+          aspect={String(block.data.aspect ?? "21:9")}
+          overlay={Number(block.data.overlay ?? 35)}
+          cls={cls}
+        />
+      );
+    }
+    case "video-hero": {
+      const h = String(block.data.height ?? "lg");
+      const al = String(block.data.align ?? "center");
+      return (
+        <VideoHeroView
+          src={String(block.data.src ?? "")}
+          poster={String(block.data.poster ?? "")}
+          title={String(block.data.title ?? "")}
+          subtitle={String(block.data.subtitle ?? "")}
+          ctaLabel={String(block.data.ctaLabel ?? "")}
+          ctaHref={String(block.data.ctaHref ?? "")}
+          height={h === "md" || h === "screen" ? h : "lg"}
+          align={al === "left" ? "left" : "center"}
+          overlay={Number(block.data.overlay ?? 45)}
+          autoplay={block.data.autoplay !== false}
+          loop={block.data.loop !== false}
+          cls={cls}
+        />
+      );
+    }
     default:
       return null;
   }
 }
+
 
 

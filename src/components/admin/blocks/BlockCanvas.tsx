@@ -90,6 +90,10 @@ import {
 import {
   TeamGridBlock, LogoGridBlock, FeatureGridBlock, AlertBannerBlock, DividerTextBlock,
 } from "./edit/DataSocialBlocks";
+import {
+  StepListBlock, ComparisonTableBlock, BannerImageBlock, VideoHeroBlock,
+} from "./edit/ConversionBlocks";
+
 
 
 
@@ -326,6 +330,11 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "feature-grid":           return <FeatureGridBlock block={block} onChange={onChange} />;
     case "alert-banner":           return <AlertBannerBlock block={block} onChange={onChange} />;
     case "divider-text":           return <DividerTextBlock block={block} onChange={onChange} />;
+    case "step-list":              return <StepListBlock block={block} onChange={onChange} />;
+    case "comparison-table":       return <ComparisonTableBlock block={block} onChange={onChange} />;
+    case "banner-image":           return <BannerImageBlock block={block} onChange={onChange} />;
+    case "video-hero":             return <VideoHeroBlock block={block} onChange={onChange} />;
+
     default:
 
 
