@@ -13,6 +13,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { recordAudit, type AuditAction } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
+import { toJson } from "@/lib/builder/types";
+import { emptyArticleBuilderDoc } from "@/lib/builder/newArticleDoc";
 
 // ---------- shared helpers ----------
 
@@ -163,8 +165,11 @@ export const createPost = createServerFn({ method: "POST" })
           title_pl: data.title_pl ?? "", title_en: data.title_en ?? "",
           parent_page_id: parentPageId,
           template_id: data.template_id ?? null,
-          editor: "blocks",
-          blocks_data: { pl: { version: 1, blocks: [] }, en: { version: 1, blocks: [] } },
+          // blocks → builder consolidation (stage 1): new posts default to the
+          // builder, seeded with a rich-text (article) widget so authors land in
+          // the block editor inside a builder layout. Existing posts unaffected.
+          editor: "builder",
+          builder_data: toJson(emptyArticleBuilderDoc()),
         })
         .select("id, slug").single();
       if (error) throw new Error(error.message);

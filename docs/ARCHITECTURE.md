@@ -46,9 +46,9 @@ so they were removed in favour of the convention above.
 
 ## 2. Content engines & the `blocks` → `builder` consolidation
 
-> **Status:** planning / not started. Nothing below has been executed yet — the
-> blocks editor is fully functional and is still the default for new posts. This
-> section is the agreed direction, not a description of work already done.
+> **Status:** Stage 1 shipped — new posts now default to the builder. Stages 2–4
+> pending. The blocks editor remains fully functional: existing posts are
+> unaffected, and it still powers article bodies via the `rich-text` widget.
 
 ### 2.0 TL;DR for content authors
 
@@ -145,23 +145,24 @@ Footprint: the standalone blocks code is ~61 files / ~7k lines across
 Each stage is independently shippable and reversible. Do **not** start a stage
 until the previous stage's exit criteria hold.
 
-#### Stage 1 — Make `builder` the default authoring path for posts
+#### Stage 1 — Make `builder` the default authoring path for posts ✅ SHIPPED
 
 - **Goal:** new posts are created as `builder` (with a `rich-text` widget for the
   article body), so the `blocks` pool stops growing. No content is migrated yet.
-- **Precondition (gate):** authoring an article through the `rich-text` widget is
-  at least as good as the standalone block editor. The editor itself is already
-  identical (same `PostBlockEditor`), so this is a UX/workflow check — e.g. a
-  post template that seeds a one-section builder doc containing an empty
-  `rich-text` widget — not an engine gap.
-- **Touchpoints:** flip the default in `content.functions.ts:166` (and the WP
-  import defaults at `wordpress-import.functions.ts:571,602`) from `"blocks"` to
-  `"builder"`; reorder/relabel the selector so Builder is primary and "blocks"
-  is marked legacy (`admin.posts.$slug.tsx:251-254`). Keep the `blocks` option
-  available for now.
-- **Exit criteria:** newly created posts have `editor === "builder"`; existing
-  `blocks` posts still open and render unchanged.
-- **Rollback:** revert the default value; one-line change.
+- **What shipped:** `createPost` (`content.functions.ts`) now inserts
+  `editor: "builder"` + `builder_data` seeded by `emptyArticleBuilderDoc()`
+  (`lib/builder/newArticleDoc.ts`) — one section/column holding a `rich-text`
+  widget, so authors land straight in the (same) block editor inside a builder
+  layout. The post editor selector lists Builder first / recommended and marks
+  `blocks` legacy (`admin.posts.$slug.tsx`), with the `blocks` option still
+  available. A unit test round-trips the seed doc through `parseBuilderDoc`.
+- **Deliberately NOT changed:** the WordPress importer still writes
+  `editor: "blocks"` — it produces `blocks_data` from WP HTML, so flipping it
+  without converting would render nothing. Imported content is handled by the
+  Stage 2 migration instead.
+- **Exit criteria (met):** newly created posts have `editor === "builder"`;
+  existing `blocks` posts still open and render unchanged.
+- **Rollback:** revert the `createPost` default + selector commit.
 
 #### Stage 2 — Migrate existing `blocks` content
 

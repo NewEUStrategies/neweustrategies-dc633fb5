@@ -248,8 +248,8 @@ function EditPost() {
         <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="blocks">{t("admin.posts.editorBlocks", { defaultValue: "Block editor (zalecane)" })}</SelectItem>
-            <SelectItem value="builder">{t("admin.posts.editorBuilder", { defaultValue: "Visual Builder (Elementor)" })}</SelectItem>
+            <SelectItem value="builder">{t("admin.posts.editorBuilder", { defaultValue: "Visual Builder (zalecane)" })}</SelectItem>
+            <SelectItem value="blocks">{t("admin.posts.editorBlocks", { defaultValue: "Block editor (legacy)" })}</SelectItem>
             <SelectItem value="richtext">{t("admin.posts.editorRichtext", { defaultValue: "Rich text (legacy)" })}</SelectItem>
             <SelectItem value="markdown">{t("admin.posts.editorMarkdown", { defaultValue: "Markdown (legacy)" })}</SelectItem>
           </SelectContent>
