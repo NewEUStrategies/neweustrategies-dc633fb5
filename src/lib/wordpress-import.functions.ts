@@ -605,11 +605,12 @@ export const runWpImportJob = createServerFn({ method: "POST" })
               .insert({
                 tenant_id: tenantId, author_id: userId, slug,
                 parent_page_id: parentPageId,
-                editor: "blocks",
+                editor: "builder",
                 status,
                 published_at: status === "published" ? wp.date : null,
                 cover_image_url: coverUrl,
                 blocks_data,
+                builder_data,
                 ...titleField,
                 ...excerptField,
               })
