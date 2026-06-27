@@ -15,6 +15,12 @@ interface Props {
   lang: Lang;
   /** Hide automatically until user scrolls past N px from top. Default 240. */
   showAfter?: number;
+  /**
+   * "rail"    - fixed floating panel on the left (default, classic).
+   * "sidebar" - sticky inline panel rendered inside the right sidebar slot.
+   *             Always visible (no scroll-gated reveal) and full sidebar width.
+   */
+  variant?: "rail" | "sidebar";
 }
 
 interface TocItem {
