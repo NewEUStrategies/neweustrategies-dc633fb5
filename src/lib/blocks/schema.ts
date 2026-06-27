@@ -35,6 +35,7 @@ const BlockSchema = z.object({
     "tag-cloud", "categories-list", "archives", "calendar",
     "post-title", "post-date", "post-author", "post-excerpt", "post-featured-image", "post-terms",
     "site-title", "site-tagline", "site-logo",
+    "navigation", "post-navigation-link", "query-loop",
   ]),
   data: z.record(z.string(), JsonSchema),
   style: BlockStyleSchema.optional(),

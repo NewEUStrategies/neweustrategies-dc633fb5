@@ -26,6 +26,7 @@ import {
   PostTitleView, PostDateView, PostAuthorView, PostExcerptView, PostFeaturedImageView, PostTermsView,
   SiteTitleView, SiteTaglineView, SiteLogoView,
 } from "./ContextBlockViews";
+import { NavigationView, PostNavigationLinkView, QueryLoopView } from "./NavLoopViews";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -773,6 +774,29 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       return <SiteTaglineView cls={cls} />;
     case "site-logo":
       return <SiteLogoView width={Number(block.data.width ?? 120)} cls={cls} />;
+    case "navigation":
+      return <NavigationView menuKey={String(block.data.menuKey ?? "primary")} layout={String(block.data.layout ?? "horizontal")} lang={lang} cls={cls} />;
+    case "post-navigation-link": {
+      const dir = String(block.data.direction ?? "next") === "prev" ? "prev" : "next";
+      return <PostNavigationLinkView direction={dir} showTitle={block.data.showTitle !== false} lang={lang} cls={cls} />;
+    }
+    case "query-loop": {
+      const lay = String(block.data.layout ?? "grid") === "list" ? "list" : "grid";
+      const ord = String(block.data.orderBy ?? "date") === "title" ? "title" : "date";
+      return (
+        <QueryLoopView
+          categorySlug={String(block.data.categorySlug ?? "")}
+          limit={Number(block.data.limit ?? 6)}
+          layout={lay}
+          showExcerpt={block.data.showExcerpt !== false}
+          showDate={block.data.showDate !== false}
+          showImage={block.data.showImage !== false}
+          orderBy={ord}
+          lang={lang}
+          cls={cls}
+        />
+      );
+    }
     default:
       return null;
   }

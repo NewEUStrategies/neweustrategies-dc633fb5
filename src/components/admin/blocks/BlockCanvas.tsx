@@ -74,6 +74,7 @@ import {
   PostFeaturedImageBlock, PostTermsBlock,
   SiteTitleBlock, SiteTaglineBlock, SiteLogoBlock,
 } from "./edit/ContextBlocks";
+import { NavigationBlock, PostNavigationLinkBlock, QueryLoopBlock } from "./edit/NavLoopBlocks";
 
 interface Props {
   doc: BlocksDoc;
@@ -276,6 +277,9 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "site-title":          return <SiteTitleBlock block={block} onChange={onChange} />;
     case "site-tagline":        return <SiteTaglineBlock block={block} onChange={onChange} />;
     case "site-logo":           return <SiteLogoBlock block={block} onChange={onChange} />;
+    case "navigation":             return <NavigationBlock block={block} onChange={onChange} />;
+    case "post-navigation-link":   return <PostNavigationLinkBlock block={block} onChange={onChange} />;
+    case "query-loop":             return <QueryLoopBlock block={block} onChange={onChange} />;
     default:
       return (
         <div className="text-xs text-muted-foreground italic py-2">
