@@ -1,0 +1,2 @@
+REVOKE SELECT ON public.profiles FROM anon, authenticated;
+GRANT SELECT (id, display_name, avatar_url, tenant_id, slug, bio, bio_pl, bio_en, created_at, updated_at) ON public.profiles TO anon, authenticated;
