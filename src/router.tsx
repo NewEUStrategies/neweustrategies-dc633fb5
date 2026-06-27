@@ -44,6 +44,9 @@ export const getRouter = () => {
     // Modern crossfade between routes via the View Transitions API. Header
     // and footer hold their position; only the <main> content morphs.
     defaultViewTransition: true,
+    // Article anchors are handled by the custom reading rail scroller. This
+    // avoids TanStack's immediate hash scroll fighting the eased animation.
+    defaultHashScrollIntoView: false,
   });
 
   return routerWithQueryClient(router, queryClient);
