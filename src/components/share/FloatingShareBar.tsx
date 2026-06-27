@@ -73,7 +73,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
   const [progress, setProgress] = useState(0);
   const [items, setItems] = useState<TocItem[]>([]);
   const [active, setActive] = useState<string | null>(null);
-  const [, setHovered] = useState<string | null>(null);
+  
   const railRef = useRef<HTMLElement>(null);
   const t = COPY[lang];
 
