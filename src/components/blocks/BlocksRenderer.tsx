@@ -32,6 +32,7 @@ import {
 } from "./PostUtilityViews";
 import { AuthorBioView, RelatedPostsView } from "./PostContextViews";
 import { PostStatsView, PostRatingView, LoginOutView, MorePostsView } from "./FoxizExtraViews";
+import { AccordionView, TabsView, CountdownView, ProgressView } from "./InteractiveViews";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -891,6 +892,48 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
           strategy={strategy}
           heading={String(block.data.heading ?? "")}
           lang={lang}
+          cls={cls}
+        />
+      );
+    }
+    case "accordion":
+      return (
+        <AccordionView
+          items={Array.isArray(block.data.items) ? (block.data.items as Json[]) : []}
+          allowMultiple={block.data.allowMultiple === true}
+          cls={cls}
+        />
+      );
+    case "tabs": {
+      const orient = String(block.data.orientation ?? "horizontal");
+      return (
+        <TabsView
+          items={Array.isArray(block.data.items) ? (block.data.items as Json[]) : []}
+          orientation={orient === "vertical" ? "vertical" : "horizontal"}
+          cls={cls}
+        />
+      );
+    }
+    case "countdown":
+      return (
+        <CountdownView
+          targetAt={String(block.data.targetAt ?? "")}
+          label={String(block.data.label ?? "")}
+          expiredText={String(block.data.expiredText ?? "")}
+          lang={lang}
+          cls={cls}
+        />
+      );
+    case "progress": {
+      const c = String(block.data.color ?? "primary");
+      const color: "primary" | "success" | "warning" | "danger" =
+        c === "success" ? "success" : c === "warning" ? "warning" : c === "danger" ? "danger" : "primary";
+      return (
+        <ProgressView
+          value={Number(block.data.value ?? 0)}
+          label={String(block.data.label ?? "")}
+          showValue={block.data.showValue !== false}
+          color={color}
           cls={cls}
         />
       );

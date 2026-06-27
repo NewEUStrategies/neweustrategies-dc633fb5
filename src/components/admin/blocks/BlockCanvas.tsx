@@ -80,6 +80,7 @@ import {
 } from "./edit/PostUtilityBlocks";
 import { AuthorBioBlock, RelatedPostsBlock } from "./edit/PostContextBlocks";
 import { PostStatsBlock, PostRatingBlock, LoginOutBlock, MorePostsBlock } from "./edit/FoxizExtraBlocks";
+import { AccordionBlock, TabsBlock, CountdownBlock, ProgressBlock } from "./edit/InteractiveBlocks";
 
 interface Props {
   doc: BlocksDoc;
@@ -295,6 +296,10 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "post-rating":            return <PostRatingBlock block={block} onChange={onChange} />;
     case "loginout":               return <LoginOutBlock block={block} onChange={onChange} />;
     case "more-posts":             return <MorePostsBlock block={block} onChange={onChange} />;
+    case "accordion":              return <AccordionBlock block={block} onChange={onChange} />;
+    case "tabs":                   return <TabsBlock block={block} onChange={onChange} />;
+    case "countdown":              return <CountdownBlock block={block} onChange={onChange} />;
+    case "progress":               return <ProgressBlock block={block} onChange={onChange} />;
     default:
       return (
         <div className="text-xs text-muted-foreground italic py-2">
