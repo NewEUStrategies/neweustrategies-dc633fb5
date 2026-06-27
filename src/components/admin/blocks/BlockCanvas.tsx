@@ -247,6 +247,13 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "preformatted": return <PreformattedBlock block={block} onChange={onChange} />;
     case "verse":        return <VerseBlock block={block} onChange={onChange} />;
     case "details":      return <DetailsBlock block={block} onChange={onChange} />;
+    case "row":
+    case "stack":
+    case "grid":         return <GroupBlock block={block} onChange={onChange} />;
+    case "buttons":      return <ButtonsBlock block={block} onChange={onChange} />;
+    case "social-icons": return <SocialIconsBlock block={block} onChange={onChange} />;
+    case "search":       return <SearchBlock block={block} onChange={onChange} />;
+    case "latest-posts": return <LatestPostsBlock block={block} onChange={onChange} />;
     default:
       return (
         <div className="text-xs text-muted-foreground italic py-2">
