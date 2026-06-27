@@ -634,4 +634,6 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "page-break", "read-more", "pullquote", "preformatted", "verse", "details",
   "row", "stack", "grid", "buttons", "social-icons", "search", "latest-posts",
   "tag-cloud", "categories-list", "archives", "calendar",
+  "post-title", "post-date", "post-author", "post-excerpt", "post-featured-image", "post-terms",
+  "site-title", "site-tagline", "site-logo",
 ];
