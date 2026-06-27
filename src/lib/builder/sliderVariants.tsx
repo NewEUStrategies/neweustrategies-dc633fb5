@@ -231,6 +231,14 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     return () => window.clearInterval(t);
   }, [autoplay, intervalMs, items.length, preview]);
 
+  const dragRef = useRef<{ startX: number; lastX: number; pointerId: number; active: boolean }>({
+    startX: 0,
+    lastX: 0,
+    pointerId: -1,
+    active: false,
+  });
+  const [dragDx, setDragDx] = useState(0);
+
   if (items.length === 0) {
     return (
       <div
@@ -241,6 +249,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       </div>
     );
   }
+
 
   // System-wide limits - applied uniformly to every slide so layout height
   // is stable regardless of content length. Counts include spaces.
