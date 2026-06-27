@@ -19,19 +19,19 @@ const blocksDoc = (blockCount: number): BlocksDoc =>
   }) as unknown as BlocksDoc;
 
 describe("resolveContentEngine", () => {
-  it("selects blocks for an explicit blocks editor with content", () => {
-    expect(resolveContentEngine({ editor: "blocks", blocksDoc: blocksDoc(2) })).toBe("blocks");
-  });
-
   it("selects builder for an explicit builder editor with sections", () => {
     expect(resolveContentEngine({ editor: "builder", builderDoc: builderDoc(1) })).toBe("builder");
   });
 
-  it("falls back to html when the chosen engine has no content", () => {
-    expect(resolveContentEngine({ editor: "blocks", blocksDoc: blocksDoc(0) })).toBe("html");
-    expect(resolveContentEngine({ editor: "blocks", blocksDoc: null })).toBe("html");
+  it("falls back to html when the builder engine has no content", () => {
     expect(resolveContentEngine({ editor: "builder", builderDoc: builderDoc(0) })).toBe("html");
     expect(resolveContentEngine({ editor: "builder", builderDoc: null })).toBe("html");
+  });
+
+  it("falls back to html for legacy blocks editor (blocks strategy removed)", () => {
+    expect(resolveContentEngine({ editor: "blocks", blocksDoc: blocksDoc(2) })).toBe("html");
+    expect(resolveContentEngine({ editor: "blocks", blocksDoc: blocksDoc(0) })).toBe("html");
+    expect(resolveContentEngine({ editor: "blocks", blocksDoc: null })).toBe("html");
   });
 
   it("falls back to html for richtext / markdown / unknown / missing editors", () => {
@@ -41,12 +41,9 @@ describe("resolveContentEngine", () => {
     expect(resolveContentEngine({})).toBe("html");
   });
 
-  it("lets the editor kind win when both documents are present", () => {
+  it("lets the builder editor kind win when both documents are present", () => {
     expect(resolveContentEngine({ editor: "builder", builderDoc: builderDoc(1), blocksDoc: blocksDoc(3) })).toBe(
       "builder",
-    );
-    expect(resolveContentEngine({ editor: "blocks", builderDoc: builderDoc(1), blocksDoc: blocksDoc(3) })).toBe(
-      "blocks",
     );
   });
 });
