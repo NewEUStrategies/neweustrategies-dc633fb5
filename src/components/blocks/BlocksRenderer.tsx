@@ -19,6 +19,9 @@ import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/wid
 import type { ComponentType } from "react";
 import { ThumbsUp, ThumbsDown, Facebook, Twitter, Instagram, Youtube, Linkedin, Github, Mail, Rss, Search as SearchIcon, Music as TikTokIcon } from "lucide-react";
 import { LatestPostsView } from "./LatestPostsView";
+import { TaxonomyListView } from "./TaxonomyListView";
+import { TagCloudView } from "./TagCloudView";
+import { CalendarView } from "./CalendarView";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -713,6 +716,36 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
             layout={layout}
             lang={lang}
           />
+        </div>
+      );
+    }
+    case "tag-cloud": {
+      return (
+        <div className={cls}>
+          <TagCloudView count={Number(block.data.count ?? 30)} showCount={Boolean(block.data.showCount)} lang={lang} />
+        </div>
+      );
+    }
+    case "categories-list": {
+      const layout = String(block.data.layout ?? "list") === "dropdown" ? "dropdown" : "list";
+      return (
+        <div className={cls}>
+          <TaxonomyListView kind="categories" lang={lang} showCount={Boolean(block.data.showCount)} layout={layout} />
+        </div>
+      );
+    }
+    case "archives": {
+      const layout = String(block.data.layout ?? "list") === "dropdown" ? "dropdown" : "list";
+      return (
+        <div className={cls}>
+          <TaxonomyListView kind="archives" lang={lang} showCount={Boolean(block.data.showCount)} layout={layout} />
+        </div>
+      );
+    }
+    case "calendar": {
+      return (
+        <div className={cls}>
+          <CalendarView month={String(block.data.month ?? "")} lang={lang} />
         </div>
       );
     }
