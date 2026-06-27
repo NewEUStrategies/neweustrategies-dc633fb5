@@ -68,7 +68,11 @@ export type BlockType =
   | "post-terms"
   | "site-title"
   | "site-tagline"
-  | "site-logo";
+  | "site-logo"
+  // Phase 2 - navigation & loops
+  | "navigation"
+  | "post-navigation-link"
+  | "query-loop";
 
 export type Json =
   | string
