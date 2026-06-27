@@ -8,6 +8,7 @@ import {
   prefetchSectionQueries,
   prefetchBuilderDocumentQueries,
   prefetchAboveFoldQueries,
+  prefetchCachedRouteQueries,
   ABOVE_FOLD_SECTION_COUNT,
 } from "@/lib/builder/prefetch";
 
@@ -200,5 +201,36 @@ describe("prefetchAboveFoldQueries", () => {
     );
     await prefetchAboveFoldQueries(qc, docOfSections(1), "pl", { budgetMs: 0 });
     expect(resolved).toBe(true);
+  });
+});
+
+describe("prefetchCachedRouteQueries", () => {
+  let qc: QueryClient;
+  beforeEach(() => {
+    qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  });
+
+  function docOfSections(n: number): BuilderDocument {
+    return {
+      sections: Array.from({ length: n }, (_, i) =>
+        makeSection([makeWidget("post-list")], `s${i}`),
+      ),
+    } as unknown as BuilderDocument;
+  }
+
+  it("warms EVERY section, not just the above-the-fold cap", async () => {
+    const spy = vi.spyOn(qc, "prefetchQuery").mockResolvedValue(undefined);
+    const sectionCount = ABOVE_FOLD_SECTION_COUNT + 5;
+    await prefetchCachedRouteQueries(qc, docOfSections(sectionCount), "pl");
+    // One post-list prefetch per section - the whole document, uncapped.
+    expect(spy).toHaveBeenCalledTimes(sectionCount);
+  });
+
+  it("stays bounded by the budget if a query never settles", async () => {
+    vi.spyOn(qc, "prefetchQuery").mockReturnValue(new Promise<void>(() => {}));
+    const start = Date.now();
+    await prefetchCachedRouteQueries(qc, docOfSections(4), "pl", 40);
+    // Returned because the budget elapsed, not because the prefetch settled.
+    expect(Date.now() - start).toBeLessThan(1000);
   });
 });

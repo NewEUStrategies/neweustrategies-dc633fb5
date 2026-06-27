@@ -147,9 +147,13 @@ export async function prefetchBuilderDocumentQueries(
 /**
  * How many leading sections a route loader prefetches on the server. The rest
  * stream in lazily on the client via `useSectionPreload` (IntersectionObserver
- * with a 600px lookahead), so they are usually warm before the reader scrolls
+ * with a 1200px lookahead), so they are usually warm before the reader scrolls
  * to them. Three covers a hero plus the first content rows on every breakpoint;
  * bump it if a layout puts more data-bound widgets above the fold.
+ *
+ * Note: edge-cached content routes use {@link prefetchCachedRouteQueries}
+ * instead, which warms the whole document - this cap applies to any uncached /
+ * per-request loader that opts into above-the-fold-only prefetching.
  */
 export const ABOVE_FOLD_SECTION_COUNT = 3;
 
@@ -232,4 +236,38 @@ export async function prefetchAboveFoldQueries(
     return;
   }
   await raceBudget(work, budgetMs);
+}
+
+/**
+ * Upper bound (ms) on a full-document server prefetch for an edge-cached route.
+ * More generous than {@link ABOVE_FOLD_PREFETCH_BUDGET_MS} because the cost is
+ * amortized: these routes are CDN-cached with a long stale-while-revalidate
+ * window (see lib/http/cachePolicy), so a visitor is served instantly from the
+ * shared cache while the full render happens at most once per revalidation. The
+ * budget is only a hang-guard - any query that overruns it falls back to the
+ * client-side `useSectionPreload` path.
+ */
+export const CACHED_ROUTE_PREFETCH_BUDGET_MS = 6000;
+
+/**
+ * Prefetch EVERY section's data for an edge-cached content route (home, public
+ * page/post). Where {@link prefetchAboveFoldQueries} deliberately caps at the
+ * first {@link ABOVE_FOLD_SECTION_COUNT} sections to keep TTFB low on
+ * per-request renders, this warms the whole document so the entire page ships
+ * as server-rendered HTML and below-the-fold content never pops in on the
+ * client after a refresh. Safe precisely because the route is share-cached: the
+ * work is paid once per revalidation, not per visitor. All section queries run
+ * in parallel and the whole batch is bounded by `budgetMs`, so a single slow
+ * upstream can never hang the SSR response.
+ */
+export async function prefetchCachedRouteQueries(
+  queryClient: QueryClient,
+  doc: BuilderDocument,
+  lang: Lang,
+  budgetMs: number = CACHED_ROUTE_PREFETCH_BUDGET_MS,
+): Promise<void> {
+  await prefetchAboveFoldQueries(queryClient, doc, lang, {
+    sections: doc.sections.length,
+    budgetMs,
+  });
 }
