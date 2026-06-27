@@ -1,0 +1,1 @@
+UPDATE public.pages SET deleted_at = NULL WHERE id = '8efcba2c-6c11-4872-ba51-4d70e6639744' AND slug = 'blog';
