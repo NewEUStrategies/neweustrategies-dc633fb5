@@ -639,6 +639,7 @@ export const en = {
       blocks: {
         addBlock: "Add block", search: "Search block...", noResults: "No results",
         firstBlock: "Add first block",
+        library: "Block library", toggleLibrary: "Toggle block library",
         categories: { text: "Text", media: "Media", layout: "Layout", advanced: "Advanced" },
         actions: {
           up: "Move up", down: "Move down", duplicate: "Duplicate", remove: "Remove",
