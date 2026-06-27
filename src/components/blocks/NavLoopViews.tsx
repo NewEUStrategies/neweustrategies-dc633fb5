@@ -7,28 +7,25 @@ import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 
 type Lang = "pl" | "en";
 
-interface MenuItem {
+interface NavCategory {
   id: string;
-  label_pl: string | null;
-  label_en: string | null;
-  href: string | null;
-  parent_id: string | null;
-  order_index: number | null;
+  slug: string;
+  name_pl: string | null;
+  name_en: string | null;
 }
 
 export function NavigationView({ menuKey, layout, lang, cls }: { menuKey: string; layout: string; lang: Lang; cls: string }) {
-  const [items, setItems] = useState<MenuItem[]>([]);
+  const [items, setItems] = useState<NavCategory[]>([]);
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // MVP: top-level categories as primary navigation menu (menuKey for future routing).
       const { data } = await supabase
-        .from("menu_items")
-        .select("id,label_pl,label_en,href,parent_id,order_index,menu_key")
-        .eq("menu_key", menuKey)
-        .is("parent_id", null)
-        .order("order_index", { ascending: true })
+        .from("categories")
+        .select("id,slug,name_pl,name_en")
+        .order("name_pl", { ascending: true })
         .limit(20);
-      if (!cancelled && Array.isArray(data)) setItems(data as unknown as MenuItem[]);
+      if (!cancelled && Array.isArray(data)) setItems(data as unknown as NavCategory[]);
     })();
     return () => { cancelled = true; };
   }, [menuKey]);
@@ -39,11 +36,11 @@ export function NavigationView({ menuKey, layout, lang, cls }: { menuKey: string
     <nav className={cls} aria-label={menuKey}>
       <ul className={`not-prose flex ${vertical ? "flex-col gap-1" : "flex-row flex-wrap gap-4"} m-0 p-0 list-none`}>
         {items.map((it) => {
-          const label = (lang === "en" ? it.label_en : it.label_pl) ?? it.label_pl ?? it.label_en ?? "";
-          if (!label || !it.href) return null;
+          const label = (lang === "en" ? it.name_en : it.name_pl) ?? it.name_pl ?? it.name_en ?? "";
+          if (!label) return null;
           return (
             <li key={it.id}>
-              <AppLink href={it.href} className="text-sm font-medium hover:text-primary">{label}</AppLink>
+              <AppLink href={`/category/${it.slug}`} className="text-sm font-medium hover:text-primary">{label}</AppLink>
             </li>
           );
         })}

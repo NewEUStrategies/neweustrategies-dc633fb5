@@ -66,7 +66,7 @@ export function PostNavigationLinkBlock({ block, onChange }: Props) {
 
 export function QueryLoopBlock({ block, onChange }: Props) {
   const d = block.data;
-  const set = (patch: Record<string, unknown>) => onChange({ ...block, data: { ...d, ...patch } });
+  const set = (patch: Partial<Block["data"]>) => onChange({ ...block, data: { ...d, ...patch } });
   return (
     <Shell label="Pętla zapytań">
       <div className="grid grid-cols-2 gap-2">
