@@ -107,7 +107,13 @@ export type BlockType =
   | "logo-grid"
   | "feature-grid"
   | "alert-banner"
-  | "divider-text";
+  | "divider-text"
+  // Phase 4 - konwersja / SEO
+  | "step-list"
+  | "comparison-table"
+  | "banner-image"
+  | "video-hero";
+
 
 
 
