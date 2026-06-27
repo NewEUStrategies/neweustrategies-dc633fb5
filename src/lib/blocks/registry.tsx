@@ -33,6 +33,18 @@ import {
   UserPlus as RegisterIcon,
   KeyRound as LostPasswordIcon,
   ShieldCheck as ResetPasswordIcon,
+  Music as AudioIcon,
+  ImagePlus as CoverIcon,
+  FileDown as FileIcon,
+  PanelsTopLeft as MediaTextIcon,
+  Square as GroupIcon,
+  MoveVertical as SpacerIcon,
+  SeparatorHorizontal as PageBreakIcon,
+  MoreHorizontal as MoreIcon,
+  Quote as PullquoteIcon,
+  AlignLeft as PreformattedIcon,
+  Feather as VerseIcon,
+  ChevronDownSquare as DetailsIcon,
   type LucideIcon,
 } from "lucide-react";
 
