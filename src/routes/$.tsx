@@ -18,6 +18,7 @@ import { parseBuilderDoc } from "@/lib/builder/parse";
 import { processManualToc } from "@/lib/manualToc";
 import { processDocFootnotes, processHtmlFootnotes } from "@/lib/footnotes";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
+import { PostSidebarRenderer } from "@/components/post/PostSidebarRenderer";
 import { AutoLoadNextPost } from "@/components/post/AutoLoadNextPost";
 import { CustomMetaList } from "@/components/post/CustomMetaList";
 import { RelatedPosts } from "@/components/post/RelatedPosts";
