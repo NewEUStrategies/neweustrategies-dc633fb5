@@ -2,7 +2,7 @@
 // Combines: reading progress ring + interactive article ToC (scrollspy + jump)
 // + social share actions. Desktop only (>= lg). Uses semantic tokens.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Twitter, Facebook, Linkedin, Mail, Copy, Share2, Printer, Download, List, X, BookOpen } from "@/lib/lucide-shim";
+import { Twitter, Facebook, Linkedin, Mail, Copy, Share2, Printer, Download, List, X, BookOpen, Bookmark, BookmarkCheck } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { smoothScrollToAnchor } from "@/lib/smoothAnchorScroll";
 
@@ -40,6 +40,10 @@ const COPY = {
     actions: "Akcje",
     tocTitle: "SPIS TREŚCI",
     read: "przeczytano",
+    saveLater: "Zapisz później",
+    saved: "Zapisano",
+    savedToast: "Dodano do zapisanych",
+    removedToast: "Usunięto z zapisanych",
   },
   en: {
     share: "Share",
@@ -57,6 +61,10 @@ const COPY = {
     actions: "Actions",
     tocTitle: "ON THIS PAGE",
     read: "read",
+    saveLater: "Save for later",
+    saved: "Saved",
+    savedToast: "Added to saved",
+    removedToast: "Removed from saved",
   },
 } as const;
 
@@ -87,6 +95,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
   const [items, setItems] = useState<TocItem[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   
   const railRef = useRef<HTMLElement>(null);
   const t = COPY[lang];
@@ -203,6 +212,42 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
     toast.info(t.pdfHint);
     // Defer so toast paints before the blocking print dialog
     window.setTimeout(() => window.print(), 120);
+  };
+
+  const SAVE_KEY = "lovable:saved-articles";
+
+  type SavedItem = { url: string; title: string; savedAt: number };
+
+  const readSaved = (): SavedItem[] => {
+    try {
+      const raw = window.localStorage.getItem(SAVE_KEY);
+      if (!raw) return [];
+      const parsed: unknown = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as SavedItem[]) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !u) return;
+    setIsSaved(readSaved().some((s) => s.url === u));
+  }, [u]);
+
+  const onToggleSave = (): void => {
+    if (typeof window === "undefined" || !u) return;
+    try {
+      const list = readSaved();
+      const exists = list.some((s) => s.url === u);
+      const next = exists
+        ? list.filter((s) => s.url !== u)
+        : [{ url: u, title, savedAt: Date.now() }, ...list].slice(0, 200);
+      window.localStorage.setItem(SAVE_KEY, JSON.stringify(next));
+      setIsSaved(!exists);
+      toast.success(exists ? t.removedToast : t.savedToast);
+    } catch {
+      // localStorage may be unavailable (private mode); ignore silently.
+    }
   };
 
   const jumpTo = (id: string): void => {
@@ -368,6 +413,22 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
         <div className="my-2 h-px bg-border/60" />
 
         {/* Print + PDF row - labeled action buttons */}
+        {/* Save for later - prominent bookmark toggle */}
+        <button
+          type="button"
+          onClick={onToggleSave}
+          aria-pressed={isSaved}
+          aria-label={isSaved ? t.saved : t.saveLater}
+          className={[
+            "w-full mb-1.5 inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] text-[11px] font-semibold tracking-tight transition active:scale-[0.98]",
+            isSaved
+              ? "bg-brand/10 text-brand border border-brand/40"
+              : "border border-border bg-background text-foreground hover:bg-muted",
+          ].join(" ")}
+        >
+          {isSaved ? <BookmarkCheck className="w-[14px] h-[14px]" /> : <Bookmark className="w-[14px] h-[14px]" />}
+          {isSaved ? t.saved : t.saveLater}
+        </button>
         <div className="grid grid-cols-2 gap-1.5">
           <button
             type="button"
@@ -562,6 +623,21 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
               <Copy className="w-[17px] h-[17px]" />
             </button>
           </div>
+          <button
+            type="button"
+            onClick={onToggleSave}
+            aria-pressed={isSaved}
+            aria-label={isSaved ? t.saved : t.saveLater}
+            className={[
+              "w-full mt-2.5 inline-flex items-center justify-center gap-1.5 h-11 rounded-[5px] text-[12px] font-semibold tracking-tight transition active:scale-[0.98]",
+              isSaved
+                ? "bg-brand/10 text-brand border border-brand/40"
+                : "border border-border bg-background text-foreground active:bg-muted",
+            ].join(" ")}
+          >
+            {isSaved ? <BookmarkCheck className="w-[15px] h-[15px]" /> : <Bookmark className="w-[15px] h-[15px]" />}
+            {isSaved ? t.saved : t.saveLater}
+          </button>
           <div className="grid grid-cols-2 gap-2 mt-2.5">
             <button
               type="button"
