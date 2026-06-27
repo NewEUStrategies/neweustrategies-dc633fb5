@@ -214,6 +214,42 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
     window.setTimeout(() => window.print(), 120);
   };
 
+  const SAVE_KEY = "lovable:saved-articles";
+
+  type SavedItem = { url: string; title: string; savedAt: number };
+
+  const readSaved = (): SavedItem[] => {
+    try {
+      const raw = window.localStorage.getItem(SAVE_KEY);
+      if (!raw) return [];
+      const parsed: unknown = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as SavedItem[]) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !u) return;
+    setIsSaved(readSaved().some((s) => s.url === u));
+  }, [u]);
+
+  const onToggleSave = (): void => {
+    if (typeof window === "undefined" || !u) return;
+    try {
+      const list = readSaved();
+      const exists = list.some((s) => s.url === u);
+      const next = exists
+        ? list.filter((s) => s.url !== u)
+        : [{ url: u, title, savedAt: Date.now() }, ...list].slice(0, 200);
+      window.localStorage.setItem(SAVE_KEY, JSON.stringify(next));
+      setIsSaved(!exists);
+      toast.success(exists ? t.removedToast : t.savedToast);
+    } catch {
+      // localStorage may be unavailable (private mode); ignore silently.
+    }
+  };
+
   const jumpTo = (id: string): void => {
     const el = document.getElementById(id);
     if (!el) return;
