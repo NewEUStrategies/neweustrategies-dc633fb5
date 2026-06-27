@@ -358,20 +358,20 @@ export function SidebarBuilderPane() {
                       onClick={() => moveWidget(w.id, -1)}
                       disabled={idx === 0}
                     >
-                      <ArrowUp className="w-3.5 h-3.5" />
+                      <ChevronUp className="w-3.5 h-3.5" />
                     </IconBtn>
                     <IconBtn
                       label={lang === "pl" ? "W dół" : "Move down"}
                       onClick={() => moveWidget(w.id, 1)}
                       disabled={idx === draft.widgets.length - 1}
                     >
-                      <ArrowDown className="w-3.5 h-3.5" />
+                      <ChevronDown className="w-3.5 h-3.5" />
                     </IconBtn>
                     <IconBtn
                       label={w.hidden ? (lang === "pl" ? "Pokaż" : "Show") : (lang === "pl" ? "Ukryj" : "Hide")}
                       onClick={() => toggleHidden(w.id)}
                     >
-                      {w.hidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      {w.hidden ? <Eye className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </IconBtn>
                     <span className="flex-1" />
                     <IconBtn
