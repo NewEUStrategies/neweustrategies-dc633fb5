@@ -29,6 +29,7 @@ import {
   Eraser,
   Undo2,
   Redo2,
+  StickyNote,
 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
