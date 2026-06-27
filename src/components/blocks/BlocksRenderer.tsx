@@ -941,6 +941,52 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
         />
       );
     }
+    case "icon-box": {
+      const a = String(block.data.align ?? "center");
+      return (
+        <IconBoxView
+          icon={String(block.data.icon ?? "star")}
+          title={String(block.data.title ?? "")}
+          description={String(block.data.description ?? "")}
+          href={String(block.data.href ?? "")}
+          linkLabel={String(block.data.linkLabel ?? "")}
+          align={a === "left" ? "left" : "center"}
+          cls={cls}
+        />
+      );
+    }
+    case "stats-counter":
+      return (
+        <StatsCounterView
+          items={Array.isArray(block.data.items) ? (block.data.items as Json[]) : []}
+          duration={Number(block.data.duration ?? 1500)}
+          cls={cls}
+        />
+      );
+    case "testimonials": {
+      const l = String(block.data.layout ?? "grid");
+      return (
+        <TestimonialsView
+          items={Array.isArray(block.data.items) ? (block.data.items as Json[]) : []}
+          layout={l === "slider" ? "slider" : "grid"}
+          cls={cls}
+        />
+      );
+    }
+    case "pricing-table":
+      return (
+        <PricingTableView
+          plans={Array.isArray(block.data.plans) ? (block.data.plans as Json[]) : []}
+          cls={cls}
+        />
+      );
+    case "timeline":
+      return (
+        <TimelineView
+          items={Array.isArray(block.data.items) ? (block.data.items as Json[]) : []}
+          cls={cls}
+        />
+      );
     default:
       return null;
   }
