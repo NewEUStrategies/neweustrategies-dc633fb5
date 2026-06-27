@@ -33,7 +33,7 @@ function samples(metric: string, values: number[], rating?: string | null): Vita
 describe("aggregateVitals", () => {
   it("returns an empty report for no samples", () => {
     const r = aggregateVitals([], { windowDays: 7 });
-    expect(r).toEqual({ windowDays: 7, total: 0, metrics: [] });
+    expect(r).toEqual({ windowDays: 7, total: 0, metrics: [], paths: [], trends: [] });
   });
 
   it("ignores unknown metric names and non-finite values", () => {
@@ -134,5 +134,80 @@ describe("aggregateVitals", () => {
     const r = aggregateVitals(samples("INP", [150, 250]), { windowDays: 7 });
     expect(r.metrics).toHaveLength(1);
     expect(r.metrics[0].metric).toBe("INP");
+  });
+});
+
+describe("aggregateVitals - per-path breakdown", () => {
+  const rows: VitalSample[] = [
+    { metric: "LCP", value: 2000, path: "/" },
+    { metric: "LCP", value: 4000, path: "/" },
+    { metric: "CLS", value: 0.05, path: "/" },
+    { metric: "LCP", value: 9000, path: "/blog/post" },
+    { metric: "LCP", value: 1000, path: null }, // → "(unknown)"
+  ];
+
+  it("groups samples by path and sorts by sample count desc", () => {
+    const r = aggregateVitals(rows, { windowDays: 7 });
+    // "/" has the most samples (3) so it is unambiguously first; the other two
+    // tie at 1 (order among ties is incidental), so compare the set.
+    expect(r.paths[0].path).toBe("/");
+    expect(r.paths[0].total).toBe(3); // 2 LCP + 1 CLS on "/"
+    expect(r.paths.map((p) => p.path).sort()).toEqual(["(unknown)", "/", "/blog/post"]);
+  });
+
+  it("computes per-metric p75 + rating within a path", () => {
+    const r = aggregateVitals(rows, { windowDays: 7 });
+    const home = r.paths.find((p) => p.path === "/")!;
+    const lcp = home.metrics.find((m) => m.metric === "LCP")!;
+    expect(lcp.count).toBe(2);
+    // n=2, p75 rank=ceil(1.5)=2 → 4000 → needs-improvement
+    expect(lcp.p75).toBe(4000);
+    expect(lcp.rating).toBe("needs-improvement");
+  });
+
+  it("buckets path-less samples under (unknown)", () => {
+    const r = aggregateVitals(rows, { windowDays: 7 });
+    expect(r.paths.find((p) => p.path === "(unknown)")).toBeTruthy();
+  });
+
+  it("limits to topPaths by sample count", () => {
+    const many: VitalSample[] = [];
+    for (let i = 0; i < 10; i++) many.push({ metric: "LCP", value: 1000 + i, path: `/p${i}` });
+    const r = aggregateVitals(many, { windowDays: 7, topPaths: 3 });
+    expect(r.paths).toHaveLength(3);
+  });
+});
+
+describe("aggregateVitals - per-day trends", () => {
+  it("buckets p75 per metric per UTC day, chronologically", () => {
+    const rows: VitalSample[] = [
+      { metric: "LCP", value: 2000, created_at: "2026-06-01T10:00:00Z" },
+      { metric: "LCP", value: 4000, created_at: "2026-06-01T20:00:00Z" },
+      { metric: "LCP", value: 3000, created_at: "2026-06-02T08:00:00Z" },
+    ];
+    const r = aggregateVitals(rows, { windowDays: 7 });
+    expect(r.trends.map((t) => t.day)).toEqual(["2026-06-01", "2026-06-02"]);
+    // Day 1: n=2 p75 rank=2 → 4000
+    expect(r.trends[0].p75.LCP).toBe(4000);
+    expect(r.trends[1].p75.LCP).toBe(3000);
+  });
+
+  it("excludes samples without a timestamp from trends but keeps them in metrics", () => {
+    const rows: VitalSample[] = [
+      { metric: "LCP", value: 2000 }, // no created_at
+      { metric: "LCP", value: 2500, created_at: "2026-06-01T10:00:00Z" },
+    ];
+    const r = aggregateVitals(rows, { windowDays: 7 });
+    expect(r.metrics[0].count).toBe(2); // both counted in metrics
+    expect(r.trends).toHaveLength(1); // only the timestamped one in trends
+    expect(r.trends[0].day).toBe("2026-06-01");
+  });
+
+  it("ignores unparseable timestamps", () => {
+    const r = aggregateVitals(
+      [{ metric: "LCP", value: 2000, created_at: "not-a-date" }],
+      { windowDays: 7 },
+    );
+    expect(r.trends).toHaveLength(0);
   });
 });

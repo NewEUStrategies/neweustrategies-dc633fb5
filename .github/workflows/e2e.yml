@@ -1,0 +1,59 @@
+name: E2E
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+# Playwright smoke tests for the public critical path. The app's production build
+# targets the Cloudflare edge runtime (not a Node server) and `vite preview` is
+# incompatible with it, so Playwright drives the real SSR app via the dev server
+# (see playwright.config.ts webServer). Backend-agnostic specs (placeholder
+# Supabase creds) keep this gating real regressions, not data state.
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+
+      # See ci.yml: the committed bun.lock pins tarballs to Lovable's private GAR
+      # cache; repoint to the public npm registry for CI (edit is never committed).
+      - name: Repoint lockfile to the public npm registry
+        run: |
+          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
+
+      - name: Install dependencies
+        run: bun install
+        env:
+          npm_config_registry: https://registry.npmjs.org
+
+      # CI has no pre-installed browser (unlike the dev sandbox), so fetch Chromium.
+      - name: Install Playwright Chromium
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run E2E (Playwright)
+        run: bun run test:e2e
+        env:
+          CI: "true"
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
+          VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID || 'placeholder' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

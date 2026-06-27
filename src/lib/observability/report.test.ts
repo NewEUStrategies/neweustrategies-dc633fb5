@@ -5,17 +5,18 @@ import {
   sendBeaconPayload,
   reportClientError,
   reportBoundaryError,
+  INTERNAL_ERROR_ENDPOINT,
 } from "./report";
 
 describe("observabilityEndpoint", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("returns null when unconfigured", () => {
+  it("falls back to the internal ingest route when unconfigured", () => {
     vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
-    expect(observabilityEndpoint()).toBeNull();
+    expect(observabilityEndpoint()).toBe(INTERNAL_ERROR_ENDPOINT);
   });
 
-  it("returns the configured endpoint", () => {
+  it("prefers the external endpoint when configured", () => {
     vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "https://rum.example.com/collect");
     expect(observabilityEndpoint()).toBe("https://rum.example.com/collect");
   });
@@ -95,13 +96,16 @@ describe("reportClientError", () => {
     Object.defineProperty(navigator, "sendBeacon", { value: original, configurable: true, writable: true });
   });
 
-  it("is a no-op (returns false) when no endpoint is configured", () => {
+  it("beacons to the internal endpoint when no external endpoint is configured", () => {
     vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
-    expect(reportClientError(new Error("x"), "onerror")).toBe(false);
-    expect(navigator.sendBeacon).not.toHaveBeenCalled();
+    const beacon = vi.fn((_url: string, _body?: BodyInit) => true);
+    Object.defineProperty(navigator, "sendBeacon", { value: beacon, configurable: true, writable: true });
+    expect(reportClientError(new Error("x"), "onerror")).toBe(true);
+    expect(beacon).toHaveBeenCalledTimes(1);
+    expect(beacon.mock.calls[0][0]).toBe(INTERNAL_ERROR_ENDPOINT);
   });
 
-  it("beacons the error when an endpoint is configured", () => {
+  it("beacons the error when an external endpoint is configured", () => {
     vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "https://rum.example.com");
     expect(reportClientError(new Error("x"), "unhandledrejection")).toBe(true);
     expect(navigator.sendBeacon).toHaveBeenCalledTimes(1);
@@ -118,10 +122,12 @@ describe("reportBoundaryError", () => {
     Object.defineProperty(navigator, "sendBeacon", { value: original, configurable: true, writable: true });
   });
 
-  it("is a no-op (returns false) when no endpoint is configured", () => {
+  it("beacons to the internal endpoint by default (no external config)", () => {
     vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
-    expect(reportBoundaryError(new Error("x"), { label: "section:s1" })).toBe(false);
-    expect(navigator.sendBeacon).not.toHaveBeenCalled();
+    const beacon = vi.fn((_url: string, _body?: BodyInit) => true);
+    Object.defineProperty(navigator, "sendBeacon", { value: beacon, configurable: true, writable: true });
+    expect(reportBoundaryError(new Error("x"), { label: "section:s1" })).toBe(true);
+    expect(beacon.mock.calls[0][0]).toBe(INTERNAL_ERROR_ENDPOINT);
   });
 
   it("beacons a react_error_boundary payload with structured meta", () => {

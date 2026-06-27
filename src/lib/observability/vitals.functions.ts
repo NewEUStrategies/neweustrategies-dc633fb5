@@ -19,6 +19,8 @@ import { aggregateVitals, type VitalSample, type VitalsReport } from "./aggregat
 const SAMPLE_CAP = 20000;
 
 export interface VitalsSummaryResult extends VitalsReport {
+  /** Exact number of samples in the window (independent of the SAMPLE_CAP). */
+  windowTotal: number;
   /** True when the window held more samples than SAMPLE_CAP (newest were used). */
   capped: boolean;
 }
@@ -38,18 +40,46 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
     if (!isAdmin) throw new Error("Forbidden: admin role required");
 
     const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
-    // `web_vitals` is created by a migration not yet reflected in the generated
-    // Supabase types, so the table name/row shape are cast here (mirrors the
-    // ingest route in src/routes/api/public/vitals.ts).
-    const { data: rows, error } = await supabaseAdmin
-      .from("web_vitals" as never)
-      .select("metric, value, rating, path")
-      .gte("created_at", since)
-      .order("created_at", { ascending: false })
-      .limit(SAMPLE_CAP);
-    if (error) throw new Error(error.message);
+    const empty: VitalsSummaryResult = {
+      windowDays: data.days,
+      total: 0,
+      metrics: [],
+      paths: [],
+      trends: [],
+      windowTotal: 0,
+      capped: false,
+    };
 
-    const samples = (rows ?? []) as unknown as VitalSample[];
-    const report = aggregateVitals(samples, { windowDays: data.days });
-    return { ...report, capped: samples.length >= SAMPLE_CAP };
+    // Degrade gracefully on any data-read failure (e.g. the web_vitals migration
+    // hasn't been applied to this database yet): the dashboard shows "no data"
+    // instead of returning a 500. Auth/admin failures above still throw.
+    try {
+      // `web_vitals` is created by a migration not yet reflected in the generated
+      // Supabase types, so the table name/row shape are cast here (mirrors the
+      // ingest route in src/routes/api/public/vitals.ts).
+      // Accurate window size via a cheap COUNT(*) - the TRUE total even when the
+      // aggregated sample set below is capped, so the dashboard never understates.
+      const { count: windowCount, error: countErr } = await supabaseAdmin
+        .from("web_vitals" as never)
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", since);
+      if (countErr) throw new Error(countErr.message);
+
+      const { data: rows, error } = await supabaseAdmin
+        .from("web_vitals" as never)
+        .select("metric, value, rating, path, created_at")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(SAMPLE_CAP);
+      if (error) throw new Error(error.message);
+
+      const samples = (rows ?? []) as unknown as VitalSample[];
+      const report = aggregateVitals(samples, { windowDays: data.days });
+      const windowTotal = windowCount ?? samples.length;
+      return { ...report, windowTotal, capped: windowTotal > SAMPLE_CAP };
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("[vitals] summary read failed; returning empty report:", e instanceof Error ? e.message : e);
+      return empty;
+    }
   });

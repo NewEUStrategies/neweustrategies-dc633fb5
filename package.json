@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "migrate:blocks-to-builder": "bun run scripts/migrate-blocks-to-builder.ts",
     "verify:migration": "bun run scripts/verify-migration.ts",
     "check:bundle": "bun run scripts/check-bundle-size.ts"
@@ -94,6 +95,7 @@
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "2.6.2",
+    "@playwright/test": "^1.61.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/react-hooks": "^8.0.1",
@@ -102,6 +104,7 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.4",
     "@vitest/coverage-v8": "^4.1.7",
+    "axe-core": "4.10.2",
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.6",
