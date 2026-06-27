@@ -485,6 +485,120 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       return <div className={cls}><LostPasswordFormView data={block.data} lang={lang} /></div>;
     case "reset-password-form":
       return <div className={cls}><ResetPasswordFormView data={block.data} lang={lang} /></div>;
+    case "audio": {
+      const url = String(block.data.url ?? "");
+      const caption = String(block.data.caption ?? "");
+      if (!url) return null;
+      return (
+        <figure className={`not-prose my-4 ${cls}`}>
+          <audio src={url} controls preload="metadata" className="w-full" />
+          {caption && <figcaption className="text-sm text-muted-foreground text-center italic mt-2">{caption}</figcaption>}
+        </figure>
+      );
+    }
+    case "cover": {
+      const url = String(block.data.url ?? "");
+      const title = String(block.data.title ?? "");
+      const overlay = Math.min(100, Math.max(0, Number(block.data.overlay ?? 50)));
+      const minHeight = Math.min(800, Math.max(120, Number(block.data.minHeight ?? 360)));
+      if (!url) return null;
+      return (
+        <div
+          className={`relative w-full rounded-lg overflow-hidden flex items-center justify-center not-prose my-4 ${cls}`}
+          style={{ minHeight, backgroundImage: `url(${url})`, backgroundSize: "cover", backgroundPosition: "center" }}
+        >
+          <div className="absolute inset-0 bg-black" style={{ opacity: overlay / 100 }} />
+          {title && <h2 className="relative z-10 text-white text-3xl md:text-5xl font-semibold text-center px-6">{title}</h2>}
+        </div>
+      );
+    }
+    case "file": {
+      const url = String(block.data.url ?? "");
+      const label = String(block.data.label ?? "") || (lang === "pl" ? "Pobierz plik" : "Download file");
+      const showButton = block.data.showButton !== false;
+      if (!url) return null;
+      const labelDownload = lang === "pl" ? "Pobierz" : "Download";
+      return (
+        <div className={`not-prose my-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 ${cls}`}>
+          <a href={url} className="text-foreground hover:text-primary font-medium truncate" target="_blank" rel="noopener noreferrer">{label}</a>
+          {showButton && (
+            <a href={url} download className="shrink-0 inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90">{labelDownload}</a>
+          )}
+        </div>
+      );
+    }
+    case "media-text": {
+      const url = String(block.data.url ?? "");
+      const text = String(block.data.text ?? "");
+      const isRight = String(block.data.mediaPosition ?? "left") === "right";
+      return (
+        <div className={`not-prose my-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-center ${isRight ? "md:[&>*:first-child]:order-2" : ""} ${cls}`}>
+          <div className="aspect-video rounded-lg overflow-hidden bg-muted">
+            {url && <OptimizedImage src={url} alt="" className="w-full h-full object-cover" />}
+          </div>
+          <div className="prose dark:prose-invert max-w-none whitespace-pre-line">{text}</div>
+        </div>
+      );
+    }
+    case "group": {
+      const bg = String(block.data.background ?? "");
+      const padding = Math.min(120, Math.max(0, Number(block.data.padding ?? 16)));
+      const children = readBlocksArray(block.data.children);
+      const layout = String(block.data.layout ?? "group");
+      const layoutCls =
+        layout === "row" ? "flex flex-row flex-wrap gap-4"
+        : layout === "stack" ? "flex flex-col gap-4"
+        : layout === "grid" ? "grid grid-cols-1 md:grid-cols-2 gap-4"
+        : "";
+      return (
+        <div
+          className={`not-prose rounded-lg ${layoutCls} ${cls}`}
+          style={{ backgroundColor: bg || undefined, padding }}
+        >
+          {children.map((c) => <BlockView key={c.id} block={c} fnHtml={fnHtml} lang={lang} postId={postId} allBlocks={allBlocks} />)}
+        </div>
+      );
+    }
+    case "spacer": {
+      const height = Math.min(400, Math.max(4, Number(block.data.height ?? 40)));
+      return <div aria-hidden style={{ height }} />;
+    }
+    case "page-break":
+      // Paginacja po stronie wpisu (jeśli włączona) - tu jako semantyczny marker.
+      return <div className="page-break" aria-hidden data-page-break />;
+    case "read-more":
+      // Granica zajawki - na liście wpisów skraca treść; w pełnym widoku ukryta.
+      return <div className="read-more" aria-hidden data-read-more />;
+    case "pullquote": {
+      const text = String(block.data.text ?? "");
+      const cite = String(block.data.cite ?? "");
+      if (!text) return null;
+      return (
+        <blockquote className={`not-prose border-y-4 border-primary py-6 my-6 text-center ${cls}`}>
+          <p className="text-2xl md:text-3xl font-serif italic m-0">{text}</p>
+          {cite && <cite className="block mt-3 text-sm text-muted-foreground not-italic">— {cite}</cite>}
+        </blockquote>
+      );
+    }
+    case "preformatted": {
+      const text = String(block.data.text ?? "");
+      return <pre className={`whitespace-pre-wrap ${cls}`}>{text}</pre>;
+    }
+    case "verse": {
+      const text = String(block.data.text ?? "");
+      return <pre className={`font-serif italic text-lg leading-relaxed whitespace-pre-wrap bg-transparent border-none p-0 ${cls}`}>{text}</pre>;
+    }
+    case "details": {
+      const summary = String(block.data.summary ?? "");
+      const body = String(block.data.body ?? "");
+      if (!summary && !body) return null;
+      return (
+        <details className={`not-prose my-4 rounded-md border border-border bg-muted/20 ${cls}`}>
+          <summary className="cursor-pointer select-none px-4 py-3 font-medium text-sm hover:bg-accent/40 rounded-t-md">{summary || (lang === "pl" ? "Szczegóły" : "Details")}</summary>
+          <div className="px-4 py-3 border-t border-border text-sm whitespace-pre-line">{body}</div>
+        </details>
+      );
+    }
     default:
       return null;
   }
