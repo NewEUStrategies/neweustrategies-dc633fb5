@@ -82,6 +82,11 @@ import {
   LayoutPanelTop as TabsIcon,
   TimerReset as CountdownIcon,
   Gauge as ProgressIcon,
+  Sparkle as IconBoxIcon,
+  BarChart3 as StatsCounterIcon,
+  MessageSquareQuote as TestimonialsIcon,
+  Receipt as PricingIcon,
+  GitBranch as TimelineIcon,
   type LucideIcon,
 } from "lucide-react";
 

@@ -89,7 +89,13 @@ export type BlockType =
   | "accordion"
   | "tabs"
   | "countdown"
-  | "progress";
+  | "progress"
+  // Phase 4 - presentation
+  | "icon-box"
+  | "stats-counter"
+  | "testimonials"
+  | "pricing-table"
+  | "timeline";
 
 export type Json =
   | string
