@@ -133,7 +133,7 @@ export function SidebarBuilderPane() {
       const { data: profile, error: pErr } = await supabase
         .from("profiles")
         .select("tenant_id")
-        .eq("user_id", uid)
+        .eq("id", uid)
         .maybeSingle();
       if (pErr) throw pErr;
       const tenantId = profile?.tenant_id;
