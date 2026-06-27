@@ -731,11 +731,11 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     @layer utilities { :where([data-sidebar="group-label"]){font-family:var(--gc-sidebar-title-font, inherit);font-size:var(--gc-sidebar-title-size, inherit);font-weight:var(--gc-sidebar-title-weight, inherit);font-style:var(--gc-sidebar-title-style, inherit);text-decoration:var(--gc-sidebar-title-decoration, inherit);} }
     [data-sidebar="group-subtitle"], [data-sidebar="menu-sub-label"]{color:var(--gc-sidebar-subtitle, inherit) !important;}
     @layer utilities { :where([data-sidebar="group-subtitle"], [data-sidebar="menu-sub-label"]){font-family:var(--gc-sidebar-subtitle-font, inherit);font-size:var(--gc-sidebar-subtitle-size, inherit);font-weight:var(--gc-sidebar-subtitle-weight, inherit);font-style:var(--gc-sidebar-subtitle-style, inherit);text-decoration:var(--gc-sidebar-subtitle-decoration, inherit);} }
-    /* "Dark accent" text color — scoped strictly to CMS prose so widgets,
-       cards, navigation chrome and listing pages keep their native
-       Tailwind / shadcn colors (text-foreground / text-muted-foreground)
-       and only the article body adopts the user-picked accent color. */
-    :where(html:not(.dark) .article-body, html:not(.dark) [data-cms-prose]) :where(h1, h2, h3, h4, h5, h6, p, li){color:var(--gc-dark-accent, inherit);}
+    /* "Dark accent" intentionally NOT applied to article prose — titles,
+       paragraphs and list items inside posts must keep the regular
+       foreground color. Only true hyperlinks (<a href>) get the accent,
+       handled by the link rules above. */
+
     /* Typography bridge — wrapped in @layer utilities so :where() (0,0,0)
        loses to Tailwind utilities like text-base / text-xl (0,1,0) that
        live in the same cascade layer. Without this layer, the inline
