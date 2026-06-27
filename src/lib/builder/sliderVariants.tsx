@@ -273,15 +273,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
 
   const aspectStyle: CSSProperties = { aspectRatio: ratio.replace("/", " / "), width: "100%", minHeight: 0 };
 
-  // --- Drag / swipe to slide (pointer events cover mouse + touch + pen) ---
-  const dragRef = useRef<{ startX: number; lastX: number; pointerId: number; active: boolean }>({
-    startX: 0,
-    lastX: 0,
-    pointerId: -1,
-    active: false,
-  });
-  const [dragDx, setDragDx] = useState(0);
   const SWIPE_THRESHOLD = 48; // px - committed slide change
+
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (preview || items.length < 2) return;
