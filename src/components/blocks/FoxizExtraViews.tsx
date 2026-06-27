@@ -51,12 +51,12 @@ export function PostStatsView({ items, separator = "•", lang = "pl", cls }: Po
   const list = items?.length ? items : ["date", "author", "reading"];
 
   const dateStr = useMemo(() => {
-    const d = ctx?.published_at ? new Date(ctx.published_at) : null;
+    const d = ctx?.publishedAt ? new Date(ctx.publishedAt) : null;
     if (!d || Number.isNaN(d.getTime())) return null;
     return d.toLocaleDateString(lang === "pl" ? "pl-PL" : "en-US", {
       year: "numeric", month: "long", day: "numeric",
     });
-  }, [ctx?.published_at, lang]);
+  }, [ctx?.publishedAt, lang]);
 
   const readingMin = useMemo(() => {
     if (typeof ctx?.readingTimeMin === "number" && ctx.readingTimeMin > 0) return ctx.readingTimeMin;
@@ -71,15 +71,14 @@ export function PostStatsView({ items, separator = "•", lang = "pl", cls }: Po
       parts.push({ key: "date", node: (
         <span className="inline-flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" aria-hidden /> {dateStr}</span>
       ) });
-    } else if (it === "author" && ctx?.author?.display_name) {
+    } else if (it === "author" && ctx?.author?.name) {
       parts.push({ key: "author", node: (
-        <span className="inline-flex items-center gap-1.5"><User className="w-3.5 h-3.5" aria-hidden /> {t.by} {ctx.author.display_name}</span>
+        <span className="inline-flex items-center gap-1.5"><User className="w-3.5 h-3.5" aria-hidden /> {t.by} {ctx.author.name}</span>
       ) });
     } else if (it === "category" && ctx?.categories?.[0]) {
       const c = ctx.categories[0];
-      const name = (lang === "pl" ? c.name_pl : c.name_en) ?? c.name_pl ?? c.name_en ?? c.slug;
       parts.push({ key: "category", node: (
-        <span className="inline-flex items-center gap-1.5"><FolderOpen className="w-3.5 h-3.5" aria-hidden /> {name}</span>
+        <span className="inline-flex items-center gap-1.5"><FolderOpen className="w-3.5 h-3.5" aria-hidden /> {c.name}</span>
       ) });
     } else if (it === "reading") {
       parts.push({ key: "reading", node: (
@@ -91,12 +90,8 @@ export function PostStatsView({ items, separator = "•", lang = "pl", cls }: Po
       parts.push({ key: "views", node: (
         <span className="inline-flex items-center gap-1.5"><Eye className="w-3.5 h-3.5" aria-hidden /> {f} {t.views}</span>
       ) });
-    } else if (it === "comments") {
-      const n = typeof ctx?.commentsCount === "number" ? ctx.commentsCount : 0;
-      parts.push({ key: "comments", node: (
-        <span className="inline-flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5" aria-hidden /> {n} {t.comments}</span>
-      ) });
     }
+    // "comments" intentionally omitted - no comments aggregate in CurrentPostCtx yet.
   }
 
   if (parts.length === 0) return null;
