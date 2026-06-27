@@ -319,21 +319,7 @@ function PublicPage() {
             }
             sidebar={
               <>
-                <AdZone position="sidebar" pageType={adPageType} pageId={it.id} />
-                <PostSidebar
-                  articleRef={articleRef}
-                  tags={postTags}
-                  scanKey={`${it.id}-${lang}`}
-                />
-                {relatedCfg.enabled && relatedCfg.position === "sidebar" && (
-                  <RelatedPosts
-                    postId={post.id}
-                    lang={lang}
-                    override={relatedOverride}
-                    forceLayout="list"
-                    className="mt-6"
-                  />
-                )}
+                <FloatingShareBar title={title} lang={lang} variant="sidebar" />
               </>
             }
             footer={
@@ -367,7 +353,7 @@ function PublicPage() {
 
         <FooterSlideup pageType={adPageType} pageId={it.id} />
         {merged.show_floating_share_bar && (
-          <FloatingShareBar title={title} lang={lang} />
+          <FloatingShareBar title={title} lang={lang} variant="rail" showAfter={99999} />
         )}
       </div>
     );
