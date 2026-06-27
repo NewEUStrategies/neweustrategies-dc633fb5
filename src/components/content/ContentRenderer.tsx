@@ -44,10 +44,11 @@ export function ContentRenderer({
   blocksDoc,
   html,
   lang,
-  postId,
   currentPostCtx,
 }: Props) {
   const engine = resolveContentEngine({ editor, builderDoc, blocksDoc });
+
+
 
 
 
