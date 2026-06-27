@@ -109,7 +109,7 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
               to="/login"
               className="inline-flex items-center gap-1 text-brand hover:opacity-80 transition"
             >
-              <UserPlus className="w-3.5 h-3.5" />
+              <User className="w-3.5 h-3.5" />
               {t.register}
             </Link>
           </div>
