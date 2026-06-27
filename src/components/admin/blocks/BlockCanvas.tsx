@@ -267,6 +267,15 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "categories-list": return <CategoriesListBlock block={block} onChange={onChange} />;
     case "archives":        return <ArchivesBlock block={block} onChange={onChange} />;
     case "calendar":        return <CalendarBlock block={block} onChange={onChange} />;
+    case "post-title":          return <PostTitleBlock block={block} onChange={onChange} />;
+    case "post-date":           return <PostDateBlock block={block} onChange={onChange} />;
+    case "post-author":         return <PostAuthorBlock block={block} onChange={onChange} />;
+    case "post-excerpt":        return <PostExcerptBlock block={block} onChange={onChange} />;
+    case "post-featured-image": return <PostFeaturedImageBlock block={block} onChange={onChange} />;
+    case "post-terms":          return <PostTermsBlock block={block} onChange={onChange} />;
+    case "site-title":          return <SiteTitleBlock block={block} onChange={onChange} />;
+    case "site-tagline":        return <SiteTaglineBlock block={block} onChange={onChange} />;
+    case "site-logo":           return <SiteLogoBlock block={block} onChange={onChange} />;
     default:
       return (
         <div className="text-xs text-muted-foreground italic py-2">

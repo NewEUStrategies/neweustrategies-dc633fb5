@@ -22,6 +22,10 @@ import { LatestPostsView } from "./LatestPostsView";
 import { TaxonomyListView } from "./TaxonomyListView";
 import { TagCloudView } from "./TagCloudView";
 import { CalendarView } from "./CalendarView";
+import {
+  PostTitleView, PostDateView, PostAuthorView, PostExcerptView, PostFeaturedImageView, PostTermsView,
+  SiteTitleView, SiteTaglineView, SiteLogoView,
+} from "./ContextBlockViews";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
