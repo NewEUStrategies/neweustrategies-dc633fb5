@@ -623,6 +623,21 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
               <Copy className="w-[17px] h-[17px]" />
             </button>
           </div>
+          <button
+            type="button"
+            onClick={onToggleSave}
+            aria-pressed={isSaved}
+            aria-label={isSaved ? t.saved : t.saveLater}
+            className={[
+              "w-full mt-2.5 inline-flex items-center justify-center gap-1.5 h-11 rounded-[5px] text-[12px] font-semibold tracking-tight transition active:scale-[0.98]",
+              isSaved
+                ? "bg-brand/10 text-brand border border-brand/40"
+                : "border border-border bg-background text-foreground active:bg-muted",
+            ].join(" ")}
+          >
+            {isSaved ? <BookmarkCheck className="w-[15px] h-[15px]" /> : <Bookmark className="w-[15px] h-[15px]" />}
+            {isSaved ? t.saved : t.saveLater}
+          </button>
           <div className="grid grid-cols-2 gap-2 mt-2.5">
             <button
               type="button"
