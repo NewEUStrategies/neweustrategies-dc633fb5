@@ -437,6 +437,36 @@ export type Database = {
           },
         ]
       }
+      client_errors: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          meta: Json | null
+          path: string | null
+          source: string | null
+          stack: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          meta?: Json | null
+          path?: string | null
+          source?: string | null
+          stack?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          meta?: Json | null
+          path?: string | null
+          source?: string | null
+          stack?: string | null
+        }
+        Relationships: []
+      }
       contact_messages: {
         Row: {
           company: string | null
@@ -2089,6 +2119,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      web_vitals: {
+        Row: {
+          created_at: string
+          id: string
+          metric: string
+          path: string | null
+          rating: string | null
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metric: string
+          path?: string | null
+          rating?: string | null
+          value: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metric?: string
+          path?: string | null
+          rating?: string | null
+          value?: number
+        }
+        Relationships: []
       }
       wp_import_jobs: {
         Row: {
