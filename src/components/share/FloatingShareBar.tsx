@@ -98,7 +98,15 @@ function slugifyHeading(s: string): string {
   );
 }
 
-export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = "rail" }: Props) {
+export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = "rail", settings }: Props) {
+  const cfg: ReadingPanelSettings = useMemo(
+    () => ({
+      ...DEFAULT_READING_PANEL_SETTINGS,
+      ...(settings ?? {}),
+      social: { ...DEFAULT_READING_PANEL_SETTINGS.social, ...(settings?.social ?? {}) },
+    }),
+    [settings],
+  );
   const isSidebar = variant === "sidebar";
   const [visible, setVisible] = useState(false);
   const [href, setHref] = useState(url ?? "");
@@ -110,6 +118,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
   
   const railRef = useRef<HTMLElement>(null);
   const t = COPY[lang];
+
 
   useEffect(() => {
     if (!url && typeof window !== "undefined") setHref(window.location.href);
