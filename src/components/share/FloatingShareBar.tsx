@@ -205,6 +205,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
   const jumpTo = (id: string): void => {
     const el = document.getElementById(id);
     if (!el) return;
+    setMobileOpen(false);
     const targetTop = el.getBoundingClientRect().top + window.scrollY - 80;
     const startTop = window.scrollY;
     const distance = targetTop - startTop;
@@ -257,6 +258,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
   const hasToc = items.length > 0;
 
   return (
+    <>
     <aside
       ref={railRef}
       data-floating-share
