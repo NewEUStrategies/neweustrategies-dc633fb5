@@ -69,6 +69,11 @@ import { TagCloudBlock } from "./edit/TagCloud";
 import { CategoriesListBlock } from "./edit/CategoriesList";
 import { ArchivesBlock } from "./edit/Archives";
 import { CalendarBlock } from "./edit/Calendar";
+import {
+  PostTitleBlock, PostDateBlock, PostAuthorBlock, PostExcerptBlock,
+  PostFeaturedImageBlock, PostTermsBlock,
+  SiteTitleBlock, SiteTaglineBlock, SiteLogoBlock,
+} from "./edit/ContextBlocks";
 
 interface Props {
   doc: BlocksDoc;
