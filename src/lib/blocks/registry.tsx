@@ -436,39 +436,77 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
       },
     }),
   },
+  // ===== Gutenberg core - batch 1 =====
+  audio: {
+    type: "audio", label: "Plik dźwiękowy", description: "Odtwarzacz audio (mp3, ogg, wav).",
+    icon: AudioIcon, category: "media",
+    create: () => ({ id: newBlockId(), type: "audio", data: { url: "", caption: "" } }),
+  },
+  cover: {
+    type: "cover", label: "Okładka", description: "Obraz tła z nakładką i tytułem.",
+    icon: CoverIcon, category: "media",
+    create: () => ({ id: newBlockId(), type: "cover", data: { url: "", title: "", overlay: 50, minHeight: 360 } }),
+  },
+  file: {
+    type: "file", label: "Plik", description: "Link do pobrania pliku z przyciskiem.",
+    icon: FileIcon, category: "media",
+    create: () => ({ id: newBlockId(), type: "file", data: { url: "", label: "", showButton: true } }),
+  },
+  "media-text": {
+    type: "media-text", label: "Media i tekst", description: "Obraz obok tekstu (50/50).",
+    icon: MediaTextIcon, category: "media",
+    create: () => ({ id: newBlockId(), type: "media-text", data: { url: "", text: "", mediaPosition: "left" } }),
+  },
+  group: {
+    type: "group", label: "Grupa", description: "Kontener łączący bloki w sekcję.",
+    icon: GroupIcon, category: "layout",
+    create: () => ({ id: newBlockId(), type: "group", data: { layout: "group", children: [], background: "", padding: 16 } }),
+  },
+  spacer: {
+    type: "spacer", label: "Odstęp", description: "Pusta przestrzeń pionowa.",
+    icon: SpacerIcon, category: "layout",
+    create: () => ({ id: newBlockId(), type: "spacer", data: { height: 40 } }),
+  },
+  "page-break": {
+    type: "page-break", label: "Podział strony", description: "Dzieli wpis na strony (paginacja).",
+    icon: PageBreakIcon, category: "layout",
+    create: () => ({ id: newBlockId(), type: "page-break", data: {} }),
+  },
+  "read-more": {
+    type: "read-more", label: "Więcej", description: "Granica zajawki (Read More).",
+    icon: MoreIcon, category: "layout",
+    create: () => ({ id: newBlockId(), type: "read-more", data: { text: "Czytaj dalej" } }),
+  },
+  pullquote: {
+    type: "pullquote", label: "Cytat wyróżniony", description: "Duży, ozdobny cytat.",
+    icon: PullquoteIcon, category: "text",
+    create: () => ({ id: newBlockId(), type: "pullquote", data: { text: "", cite: "" } }),
+  },
+  preformatted: {
+    type: "preformatted", label: "Wstępnie sformatowany", description: "Zachowuje spacje i nowe linie (<pre>).",
+    icon: PreformattedIcon, category: "text",
+    create: () => ({ id: newBlockId(), type: "preformatted", data: { text: "" } }),
+  },
+  verse: {
+    type: "verse", label: "Poezja", description: "Tekst z zachowanym łamaniem linii (wiersz).",
+    icon: VerseIcon, category: "text",
+    create: () => ({ id: newBlockId(), type: "verse", data: { text: "" } }),
+  },
+  details: {
+    type: "details", label: "Szczegóły", description: "Rozwijany blok (HTML <details>).",
+    icon: DetailsIcon, category: "text",
+    create: () => ({ id: newBlockId(), type: "details", data: { summary: "", body: "" } }),
+  },
 };
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
 
 /** Bloki, które mają już dedykowany edytor i renderer. */
 export const IMPLEMENTED_BLOCKS: BlockType[] = [
-  "paragraph",
-  "heading",
-  "image",
-  "list",
-  "quote",
-  "code",
-  "embed",
-  "video",
-  "gallery",
-  "separator",
-  "callout",
-  "table",
-  "button",
-  "columns",
-  "html",
-  "liveblog",
-  "review",
-  "proscons",
-  "spoiler",
-  "faq",
-  "toc",
-  "newsletter",
-  "affiliate",
-  "xquote",
-  "compare",
-  "login-form",
-  "register-form",
-  "lost-password-form",
-  "reset-password-form",
+  "paragraph", "heading", "image", "list", "quote", "code", "embed", "video", "gallery",
+  "separator", "callout", "table", "button", "columns", "html", "liveblog",
+  "review", "proscons", "spoiler", "faq", "toc", "newsletter", "affiliate", "xquote", "compare",
+  "login-form", "register-form", "lost-password-form", "reset-password-form",
+  "audio", "cover", "file", "media-text", "group", "spacer",
+  "page-break", "read-more", "pullquote", "preformatted", "verse", "details",
 ];
