@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Twitter, Facebook, Linkedin, Mail, Copy, Share2, Printer, Download, List, X, BookOpen } from "@/lib/lucide-shim";
 import { toast } from "sonner";
+import { smoothScrollToAnchor } from "@/lib/smoothAnchorScroll";
 
 type Lang = "pl" | "en";
 
@@ -204,52 +205,12 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
     window.setTimeout(() => window.print(), 120);
   };
 
-
-
   const jumpTo = (id: string): void => {
     const el = document.getElementById(id);
     if (!el) return;
     setMobileOpen(false);
-    const targetTop = el.getBoundingClientRect().top + window.scrollY - 80;
-    const startTop = window.scrollY;
-    const distance = targetTop - startTop;
-    if (Math.abs(distance) < 2) {
-      history.replaceState(null, "", `#${id}`);
-      return;
-    }
-    // Custom rAF tween - bypasses CSS scroll-behavior/reduced-motion conflicts
-    // and any router/view-transition interception of hash changes.
-    // Duration scales with distance: 350-1100ms.
-    const duration = Math.min(1100, Math.max(350, Math.abs(distance) * 0.45));
-    const startTime = performance.now();
-    // easeInOutCubic
-    const ease = (t: number): number =>
-      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-
-    let cancelled = false;
-    const onUserScroll = (): void => {
-      cancelled = true;
-    };
-    window.addEventListener("wheel", onUserScroll, { passive: true, once: true });
-    window.addEventListener("touchstart", onUserScroll, { passive: true, once: true });
-
-    const step = (now: number): void => {
-      if (cancelled) {
-        window.removeEventListener("wheel", onUserScroll);
-        window.removeEventListener("touchstart", onUserScroll);
-        return;
-      }
-      const t = Math.min(1, (now - startTime) / duration);
-      window.scrollTo(0, startTop + distance * ease(t));
-      if (t < 1) {
-        requestAnimationFrame(step);
-      } else {
-        history.replaceState(null, "", `#${id}`);
-        window.removeEventListener("wheel", onUserScroll);
-        window.removeEventListener("touchstart", onUserScroll);
-      }
-    };
-    requestAnimationFrame(step);
+    setActive(id);
+    smoothScrollToAnchor(id);
   };
 
   // SVG ring geometry
