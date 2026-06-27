@@ -552,6 +552,29 @@ function EditPost() {
         </div>
       ) : (
         <div className="space-y-5">
+          <div className="flex items-center justify-between gap-3 bg-card border border-border rounded-lg p-2 pl-4">
+            <div className="text-xs text-muted-foreground">
+              {t("admin.posts.editorMode", { defaultValue: "Tryb edytora" })}
+            </div>
+            <div className="inline-flex rounded-md border border-border bg-background p-0.5">
+              <button
+                type="button"
+                onClick={() => set("editor", "blocks")}
+                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${form.editor === "blocks" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                aria-pressed={form.editor === "blocks"}
+              >
+                Gutenberg
+              </button>
+              <button
+                type="button"
+                onClick={() => set("editor", "builder")}
+                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${form.editor === "builder" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                aria-pressed={form.editor === "builder"}
+              >
+                Elementor
+              </button>
+            </div>
+          </div>
           {form.editor === "blocks" ? (
             <PostBlockEditor
               value={form.blocks_data ?? { pl: EMPTY_BLOCKS_DOC, en: EMPTY_BLOCKS_DOC }}
