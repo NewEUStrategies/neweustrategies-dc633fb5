@@ -32,6 +32,7 @@ const BlockSchema = z.object({
     "audio", "cover", "file", "media-text", "group", "spacer",
     "page-break", "read-more", "pullquote", "preformatted", "verse", "details",
     "row", "stack", "grid", "buttons", "social-icons", "search", "latest-posts",
+    "tag-cloud", "categories-list", "archives", "calendar",
   ]),
   data: z.record(z.string(), JsonSchema),
   style: BlockStyleSchema.optional(),

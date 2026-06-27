@@ -53,7 +53,12 @@ export type BlockType =
   | "buttons"
   | "social-icons"
   | "search"
-  | "latest-posts";
+  | "latest-posts"
+  // Gutenberg core - batch 3 (taxonomy + widgets)
+  | "tag-cloud"
+  | "categories-list"
+  | "archives"
+  | "calendar";
 
 export type Json =
   | string

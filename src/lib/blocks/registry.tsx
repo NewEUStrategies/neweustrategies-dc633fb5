@@ -52,6 +52,10 @@ import {
   Share2 as SocialIcon,
   Search as SearchIcon,
   Newspaper as LatestPostsIcon,
+  Tags as TagCloudIcon,
+  FolderTree as CategoriesIcon,
+  Archive as ArchivesIcon,
+  CalendarDays as CalendarIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -540,6 +544,27 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     icon: LatestPostsIcon, category: "advanced",
     create: () => ({ id: newBlockId(), type: "latest-posts", data: { count: 5, category: "", showImage: true, showExcerpt: false, layout: "list" } }),
   },
+  // ===== Gutenberg core - batch 3 (taxonomy + widgets) =====
+  "tag-cloud": {
+    type: "tag-cloud", label: "Chmura tagów", description: "Lista tagów z proporcjonalnym rozmiarem.",
+    icon: TagCloudIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "tag-cloud", data: { count: 30, showCount: false } }),
+  },
+  "categories-list": {
+    type: "categories-list", label: "Lista kategorii", description: "Lista kategorii lub dropdown.",
+    icon: CategoriesIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "categories-list", data: { showCount: false, hierarchical: false, layout: "list" } }),
+  },
+  archives: {
+    type: "archives", label: "Archiwa", description: "Archiwa miesięczne (lista lub dropdown).",
+    icon: ArchivesIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "archives", data: { showCount: true, layout: "list" } }),
+  },
+  calendar: {
+    type: "calendar", label: "Kalendarz", description: "Kalendarz publikacji w danym miesiącu.",
+    icon: CalendarIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "calendar", data: { month: "" } }),
+  },
 };
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
@@ -553,4 +578,5 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "audio", "cover", "file", "media-text", "group", "spacer",
   "page-break", "read-more", "pullquote", "preformatted", "verse", "details",
   "row", "stack", "grid", "buttons", "social-icons", "search", "latest-posts",
+  "tag-cloud", "categories-list", "archives", "calendar",
 ];

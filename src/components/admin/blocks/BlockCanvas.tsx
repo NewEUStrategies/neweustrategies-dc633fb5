@@ -65,6 +65,10 @@ import { ButtonsBlock } from "./edit/Buttons";
 import { SocialIconsBlock } from "./edit/SocialIcons";
 import { SearchBlock } from "./edit/Search";
 import { LatestPostsBlock } from "./edit/LatestPosts";
+import { TagCloudBlock } from "./edit/TagCloud";
+import { CategoriesListBlock } from "./edit/CategoriesList";
+import { ArchivesBlock } from "./edit/Archives";
+import { CalendarBlock } from "./edit/Calendar";
 
 interface Props {
   doc: BlocksDoc;
@@ -254,6 +258,10 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "social-icons": return <SocialIconsBlock block={block} onChange={onChange} />;
     case "search":       return <SearchBlock block={block} onChange={onChange} />;
     case "latest-posts": return <LatestPostsBlock block={block} onChange={onChange} />;
+    case "tag-cloud":       return <TagCloudBlock block={block} onChange={onChange} />;
+    case "categories-list": return <CategoriesListBlock block={block} onChange={onChange} />;
+    case "archives":        return <ArchivesBlock block={block} onChange={onChange} />;
+    case "calendar":        return <CalendarBlock block={block} onChange={onChange} />;
     default:
       return (
         <div className="text-xs text-muted-foreground italic py-2">
