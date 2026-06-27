@@ -101,7 +101,14 @@ export type BlockType =
   | "cta-section"
   | "image-carousel"
   | "contact-form"
-  | "map";
+  | "map"
+  // Phase 4 - data + social proof
+  | "team-grid"
+  | "logo-grid"
+  | "feature-grid"
+  | "alert-banner"
+  | "divider-text";
+
 
 
 export type Json =

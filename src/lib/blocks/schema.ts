@@ -42,6 +42,8 @@ const BlockSchema = z.object({
     "accordion", "tabs", "countdown", "progress",
     "icon-box", "stats-counter", "testimonials", "pricing-table", "timeline",
     "hero", "cta-section", "image-carousel", "contact-form", "map",
+    "team-grid", "logo-grid", "feature-grid", "alert-banner", "divider-text",
+
 
   ]),
   data: z.record(z.string(), JsonSchema),
