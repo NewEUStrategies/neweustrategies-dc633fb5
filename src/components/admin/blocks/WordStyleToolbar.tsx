@@ -146,6 +146,18 @@ export function WordStyleToolbar({ editor }: Props) {
     else editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   };
 
+  const insertFootnote = () => {
+    const { from, to, empty } = editor.state.selection;
+    const selected = empty ? "" : editor.state.doc.textBetween(from, to, " ");
+    const promptLabel = i18n.t("blocks.toolbar.footnotePrompt", { defaultValue: "Treść przypisu:" });
+    const initial = selected || "";
+    const text = window.prompt(promptLabel, initial);
+    if (text === null) return;
+    const body = text.trim();
+    if (!body) return;
+    editor.chain().focus().insertContentAt({ from, to }, `[fn]${body}[/fn]`).run();
+  };
+
   return (
     <div
       ref={rootRef}
