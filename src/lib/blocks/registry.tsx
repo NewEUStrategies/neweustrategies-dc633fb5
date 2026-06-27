@@ -65,6 +65,9 @@ import {
   Globe as SiteTitleIcon,
   Megaphone as SiteTaglineIcon,
   Building2 as SiteLogoIcon,
+  Menu as NavigationIcon,
+  ArrowLeftRight as PostNavIcon,
+  Repeat as QueryLoopIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -620,6 +623,24 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     icon: SiteLogoIcon, category: "advanced",
     create: () => ({ id: newBlockId(), type: "site-logo", data: { width: 120 } }),
   },
+  navigation: {
+    type: "navigation", label: "Nawigacja", description: "Menu nawigacyjne (mega menu / linki).",
+    icon: NavigationIcon, category: "layout",
+    create: () => ({ id: newBlockId(), type: "navigation", data: { menuKey: "primary", layout: "horizontal" } }),
+  },
+  "post-navigation-link": {
+    type: "post-navigation-link", label: "Poprzedni / Następny wpis", description: "Link do poprzedniego lub następnego wpisu.",
+    icon: PostNavIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "post-navigation-link", data: { direction: "next", showTitle: true } }),
+  },
+  "query-loop": {
+    type: "query-loop", label: "Pętla zapytań", description: "Lista wpisów wg filtrów (kategoria, limit, sortowanie).",
+    icon: QueryLoopIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "query-loop",
+      data: { categorySlug: "", limit: 6, layout: "grid", showExcerpt: true, showDate: true, showImage: true, orderBy: "date" },
+    }),
+  },
 };
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
@@ -636,4 +657,5 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "tag-cloud", "categories-list", "archives", "calendar",
   "post-title", "post-date", "post-author", "post-excerpt", "post-featured-image", "post-terms",
   "site-title", "site-tagline", "site-logo",
+  "navigation", "post-navigation-link", "query-loop",
 ];
