@@ -84,7 +84,7 @@ function SidebarSection({ title, icon: Icon, children, defaultOpen = true }: { t
         className="w-full flex items-center justify-between gap-2 p-4 text-left hover:bg-muted/30 transition-colors"
       >
         <h3 className="text-sm font-semibold inline-flex items-center gap-2">
-          <Icon className="w-4 h-4" /> {title}
+          {Icon ? <Icon className="w-4 h-4" /> : null} {title}
         </h3>
         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
