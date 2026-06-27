@@ -96,7 +96,7 @@ import {
   ImagePlus as LogoGridIcon,
   LayoutGrid as FeatureGridIcon,
   BellRing as AlertBannerIcon,
-  MoreHorizontal as DividerTextIcon,
+  MoveHorizontal as DividerTextIcon,
   type LucideIcon,
 
 
@@ -876,7 +876,64 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
       data: { lat: 52.2297, lng: 21.0122, zoom: 13, height: 360, label: "" },
     }),
   },
+  "team-grid": {
+    type: "team-grid", label: "Siatka zespołu", description: "Karty członków zespołu z awatarami i opisem.",
+    icon: TeamIcon, category: "layout",
+    create: () => ({
+      id: newBlockId(), type: "team-grid",
+      data: {
+        title: "", columns: 3, shape: "circle",
+        items: [
+          { name: "", role: "", bio: "", avatar: "", href: "", social: "" },
+        ],
+      },
+    }),
+  },
+  "logo-grid": {
+    type: "logo-grid", label: "Siatka logotypów", description: "Logotypy klientów lub partnerów w siatce.",
+    icon: LogoGridIcon, category: "media",
+    create: () => ({
+      id: newBlockId(), type: "logo-grid",
+      data: { title: "", columns: 5, grayscale: true, bordered: false, items: [] },
+    }),
+  },
+  "feature-grid": {
+    type: "feature-grid", label: "Siatka funkcji", description: "Lista funkcji / cech z ikonami i opisem.",
+    icon: FeatureGridIcon, category: "layout",
+    create: () => ({
+      id: newBlockId(), type: "feature-grid",
+      data: {
+        title: "", subtitle: "", columns: 3, style: "card",
+        items: [
+          { icon: "zap", title: "", description: "", href: "" },
+          { icon: "shield", title: "", description: "", href: "" },
+          { icon: "rocket", title: "", description: "", href: "" },
+        ],
+      },
+    }),
+  },
+  "alert-banner": {
+    type: "alert-banner", label: "Banner alertu", description: "Komunikat info / success / warning / danger z CTA.",
+    icon: AlertBannerIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "alert-banner",
+      data: {
+        variant: "info", title: "", message: "",
+        ctaLabel: "", ctaHref: "",
+        dismissible: false, showIcon: true,
+      },
+    }),
+  },
+  "divider-text": {
+    type: "divider-text", label: "Separator z tekstem", description: "Linia rozdzielająca z opcjonalnym tekstem.",
+    icon: DividerTextIcon, category: "layout",
+    create: () => ({
+      id: newBlockId(), type: "divider-text",
+      data: { text: "", align: "center", lineStyle: "solid" },
+    }),
+  },
 };
+
 
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
@@ -899,5 +956,7 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "accordion", "tabs", "countdown", "progress",
   "icon-box", "stats-counter", "testimonials", "pricing-table", "timeline",
   "hero", "cta-section", "image-carousel", "contact-form", "map",
+  "team-grid", "logo-grid", "feature-grid", "alert-banner", "divider-text",
+
 
 ];
