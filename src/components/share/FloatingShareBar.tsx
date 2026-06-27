@@ -268,7 +268,6 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
                     type="button"
                     onClick={() => jumpTo(it.id)}
                     aria-current={isActive ? "true" : undefined}
-                    aria-current={isActive ? "true" : undefined}
                     title={it.text}
                     className={[
                       "group relative w-full text-left flex gap-2 items-start py-1.5 pr-1 rounded-md transition-colors",
