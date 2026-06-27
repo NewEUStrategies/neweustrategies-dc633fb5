@@ -16,7 +16,9 @@ import { LoginFormView, RegisterFormView, LostPasswordFormView, ResetPasswordFor
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
-import { ThumbsUp, ThumbsDown } from "lucide-react";
+import type { ComponentType } from "react";
+import { ThumbsUp, ThumbsDown, Facebook, Twitter, Instagram, Youtube, Linkedin, Github, Mail, Rss, Search as SearchIcon, Music as TikTokIcon } from "lucide-react";
+import { LatestPostsView } from "./LatestPostsView";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -597,6 +599,121 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
           <summary className="cursor-pointer select-none px-4 py-3 font-medium text-sm hover:bg-accent/40 rounded-t-md">{summary || (lang === "pl" ? "Szczegóły" : "Details")}</summary>
           <div className="px-4 py-3 border-t border-border text-sm whitespace-pre-line">{body}</div>
         </details>
+      );
+    }
+    case "row":
+    case "stack":
+    case "grid": {
+      const bg = String(block.data.background ?? "");
+      const padding = Math.min(120, Math.max(0, Number(block.data.padding ?? 0)));
+      const children = readBlocksArray(block.data.children);
+      const cols = Math.min(6, Math.max(1, Number(block.data.columns ?? 3)));
+      const layoutCls =
+        block.type === "row" ? "flex flex-row flex-wrap gap-4"
+        : block.type === "stack" ? "flex flex-col gap-4"
+        : `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${cols} gap-4`;
+      return (
+        <div className={`not-prose rounded-lg ${layoutCls} ${cls}`} style={{ backgroundColor: bg || undefined, padding: padding || undefined }}>
+          {children.map((c) => <BlockView key={c.id} block={c} fnHtml={fnHtml} lang={lang} postId={postId} allBlocks={allBlocks} />)}
+        </div>
+      );
+    }
+    case "buttons": {
+      type ButtonItem = { label?: string; href?: string; variant?: string };
+      const raw = Array.isArray(block.data.items) ? (block.data.items as unknown as ButtonItem[]) : [];
+      const align = String(block.data.align ?? "left");
+      const alignCls = align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start";
+      if (raw.length === 0) return null;
+      return (
+        <div className={`not-prose flex flex-wrap gap-2 ${alignCls} ${cls}`}>
+          {raw.map((it, i) => {
+            const label = String(it.label ?? "");
+            const href = String(it.href ?? "#");
+            const variant = String(it.variant ?? "default");
+            const stl =
+              variant === "outline" ? "border border-primary text-primary hover:bg-primary/10"
+              : variant === "ghost" ? "text-primary hover:bg-primary/10"
+              : "bg-primary text-primary-foreground hover:bg-primary/90";
+            if (!label) return null;
+            return (
+              <a key={i} href={href} className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium ${stl}`}>{label}</a>
+            );
+          })}
+        </div>
+      );
+    }
+    case "social-icons": {
+      type SocialItem = { platform?: string; url?: string };
+      const raw = Array.isArray(block.data.items) ? (block.data.items as unknown as SocialItem[]) : [];
+      const size = String(block.data.size ?? "md");
+      const align = String(block.data.align ?? "left");
+      const alignCls = align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start";
+      const sizeCls = size === "sm" ? "h-4 w-4" : size === "lg" ? "h-7 w-7" : "h-5 w-5";
+      if (raw.length === 0) return null;
+      const ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
+        facebook: Facebook, x: Twitter, twitter: Twitter, instagram: Instagram,
+        youtube: Youtube, linkedin: Linkedin, tiktok: TikTokIcon,
+        github: Github, mail: Mail, rss: Rss,
+      };
+      return (
+        <div className={`not-prose flex flex-wrap gap-3 ${alignCls} ${cls}`}>
+          {raw.map((it, i) => {
+            const Icon = ICON_MAP[String(it.platform ?? "").toLowerCase()] ?? Rss;
+            const url = String(it.url ?? "");
+            if (!url) return null;
+            return (
+              <a
+                key={i}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={String(it.platform ?? "social")}
+                className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
+              >
+                <Icon className={sizeCls} />
+              </a>
+            );
+          })}
+        </div>
+      );
+    }
+    case "search": {
+      const placeholder = String(block.data.placeholder ?? (lang === "pl" ? "Szukaj…" : "Search…"));
+      const buttonLabel = String(block.data.buttonLabel ?? (lang === "pl" ? "Szukaj" : "Search"));
+      const action = String(block.data.action ?? "/search");
+      return (
+        <form className={`not-prose flex gap-2 ${cls}`} action={action} method="get" role="search">
+          <input
+            type="search"
+            name="q"
+            placeholder={placeholder}
+            aria-label={placeholder}
+            className="flex-1 h-10 px-3 rounded-md border border-border bg-background text-sm"
+          />
+          <button type="submit" className="inline-flex items-center gap-1 px-4 h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
+            <SearchIcon className="h-4 w-4" />
+            {buttonLabel}
+          </button>
+        </form>
+      );
+    }
+    case "latest-posts": {
+      const count = Math.max(1, Math.min(50, Number(block.data.count ?? 5)));
+      const category = String(block.data.category ?? "");
+      const showExcerpt = Boolean(block.data.showExcerpt);
+      const showImage = Boolean(block.data.showImage ?? true);
+      const layout = String(block.data.layout ?? "list") === "grid" ? "grid" : "list";
+      return (
+        <div className={cls}>
+          <LatestPostsView
+            count={count}
+            category={category}
+            showExcerpt={showExcerpt}
+            showImage={showImage}
+            layout={layout}
+            lang={lang}
+          />
+        </div>
       );
     }
     default:

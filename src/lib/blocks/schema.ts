@@ -31,6 +31,7 @@ const BlockSchema = z.object({
     "login-form", "register-form", "lost-password-form", "reset-password-form",
     "audio", "cover", "file", "media-text", "group", "spacer",
     "page-break", "read-more", "pullquote", "preformatted", "verse", "details",
+    "row", "stack", "grid", "buttons", "social-icons", "search", "latest-posts",
   ]),
   data: z.record(z.string(), JsonSchema),
   style: BlockStyleSchema.optional(),

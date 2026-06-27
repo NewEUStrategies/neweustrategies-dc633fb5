@@ -45,7 +45,15 @@ export type BlockType =
   | "pullquote"
   | "preformatted"
   | "verse"
-  | "details";
+  | "details"
+  // Gutenberg core - batch 2 (layout + widgets)
+  | "row"
+  | "stack"
+  | "grid"
+  | "buttons"
+  | "social-icons"
+  | "search"
+  | "latest-posts";
 
 export type Json =
   | string

@@ -45,6 +45,13 @@ import {
   AlignLeft as PreformattedIcon,
   Feather as VerseIcon,
   ChevronDownSquare as DetailsIcon,
+  Rows3 as RowIcon,
+  StretchVertical as StackIcon,
+  LayoutGrid as GridIcon,
+  MousePointer as ButtonsIcon,
+  Share2 as SocialIcon,
+  Search as SearchIcon,
+  Newspaper as LatestPostsIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -497,6 +504,42 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     icon: DetailsIcon, category: "text",
     create: () => ({ id: newBlockId(), type: "details", data: { summary: "", body: "" } }),
   },
+  // ===== Gutenberg core - batch 2 (layout + widgets) =====
+  row: {
+    type: "row", label: "Wiersz", description: "Bloki ułożone poziomo (flex row).",
+    icon: RowIcon, category: "layout",
+    create: () => ({ id: newBlockId(), type: "row", data: { children: [], background: "", padding: 0 } }),
+  },
+  stack: {
+    type: "stack", label: "Stos", description: "Bloki ułożone pionowo (flex column).",
+    icon: StackIcon, category: "layout",
+    create: () => ({ id: newBlockId(), type: "stack", data: { children: [], background: "", padding: 0 } }),
+  },
+  grid: {
+    type: "grid", label: "Siatka", description: "Bloki w siatce responsywnej (CSS grid).",
+    icon: GridIcon, category: "layout",
+    create: () => ({ id: newBlockId(), type: "grid", data: { children: [], columns: 3, background: "", padding: 0 } }),
+  },
+  buttons: {
+    type: "buttons", label: "Przyciski", description: "Grupa przycisków w jednej linii.",
+    icon: ButtonsIcon, category: "layout",
+    create: () => ({ id: newBlockId(), type: "buttons", data: { items: [{ label: "Button", href: "#", variant: "default" }], align: "left" } }),
+  },
+  "social-icons": {
+    type: "social-icons", label: "Ikony społeczności", description: "Linki do mediów społecznościowych.",
+    icon: SocialIcon, category: "layout",
+    create: () => ({ id: newBlockId(), type: "social-icons", data: { items: [{ platform: "facebook", url: "" }], size: "md", align: "left" } }),
+  },
+  search: {
+    type: "search", label: "Wyszukiwarka", description: "Formularz wyszukiwania witryny.",
+    icon: SearchIcon, category: "layout",
+    create: () => ({ id: newBlockId(), type: "search", data: { placeholder: "Szukaj…", buttonLabel: "Szukaj", action: "/search" } }),
+  },
+  "latest-posts": {
+    type: "latest-posts", label: "Najnowsze wpisy", description: "Lista lub siatka ostatnich publikacji.",
+    icon: LatestPostsIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "latest-posts", data: { count: 5, category: "", showImage: true, showExcerpt: false, layout: "list" } }),
+  },
 };
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
@@ -509,4 +552,5 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "login-form", "register-form", "lost-password-form", "reset-password-form",
   "audio", "cover", "file", "media-text", "group", "spacer",
   "page-break", "read-more", "pullquote", "preformatted", "verse", "details",
+  "row", "stack", "grid", "buttons", "social-icons", "search", "latest-posts",
 ];
