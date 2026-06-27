@@ -283,14 +283,19 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
     <aside
       ref={railRef}
       data-floating-share
+      data-variant={variant}
       aria-label={t.share}
       className={[
-        "hidden lg:flex flex-col fixed left-5 top-1/2 -translate-y-1/2 z-40",
-        "w-[248px] max-h-[min(86vh,720px)]",
+        "hidden lg:flex flex-col",
+        isSidebar
+          ? "sticky top-24 w-full max-h-[calc(100vh-7rem)]"
+          : "fixed left-5 top-1/2 -translate-y-1/2 z-40 w-[248px] max-h-[min(86vh,720px)]",
         "rounded-[5px] border border-border/70 bg-background/95 backdrop-blur-xl",
         "shadow-[0_10px_40px_-12px_rgba(0,0,0,0.25)] overflow-hidden",
         "transition-all duration-300 ease-out",
-        visible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 pointer-events-none",
+        isSidebar
+          ? "opacity-100"
+          : (visible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 pointer-events-none"),
       ].join(" ")}
     >
       {/* Top progress bar */}
