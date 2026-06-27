@@ -45,6 +45,13 @@ import {
   AlignLeft as PreformattedIcon,
   Feather as VerseIcon,
   ChevronDownSquare as DetailsIcon,
+  Rows3 as RowIcon,
+  StretchVertical as StackIcon,
+  LayoutGrid as GridIcon,
+  MousePointerSquare as ButtonsIcon,
+  Share2 as SocialIcon,
+  Search as SearchIcon,
+  Newspaper as LatestPostsIcon,
   type LucideIcon,
 } from "lucide-react";
 
