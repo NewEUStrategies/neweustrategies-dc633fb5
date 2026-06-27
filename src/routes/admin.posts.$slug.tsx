@@ -21,6 +21,7 @@ import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon, Layers } from "@/lib/lucide-shim";
+import { ChevronDown } from "lucide-react";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
 import type { LocalizedBlocks, BlocksDoc } from "@/lib/blocks/types";
 import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
@@ -72,6 +73,25 @@ interface PostForm {
 
 interface CategoryOpt { id: string; name_pl: string; name_en: string }
 interface TagOpt { id: string; name: string }
+
+function SidebarSection({ title, icon: Icon, children, defaultOpen = true }: { title: string; icon?: React.ElementType; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 p-4 text-left hover:bg-muted/30 transition-colors"
+      >
+        <h3 className="text-sm font-semibold inline-flex items-center gap-2">
+          {Icon ? <Icon className="w-4 h-4" /> : null} {title}
+        </h3>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && <div className="px-4 pb-4 space-y-3">{children}</div>}
+    </div>
+  );
+}
 
 function EditPost() {
   const { slug: routeSlug } = Route.useParams();
@@ -228,10 +248,7 @@ function EditPost() {
   };
 
   const metaCard = (
-    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-      <h3 className="text-sm font-semibold inline-flex items-center gap-2 mb-1">
-        <SettingsIcon className="w-4 h-4" /> Ustawienia wpisu
-      </h3>
+    <SidebarSection title="Ustawienia wpisu" icon={SettingsIcon}>
       <div>
         <Label>{t("admin.posts.status")}</Label>
         <Select value={form.status} onValueChange={(v) => set("status", v as PostStatus)}>
@@ -301,7 +318,7 @@ function EditPost() {
           <img src={form.cover_image_url} alt="" className="mt-2 rounded w-full h-24 object-cover" />
         )}
       </div>
-    </div>
+    </SidebarSection>
   );
 
   const ov: LayoutOverrides = (form.layout_overrides ?? {}) as LayoutOverrides;
@@ -315,10 +332,7 @@ function EditPost() {
   const layoutSet = getLayoutSet(currentFormat);
 
   const layoutCard = (
-    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-      <h3 className="text-sm font-semibold inline-flex items-center gap-2 mb-1">
-        <Layers className="w-4 h-4" /> Layout wpisu
-      </h3>
+    <SidebarSection title="Layout wpisu" icon={Layers}>
       <div>
         <Label>Format wpisu</Label>
         <Select value={form.post_format ?? "standard"} onValueChange={(v) => set("post_format", v as PostFormat)}>
@@ -389,7 +403,7 @@ function EditPost() {
           );
         })}
       </div>
-    </div>
+    </SidebarSection>
   );
 
   const catsCard = (
