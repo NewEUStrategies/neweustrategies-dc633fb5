@@ -639,6 +639,7 @@ export const pl = {
       blocks: {
         addBlock: "Dodaj blok", search: "Szukaj bloku...", noResults: "Brak wyników",
         firstBlock: "Dodaj pierwszy blok",
+        library: "Biblioteka bloków", toggleLibrary: "Pokaż / ukryj bibliotekę bloków",
         categories: { text: "Tekst", media: "Media", layout: "Layout", advanced: "Zaawansowane" },
         actions: {
           up: "W górę", down: "W dół", duplicate: "Duplikuj", remove: "Usuń",
