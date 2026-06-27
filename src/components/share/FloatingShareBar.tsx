@@ -33,6 +33,10 @@ const COPY = {
     mail: "E-mail",
     toc: "Spis treści",
     progress: "Postęp czytania",
+    print: "Drukuj artykuł",
+    pdf: "Pobierz jako PDF",
+    pdfHint: "Wybierz „Zapisz jako PDF" w oknie drukowania",
+    actions: "Akcje",
   },
   en: {
     share: "Share",
@@ -44,6 +48,10 @@ const COPY = {
     mail: "Email",
     toc: "On this page",
     progress: "Reading progress",
+    print: "Print article",
+    pdf: "Download as PDF",
+    pdfHint: "Choose \"Save as PDF\" in the print dialog",
+    actions: "Actions",
   },
 } as const;
 
