@@ -2,7 +2,7 @@
 // Combines: reading progress ring + interactive article ToC (scrollspy + jump)
 // + social share actions. Desktop only (>= lg). Uses semantic tokens.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Twitter, Facebook, Linkedin, Mail, Copy, Share2 } from "@/lib/lucide-shim";
+import { Twitter, Facebook, Linkedin, Mail, Copy, Share2, Printer, Download } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 
 type Lang = "pl" | "en";
@@ -33,6 +33,10 @@ const COPY = {
     mail: "E-mail",
     toc: "Spis treści",
     progress: "Postęp czytania",
+    print: "Drukuj artykuł",
+    pdf: "Pobierz jako PDF",
+    pdfHint: "Wybierz \u201EZapisz jako PDF\u201D w oknie drukowania",
+    actions: "Akcje",
   },
   en: {
     share: "Share",
@@ -44,6 +48,10 @@ const COPY = {
     mail: "Email",
     toc: "On this page",
     progress: "Reading progress",
+    print: "Print article",
+    pdf: "Download as PDF",
+    pdfHint: "Choose \"Save as PDF\" in the print dialog",
+    actions: "Actions",
   },
 } as const;
 
@@ -178,6 +186,18 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
     }
   };
 
+  const onPrint = (): void => {
+    window.print();
+  };
+
+  const onPdf = (): void => {
+    toast.info(t.pdfHint);
+    // Defer so toast paints before the blocking print dialog
+    window.setTimeout(() => window.print(), 120);
+  };
+
+
+
   const jumpTo = (id: string): void => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -235,6 +255,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
   return (
     <aside
       ref={railRef}
+      data-floating-share
       aria-label={t.share}
       className={[
         "hidden lg:flex flex-col fixed left-5 top-1/2 -translate-y-1/2 z-40",
@@ -339,41 +360,70 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
         </nav>
       )}
 
-      {hasToc && <div className="mx-2 my-1 h-px bg-border/70" />}
+      {/* Share + Actions card - visually distinct, premium */}
+      <div className="rounded-xl border border-border/70 bg-gradient-to-b from-muted/40 to-muted/10 p-2.5 mt-1">
+        <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground inline-flex items-center gap-1.5 mb-2 px-0.5">
+          <Share2 className="w-3 h-3" /> {t.share}
+        </span>
 
-      {/* Share label */}
-      <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground text-center px-1 inline-flex items-center justify-center gap-1">
-        <Share2 className="w-3 h-3" /> {t.share}
-      </span>
+        {/* Social row */}
+        <div className="grid grid-cols-5 gap-1">
+          {links.map((l) => {
+            const Icon = l.icon;
+            return (
+              <a
+                key={l.id}
+                href={l.href}
+                target={l.id === "mail" ? "_self" : "_blank"}
+                rel="noopener noreferrer"
+                aria-label={l.label}
+                title={l.label}
+                className="inline-flex items-center justify-center h-9 rounded-lg text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
+              >
+                <Icon className="w-[15px] h-[15px]" />
+              </a>
+            );
+          })}
+          <button
+            type="button"
+            onClick={onCopy}
+            aria-label={t.copy}
+            title={t.copy}
+            className="inline-flex items-center justify-center h-9 rounded-lg text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
+          >
+            <Copy className="w-[15px] h-[15px]" />
+          </button>
+        </div>
 
-      {/* Share actions */}
-      <div className="flex flex-col gap-1">
-        {links.map((l) => {
-          const Icon = l.icon;
-          return (
-            <a
-              key={l.id}
-              href={l.href}
-              target={l.id === "mail" ? "_self" : "_blank"}
-              rel="noopener noreferrer"
-              aria-label={l.label}
-              title={l.label}
-              className="inline-flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-brand hover:bg-muted transition"
-            >
-              <Icon className="w-4 h-4" />
-            </a>
-          );
-        })}
-        <button
-          type="button"
-          onClick={onCopy}
-          aria-label={t.copy}
-          title={t.copy}
-          className="inline-flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-brand hover:bg-muted transition"
-        >
-          <Copy className="w-4 h-4" />
-        </button>
+        {/* Divider */}
+        <div className="my-2 h-px bg-border/60" />
+
+        {/* Print + PDF row - labeled action buttons */}
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={onPdf}
+            aria-label={t.pdf}
+            title={t.pdf}
+            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-lg bg-brand text-brand-foreground text-[11px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
+          >
+            <Download className="w-[14px] h-[14px]" />
+            PDF
+          </button>
+          <button
+            type="button"
+            onClick={onPrint}
+            aria-label={t.print}
+            title={t.print}
+            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-border bg-background text-foreground text-[11px] font-semibold tracking-tight hover:bg-muted active:scale-[0.98] transition"
+          >
+            <Printer className="w-[14px] h-[14px]" />
+            {lang === "pl" ? "Drukuj" : "Print"}
+          </button>
+        </div>
       </div>
+
+
     </aside>
   );
 }

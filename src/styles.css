@@ -1044,3 +1044,53 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   [data-builder-renderer] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]),
   [data-builder-renderer] svg:not([class*="h-"]) { height: auto !important; object-fit: contain !important; }
 }
+
+/* ---------- Print / Save-as-PDF stylesheet ----------
+ * Strips chrome (header, footer, sidebars, share rail, ads, comments) and
+ * prints only the article. Keeps semantic colors via CSS vars; forces
+ * print-friendly background and link expansion.
+ */
+@media print {
+  @page { margin: 18mm 16mm; }
+
+  html, body {
+    background: #fff !important;
+    color: #111 !important;
+    font-size: 11.5pt;
+    line-height: 1.55;
+  }
+
+  /* Hide app chrome */
+  header, footer, nav,
+  aside[aria-label],
+  [data-site-header], [data-site-footer],
+  [data-floating-share], .floating-share-bar,
+  [data-ad-slot], [data-comments], [data-related-posts],
+  [data-newsletter], [data-cookie-banner],
+  .no-print { display: none !important; }
+
+  /* Article expands to full width */
+  main, article, .article-body, [data-cms-prose] {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    float: none !important;
+  }
+
+  /* Typography */
+  h1, h2, h3, h4 { color: #000 !important; page-break-after: avoid; }
+  p, li, blockquote { orphans: 3; widows: 3; }
+  img, figure, table, pre { page-break-inside: avoid; max-width: 100% !important; height: auto !important; }
+
+  /* Expand link URLs after the text */
+  a[href]:not([href^="#"])::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #555;
+    word-break: break-all;
+  }
+
+  /* Footnotes/box callouts: neutral */
+  blockquote { border-left: 3px solid #999 !important; color: #222 !important; }
+}
