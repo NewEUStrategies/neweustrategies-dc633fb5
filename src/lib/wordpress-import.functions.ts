@@ -573,11 +573,12 @@ export const runWpImportJob = createServerFn({ method: "POST" })
             const { error: upErr } = await supabase
               .from("posts")
               .update({
-                editor: "blocks",
+                editor: "builder",
                 status,
                 published_at: status === "published" ? wp.date : null,
                 cover_image_url: coverUrl,
                 blocks_data,
+                builder_data,
                 ...titleField,
                 ...excerptField,
               })
