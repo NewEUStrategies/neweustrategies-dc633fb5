@@ -56,6 +56,15 @@ import {
   FolderTree as CategoriesIcon,
   Archive as ArchivesIcon,
   CalendarDays as CalendarIcon,
+  Heading2 as PostTitleIcon,
+  Clock as PostDateIcon,
+  User as PostAuthorIcon,
+  AlignJustify as PostExcerptIcon,
+  Camera as PostFeaturedIcon,
+  Hash as PostTermsIcon,
+  Globe as SiteTitleIcon,
+  Megaphone as SiteTaglineIcon,
+  Building2 as SiteLogoIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -565,6 +574,52 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     icon: CalendarIcon, category: "advanced",
     create: () => ({ id: newBlockId(), type: "calendar", data: { month: "" } }),
   },
+  // ===== Phase 2 - theme/post (Query) blocks =====
+  "post-title": {
+    type: "post-title", label: "Tytuł wpisu", description: "Dynamiczny tytuł bieżącego wpisu.",
+    icon: PostTitleIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "post-title", data: { level: 1 } }),
+  },
+  "post-date": {
+    type: "post-date", label: "Data wpisu", description: "Data publikacji (lub aktualizacji).",
+    icon: PostDateIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "post-date", data: { format: "long", showUpdated: false } }),
+  },
+  "post-author": {
+    type: "post-author", label: "Autor wpisu", description: "Awatar, imię i (opcjonalnie) bio.",
+    icon: PostAuthorIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "post-author", data: { showAvatar: true, showBio: false } }),
+  },
+  "post-excerpt": {
+    type: "post-excerpt", label: "Zajawka wpisu", description: "Krótki opis (excerpt).",
+    icon: PostExcerptIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "post-excerpt", data: { showMore: false } }),
+  },
+  "post-featured-image": {
+    type: "post-featured-image", label: "Obraz wyróżniony", description: "Cover wpisu z proporcjami.",
+    icon: PostFeaturedIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "post-featured-image", data: { aspect: "16/9", rounded: true } }),
+  },
+  "post-terms": {
+    type: "post-terms", label: "Taksonomie wpisu", description: "Kategorie lub tagi powiązane z wpisem.",
+    icon: PostTermsIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "post-terms", data: { taxonomy: "categories" } }),
+  },
+  "site-title": {
+    type: "site-title", label: "Tytuł witryny", description: "Nazwa witryny z site_settings.",
+    icon: SiteTitleIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "site-title", data: { level: 1 } }),
+  },
+  "site-tagline": {
+    type: "site-tagline", label: "Slogan witryny", description: "Tagline witryny.",
+    icon: SiteTaglineIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "site-tagline", data: {} }),
+  },
+  "site-logo": {
+    type: "site-logo", label: "Logo witryny", description: "Logo z linkiem do strony głównej.",
+    icon: SiteLogoIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "site-logo", data: { width: 120 } }),
+  },
 };
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
@@ -579,4 +634,6 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "page-break", "read-more", "pullquote", "preformatted", "verse", "details",
   "row", "stack", "grid", "buttons", "social-icons", "search", "latest-posts",
   "tag-cloud", "categories-list", "archives", "calendar",
+  "post-title", "post-date", "post-author", "post-excerpt", "post-featured-image", "post-terms",
+  "site-title", "site-tagline", "site-logo",
 ];

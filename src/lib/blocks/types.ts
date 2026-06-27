@@ -58,7 +58,17 @@ export type BlockType =
   | "tag-cloud"
   | "categories-list"
   | "archives"
-  | "calendar";
+  | "calendar"
+  // Phase 2 - theme/post blocks
+  | "post-title"
+  | "post-date"
+  | "post-author"
+  | "post-excerpt"
+  | "post-featured-image"
+  | "post-terms"
+  | "site-title"
+  | "site-tagline"
+  | "site-logo";
 
 export type Json =
   | string

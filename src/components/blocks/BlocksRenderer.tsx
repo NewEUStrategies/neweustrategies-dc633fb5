@@ -22,6 +22,10 @@ import { LatestPostsView } from "./LatestPostsView";
 import { TaxonomyListView } from "./TaxonomyListView";
 import { TagCloudView } from "./TagCloudView";
 import { CalendarView } from "./CalendarView";
+import {
+  PostTitleView, PostDateView, PostAuthorView, PostExcerptView, PostFeaturedImageView, PostTermsView,
+  SiteTitleView, SiteTaglineView, SiteLogoView,
+} from "./ContextBlockViews";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -749,6 +753,26 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
         </div>
       );
     }
+    case "post-title":
+      return <PostTitleView level={Number(block.data.level ?? 1)} lang={lang} cls={cls} />;
+    case "post-date":
+      return <PostDateView format={String(block.data.format ?? "long")} showUpdated={Boolean(block.data.showUpdated)} lang={lang} cls={cls} />;
+    case "post-author":
+      return <PostAuthorView showAvatar={block.data.showAvatar !== false} showBio={Boolean(block.data.showBio)} lang={lang} cls={cls} />;
+    case "post-excerpt":
+      return <PostExcerptView showMore={Boolean(block.data.showMore)} lang={lang} cls={cls} />;
+    case "post-featured-image":
+      return <PostFeaturedImageView aspect={String(block.data.aspect ?? "16/9")} rounded={block.data.rounded !== false} cls={cls} />;
+    case "post-terms": {
+      const tx = String(block.data.taxonomy ?? "categories") === "tags" ? "tags" : "categories";
+      return <PostTermsView taxonomy={tx} cls={cls} />;
+    }
+    case "site-title":
+      return <SiteTitleView level={Number(block.data.level ?? 1)} cls={cls} />;
+    case "site-tagline":
+      return <SiteTaglineView cls={cls} />;
+    case "site-logo":
+      return <SiteLogoView width={Number(block.data.width ?? 120)} cls={cls} />;
     default:
       return null;
   }

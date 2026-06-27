@@ -51,7 +51,8 @@ export function ContentRenderer({
   const engine = resolveContentEngine({ editor, builderDoc, blocksDoc });
 
   if (engine === "blocks") {
-    return <BlocksRenderer doc={blocksDoc} lang={lang} postId={postId} />;
+    const tree = <BlocksRenderer doc={blocksDoc} lang={lang} postId={postId} />;
+    return currentPostCtx ? <CurrentPostProvider value={currentPostCtx}>{tree}</CurrentPostProvider> : tree;
   }
 
   if (engine === "builder") {
