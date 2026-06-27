@@ -97,6 +97,11 @@ import {
   LayoutGrid as FeatureGridIcon,
   BellRing as AlertBannerIcon,
   MoveHorizontal as DividerTextIcon,
+  ListOrdered as StepListIcon,
+  Table as ComparisonTableIcon,
+  Image as BannerImageIcon,
+  Film as VideoHeroIcon,
+
   type LucideIcon,
 
 
@@ -932,7 +937,66 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
       data: { text: "", align: "center", lineStyle: "solid" },
     }),
   },
+  "step-list": {
+    type: "step-list", label: "Lista kroków", description: "Jak to działa - kroki ponumerowane (pionowo lub poziomo).",
+    icon: StepListIcon, category: "layout",
+    create: () => ({
+      id: newBlockId(), type: "step-list",
+      data: {
+        title: "",
+        orientation: "vertical",
+        numberStyle: "circle",
+        items: [
+          { title: "", description: "", icon: "" },
+          { title: "", description: "", icon: "" },
+          { title: "", description: "", icon: "" },
+        ],
+      },
+    }),
+  },
+  "comparison-table": {
+    type: "comparison-table", label: "Tabela porównawcza", description: "Matryca funkcji vs plany (✓ / ✗ / tekst).",
+    icon: ComparisonTableIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "comparison-table",
+      data: {
+        title: "",
+        columns: ["Basic", "Pro", "Enterprise"],
+        featuredIndex: 1,
+        rows: [
+          { feature: "", values: ["", "", ""] },
+          { feature: "", values: ["", "", ""] },
+        ],
+      },
+    }),
+  },
+  "banner-image": {
+    type: "banner-image", label: "Banner z obrazem", description: "Szeroki baner promocyjny z tytułem i CTA na obrazie.",
+    icon: BannerImageIcon, category: "media",
+    create: () => ({
+      id: newBlockId(), type: "banner-image",
+      data: {
+        image: "", alt: "", title: "", description: "",
+        ctaLabel: "", ctaHref: "",
+        position: "left", theme: "dark", aspect: "21:9", overlay: 35,
+      },
+    }),
+  },
+  "video-hero": {
+    type: "video-hero", label: "Hero z tłem wideo", description: "Sekcja powitalna z autoodtwarzanym tłem wideo.",
+    icon: VideoHeroIcon, category: "media",
+    create: () => ({
+      id: newBlockId(), type: "video-hero",
+      data: {
+        src: "", poster: "", title: "", subtitle: "",
+        ctaLabel: "", ctaHref: "",
+        height: "lg", align: "center", overlay: 45,
+        autoplay: true, loop: true,
+      },
+    }),
+  },
 };
+
 
 
 
@@ -957,6 +1021,8 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "icon-box", "stats-counter", "testimonials", "pricing-table", "timeline",
   "hero", "cta-section", "image-carousel", "contact-form", "map",
   "team-grid", "logo-grid", "feature-grid", "alert-banner", "divider-text",
+  "step-list", "comparison-table", "banner-image", "video-hero",
+
 
 
 ];

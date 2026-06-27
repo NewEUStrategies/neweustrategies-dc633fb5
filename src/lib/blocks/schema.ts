@@ -43,6 +43,8 @@ const BlockSchema = z.object({
     "icon-box", "stats-counter", "testimonials", "pricing-table", "timeline",
     "hero", "cta-section", "image-carousel", "contact-form", "map",
     "team-grid", "logo-grid", "feature-grid", "alert-banner", "divider-text",
+    "step-list", "comparison-table", "banner-image", "video-hero",
+
 
 
   ]),
