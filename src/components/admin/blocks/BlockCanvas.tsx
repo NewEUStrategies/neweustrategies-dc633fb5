@@ -84,6 +84,10 @@ import { AccordionBlock, TabsBlock, CountdownBlock, ProgressBlock } from "./edit
 import {
   IconBoxBlock, StatsCounterBlock, TestimonialsBlock, PricingTableBlock, TimelineBlock,
 } from "./edit/PresentationBlocks";
+import {
+  HeroBlock, CtaSectionBlock, ImageCarouselBlock, ContactFormBlock, MapBlock,
+} from "./edit/MarketingBlocks";
+
 
 interface Props {
   doc: BlocksDoc;
@@ -308,7 +312,13 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "testimonials":           return <TestimonialsBlock block={block} onChange={onChange} />;
     case "pricing-table":          return <PricingTableBlock block={block} onChange={onChange} />;
     case "timeline":               return <TimelineBlock block={block} onChange={onChange} />;
+    case "hero":                   return <HeroBlock block={block} onChange={onChange} />;
+    case "cta-section":            return <CtaSectionBlock block={block} onChange={onChange} />;
+    case "image-carousel":         return <ImageCarouselBlock block={block} onChange={onChange} />;
+    case "contact-form":           return <ContactFormBlock block={block} onChange={onChange} />;
+    case "map":                    return <MapBlock block={block} onChange={onChange} />;
     default:
+
       return (
         <div className="text-xs text-muted-foreground italic py-2">
           [{block.type}]
