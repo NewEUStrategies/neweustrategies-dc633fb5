@@ -56,6 +56,15 @@ import {
   FolderTree as CategoriesIcon,
   Archive as ArchivesIcon,
   CalendarDays as CalendarIcon,
+  Heading2 as PostTitleIcon,
+  Clock as PostDateIcon,
+  User as PostAuthorIcon,
+  AlignJustify as PostExcerptIcon,
+  ImageIcon as PostImageIcon2,
+  Hash as PostTermsIcon,
+  Globe as SiteTitleIcon,
+  Megaphone as SiteTaglineIcon,
+  Building2 as SiteLogoIcon,
   type LucideIcon,
 } from "lucide-react";
 
