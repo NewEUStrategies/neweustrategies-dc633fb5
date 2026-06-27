@@ -31,6 +31,7 @@ import {
   BreadcrumbsView, ReadingTimeView, ShareButtonsView, PostViewsView,
 } from "./PostUtilityViews";
 import { AuthorBioView, RelatedPostsView } from "./PostContextViews";
+import { PostStatsView, PostRatingView, LoginOutView, MorePostsView } from "./FoxizExtraViews";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -852,6 +853,42 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
           limit={Number(block.data.limit ?? 3)}
           strategy={strategy}
           layout={layout}
+          heading={String(block.data.heading ?? "")}
+          lang={lang}
+          cls={cls}
+        />
+      );
+    }
+    case "post-stats": {
+      const items = Array.isArray(block.data.items) ? (block.data.items as string[]) : undefined;
+      return <PostStatsView items={items} separator={String(block.data.separator ?? "•")} lang={lang} cls={cls} />;
+    }
+    case "post-rating":
+      return (
+        <PostRatingView
+          max={Number(block.data.max ?? 5)}
+          label={String(block.data.label ?? "")}
+          lang={lang}
+          cls={cls}
+        />
+      );
+    case "loginout":
+      return (
+        <LoginOutView
+          loginHref={String(block.data.loginHref ?? "/auth")}
+          showAvatar={block.data.showAvatar !== false}
+          lang={lang}
+          cls={cls}
+        />
+      );
+    case "more-posts": {
+      const s = String(block.data.strategy ?? "latest");
+      const strategy: "latest" | "trending" | "category" =
+        s === "trending" ? "trending" : s === "category" ? "category" : "latest";
+      return (
+        <MorePostsView
+          limit={Number(block.data.limit ?? 4)}
+          strategy={strategy}
           heading={String(block.data.heading ?? "")}
           lang={lang}
           cls={cls}

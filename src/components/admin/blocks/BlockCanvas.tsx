@@ -79,6 +79,7 @@ import {
   BreadcrumbsBlock, ReadingTimeBlock, ShareButtonsBlock, PostViewsBlock,
 } from "./edit/PostUtilityBlocks";
 import { AuthorBioBlock, RelatedPostsBlock } from "./edit/PostContextBlocks";
+import { PostStatsBlock, PostRatingBlock, LoginOutBlock, MorePostsBlock } from "./edit/FoxizExtraBlocks";
 
 interface Props {
   doc: BlocksDoc;
@@ -290,6 +291,10 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "post-views":             return <PostViewsBlock block={block} onChange={onChange} />;
     case "author-bio":             return <AuthorBioBlock block={block} onChange={onChange} />;
     case "related-posts":          return <RelatedPostsBlock block={block} onChange={onChange} />;
+    case "post-stats":             return <PostStatsBlock block={block} onChange={onChange} />;
+    case "post-rating":            return <PostRatingBlock block={block} onChange={onChange} />;
+    case "loginout":               return <LoginOutBlock block={block} onChange={onChange} />;
+    case "more-posts":             return <MorePostsBlock block={block} onChange={onChange} />;
     default:
       return (
         <div className="text-xs text-muted-foreground italic py-2">
