@@ -309,8 +309,15 @@ export function MorePostsView({ limit = 4, strategy = "latest", heading, lang = 
         .is("deleted_at", null)
         .order("published_at", { ascending: false })
         .limit(lim + 1);
-      if (strategy === "category" && ctx?.categories?.[0]?.id) {
-        const catId = ctx.categories[0].id;
+      if (strategy === "category" && ctx?.categories?.[0]?.slug) {
+        const catSlug = ctx.categories[0].slug;
+        const { data: cat } = await supabase
+          .from("categories")
+          .select("id")
+          .eq("slug", catSlug)
+          .maybeSingle();
+        const catId = cat?.id;
+        if (!catId) { setPosts([]); return; }
         const { data: rels } = await supabase
           .from("post_categories")
           .select("post_id")
