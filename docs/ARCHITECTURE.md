@@ -164,17 +164,46 @@ until the previous stage's exit criteria hold.
   existing `blocks` posts still open and render unchanged.
 - **Rollback:** revert the `createPost` default + selector commit.
 
-#### Stage 2 — Migrate existing `blocks` content
+#### Stage 2 — Migrate existing `blocks` content — TOOLING READY (run against prod)
 
 - **Goal:** no row has `editor === "blocks"` anymore.
-- **Touchpoints:** `migrate:blocks-to-builder` (dry-run → `--apply`), gated by
-  `verify:migration`. Run per-tenant; spot-check rendered output against the
-  pre-migration page (the migration preserves `blocks_data`, so it is reversible
-  per row by flipping `editor` back).
+- **Status:** the tooling is built, tested and consistent with Stage 1 — the
+  migration and the new-post seed share ONE wrapper
+  (`localizedBlocksToBuilderDoc`), so a migrated post and a freshly-created post
+  have identical structure. The migration must be **run against the production
+  database**, which requires DB network access and (for `--apply`) the
+  `SUPABASE_SERVICE_ROLE_KEY` — so it is run from a trusted machine / the Lovable
+  platform, not from CI or a code sandbox.
+- **Runbook:**
+
+  ```bash
+  # 0. From a machine that can reach the project's Supabase and has the keys.
+  #    Bun auto-loads .env (SUPABASE_URL + a key).
+
+  # 1. DRY-RUN (no writes). Publishable key → published rows only;
+  #    service-role key → also drafts. Review the printed plan.
+  bun run migrate:blocks-to-builder                      # all editors
+  bun run migrate:blocks-to-builder -- --only=blocks     # blocks only
+
+  # 2. APPLY (writes builder_data + flips editor='builder'; preserves the
+  #    original blocks_data/content_* columns). Requires the service-role key.
+  SUPABASE_SERVICE_ROLE_KEY=… bun run migrate:blocks-to-builder -- --apply
+
+  # 3. VERIFY (read-only audit: footnote parity, leftover [fn] markers,
+  #    stripped inline styles). Non-zero exit on drift.
+  bun run verify:migration
+
+  # 4. CONFIRM no blocks rows remain:
+  #    select count(*) from posts where editor = 'blocks';   -- expect 0
+  #    select count(*) from pages where editor = 'blocks';   -- expect 0
+  ```
+
 - **Exit criteria:** `select count(*) … where editor = 'blocks'` is 0 across
-  tenants; `verify:migration` exits 0.
-- **Rollback:** flip affected rows' `editor` back to `"blocks"` (data was never
-  destroyed).
+  tenants; `verify:migration` exits 0; spot-check a few migrated pages render
+  identically to before.
+- **Rollback (per row, non-destructive):**
+  `UPDATE <table> SET editor='blocks' WHERE id='…';` — `blocks_data` was never
+  touched.
 
 #### Stage 3 — Retire the standalone `blocks` post mode
 
