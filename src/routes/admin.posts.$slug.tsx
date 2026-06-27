@@ -403,7 +403,7 @@ function EditPost() {
           );
         })}
       </div>
-    </div>
+    </SidebarSection>
   );
 
   const catsCard = (
