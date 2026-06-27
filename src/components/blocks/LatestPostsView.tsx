@@ -73,12 +73,12 @@ export function LatestPostsView({ count, category, showExcerpt, showImage, layou
         return (
           <article key={p.id} className={layout === "grid" ? "flex flex-col gap-3" : "flex gap-4 items-start"}>
             {showImage && p.cover_url && (
-              <AppLink to="/post/$slug" params={{ slug: p.slug }} className={layout === "grid" ? "block aspect-[4/3] overflow-hidden rounded-md" : "flex-shrink-0 w-24 h-24 rounded-md overflow-hidden"}>
+              <AppLink href={`/post/${p.slug}`} className={layout === "grid" ? "block aspect-[4/3] overflow-hidden rounded-md" : "flex-shrink-0 w-24 h-24 rounded-md overflow-hidden"}>
                 <OptimizedImage src={p.cover_url} alt={title} className="w-full h-full object-cover" />
               </AppLink>
             )}
             <div className="flex-1 min-w-0">
-              <AppLink to="/post/$slug" params={{ slug: p.slug }} className="font-serif font-semibold hover:text-primary block">
+              <AppLink href={`/post/${p.slug}`} className="font-serif font-semibold hover:text-primary block">
                 {title}
               </AppLink>
               {showExcerpt && excerpt && (
