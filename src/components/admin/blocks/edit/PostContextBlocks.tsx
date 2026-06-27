@@ -1,5 +1,5 @@
 // Admin edytory dla bloków Phase 2 batch 7: author-bio, related-posts.
-import type { Block } from "@/lib/blocks/types";
+import type { Block, Json } from "@/lib/blocks/types";
 
 interface Props { block: Block; onChange: (next: Block) => void; }
 
@@ -28,7 +28,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
   const showSocial = block.data.showSocial !== false;
   const showPostsCount = block.data.showPostsCount !== false;
   const variant = String(block.data.variant ?? "card");
-  const set = (patch: Record<string, unknown>) =>
+  const set = (patch: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });
 
   return (
@@ -56,7 +56,7 @@ export function RelatedPostsBlock({ block, onChange }: Props) {
   const strategy = String(block.data.strategy ?? "category");
   const layout = String(block.data.layout ?? "grid");
   const heading = String(block.data.heading ?? "");
-  const set = (patch: Record<string, unknown>) =>
+  const set = (patch: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });
 
   return (
