@@ -1,4 +1,5 @@
 // Organism: rated/ranked list editor (manual + dynamic source, full styling).
+import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +17,7 @@ interface Props {
 
 export function RatedListEditor({ c, lang, setContent }: Props) {
   const items = itemsOf(c, "items");
-  const update = (next: Item[]) => setContent("items", next as unknown as Json);
+  const update = (next: Item[]) => setContent("items", toJson(next));
   const upd = (i: number, patch: Partial<Item>) =>
     update(items.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 

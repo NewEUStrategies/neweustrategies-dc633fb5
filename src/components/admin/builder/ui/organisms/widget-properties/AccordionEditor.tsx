@@ -1,4 +1,5 @@
 // Organism: FAQ-style accordion editor.
+import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +15,7 @@ interface Props {
 
 export function AccordionEditor({ c, lang, setContent }: Props) {
   const items = itemsOf(c, "items");
-  const update = (next: Item[]) => setContent("items", next as unknown as Json);
+  const update = (next: Item[]) => setContent("items", toJson(next));
   return (
     <ListShell
       title="Pytania (FAQ)"

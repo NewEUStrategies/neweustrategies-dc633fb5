@@ -8,6 +8,7 @@
 // Tokens are rendered as CSS variables prefixed with `--brand-…`, so authored
 // custom CSS / inline style values (e.g. `var(--brand-primary)`) work in the
 // builder canvas, the published site, and the public renderer alike.
+import { toJson } from "@/lib/builder/types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -85,9 +86,9 @@ export function useSaveDesignTokens() {
         .from("site_design_tokens")
         .upsert(
           {
-            colors: next.colors as unknown as never,
-            fonts: next.fonts as unknown as never,
-            scale: next.scale as unknown as never,
+            colors: toJson(next.colors),
+            fonts: toJson(next.fonts),
+            scale: toJson(next.scale),
           },
           { onConflict: "tenant_id" },
         );

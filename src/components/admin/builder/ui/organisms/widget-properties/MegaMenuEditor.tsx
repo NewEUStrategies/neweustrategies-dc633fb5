@@ -1,4 +1,5 @@
 // Organism: Mega menu editor - trigger + columns (links/category/featured).
+import { toJson } from "@/lib/builder/types";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,7 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 export function MegaMenuEditor({ c, lang, setContent }: Props) {
   const columns = itemsOf(c, "columns");
-  const updateCols = (next: Item[]): void => setContent("columns", next as unknown as Json);
+  const updateCols = (next: Item[]): void => setContent("columns", toJson(next));
   const triggerOn = (str(c.triggerOn) || "hover") as "hover" | "click";
   const width = (str(c.width) || "container") as "container" | "fluid" | "fixed";
   const widthPx = typeof c.widthPx === "number" ? c.widthPx : 1140;
@@ -119,7 +120,7 @@ function ColumnEditor({
 }) {
   const links = Array.isArray(col.links) ? (col.links as Item[]) : [];
   const featured = (col.featured ?? null) as Item | null;
-  const set = (k: string, v: unknown): void => onChange({ ...col, [k]: v as Json });
+  const set = (k: string, v: unknown): void => onChange({ ...col, [k]: toJson(v) });
   const updateLinks = (next: Item[]): void => set("links", next);
 
   const kind = (str(col.kind) || "links") as "links" | "category";
@@ -206,11 +207,11 @@ function ColumnEditor({
         <div className="flex items-center justify-between">
           <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Karta wyróżniona</div>
           {featured ? (
-            <button type="button" className="text-[11px] text-destructive hover:underline" onClick={() => set("featured", null as unknown as Json)}>
+            <button type="button" className="text-[11px] text-destructive hover:underline" onClick={() => set("featured", null)}>
               usuń
             </button>
           ) : (
-            <button type="button" className="text-[11px] text-brand hover:underline" onClick={() => set("featured", { title_pl: "Tytuł", title_en: "Title" } as unknown as Json)}>
+            <button type="button" className="text-[11px] text-brand hover:underline" onClick={() => set("featured", { title_pl: "Tytuł", title_en: "Title" })}>
               + dodaj
             </button>
           )}
@@ -221,7 +222,7 @@ function ColumnEditor({
               label="Obraz"
               icon={<ImageIcon className="w-4 h-4" />}
               value={str(featured.image)}
-              onChange={(v) => set("featured", { ...featured, image: v } as unknown as Json)}
+              onChange={(v) => set("featured", { ...featured, image: v })}
             />
             {/* Focal point picker: drag to choose the visible center on every crop. */}
             <PropField label="Punkt fokalny (kadrowanie)">
@@ -232,20 +233,20 @@ function ColumnEditor({
                 aspectCls={aspectClassFor(str(featured.aspectRatio) || "16/10")}
                 placeholderColor={str(featured.placeholderColor) || undefined}
                 onChange={(x, y) =>
-                  set("featured", { ...featured, focalX: x, focalY: y } as unknown as Json)
+                  set("featured", { ...featured, focalX: x, focalY: y })
                 }
               />
               <div className="grid grid-cols-2 gap-1 mt-1">
                 <Input
                   type="number" min={0} max={100}
                   value={typeof featured.focalX === "number" ? featured.focalX : 50}
-                  onChange={(e) => set("featured", { ...featured, focalX: Number(e.target.value) } as unknown as Json)}
+                  onChange={(e) => set("featured", { ...featured, focalX: Number(e.target.value) })}
                   className="h-7 text-xs" placeholder="X%"
                 />
                 <Input
                   type="number" min={0} max={100}
                   value={typeof featured.focalY === "number" ? featured.focalY : 50}
-                  onChange={(e) => set("featured", { ...featured, focalY: Number(e.target.value) } as unknown as Json)}
+                  onChange={(e) => set("featured", { ...featured, focalY: Number(e.target.value) })}
                   className="h-7 text-xs" placeholder="Y%"
                 />
               </div>
@@ -254,7 +255,7 @@ function ColumnEditor({
               <PropField label="Proporcje">
                 <Select
                   value={str(featured.aspectRatio) || "16/10"}
-                  onValueChange={(v) => set("featured", { ...featured, aspectRatio: v } as unknown as Json)}
+                  onValueChange={(v) => set("featured", { ...featured, aspectRatio: v })}
                 >
                   <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -270,7 +271,7 @@ function ColumnEditor({
                 <Input
                   type="color"
                   value={str(featured.placeholderColor) || "#e5e7eb"}
-                  onChange={(e) => set("featured", { ...featured, placeholderColor: e.target.value } as unknown as Json)}
+                  onChange={(e) => set("featured", { ...featured, placeholderColor: e.target.value })}
                   className="h-7 p-1"
                 />
               </PropField>
@@ -278,27 +279,27 @@ function ColumnEditor({
             <Input
               placeholder={`Tytuł ${lang.toUpperCase()}`}
               value={str(featured[`title_${lang}`])}
-              onChange={(e) => set("featured", { ...featured, [`title_${lang}`]: e.target.value } as unknown as Json)}
+              onChange={(e) => set("featured", { ...featured, [`title_${lang}`]: e.target.value })}
               className="h-7 text-xs"
             />
             <Textarea
               placeholder={`Opis ${lang.toUpperCase()}`}
               rows={2}
               value={str(featured[`excerpt_${lang}`])}
-              onChange={(e) => set("featured", { ...featured, [`excerpt_${lang}`]: e.target.value } as unknown as Json)}
+              onChange={(e) => set("featured", { ...featured, [`excerpt_${lang}`]: e.target.value })}
               className="text-xs"
             />
             <div className="grid grid-cols-2 gap-1">
               <Input
                 placeholder="URL"
                 value={str(featured.href)}
-                onChange={(e) => set("featured", { ...featured, href: e.target.value } as unknown as Json)}
+                onChange={(e) => set("featured", { ...featured, href: e.target.value })}
                 className="h-7 text-xs"
               />
               <Input
                 placeholder={`CTA ${lang.toUpperCase()}`}
                 value={str(featured[`cta_${lang}`])}
-                onChange={(e) => set("featured", { ...featured, [`cta_${lang}`]: e.target.value } as unknown as Json)}
+                onChange={(e) => set("featured", { ...featured, [`cta_${lang}`]: e.target.value })}
                 className="h-7 text-xs"
               />
             </div>

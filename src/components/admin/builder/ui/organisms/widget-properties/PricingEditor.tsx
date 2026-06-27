@@ -1,4 +1,5 @@
 // Organism: pricing plans editor.
+import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +15,7 @@ interface Props {
 
 export function PricingEditor({ c, lang, setContent }: Props) {
   const plans = itemsOf(c, "plans");
-  const update = (next: Item[]) => setContent("plans", next as unknown as Json);
+  const update = (next: Item[]) => setContent("plans", toJson(next));
   const upd = (i: number, patch: Item) => update(plans.map((x, j) => j === i ? { ...x, ...patch } : x));
   return (
     <ListShell

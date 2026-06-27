@@ -1,5 +1,6 @@
 // Molecule: renders a single content field based on its declarative schema entry.
 // Used by ContentFields to drive simple widget editors from `WIDGET_SCHEMAS`.
+import { toJson } from "@/lib/builder/types";
 import type { Json } from "@/lib/builder/types";
 import type { SchemaField as SchemaFieldDef } from "@/lib/builder/schemas";
 import { Input } from "@/components/ui/input";
@@ -103,7 +104,7 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
             placeholder={typeof field.default === "number" ? String(field.default) : undefined}
             onChange={(e) => {
               const s = e.target.value;
-              if (s === "") { setContent(field.key, null as unknown as Json); return; }
+              if (s === "") { setContent(field.key, toJson(null)); return; }
               const n = Number(s);
               if (Number.isFinite(n)) setContent(field.key, n);
             }}

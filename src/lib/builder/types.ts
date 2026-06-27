@@ -282,6 +282,14 @@ export type Json =
 
 export type WidgetContent = { [key: string]: Json };
 
+/**
+ * Narrow a typed value to `Json` for storage in a widget's content map or a
+ * Supabase jsonb column. Centralizes the otherwise hand-rolled
+ * `value as unknown as Json` double-cast so the escape hatch lives in one
+ * audited place. The caller is asserting the value is JSON-serializable.
+ */
+export const toJson = <T>(value: T): Json => value as unknown as Json;
+
 export interface WidgetNode {
   id: string;
   kind: "widget";

@@ -1,3 +1,4 @@
+import { toJson } from "@/lib/builder/types";
 import type { Block } from "@/lib/blocks/types";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
@@ -18,7 +19,7 @@ export function TableBlockEdit({ block, onChange }: Props) {
   const header = Boolean(block.data.header);
   const cols = Math.max(1, ...rows.map((r) => r.length));
 
-  const set = (rows: string[][]) => onChange({ ...block, data: { ...block.data, rows: rows as unknown as never } });
+  const set = (rows: string[][]) => onChange({ ...block, data: { ...block.data, rows: toJson(rows) } });
 
   const updateCell = (r: number, c: number, v: string) => {
     set(rows.map((row, i) => i === r ? row.map((cell, j) => j === c ? v : cell) : row));

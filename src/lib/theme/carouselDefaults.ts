@@ -1,6 +1,7 @@
 // Global slider / carousel animation defaults - used as fallback for every
 // slider/carousel widget that doesn't define its own value. Editors override
 // per-widget; otherwise these globals win.
+import { toJson } from "@/lib/builder/types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -43,7 +44,7 @@ export function useSaveCarouselDefaults() {
   return useMutation({
     mutationFn: async (next: CarouselDefaults) => {
       const { error } = await supabase.from("site_settings").upsert(
-        { key: KEY, value: next as unknown as never },
+        { key: KEY, value: toJson(next) },
         { onConflict: "key" },
       );
       if (error) throw error;

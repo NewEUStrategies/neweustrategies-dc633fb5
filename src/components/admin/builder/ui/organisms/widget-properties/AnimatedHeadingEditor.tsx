@@ -1,4 +1,5 @@
 // Organism: animated heading editor (mode/shape + duo-tone color + rotation words).
+import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,7 +42,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
 
   const setWords = (txt: string) => {
     const arr = txt.split("\n").map((s) => s.trim()).filter(Boolean);
-    setContent(`rotateWords_${lang}`, arr as unknown as Json);
+    setContent(`rotateWords_${lang}`, toJson(arr));
   };
 
   const previewCfg: AnimatedHeadingConfig = {

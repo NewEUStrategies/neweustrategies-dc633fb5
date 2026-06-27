@@ -1,5 +1,6 @@
 // Hook + helpery dla "Global Colors" - strukturalnej palety zapisywanej w
 // `site_design_tokens.global_colors`. Współistnieje z dowolnymi `colors` marki.
+import { toJson } from "@/lib/builder/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -33,7 +34,7 @@ export function useSaveGlobalColors() {
       const { error } = await supabase
         .from("site_design_tokens")
         .upsert(
-          { global_colors: next as unknown as never },
+          { global_colors: toJson(next) },
           { onConflict: "tenant_id" },
         );
       if (error) throw error;

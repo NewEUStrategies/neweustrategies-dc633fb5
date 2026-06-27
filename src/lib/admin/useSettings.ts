@@ -1,4 +1,5 @@
 // Shared hook + form helpers for site_settings sections.
+import { toJson } from "@/lib/builder/types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,7 +30,7 @@ export function useSettings<T extends SettingsRecord>(key: string, defaults: T) 
     mutationFn: async (next: T) => {
       const { error } = await supabase
         .from("site_settings")
-        .upsert({ key, value: next as unknown as Json }, { onConflict: "key" });
+        .upsert({ key, value: toJson(next) }, { onConflict: "key" });
       if (error) throw error;
       return next;
     },

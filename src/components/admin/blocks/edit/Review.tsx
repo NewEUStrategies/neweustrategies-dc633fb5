@@ -1,4 +1,5 @@
 // Foxiz-style Review Box editor.
+import { toJson } from "@/lib/builder/types";
 import type { Block, Json } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, Star } from "lucide-react";
@@ -35,7 +36,7 @@ export function ReviewBlock({ block, onChange }: Props) {
     : 0;
 
   const patch = (key: string, value: Json) => onChange({ ...block, data: { ...block.data, [key]: value } });
-  const patchCriteria = (next: Criterion[]) => patch("criteria", next as unknown as Json);
+  const patchCriteria = (next: Criterion[]) => patch("criteria", toJson(next));
 
   return (
     <div className="not-prose rounded-lg border border-border bg-card p-4 space-y-3">
