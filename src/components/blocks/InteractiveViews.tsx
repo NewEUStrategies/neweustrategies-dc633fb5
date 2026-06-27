@@ -66,7 +66,7 @@ export function AccordionView({ items, allowMultiple = false, cls }: AccordionPr
               aria-expanded={isOpen}
               className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium text-foreground hover:bg-muted/40 transition-colors"
             >
-              <span>{it.title || `Sekcja ${idx + 1}`}</span>
+              <span>{it.label || `Sekcja ${idx + 1}`}</span>
               <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden />
             </button>
             {isOpen ? (
