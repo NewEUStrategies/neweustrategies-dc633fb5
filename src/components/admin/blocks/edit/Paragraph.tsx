@@ -51,8 +51,15 @@ export function ParagraphBlock({
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: false, bulletList: false, orderedList: false, blockquote: false, codeBlock: false }),
+      StarterKit.configure({ heading: { levels: [1, 2, 3] }, codeBlock: false }),
       Link.configure({ openOnClick: false, HTMLAttributes: { class: "underline text-primary" } }),
+      Underline,
+      TextStyle,
+      Color,
+      Highlight.configure({ multicolor: true }),
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      Subscript,
+      Superscript,
     ],
     content: html || "<p></p>",
     editorProps: {
