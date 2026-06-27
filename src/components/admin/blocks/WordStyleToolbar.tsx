@@ -263,6 +263,13 @@ export function WordStyleToolbar({ editor }: Props) {
             <Link2Off className="h-3.5 w-3.5" />
           </ToolbarBtn>
         )}
+
+        <Divider />
+
+        <ToolbarBtn title={i18n.t("blocks.toolbar.footnote", { defaultValue: "Wstaw przypis [fn]…[/fn]" })}
+          onClick={insertFootnote}>
+          <StickyNote className="h-3.5 w-3.5" />
+        </ToolbarBtn>
       </div>
 
       {/* Wiersz 2: akapit + wyrównanie + listy */}
