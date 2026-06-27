@@ -75,56 +75,68 @@ export function PostLayoutRenderer({
   // Overlay = cover + header nałożony
   if (preset.header === "overlay" && coverImageUrl && preset.cover !== "none") {
     return (
-      <div className={`relative ${preset.cover === "full-bleed" ? "-mx-4 lg:-mx-8" : ""}`}>
-        <div className="relative h-[60vh] rounded-lg overflow-hidden mb-8">
-          <OptimizedImage src={coverImageUrl} alt={title} className="absolute inset-0 w-full h-full object-cover" priority responsive sizes="100vw" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-          <div className={`absolute inset-x-0 bottom-0 p-6 lg:p-10 ${center ? "text-center" : ""} text-white`}>
-            <h1 className="font-display text-3xl lg:text-5xl mb-3">{title}</h1>
-            {excerpt && <p className="text-base lg:text-lg opacity-90 mb-3 max-w-3xl mx-auto">{excerpt}</p>}
-            {meta && <div className={`text-sm flex flex-wrap gap-3 ${center ? "justify-center" : ""}`}>{meta}</div>}
+      <>
+        <ReadingHeader title={title} />
+        <div className={`relative ${preset.cover === "full-bleed" ? "-mx-4 lg:-mx-8" : ""}`}>
+          <div className="relative h-[60vh] rounded-lg overflow-hidden mb-8">
+            <OptimizedImage src={coverImageUrl} alt={title} className="absolute inset-0 w-full h-full object-cover" priority responsive sizes="100vw" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+            <div className={`absolute inset-x-0 bottom-0 p-6 lg:p-10 ${center ? "text-center" : ""} text-white`}>
+              <h1 className="font-display text-3xl lg:text-5xl mb-3">{title}</h1>
+              {excerpt && <p className="text-base lg:text-lg opacity-90 mb-3 max-w-3xl mx-auto">{excerpt}</p>}
+              {meta && <div className={`text-sm flex flex-wrap gap-3 ${center ? "justify-center" : ""}`}>{meta}</div>}
+            </div>
           </div>
+          <LayoutBody contentMaxW={contentMaxW} content={content} sidebar={preset.hasSidebar ? sidebar : undefined} footer={footer} />
         </div>
-        <LayoutBody contentMaxW={contentMaxW} content={content} sidebar={preset.hasSidebar ? sidebar : undefined} footer={footer} />
-      </div>
+      </>
     );
   }
 
   // Side-by-side (Layout 7)
   if (preset.header === "side-by-side" && coverImageUrl) {
     return (
-      <div>
-        <div className="grid lg:grid-cols-2 gap-8 items-center mb-10">
-          <OptimizedImage src={coverImageUrl} alt={title} className="w-full rounded-lg max-h-[420px] object-cover" priority responsive sizes="(max-width: 1024px) 100vw, 50vw" />
-          <div className={center ? "text-center" : ""}>
-            <h1 className="font-display text-3xl lg:text-5xl mb-4">{title}</h1>
-            {excerpt && <p className="text-lg text-muted-foreground mb-4">{excerpt}</p>}
-            {meta && <div className="text-sm text-muted-foreground flex flex-wrap gap-3">{meta}</div>}
+      <>
+        <ReadingHeader title={title} />
+        <div>
+          <div className="grid lg:grid-cols-2 gap-8 items-center mb-10">
+            <OptimizedImage src={coverImageUrl} alt={title} className="w-full rounded-lg max-h-[420px] object-cover" priority responsive sizes="(max-width: 1024px) 100vw, 50vw" />
+            <div className={center ? "text-center" : ""}>
+              <h1 className="font-display text-3xl lg:text-5xl mb-4">{title}</h1>
+              {excerpt && <p className="text-lg text-muted-foreground mb-4">{excerpt}</p>}
+              {meta && <div className="text-sm text-muted-foreground flex flex-wrap gap-3">{meta}</div>}
+            </div>
           </div>
+          <LayoutBody contentMaxW={contentMaxW} content={content} sidebar={preset.hasSidebar ? sidebar : undefined} footer={footer} />
         </div>
-        <LayoutBody contentMaxW={contentMaxW} content={content} sidebar={preset.hasSidebar ? sidebar : undefined} footer={footer} />
-      </div>
+      </>
     );
   }
 
   // Below-cover (Layout 8 magazine)
   if (preset.header === "below-cover" && coverImageUrl) {
     return (
-      <div>
-        {coverBlock}
-        {header}
-        <LayoutBody contentMaxW={contentMaxW} content={content} sidebar={preset.hasSidebar ? sidebar : undefined} footer={footer} />
-      </div>
+      <>
+        <ReadingHeader title={title} />
+        <div>
+          {coverBlock}
+          {header}
+          <LayoutBody contentMaxW={contentMaxW} content={content} sidebar={preset.hasSidebar ? sidebar : undefined} footer={footer} />
+        </div>
+      </>
     );
   }
 
   // Default: above-cover
   return (
-    <div>
-      {header}
-      {coverBlock}
-      <LayoutBody contentMaxW={contentMaxW} content={content} sidebar={preset.hasSidebar ? sidebar : undefined} footer={footer} />
-    </div>
+    <>
+      <ReadingHeader title={title} />
+      <div>
+        {header}
+        {coverBlock}
+        <LayoutBody contentMaxW={contentMaxW} content={content} sidebar={preset.hasSidebar ? sidebar : undefined} footer={footer} />
+      </div>
+    </>
   );
 }
 
