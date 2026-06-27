@@ -17,13 +17,13 @@ function clean(html: string): string {
   return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
 }
 
-interface AccordionItemLite { title: string; body: string }
+interface ItemLite { label: string; body: string }
 
-function parseItems(raw: Json[] | undefined, key: "title" | "label"): AccordionItemLite[] {
+function parseItems(raw: Json[] | undefined, key: "title" | "label"): ItemLite[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
-    return { title: String(o[key] ?? ""), body: String(o.body ?? "") };
+    return { label: String(o[key] ?? ""), body: String(o.body ?? "") };
   });
 }
 
