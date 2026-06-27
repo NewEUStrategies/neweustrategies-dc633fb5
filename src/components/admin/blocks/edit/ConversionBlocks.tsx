@@ -1,9 +1,10 @@
 // Admin edytory dla Phase 4 batch 13 (konwersja / SEO):
-// step-list, comparison-table, banner-imagimport { useBlocksI18n } from "@/lib/blocks/i18n";
+// step-list, comparison-table, banner-imag
 e, video-hero.
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props { block: Block; onChange: (next: Block) => void; }
 

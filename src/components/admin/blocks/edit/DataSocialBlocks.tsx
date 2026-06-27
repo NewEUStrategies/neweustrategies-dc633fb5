@@ -1,9 +1,10 @@
 // Admin edytory dla Phase 4 batch 12 (data + social proof):
-// team-grid, logo-grid, feature-grid, import { useBlocksI18n } from "@/lib/blocks/i18n";
+// team-grid, logo-grid, feature-grid, 
 alert-banner, divider-text.
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props { block: Block; onChange: (next: Block) => void; }
 

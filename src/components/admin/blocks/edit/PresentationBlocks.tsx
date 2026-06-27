@@ -1,9 +1,10 @@
 // Admin edytory dla Phase 4 batch 10 (prezentacyjne):
-// icon-box, stats-counter, testimonials, priimport { useBlocksI18n } from "@/lib/blocks/i18n";
+// icon-box, stats-counter, testimonials, pri
 cing-table, timeline.
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props { block: Block; onChange: (next: Block) => void; }
 

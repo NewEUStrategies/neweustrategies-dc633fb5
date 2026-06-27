@@ -1,9 +1,10 @@
 // Admin edytory dla Phase 4 batch 11 (sekcje marketingowe):
-// hero, cta, carousel, contact-form, mimport { useBlocksI18n } from "@/lib/blocks/i18n";
+// hero, cta, carousel, contact-form, m
 ap.
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props { block: Block; onChange: (next: Block) => void; }
 
