@@ -10,10 +10,11 @@ import { AppLink } from "@/components/atoms/AppLink";
 interface Props {
   days?: number;
   limit?: number;
+  fullWidth?: boolean;
   className?: string;
 }
 
-export function TrendingTicker({ days = 7, limit = 8, className }: Props) {
+export function TrendingTicker({ days = 7, limit = 8, fullWidth = true, className }: Props) {
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const fetcher = useServerFn(getTrendingPosts);
@@ -28,18 +29,20 @@ export function TrendingTicker({ days = 7, limit = 8, className }: Props) {
   if (isLoading || !data?.length) return null;
 
   const label = lang === "en" ? "Trending" : "Na czasie";
+  const innerMax = fullWidth ? "max-w-none" : "max-w-[1400px] mx-auto";
 
   return (
     <div
       className={`cms-trending border-b border-border bg-muted/30 ${className ?? ""}`}
       data-testid="trending-ticker"
     >
-      <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-2 flex items-center gap-3 overflow-hidden">
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-brand shrink-0">
-          <Flame className="w-3.5 h-3.5" aria-hidden /> {label}
+      <div className={`${innerMax} px-4 lg:px-8 py-2 flex items-center gap-4 overflow-hidden`}>
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-brand shrink-0 whitespace-nowrap">
+          <Flame className="w-3.5 h-3.5 shrink-0" aria-hidden /> {label}
         </span>
+        <span className="hidden sm:block h-4 w-px bg-border shrink-0" aria-hidden />
         <div
-          className="flex items-center gap-5 overflow-x-auto scrollbar-none"
+          className="flex-1 min-w-0 flex items-center gap-6 overflow-x-auto scrollbar-none"
           style={{ scrollbarWidth: "none" }}
         >
           {data.map((p, i) => {
@@ -48,13 +51,13 @@ export function TrendingTicker({ days = 7, limit = 8, className }: Props) {
               <AppLink
                 key={p.id}
                 href={p.href}
-                className="group flex items-center gap-2 text-sm whitespace-nowrap hover:text-brand transition"
+                className="group flex items-center gap-2 text-sm whitespace-nowrap hover:text-brand transition shrink-0"
                 title={`${title} - ${p.views_count} ${t("views", { defaultValue: "wyświetleń" })}`}
               >
                 <span className="text-[10px] font-bold text-muted-foreground tabular-nums">
                   {String(i + 1).padStart(2, "0")}
                 </span>
-                <span className="truncate max-w-[260px] font-medium">{title}</span>
+                <span className="truncate max-w-[280px] font-medium">{title}</span>
               </AppLink>
             );
           })}

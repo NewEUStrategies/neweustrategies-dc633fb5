@@ -16,6 +16,7 @@ import { Save, Undo as RotateCcw } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { ThemeOptionsPane } from "@/components/admin/ThemeOptionsPane";
 import { FooterChromePane } from "@/components/admin/FooterChromePane";
+import { TrendingTickerPane } from "@/components/admin/TrendingTickerPane";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface Props {
@@ -125,10 +126,14 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
         <Tabs defaultValue="builder">
           <TabsList>
             <TabsTrigger value="builder">Builder</TabsTrigger>
+            <TabsTrigger value="trending">Na czasie</TabsTrigger>
             <TabsTrigger value="options">Opcje motywu</TabsTrigger>
           </TabsList>
           <TabsContent value="builder" className="mt-3">
             <Builder value={doc} onChange={onChange} lang={lang} onLangChange={setLang} hideChrome scope={scope} />
+          </TabsContent>
+          <TabsContent value="trending" className="mt-3">
+            <TrendingTickerPane />
           </TabsContent>
           <TabsContent value="options" className="mt-3">
             <ThemeOptionsPane />

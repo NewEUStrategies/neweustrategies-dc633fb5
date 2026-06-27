@@ -11,7 +11,7 @@ import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 
 type HeaderSettings = {
   builder_data?: BuilderDocument | null;
-  trending?: { enabled?: boolean; days?: number; limit?: number };
+  trending?: { enabled?: boolean; days?: number; limit?: number; fullWidth?: boolean };
 };
 
 function HeaderInner() {
@@ -31,7 +31,11 @@ function HeaderInner() {
     <>
       <AlertBar />
       {trending.enabled !== false && (
-        <TrendingTicker days={trending.days ?? 7} limit={trending.limit ?? 8} />
+        <TrendingTicker
+          days={trending.days ?? 7}
+          limit={trending.limit ?? 8}
+          fullWidth={trending.fullWidth ?? true}
+        />
       )}
       <AdZone position="header_banner" pageType="all" className="py-2 text-center" />
       <BuilderRenderer doc={cfg.builder_data} lang={lang.startsWith("pl") ? "pl" : "en"} />
