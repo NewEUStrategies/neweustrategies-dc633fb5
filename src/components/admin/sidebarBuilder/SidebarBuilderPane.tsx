@@ -127,9 +127,21 @@ export function SidebarBuilderPane() {
 
   const createMutation = useMutation({
     mutationFn: async (name: string) => {
+      const { data: u } = await supabase.auth.getUser();
+      const uid = u.user?.id;
+      if (!uid) throw new Error("not_authenticated");
+      const { data: profile, error: pErr } = await supabase
+        .from("profiles")
+        .select("tenant_id")
+        .eq("user_id", uid)
+        .maybeSingle();
+      if (pErr) throw pErr;
+      const tenantId = profile?.tenant_id;
+      if (!tenantId) throw new Error("no_tenant");
       const { data, error } = await supabase
         .from("post_sidebar_layouts")
         .insert({
+          tenant_id: tenantId,
           name,
           is_default: false,
           widgets: [newWidget("reading-panel")] as unknown as never,
