@@ -4,7 +4,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Search as SearchIcon, LogIn, UserPlus } from "@/lib/lucide-shim";
+import { Search as SearchIcon, LogIn, User } from "@/lib/lucide-shim";
 import { ThemeToggle } from "@/components/atoms/ThemeToggle";
 import { LangToggle } from "@/components/atoms/LangToggle";
 
