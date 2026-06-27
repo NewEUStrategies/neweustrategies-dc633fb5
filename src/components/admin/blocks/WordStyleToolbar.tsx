@@ -29,6 +29,7 @@ import {
   Eraser,
   Undo2,
   Redo2,
+  StickyNote,
 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
@@ -145,6 +146,18 @@ export function WordStyleToolbar({ editor }: Props) {
     else editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   };
 
+  const insertFootnote = () => {
+    const { from, to, empty } = editor.state.selection;
+    const selected = empty ? "" : editor.state.doc.textBetween(from, to, " ");
+    const promptLabel = i18n.t("blocks.toolbar.footnotePrompt", { defaultValue: "Treść przypisu:" });
+    const initial = selected || "";
+    const text = window.prompt(promptLabel, initial);
+    if (text === null) return;
+    const body = text.trim();
+    if (!body) return;
+    editor.chain().focus().insertContentAt({ from, to }, `[fn]${body}[/fn]`).run();
+  };
+
   return (
     <div
       ref={rootRef}
@@ -250,6 +263,13 @@ export function WordStyleToolbar({ editor }: Props) {
             <Link2Off className="h-3.5 w-3.5" />
           </ToolbarBtn>
         )}
+
+        <Divider />
+
+        <ToolbarBtn title={i18n.t("blocks.toolbar.footnote", { defaultValue: "Wstaw przypis [fn]…[/fn]" })}
+          onClick={insertFootnote}>
+          <StickyNote className="h-3.5 w-3.5" />
+        </ToolbarBtn>
       </div>
 
       {/* Wiersz 2: akapit + wyrównanie + listy */}
