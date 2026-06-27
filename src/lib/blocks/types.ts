@@ -32,7 +32,20 @@ export type BlockType =
   | "login-form"
   | "register-form"
   | "lost-password-form"
-  | "reset-password-form";
+  | "reset-password-form"
+  // Gutenberg core - batch 1
+  | "audio"
+  | "cover"
+  | "file"
+  | "media-text"
+  | "group"
+  | "spacer"
+  | "page-break"
+  | "read-more"
+  | "pullquote"
+  | "preformatted"
+  | "verse"
+  | "details";
 
 export type Json =
   | string
