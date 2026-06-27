@@ -73,7 +73,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
   const [progress, setProgress] = useState(0);
   const [items, setItems] = useState<TocItem[]>([]);
   const [active, setActive] = useState<string | null>(null);
-  const [hovered, setHovered] = useState<string | null>(null);
+  
   const railRef = useRef<HTMLElement>(null);
   const t = COPY[lang];
 
@@ -201,95 +201,104 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
       aria-label={t.share}
       className={[
         "hidden lg:flex flex-col fixed left-5 top-1/2 -translate-y-1/2 z-40",
-        "rounded-2xl border border-border/70 bg-background/85 backdrop-blur-xl",
-        "shadow-[0_10px_40px_-12px_rgba(0,0,0,0.25)] px-2 py-3 gap-2",
+        "w-[248px] max-h-[min(86vh,720px)]",
+        "rounded-2xl border border-border/70 bg-background/90 backdrop-blur-xl",
+        "shadow-[0_10px_40px_-12px_rgba(0,0,0,0.25)] px-3 py-3 gap-2",
         "transition-all duration-300 ease-out",
         visible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 pointer-events-none",
       ].join(" ")}
     >
-      {/* Reading progress ring */}
-      <div
-        className="relative mx-auto"
-        style={{ width: ringSize, height: ringSize }}
-        title={t.progress}
-        aria-label={t.progress}
-      >
-        <svg width={ringSize} height={ringSize} className="-rotate-90">
-          <circle
-            cx={ringSize / 2}
-            cy={ringSize / 2}
-            r={r}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={ringStroke}
-            className="text-border"
-          />
-          <circle
-            cx={ringSize / 2}
-            cy={ringSize / 2}
-            r={r}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={ringStroke}
-            strokeLinecap="round"
-            strokeDasharray={`${dash} ${c}`}
-            className="text-brand transition-[stroke-dasharray] duration-150"
-          />
-        </svg>
-        <span className="absolute inset-0 grid place-items-center text-[10px] font-semibold text-foreground tabular-nums">
-          {Math.round(progress * 100)}%
-        </span>
+      {/* Header: progress ring + label */}
+      <div className="flex items-center gap-2.5 px-1">
+        <div
+          className="relative shrink-0"
+          style={{ width: ringSize, height: ringSize }}
+          title={t.progress}
+          aria-label={t.progress}
+        >
+          <svg width={ringSize} height={ringSize} className="-rotate-90">
+            <circle
+              cx={ringSize / 2}
+              cy={ringSize / 2}
+              r={r}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={ringStroke}
+              className="text-border"
+            />
+            <circle
+              cx={ringSize / 2}
+              cy={ringSize / 2}
+              r={r}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={ringStroke}
+              strokeLinecap="round"
+              strokeDasharray={`${dash} ${c}`}
+              className="text-brand transition-[stroke-dasharray] duration-150"
+            />
+          </svg>
+          <span className="absolute inset-0 grid place-items-center text-[10px] font-semibold text-foreground tabular-nums">
+            {Math.round(progress * 100)}%
+          </span>
+        </div>
+        <div className="min-w-0">
+          <div className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground leading-none">
+            {t.toc}
+          </div>
+          <div className="text-[11px] text-muted-foreground/80 mt-1 leading-tight">
+            {t.progress}
+          </div>
+        </div>
       </div>
 
-      {/* Interactive ToC dots */}
+      {hasToc && <div className="mx-1 h-px bg-border/70" />}
+
+      {/* Interactive ToC list with active rail */}
       {hasToc && (
-        <nav
-          aria-label={t.toc}
-          className="flex flex-col items-center gap-1.5 mt-1 mb-1 px-1"
-        >
-          {items.map((it) => {
-            const isActive = active === it.id;
-            const isHover = hovered === it.id;
-            return (
-              <button
-                key={it.id}
-                type="button"
-                onClick={() => jumpTo(it.id)}
-                onMouseEnter={() => setHovered(it.id)}
-                onMouseLeave={() => setHovered((h) => (h === it.id ? null : h))}
-                onFocus={() => setHovered(it.id)}
-                onBlur={() => setHovered((h) => (h === it.id ? null : h))}
-                aria-label={it.text}
-                aria-current={isActive ? "true" : undefined}
-                className="relative group flex items-center justify-center w-6 h-6"
-              >
-                <span
-                  className={[
-                    "block rounded-full transition-all duration-200",
-                    it.level === 3 ? "w-1.5 h-1.5" : "w-2 h-2",
-                    isActive
-                      ? "bg-brand scale-150 shadow-[0_0_0_3px_color-mix(in_oklab,var(--brand)_18%,transparent)]"
-                      : "bg-muted-foreground/40 group-hover:bg-foreground",
-                  ].join(" ")}
-                />
-                {/* Tooltip with heading text */}
-                <span
-                  role="tooltip"
-                  className={[
-                    "pointer-events-none absolute left-full ml-3 whitespace-nowrap",
-                    "rounded-md border border-border bg-popover text-popover-foreground",
-                    "px-2.5 py-1 text-xs shadow-md max-w-[260px] truncate",
-                    "transition-all duration-150",
-                    isHover || isActive
-                      ? "opacity-100 translate-x-0"
-                      : "opacity-0 -translate-x-1",
-                  ].join(" ")}
-                >
-                  {it.text}
-                </span>
-              </button>
-            );
-          })}
+        <nav aria-label={t.toc} className="relative overflow-y-auto pr-1 -mr-1 flex-1 min-h-0">
+          {/* Vertical track */}
+          <span aria-hidden className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
+          <ul className="flex flex-col">
+            {items.map((it) => {
+              const isActive = active === it.id;
+              return (
+                <li key={it.id}>
+                  <button
+                    type="button"
+                    onClick={() => jumpTo(it.id)}
+                    aria-current={isActive ? "true" : undefined}
+                    title={it.text}
+                    className={[
+                      "group relative w-full text-left flex gap-2 items-start py-1.5 pr-1 rounded-md transition-colors",
+                      it.level === 3 ? "pl-7" : "pl-4",
+                      isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                    ].join(" ")}
+                  >
+                    {/* Indicator dot/bar */}
+                    <span
+                      aria-hidden
+                      className={[
+                        "absolute top-1/2 -translate-y-1/2 rounded-full transition-all duration-200",
+                        isActive
+                          ? "left-[4px] w-[7px] h-[7px] bg-brand shadow-[0_0_0_3px_color-mix(in_oklab,var(--brand)_18%,transparent)]"
+                          : "left-[5px] w-[5px] h-[5px] bg-muted-foreground/40 group-hover:bg-foreground",
+                      ].join(" ")}
+                    />
+                    <span
+                      className={[
+                        "block text-[12.5px] leading-[1.25] tracking-tight",
+                        "line-clamp-2",
+                        isActive ? "font-semibold" : "font-medium",
+                      ].join(" ")}
+                    >
+                      {it.text}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </nav>
       )}
 
