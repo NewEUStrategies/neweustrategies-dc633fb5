@@ -180,6 +180,8 @@ export const Cog = makeIcon("Cog", LCog);
 export const Wand2 = makeIcon("Wand2", LWand2);
 export const Share2 = makeIcon("Share2", LShare2);
 export const Gauge = makeIcon("Gauge", LGauge);
+export const Printer = makeIcon("Printer", LPrinter);
+export const Download = makeIcon("Download", LDownload);
 
 
 // Brands
