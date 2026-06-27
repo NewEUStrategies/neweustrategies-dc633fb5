@@ -650,7 +650,7 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const alignCls = align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start";
       const sizeCls = size === "sm" ? "h-4 w-4" : size === "lg" ? "h-7 w-7" : "h-5 w-5";
       if (raw.length === 0) return null;
-      const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+      const ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
         facebook: Facebook, x: Twitter, twitter: Twitter, instagram: Instagram,
         youtube: Youtube, linkedin: Linkedin, tiktok: TikTokIcon,
         github: Github, mail: Mail, rss: Rss,
