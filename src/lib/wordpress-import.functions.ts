@@ -545,6 +545,9 @@ export const runWpImportJob = createServerFn({ method: "POST" })
             ? { pl: doc, en: { version: 1, blocks: [] } }
             : { pl: { version: 1, blocks: [] }, en: doc };
           const blocks_data = JSON.parse(JSON.stringify(blocksPayload)) as Json;
+          const builder_data = JSON.parse(
+            JSON.stringify(localizedBlocksToBuilderDoc(blocksPayload as unknown as LocalizedBlocks)),
+          ) as Json;
 
           const titleField = data.language === "pl"
             ? { title_pl: title, title_en: "" }
