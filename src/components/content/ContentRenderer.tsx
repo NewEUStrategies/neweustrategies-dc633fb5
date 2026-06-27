@@ -18,6 +18,7 @@ import type { BuilderDocument } from "@/lib/builder/types";
 import type { BlocksDoc } from "@/lib/blocks/types";
 
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
+import { BlocksRenderer } from "@/components/blocks/BlocksRenderer";
 import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { sanitizeMarkdownHtml } from "@/lib/sanitize";
 import { resolveContentEngine } from "@/lib/content/contentEngine";
@@ -44,13 +45,14 @@ export function ContentRenderer({
   blocksDoc,
   html,
   lang,
+  postId,
   currentPostCtx,
 }: Props) {
   const engine = resolveContentEngine({ editor, builderDoc, blocksDoc });
 
-
-
-
+  if (engine === "blocks") {
+    return <BlocksRenderer doc={blocksDoc} lang={lang} postId={postId} />;
+  }
 
   if (engine === "builder") {
     const tree = <BuilderRenderer doc={builderDoc} lang={lang} />;
