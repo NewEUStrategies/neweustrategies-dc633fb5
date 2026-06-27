@@ -92,7 +92,13 @@ import {
   GalleryHorizontal as CarouselIcon,
   Mailbox as ContactFormIcon,
   Map as MapIconLucide,
+  Users as TeamIcon,
+  ImagePlus as LogoGridIcon,
+  LayoutGrid as FeatureGridIcon,
+  BellRing as AlertBannerIcon,
+  MoreHorizontal as DividerTextIcon,
   type LucideIcon,
+
 
 } from "lucide-react";
 
