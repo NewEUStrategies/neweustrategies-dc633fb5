@@ -186,6 +186,18 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
     }
   };
 
+  const onPrint = (): void => {
+    window.print();
+  };
+
+  const onPdf = (): void => {
+    toast.info(t.pdfHint);
+    // Defer so toast paints before the blocking print dialog
+    window.setTimeout(() => window.print(), 120);
+  };
+
+
+
   const jumpTo = (id: string): void => {
     const el = document.getElementById(id);
     if (!el) return;
