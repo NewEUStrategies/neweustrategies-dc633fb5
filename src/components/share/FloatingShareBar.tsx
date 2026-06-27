@@ -422,7 +422,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
         </div>
       </div>
 
-      </div>
+
     </aside>
   );
 }
