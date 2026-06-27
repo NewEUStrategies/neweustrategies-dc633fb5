@@ -204,16 +204,19 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
 
   const enc = encodeURIComponent;
   const u = href || "";
-  const links = useMemo(
-    () =>
-      [
-        { id: "x", label: t.x, icon: Twitter, href: `https://twitter.com/intent/tweet?url=${enc(u)}&text=${enc(title)}` },
-        { id: "fb", label: t.fb, icon: Facebook, href: `https://www.facebook.com/sharer/sharer.php?u=${enc(u)}` },
-        { id: "li", label: t.li, icon: Linkedin, href: `https://www.linkedin.com/sharing/share-offsite/?url=${enc(u)}` },
-        { id: "mail", label: t.mail, icon: Mail, href: `mailto:?subject=${enc(title)}&body=${enc(u)}` },
-      ] as const,
-    [u, title, t],
-  );
+  const links = useMemo(() => {
+    const all: { id: SocialKey; label: string; icon: typeof Twitter; href: string }[] = [
+      { id: "x", label: t.x, icon: Twitter, href: `https://twitter.com/intent/tweet?url=${enc(u)}&text=${enc(title)}` },
+      { id: "facebook", label: t.fb, icon: Facebook, href: `https://www.facebook.com/sharer/sharer.php?u=${enc(u)}` },
+      { id: "linkedin", label: t.li, icon: Linkedin, href: `https://www.linkedin.com/sharing/share-offsite/?url=${enc(u)}` },
+      { id: "mail", label: t.mail, icon: Mail, href: `mailto:?subject=${enc(title)}&body=${enc(u)}` },
+      { id: "whatsapp", label: "WhatsApp", icon: Share2, href: `https://wa.me/?text=${enc(title + " " + u)}` },
+      { id: "telegram", label: "Telegram", icon: Share2, href: `https://t.me/share/url?url=${enc(u)}&text=${enc(title)}` },
+      { id: "reddit", label: "Reddit", icon: Share2, href: `https://www.reddit.com/submit?url=${enc(u)}&title=${enc(title)}` },
+    ];
+    return all.filter((l) => cfg.social[l.id]);
+  }, [u, title, t, cfg.social]);
+
 
   const onCopy = async (): Promise<void> => {
     try {
