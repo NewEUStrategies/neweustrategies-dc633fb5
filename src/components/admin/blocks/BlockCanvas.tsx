@@ -49,6 +49,18 @@ import { LoginFormBlock } from "./edit/LoginForm";
 import { RegisterFormBlock } from "./edit/RegisterForm";
 import { LostPasswordFormBlock } from "./edit/LostPasswordForm";
 import { ResetPasswordFormBlock } from "./edit/ResetPasswordForm";
+import { AudioBlock } from "./edit/Audio";
+import { CoverBlock } from "./edit/Cover";
+import { FileBlock } from "./edit/File";
+import { MediaTextBlock } from "./edit/MediaText";
+import { GroupBlock } from "./edit/Group";
+import { SpacerBlock } from "./edit/Spacer";
+import { PageBreakBlock } from "./edit/PageBreak";
+import { ReadMoreBlock } from "./edit/ReadMore";
+import { PullquoteBlock } from "./edit/Pullquote";
+import { PreformattedBlock } from "./edit/Preformatted";
+import { VerseBlock } from "./edit/Verse";
+import { DetailsBlock } from "./edit/Details";
 
 interface Props {
   doc: BlocksDoc;
@@ -219,6 +231,18 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "register-form":      return <RegisterFormBlock block={block} onChange={onChange} />;
     case "lost-password-form": return <LostPasswordFormBlock block={block} onChange={onChange} />;
     case "reset-password-form": return <ResetPasswordFormBlock block={block} onChange={onChange} />;
+    case "audio":        return <AudioBlock block={block} onChange={onChange} />;
+    case "cover":        return <CoverBlock block={block} onChange={onChange} />;
+    case "file":         return <FileBlock block={block} onChange={onChange} />;
+    case "media-text":   return <MediaTextBlock block={block} onChange={onChange} />;
+    case "group":        return <GroupBlock block={block} onChange={onChange} />;
+    case "spacer":       return <SpacerBlock block={block} onChange={onChange} />;
+    case "page-break":   return <PageBreakBlock />;
+    case "read-more":    return <ReadMoreBlock block={block} onChange={onChange} />;
+    case "pullquote":    return <PullquoteBlock block={block} onChange={onChange} />;
+    case "preformatted": return <PreformattedBlock block={block} onChange={onChange} />;
+    case "verse":        return <VerseBlock block={block} onChange={onChange} />;
+    case "details":      return <DetailsBlock block={block} onChange={onChange} />;
     default:
       return (
         <div className="text-xs text-muted-foreground italic py-2">
