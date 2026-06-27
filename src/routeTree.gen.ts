@@ -68,6 +68,7 @@ import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicSitemapDotxmlRouteImport } from './routes/api/public/sitemap[.]xml'
 import { Route as ApiPublicRobotsDottxtRouteImport } from './routes/api/public/robots[.]txt'
+import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
 import { Route as AdminSettingsReadingRouteImport } from './routes/admin.settings.reading'
 import { Route as AdminSettingsPrivacyRouteImport } from './routes/admin.settings.privacy'
 import { Route as AdminSettingsPermalinksRouteImport } from './routes/admin.settings.permalinks'
@@ -381,6 +382,11 @@ const ApiPublicRobotsDottxtRoute = ApiPublicRobotsDottxtRouteImport.update({
   path: '/api/public/robots.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicClientErrorsRoute = ApiPublicClientErrorsRouteImport.update({
+  id: '/api/public/client-errors',
+  path: '/api/public/client-errors',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminSettingsReadingRoute = AdminSettingsReadingRouteImport.update({
   id: '/reading',
   path: '/reading',
@@ -540,6 +546,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
+  '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
   '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
@@ -615,6 +622,7 @@ export interface FileRoutesByTo {
   '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
+  '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
   '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
@@ -694,6 +702,7 @@ export interface FileRoutesById {
   '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
+  '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/robots.txt': typeof ApiPublicRobotsDottxtRoute
   '/api/public/sitemap.xml': typeof ApiPublicSitemapDotxmlRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
@@ -774,6 +783,7 @@ export interface FileRouteTypes {
     | '/admin/settings/permalinks'
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
+    | '/api/public/client-errors'
     | '/api/public/robots.txt'
     | '/api/public/sitemap.xml'
     | '/api/public/vitals'
@@ -849,6 +859,7 @@ export interface FileRouteTypes {
     | '/admin/settings/permalinks'
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
+    | '/api/public/client-errors'
     | '/api/public/robots.txt'
     | '/api/public/sitemap.xml'
     | '/api/public/vitals'
@@ -927,6 +938,7 @@ export interface FileRouteTypes {
     | '/admin/settings/permalinks'
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
+    | '/api/public/client-errors'
     | '/api/public/robots.txt'
     | '/api/public/sitemap.xml'
     | '/api/public/vitals'
@@ -958,6 +970,7 @@ export interface RootRouteChildren {
   TagSlugRoute: typeof TagSlugRoute
   WebStoriesSlugRoute: typeof WebStoriesSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
+  ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
   ApiPublicRobotsDottxtRoute: typeof ApiPublicRobotsDottxtRoute
   ApiPublicSitemapDotxmlRoute: typeof ApiPublicSitemapDotxmlRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
@@ -1380,6 +1393,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/client-errors': {
+      id: '/api/public/client-errors'
+      path: '/api/public/client-errors'
+      fullPath: '/api/public/client-errors'
+      preLoaderRoute: typeof ApiPublicClientErrorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/settings/reading': {
       id: '/admin/settings/reading'
       path: '/reading'
@@ -1680,6 +1700,7 @@ const rootRouteChildren: RootRouteChildren = {
   TagSlugRoute: TagSlugRoute,
   WebStoriesSlugRoute: WebStoriesSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
+  ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
   ApiPublicRobotsDottxtRoute: ApiPublicRobotsDottxtRoute,
   ApiPublicSitemapDotxmlRoute: ApiPublicSitemapDotxmlRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,

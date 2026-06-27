@@ -1,17 +1,22 @@
 // Pluggable observability transport. Beacons client errors (and other structured
-// events) to a configurable endpoint (VITE_OBSERVABILITY_ENDPOINT - e.g. a
-// Supabase edge function, a logging gateway, or a Sentry tunnel) via
-// navigator.sendBeacon, so reporting never blocks the page. When unconfigured
-// everything is a safe no-op: the site ships without an APM dependency and
-// lights up the moment an endpoint is set. Pure helpers are unit-tested.
+// events) via navigator.sendBeacon, so reporting never blocks the page.
+//
+// Endpoint resolution: an external sink (VITE_OBSERVABILITY_ENDPOINT - e.g. a
+// Sentry tunnel or logging gateway) wins when set; otherwise it falls back to
+// the built-in ingest route (/api/public/client-errors), so error telemetry is
+// captured BY DEFAULT - no external APM required and nothing dormant. Pure
+// helpers are unit-tested.
 
-export function observabilityEndpoint(): string | null {
+/** Built-in ingest route used when no external endpoint is configured. */
+export const INTERNAL_ERROR_ENDPOINT = "/api/public/client-errors";
+
+export function observabilityEndpoint(): string {
   try {
     const env = import.meta.env as unknown as Record<string, string | undefined>;
     const url = env.VITE_OBSERVABILITY_ENDPOINT;
-    return url && url.length > 0 ? url : null;
+    return url && url.length > 0 ? url : INTERNAL_ERROR_ENDPOINT;
   } catch {
-    return null;
+    return INTERNAL_ERROR_ENDPOINT;
   }
 }
 
@@ -53,10 +58,9 @@ export function sendBeaconPayload(endpoint: string, payload: unknown): boolean {
   }
 }
 
-/** Report an uncaught client error to the configured endpoint (no-op if unset). */
+/** Report an uncaught client error to the resolved endpoint (external or internal). */
 export function reportClientError(error: unknown, source: ClientErrorPayload["source"]): boolean {
   const endpoint = observabilityEndpoint();
-  if (!endpoint) return false;
   const path = typeof location !== "undefined" ? location.pathname : "";
   return sendBeaconPayload(endpoint, buildErrorPayload(error, source, path, Date.now()));
 }
@@ -69,7 +73,6 @@ export function reportClientError(error: unknown, source: ClientErrorPayload["so
  */
 export function reportBoundaryError(error: unknown, meta: Record<string, unknown>): boolean {
   const endpoint = observabilityEndpoint();
-  if (!endpoint) return false;
   const path = typeof location !== "undefined" ? location.pathname : "";
   return sendBeaconPayload(endpoint, buildErrorPayload(error, "react_error_boundary", path, Date.now(), meta));
 }

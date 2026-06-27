@@ -38,8 +38,11 @@ jobs:
       - name: Typecheck
         run: bunx tsc --noEmit
 
-      - name: Test
-        run: bun run test
+      # Tests run WITH the coverage gate so the per-file thresholds in
+      # vitest.config.ts actually block merges (previously CI ran plain
+      # `vitest run`, so the gate was local-only and could silently rot).
+      - name: Test + coverage gate
+        run: bun run test:coverage
 
       - name: Build
         run: bun run build

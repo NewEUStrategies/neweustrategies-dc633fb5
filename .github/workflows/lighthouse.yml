@@ -57,19 +57,16 @@ jobs:
         env:
           npm_config_registry: https://registry.npmjs.org
 
-      - name: Build
+      # No build step: the production build targets the Cloudflare edge runtime (a
+      # Worker) and `vite preview` is incompatible with it, so the smoke drives the
+      # app via the dev server (see lighthouserc.json startServerCommand). Scores
+      # are "warn" - dev-mode numbers aren't representative enough to block - but
+      # the step is NOT continue-on-error, so a broken Lighthouse setup fails
+      # VISIBLY instead of silently passing. Real a11y enforcement lives in the
+      # axe unit tests (ci.yml, blocking); the deployed-URL mode above is the
+      # representative blocking gate for perf/a11y/SEO.
+      - name: Lighthouse smoke on dev server (scores advisory; the run must succeed)
         if: ${{ vars.LHCI_URL == '' }}
-        run: bun run build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
-          VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID || 'placeholder' }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
-
-      - name: Lighthouse smoke on local preview (non-blocking)
-        if: ${{ vars.LHCI_URL == '' }}
-        continue-on-error: true
         run: bunx @lhci/cli@0.16.x autorun --config=lighthouserc.json
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}

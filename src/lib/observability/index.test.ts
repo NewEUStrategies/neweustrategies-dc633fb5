@@ -8,17 +8,22 @@ describe("initObservability", () => {
   let addSpy: ReturnType<typeof vi.spyOn>;
   let removeSpy: ReturnType<typeof vi.spyOn>;
   let cleanup: (() => void) | undefined;
+  const originalBeacon = navigator.sendBeacon;
 
   beforeEach(() => {
     vi.mocked(initWebVitals).mockClear();
     addSpy = vi.spyOn(window, "addEventListener");
     removeSpy = vi.spyOn(window, "removeEventListener");
+    // Error capture now beacons by default (internal endpoint), so stub the
+    // transport to keep the test off the network.
+    Object.defineProperty(navigator, "sendBeacon", { value: vi.fn(() => true), configurable: true, writable: true });
   });
   afterEach(() => {
     cleanup?.();
     cleanup = undefined;
     addSpy.mockRestore();
     removeSpy.mockRestore();
+    Object.defineProperty(navigator, "sendBeacon", { value: originalBeacon, configurable: true, writable: true });
   });
 
   it("starts web vitals and wires global error listeners once", () => {
