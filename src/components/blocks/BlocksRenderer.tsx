@@ -27,6 +27,9 @@ import {
   SiteTitleView, SiteTaglineView, SiteLogoView,
 } from "./ContextBlockViews";
 import { NavigationView, PostNavigationLinkView, QueryLoopView } from "./NavLoopViews";
+import {
+  BreadcrumbsView, ReadingTimeView, ShareButtonsView, PostViewsView,
+} from "./PostUtilityViews";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -797,6 +800,32 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
         />
       );
     }
+    case "breadcrumbs":
+      return (
+        <BreadcrumbsView
+          separator={String(block.data.separator ?? "/")}
+          showHome={block.data.showHome !== false}
+          lang={lang}
+          cls={cls}
+        />
+      );
+    case "reading-time":
+      return (
+        <ReadingTimeView
+          wpm={Number(block.data.wpm ?? 220)}
+          prefix={String(block.data.prefix ?? "")}
+          lang={lang}
+          cls={cls}
+        />
+      );
+    case "share-buttons": {
+      const nets = Array.isArray(block.data.networks) ? (block.data.networks as string[]) : undefined;
+      const v = String(block.data.variant ?? "filled");
+      const variant: "filled" | "outline" | "ghost" = v === "outline" ? "outline" : v === "ghost" ? "ghost" : "filled";
+      return <ShareButtonsView networks={nets} variant={variant} lang={lang} cls={cls} />;
+    }
+    case "post-views":
+      return <PostViewsView suffix={String(block.data.suffix ?? "")} lang={lang} cls={cls} />;
     default:
       return null;
   }

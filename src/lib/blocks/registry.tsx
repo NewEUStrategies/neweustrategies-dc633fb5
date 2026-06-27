@@ -68,6 +68,10 @@ import {
   Menu as NavigationIcon,
   ArrowLeftRight as PostNavIcon,
   Repeat as QueryLoopIcon,
+  Home as BreadcrumbsIcon,
+  Timer as ReadingTimeIcon,
+  Share2 as ShareIcon,
+  Eye as ViewsIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -641,6 +645,29 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
       data: { categorySlug: "", limit: 6, layout: "grid", showExcerpt: true, showDate: true, showImage: true, orderBy: "date" },
     }),
   },
+  breadcrumbs: {
+    type: "breadcrumbs", label: "Okruszki", description: "Ścieżka nawigacji do bieżącej strony.",
+    icon: BreadcrumbsIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "breadcrumbs", data: { separator: "/", showHome: true } }),
+  },
+  "reading-time": {
+    type: "reading-time", label: "Czas czytania", description: "Szacowany czas czytania wpisu.",
+    icon: ReadingTimeIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "reading-time", data: { wpm: 220, prefix: "" } }),
+  },
+  "share-buttons": {
+    type: "share-buttons", label: "Udostępnij", description: "Przyciski udostępniania w social media.",
+    icon: ShareIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "share-buttons",
+      data: { networks: ["facebook", "x", "linkedin", "copy"], variant: "filled" },
+    }),
+  },
+  "post-views": {
+    type: "post-views", label: "Wyświetlenia", description: "Licznik wyświetleń wpisu.",
+    icon: ViewsIcon, category: "advanced",
+    create: () => ({ id: newBlockId(), type: "post-views", data: { suffix: "" } }),
+  },
 };
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
@@ -658,4 +685,5 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "post-title", "post-date", "post-author", "post-excerpt", "post-featured-image", "post-terms",
   "site-title", "site-tagline", "site-logo",
   "navigation", "post-navigation-link", "query-loop",
+  "breadcrumbs", "reading-time", "share-buttons", "post-views",
 ];

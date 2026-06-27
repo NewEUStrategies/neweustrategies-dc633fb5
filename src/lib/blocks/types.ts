@@ -72,7 +72,12 @@ export type BlockType =
   // Phase 2 - navigation & loops
   | "navigation"
   | "post-navigation-link"
-  | "query-loop";
+  | "query-loop"
+  // Phase 2 - post utilities
+  | "breadcrumbs"
+  | "reading-time"
+  | "share-buttons"
+  | "post-views";
 
 export type Json =
   | string
