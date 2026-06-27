@@ -95,7 +95,14 @@ export type BlockType =
   | "stats-counter"
   | "testimonials"
   | "pricing-table"
-  | "timeline";
+  | "timeline"
+  // Phase 4 - marketing/sections
+  | "hero"
+  | "cta-section"
+  | "image-carousel"
+  | "contact-form"
+  | "map";
+
 
 export type Json =
   | string
