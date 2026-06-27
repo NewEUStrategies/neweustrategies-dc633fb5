@@ -280,58 +280,33 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
         visible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 pointer-events-none",
       ].join(" ")}
     >
-      {/* Header: progress ring + label */}
-      <div className="flex items-center gap-2.5 px-1">
+      {/* Top progress bar */}
+      <div className="h-1 w-full bg-muted/60" aria-hidden>
         <div
-          className="relative shrink-0"
-          style={{ width: ringSize, height: ringSize }}
-          title={t.progress}
-          aria-label={t.progress}
-        >
-          <svg width={ringSize} height={ringSize} className="-rotate-90">
-            <circle
-              cx={ringSize / 2}
-              cy={ringSize / 2}
-              r={r}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={ringStroke}
-              className="text-border"
-            />
-            <circle
-              cx={ringSize / 2}
-              cy={ringSize / 2}
-              r={r}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={ringStroke}
-              strokeLinecap="round"
-              strokeDasharray={`${dash} ${c}`}
-              className="text-brand transition-[stroke-dasharray] duration-150"
-            />
-          </svg>
-          <span className="absolute inset-0 grid place-items-center text-[10px] font-semibold text-foreground tabular-nums">
-            {Math.round(progress * 100)}%
-          </span>
-        </div>
-        <div className="min-w-0">
-          <div className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground leading-none">
-            {t.toc}
-          </div>
-          <div className="text-[11px] text-muted-foreground/80 mt-1 leading-tight">
-            {t.progress}
-          </div>
-        </div>
+          className="h-full bg-brand transition-[width] duration-150"
+          style={{ width: `${pct}%` }}
+        />
       </div>
 
-      {hasToc && <div className="mx-1 h-px bg-border/70" />}
+      {/* Header row: book icon + title + counter */}
+      <div className="flex items-center gap-2.5 px-3 pt-3 pb-2">
+        <span className="shrink-0 h-8 w-8 rounded-full bg-brand/10 grid place-items-center">
+          <BookOpen className="w-4 h-4 text-brand" />
+        </span>
+        <span className="text-[11px] font-extrabold tracking-[0.18em] text-foreground flex-1 truncate">
+          {t.tocTitle}
+        </span>
+        {hasToc && (
+          <span className="text-[11px] font-semibold text-muted-foreground tabular-nums shrink-0">
+            {currentNum}/{items.length}
+          </span>
+        )}
+      </div>
 
-      {/* Interactive ToC list with active rail */}
+      {/* Interactive ToC list */}
       {hasToc && (
-        <nav aria-label={t.toc} className="relative overflow-y-auto pr-1 -mr-1 flex-1 min-h-0">
-          {/* Vertical track */}
-          <span aria-hidden className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
-          <ul className="flex flex-col">
+        <nav aria-label={t.toc} className="overflow-y-auto flex-1 min-h-0 px-2 pb-2">
+          <ul className="flex flex-col gap-0.5">
             {items.map((it) => {
               const isActive = active === it.id;
               return (
@@ -342,29 +317,27 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
                     aria-current={isActive ? "true" : undefined}
                     title={it.text}
                     className={[
-                      "group relative w-full text-left flex gap-2 items-start py-1.5 pr-1 rounded-[5px] transition-colors",
-                      it.level === 1 ? "pl-4"
-                        : it.level === 2 ? "pl-5"
-                        : it.level === 3 ? "pl-7"
-                        : it.level === 4 ? "pl-9"
-                        : "pl-11",
-                      isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                      "group relative w-full text-left flex items-start py-2 pr-2 rounded-[5px] transition-colors",
+                      it.level === 1 ? "pl-3"
+                        : it.level === 2 ? "pl-4"
+                        : it.level === 3 ? "pl-6"
+                        : it.level === 4 ? "pl-8"
+                        : "pl-10",
+                      isActive
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
                     ].join(" ")}
                   >
-                    {/* Indicator dot/bar */}
-                    <span
-                      aria-hidden
-                      className={[
-                        "absolute top-1/2 -translate-y-1/2 rounded-full transition-all duration-200",
-                        isActive
-                          ? "left-[4px] w-[7px] h-[7px] bg-brand shadow-[0_0_0_3px_color-mix(in_oklab,var(--brand)_18%,transparent)]"
-                          : "left-[5px] w-[5px] h-[5px] bg-muted-foreground/40 group-hover:bg-foreground",
-                      ].join(" ")}
-                    />
+                    {/* Active left bar */}
+                    {isActive && (
+                      <span
+                        aria-hidden
+                        className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-[5px] bg-brand"
+                      />
+                    )}
                     <span
                       className={[
-                        "block text-[12.5px] leading-[1.25] tracking-tight",
-                        "line-clamp-2",
+                        "block text-[12.5px] leading-[1.3] tracking-tight line-clamp-2",
                         isActive ? "font-semibold" : "font-medium",
                       ].join(" ")}
                     >
@@ -378,8 +351,25 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
         </nav>
       )}
 
+      {/* Bottom status: % read + current section */}
+      {hasToc && (
+        <div className="border-t border-border/70 px-3 py-2 bg-muted/30">
+          <div className="flex items-baseline justify-between gap-2 mb-1.5">
+            <span className="text-[11px] font-semibold text-foreground tabular-nums shrink-0">
+              {pct}% <span className="text-muted-foreground font-normal">{t.read}</span>
+            </span>
+            <span className="text-[11px] text-muted-foreground truncate text-right min-w-0">
+              {currentTitle}
+            </span>
+          </div>
+          <div className="h-[3px] w-full bg-muted rounded-full overflow-hidden">
+            <div className="h-full bg-brand transition-[width] duration-150" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      )}
+
       {/* Share + Actions card - visually distinct, premium */}
-      <div className="rounded-[5px] border border-border/70 bg-gradient-to-b from-muted/40 to-muted/10 p-2.5 mt-1">
+      <div className="rounded-[5px] border border-border/70 bg-gradient-to-b from-muted/40 to-muted/10 p-2.5 m-3 mt-2">
         <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground inline-flex items-center gap-1.5 mb-2 px-0.5">
           <Share2 className="w-3 h-3" /> {t.share}
         </span>
