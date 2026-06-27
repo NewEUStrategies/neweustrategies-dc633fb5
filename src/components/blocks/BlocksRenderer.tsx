@@ -36,6 +36,10 @@ import { AccordionView, TabsView, CountdownView, ProgressView } from "./Interact
 import {
   IconBoxView, StatsCounterView, TestimonialsView, PricingTableView, TimelineView,
 } from "./PresentationViews";
+import {
+  HeroView, CtaSectionView, ImageCarouselView, ContactFormView, MapView,
+} from "./MarketingViews";
+
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -987,7 +991,78 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
           cls={cls}
         />
       );
+    case "hero": {
+      const a = String(block.data.align ?? "center");
+      const h = String(block.data.height ?? "md");
+      const height = h === "sm" || h === "md" || h === "lg" || h === "screen" ? h : "md";
+      return (
+        <HeroView
+          eyebrow={String(block.data.eyebrow ?? "")}
+          title={String(block.data.title ?? "")}
+          subtitle={String(block.data.subtitle ?? "")}
+          bgImage={String(block.data.bgImage ?? "")}
+          ctaLabel={String(block.data.ctaLabel ?? "")}
+          ctaHref={String(block.data.ctaHref ?? "")}
+          secondaryLabel={String(block.data.secondaryLabel ?? "")}
+          secondaryHref={String(block.data.secondaryHref ?? "")}
+          align={a === "left" ? "left" : "center"}
+          height={height}
+          overlay={Number(block.data.overlay ?? 40)}
+          cls={cls}
+        />
+      );
+    }
+    case "cta-section": {
+      const v = String(block.data.variant ?? "primary");
+      const variant = v === "muted" || v === "gradient" || v === "outline" ? v : "primary";
+      return (
+        <CtaSectionView
+          title={String(block.data.title ?? "")}
+          description={String(block.data.description ?? "")}
+          ctaLabel={String(block.data.ctaLabel ?? "")}
+          ctaHref={String(block.data.ctaHref ?? "")}
+          variant={variant}
+          cls={cls}
+        />
+      );
+    }
+    case "image-carousel":
+      return (
+        <ImageCarouselView
+          items={Array.isArray(block.data.items) ? (block.data.items as Json[]) : []}
+          autoplay={block.data.autoplay === true}
+          interval={Number(block.data.interval ?? 5000)}
+          aspect={String(block.data.aspect ?? "16:9")}
+          cls={cls}
+        />
+      );
+    case "contact-form":
+      return (
+        <ContactFormView
+          title={String(block.data.title ?? "")}
+          description={String(block.data.description ?? "")}
+          showPhone={block.data.showPhone === true}
+          showSubject={block.data.showSubject !== false}
+          requireConsent={block.data.requireConsent !== false}
+          submitLabel={String(block.data.submitLabel ?? "")}
+          successMessage={String(block.data.successMessage ?? "")}
+          lang={lang}
+          cls={cls}
+        />
+      );
+    case "map":
+      return (
+        <MapView
+          lat={Number(block.data.lat ?? 52.2297)}
+          lng={Number(block.data.lng ?? 21.0122)}
+          zoom={Number(block.data.zoom ?? 13)}
+          height={Number(block.data.height ?? 360)}
+          label={String(block.data.label ?? "")}
+          cls={cls}
+        />
+      );
     default:
       return null;
   }
 }
+
