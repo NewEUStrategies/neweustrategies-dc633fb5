@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Twitter, Facebook, Linkedin, Mail, Copy, Share2, Printer, Download, List, X, BookOpen, Bookmark, BookmarkCheck } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { smoothScrollToAnchor } from "@/lib/smoothAnchorScroll";
+import type { ReadingPanelSettings, SocialKey } from "@/lib/sidebarBuilder/types";
+import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
 
 type Lang = "pl" | "en";
 
@@ -21,6 +23,8 @@ interface Props {
    *             Always visible (no scroll-gated reveal) and full sidebar width.
    */
   variant?: "rail" | "sidebar";
+  /** CMS-driven config: which sub-features and social platforms to show. */
+  settings?: Partial<ReadingPanelSettings>;
 }
 
 interface TocItem {
