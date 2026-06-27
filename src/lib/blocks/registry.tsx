@@ -820,7 +820,9 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
       id: newBlockId(), type: "timeline",
       data: { items: [{ date: "", title: "", description: "" }] },
     }),
+  },
   hero: {
+
     type: "hero", label: "Sekcja Hero", description: "Duża sekcja powitalna z tytułem, podtytułem i CTA.",
     icon: HeroIcon, category: "layout",
     create: () => ({
