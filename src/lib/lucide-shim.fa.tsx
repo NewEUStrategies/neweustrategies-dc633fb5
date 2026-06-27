@@ -52,6 +52,7 @@ const FA_MAP: Record<string, IconDefinition> = {
   CreditCard: faCreditCard, Play: faPlay, Pause: faPause, Bell: faBell, Info: faCircleInfo,
   Mic: faMicrophone, Film: faFilm, Brush: faPaintbrush, Rss: faRss, ShieldCheck: faShieldHalved,
   Cog: faGears, Wand2: faWandSparkles, Share2: faShareNodes, Gauge: faGauge,
+  Printer: faPrint, Download: faDownload,
   Facebook: faFacebook, Instagram: faInstagram, Linkedin: faLinkedin, Twitter: faXTwitter,
   Youtube: faYoutube,
 };
