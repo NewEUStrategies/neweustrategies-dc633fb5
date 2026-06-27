@@ -1,5 +1,5 @@
 // Admin edytory dla bloków Phase 2 batch 5: navigation, post-navigation-link, query-loop.
-import type { Block } from "@/lib/blocks/types";
+import type { Block, Json } from "@/lib/blocks/types";
 
 interface Props { block: Block; onChange: (next: Block) => void; }
 
@@ -66,7 +66,7 @@ export function PostNavigationLinkBlock({ block, onChange }: Props) {
 
 export function QueryLoopBlock({ block, onChange }: Props) {
   const d = block.data;
-  const set = (patch: Partial<Block["data"]>) => onChange({ ...block, data: { ...d, ...patch } });
+  const set = (patch: Record<string, Json>) => onChange({ ...block, data: { ...d, ...patch } });
   return (
     <Shell label="Pętla zapytań">
       <div className="grid grid-cols-2 gap-2">

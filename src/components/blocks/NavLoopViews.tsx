@@ -69,16 +69,15 @@ export function PostNavigationLinkView({ direction, showTitle, lang, cls }: { di
       if (!ctx?.id || !ctx.publishedAt) return;
       const asc = direction === "next" ? false : true;
       const op = direction === "next" ? "lt" : "gt";
-      let q = supabase
+      const q = supabase
         .from("posts")
         .select("id,slug,title_pl,title_en,parent_page_id,published_at")
         .eq("status", "published")
         .is("deleted_at", null)
         .neq("id", ctx.id)
         .order("published_at", { ascending: asc })
-        .limit(1);
-      if (ctx.parentPageId) q = q.eq("parent_page_id", ctx.parentPageId);
-      q = q[op]("published_at", ctx.publishedAt);
+        .limit(1)
+        [op]("published_at", ctx.publishedAt);
       const { data } = await q;
       const row = (data ?? [])[0] as NeighborPost | undefined;
       if (cancelled || !row) return;
@@ -91,7 +90,7 @@ export function PostNavigationLinkView({ direction, showTitle, lang, cls }: { di
       }
     })();
     return () => { cancelled = true; };
-  }, [ctx?.id, ctx?.publishedAt, ctx?.parentPageId, direction]);
+  }, [ctx?.id, ctx?.publishedAt, direction]);
 
   if (!post || !href) return null;
   const title = (lang === "en" ? post.title_en : post.title_pl) ?? "";
