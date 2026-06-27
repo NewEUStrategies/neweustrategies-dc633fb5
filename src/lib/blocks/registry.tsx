@@ -74,6 +74,10 @@ import {
   Eye as ViewsIcon,
   UserCircle2 as AuthorBioIcon,
   Sparkles as RelatedIcon,
+  Activity as StatsIcon,
+  Star as RatingIcon,
+  LogIn as LoginOutIcon,
+  Layers as MorePostsIcon,
   type LucideIcon,
 } from "lucide-react";
 

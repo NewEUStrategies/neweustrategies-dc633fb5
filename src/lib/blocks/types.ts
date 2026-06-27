@@ -79,7 +79,12 @@ export type BlockType =
   | "share-buttons"
   | "post-views"
   | "author-bio"
-  | "related-posts";
+  | "related-posts"
+  // Phase 3 - Foxiz/Ruby custom
+  | "post-stats"
+  | "post-rating"
+  | "loginout"
+  | "more-posts";
 
 export type Json =
   | string
