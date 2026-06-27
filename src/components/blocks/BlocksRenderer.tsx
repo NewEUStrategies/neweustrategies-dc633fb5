@@ -26,6 +26,7 @@ import {
   PostTitleView, PostDateView, PostAuthorView, PostExcerptView, PostFeaturedImageView, PostTermsView,
   SiteTitleView, SiteTaglineView, SiteLogoView,
 } from "./ContextBlockViews";
+import { NavigationView, PostNavigationLinkView, QueryLoopView } from "./NavLoopViews";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
