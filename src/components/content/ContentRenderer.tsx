@@ -49,9 +49,7 @@ export function ContentRenderer({
 }: Props) {
   const engine = resolveContentEngine({ editor, builderDoc, blocksDoc });
 
-  if (engine === "blocks") {
-    return <BlocksRenderer doc={blocksDoc} lang={lang} postId={postId} />;
-  }
+
 
   if (engine === "builder") {
     const tree = <BuilderRenderer doc={builderDoc} lang={lang} />;
