@@ -4,6 +4,7 @@ import { createIsomorphicFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { pl } from "@/lib/locale/pl";
 import { en } from "@/lib/locale/en";
+import { langOverridesSharedCache } from "@/lib/http/cachePolicy";
 
 const resources = {
   pl: { translation: pl },
@@ -75,6 +76,25 @@ export const getRequestInitialLang = createIsomorphicFn()
     // the server cannot know that value. Use only explicit, SSR-repeatable state.
     return readUrlLang() ?? normalizeLang(readCookie(COOKIE_KEY)) ?? "pl";
   });
+
+/**
+ * Server-only: does THIS request's language come from a cookie that overrides
+ * the URL/default? If so its SSR render must NOT be shared-cached (the CDN keys
+ * on URL only, so it would poison the bare URL for other visitors). Pairs with
+ * contentCacheControl({ personalized }). No-op (false) on the client.
+ */
+export const requestLangOverridesCache = createIsomorphicFn()
+  .server((): boolean => {
+    try {
+      const req = getRequest();
+      const urlLang = normalizeLang(new URL(req.url).searchParams.get("lang"));
+      const cookieLang = normalizeLang(readCookieFromHeader(req.headers.get("cookie"), COOKIE_KEY));
+      return langOverridesSharedCache(urlLang, cookieLang, "pl");
+    } catch {
+      return false;
+    }
+  })
+  .client((): boolean => false);
 
 function readStoredLang(): "pl" | "en" {
   // An explicit ?lang= (e.g. from an hreflang alternate or a shared deep link)
