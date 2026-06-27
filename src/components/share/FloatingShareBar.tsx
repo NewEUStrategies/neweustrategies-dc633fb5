@@ -2,7 +2,7 @@
 // Combines: reading progress ring + interactive article ToC (scrollspy + jump)
 // + social share actions. Desktop only (>= lg). Uses semantic tokens.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Twitter, Facebook, Linkedin, Mail, Copy, Share2, Printer, Download } from "@/lib/lucide-shim";
+import { Twitter, Facebook, Linkedin, Mail, Copy, Share2, Printer, Download, List, X } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 
 type Lang = "pl" | "en";
@@ -81,6 +81,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
   const [progress, setProgress] = useState(0);
   const [items, setItems] = useState<TocItem[]>([]);
   const [active, setActive] = useState<string | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
   
   const railRef = useRef<HTMLElement>(null);
   const t = COPY[lang];
