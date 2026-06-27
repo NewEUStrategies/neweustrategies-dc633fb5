@@ -51,7 +51,7 @@ export const globalSearch = createServerFn({ method: "GET" })
       hits.push({
         kind: "post", id: row.id, slug: row.slug,
         title_pl: row.title_pl ?? "", title_en: row.title_en ?? "",
-        href: `/blog/${row.slug}`,
+        href: `/post/${row.slug}`,
       });
     }
     for (const row of pagesRes.data ?? []) {
