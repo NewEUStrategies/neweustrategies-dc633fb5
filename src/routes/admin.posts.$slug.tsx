@@ -248,10 +248,7 @@ function EditPost() {
   };
 
   const metaCard = (
-    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-      <h3 className="text-sm font-semibold inline-flex items-center gap-2 mb-1">
-        <SettingsIcon className="w-4 h-4" /> Ustawienia wpisu
-      </h3>
+    <SidebarSection title="Ustawienia wpisu" icon={SettingsIcon}>
       <div>
         <Label>{t("admin.posts.status")}</Label>
         <Select value={form.status} onValueChange={(v) => set("status", v as PostStatus)}>
@@ -321,7 +318,7 @@ function EditPost() {
           <img src={form.cover_image_url} alt="" className="mt-2 rounded w-full h-24 object-cover" />
         )}
       </div>
-    </div>
+    </SidebarSection>
   );
 
   const ov: LayoutOverrides = (form.layout_overrides ?? {}) as LayoutOverrides;
