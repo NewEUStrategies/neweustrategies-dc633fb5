@@ -77,7 +77,9 @@ export type BlockType =
   | "breadcrumbs"
   | "reading-time"
   | "share-buttons"
-  | "post-views";
+  | "post-views"
+  | "author-bio"
+  | "related-posts";
 
 export type Json =
   | string

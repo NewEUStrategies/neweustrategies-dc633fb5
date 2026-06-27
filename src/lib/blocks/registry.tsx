@@ -72,6 +72,8 @@ import {
   Timer as ReadingTimeIcon,
   Share2 as ShareIcon,
   Eye as ViewsIcon,
+  UserCircle2 as AuthorBioIcon,
+  Sparkles as RelatedIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -668,11 +670,26 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
     icon: ViewsIcon, category: "advanced",
     create: () => ({ id: newBlockId(), type: "post-views", data: { suffix: "" } }),
   },
+  "author-bio": {
+    type: "author-bio", label: "Bio autora", description: "Karta autora z avatarem, bio i linkami.",
+    icon: AuthorBioIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "author-bio",
+      data: { showAvatar: true, showSocial: true, showPostsCount: true, variant: "card" },
+    }),
+  },
+  "related-posts": {
+    type: "related-posts", label: "Powiązane wpisy", description: "Sugerowane wpisy z tej samej kategorii.",
+    icon: RelatedIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "related-posts",
+      data: { limit: 3, strategy: "category", layout: "grid", heading: "" },
+    }),
+  },
 };
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
 
-/** Bloki, które mają już dedykowany edytor i renderer. */
 export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "paragraph", "heading", "image", "list", "quote", "code", "embed", "video", "gallery",
   "separator", "callout", "table", "button", "columns", "html", "liveblog",
@@ -686,4 +703,5 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "site-title", "site-tagline", "site-logo",
   "navigation", "post-navigation-link", "query-loop",
   "breadcrumbs", "reading-time", "share-buttons", "post-views",
+  "author-bio", "related-posts",
 ];
