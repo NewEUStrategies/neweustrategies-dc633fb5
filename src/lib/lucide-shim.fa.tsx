@@ -22,6 +22,7 @@ import {
   faLock, faPalette, faTableCells, faWandMagicSparkles, faWindowMaximize, faCreditCard,
   faPlay, faPause, faBell, faCircleInfo,
   faMicrophone, faFilm, faPaintbrush, faRss, faShieldHalved, faGears, faWandSparkles, faShareNodes,
+  faPrint, faDownload,
 } from "@fortawesome/free-solid-svg-icons";
 import {
   faFacebook, faInstagram, faLinkedin, faXTwitter, faYoutube,
