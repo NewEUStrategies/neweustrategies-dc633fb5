@@ -35,7 +35,7 @@ const COPY = {
     progress: "Postęp czytania",
     print: "Drukuj artykuł",
     pdf: "Pobierz jako PDF",
-    pdfHint: "Wybierz „Zapisz jako PDF" w oknie drukowania",
+    pdfHint: "Wybierz \u201EZapisz jako PDF\u201D w oknie drukowania",
     actions: "Akcje",
   },
   en: {
