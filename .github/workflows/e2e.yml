@@ -1,14 +1,12 @@
 name: E2E
 
 on:
-  # One CI run per change: feature branches via the pull_request event, main via
-  # push (post-merge). Previously "claude/**" was ALSO a push trigger, so every
-  # push to a branch with an open PR fired TWO runs for the same commit (push +
-  # pull_request:synchronize) - double the Actions minutes. Dropping it here keeps
-  # full coverage (the PR still validates the branch) at half the run count.
-  push:
-    branches: [main]
-  pull_request:
+  # DORMANT — see ci.yml. This org has no GitHub Actions runners / budget, so
+  # automatic runs only ever failed instantly. Manual-trigger only, so the repo
+  # isn't permanently red and no Actions minutes are spent. Run E2E locally
+  # before merging:  bun run test:e2e
+  # Re-enable in CI later by restoring:  push: { branches: [main] } + pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: e2e-${{ github.ref }}

@@ -242,3 +242,28 @@ until the previous stage's exit criteria hold.
   branch on `editor` in components — call `resolveContentEngine`.
 - Every stage must keep `tsc --noEmit`, the test suite, and the bundle gate
   green; Stage 2 must additionally pass `verify:migration`.
+
+---
+
+## 3. Quality gates — run locally (CI is dormant)
+
+This org has no GitHub Actions runners/budget, so the `.github/workflows`
+(CI / E2E / Lighthouse) are set to **`workflow_dispatch` only** (manual) — they
+do not run on push/PR and never go red. There is therefore **no automated gate
+between a merge and production** (the platform auto-merges + deploys), and
+crucially **`vite build` does NOT typecheck** (esbuild strips types), so a type
+error or a failing test will ship unless it's caught by hand.
+
+**Run these locally before merging anything non-trivial:**
+
+```bash
+bunx tsc --noEmit        # types (the build will NOT catch these)
+bun run test:coverage    # tests + the coverage gate
+bun run build            # production build
+bun run check:bundle     # gzipped bundle budget
+bun run lint             # optional (Prettier backlog → currently non-blocking)
+```
+
+A change is "green" only when the first four pass. To restore real CI later
+(once runners/budget exist), revert each workflow's `on:` back to
+`push: { branches: [main] }` + `pull_request:` — the job definitions are intact.
