@@ -3,6 +3,7 @@
 import { useEffect, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { List, Tags as TagIcon } from "@/lib/lucide-shim";
+import { smoothScrollToAnchor } from "@/lib/smoothAnchorScroll";
 
 interface TocItem {
   id: string;
@@ -92,8 +93,8 @@ export function PostSidebar({ articleRef, tags, scanKey }: PostSidebarProps) {
                     const el = document.getElementById(it.id);
                     if (el) {
                       e.preventDefault();
-                      el.scrollIntoView({ behavior: "smooth", block: "start" });
-                      history.replaceState(null, "", `#${it.id}`);
+                      setActive(it.id);
+                      smoothScrollToAnchor(it.id);
                     }
                   }}
                 >
