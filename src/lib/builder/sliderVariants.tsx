@@ -72,6 +72,8 @@ interface ResilientSliderImageProps {
   placeholderSrc: string;
   active: boolean;
   onBrokenSource: (src: string) => void;
+  /** Mark the first slide as the LCP candidate: eager fetch + high priority. */
+  priority?: boolean;
 }
 
 function ResilientSliderImage({
@@ -80,6 +82,7 @@ function ResilientSliderImage({
   placeholderSrc,
   active,
   onBrokenSource,
+  priority = false,
 }: ResilientSliderImageProps) {
   const imgRef = useRef<HTMLImageElement | null>(null);
   const originalSrc = safeImageUrl(src) || src;
@@ -106,6 +109,9 @@ function ResilientSliderImage({
       alt=""
       draggable={false}
       data-fill-image
+      loading={priority ? "eager" : "lazy"}
+      fetchPriority={priority && active ? "high" : "auto"}
+      decoding={priority && active ? "sync" : "async"}
       className="eh-img absolute inset-0 w-full h-full object-cover widget-media-fg"
       style={{
         opacity: active ? 1 : 0,
@@ -298,6 +304,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
             fallbackSrc={fallbackImages[i % Math.max(1, fallbackImages.length)]}
             placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
             active={i === safeIdx}
+            priority={i === 0}
             onBrokenSource={markImageFailed}
           />
         ))}

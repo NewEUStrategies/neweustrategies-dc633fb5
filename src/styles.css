@@ -405,6 +405,20 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .oi-hover-slide .oi-img { transform: translateX(0); }
 .oi-hover-slide:hover .oi-img { transform: translateX(-3%) scale(1.03); }
 
+/* Image entrance fade - pure CSS, NOT gated on JS hydration.
+   OptimizedImage used to render `opacity: loaded ? 1 : 0` from React state, so
+   every non-priority image was baked into the SSR HTML at opacity:0 and stayed
+   invisible until the JS bundle downloaded and hydration ran. On a hard refresh
+   that meant empty tiles, then a wave of fade-ins all at once. A CSS keyframe
+   runs on first paint instead, so images appear progressively as the browser
+   decodes them (and stay visible even with JS disabled or slow to load).
+   Priority/LCP images omit the class entirely for an instant first paint. */
+@keyframes oi-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.oi-fade-in { animation: oi-fade-in 240ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .oi-fade-in { animation: none; }
+}
+
 /* Page template hooks */
 [data-header-override="transparent"] header { background-color: transparent !important; backdrop-filter: blur(6px); }
 [data-template="landing"] header, [data-template="landing"] footer { display: none; }
