@@ -81,6 +81,9 @@ import {
 import { AuthorBioBlock, RelatedPostsBlock } from "./edit/PostContextBlocks";
 import { PostStatsBlock, PostRatingBlock, LoginOutBlock, MorePostsBlock } from "./edit/FoxizExtraBlocks";
 import { AccordionBlock, TabsBlock, CountdownBlock, ProgressBlock } from "./edit/InteractiveBlocks";
+import {
+  IconBoxBlock, StatsCounterBlock, TestimonialsBlock, PricingTableBlock, TimelineBlock,
+} from "./edit/PresentationBlocks";
 
 interface Props {
   doc: BlocksDoc;
@@ -300,6 +303,11 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "tabs":                   return <TabsBlock block={block} onChange={onChange} />;
     case "countdown":              return <CountdownBlock block={block} onChange={onChange} />;
     case "progress":               return <ProgressBlock block={block} onChange={onChange} />;
+    case "icon-box":               return <IconBoxBlock block={block} onChange={onChange} />;
+    case "stats-counter":          return <StatsCounterBlock block={block} onChange={onChange} />;
+    case "testimonials":           return <TestimonialsBlock block={block} onChange={onChange} />;
+    case "pricing-table":          return <PricingTableBlock block={block} onChange={onChange} />;
+    case "timeline":               return <TimelineBlock block={block} onChange={onChange} />;
     default:
       return (
         <div className="text-xs text-muted-foreground italic py-2">
