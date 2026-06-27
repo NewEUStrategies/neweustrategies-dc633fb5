@@ -94,7 +94,8 @@ function slugifyHeading(s: string): string {
   );
 }
 
-export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
+export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = "rail" }: Props) {
+  const isSidebar = variant === "sidebar";
   const [visible, setVisible] = useState(false);
   const [href, setHref] = useState(url ?? "");
   const [progress, setProgress] = useState(0);
