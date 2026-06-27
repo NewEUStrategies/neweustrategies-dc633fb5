@@ -2,6 +2,7 @@ import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { PlaySquare } from "lucide-react";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props {
   block: Block;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function EmbedBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const url = String(block.data.url ?? "");
   const parsed = parseEmbedUrl(url);
 
@@ -19,7 +21,7 @@ export function EmbedBlock({ block, onChange }: Props) {
         <Input
           value={url}
           onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
-          placeholder="https://www.youtube.com/watch?v=…  •  https://vimeo.com/…  •  https://x.com/…"
+          placeholder={i18n.editor("embed","urlPh")}
         />
       </div>
       {parsed && isIframeEmbed(parsed) ? (

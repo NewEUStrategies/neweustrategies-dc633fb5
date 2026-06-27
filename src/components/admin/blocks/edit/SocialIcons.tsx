@@ -2,6 +2,7 @@ import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props { block: Block; onChange: (next: Block) => void; }
 interface Item { platform: string; url: string }
@@ -10,6 +11,7 @@ const PLATFORMS = ["facebook","x","instagram","youtube","linkedin","tiktok","git
 
 /** Ikony socjalne (Gutenberg "Social Icons"). */
 export function SocialIconsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const items: Item[] = Array.isArray(block.data.items)
     ? (block.data.items as unknown as Item[])
     : [];
@@ -60,7 +62,7 @@ export function SocialIconsBlock({ block, onChange }: Props) {
             </select>
             <Input
               value={it.url}
-              placeholder="https://..."
+              placeholder={i18n.field("urlPh")}
               onChange={(e) => {
                 const next = [...items];
                 next[i] = { ...it, url: e.target.value };

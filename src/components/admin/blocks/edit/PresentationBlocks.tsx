@@ -1,5 +1,6 @@
 // Admin edytory dla Phase 4 batch 10 (prezentacyjne):
-// icon-box, stats-counter, testimonials, pricing-table, timeline.
+// icon-box, stats-counter, testimonials, priimport { useBlocksI18n } from "@/lib/blocks/i18n";
+cing-table, timeline.
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
@@ -23,6 +24,7 @@ const ICON_NAMES = [
 // ===== Icon Box =====
 
 export function IconBoxBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const d = block.data;
   return (
     <Shell label="Karta z ikoną">
@@ -35,13 +37,13 @@ export function IconBoxBlock({ block, onChange }: Props) {
       </select>
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-        placeholder="Tytuł"
+        placeholder={i18n.field("title")}
         value={String(d.title ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, title: e.target.value } })}
       />
       <textarea
         className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[60px]"
-        placeholder="Opis"
+        placeholder={i18n.field("description")}
         value={String(d.description ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, description: e.target.value } })}
       />
@@ -76,6 +78,7 @@ export function IconBoxBlock({ block, onChange }: Props) {
 interface StatItem { value: string; label: string; suffix: string }
 
 export function StatsCounterBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: StatItem[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -123,7 +126,7 @@ export function StatsCounterBlock({ block, onChange }: Props) {
           />
           <input
             className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-            placeholder="Etykieta"
+            placeholder={i18n.field("label")}
             value={it.label}
             onChange={(e) => {
               const next = [...items]; next[idx] = { ...it, label: e.target.value }; update(next);
@@ -155,6 +158,7 @@ export function StatsCounterBlock({ block, onChange }: Props) {
 interface Testimonial { quote: string; author: string; role: string; avatar: string; rating: number }
 
 export function TestimonialsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: Testimonial[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -266,6 +270,7 @@ interface PricingPlan {
 }
 
 export function PricingTableBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.plans) ? (block.data.plans as Json[]) : [];
   const plans: PricingPlan[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -394,6 +399,7 @@ export function PricingTableBlock({ block, onChange }: Props) {
 interface TimelineItem { date: string; title: string; description: string }
 
 export function TimelineBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: TimelineItem[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -422,7 +428,7 @@ export function TimelineBlock({ block, onChange }: Props) {
             />
             <input
               className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-              placeholder="Tytuł"
+              placeholder={i18n.field("title")}
               value={it.title}
               onChange={(e) => {
                 const next = [...items]; next[idx] = { ...it, title: e.target.value }; update(next);

@@ -1,5 +1,6 @@
 // Admin edytory dla Phase 4 batch 11 (sekcje marketingowe):
-// hero, cta, carousel, contact-form, map.
+// hero, cta, carousel, contact-form, mimport { useBlocksI18n } from "@/lib/blocks/i18n";
+ap.
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
@@ -18,43 +19,44 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
 // ===== Hero =====
 
 export function HeroBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const d = block.data;
   return (
     <Shell label="Sekcja Hero">
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-        placeholder="Eyebrow (mała etykieta nad tytułem)"
+        placeholder={i18n.field("eyebrow")}
         value={String(d.eyebrow ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, eyebrow: e.target.value } })}
       />
       <input
         className="w-full text-sm font-semibold bg-background border border-border rounded px-2 py-2 h-9"
-        placeholder="Tytuł"
+        placeholder={i18n.field("title")}
         value={String(d.title ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, title: e.target.value } })}
       />
       <textarea
         className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[64px]"
-        placeholder="Podtytuł / opis"
+        placeholder={i18n.field("subtitlePh")}
         value={String(d.subtitle ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, subtitle: e.target.value } })}
       />
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-        placeholder="URL obrazu tła (opcjonalnie)"
+        placeholder={i18n.field("coverUrl")}
         value={String(d.bgImage ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, bgImage: e.target.value } })}
       />
       <div className="grid grid-cols-2 gap-2">
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-          placeholder="CTA: etykieta"
+          placeholder={i18n.field("ctaLabel")}
           value={String(d.ctaLabel ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, ctaLabel: e.target.value } })}
         />
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-          placeholder="CTA: URL"
+          placeholder={i18n.field("ctaUrl")}
           value={String(d.ctaHref ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, ctaHref: e.target.value } })}
         />
@@ -62,13 +64,13 @@ export function HeroBlock({ block, onChange }: Props) {
       <div className="grid grid-cols-2 gap-2">
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-          placeholder="Sekundarne CTA: etykieta"
+          placeholder={i18n.field("secondaryCtaLabel")}
           value={String(d.secondaryLabel ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, secondaryLabel: e.target.value } })}
         />
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-          placeholder="Sekundarne CTA: URL"
+          placeholder={i18n.field("secondaryCtaUrl")}
           value={String(d.secondaryHref ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, secondaryHref: e.target.value } })}
         />
@@ -112,31 +114,32 @@ export function HeroBlock({ block, onChange }: Props) {
 // ===== CTA Section =====
 
 export function CtaSectionBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const d = block.data;
   return (
     <Shell label="Sekcja CTA">
       <input
         className="w-full text-sm font-semibold bg-background border border-border rounded px-2 py-2 h-9"
-        placeholder="Nagłówek"
+        placeholder={i18n.field("title")}
         value={String(d.title ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, title: e.target.value } })}
       />
       <textarea
         className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[48px]"
-        placeholder="Opis"
+        placeholder={i18n.field("description")}
         value={String(d.description ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, description: e.target.value } })}
       />
       <div className="grid grid-cols-2 gap-2">
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-          placeholder="CTA: etykieta"
+          placeholder={i18n.field("ctaLabel")}
           value={String(d.ctaLabel ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, ctaLabel: e.target.value } })}
         />
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-          placeholder="CTA: URL"
+          placeholder={i18n.field("ctaUrl")}
           value={String(d.ctaHref ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, ctaHref: e.target.value } })}
         />
@@ -160,6 +163,7 @@ export function CtaSectionBlock({ block, onChange }: Props) {
 interface SlideItem { url: string; alt: string; caption: string; href: string }
 
 export function ImageCarouselBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: SlideItem[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -219,7 +223,7 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
             <div className="grid grid-cols-[1fr_auto] gap-2">
               <input
                 className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-                placeholder="URL obrazu"
+                placeholder={i18n.field("imageUrl")}
                 value={it.url}
                 onChange={(e) => {
                   const next = [...items]; next[idx] = { ...it, url: e.target.value }; update(next);
@@ -237,7 +241,7 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
             <div className="grid grid-cols-2 gap-2">
               <input
                 className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-                placeholder="Tekst alt"
+                placeholder={i18n.field("alt")}
                 value={it.alt}
                 onChange={(e) => {
                   const next = [...items]; next[idx] = { ...it, alt: e.target.value }; update(next);
@@ -245,7 +249,7 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
               />
               <input
                 className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-                placeholder="URL linku (opcjonalnie)"
+                placeholder={i18n.field("href")}
                 value={it.href}
                 onChange={(e) => {
                   const next = [...items]; next[idx] = { ...it, href: e.target.value }; update(next);
@@ -254,7 +258,7 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
             </div>
             <input
               className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-              placeholder="Podpis (opcjonalnie)"
+              placeholder={i18n.field("captionPh")}
               value={it.caption}
               onChange={(e) => {
                 const next = [...items]; next[idx] = { ...it, caption: e.target.value }; update(next);
@@ -277,6 +281,7 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
 // ===== Contact Form =====
 
 export function ContactFormBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const d = block.data;
   return (
     <Shell label="Formularz kontaktowy">
@@ -337,6 +342,7 @@ export function ContactFormBlock({ block, onChange }: Props) {
 // ===== Map (OSM iframe) =====
 
 export function MapBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const d = block.data;
   const lat = Number(d.lat ?? 52.2297);
   const lng = Number(d.lng ?? 21.0122);

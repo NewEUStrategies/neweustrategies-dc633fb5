@@ -1,5 +1,6 @@
 // Admin edytory dla Phase 4 batch 13 (konwersja / SEO):
-// step-list, comparison-table, banner-image, video-hero.
+// step-list, comparison-table, banner-imagimport { useBlocksI18n } from "@/lib/blocks/i18n";
+e, video-hero.
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
@@ -23,6 +24,7 @@ const sel = inp;
 interface StepItem { title: string; description: string; icon: string }
 
 export function StepListBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const raw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: StepItem[] = raw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -113,6 +115,7 @@ interface CompCell { value: string }
 interface CompRow { feature: string; values: string[] }
 
 export function ComparisonTableBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const rawCols = Array.isArray(block.data.columns) ? (block.data.columns as Json[]) : [];
   const columns: string[] = rawCols.map((c) => String(c ?? ""));
   const rawRows = Array.isArray(block.data.rows) ? (block.data.rows as Json[]) : [];
@@ -251,24 +254,25 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
 // ===== Banner Image (image + text overlay) =====
 
 export function BannerImageBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const d = block.data;
   return (
     <Shell label="Banner z obrazem">
       <input
         className={inp}
-        placeholder="URL obrazu"
+        placeholder={i18n.field("imageUrl")}
         value={String(d.image ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, image: e.target.value } })}
       />
       <input
         className={inp}
-        placeholder="Tekst alt"
+        placeholder={i18n.field("alt")}
         value={String(d.alt ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, alt: e.target.value } })}
       />
       <input
         className={inp + " text-sm font-semibold"}
-        placeholder="Tytuł"
+        placeholder={i18n.field("title")}
         value={String(d.title ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, title: e.target.value } })}
       />
@@ -281,13 +285,13 @@ export function BannerImageBlock({ block, onChange }: Props) {
       <div className="grid grid-cols-2 gap-2">
         <input
           className={inp}
-          placeholder="CTA: etykieta"
+          placeholder={i18n.field("ctaLabel")}
           value={String(d.ctaLabel ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, ctaLabel: e.target.value } })}
         />
         <input
           className={inp}
-          placeholder="CTA: URL"
+          placeholder={i18n.field("ctaUrl")}
           value={String(d.ctaHref ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, ctaHref: e.target.value } })}
         />
@@ -340,6 +344,7 @@ export function BannerImageBlock({ block, onChange }: Props) {
 // ===== Video Hero (background video) =====
 
 export function VideoHeroBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const d = block.data;
   return (
     <Shell label="Hero z tłem wideo">
@@ -357,26 +362,26 @@ export function VideoHeroBlock({ block, onChange }: Props) {
       />
       <input
         className={inp + " text-sm font-semibold"}
-        placeholder="Tytuł"
+        placeholder={i18n.field("title")}
         value={String(d.title ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, title: e.target.value } })}
       />
       <textarea
         className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[48px]"
-        placeholder="Podtytuł / opis"
+        placeholder={i18n.field("subtitlePh")}
         value={String(d.subtitle ?? "")}
         onChange={(e) => onChange({ ...block, data: { ...d, subtitle: e.target.value } })}
       />
       <div className="grid grid-cols-2 gap-2">
         <input
           className={inp}
-          placeholder="CTA: etykieta"
+          placeholder={i18n.field("ctaLabel")}
           value={String(d.ctaLabel ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, ctaLabel: e.target.value } })}
         />
         <input
           className={inp}
-          placeholder="CTA: URL"
+          placeholder={i18n.field("ctaUrl")}
           value={String(d.ctaHref ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, ctaHref: e.target.value } })}
         />

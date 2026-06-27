@@ -1,9 +1,11 @@
 import type { Block } from "@/lib/blocks/types";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props { block: Block; onChange: (next: Block) => void; }
 
 /** Kalendarz publikacji (Gutenberg "Calendar"). */
 export function CalendarBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const month = String(block.data.month ?? ""); // YYYY-MM, puste = bieżący
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
@@ -13,7 +15,7 @@ export function CalendarBlock({ block, onChange }: Props) {
         value={month}
         onChange={(e) => onChange({ ...block, data: { ...block.data, month: e.target.value } })}
         className="text-xs bg-background border border-border rounded px-2 py-2 h-9 w-full"
-        placeholder="Bieżący miesiąc"
+        placeholder={i18n.editor("calendar","monthPh")}
       />
     </div>
   );

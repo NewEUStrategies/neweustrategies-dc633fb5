@@ -1,6 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Twitter } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props {
   block: Block;
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function XQuoteBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const text = String(block.data.text ?? "");
   const via = String(block.data.via ?? "");
   const hashtags = String(block.data.hashtags ?? "");
@@ -21,7 +23,7 @@ export function XQuoteBlock({ block, onChange }: Props) {
         <span className="ml-auto text-[10px] normal-case tracking-normal">{text.length} / 280</span>
       </div>
       <textarea
-        placeholder="Cytat do udostępnienia na X (max ~280 znaków)"
+        placeholder={i18n.editor("xquote","textPh")}
         value={text}
         maxLength={280}
         onChange={(e) => patch("text", e.target.value)}
@@ -29,12 +31,12 @@ export function XQuoteBlock({ block, onChange }: Props) {
       />
       <div className="grid grid-cols-2 gap-2">
         <Input
-          placeholder="via @handle (bez @)"
+          placeholder={i18n.field("via")}
           value={via}
           onChange={(e) => patch("via", e.target.value.replace(/^@/, ""))}
         />
         <Input
-          placeholder="Hashtagi (oddzielone przecinkiem)"
+          placeholder={i18n.field("hashtags")}
           value={hashtags}
           onChange={(e) => patch("hashtags", e.target.value)}
         />
