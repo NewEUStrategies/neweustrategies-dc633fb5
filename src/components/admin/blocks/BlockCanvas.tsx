@@ -87,6 +87,10 @@ import {
 import {
   HeroBlock, CtaSectionBlock, ImageCarouselBlock, ContactFormBlock, MapBlock,
 } from "./edit/MarketingBlocks";
+import {
+  TeamGridBlock, LogoGridBlock, FeatureGridBlock, AlertBannerBlock, DividerTextBlock,
+} from "./edit/DataSocialBlocks";
+
 
 
 interface Props {
