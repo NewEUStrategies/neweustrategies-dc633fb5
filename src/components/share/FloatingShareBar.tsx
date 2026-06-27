@@ -485,25 +485,28 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
         ].join(" ")}
       >
         {/* grab handle */}
-        <div className="pt-2 pb-1 flex justify-center">
+        <div className="pt-2 pb-1.5 flex justify-center">
           <span className="h-1.5 w-10 rounded-full bg-border" />
         </div>
 
-        {/* Header */}
-        <div className="flex items-center gap-3 px-4 pb-3 border-b border-border/60">
-          <div className="relative shrink-0" style={{ width: ringSize, height: ringSize }}>
-            <svg width={ringSize} height={ringSize} className="-rotate-90">
-              <circle cx={ringSize / 2} cy={ringSize / 2} r={r} fill="none" stroke="currentColor" strokeWidth={ringStroke} className="text-border" />
-              <circle cx={ringSize / 2} cy={ringSize / 2} r={r} fill="none" stroke="currentColor" strokeWidth={ringStroke} strokeLinecap="round" strokeDasharray={`${dash} ${c}`} className="text-brand" />
-            </svg>
-            <span className="absolute inset-0 grid place-items-center text-[10px] font-semibold text-foreground tabular-nums">
-              {Math.round(progress * 100)}%
+        {/* Top progress bar */}
+        <div className="h-1 w-full bg-muted/60" aria-hidden>
+          <div className="h-full bg-brand transition-[width] duration-150" style={{ width: `${pct}%` }} />
+        </div>
+
+        {/* Header row */}
+        <div className="flex items-center gap-2.5 px-4 pt-3 pb-2">
+          <span className="shrink-0 h-9 w-9 rounded-full bg-brand/10 grid place-items-center">
+            <BookOpen className="w-[18px] h-[18px] text-brand" />
+          </span>
+          <span className="text-[12px] font-extrabold tracking-[0.18em] text-foreground flex-1 truncate">
+            {t.tocTitle}
+          </span>
+          {hasToc && (
+            <span className="text-[12px] font-semibold text-muted-foreground tabular-nums shrink-0">
+              {currentNum}/{items.length}
             </span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground leading-none">{t.toc}</div>
-            <div className="text-[11px] text-muted-foreground/80 mt-1 leading-tight truncate">{t.progress}</div>
-          </div>
+          )}
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
@@ -516,9 +519,8 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
 
         {/* ToC */}
         {hasToc && (
-          <nav aria-label={t.toc} className="relative overflow-y-auto px-3 py-2 flex-1 min-h-0">
-            <span aria-hidden className="absolute left-[18px] top-3 bottom-3 w-px bg-border" />
-            <ul className="flex flex-col">
+          <nav aria-label={t.toc} className="overflow-y-auto px-2 py-1 flex-1 min-h-0">
+            <ul className="flex flex-col gap-0.5">
               {items.map((it) => {
                 const isActive = active === it.id;
                 return (
@@ -528,25 +530,19 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
                       onClick={() => jumpTo(it.id)}
                       aria-current={isActive ? "true" : undefined}
                       className={[
-                        "group relative w-full text-left flex gap-2 items-start py-2.5 pr-2 rounded-[5px] transition-colors",
-                        it.level === 1 ? "pl-7"
-                          : it.level === 2 ? "pl-8"
-                          : it.level === 3 ? "pl-10"
-                          : it.level === 4 ? "pl-12"
+                        "group relative w-full text-left flex items-start py-2.5 pr-3 rounded-[5px] transition-colors",
+                        it.level === 1 ? "pl-4"
+                          : it.level === 2 ? "pl-5"
+                          : it.level === 3 ? "pl-8"
+                          : it.level === 4 ? "pl-11"
                           : "pl-14",
-                        isActive ? "text-foreground bg-muted/60" : "text-muted-foreground active:bg-muted/40",
+                        isActive ? "bg-muted text-foreground" : "text-muted-foreground active:bg-muted/40",
                       ].join(" ")}
                     >
-                      <span
-                        aria-hidden
-                        className={[
-                          "absolute top-1/2 -translate-y-1/2 rounded-full transition-all duration-200",
-                          isActive
-                            ? "left-[15px] w-[7px] h-[7px] bg-brand shadow-[0_0_0_3px_color-mix(in_oklab,var(--brand)_18%,transparent)]"
-                            : "left-[16px] w-[5px] h-[5px] bg-muted-foreground/40",
-                        ].join(" ")}
-                      />
-                      <span className={["block text-[13px] leading-[1.3] tracking-tight line-clamp-2", isActive ? "font-semibold" : "font-medium"].join(" ")}>
+                      {isActive && (
+                        <span aria-hidden className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-[5px] bg-brand" />
+                      )}
+                      <span className={["block text-[13.5px] leading-[1.3] tracking-tight line-clamp-2", isActive ? "font-semibold" : "font-medium"].join(" ")}>
                         {it.text}
                       </span>
                     </button>
@@ -556,6 +552,24 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
             </ul>
           </nav>
         )}
+
+        {/* Bottom status: % read + current section */}
+        {hasToc && (
+          <div className="border-t border-border/60 px-4 py-2.5 bg-muted/30">
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+              <span className="text-[12px] font-semibold text-foreground tabular-nums shrink-0">
+                {pct}% <span className="text-muted-foreground font-normal">{t.read}</span>
+              </span>
+              <span className="text-[12px] text-muted-foreground truncate text-right min-w-0">
+                {currentTitle}
+              </span>
+            </div>
+            <div className="h-[3px] w-full bg-muted rounded-full overflow-hidden">
+              <div className="h-full bg-brand transition-[width] duration-150" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        )}
+
 
         {/* Share + actions */}
         <div className="px-4 pt-3 border-t border-border/60">
