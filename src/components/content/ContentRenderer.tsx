@@ -16,7 +16,7 @@
 // (`resolveContentEngine`).
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { BlocksDoc } from "@/lib/blocks/types";
-import { BlocksRenderer } from "@/components/blocks/BlocksRenderer";
+
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { sanitizeMarkdownHtml } from "@/lib/sanitize";
