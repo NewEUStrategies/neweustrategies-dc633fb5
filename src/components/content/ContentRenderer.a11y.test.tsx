@@ -28,14 +28,14 @@ describe("ContentRenderer accessibility (axe)", () => {
     expect(v, summarize(v)).toEqual([]);
   });
 
-  it("renders accessible output for the blocks engine", async () => {
+  it("renders accessible output when a legacy blocks editor is normalized to HTML", async () => {
     const { container } = render(
       <main>
         <ContentRenderer
           editor="blocks"
           builderDoc={emptyDocument()}
-          blocksDoc={blocks("<p>Treść z <a href='https://example.com'>linkiem</a>.</p>")}
-          html=""
+          blocksDoc={blocks("<p>ignored</p>")}
+          html={RICH_HTML}
           lang="en"
         />
       </main>,
