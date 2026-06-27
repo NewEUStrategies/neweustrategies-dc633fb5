@@ -25,6 +25,8 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { parseGutenberg } from "@/lib/blocks/gutenberg";
+import { localizedBlocksToBuilderDoc } from "@/lib/builder/migrate/blocksToBuilder";
+import type { LocalizedBlocks } from "@/lib/blocks/types";
 import { recordAudit } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
 import type { Json } from "@/integrations/supabase/types";
