@@ -78,6 +78,7 @@ import { NavigationBlock, PostNavigationLinkBlock, QueryLoopBlock } from "./edit
 import {
   BreadcrumbsBlock, ReadingTimeBlock, ShareButtonsBlock, PostViewsBlock,
 } from "./edit/PostUtilityBlocks";
+import { AuthorBioBlock, RelatedPostsBlock } from "./edit/PostContextBlocks";
 
 interface Props {
   doc: BlocksDoc;
@@ -287,6 +288,8 @@ function BlockRenderer({ block, isActive, onChange, onTransform, onInsertAfter, 
     case "reading-time":           return <ReadingTimeBlock block={block} onChange={onChange} />;
     case "share-buttons":          return <ShareButtonsBlock block={block} onChange={onChange} />;
     case "post-views":             return <PostViewsBlock block={block} onChange={onChange} />;
+    case "author-bio":             return <AuthorBioBlock block={block} onChange={onChange} />;
+    case "related-posts":          return <RelatedPostsBlock block={block} onChange={onChange} />;
     default:
       return (
         <div className="text-xs text-muted-foreground italic py-2">

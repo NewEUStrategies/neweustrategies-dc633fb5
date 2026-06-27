@@ -30,6 +30,7 @@ import { NavigationView, PostNavigationLinkView, QueryLoopView } from "./NavLoop
 import {
   BreadcrumbsView, ReadingTimeView, ShareButtonsView, PostViewsView,
 } from "./PostUtilityViews";
+import { AuthorBioView, RelatedPostsView } from "./PostContextViews";
 
 interface Props {
   doc: BlocksDoc | null | undefined;
