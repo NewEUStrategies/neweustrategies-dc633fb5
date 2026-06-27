@@ -332,10 +332,7 @@ function EditPost() {
   const layoutSet = getLayoutSet(currentFormat);
 
   const layoutCard = (
-    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-      <h3 className="text-sm font-semibold inline-flex items-center gap-2 mb-1">
-        <Layers className="w-4 h-4" /> Layout wpisu
-      </h3>
+    <SidebarSection title="Layout wpisu" icon={Layers}>
       <div>
         <Label>Format wpisu</Label>
         <Select value={form.post_format ?? "standard"} onValueChange={(v) => set("post_format", v as PostFormat)}>
