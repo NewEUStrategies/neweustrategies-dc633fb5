@@ -3,6 +3,7 @@
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props { block: Block; onChange: (next: Block) => void; }
 
@@ -20,6 +21,7 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
 interface AccordionItem { title: string; body: string }
 
 export function AccordionBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: AccordionItem[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -93,6 +95,7 @@ export function AccordionBlock({ block, onChange }: Props) {
 interface TabItem { label: string; body: string }
 
 export function TabsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: TabItem[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -164,6 +167,7 @@ export function TabsBlock({ block, onChange }: Props) {
 // ===== Countdown =====
 
 export function CountdownBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const targetAt = String(block.data.targetAt ?? "");
   const label = String(block.data.label ?? "");
   const expiredText = String(block.data.expiredText ?? "");
@@ -194,6 +198,7 @@ export function CountdownBlock({ block, onChange }: Props) {
 // ===== Progress =====
 
 export function ProgressBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const value = Number(block.data.value ?? 50);
   const label = String(block.data.label ?? "");
   const showValue = block.data.showValue !== false;
@@ -203,7 +208,7 @@ export function ProgressBlock({ block, onChange }: Props) {
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={label}
-        placeholder="Etykieta"
+        placeholder={i18n.field("label")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, label: e.target.value } })}
       />
       <div className="grid grid-cols-[1fr_auto] gap-2 items-center">

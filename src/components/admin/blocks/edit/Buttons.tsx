@@ -2,12 +2,14 @@ import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props { block: Block; onChange: (next: Block) => void; }
 interface Item { label: string; href: string; variant?: string }
 
 /** Grupa przycisków (Gutenberg "Buttons"). */
 export function ButtonsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const items: Item[] = Array.isArray(block.data.items)
     ? (block.data.items as unknown as Item[])
     : [];
@@ -35,7 +37,7 @@ export function ButtonsBlock({ block, onChange }: Props) {
           <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
             <Input
               value={it.label}
-              placeholder="Etykieta"
+              placeholder={i18n.field("label")}
               onChange={(e) => {
                 const next = [...items];
                 next[i] = { ...it, label: e.target.value };
@@ -44,7 +46,7 @@ export function ButtonsBlock({ block, onChange }: Props) {
             />
             <Input
               value={it.href}
-              placeholder="https://..."
+              placeholder={i18n.field("urlPh")}
               onChange={(e) => {
                 const next = [...items];
                 next[i] = { ...it, href: e.target.value };

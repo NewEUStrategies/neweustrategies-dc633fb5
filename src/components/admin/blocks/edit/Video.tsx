@@ -1,6 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Video as VideoIcon } from "@/lib/lucide-shim";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props {
   block: Block;
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function VideoBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const url = String(block.data.url ?? "");
   const poster = String(block.data.poster ?? "");
 
@@ -16,7 +18,7 @@ export function VideoBlock({ block, onChange }: Props) {
       <div className="rounded-lg border-2 border-dashed border-border p-6 text-center space-y-2">
         <VideoIcon className="w-8 h-8 mx-auto text-muted-foreground" />
         <Input
-          placeholder="URL pliku wideo (.mp4, .webm)…"
+          placeholder={i18n.editor("video","urlPh")}
           onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
           className="max-w-md mx-auto"
         />

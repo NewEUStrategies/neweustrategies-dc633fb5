@@ -3,6 +3,7 @@
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props { block: Block; onChange: (next: Block) => void; }
 
@@ -23,6 +24,7 @@ const selectCls = inputCls;
 interface TeamMember { name: string; role: string; bio: string; avatar: string; href: string; social: string }
 
 export function TeamGridBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const rawItems = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: TeamMember[] = rawItems.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -150,6 +152,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
 interface LogoItem { url: string; alt: string; href: string }
 
 export function LogoGridBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const rawItems = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: LogoItem[] = rawItems.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -227,7 +230,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
               />
               <input
                 className={inputCls}
-                placeholder="URL linku (opcjonalnie)"
+                placeholder={i18n.field("href")}
                 value={it.href}
                 onChange={(e) => {
                   const next = [...items]; next[idx] = { ...it, href: e.target.value }; update(next);
@@ -253,6 +256,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
 interface FeatureItem { icon: string; title: string; description: string; href: string }
 
 export function FeatureGridBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const rawItems = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: FeatureItem[] = rawItems.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -345,7 +349,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
             />
             <input
               className={inputCls}
-              placeholder="URL linku (opcjonalnie)"
+              placeholder={i18n.field("href")}
               value={it.href}
               onChange={(e) => {
                 const next = [...items]; next[idx] = { ...it, href: e.target.value }; update(next);
@@ -368,6 +372,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
 // ===== Alert Banner =====
 
 export function AlertBannerBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const d = block.data;
   return (
     <Shell label="Banner alertu">
@@ -403,7 +408,7 @@ export function AlertBannerBlock({ block, onChange }: Props) {
         />
         <input
           className={inputCls}
-          placeholder="CTA: URL"
+          placeholder={i18n.field("ctaUrl")}
           value={String(d.ctaHref ?? "")}
           onChange={(e) => onChange({ ...block, data: { ...d, ctaHref: e.target.value } })}
         />
@@ -433,6 +438,7 @@ export function AlertBannerBlock({ block, onChange }: Props) {
 // ===== Divider with text =====
 
 export function DividerTextBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const d = block.data;
   return (
     <Shell label="Separator z tekstem">

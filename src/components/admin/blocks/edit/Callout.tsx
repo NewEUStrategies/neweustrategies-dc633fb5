@@ -1,5 +1,6 @@
 import type { Block } from "@/lib/blocks/types";
 import { AlertTriangle, Info, CheckCircle2, OctagonAlert } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 type Variant = "info" | "warning" | "success" | "danger";
 
@@ -16,6 +17,7 @@ const CALLOUT_STYLES: Record<Variant, { cls: string; Icon: typeof Info }> = {
 };
 
 export function CalloutBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const variant = (String(block.data.variant ?? "info") as Variant);
   const text = String(block.data.text ?? "");
   const { cls, Icon } = CALLOUT_STYLES[variant] ?? CALLOUT_STYLES.info;
@@ -26,7 +28,7 @@ export function CalloutBlock({ block, onChange }: Props) {
       <textarea
         value={text}
         onChange={(e) => onChange({ ...block, data: { ...block.data, text: e.target.value } })}
-        placeholder="Tekst callout…"
+        placeholder={i18n.editor("callout","textPh")}
         className="flex-1 bg-transparent outline-none border-none resize-none text-sm min-h-[1.5em]"
         rows={Math.max(1, text.split("\n").length)}
       />

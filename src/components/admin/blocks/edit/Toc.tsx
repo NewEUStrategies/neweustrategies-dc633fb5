@@ -1,6 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { ListTree } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props {
   block: Block;
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function TocBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const title = String(block.data.title ?? "");
   const maxLevel = Math.max(2, Math.min(4, Number(block.data.maxLevel ?? 3)));
   const ordered = Boolean(block.data.ordered);
@@ -20,7 +22,7 @@ export function TocBlock({ block, onChange }: Props) {
         <span className="ml-auto text-[10px] normal-case tracking-normal">Generowany automatycznie z H2-H{maxLevel}</span>
       </div>
       <Input
-        placeholder="Tytuł (np. Spis treści)"
+        placeholder={i18n.editor("toc","titlePh")}
         value={title}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />

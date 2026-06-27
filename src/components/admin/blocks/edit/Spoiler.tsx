@@ -1,6 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { EyeOff } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props {
   block: Block;
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function SpoilerBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const summary = String(block.data.summary ?? "");
   const html = String(block.data.html ?? "");
   const defaultOpen = Boolean(block.data.defaultOpen);
@@ -26,12 +28,12 @@ export function SpoilerBlock({ block, onChange }: Props) {
         </label>
       </div>
       <Input
-        placeholder="Tytuł / podgląd (kliknij aby rozwinąć)"
+        placeholder={i18n.editor("spoiler","summaryPh")}
         value={summary}
         onChange={(e) => onChange({ ...block, data: { ...block.data, summary: e.target.value } })}
       />
       <textarea
-        placeholder="Ukryta treść (HTML)"
+        placeholder={i18n.editor("spoiler","hiddenHtmlPh")}
         value={html}
         onChange={(e) => onChange({ ...block, data: { ...block.data, html: e.target.value } })}
         className="w-full rounded border border-border bg-background px-3 py-2 text-sm min-h-[80px] font-mono"

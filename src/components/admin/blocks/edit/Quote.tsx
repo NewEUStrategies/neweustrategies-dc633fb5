@@ -1,4 +1,5 @@
 import type { Block } from "@/lib/blocks/types";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props {
   block: Block;
@@ -6,6 +7,7 @@ interface Props {
 }
 
 export function QuoteBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const text = String(block.data.text ?? "");
   const cite = String(block.data.cite ?? "");
 
@@ -14,14 +16,14 @@ export function QuoteBlock({ block, onChange }: Props) {
       <textarea
         value={text}
         rows={2}
-        placeholder="Treść cytatu…"
+        placeholder={i18n.editor("quote","textPh")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, text: e.target.value } })}
         className="w-full bg-transparent text-lg italic border-none outline-none focus:ring-0 p-0 resize-none"
       />
       <input
         type="text"
         value={cite}
-        placeholder="- Autor (opcjonalnie)"
+        placeholder={i18n.editor("quote","citePh")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, cite: e.target.value } })}
         className="w-full bg-transparent text-sm text-muted-foreground border-none outline-none focus:ring-0 p-0"
       />

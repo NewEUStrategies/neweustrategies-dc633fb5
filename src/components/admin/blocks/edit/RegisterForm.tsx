@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { UserPlus } from "lucide-react";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props {
   block: Block;
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function RegisterFormBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const s = (k: string, fallback = "") => String(block.data[k] ?? fallback);
   const b = (k: string, fallback = true) => block.data[k] === undefined ? fallback : Boolean(block.data[k]);
   const set = (k: string, v: string | boolean) => onChange({ ...block, data: { ...block.data, [k]: v } });
@@ -23,7 +25,7 @@ export function RegisterFormBlock({ block, onChange }: Props) {
           onChange={(e) => set("variant", e.target.value)}
           className="ml-auto bg-background border border-border rounded px-1 py-0.5 text-[11px] normal-case tracking-normal"
         >
-          <option value="card">Karta</option>
+          <option value="card">{i18n.editor("newsletter","variantCard")}</option>
           <option value="plain">Bez ramki</option>
           <option value="split">Split</option>
         </select>

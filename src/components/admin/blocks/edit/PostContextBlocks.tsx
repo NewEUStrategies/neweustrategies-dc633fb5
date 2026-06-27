@@ -1,5 +1,6 @@
 // Admin edytory dla bloków Phase 2 batch 7: author-bio, related-posts.
 import type { Block, Json } from "@/lib/blocks/types";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 
 interface Props { block: Block; onChange: (next: Block) => void; }
 
@@ -24,6 +25,7 @@ function Toggle({
 }
 
 export function AuthorBioBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const showAvatar = block.data.showAvatar !== false;
   const showSocial = block.data.showSocial !== false;
   const showPostsCount = block.data.showPostsCount !== false;
@@ -38,7 +40,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
         value={variant}
         onChange={(e) => set({ variant: e.target.value })}
       >
-        <option value="card">Karta</option>
+        <option value="card">{i18n.editor("newsletter","variantCard")}</option>
         <option value="inline">Inline</option>
         <option value="minimal">Minimalna</option>
       </select>
@@ -52,6 +54,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
 }
 
 export function RelatedPostsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
   const limit = Number(block.data.limit ?? 3);
   const strategy = String(block.data.strategy ?? "category");
   const layout = String(block.data.layout ?? "grid");
