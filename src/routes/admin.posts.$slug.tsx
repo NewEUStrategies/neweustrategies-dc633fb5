@@ -21,7 +21,7 @@ import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
 import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon, Layers } from "@/lib/lucide-shim";
-
+import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
 import type { LocalizedBlocks, BlocksDoc } from "@/lib/blocks/types";
 import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
 import { getLayoutSet, findLayout, mergeOverrides, pickLayoutId } from "@/lib/postLayouts";
@@ -39,7 +39,7 @@ export const Route = createFileRoute("/admin/posts/$slug")({
 });
 
 type PostStatus = "draft" | "published" | "archived";
-type EditorType = "richtext" | "markdown" | "builder";
+type EditorType = "blocks" | "richtext" | "markdown" | "builder";
 
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 
@@ -248,11 +248,36 @@ function EditPost() {
         <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="builder">{t("admin.posts.editorBuilder", { defaultValue: "Visual Builder (zalecane)" })}</SelectItem>
+            <SelectItem value="blocks">{t("admin.posts.editorBlocks", { defaultValue: "Block editor (zalecane)" })}</SelectItem>
+            <SelectItem value="builder">{t("admin.posts.editorBuilder", { defaultValue: "Visual Builder (Elementor)" })}</SelectItem>
             <SelectItem value="richtext">{t("admin.posts.editorRichtext", { defaultValue: "Rich text (legacy)" })}</SelectItem>
             <SelectItem value="markdown">{t("admin.posts.editorMarkdown", { defaultValue: "Markdown (legacy)" })}</SelectItem>
           </SelectContent>
         </Select>
+        {form.editor !== "blocks" && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-2 w-full"
+            onClick={async () => {
+              try {
+                const res = await migrate$({ data: { id: form.id } });
+                toast.success(
+                  t("admin.posts.migrateOk", {
+                    defaultValue: "Skonwertowano na bloki (źródło: {{src}})",
+                    src: res.source,
+                  }),
+                );
+                await qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, routeSlug] });
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : String(e));
+              }
+            }}
+          >
+            {t("admin.posts.migrateToBlocks", { defaultValue: "Konwertuj na bloki" })}
+          </Button>
+        )}
       </div>
       <div>
         <Label>Slug</Label>
@@ -527,7 +552,40 @@ function EditPost() {
         </div>
       ) : (
         <div className="space-y-5">
-          {form.editor === "builder" ? (
+          {form.editor === "blocks" ? (
+            <PostBlockEditor
+              value={form.blocks_data ?? { pl: EMPTY_BLOCKS_DOC, en: EMPTY_BLOCKS_DOC }}
+              onChange={(v) => set("blocks_data", v)}
+              canvasWrap={(canvas, lang) => {
+                if (!globalLayout) return canvas;
+                const effective = mergeOverrides(globalLayout, ov);
+                const layoutId = pickLayoutId(globalLayout, currentFormat, ov.layout);
+                const title = lang === "en" ? form.title_en || form.title_pl : form.title_pl || form.title_en;
+                const excerpt = lang === "en" ? form.excerpt_en : form.excerpt_pl;
+                return (
+                  <LayoutScaffold
+                    format={currentFormat}
+                    layoutId={layoutId}
+                    settings={effective}
+                    title={title}
+                    excerpt={excerpt}
+                    coverImageUrl={form.cover_image_url}
+                  >
+                    {canvas}
+                  </LayoutScaffold>
+                );
+              }}
+              documentPane={(
+                <div className="space-y-4">
+                  {metaCard}
+                  {layoutCard}
+                  {catsCard}
+                  {tagsCard}
+                  <AccessSettingsPane entityType="post" entityId={id} />
+                </div>
+              )}
+            />
+          ) : form.editor === "builder" ? (
             <BuilderPane form={form} set={set} />
           ) : (
             <Tabs defaultValue="pl">

@@ -25,18 +25,17 @@ describe("ContentRenderer", () => {
     expect(container.querySelector("script")).toBeNull();
   });
 
-  it("normalizes legacy editor=blocks to the sanitized-HTML path", () => {
-    const { container } = render(
+  it("renders the blocks engine when editor=blocks with content", () => {
+    const { getByText } = render(
       <ContentRenderer
         editor="blocks"
         builderDoc={emptyDocument()}
         blocksDoc={blocks("<p>From blocks</p>")}
-        html="<p>From legacy html</p>"
+        html=""
         lang="en"
       />,
     );
-    expect(container.querySelector("article.single-post-content")).not.toBeNull();
-    expect(container.textContent).toContain("From legacy html");
+    expect(getByText("From blocks")).toBeTruthy();
   });
 
   it("falls back to HTML when the blocks doc is empty", () => {

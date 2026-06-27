@@ -12,32 +12,28 @@
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { BlocksDoc } from "@/lib/blocks/types";
 
-export type ContentEngine = "builder" | "html";
+export type ContentEngine = "blocks" | "builder" | "html";
 
 export interface ContentEngineInput {
-  /** The content's stored editor kind: "builder" | "richtext" | "markdown" | … */
+  /** The content's stored editor kind: "builder" | "blocks" | "richtext" | "markdown" | … */
   editor?: string | null;
   builderDoc?: BuilderDocument | null;
-  /** Retained for input shape stability; no longer participates in dispatch. */
   blocksDoc?: BlocksDoc | null;
 }
 
 /**
- * Legacy editor kinds that no longer have a dedicated public render strategy.
- * Any stored value listed here is normalized to the safe sanitized-HTML path,
- * so a stale `editor='blocks'` row (DB enum still permits it) renders cleanly
- * instead of falling through to an unknown branch.
- */
-const LEGACY_HTML_EDITORS = new Set<string>(["blocks", "richtext", "markdown"]);
-
-/**
  * Decide the rendering engine for a piece of content:
+ *  - an explicit `blocks` editor with at least one block → "blocks"
  *  - an explicit `builder` editor with at least one section → "builder"
- *  - legacy `blocks` (compat), `richtext`, `markdown`, unknown, empty → "html"
+ *  - everything else (richtext / markdown / legacy / empty) → "html"
+ *
+ * Hybrid model: posts default to the Gutenberg-style `blocks` editor (wrapped in
+ * a post layout by PostLayoutRenderer); `builder` stays available as an option;
+ * pages use `builder`.
  */
 export function resolveContentEngine(input: ContentEngineInput): ContentEngine {
-  const { editor, builderDoc } = input;
+  const { editor, builderDoc, blocksDoc } = input;
+  if (editor === "blocks" && (blocksDoc?.blocks?.length ?? 0) > 0) return "blocks";
   if (editor === "builder" && (builderDoc?.sections?.length ?? 0) > 0) return "builder";
-  if (typeof editor === "string" && LEGACY_HTML_EDITORS.has(editor)) return "html";
   return "html";
 }

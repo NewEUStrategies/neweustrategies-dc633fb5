@@ -13,8 +13,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { recordAudit, type AuditAction } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
-import { toJson } from "@/lib/builder/types";
-import { emptyArticleBuilderDoc } from "@/lib/builder/newArticleDoc";
 
 // ---------- shared helpers ----------
 
@@ -102,7 +100,8 @@ const BuilderJsonValue: z.ZodType<unknown> = z.lazy(() =>
 const PostCore = z.object({
   slug: SlugInput,
   status: Status.default("draft"),
-  editor: Editor.default("builder"),
+  // Hybrid model: posts default to blocks (Gutenberg); pages default to builder.
+  editor: Editor.default("blocks"),
   ...TitleBlock,
   excerpt_pl: NullableStr(1000),
   excerpt_en: NullableStr(1000),
@@ -165,11 +164,12 @@ export const createPost = createServerFn({ method: "POST" })
           title_pl: data.title_pl ?? "", title_en: data.title_en ?? "",
           parent_page_id: parentPageId,
           template_id: data.template_id ?? null,
-          // blocks → builder consolidation (stage 1): new posts default to the
-          // builder, seeded with a rich-text (article) widget so authors land in
-          // the block editor inside a builder layout. Existing posts unaffected.
-          editor: "builder",
-          builder_data: toJson(emptyArticleBuilderDoc()),
+          // Hybrid model: posts default to the Gutenberg-style blocks editor
+          // (rendered inside a /admin/post-layouts layout). The builder stays
+          // available as an opt-in per post; pages use the builder. See
+          // docs/ARCHITECTURE.md §2.
+          editor: "blocks",
+          blocks_data: { pl: { version: 1, blocks: [] }, en: { version: 1, blocks: [] } },
         })
         .select("id, slug").single();
       if (error) throw new Error(error.message);

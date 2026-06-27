@@ -44,41 +44,47 @@ so they were removed in favour of the convention above.
 
 ---
 
-## 2. Content engines & the `blocks` → `builder` consolidation
+## 2. Content engines (hybrid: blocks for posts, builder for pages)
 
-> **Status:** Stage 1 shipped — new posts now default to the builder. Stages 2–4
-> pending. The blocks editor remains fully functional: existing posts are
-> unaffected, and it still powers article bodies via the `rich-text` widget.
+> **Status:** Settled on a **hybrid** model. Posts are authored in the
+> Gutenberg-style **blocks** editor by default and dropped into the post layout
+> configured in `/admin/post-layouts`; the Elementor-style **builder** is
+> available as an opt-in per post. **Pages** are always built with the builder.
+> A short-lived experiment to consolidate posts onto the builder (the "Stages"
+> recorded in §2.5) was implemented and then **deliberately rolled back** — the
+> two editors do different jobs and both are kept.
 
 ### 2.0 TL;DR for content authors
 
-Nothing here removes any way of creating content. Concretely, today:
+Nothing here removes any way of creating content. Concretely:
 
-- **Pages** (`/admin/pages`) are built **only** with the Visual Builder. The
-  blocks editor was never part of page creation. This consolidation does not
-  touch pages.
-- **Posts / articles** (`/admin/posts`) are written in the **Block editor** by
-  default — and that stays true until the steps below are actually done.
-- The **same block editor** is also available **inside the Builder** through the
-  `rich-text` widget, which opens the identical `PostBlockEditor` in a modal.
+- **Pages** (`/admin/pages`) are built **only** with the Visual Builder
+  (Elementor-style section → column → widget composition). The blocks editor was
+  never part of page creation.
+- **Posts / articles** (`/admin/posts`) are written in the **Block editor**
+  (Gutenberg-style) by default, then wrapped in the post layout set under
+  `/admin/post-layouts`. The **Builder is also selectable** per post (editor
+  dropdown) for authors who want full bespoke composition.
+- The **same block editor** is additionally available **inside the Builder**
+  through the `rich-text` widget, which opens the identical `PostBlockEditor` in
+  a modal — so even a builder post can host block-authored article bodies.
 
-So "deprecating blocks" means retiring the *standalone post mode* called
-"blocks", **not** the block editor or the block-rendering engine — those live on
-inside the Builder. Authoring capability is preserved at every stage.
+### 2.1 Why hybrid (and not one engine)
 
-### 2.1 The important distinction (keep vs. retire)
+The two editors optimize for different things, and both are wanted:
 
-"Blocks" is two separable things. Only the second is being retired:
-
-| Concern | Code | Fate |
+| Editor | Shape | Best for |
 | --- | --- | --- |
-| Block **engine + editor** (`PostBlockEditor`, `BlocksRenderer`, `lib/blocks`) | `components/blocks/*`, `components/admin/blocks/*`, `lib/blocks/*` | **KEEP** — reused by the Builder's `rich-text` widget |
-| Block **standalone post mode** (`editor === "blocks"` as a top-level post type) | post create default + `admin.posts.$slug.tsx` wiring + the `"blocks"` branch of `contentEngine` | **RETIRE** — replaced by `builder` + `rich-text` widget |
+| **Blocks** (Gutenberg-style) | linear list of typed blocks | article bodies — focused long-form writing dropped into a fixed post layout |
+| **Builder** (Elementor-style) | section → column → widget tree | pages, landing / standalone bespoke layouts |
 
-This distinction is the single most important thing to get right. An earlier
-draft of this plan said "delete `PostBlockEditor`" — that is **wrong**: the
-`rich-text` widget depends on it (`RichTextEditor.tsx:20` lazy-imports it). The
-editor survives; only its top-level entry point goes away.
+Posts are overwhelmingly article-shaped, so blocks is the right default and the
+post layout (`/admin/post-layouts`) supplies the surrounding chrome; routing
+every post through the builder added friction without benefit. Pages are
+layout-shaped, so the builder is the right — and only — tool there. The block
+**engine** is never deleted regardless: the Builder's `rich-text` widget depends
+on it (`RichTextEditor.tsx` lazy-imports `PostBlockEditor`), so it stays
+first-class.
 
 ### 2.2 Data model
 
@@ -101,147 +107,72 @@ whose `content.doc` holds a `LocalizedBlocks` value — i.e. the **same** blocks
 document shape, just nested under a widget instead of in the top-level
 `blocks_data` column.
 
-### 2.3 Current touchpoints (grounded)
+### 2.3 The dispatch point (grounded)
 
-The single dispatch point: `src/lib/content/contentEngine.ts` resolves an
-`editor` value to `"blocks" | "builder" | "html"` (`contentEngine.ts:31-34`):
+The single place that picks a render strategy is
+`src/lib/content/contentEngine.ts` — `resolveContentEngine()` maps an `editor`
+value (plus the matching document) to `"blocks" | "builder" | "html"`:
 
-- `editor === "builder"` with ≥1 section → **builder** (canonical composition)
 - `editor === "blocks"` with ≥1 block → **blocks** (article bodies)
+- `editor === "builder"` with ≥1 section → **builder** (page composition)
 - everything else (`richtext` / `markdown` / legacy / empty) → **html**
 
-Where `blocks` is reachable today:
+Components never branch on `editor` themselves — they call `resolveContentEngine`
+(directly or via the `ContentRenderer` façade). The live touchpoints:
 
-- **New posts default to `editor: "blocks"`** — `content.functions.ts:166`
-  (`createPost`), and WordPress import too (`wordpress-import.functions.ts:571,602`).
-- **Standalone post editor** — `admin.posts.$slug.tsx:556` renders
-  `PostBlockEditor` when `form.editor === "blocks"`; the editor selector offers
-  it as "zalecane / recommended" (`admin.posts.$slug.tsx:251`).
-- **Public render strategy** — `ContentRenderer.tsx:50-53` calls
-  `resolveContentEngine` and renders `<BlocksRenderer>` for the `blocks` engine;
-  the page route wires this in `routes/$.tsx`.
-- **Inside the Builder (the survivor)** — the `rich-text` widget authors via
-  `RichTextEditor.tsx:20` (lazy `PostBlockEditor`) and renders via
-  `RichTextView.tsx` (`BlocksRenderer`). `BlocksRenderer` is also used by
-  `AuthFormBlocks` and `GalleryBlock`.
+- **New posts default to `editor: "blocks"`** — `createPost`
+  (`content.functions.ts`); the WordPress importer also writes `editor: "blocks"`.
+- **Post editor** — `admin.posts.$slug.tsx` renders `PostBlockEditor` when
+  `form.editor === "blocks"` (the default, marked "zalecane"), and offers the
+  Builder + legacy rich-text/markdown as alternatives. A per-post "Konwertuj na
+  bloki" button (`migratePostToBlocks`) converts a builder/legacy post to blocks.
+- **Public render** — `ContentRenderer.tsx` calls `resolveContentEngine` and
+  renders `<BlocksRenderer>` for blocks, `<BuilderRenderer>` for builder, or
+  sanitized HTML otherwise. For posts, `routes/$.tsx` wraps the result in
+  `PostLayoutRenderer`, so the `/admin/post-layouts` layout applies to **every**
+  post editor type, blocks included.
+- **Inside the Builder (shared engine)** — the `rich-text` widget authors via
+  `RichTextEditor.tsx` (lazy `PostBlockEditor`) and renders via `RichTextView.tsx`
+  (`BlocksRenderer`); `BlocksRenderer` also backs `AuthFormBlocks` and
+  `GalleryBlock`.
 
-Footprint: the standalone blocks code is ~61 files / ~7k lines across
-`components/blocks`, `components/admin/blocks`, `lib/blocks`.
+### 2.4 Cross-engine conversion tooling (optional)
 
-### 2.4 Migration tooling (already exists, safe to re-run)
+Converters exist in **both** directions, but neither runs automatically:
 
-- `bun run migrate:blocks-to-builder` (`scripts/migrate-blocks-to-builder.ts`) —
-  dry-run by default; `--apply` requires a service-role key; non-destructive
-  (preserves `blocks_data`, only writes `builder_data` + flips `editor`);
-  idempotent; optimistic-locked against concurrent writes. It wraps a legacy
-  block body in a single `rich-text` widget and re-runs the same footnote/TOC
-  pipeline as the public render path.
-- `bun run verify:migration` (`scripts/verify-migration.ts`) — read-only audit
-  (footnote parity, leftover `[fn]` markers, stripped inline styles); exits
-  non-zero on drift, so it can gate CI.
+- **Builder/legacy → blocks (per post):** the "Konwertuj na bloki" button in the
+  post editor calls `migratePostToBlocks` (`lib/posts-migrate.functions.ts`) —
+  non-destructive (writes `blocks_data` + flips `editor`, source columns kept).
+- **Blocks → builder (bulk):** `bun run migrate:blocks-to-builder`
+  (`scripts/migrate-blocks-to-builder.ts`) plus `bun run verify:migration`
+  (`scripts/verify-migration.ts`) survive from the consolidation experiment.
+  They are **not** part of normal operation — blocks is the post default — but
+  remain available for the rare case where a post should become a full builder
+  layout. Dry-run by default; `--apply` requires a service-role key;
+  non-destructive (preserves `blocks_data`); idempotent; optimistic-locked.
 
-### 2.5 Staged plan
+### 2.5 History: the consolidation experiment (reverted)
 
-Each stage is independently shippable and reversible. Do **not** start a stage
-until the previous stage's exit criteria hold.
+For maintainers who find leftover references: a staged plan once aimed to retire
+the standalone `blocks` post mode and converge posts onto the builder. Stages 1
+(new posts default to builder), 3 (drop the `blocks` option from the post editor)
+and 4 (drop the `blocks` arm from the render path) were implemented, then
+**rolled back** in favour of the hybrid model above — posts are article-shaped,
+and the blocks editor + post layouts serve them better than a full page builder.
+Stage 2 (bulk `blocks` → `builder` migration) was never run as a fleet-wide step;
+its tooling survives as the optional converter in §2.4. No content was lost in
+either direction — every converter preserves the source columns.
 
-#### Stage 1 — Make `builder` the default authoring path for posts ✅ SHIPPED
+### 2.6 Guardrails
 
-- **Goal:** new posts are created as `builder` (with a `rich-text` widget for the
-  article body), so the `blocks` pool stops growing. No content is migrated yet.
-- **What shipped:** `createPost` (`content.functions.ts`) now inserts
-  `editor: "builder"` + `builder_data` seeded by `emptyArticleBuilderDoc()`
-  (`lib/builder/newArticleDoc.ts`) — one section/column holding a `rich-text`
-  widget, so authors land straight in the (same) block editor inside a builder
-  layout. The post editor selector lists Builder first / recommended and marks
-  `blocks` legacy (`admin.posts.$slug.tsx`), with the `blocks` option still
-  available. A unit test round-trips the seed doc through `parseBuilderDoc`.
-- **Deliberately NOT changed:** the WordPress importer still writes
-  `editor: "blocks"` — it produces `blocks_data` from WP HTML, so flipping it
-  without converting would render nothing. Imported content is handled by the
-  Stage 2 migration instead.
-- **Exit criteria (met):** newly created posts have `editor === "builder"`;
-  existing `blocks` posts still open and render unchanged.
-- **Rollback:** revert the `createPost` default + selector commit.
-
-#### Stage 2 — Migrate existing `blocks` content — TOOLING READY (run against prod)
-
-- **Goal:** no row has `editor === "blocks"` anymore.
-- **Status:** the tooling is built, tested and consistent with Stage 1 — the
-  migration and the new-post seed share ONE wrapper
-  (`localizedBlocksToBuilderDoc`), so a migrated post and a freshly-created post
-  have identical structure. The migration must be **run against the production
-  database**, which requires DB network access and (for `--apply`) the
-  `SUPABASE_SERVICE_ROLE_KEY` — so it is run from a trusted machine / the Lovable
-  platform, not from CI or a code sandbox.
-- **Runbook:**
-
-  ```bash
-  # 0. From a machine that can reach the project's Supabase and has the keys.
-  #    Bun auto-loads .env (SUPABASE_URL + a key).
-
-  # 1. DRY-RUN (no writes). Publishable key → published rows only;
-  #    service-role key → also drafts. Review the printed plan.
-  bun run migrate:blocks-to-builder                      # all editors
-  bun run migrate:blocks-to-builder -- --only=blocks     # blocks only
-
-  # 2. APPLY (writes builder_data + flips editor='builder'; preserves the
-  #    original blocks_data/content_* columns). Requires the service-role key.
-  SUPABASE_SERVICE_ROLE_KEY=… bun run migrate:blocks-to-builder -- --apply
-
-  # 3. VERIFY (read-only audit: footnote parity, leftover [fn] markers,
-  #    stripped inline styles). Non-zero exit on drift.
-  bun run verify:migration
-
-  # 4. CONFIRM no blocks rows remain:
-  #    select count(*) from posts where editor = 'blocks';   -- expect 0
-  #    select count(*) from pages where editor = 'blocks';   -- expect 0
-  ```
-
-- **Exit criteria:** `select count(*) … where editor = 'blocks'` is 0 across
-  tenants; `verify:migration` exits 0; spot-check a few migrated pages render
-  identically to before.
-- **Rollback (per row, non-destructive):**
-  `UPDATE <table> SET editor='blocks' WHERE id='…';` — `blocks_data` was never
-  touched.
-
-#### Stage 3 — Retire the standalone `blocks` post mode
-
-- **Goal:** remove the top-level "blocks" editor mode while **keeping** the block
-  editor for the `rich-text` widget.
-- **Touchpoints:** drop `"blocks"` from `EditorType` and the selector, and remove
-  the `form.editor === "blocks"` branch in `admin.posts.$slug.tsx:556`. **Do not
-  delete `PostBlockEditor`** — `RichTextEditor.tsx` still imports it. Delete only
-  the parts of `components/admin/blocks/` not reachable from the `rich-text`
-  widget (verify with an importer scan first).
-- **Exit criteria:** no route references `editor === "blocks"`; the `rich-text`
-  widget still opens the block editor and renders correctly; typecheck + tests +
-  build green.
-- **Rollback:** revert the route/type changes (no data implications, since
-  Stage 2 already cleared `blocks` rows).
-
-#### Stage 4 — Collapse the public render path
-
-- **Goal:** `contentEngine` no longer needs a `blocks` branch.
-- **Touchpoints:** confirm `BlocksRenderer` is reached **only** through
-  `RichTextView` (importer scan); then drop the `engine === "blocks"` branch in
-  `ContentRenderer.tsx:52` and the `"blocks"` arm in `contentEngine.ts`
-  (update `contentEngine.test.ts`). Whatever `BlocksRenderer` the `rich-text`
-  widget needs stays; remove any `components/blocks` / `lib/blocks` modules that
-  are now unreferenced.
-- **Exit criteria:** `contentEngine` returns only `"builder" | "html"`; no dead
-  `blocks` modules remain (dead-export scan clean); full suite + build green.
-- **Rollback:** revert; engine selection is pure and unit-tested.
-
-### 2.6 Guardrails until Stage 3 lands
-
-- Treat the standalone block editor as **frozen**: fix bugs, but add new content
-  features only to the Builder / `rich-text` path so the two engines don't keep
-  diverging.
 - `contentEngine` stays the **only** place that decides a render strategy. Never
-  branch on `editor` in components — call `resolveContentEngine`.
-- Every stage must keep `tsc --noEmit`, the test suite, and the bundle gate
-  green; Stage 2 must additionally pass `verify:migration`.
+  branch on `editor` inside a component — call `resolveContentEngine`.
+- Both engines are first-class. Shared cross-cutting infra (sanitization,
+  footnotes, render-error isolation) lives once and is used by both; don't fork
+  it per engine.
+- The block engine is load-bearing for the Builder's `rich-text` widget — never
+  delete `PostBlockEditor` / `BlocksRenderer` / `lib/blocks` as "blocks cleanup".
+- Keep `tsc --noEmit`, the test suite, and the bundle gate green.
 
 ---
 

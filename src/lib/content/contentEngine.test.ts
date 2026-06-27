@@ -28,8 +28,11 @@ describe("resolveContentEngine", () => {
     expect(resolveContentEngine({ editor: "builder", builderDoc: null })).toBe("html");
   });
 
-  it("falls back to html for legacy blocks editor (blocks strategy removed)", () => {
-    expect(resolveContentEngine({ editor: "blocks", blocksDoc: blocksDoc(2) })).toBe("html");
+  it("selects blocks for an explicit blocks editor with blocks", () => {
+    expect(resolveContentEngine({ editor: "blocks", blocksDoc: blocksDoc(2) })).toBe("blocks");
+  });
+
+  it("falls back to html when the blocks engine has no content", () => {
     expect(resolveContentEngine({ editor: "blocks", blocksDoc: blocksDoc(0) })).toBe("html");
     expect(resolveContentEngine({ editor: "blocks", blocksDoc: null })).toBe("html");
   });
