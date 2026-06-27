@@ -255,6 +255,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
   return (
     <aside
       ref={railRef}
+      data-floating-share
       aria-label={t.share}
       className={[
         "hidden lg:flex flex-col fixed left-5 top-1/2 -translate-y-1/2 z-40",
