@@ -25,6 +25,8 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { parseGutenberg } from "@/lib/blocks/gutenberg";
+import { localizedBlocksToBuilderDoc } from "@/lib/builder/migrate/blocksToBuilder";
+import type { LocalizedBlocks } from "@/lib/blocks/types";
 import { recordAudit } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
 import type { Json } from "@/integrations/supabase/types";
@@ -545,6 +547,9 @@ export const runWpImportJob = createServerFn({ method: "POST" })
             ? { pl: doc, en: { version: 1, blocks: [] } }
             : { pl: { version: 1, blocks: [] }, en: doc };
           const blocks_data = JSON.parse(JSON.stringify(blocksPayload)) as Json;
+          const builder_data = JSON.parse(
+            JSON.stringify(localizedBlocksToBuilderDoc(blocksPayload as unknown as LocalizedBlocks)),
+          ) as Json;
 
           const titleField = data.language === "pl"
             ? { title_pl: title, title_en: "" }
@@ -568,11 +573,12 @@ export const runWpImportJob = createServerFn({ method: "POST" })
             const { error: upErr } = await supabase
               .from("posts")
               .update({
-                editor: "blocks",
+                editor: "builder",
                 status,
                 published_at: status === "published" ? wp.date : null,
                 cover_image_url: coverUrl,
                 blocks_data,
+                builder_data,
                 ...titleField,
                 ...excerptField,
               })
@@ -599,11 +605,12 @@ export const runWpImportJob = createServerFn({ method: "POST" })
               .insert({
                 tenant_id: tenantId, author_id: userId, slug,
                 parent_page_id: parentPageId,
-                editor: "blocks",
+                editor: "builder",
                 status,
                 published_at: status === "published" ? wp.date : null,
                 cover_image_url: coverUrl,
                 blocks_data,
+                builder_data,
                 ...titleField,
                 ...excerptField,
               })

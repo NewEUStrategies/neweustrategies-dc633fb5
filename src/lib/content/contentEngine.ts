@@ -23,12 +23,21 @@ export interface ContentEngineInput {
 }
 
 /**
+ * Legacy editor kinds that no longer have a dedicated public render strategy.
+ * Any stored value listed here is normalized to the safe sanitized-HTML path,
+ * so a stale `editor='blocks'` row (DB enum still permits it) renders cleanly
+ * instead of falling through to an unknown branch.
+ */
+const LEGACY_HTML_EDITORS = new Set<string>(["blocks", "richtext", "markdown"]);
+
+/**
  * Decide the rendering engine for a piece of content:
  *  - an explicit `builder` editor with at least one section → "builder"
- *  - everything else (richtext / markdown / legacy / empty) → "html"
+ *  - legacy `blocks` (compat), `richtext`, `markdown`, unknown, empty → "html"
  */
 export function resolveContentEngine(input: ContentEngineInput): ContentEngine {
   const { editor, builderDoc } = input;
   if (editor === "builder" && (builderDoc?.sections?.length ?? 0) > 0) return "builder";
+  if (typeof editor === "string" && LEGACY_HTML_EDITORS.has(editor)) return "html";
   return "html";
 }
