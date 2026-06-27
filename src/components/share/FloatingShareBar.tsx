@@ -37,6 +37,8 @@ const COPY = {
     pdf: "Pobierz jako PDF",
     pdfHint: "Wybierz \u201EZapisz jako PDF\u201D w oknie drukowania",
     actions: "Akcje",
+    tocTitle: "SPIS TREŚCI",
+    read: "przeczytano",
   },
   en: {
     share: "Share",
@@ -52,6 +54,8 @@ const COPY = {
     pdf: "Download as PDF",
     pdfHint: "Choose \"Save as PDF\" in the print dialog",
     actions: "Actions",
+    tocTitle: "ON THIS PAGE",
+    read: "read",
   },
 } as const;
 
