@@ -11,9 +11,10 @@ import type { Block, BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
 import { BlockCanvas } from "./BlockCanvas";
 import { BlockSidebar } from "./BlockSidebar";
+import { BlockLibraryPanel } from "./BlockLibraryPanel";
 import { useBlocksHistory } from "./hooks/useBlocksHistory";
 import { IconButton } from "./atoms/IconButton";
-import { Undo, Redo } from "@/lib/lucide-shim";
+import { Undo, Redo, Plus } from "@/lib/lucide-shim";
 
 interface Props {
   value: LocalizedBlocks | null;
