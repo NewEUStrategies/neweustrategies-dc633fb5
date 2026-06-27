@@ -1398,6 +1398,39 @@ export type Database = {
         }
         Relationships: []
       }
+      post_sidebar_layouts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_default: boolean
+          name: string
+          tenant_id: string
+          updated_at: string
+          widgets: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          name: string
+          tenant_id: string
+          updated_at?: string
+          widgets?: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          tenant_id?: string
+          updated_at?: string
+          widgets?: Json
+        }
+        Relationships: []
+      }
       post_tags: {
         Row: {
           post_id: string
@@ -1491,6 +1524,7 @@ export type Database = {
           published_at: string | null
           read_minutes: number | null
           related_override: Json | null
+          sidebar_layout_id: string | null
           slug: string
           status: Database["public"]["Enums"]["post_status"]
           takeaways_en: string[]
@@ -1521,6 +1555,7 @@ export type Database = {
           published_at?: string | null
           read_minutes?: number | null
           related_override?: Json | null
+          sidebar_layout_id?: string | null
           slug: string
           status?: Database["public"]["Enums"]["post_status"]
           takeaways_en?: string[]
@@ -1551,6 +1586,7 @@ export type Database = {
           published_at?: string | null
           read_minutes?: number | null
           related_override?: Json | null
+          sidebar_layout_id?: string | null
           slug?: string
           status?: Database["public"]["Enums"]["post_status"]
           takeaways_en?: string[]
@@ -1567,6 +1603,13 @@ export type Database = {
             columns: ["parent_page_id"]
             isOneToOne: false
             referencedRelation: "pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "posts_sidebar_layout_id_fkey"
+            columns: ["sidebar_layout_id"]
+            isOneToOne: false
+            referencedRelation: "post_sidebar_layouts"
             referencedColumns: ["id"]
           },
           {

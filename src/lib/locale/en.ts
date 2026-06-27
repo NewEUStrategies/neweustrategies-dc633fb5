@@ -180,7 +180,7 @@ export const en = {
         },
         sidebar: { expand: "Expand", collapse: "Collapse" },
         appearance: {
-          header: "Header", footer: "Footer", menu: "Menu", globalColors: "Global Colors",
+          header: "Header", footer: "Footer", menu: "Menu", postSidebar: "Post sidebar", globalColors: "Global Colors",
         },
         themeOptions: {
           save: "Save",

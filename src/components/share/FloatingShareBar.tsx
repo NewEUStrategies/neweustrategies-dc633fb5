@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Twitter, Facebook, Linkedin, Mail, Copy, Share2, Printer, Download, List, X, BookOpen, Bookmark, BookmarkCheck } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { smoothScrollToAnchor } from "@/lib/smoothAnchorScroll";
+import type { ReadingPanelSettings, SocialKey } from "@/lib/sidebarBuilder/types";
+import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
 
 type Lang = "pl" | "en";
 
@@ -21,6 +23,8 @@ interface Props {
    *             Always visible (no scroll-gated reveal) and full sidebar width.
    */
   variant?: "rail" | "sidebar";
+  /** CMS-driven config: which sub-features and social platforms to show. */
+  settings?: Partial<ReadingPanelSettings>;
 }
 
 interface TocItem {
@@ -94,7 +98,15 @@ function slugifyHeading(s: string): string {
   );
 }
 
-export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = "rail" }: Props) {
+export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = "rail", settings }: Props) {
+  const cfg: ReadingPanelSettings = useMemo(
+    () => ({
+      ...DEFAULT_READING_PANEL_SETTINGS,
+      ...(settings ?? {}),
+      social: { ...DEFAULT_READING_PANEL_SETTINGS.social, ...(settings?.social ?? {}) },
+    }),
+    [settings],
+  );
   const isSidebar = variant === "sidebar";
   const [visible, setVisible] = useState(false);
   const [href, setHref] = useState(url ?? "");
@@ -106,6 +118,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
   
   const railRef = useRef<HTMLElement>(null);
   const t = COPY[lang];
+
 
   useEffect(() => {
     if (!url && typeof window !== "undefined") setHref(window.location.href);
@@ -191,16 +204,19 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
 
   const enc = encodeURIComponent;
   const u = href || "";
-  const links = useMemo(
-    () =>
-      [
-        { id: "x", label: t.x, icon: Twitter, href: `https://twitter.com/intent/tweet?url=${enc(u)}&text=${enc(title)}` },
-        { id: "fb", label: t.fb, icon: Facebook, href: `https://www.facebook.com/sharer/sharer.php?u=${enc(u)}` },
-        { id: "li", label: t.li, icon: Linkedin, href: `https://www.linkedin.com/sharing/share-offsite/?url=${enc(u)}` },
-        { id: "mail", label: t.mail, icon: Mail, href: `mailto:?subject=${enc(title)}&body=${enc(u)}` },
-      ] as const,
-    [u, title, t],
-  );
+  const links = useMemo(() => {
+    const all: { id: SocialKey; label: string; icon: typeof Twitter; href: string }[] = [
+      { id: "x", label: t.x, icon: Twitter, href: `https://twitter.com/intent/tweet?url=${enc(u)}&text=${enc(title)}` },
+      { id: "facebook", label: t.fb, icon: Facebook, href: `https://www.facebook.com/sharer/sharer.php?u=${enc(u)}` },
+      { id: "linkedin", label: t.li, icon: Linkedin, href: `https://www.linkedin.com/sharing/share-offsite/?url=${enc(u)}` },
+      { id: "mail", label: t.mail, icon: Mail, href: `mailto:?subject=${enc(title)}&body=${enc(u)}` },
+      { id: "whatsapp", label: "WhatsApp", icon: Share2, href: `https://wa.me/?text=${enc(title + " " + u)}` },
+      { id: "telegram", label: "Telegram", icon: Share2, href: `https://t.me/share/url?url=${enc(u)}&text=${enc(title)}` },
+      { id: "reddit", label: "Reddit", icon: Share2, href: `https://www.reddit.com/submit?url=${enc(u)}&title=${enc(title)}` },
+    ];
+    return all.filter((l) => cfg.social[l.id]);
+  }, [u, title, t, cfg.social]);
+
 
   const onCopy = async (): Promise<void> => {
     try {
@@ -272,7 +288,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
   const c = 2 * Math.PI * r;
   const dash = c * progress;
 
-  const hasToc = items.length > 0;
+  const hasToc = cfg.showToc && items.length > 0;
   const activeIdx = items.findIndex((i) => i.id === active);
   const currentNum = activeIdx >= 0 ? activeIdx + 1 : (hasToc ? 1 : 0);
   const currentTitle = items[activeIdx]?.text ?? items[0]?.text ?? "";
@@ -299,12 +315,14 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
       ].join(" ")}
     >
       {/* Top progress bar */}
-      <div className="h-1 w-full bg-muted/60" aria-hidden>
-        <div
-          className="h-full bg-brand transition-[width] duration-150"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      {cfg.showProgress && (
+        <div className="h-1 w-full bg-muted/60" aria-hidden>
+          <div
+            className="h-full bg-brand transition-[width] duration-150"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
 
       {/* Header row: book icon + title + counter */}
       <div className="flex items-center gap-2.5 px-3 pt-3 pb-2">
@@ -410,63 +428,73 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
               </a>
             );
           })}
-          <button
-            type="button"
-            onClick={onCopy}
-            aria-label={t.copy}
-            title={t.copy}
-            className="inline-flex items-center justify-center h-9 rounded-[5px] text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
-          >
-            <Copy className="w-[15px] h-[15px]" />
-          </button>
+          {cfg.social.copy && (
+            <button
+              type="button"
+              onClick={onCopy}
+              aria-label={t.copy}
+              title={t.copy}
+              className="inline-flex items-center justify-center h-9 rounded-[5px] text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
+            >
+              <Copy className="w-[15px] h-[15px]" />
+            </button>
+          )}
         </div>
 
         {/* Divider */}
         <div className="my-2 h-px bg-border/60" />
 
         {/* Print + PDF row - labeled action buttons */}
-        {/* Save for later - prominent bookmark toggle */}
-        <button
-          type="button"
-          onClick={onToggleSave}
-          aria-pressed={isSaved}
-          aria-label={isSaved ? t.saved : t.saveLater}
-          className={[
-            "w-full mb-1.5 inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] text-[11px] font-semibold tracking-tight transition active:scale-[0.98]",
-            isSaved
-              ? "bg-brand/10 text-brand border border-brand/40"
-              : "border border-border bg-background text-foreground hover:bg-muted",
-          ].join(" ")}
-        >
-          {isSaved ? <BookmarkCheck className="w-[14px] h-[14px]" /> : <Bookmark className="w-[14px] h-[14px]" />}
-          {isSaved ? t.saved : t.saveLater}
-        </button>
-        <div className="grid grid-cols-2 gap-1.5">
+        {cfg.showSaveLater && (
           <button
             type="button"
-            onClick={onPdf}
-            aria-label={t.pdf}
-            title={t.pdf}
-            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] bg-brand text-brand-foreground text-[11px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
+            onClick={onToggleSave}
+            aria-pressed={isSaved}
+            aria-label={isSaved ? t.saved : t.saveLater}
+            className={[
+              "w-full mb-1.5 inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] text-[11px] font-semibold tracking-tight transition active:scale-[0.98]",
+              isSaved
+                ? "bg-brand/10 text-brand border border-brand/40"
+                : "border border-border bg-background text-foreground hover:bg-muted",
+            ].join(" ")}
           >
-            <Download className="w-[14px] h-[14px]" />
-            PDF
+            {isSaved ? <BookmarkCheck className="w-[14px] h-[14px]" /> : <Bookmark className="w-[14px] h-[14px]" />}
+            {isSaved ? t.saved : t.saveLater}
           </button>
-          <button
-            type="button"
-            onClick={onPrint}
-            aria-label={t.print}
-            title={t.print}
-            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] border border-border bg-background text-foreground text-[11px] font-semibold tracking-tight hover:bg-muted active:scale-[0.98] transition"
-          >
-            <Printer className="w-[14px] h-[14px]" />
-            {lang === "pl" ? "Drukuj" : "Print"}
-          </button>
-        </div>
+        )}
+        {(cfg.showPdf || cfg.showPrint) && (
+          <div className={`grid gap-1.5 ${cfg.showPdf && cfg.showPrint ? "grid-cols-2" : "grid-cols-1"}`}>
+            {cfg.showPdf && (
+              <button
+                type="button"
+                onClick={onPdf}
+                aria-label={t.pdf}
+                title={t.pdf}
+                className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] bg-brand text-brand-foreground text-[11px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
+              >
+                <Download className="w-[14px] h-[14px]" />
+                PDF
+              </button>
+            )}
+            {cfg.showPrint && (
+              <button
+                type="button"
+                onClick={onPrint}
+                aria-label={t.print}
+                title={t.print}
+                className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] border border-border bg-background text-foreground text-[11px] font-semibold tracking-tight hover:bg-muted active:scale-[0.98] transition"
+              >
+                <Printer className="w-[14px] h-[14px]" />
+                {lang === "pl" ? "Drukuj" : "Print"}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
 
     </aside>
+
 
     {/* Mobile floating progress FAB - bottom-right */}
     <button
