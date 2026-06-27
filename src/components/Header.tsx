@@ -11,7 +11,7 @@ import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 
 type HeaderSettings = {
   builder_data?: BuilderDocument | null;
-  trending?: { enabled?: boolean; days?: number; limit?: number };
+  trending?: { enabled?: boolean; days?: number; limit?: number; fullWidth?: boolean };
 };
 
 function HeaderInner() {
