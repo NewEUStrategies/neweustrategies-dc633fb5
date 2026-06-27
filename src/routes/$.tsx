@@ -352,9 +352,6 @@ function PublicPage() {
         </main>
 
         <FooterSlideup pageType={adPageType} pageId={it.id} />
-        {merged.show_floating_share_bar && (
-          <FloatingShareBar title={title} lang={lang} variant="rail" showAfter={99999} />
-        )}
       </div>
     );
   }
