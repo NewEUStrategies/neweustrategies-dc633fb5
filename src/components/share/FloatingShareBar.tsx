@@ -413,6 +413,22 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
         <div className="my-2 h-px bg-border/60" />
 
         {/* Print + PDF row - labeled action buttons */}
+        {/* Save for later - prominent bookmark toggle */}
+        <button
+          type="button"
+          onClick={onToggleSave}
+          aria-pressed={isSaved}
+          aria-label={isSaved ? t.saved : t.saveLater}
+          className={[
+            "w-full mb-1.5 inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] text-[11px] font-semibold tracking-tight transition active:scale-[0.98]",
+            isSaved
+              ? "bg-brand/10 text-brand border border-brand/40"
+              : "border border-border bg-background text-foreground hover:bg-muted",
+          ].join(" ")}
+        >
+          {isSaved ? <BookmarkCheck className="w-[14px] h-[14px]" /> : <Bookmark className="w-[14px] h-[14px]" />}
+          {isSaved ? t.saved : t.saveLater}
+        </button>
         <div className="grid grid-cols-2 gap-1.5">
           <button
             type="button"
