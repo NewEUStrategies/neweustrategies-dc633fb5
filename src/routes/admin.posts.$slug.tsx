@@ -39,7 +39,7 @@ export const Route = createFileRoute("/admin/posts/$slug")({
 });
 
 type PostStatus = "draft" | "published" | "archived";
-type EditorType = "blocks" | "richtext" | "markdown" | "builder";
+type EditorType = "richtext" | "markdown" | "builder";
 
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 
