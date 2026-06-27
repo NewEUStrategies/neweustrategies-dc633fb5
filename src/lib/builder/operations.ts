@@ -1,7 +1,12 @@
 // Pure operations on a BuilderDocument tree: find / mutate / duplicate / move.
 // Returns new ids on duplicate so React keys stay stable and undo/redo works.
+//
+// The mutation helpers in the "structural mutations" section below operate
+// IN PLACE on a draft document (the Builder deep-clones before calling them,
+// so they never touch the live tree). They were extracted verbatim from
+// Builder.tsx so they can be unit-tested in isolation.
 import type {
-  BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode,
+  BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode, Device,
 } from "./types";
 import { newId } from "./types";
 
@@ -122,4 +127,250 @@ export function findInner(doc: BuilderDocument, id: string): InnerSectionNode | 
     if (c.kind === "inner-section" && c.id === id) return c;
   }
   return null;
+}
+
+// ---------- node factories ----------
+
+export const newColumn = (span = 12): ColumnNode => ({
+  id: newId(), kind: "column", span: { desktop: span }, children: [],
+});
+
+export const newSection = (colsOrSpans: number | number[] = 1): SectionNode => {
+  const spans = Array.isArray(colsOrSpans)
+    ? colsOrSpans
+    : Array.from({ length: colsOrSpans }, () => 12 / colsOrSpans);
+  return {
+    id: newId(), kind: "section",
+    children: spans.map((sp) => newColumn(sp)),
+  };
+};
+
+export const newInnerSection = (): InnerSectionNode => ({
+  id: newId(), kind: "inner-section",
+  columns: [newColumn(6), newColumn(6)],
+});
+
+// ---------- structural mutations (mutate a draft doc in place) ----------
+
+export function addSection(d: BuilderDocument, colsOrSpans: number | number[]): void {
+  d.sections.push(newSection(colsOrSpans));
+}
+
+export function insertSectionAt(d: BuilderDocument, index: number, colsOrSpans: number | number[]): void {
+  d.sections.splice(index, 0, newSection(colsOrSpans));
+}
+
+export function insertSectionNode(d: BuilderDocument, section: SectionNode): void {
+  d.sections.push(section);
+}
+
+export function removeSection(d: BuilderDocument, id: string): void {
+  d.sections = d.sections.filter((s) => s.id !== id);
+}
+
+export function moveSection(d: BuilderDocument, id: string, dir: -1 | 1): void {
+  const i = d.sections.findIndex((s) => s.id === id);
+  if (i < 0) return;
+  const j = i + dir;
+  if (j < 0 || j >= d.sections.length) return;
+  [d.sections[i], d.sections[j]] = [d.sections[j], d.sections[i]];
+}
+
+export function duplicateSection(d: BuilderDocument, id: string): void {
+  const i = d.sections.findIndex((s) => s.id === id);
+  if (i < 0) return;
+  d.sections.splice(i + 1, 0, cloneSection(d.sections[i]));
+}
+
+export function moveSectionTo(d: BuilderDocument, srcId: string, targetId: string, pos: "before" | "after"): void {
+  if (srcId === targetId) return;
+  const i = d.sections.findIndex((s) => s.id === srcId);
+  if (i < 0) return;
+  const [node] = d.sections.splice(i, 1);
+  const j = d.sections.findIndex((s) => s.id === targetId);
+  if (j < 0) { d.sections.push(node); return; }
+  d.sections.splice(pos === "before" ? j : j + 1, 0, node);
+}
+
+export function addInnerSection(d: BuilderDocument, sectionId: string): void {
+  const s = d.sections.find((x) => x.id === sectionId);
+  if (s) s.children.push(newInnerSection());
+}
+
+export function addColumn(d: BuilderDocument, sectionId: string): void {
+  const s = d.sections.find((x) => x.id === sectionId);
+  if (s) {
+    const cols = s.children.filter((c) => c.kind === "column").length;
+    s.children.push(newColumn(Math.max(1, Math.floor(12 / (cols + 1)))));
+  }
+}
+
+export function removeColumn(d: BuilderDocument, colId: string): void {
+  for (const s of d.sections) {
+    s.children = s.children.filter((c) => !(c.kind === "column" && c.id === colId));
+    for (const c of s.children) if (c.kind === "inner-section")
+      c.columns = c.columns.filter((x) => x.id !== colId);
+  }
+}
+
+export function duplicateColumn(d: BuilderDocument, colId: string): void {
+  for (const s of d.sections) {
+    const i = s.children.findIndex((c) => c.kind === "column" && c.id === colId);
+    if (i >= 0) { s.children.splice(i + 1, 0, cloneColumn(s.children[i] as ColumnNode)); return; }
+    for (const c of s.children) if (c.kind === "inner-section") {
+      const j = c.columns.findIndex((x) => x.id === colId);
+      if (j >= 0) { c.columns.splice(j + 1, 0, cloneColumn(c.columns[j])); return; }
+    }
+  }
+}
+
+export function removeWidget(d: BuilderDocument, wid: string): void {
+  for (const s of d.sections) for (const c of s.children) {
+    const cols = c.kind === "column" ? [c] : c.columns;
+    for (const col of cols) col.children = col.children.filter((w) => w.id !== wid);
+  }
+}
+
+export function duplicateWidget(d: BuilderDocument, wid: string): void {
+  for (const s of d.sections) for (const c of s.children) {
+    const cols = c.kind === "column" ? [c] : c.columns;
+    for (const col of cols) {
+      const i = col.children.findIndex((w) => w.id === wid);
+      if (i >= 0) { col.children.splice(i + 1, 0, cloneWidget(col.children[i])); return; }
+    }
+  }
+}
+
+/** Push a ready-made widget node into a specific column. */
+export function addWidgetToColumn(d: BuilderDocument, colId: string, widget: WidgetNode): void {
+  const c = findColumn(d, colId);
+  if (c) c.children.push(widget);
+}
+
+/** Push a ready-made widget into a brand-new 1-column section. */
+export function addWidgetToNewSection(d: BuilderDocument, widget: WidgetNode): void {
+  const s = newSection(1);
+  (s.children[0] as ColumnNode).children.push(widget);
+  d.sections.push(s);
+}
+
+/** Insert a ready-made widget before/after an existing widget (across columns). */
+export function insertWidgetNear(d: BuilderDocument, targetWidgetId: string, pos: "before" | "after", widget: WidgetNode): void {
+  for (const s of d.sections) for (const c of s.children) {
+    const cols = c.kind === "column" ? [c] : c.columns;
+    for (const col of cols) {
+      const i = col.children.findIndex((x) => x.id === targetWidgetId);
+      if (i >= 0) { col.children.splice(pos === "before" ? i : i + 1, 0, widget); return; }
+    }
+  }
+}
+
+/** Append a ready-made widget to the first column of a section (creating one if needed). */
+export function appendWidgetToSection(d: BuilderDocument, sectionId: string, widget: WidgetNode): void {
+  const s = d.sections.find((x) => x.id === sectionId);
+  if (!s) return;
+  let col: ColumnNode | null = null;
+  for (const ch of s.children) {
+    if (ch.kind === "column") { col = ch; break; }
+    if (ch.kind === "inner-section" && ch.columns[0]) { col = ch.columns[0]; break; }
+  }
+  if (!col) {
+    const newCol = newColumn(12);
+    s.children.push(newCol);
+    col = newCol;
+  }
+  col.children.push(widget);
+}
+
+export function moveWidgetTo(d: BuilderDocument, srcId: string, targetId: string, pos: "before" | "after"): void {
+  if (srcId === targetId) return;
+  let src: WidgetNode | null = null;
+  const removeFrom = (col: ColumnNode) => {
+    const i = col.children.findIndex((w) => w.id === srcId);
+    if (i >= 0) { src = col.children.splice(i, 1)[0]; return true; }
+    return false;
+  };
+  for (const s of d.sections) for (const c of s.children) {
+    const cols = c.kind === "column" ? [c] : c.columns;
+    for (const col of cols) if (removeFrom(col)) break;
+    if (src) break;
+  }
+  if (!src) return;
+  for (const s of d.sections) for (const c of s.children) {
+    const cols = c.kind === "column" ? [c] : c.columns;
+    for (const col of cols) {
+      const j = col.children.findIndex((w) => w.id === targetId);
+      if (j >= 0) { col.children.splice(pos === "before" ? j : j + 1, 0, src!); return; }
+    }
+  }
+}
+
+export function moveWidgetToColumn(d: BuilderDocument, srcId: string, targetColId: string): void {
+  let src: WidgetNode | null = null;
+  for (const s of d.sections) for (const c of s.children) {
+    const cols = c.kind === "column" ? [c] : c.columns;
+    for (const col of cols) {
+      const i = col.children.findIndex((w) => w.id === srcId);
+      if (i >= 0) {
+        src = col.children.splice(i, 1)[0];
+        break;
+      }
+    }
+    if (src) break;
+  }
+  if (!src) return;
+  for (const s of d.sections) for (const c of s.children) {
+    const cols = c.kind === "column" ? [c] : c.columns;
+    for (const col of cols) {
+      if (col.id === targetColId) {
+        col.children.push(src);
+        return;
+      }
+    }
+  }
+}
+
+export function moveWidgetToSection(d: BuilderDocument, srcId: string, targetSectionId: string): void {
+  let src: WidgetNode | null = null;
+  for (const s of d.sections) for (const c of s.children) {
+    const cols = c.kind === "column" ? [c] : c.columns;
+    for (const col of cols) {
+      const i = col.children.findIndex((w) => w.id === srcId);
+      if (i >= 0) {
+        src = col.children.splice(i, 1)[0];
+        break;
+      }
+    }
+    if (src) break;
+  }
+  if (!src) return;
+
+  const targetSection = d.sections.find((section) => section.id === targetSectionId);
+  if (!targetSection) return;
+
+  let targetColumn: ColumnNode | null = null;
+  for (const child of targetSection.children) {
+    if (child.kind === "column") { targetColumn = child; break; }
+    if (child.kind === "inner-section" && child.columns[0]) { targetColumn = child.columns[0]; break; }
+  }
+
+  if (!targetColumn) {
+    const newCol = newColumn(12);
+    targetSection.children.push(newCol);
+    targetColumn = newCol;
+  }
+
+  targetColumn.children.push(src);
+}
+
+/** Toggle a node's per-device visibility flag. */
+export function toggleHidden(d: BuilderDocument, id: string, kind: NodeKind, device: Device): void {
+  const target =
+    kind === "section" ? findSection(d, id) :
+    kind === "inner-section" ? findInner(d, id) :
+    kind === "column" ? findColumn(d, id) :
+    findWidget(d, id)?.widget ?? null;
+  if (!target) return;
+  target.advanced = target.advanced ?? {};
+  target.advanced.hideOn = { ...(target.advanced.hideOn ?? {}), [device]: !target.advanced.hideOn?.[device] };
 }
