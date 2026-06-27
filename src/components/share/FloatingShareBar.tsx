@@ -267,8 +267,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
                   <button
                     type="button"
                     onClick={() => jumpTo(it.id)}
-                    onMouseEnter={() => setHovered(it.id)}
-                    onMouseLeave={() => setHovered((h) => (h === it.id ? null : h))}
+                    aria-current={isActive ? "true" : undefined}
                     aria-current={isActive ? "true" : undefined}
                     title={it.text}
                     className={[
