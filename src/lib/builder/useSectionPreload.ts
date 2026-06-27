@@ -70,7 +70,11 @@ export function useSectionPreload(
   lang: Lang,
   options: { rootMargin?: string; enabled?: boolean } = {},
 ): React.RefObject<HTMLElement | null> {
-  const { rootMargin = "600px 0px", enabled = true } = options;
+  // 1200px lookahead: start fetching a section's data well before it scrolls
+  // into view so it is warm by the time the reader arrives. (Edge-cached routes
+  // server-render the whole document via prefetchCachedRouteQueries, so this
+  // mainly covers the budget-fallback tail and any uncached / very long pages.)
+  const { rootMargin = "1200px 0px", enabled = true } = options;
   const ref = useRef<HTMLElement | null>(null);
   const queryClient = useQueryClient();
   const didPrefetchRef = useRef(false);

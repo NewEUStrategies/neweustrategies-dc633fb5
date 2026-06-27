@@ -50,7 +50,7 @@ import { AdZone } from "@/components/AdSlot";
 import { MidPostAds } from "@/components/ads/MidPostAds";
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import type { AdPageType } from "@/lib/ads/types";
-import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
+import { prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
 import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
@@ -78,7 +78,10 @@ export const Route = createFileRoute("/$")({
         ? context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions())
         : Promise.resolve(),
       doc.sections.length > 0
-        ? prefetchAboveFoldQueries(context.queryClient, doc, lang)
+        ? // Public pages/posts are edge-cached, so warm the whole builder
+          // document server-side (amortized) - the full page is server-rendered
+          // HTML instead of streaming below-the-fold sections in on scroll.
+          prefetchCachedRouteQueries(context.queryClient, doc, lang)
         : Promise.resolve(),
       context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions()),
     ]);

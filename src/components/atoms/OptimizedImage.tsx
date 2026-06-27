@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ImgHTMLAttributes, type CSSProperties } from "react";
+import { useState, type ImgHTMLAttributes, type CSSProperties } from "react";
 import { buildTransformedImageUrl, buildImageSrcSet, RESPONSIVE_WIDTHS } from "@/lib/cropSizes";
 
 export type HoverEffect = "none" | "zoom" | "fade" | "slide";
@@ -56,18 +56,7 @@ export function OptimizedImage({
   onError,
   ...rest
 }: OptimizedImageProps) {
-  const [loaded, setLoaded] = useState(priority);
   const [errored, setErrored] = useState(false);
-  const imgRef = useRef<HTMLImageElement | null>(null);
-
-  // SSR/hydration race: if the browser already finished loading the image
-  // before React attached the onLoad listener, opacity would stay at 0
-  // forever. Sync state from img.complete after mount.
-  useEffect(() => {
-    const img = imgRef.current;
-    if (!img || loaded) return;
-    if (img.complete && img.naturalWidth > 0) setLoaded(true);
-  }, [loaded]);
 
   const ratio =
     aspectRatio ?? (width && height ? width / height : undefined);
@@ -79,11 +68,19 @@ export function OptimizedImage({
 
   const computedStyle: CSSProperties = {
     ...(ratio ? { aspectRatio: String(ratio) } : null),
-    ...(fadeIn && !errored
-      ? { opacity: loaded ? 1 : 0, transition: "opacity 240ms ease-out" }
-      : null),
     ...style,
   };
+
+  // Gentle entrance fade via a pure-CSS class (see styles.css `.oi-fade-in`),
+  // NOT a React `opacity: loaded ? 1 : 0` flag. The image is visible the moment
+  // the browser paints it and never waits for hydration - on a hard refresh
+  // images appear progressively as they decode instead of flashing in all at
+  // once after the JS bundle runs. Priority (LCP) images skip the fade so their
+  // first paint is instant.
+  const fadeClass = fadeIn && !priority ? "oi-fade-in" : "";
+  const hoverClass = hoverEffect === "none" ? "" : "oi-img";
+  const imgClassName =
+    [className, hoverClass, fadeClass].filter(Boolean).join(" ") || undefined;
 
   if (errored || !finalSrc) {
     return (
@@ -105,7 +102,6 @@ export function OptimizedImage({
   const imgEl = (
     <img
       {...rest}
-      ref={imgRef}
       src={finalSrc}
       srcSet={srcSet || undefined}
       sizes={srcSet ? (sizes ?? "100vw") : sizes}
@@ -115,12 +111,9 @@ export function OptimizedImage({
       loading={priority ? "eager" : "lazy"}
       decoding={priority ? "sync" : "async"}
       fetchPriority={priority ? "high" : "auto"}
-      className={hoverEffect === "none" ? className : `${className ?? ""} oi-img`}
+      className={imgClassName}
       style={computedStyle}
-      onLoad={(e) => {
-        setLoaded(true);
-        onLoad?.(e);
-      }}
+      onLoad={onLoad}
       onError={(event) => {
         const beforeFallback = event.currentTarget.currentSrc || event.currentTarget.src;
         onError?.(event);
