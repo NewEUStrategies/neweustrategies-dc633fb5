@@ -288,7 +288,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
   const c = 2 * Math.PI * r;
   const dash = c * progress;
 
-  const hasToc = items.length > 0;
+  const hasToc = cfg.showToc && items.length > 0;
   const activeIdx = items.findIndex((i) => i.id === active);
   const currentNum = activeIdx >= 0 ? activeIdx + 1 : (hasToc ? 1 : 0);
   const currentTitle = items[activeIdx]?.text ?? items[0]?.text ?? "";
