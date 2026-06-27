@@ -264,6 +264,38 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
 
   const aspectStyle: CSSProperties = { aspectRatio: ratio.replace("/", " / "), width: "100%", minHeight: 0 };
 
+  // --- Drag / swipe to slide (pointer events cover mouse + touch + pen) ---
+  const dragRef = useRef<{ startX: number; lastX: number; pointerId: number; active: boolean }>({
+    startX: 0,
+    lastX: 0,
+    pointerId: -1,
+    active: false,
+  });
+  const [dragDx, setDragDx] = useState(0);
+  const SWIPE_THRESHOLD = 48; // px - committed slide change
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (preview || items.length < 2) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    dragRef.current = { startX: e.clientX, lastX: e.clientX, pointerId: e.pointerId, active: true };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* noop */ }
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d.active || e.pointerId !== d.pointerId) return;
+    d.lastX = e.clientX;
+    setDragDx(e.clientX - d.startX);
+  };
+  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d.active || e.pointerId !== d.pointerId) return;
+    const dx = d.lastX - d.startX;
+    dragRef.current = { ...d, active: false };
+    setDragDx(0);
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+    if (Math.abs(dx) >= SWIPE_THRESHOLD) go(dx < 0 ? 1 : -1);
+  };
+
   return (
     <div className="w-full eh-slider">
       <style>{`
@@ -293,21 +325,97 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         .eh-slider:hover .eh-img { transform: none; }
         .eh-slider .eh-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .eh-slider .eh-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+        /* Side arrow buttons (prev/next overlay on the image) */
+        .eh-slider .eh-side-nav {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          z-index: 5;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 44px;
+          height: 44px;
+          border-radius: 9999px;
+          background: rgba(17, 17, 17, 0.55);
+          color: #fff;
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          box-shadow: 0 6px 22px -8px rgba(0, 0, 0, 0.55);
+          opacity: 0;
+          transition: opacity 220ms ease, background 180ms ease, transform 180ms ease;
+          cursor: pointer;
+        }
+        @media (max-width: 768px) {
+          .eh-slider .eh-side-nav { opacity: 0.9; width: 38px; height: 38px; }
+        }
+        .eh-slider:hover .eh-side-nav,
+        .eh-slider:focus-within .eh-side-nav { opacity: 1; }
+        .eh-slider .eh-side-nav:hover { background: rgba(17, 17, 17, 0.78); transform: translateY(-50%) scale(1.06); }
+        .eh-slider .eh-side-nav:focus-visible { outline: 2px solid #fff; outline-offset: 2px; opacity: 1; }
+        .eh-slider .eh-side-nav.eh-prev { left: 12px; }
+        .eh-slider .eh-side-nav.eh-next { right: 12px; }
+
+        .eh-slider .eh-drag-surface { cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+        .eh-slider .eh-drag-surface.is-dragging { cursor: grabbing; }
+        .eh-slider .eh-drag-surface.is-dragging img { pointer-events: none; }
       `}</style>
 
       {/* Image */}
-      <div data-widget-media className="relative w-full overflow-hidden bg-muted/40" style={{ ...aspectStyle, borderRadius: 4 }}>
-        {items.map((it, i) => (
-          <ResilientSliderImage
-            key={i}
-            src={safeImageUrl(it.image) || it.image}
-            fallbackSrc={fallbackImages[i % Math.max(1, fallbackImages.length)]}
-            placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
-            active={i === safeIdx}
-            priority={i === 0}
-            onBrokenSource={markImageFailed}
-          />
-        ))}
+      <div
+        data-widget-media
+        className={`relative w-full overflow-hidden bg-muted/40 eh-drag-surface ${dragRef.current.active ? "is-dragging" : ""}`}
+        style={{ ...aspectStyle, borderRadius: 4 }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      >
+        <div
+          className="absolute inset-0"
+          style={{
+            transform: dragDx ? `translate3d(${dragDx * 0.35}px, 0, 0)` : undefined,
+            transition: dragRef.current.active ? "none" : "transform 320ms cubic-bezier(.22,.61,.36,1)",
+          }}
+        >
+          {items.map((it, i) => (
+            <ResilientSliderImage
+              key={i}
+              src={safeImageUrl(it.image) || it.image}
+              fallbackSrc={fallbackImages[i % Math.max(1, fallbackImages.length)]}
+              placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
+              active={i === safeIdx}
+              priority={i === 0}
+              onBrokenSource={markImageFailed}
+            />
+          ))}
+        </div>
+
+        {/* Side arrows - overlay on the image */}
+        {items.length > 1 && (
+          <>
+            <button
+              type="button"
+              aria-label={lang === "en" ? "Previous slide" : "Poprzedni slajd"}
+              onClick={(e) => { e.stopPropagation(); go(-1); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="eh-side-nav eh-prev"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              aria-label={lang === "en" ? "Next slide" : "Następny slajd"}
+              onClick={(e) => { e.stopPropagation(); go(1); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="eh-side-nav eh-next"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </>
+        )}
 
         {/* Category badge */}
         {cat && (
