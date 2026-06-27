@@ -43,7 +43,7 @@ import { PostFooterBars } from "@/components/PostFooterBars";
 import { PostContentStyle } from "@/components/PostContentStyle";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
-import { PostSidebar } from "@/components/molecules/PostSidebar";
+
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { mergeOverrides, pickLayoutId, type LayoutOverrides, type PostFormat } from "@/lib/postLayouts";
 import { resolvedContentQueryOptions, type PostData, type PageData } from "@/lib/queries/public";
@@ -319,21 +319,7 @@ function PublicPage() {
             }
             sidebar={
               <>
-                <AdZone position="sidebar" pageType={adPageType} pageId={it.id} />
-                <PostSidebar
-                  articleRef={articleRef}
-                  tags={postTags}
-                  scanKey={`${it.id}-${lang}`}
-                />
-                {relatedCfg.enabled && relatedCfg.position === "sidebar" && (
-                  <RelatedPosts
-                    postId={post.id}
-                    lang={lang}
-                    override={relatedOverride}
-                    forceLayout="list"
-                    className="mt-6"
-                  />
-                )}
+                <FloatingShareBar title={title} lang={lang} variant="sidebar" />
               </>
             }
             footer={
@@ -366,9 +352,6 @@ function PublicPage() {
         </main>
 
         <FooterSlideup pageType={adPageType} pageId={it.id} />
-        {merged.show_floating_share_bar && (
-          <FloatingShareBar title={title} lang={lang} />
-        )}
       </div>
     );
   }
