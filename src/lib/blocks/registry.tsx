@@ -87,7 +87,13 @@ import {
   MessageSquareQuote as TestimonialsIcon,
   Receipt as PricingIcon,
   GitBranch as TimelineIcon,
+  Rocket as HeroIcon,
+  Megaphone as CtaIcon,
+  GalleryHorizontal as CarouselIcon,
+  Mailbox as ContactFormIcon,
+  Map as MapIconLucide,
   type LucideIcon,
+
 } from "lucide-react";
 
 export interface BlockSpec {
@@ -814,8 +820,56 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
       id: newBlockId(), type: "timeline",
       data: { items: [{ date: "", title: "", description: "" }] },
     }),
+  hero: {
+    type: "hero", label: "Sekcja Hero", description: "Duża sekcja powitalna z tytułem, podtytułem i CTA.",
+    icon: HeroIcon, category: "layout",
+    create: () => ({
+      id: newBlockId(), type: "hero",
+      data: {
+        eyebrow: "", title: "", subtitle: "", bgImage: "",
+        ctaLabel: "", ctaHref: "", secondaryLabel: "", secondaryHref: "",
+        align: "center", height: "md", overlay: 40,
+      },
+    }),
+  },
+  "cta-section": {
+    type: "cta-section", label: "Sekcja CTA", description: "Wyróżniony blok z wezwaniem do działania.",
+    icon: CtaIcon, category: "layout",
+    create: () => ({
+      id: newBlockId(), type: "cta-section",
+      data: { title: "", description: "", ctaLabel: "", ctaHref: "", variant: "primary" },
+    }),
+  },
+  "image-carousel": {
+    type: "image-carousel", label: "Karuzela obrazów", description: "Slajder z obrazami, podpisami i linkami.",
+    icon: CarouselIcon, category: "media",
+    create: () => ({
+      id: newBlockId(), type: "image-carousel",
+      data: { items: [], autoplay: false, interval: 5000, aspect: "16:9" },
+    }),
+  },
+  "contact-form": {
+    type: "contact-form", label: "Formularz kontaktowy", description: "Formularz z polami i wysyłką do bazy.",
+    icon: ContactFormIcon, category: "advanced",
+    create: () => ({
+      id: newBlockId(), type: "contact-form",
+      data: {
+        title: "", description: "",
+        showPhone: false, showSubject: true, requireConsent: true,
+        submitLabel: "", successMessage: "",
+      },
+    }),
+  },
+  map: {
+    type: "map", label: "Mapa", description: "Interaktywna mapa OpenStreetMap.",
+    icon: MapIconLucide, category: "media",
+    create: () => ({
+      id: newBlockId(), type: "map",
+      data: { lat: 52.2297, lng: 21.0122, zoom: 13, height: 360, label: "" },
+    }),
   },
 };
+
 
 export const BLOCK_LIST: BlockSpec[] = Object.values(BLOCK_SPECS);
 
@@ -836,4 +890,6 @@ export const IMPLEMENTED_BLOCKS: BlockType[] = [
   "post-stats", "post-rating", "loginout", "more-posts",
   "accordion", "tabs", "countdown", "progress",
   "icon-box", "stats-counter", "testimonials", "pricing-table", "timeline",
+  "hero", "cta-section", "image-carousel", "contact-form", "map",
+
 ];
