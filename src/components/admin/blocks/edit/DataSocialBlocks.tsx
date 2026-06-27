@@ -1,6 +1,5 @@
 // Admin edytory dla Phase 4 batch 12 (data + social proof):
-// team-grid, logo-grid, feature-grid, 
-alert-banner, divider-text.
+// team-grid, logo-grid, feature-grid, alert-banner, divider-text.
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";

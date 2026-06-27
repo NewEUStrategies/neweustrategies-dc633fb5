@@ -1,6 +1,5 @@
 // Admin edytory dla Phase 4 batch 11 (sekcje marketingowe):
-// hero, cta, carousel, contact-form, m
-ap.
+// hero, cta, carousel, contact-form, map.
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";

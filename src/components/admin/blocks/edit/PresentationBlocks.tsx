@@ -1,6 +1,5 @@
 // Admin edytory dla Phase 4 batch 10 (prezentacyjne):
-// icon-box, stats-counter, testimonials, pri
-cing-table, timeline.
+// icon-box, stats-counter, testimonials, pricing-table, timeline.
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";

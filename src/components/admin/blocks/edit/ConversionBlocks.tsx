@@ -1,6 +1,5 @@
 // Admin edytory dla Phase 4 batch 13 (konwersja / SEO):
-// step-list, comparison-table, banner-imag
-e, video-hero.
+// step-list, comparison-table, banner-image, video-hero.
 
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";

@@ -1,8 +1,7 @@
 // Admin edytory dla Phase 4 batch 9 (interaktywne):
 // accordion, tabs, countdown, progress.
 
-impor
-t type { Block, Json } from "@/lib/blocks/types";
+import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 

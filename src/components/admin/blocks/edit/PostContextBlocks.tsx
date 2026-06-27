@@ -1,5 +1,4 @@
-// Admin edytory dla bloków Phase 2 batch 7: author-bio
-, related-posts.
+// Admin edytory dla bloków Phase 2 batch 7: author-bio, related-posts.
 import type { Block, Json } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
