@@ -428,15 +428,17 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
               </a>
             );
           })}
-          <button
-            type="button"
-            onClick={onCopy}
-            aria-label={t.copy}
-            title={t.copy}
-            className="inline-flex items-center justify-center h-9 rounded-[5px] text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
-          >
-            <Copy className="w-[15px] h-[15px]" />
-          </button>
+          {cfg.social.copy && (
+            <button
+              type="button"
+              onClick={onCopy}
+              aria-label={t.copy}
+              title={t.copy}
+              className="inline-flex items-center justify-center h-9 rounded-[5px] text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
+            >
+              <Copy className="w-[15px] h-[15px]" />
+            </button>
+          )}
         </div>
 
         {/* Divider */}
