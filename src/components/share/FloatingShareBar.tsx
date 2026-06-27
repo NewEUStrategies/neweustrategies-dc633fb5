@@ -445,48 +445,56 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
         <div className="my-2 h-px bg-border/60" />
 
         {/* Print + PDF row - labeled action buttons */}
-        {/* Save for later - prominent bookmark toggle */}
-        <button
-          type="button"
-          onClick={onToggleSave}
-          aria-pressed={isSaved}
-          aria-label={isSaved ? t.saved : t.saveLater}
-          className={[
-            "w-full mb-1.5 inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] text-[11px] font-semibold tracking-tight transition active:scale-[0.98]",
-            isSaved
-              ? "bg-brand/10 text-brand border border-brand/40"
-              : "border border-border bg-background text-foreground hover:bg-muted",
-          ].join(" ")}
-        >
-          {isSaved ? <BookmarkCheck className="w-[14px] h-[14px]" /> : <Bookmark className="w-[14px] h-[14px]" />}
-          {isSaved ? t.saved : t.saveLater}
-        </button>
-        <div className="grid grid-cols-2 gap-1.5">
+        {cfg.showSaveLater && (
           <button
             type="button"
-            onClick={onPdf}
-            aria-label={t.pdf}
-            title={t.pdf}
-            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] bg-brand text-brand-foreground text-[11px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
+            onClick={onToggleSave}
+            aria-pressed={isSaved}
+            aria-label={isSaved ? t.saved : t.saveLater}
+            className={[
+              "w-full mb-1.5 inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] text-[11px] font-semibold tracking-tight transition active:scale-[0.98]",
+              isSaved
+                ? "bg-brand/10 text-brand border border-brand/40"
+                : "border border-border bg-background text-foreground hover:bg-muted",
+            ].join(" ")}
           >
-            <Download className="w-[14px] h-[14px]" />
-            PDF
+            {isSaved ? <BookmarkCheck className="w-[14px] h-[14px]" /> : <Bookmark className="w-[14px] h-[14px]" />}
+            {isSaved ? t.saved : t.saveLater}
           </button>
-          <button
-            type="button"
-            onClick={onPrint}
-            aria-label={t.print}
-            title={t.print}
-            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] border border-border bg-background text-foreground text-[11px] font-semibold tracking-tight hover:bg-muted active:scale-[0.98] transition"
-          >
-            <Printer className="w-[14px] h-[14px]" />
-            {lang === "pl" ? "Drukuj" : "Print"}
-          </button>
-        </div>
+        )}
+        {(cfg.showPdf || cfg.showPrint) && (
+          <div className={`grid gap-1.5 ${cfg.showPdf && cfg.showPrint ? "grid-cols-2" : "grid-cols-1"}`}>
+            {cfg.showPdf && (
+              <button
+                type="button"
+                onClick={onPdf}
+                aria-label={t.pdf}
+                title={t.pdf}
+                className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] bg-brand text-brand-foreground text-[11px] font-semibold tracking-tight hover:opacity-90 active:scale-[0.98] transition shadow-sm"
+              >
+                <Download className="w-[14px] h-[14px]" />
+                PDF
+              </button>
+            )}
+            {cfg.showPrint && (
+              <button
+                type="button"
+                onClick={onPrint}
+                aria-label={t.print}
+                title={t.print}
+                className="inline-flex items-center justify-center gap-1.5 h-9 rounded-[5px] border border-border bg-background text-foreground text-[11px] font-semibold tracking-tight hover:bg-muted active:scale-[0.98] transition"
+              >
+                <Printer className="w-[14px] h-[14px]" />
+                {lang === "pl" ? "Drukuj" : "Print"}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
 
     </aside>
+
 
     {/* Mobile floating progress FAB - bottom-right */}
     <button
