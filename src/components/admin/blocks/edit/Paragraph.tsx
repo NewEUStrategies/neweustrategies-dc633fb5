@@ -124,30 +124,7 @@ export function ParagraphBlock({
 
   return (
     <div className="relative">
-      {isActive && !slashOpen && (
-        <div className="absolute -top-9 left-0 z-10 flex items-center gap-1 rounded-md border border-border bg-popover px-1 py-1 shadow">
-          <button type="button" onClick={() => editor.chain().focus().toggleBold().run()}
-            className={`p-1 rounded hover:bg-accent ${editor.isActive("bold") ? "bg-accent" : ""}`} title="Bold">
-            <Bold className="w-3.5 h-3.5" />
-          </button>
-          <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()}
-            className={`p-1 rounded hover:bg-accent ${editor.isActive("italic") ? "bg-accent" : ""}`} title="Italic">
-            <Italic className="w-3.5 h-3.5" />
-          </button>
-          <button type="button" onClick={() => editor.chain().focus().toggleCode().run()}
-            className={`p-1 rounded hover:bg-accent ${editor.isActive("code") ? "bg-accent" : ""}`} title="Code">
-            <Code className="w-3.5 h-3.5" />
-          </button>
-          <button type="button" onClick={() => {
-            const url = window.prompt("URL:", editor.getAttributes("link").href ?? "https://");
-            if (url === null) return;
-            if (url === "") editor.chain().focus().extendMarkRange("link").unsetLink().run();
-            else editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
-          }} className={`p-1 rounded hover:bg-accent ${editor.isActive("link") ? "bg-accent" : ""}`} title="Link">
-            <LinkIcon className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
+      {isActive && !slashOpen && <WordStyleToolbar editor={editor} />}
 
       <EditorContent editor={editor} />
 
