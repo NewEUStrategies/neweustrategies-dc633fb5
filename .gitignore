@@ -17,6 +17,11 @@ coverage
 .nitro
 *.local
 
+# Environment / secrets (keep .env.example tracked)
+.env
+.env.*
+!.env.example
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
