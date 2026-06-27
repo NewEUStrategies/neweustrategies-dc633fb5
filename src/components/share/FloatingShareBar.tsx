@@ -260,6 +260,10 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
   const dash = c * progress;
 
   const hasToc = items.length > 0;
+  const activeIdx = items.findIndex((i) => i.id === active);
+  const currentNum = activeIdx >= 0 ? activeIdx + 1 : (hasToc ? 1 : 0);
+  const currentTitle = items[activeIdx]?.text ?? items[0]?.text ?? "";
+  const pct = Math.round(progress * 100);
 
   return (
     <>
@@ -270,8 +274,8 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240 }: Props) {
       className={[
         "hidden lg:flex flex-col fixed left-5 top-1/2 -translate-y-1/2 z-40",
         "w-[248px] max-h-[min(86vh,720px)]",
-        "rounded-[5px] border border-border/70 bg-background/90 backdrop-blur-xl",
-        "shadow-[0_10px_40px_-12px_rgba(0,0,0,0.25)] px-3 py-3 gap-2",
+        "rounded-[5px] border border-border/70 bg-background/95 backdrop-blur-xl",
+        "shadow-[0_10px_40px_-12px_rgba(0,0,0,0.25)] overflow-hidden",
         "transition-all duration-300 ease-out",
         visible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 pointer-events-none",
       ].join(" ")}
