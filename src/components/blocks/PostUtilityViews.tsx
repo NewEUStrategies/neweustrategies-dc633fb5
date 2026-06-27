@@ -81,7 +81,7 @@ export function BreadcrumbsView({ separator = "/", showHome = true, lang = "pl",
                 </span>
               )}
               {!last && c.href ? (
-                <AppLink to={c.href} className="hover:text-foreground transition-colors inline-flex items-center gap-1">
+                <AppLink href={c.href} className="hover:text-foreground transition-colors inline-flex items-center gap-1">
                   {i === 0 && showHome ? <Home className="w-3.5 h-3.5" aria-hidden /> : null}
                   <span>{c.label}</span>
                 </AppLink>
