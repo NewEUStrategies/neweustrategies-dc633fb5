@@ -33,6 +33,11 @@ const URL_RE = /^https?:\/\/.+/i;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 
+function slugify(s: string): string {
+  return s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
+}
+
 function SocialPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -42,22 +47,36 @@ function SocialPage() {
     facebook_url: "", instagram_url: "", spotify_url: "", contact_email: "",
   });
   const [busy, setBusy] = useState(false);
+  // Track whether slug is "owned" by user (manually edited) or auto-synced.
+  const [slugManual, setSlugManual] = useState(false);
+  // Source string we auto-derive from: "first last" || display_name || email-local.
+  const [autoSource, setAutoSource] = useState("");
 
   useEffect(() => {
     if (!user) return;
     let active = true;
     void supabase
       .from("profiles")
-      .select("slug, bio_pl, bio_en, twitter_url, linkedin_url, website_url, facebook_url, instagram_url, spotify_url, contact_email, display_name")
+      .select("slug, bio_pl, bio_en, twitter_url, linkedin_url, website_url, facebook_url, instagram_url, spotify_url, contact_email, display_name, first_name, last_name")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data: row }) => {
         if (!active || !row) return;
-        const r = row as SocialRow & { display_name?: string | null };
-        const autoBase = r.display_name?.trim() || user.email?.split("@")[0] || "";
-        const autoSlug = slugify(autoBase);
+        const r = row as SocialRow & {
+          display_name?: string | null;
+          first_name?: string | null;
+          last_name?: string | null;
+        };
+        const nameParts = [r.first_name, r.last_name].filter((p): p is string => !!p && p.trim().length > 0).join(" ").trim();
+        const base = nameParts || r.display_name?.trim() || user.email?.split("@")[0] || "";
+        const autoSlug = slugify(base);
+        const storedSlug = (r.slug ?? "").trim();
+        // If stored slug matches what we'd auto-generate (or is empty), treat as auto.
+        const isManual = storedSlug.length > 0 && storedSlug !== autoSlug;
+        setAutoSource(base);
+        setSlugManual(isManual);
         setData({
-          slug: r.slug ?? autoSlug,
+          slug: storedSlug || autoSlug,
           bio_pl: r.bio_pl, bio_en: r.bio_en,
           twitter_url: r.twitter_url, linkedin_url: r.linkedin_url, website_url: r.website_url,
           facebook_url: r.facebook_url, instagram_url: r.instagram_url, spotify_url: r.spotify_url,
@@ -67,10 +86,37 @@ function SocialPage() {
     return () => { active = false; };
   }, [user]);
 
-  function slugify(s: string): string {
-    return s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
-  }
+  // Re-sync slug live if the user updates name fields in another tab (BroadcastChannel-free fallback: poll on focus).
+  useEffect(() => {
+    if (!user || slugManual) return;
+    const onFocus = async () => {
+      const { data: row } = await supabase
+        .from("profiles")
+        .select("display_name, first_name, last_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (!row) return;
+      const r = row as { display_name?: string | null; first_name?: string | null; last_name?: string | null };
+      const nameParts = [r.first_name, r.last_name].filter((p): p is string => !!p && p.trim().length > 0).join(" ").trim();
+      const base = nameParts || r.display_name?.trim() || "";
+      if (!base || base === autoSource) return;
+      setAutoSource(base);
+      setData((d) => ({ ...d, slug: slugify(base) }));
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [user, slugManual, autoSource]);
+
+  const onSlugChange = (value: string) => {
+    setSlugManual(true);
+    setData({ ...data, slug: value });
+  };
+
+  const resetSlugAuto = () => {
+    setSlugManual(false);
+    setData({ ...data, slug: slugify(autoSource) });
+  };
+
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,9 +170,17 @@ function SocialPage() {
         <form className="grid gap-4 max-w-xl" onSubmit={save}>
           <div className="grid gap-2">
             <Label htmlFor="slug">{t("profile.social.slug")}</Label>
-            <Input id="slug" value={data.slug ?? ""} onChange={(e) => setData({ ...data, slug: e.target.value })} maxLength={64} placeholder="jan-kowalski" />
-            <p className="text-xs text-muted-foreground">{t("profile.social.slugHint")}</p>
+            <Input id="slug" value={data.slug ?? ""} onChange={(e) => onSlugChange(e.target.value)} maxLength={64} placeholder="jan-kowalski" />
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">{t("profile.social.slugHint")}</p>
+              {slugManual && autoSource ? (
+                <button type="button" onClick={resetSlugAuto} className="text-xs text-primary hover:underline">
+                  {t("profile.social.slugReset", { defaultValue: "Auto z imienia i nazwiska" })}
+                </button>
+              ) : null}
+            </div>
           </div>
+
           <div className="grid gap-2">
             <Label htmlFor="bio_pl">{t("profile.social.bioPl")}</Label>
             <Textarea id="bio_pl" rows={3} maxLength={1000} value={data.bio_pl ?? ""} onChange={(e) => setData({ ...data, bio_pl: e.target.value })} />
