@@ -171,14 +171,16 @@ function Page() {
             </div>
             <div>
               <Label>Układ popupu</Label>
-              <select
-                className="w-full px-3 py-2 rounded border border-input bg-background text-sm h-10"
+              <Select
                 value={cur.popup_layout}
-                onChange={(e) => upd({ popup_layout: e.target.value as NewsletterSettings["popup_layout"] })}
+                onValueChange={(v) => upd({ popup_layout: v as NewsletterSettings["popup_layout"] })}
               >
-                <option value="stacked">Klasyczny (okładka u góry)</option>
-                <option value="split">Split (grafika z lewej + formularz)</option>
-              </select>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="stacked">Klasyczny (okładka u góry)</SelectItem>
+                  <SelectItem value="split">Split (grafika z lewej + formularz)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
