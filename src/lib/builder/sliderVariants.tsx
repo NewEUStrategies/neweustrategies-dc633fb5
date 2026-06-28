@@ -306,21 +306,18 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         .eh-slider .eh-title-text {
           position: relative;
           display: inline;
-          -webkit-box-decoration-break: clone;
-          box-decoration-break: clone;
-          text-decoration: none;
-          background-image: linear-gradient(currentColor, currentColor);
-          background-position: 0 100%;
-          background-repeat: no-repeat;
-          background-size: 0% 2px;
-          padding-bottom: 2px;
-          transition: background-size 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          text-decoration-line: underline;
+          text-decoration-color: transparent;
+          text-decoration-thickness: 2px;
+          text-underline-offset: 4px;
+          transition: text-decoration-color 0.35s ease;
         }
         .eh-slider a:hover .eh-title-text,
         .eh-slider a:focus-visible .eh-title-text,
         .eh-slider .eh-title-text:hover {
-          background-size: 100% 2px;
+          text-decoration-color: currentColor;
         }
+
 
 
         .eh-slider .eh-img { transform: none; transform-origin: center center; backface-visibility: hidden; }
