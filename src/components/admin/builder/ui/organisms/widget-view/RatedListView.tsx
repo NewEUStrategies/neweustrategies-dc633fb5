@@ -297,13 +297,13 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
             <h3 className={`rl-title cms-post-title ${titleFontCls} cursor-pointer ${isLeft || isTop ? "" : "pr-12"}`} style={titleStyle}>{it.title}</h3>
           );
           return (
-            <li key={i} className={`rl-item relative ${isLeft ? "flex items-start gap-4" : ""}`} style={itemStyle}>
+            <li key={i} className={`rl-item relative ${isLeft ? "flex items-start gap-3 sm:gap-4" : ""}`} style={{ ...itemStyle, overflow: "visible" }}>
               {isLeft ? (
-                <span className={numCls} style={numStyle}>{n}</span>
+                <span className={`${numCls} shrink-0`} style={numStyle}>{n}</span>
               ) : isTop ? (
                 <span className={`block mb-2 ${numCls}`} style={numStyle}>{n}</span>
               ) : (
-                <span className={`absolute -top-2 right-0 ${numCls}`} style={numStyle}>{n}</span>
+                <span className={`absolute -top-2 right-0 ${numCls} pointer-events-none`} style={numStyle}>{n}</span>
               )}
               <div className={isLeft ? "flex-1 min-w-0" : ""}>
                 {showBookmark && BookmarkIcon && (
