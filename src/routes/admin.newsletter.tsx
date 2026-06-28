@@ -137,15 +137,17 @@ function Page() {
           <div className="grid sm:grid-cols-3 gap-3">
             <div>
               <Label>Trigger</Label>
-              <select
-                className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
+              <Select
                 value={cur.popup_trigger}
-                onChange={(e) => upd({ popup_trigger: e.target.value as NewsletterSettings["popup_trigger"] })}
+                onValueChange={(v) => upd({ popup_trigger: v as NewsletterSettings["popup_trigger"] })}
               >
-                <option value="delay">Po opóźnieniu</option>
-                <option value="scroll">Po przewinięciu %</option>
-                <option value="exit-intent">Exit-intent</option>
-              </select>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="delay">Po opóźnieniu</SelectItem>
+                  <SelectItem value="scroll">Po przewinięciu %</SelectItem>
+                  <SelectItem value="exit-intent">Exit-intent</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Opóźnienie (s)</Label>
