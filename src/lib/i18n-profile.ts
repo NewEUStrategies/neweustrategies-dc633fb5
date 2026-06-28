@@ -193,8 +193,12 @@ const en: typeof pl = {
       avatarHint: "Recommended: 512×512 px, square, max 2 MB (JPG/PNG/WEBP)",
       coverHint: "Recommended: 1500×500 px, panorama, max 5 MB (JPG/PNG/WEBP)",
       uploading: "Uploading...",
+      uploadProgress: "Uploading: {{percent}}%",
+      uploadSuccess: "Uploaded successfully",
+      uploadFailed: "Upload failed",
       uploadError: "Could not upload file",
       fileTooLarge: "File is too large",
+
       save: "Save changes",
       saved: "Saved",
       saveError: "Could not save",
