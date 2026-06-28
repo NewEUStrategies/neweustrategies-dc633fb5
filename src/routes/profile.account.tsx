@@ -216,7 +216,7 @@ function AccountPage() {
         <CardTitle>{t("profile.nav.account")}</CardTitle>
       </CardHeader>
       <CardContent>
-        <form className="grid gap-6 max-w-2xl" onSubmit={save}>
+        <form className="grid gap-5" onSubmit={save}>
           {/* Personal */}
           <section className="grid gap-4">
             <h3 className="text-sm font-semibold text-foreground/80">{t("profile.account.personalSection")}</h3>

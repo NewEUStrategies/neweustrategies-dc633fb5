@@ -1105,3 +1105,74 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   /* Footnotes/box callouts: neutral */
   blockquote { border-left: 3px solid #999 !important; color: #222 !important; }
 }
+
+/* =========================================================
+   Profile shell - compact & modern density for /profile/*
+   ========================================================= */
+.profile-shell {
+  /* Tighter card chrome */
+  --profile-radius: 10px;
+}
+.profile-shell [data-slot="card"],
+.profile-shell .rounded-lg.border.bg-card,
+.profile-shell > section > div[class*="rounded"] {
+  border-radius: var(--profile-radius);
+  box-shadow: 0 1px 0 0 hsl(var(--border) / 0.4), 0 8px 24px -16px hsl(var(--foreground) / 0.12);
+}
+.profile-shell [data-slot="card-header"] { padding: 1rem 1.25rem 0.5rem; }
+.profile-shell [data-slot="card-content"] { padding: 1rem 1.25rem 1.25rem; }
+.profile-shell [data-slot="card-title"] { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+
+/* Labels: smaller, uppercase micro-caps */
+.profile-shell label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Inputs / textareas / selects: denser, modern */
+.profile-shell input:not([type="checkbox"]):not([type="radio"]),
+.profile-shell textarea,
+.profile-shell select,
+.profile-shell [data-slot="select-trigger"] {
+  height: 2.25rem;
+  border-radius: 8px;
+  background: hsl(var(--background));
+  border-color: hsl(var(--border) / 0.7);
+  font-size: 0.875rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.profile-shell textarea { height: auto; min-height: 4.5rem; padding-block: 0.5rem; }
+.profile-shell input:focus-visible,
+.profile-shell textarea:focus-visible,
+.profile-shell [data-slot="select-trigger"]:focus-visible {
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.18);
+}
+
+/* Section sub-headings inside cards */
+.profile-shell h3 {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--foreground) / 0.65);
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+
+/* Two-column form grid for compact pages */
+.profile-grid-2 { display: grid; gap: 0.75rem 1rem; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .profile-grid-2 { grid-template-columns: 1fr 1fr; } }
+.profile-grid-2 .col-full { grid-column: 1 / -1; }
+
+/* Primary action: full-width modern pill */
+.profile-shell button[type="submit"] {
+  border-radius: 8px;
+  height: 2.5rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
