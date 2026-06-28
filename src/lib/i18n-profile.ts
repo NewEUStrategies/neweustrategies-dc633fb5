@@ -320,6 +320,7 @@ type ProfileExtras = {
       title: string; subtitle: string; slug: string; slugHint: string;
       bioPl: string; bioEn: string;
       twitter: string; linkedin: string; website: string;
+      facebook: string; instagram: string; spotify: string; email: string;
       save: string; saved: string;
     };
     bookmarks: { title: string; subtitle: string; empty: string; remove: string; open: string; tabPosts: string; tabPages: string };
@@ -343,6 +344,10 @@ const extrasPl: ProfileExtras = {
       twitter: "X / Twitter (URL)",
       linkedin: "LinkedIn (URL)",
       website: "Strona WWW (URL)",
+      facebook: "Facebook (URL)",
+      instagram: "Instagram (URL)",
+      spotify: "Spotify (URL)",
+      email: "E-mail kontaktowy",
       save: "Zapisz",
       saved: "Zapisano",
     },
@@ -380,6 +385,10 @@ const extrasEn: ProfileExtras = {
       twitter: "X / Twitter (URL)",
       linkedin: "LinkedIn (URL)",
       website: "Website (URL)",
+      facebook: "Facebook (URL)",
+      instagram: "Instagram (URL)",
+      spotify: "Spotify (URL)",
+      email: "Contact e-mail",
       save: "Save",
       saved: "Saved",
     },

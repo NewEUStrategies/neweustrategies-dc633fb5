@@ -156,6 +156,34 @@ function SocialPage() {
             </Label>
             <Input id="website" type="url" value={data.website_url ?? ""} onChange={(e) => setData({ ...data, website_url: e.target.value })} placeholder="https://..." />
           </div>
+          <div className="grid gap-2">
+            <Label htmlFor="facebook" className="flex items-center gap-2">
+              <BrandIcon name="facebook" fallback={Facebook} className="h-4 w-4" alt="Facebook" />
+              {t("profile.social.facebook")}
+            </Label>
+            <Input id="facebook" type="url" value={data.facebook_url ?? ""} onChange={(e) => setData({ ...data, facebook_url: e.target.value })} placeholder="https://facebook.com/..." />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="instagram" className="flex items-center gap-2">
+              <BrandIcon name="instagram" fallback={Instagram} className="h-4 w-4" alt="Instagram" />
+              {t("profile.social.instagram")}
+            </Label>
+            <Input id="instagram" type="url" value={data.instagram_url ?? ""} onChange={(e) => setData({ ...data, instagram_url: e.target.value })} placeholder="https://instagram.com/..." />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="spotify" className="flex items-center gap-2">
+              <BrandIcon name="spotify" fallback={Music2} className="h-4 w-4" alt="Spotify" />
+              {t("profile.social.spotify")}
+            </Label>
+            <Input id="spotify" type="url" value={data.spotify_url ?? ""} onChange={(e) => setData({ ...data, spotify_url: e.target.value })} placeholder="https://open.spotify.com/..." />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="contact_email" className="flex items-center gap-2">
+              <BrandIcon name="email" fallback={Mail} className="h-4 w-4" alt="E-mail" />
+              {t("profile.social.email")}
+            </Label>
+            <Input id="contact_email" type="email" value={data.contact_email ?? ""} onChange={(e) => setData({ ...data, contact_email: e.target.value })} placeholder="kontakt@example.com" />
+          </div>
           <Button type="submit" disabled={busy}>{t("profile.social.save")}</Button>
         </form>
       </CardContent>
