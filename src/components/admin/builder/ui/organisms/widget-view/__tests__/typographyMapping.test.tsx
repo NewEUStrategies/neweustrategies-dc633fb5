@@ -169,6 +169,10 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
       broadcastWidgetTypography("tm-live", { fontSize: { desktop: "28px" } });
     });
 
+    expect(document.head.querySelector("#builder-live-typography-style-tm-live")?.textContent).toContain(
+      `[data-w-id="tm-live"][data-w-id][data-w-id] .cms-post-title{font-size:28px !important;}`,
+    );
+
     await waitFor(() => {
       expect(container.querySelector(`[data-w-id="tm-live"] style`)?.innerHTML).toContain(
         `[data-w-id="tm-live"][data-w-id] .cms-post-title{font-size:28px !important;}`,

@@ -127,10 +127,10 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
     pickMode<WidgetTypography>(widget.style?.typography as Themed<WidgetTypography> | undefined, mode === "dark" ? "light" : "dark");
   const setThemedTypography = (t: WidgetTypography | undefined) => {
     const next = t && Object.keys(t).length ? t : undefined;
+    broadcastWidgetTypography(widget.id, next);
     setStyle((s) => {
       s.typography = next;
     });
-    broadcastWidgetTypography(widget.id, next);
   };
 
   // ---- Themed hover colors ----
