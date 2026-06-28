@@ -140,6 +140,7 @@ export const pl = {
           themeOptions: "Opcje motywu",
           themeDesign: "Theme Design",
           postLayouts: "Layouty wpisów",
+          icons: "Ikony",
           relatedPosts: "Powiązane wpisy",
           contentArea: "Content Area",
           newsletter: "Newsletter",
