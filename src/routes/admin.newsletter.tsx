@@ -221,18 +221,50 @@ function Page() {
             onChange={(popup_mailing_lists) => upd({ popup_mailing_lists })}
           />
 
+          <div className="pt-3 border-t border-border space-y-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Wygląd popupu - kolory i styl
+            </h3>
+            <div className="grid sm:grid-cols-3 gap-3">
+              <ColorField label="Tło popupu" value={cur.popup_bg_color} onChange={(v) => upd({ popup_bg_color: v })} />
+              <ColorField label="Kolor tekstu" value={cur.popup_text_color} onChange={(v) => upd({ popup_text_color: v })} />
+              <ColorField label="Tekst dodatkowy" value={cur.popup_muted_color} onChange={(v) => upd({ popup_muted_color: v })} />
+              <ColorField label="Kolor akcentu (CTA)" value={cur.popup_accent_color} onChange={(v) => upd({ popup_accent_color: v })} />
+              <ColorField label="Tekst na akcentcie" value={cur.popup_accent_text_color} onChange={(v) => upd({ popup_accent_text_color: v })} />
+              <div>
+                <Label>Overlay (tło za popupem)</Label>
+                <Input
+                  value={cur.popup_overlay_color}
+                  onChange={(e) => upd({ popup_overlay_color: e.target.value })}
+                  placeholder="rgba(0,0,0,0.7)"
+                />
+              </div>
+              <div>
+                <Label>Zaokrąglenie rogów (px)</Label>
+                <Input
+                  type="number" min={0} max={48}
+                  value={cur.popup_border_radius_px}
+                  onChange={(e) => upd({ popup_border_radius_px: Number(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+          </div>
+
+
           <Tabs defaultValue="pl">
             <TabsList>
               <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
               <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
             </TabsList>
             <TabsContent value="pl" className="space-y-3 mt-4">
+              <div><Label>Eyebrow (nad nagłówkiem)</Label><Input value={cur.popup_eyebrow_pl} onChange={(e) => upd({ popup_eyebrow_pl: e.target.value })} placeholder="Newsletter" /></div>
               <div><Label>Nagłówek</Label><Input value={cur.popup_title_pl} onChange={(e) => upd({ popup_title_pl: e.target.value })} /></div>
               <div><Label>Opis</Label><Textarea rows={2} value={cur.popup_description_pl} onChange={(e) => upd({ popup_description_pl: e.target.value })} /></div>
               <div><Label>CTA (przycisk)</Label><Input value={cur.popup_cta_pl} onChange={(e) => upd({ popup_cta_pl: e.target.value })} /></div>
               <div><Label>Treść zgody na regulamin (HTML)</Label><Textarea rows={2} value={cur.popup_terms_html_pl ?? ""} onChange={(e) => upd({ popup_terms_html_pl: e.target.value || null })} /></div>
             </TabsContent>
             <TabsContent value="en" className="space-y-3 mt-4">
+              <div><Label>Eyebrow (above heading)</Label><Input value={cur.popup_eyebrow_en} onChange={(e) => upd({ popup_eyebrow_en: e.target.value })} placeholder="Newsletter" /></div>
               <div><Label>Heading</Label><Input value={cur.popup_title_en} onChange={(e) => upd({ popup_title_en: e.target.value })} /></div>
               <div><Label>Description</Label><Textarea rows={2} value={cur.popup_description_en} onChange={(e) => upd({ popup_description_en: e.target.value })} /></div>
               <div><Label>CTA (button)</Label><Input value={cur.popup_cta_en} onChange={(e) => upd({ popup_cta_en: e.target.value })} /></div>
@@ -613,4 +645,23 @@ function PopupMini({ settings, lang }: { settings: NewsletterSettings; lang: "pl
     </div>
   );
 }
+
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-12 rounded border border-input bg-background cursor-pointer p-0.5"
+          aria-label={label}
+        />
+        <Input value={value} onChange={(e) => onChange(e.target.value)} className="font-mono text-xs" />
+      </div>
+    </div>
+  );
+}
+
 

@@ -793,6 +793,10 @@ export type Database = {
           heading_pl: string
           policy_html_en: string | null
           policy_html_pl: string | null
+          popup_accent_color: string | null
+          popup_accent_text_color: string | null
+          popup_bg_color: string | null
+          popup_border_radius_px: number | null
           popup_cover_url: string | null
           popup_cta_en: string
           popup_cta_pl: string
@@ -801,14 +805,19 @@ export type Database = {
           popup_description_pl: string
           popup_enabled: boolean
           popup_extended_fields: boolean
+          popup_eyebrow_en: string | null
+          popup_eyebrow_pl: string | null
           popup_frequency_days: number
           popup_layout: string
           popup_mailing_lists: Json
+          popup_muted_color: string | null
+          popup_overlay_color: string | null
           popup_require_terms: boolean
           popup_scroll_percent: number
           popup_side_image_url: string | null
           popup_terms_html_en: string | null
           popup_terms_html_pl: string | null
+          popup_text_color: string | null
           popup_title_en: string
           popup_title_pl: string
           popup_trigger: string
@@ -827,6 +836,10 @@ export type Database = {
           heading_pl?: string
           policy_html_en?: string | null
           policy_html_pl?: string | null
+          popup_accent_color?: string | null
+          popup_accent_text_color?: string | null
+          popup_bg_color?: string | null
+          popup_border_radius_px?: number | null
           popup_cover_url?: string | null
           popup_cta_en?: string
           popup_cta_pl?: string
@@ -835,14 +848,19 @@ export type Database = {
           popup_description_pl?: string
           popup_enabled?: boolean
           popup_extended_fields?: boolean
+          popup_eyebrow_en?: string | null
+          popup_eyebrow_pl?: string | null
           popup_frequency_days?: number
           popup_layout?: string
           popup_mailing_lists?: Json
+          popup_muted_color?: string | null
+          popup_overlay_color?: string | null
           popup_require_terms?: boolean
           popup_scroll_percent?: number
           popup_side_image_url?: string | null
           popup_terms_html_en?: string | null
           popup_terms_html_pl?: string | null
+          popup_text_color?: string | null
           popup_title_en?: string
           popup_title_pl?: string
           popup_trigger?: string
@@ -861,6 +879,10 @@ export type Database = {
           heading_pl?: string
           policy_html_en?: string | null
           policy_html_pl?: string | null
+          popup_accent_color?: string | null
+          popup_accent_text_color?: string | null
+          popup_bg_color?: string | null
+          popup_border_radius_px?: number | null
           popup_cover_url?: string | null
           popup_cta_en?: string
           popup_cta_pl?: string
@@ -869,14 +891,19 @@ export type Database = {
           popup_description_pl?: string
           popup_enabled?: boolean
           popup_extended_fields?: boolean
+          popup_eyebrow_en?: string | null
+          popup_eyebrow_pl?: string | null
           popup_frequency_days?: number
           popup_layout?: string
           popup_mailing_lists?: Json
+          popup_muted_color?: string | null
+          popup_overlay_color?: string | null
           popup_require_terms?: boolean
           popup_scroll_percent?: number
           popup_side_image_url?: string | null
           popup_terms_html_en?: string | null
           popup_terms_html_pl?: string | null
+          popup_text_color?: string | null
           popup_title_en?: string
           popup_title_pl?: string
           popup_trigger?: string
