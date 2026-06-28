@@ -253,7 +253,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
 
   // System-wide limits - applied uniformly to every slide so layout height
   // is stable regardless of content length. Counts include spaces.
-  const TITLE_MAX = 80;   // ~2 linie na desktopie
+  const TITLE_MAX = 130;  // ~3 linie na desktopie
   const EXCERPT_MAX = 160; // ~3 linie na desktopie
   const truncate = (s: string, max: number) =>
     s.length > max ? s.slice(0, Math.max(0, max - 1)).trimEnd() + "…" : s;
