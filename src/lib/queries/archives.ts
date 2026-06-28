@@ -229,9 +229,9 @@ export const searchQueryOptions = (filters: SearchFilters) =>
       const { data: matchRows } = await supabase.rpc("search_posts", {
         _q: filters.q.trim(),
         _limit: 80,
-        _author: filters.authorId ?? null,
-        _date_from: filters.dateFrom ?? null,
-        _date_to: filters.dateTo ? `${filters.dateTo}T23:59:59Z` : null,
+        _author: filters.authorId ?? undefined,
+        _date_from: filters.dateFrom ?? undefined,
+        _date_to: filters.dateTo ? `${filters.dateTo}T23:59:59Z` : undefined,
       });
       let rows = (matchRows ?? []).map(
         ({ rank: _rank, ...row }): Omit<BlogListItem, "href"> & { author_id: string | null } => row,
