@@ -4,6 +4,7 @@ import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ExternalLink, Globe, Linkedin, Twitter } from "lucide-react";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { authorBySlugQueryOptions } from "@/lib/queries/archives";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -83,17 +84,17 @@ function AuthorArchivePage() {
                 <div className="flex flex-wrap gap-3 pt-1 text-sm">
                   {author.website_url && (
                     <a href={author.website_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-brand">
-                      <Globe className="w-4 h-4" />WWW
+                      <BrandIcon name="website" fallback={Globe} className="w-4 h-4" alt="WWW" />WWW
                     </a>
                   )}
                   {author.twitter_url && (
                     <a href={author.twitter_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-brand">
-                      <Twitter className="w-4 h-4" />Twitter
+                      <BrandIcon name="x" fallback={Twitter} className="w-4 h-4" alt="X / Twitter" />X / Twitter
                     </a>
                   )}
                   {author.linkedin_url && (
                     <a href={author.linkedin_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-brand">
-                      <Linkedin className="w-4 h-4" />LinkedIn
+                      <BrandIcon name="linkedin" fallback={Linkedin} className="w-4 h-4" alt="LinkedIn" />LinkedIn
                     </a>
                   )}
                 </div>
