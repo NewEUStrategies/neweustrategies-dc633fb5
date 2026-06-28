@@ -66,7 +66,7 @@ function BlogIndex() {
               });
               return (
                 <Fragment key={p.id}>
-                  <PostListCard post={p} lang={lang} titleClassName="text-base" priority={idx === 0} />
+                  <PostListCard post={p} href={p.href} lang={lang} titleClassName="text-base" priority={idx === 0} />
                   {adsAfter.map((ad) => (
                     <div key={ad.id} className="md:col-span-2 lg:col-span-3 flex justify-center py-2">
                       <AdSlotView placement={ad} />

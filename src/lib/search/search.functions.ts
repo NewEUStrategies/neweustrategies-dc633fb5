@@ -23,7 +23,7 @@ const InputSchema = z.object({
 });
 
 export const globalSearch = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) => InputSchema.parse(data))
+  .inputValidator((data: z.input<typeof InputSchema>) => InputSchema.parse(data))
   .handler(async ({ data }): Promise<{ hits: SearchHit[] }> => {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_PUBLISHABLE_KEY;

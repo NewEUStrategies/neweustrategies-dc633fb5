@@ -1,11 +1,11 @@
 // Server functions for migrating legacy post content into BlocksDoc.
-// - Tenant-scoped via requireSupabaseAuth + RLS.
+// - Tenant-scoped via requireStaff (auth + serwerowy check roli) + RLS.
 // - Validates input with Zod, no `any`, no `as any`.
 // - Rate-limited and audited.
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireStaff } from "@/integrations/supabase/require-staff";
 import { migratePostContent } from "@/lib/blocks/migrate";
 
 const UUID = z.string().uuid();
@@ -40,7 +40,7 @@ async function migrateOne(
 }
 
 export const migratePostToBlocks = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
@@ -55,7 +55,7 @@ export const migratePostToBlocks = createServerFn({ method: "POST" })
   });
 
 export const bulkMigratePostsToBlocks = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({
     ids: z.array(UUID).max(500).optional(),
   }).parse(i ?? {}))

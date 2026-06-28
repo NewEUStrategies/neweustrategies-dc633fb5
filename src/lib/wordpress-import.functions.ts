@@ -23,7 +23,7 @@ import { toJson } from "@/lib/builder/types";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireStaff } from "@/integrations/supabase/require-staff";
 import { parseGutenberg } from "@/lib/blocks/gutenberg";
 import { localizedBlocksToBuilderDoc } from "@/lib/builder/migrate/blocksToBuilder";
 import type { LocalizedBlocks } from "@/lib/blocks/types";
@@ -351,7 +351,7 @@ class JobLogger {
 // ---------- public server functions ----------
 
 export const listWpComSites = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .handler(async () => {
     try {
       const res = await wpFetch<WpSitesResponse>("/rest/v1.1/me/sites?fields=ID,name,description,URL,jetpack");
@@ -383,7 +383,7 @@ const ListInput = z.object({
 });
 
 export const previewWpComPosts = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => ListInput.parse(i))
   .handler(async ({ data }) => {
     const site = encodeURIComponent(data.site);
@@ -420,7 +420,7 @@ const JobInput = ListInput.extend({
 });
 
 export const createWpImportJob = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => JobInput.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -453,7 +453,7 @@ export const createWpImportJob = createServerFn({ method: "POST" })
 const RunInput = JobInput.extend({ jobId: z.string().uuid() });
 
 export const runWpImportJob = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => RunInput.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -659,7 +659,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
 const GetJobInput = z.object({ jobId: z.string().uuid() });
 
 export const getWpImportJob = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => GetJobInput.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
@@ -678,7 +678,7 @@ export const getWpImportJob = createServerFn({ method: "POST" })
 const CancelInput = z.object({ jobId: z.string().uuid() });
 
 export const cancelWpImportJob = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => CancelInput.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;

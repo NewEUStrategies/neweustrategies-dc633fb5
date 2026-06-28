@@ -2368,6 +2368,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_staff: { Args: never; Returns: boolean }
       page_breadcrumbs: {
         Args: { _page_id: string }
         Returns: {

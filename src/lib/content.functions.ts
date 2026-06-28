@@ -1,6 +1,7 @@
 // Server functions for all CMS content mutations (posts, pages, categories,
 // tags + post terms). Every call:
-//   - runs under `requireSupabaseAuth` (RLS scopes to the user's tenant)
+//   - runs under `requireStaff` (uwierzytelnienie + serwerowy check roli staff,
+//     druga warstwa obok RLS; RLS dalej scope'uje dane po tenancie usera)
 //   - validates with Zod (no `any`, no client-trusted tenant_id)
 //   - resolves tenant_id from `profiles` server-side
 //   - autogenerates a unique slug per tenant on collision
@@ -9,7 +10,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireStaff } from "@/integrations/supabase/require-staff";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { recordAudit, type AuditAction } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
@@ -143,7 +144,7 @@ async function resolveDefaultBlogPage(
 }
 
 export const createPost = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({
     title_pl: z.string().max(300).optional(),
     title_en: z.string().max(300).optional(),
@@ -180,7 +181,7 @@ export const createPost = createServerFn({ method: "POST" })
   });
 
 export const updatePost = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({
     id: UUID, fields: PostCore.partial(),
     categories: z.array(UUID).max(50).optional(),
@@ -238,7 +239,7 @@ export const updatePost = createServerFn({ method: "POST" })
 
 // Soft-delete: move to trash
 export const deletePost = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -252,7 +253,7 @@ export const deletePost = createServerFn({ method: "POST" })
   });
 
 export const bulkDeletePosts = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -268,7 +269,7 @@ export const bulkDeletePosts = createServerFn({ method: "POST" })
   });
 
 export const restorePosts = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -284,7 +285,7 @@ export const restorePosts = createServerFn({ method: "POST" })
   });
 
 export const purgePosts = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -298,7 +299,7 @@ export const purgePosts = createServerFn({ method: "POST" })
   });
 
 export const bulkUpdatePosts = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({
     ids: z.array(UUID).min(1).max(200),
     status: Status,
@@ -341,7 +342,7 @@ const PageCore = z.object({
 });
 
 export const createPage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({
     title_pl: z.string().max(300).optional(),
     title_en: z.string().max(300).optional(),
@@ -373,7 +374,7 @@ export const createPage = createServerFn({ method: "POST" })
 
 
 export const updatePage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ id: UUID, fields: PageCore.partial() }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -409,7 +410,7 @@ export const updatePage = createServerFn({ method: "POST" })
 
 // Soft-delete: move to trash
 export const deletePage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -423,7 +424,7 @@ export const deletePage = createServerFn({ method: "POST" })
   });
 
 export const bulkDeletePages = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -439,7 +440,7 @@ export const bulkDeletePages = createServerFn({ method: "POST" })
   });
 
 export const restorePages = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -455,7 +456,7 @@ export const restorePages = createServerFn({ method: "POST" })
   });
 
 export const purgePages = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ ids: z.array(UUID).min(1).max(200) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -469,7 +470,7 @@ export const purgePages = createServerFn({ method: "POST" })
   });
 
 export const bulkUpdatePages = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({
     ids: z.array(UUID).min(1).max(200),
     status: Status,
@@ -502,7 +503,7 @@ const CategoryCore = z.object({
 });
 
 export const upsertCategory = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ id: UUID.optional(), fields: CategoryCore }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -528,7 +529,7 @@ export const upsertCategory = createServerFn({ method: "POST" })
   });
 
 export const deleteCategory = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -542,7 +543,7 @@ export const deleteCategory = createServerFn({ method: "POST" })
 // ---------- TAGS ----------
 
 export const createTag = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ name: z.string().min(1).max(100) }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -559,7 +560,7 @@ export const createTag = createServerFn({ method: "POST" })
   });
 
 export const deleteTag = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;

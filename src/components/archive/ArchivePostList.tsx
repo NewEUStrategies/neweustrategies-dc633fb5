@@ -15,7 +15,7 @@ export function ArchivePostList({ posts, lang, emptyText }: Props) {
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
       {posts.map((p) => (
-        <PostListCard key={p.id} post={p} lang={lang} />
+        <PostListCard key={p.id} post={p} href={p.href} lang={lang} />
       ))}
     </div>
   );

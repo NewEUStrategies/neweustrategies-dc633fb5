@@ -3,8 +3,7 @@
 // `posts.parent_page_id = parentPageId`.
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { AppLink } from "@/components/atoms/AppLink";
-import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { PostListCard } from "@/components/molecules/PostListCard";
 
 interface Props {
   parentPageId: string;
@@ -52,37 +51,18 @@ export function ArchiveListing({ parentPageId, lang, parentPath }: Props) {
 
   return (
     <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8 not-prose">
-      {rows.map((r) => {
-        const title = lang === "en" ? r.title_en || r.title_pl : r.title_pl || r.title_en;
-        const excerpt = lang === "en" ? r.excerpt_en : r.excerpt_pl;
-        const href = `/${parentPath}/${r.slug}`;
-        return (
-          <li key={r.id} className="group rounded-lg border border-border overflow-hidden bg-card hover:border-primary transition-colors">
-            {r.cover_image_url && (
-              <AppLink href={href} className="block overflow-hidden">
-                <OptimizedImage
-                  src={r.cover_image_url}
-                  alt={title}
-                  responsive
-                  sizes="(min-width: 1024px) 360px, (min-width: 640px) 45vw, 92vw"
-                  className="w-full h-44 object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-              </AppLink>
-            )}
-            <div className="p-4">
-              <h3 className="font-display text-lg mb-2 line-clamp-2">
-                <AppLink href={href} className="hover:text-primary">{title}</AppLink>
-              </h3>
-              {excerpt && <p className="text-sm text-muted-foreground line-clamp-3">{excerpt}</p>}
-              {r.published_at && (
-                <time className="block mt-3 text-xs text-muted-foreground">
-                  {new Date(r.published_at).toLocaleDateString(lang === "en" ? "en-US" : "pl-PL")}
-                </time>
-              )}
-            </div>
-          </li>
-        );
-      })}
+      {rows.map((r) => (
+        <li key={r.id}>
+          <PostListCard
+            post={r}
+            href={`/${parentPath}/${r.slug}`}
+            lang={lang}
+            link="app"
+            imageZoom
+            titleClassName="text-lg"
+          />
+        </li>
+      ))}
     </ul>
   );
 }
