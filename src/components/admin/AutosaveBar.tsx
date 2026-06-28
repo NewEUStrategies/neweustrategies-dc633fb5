@@ -2,7 +2,7 @@
 // Atom-level UI; receives all state via props (no internal logic).
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Undo2, Redo2, Check, Loader2, AlertTriangle, Circle } from "@/lib/lucide-shim";
+import { Undo2, Redo2, Check, Loader2, AlertTriangle, Circle, RotateCcw } from "@/lib/lucide-shim";
 import type { AutosaveStatus } from "@/hooks/useAutosave";
 
 interface Props {
@@ -12,9 +12,11 @@ interface Props {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  onDiscard?: () => void;
 }
 
-export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo }: Props) {
+export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo, onDiscard }: Props) {
+
   const { t } = useTranslation();
 
   const label =
@@ -58,6 +60,23 @@ export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo }:
         <Icon className={`w-3.5 h-3.5 ${status === "saving" ? "animate-spin" : ""}`} />
         {label}
       </span>
+      {onDiscard && status === "dirty" && (
+        <Button
+          type="button" size="sm" variant="ghost"
+          onClick={() => {
+            if (window.confirm(t("admin.autosave.discardConfirm", { defaultValue: "Odrzucić niezapisane zmiany?" }))) {
+              onDiscard();
+            }
+          }}
+          aria-label={t("admin.autosave.discard", { defaultValue: "Anuluj zmiany" })}
+          title={t("admin.autosave.discard", { defaultValue: "Anuluj zmiany" })}
+          className="text-destructive hover:text-destructive"
+        >
+          <RotateCcw className="w-4 h-4 mr-1" />
+          {t("admin.autosave.discard", { defaultValue: "Anuluj zmiany" })}
+        </Button>
+      )}
     </div>
+
   );
 }

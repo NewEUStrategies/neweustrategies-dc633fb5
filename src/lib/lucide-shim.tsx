@@ -33,7 +33,7 @@ import {
   Bell as LBell, Info as LInfo,
   Mic as LMic, Film as LFilm, Brush as LBrush, Rss as LRss, ShieldCheck as LShieldCheck,
   Cog as LCog, Wand2 as LWand2, Share2 as LShare2, Gauge as LGauge,
-  Printer as LPrinter, Download as LDownload,
+  Printer as LPrinter, Download as LDownload, RotateCcw as LRotateCcw,
   Facebook as LFacebook, Instagram as LInstagram, Linkedin as LLinkedin,
   Twitter as LTwitter, Youtube as LYoutube,
   type LucideIcon as LucideIconImpl,
@@ -156,6 +156,8 @@ export const Trash2 = makeIcon("Trash2", LTrash2);
 export const Type = makeIcon("Type", LType);
 export const Undo = makeIcon("Undo", LUndo);
 export const Undo2 = Undo;
+export const RotateCcw = makeIcon("RotateCcw", LRotateCcw);
+
 export const Upload = makeIcon("Upload", LUpload);
 export const User = makeIcon("User", LUser);
 export const Users = makeIcon("Users", LUsers);

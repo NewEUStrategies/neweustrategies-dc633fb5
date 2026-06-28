@@ -339,7 +339,9 @@ function EditPage() {
             status={autosave.status} error={autosave.error}
             canUndo={history.canUndo} canRedo={history.canRedo}
             onUndo={history.undo} onRedo={history.redo}
+            onDiscard={page ? () => history.reset(page) : undefined}
           />
+
           <Button asChild variant="outline" size="sm" title={t("admin.pages.preview", { defaultValue: "Podgląd strony w nowej karcie" })}>
             <a href={previewHref} target="_blank" rel="noopener noreferrer">
               <Eye className="w-4 h-4 mr-1" /> {t("admin.preview", { defaultValue: "Podgląd" })}

@@ -484,7 +484,9 @@ function EditPost() {
             status={autosave.status} error={autosave.error}
             canUndo={history.canUndo} canRedo={history.canRedo}
             onUndo={history.undo} onRedo={history.redo}
+            onDiscard={post ? () => history.reset(post) : undefined}
           />
+
           <Button variant="ghost" size="sm" onClick={del}><Trash2 className="w-4 h-4 mr-1 text-destructive" /> {t("admin.delete")}</Button>
           <Button onClick={save} disabled={busy}><Save className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.save")}</Button>
         </div>
