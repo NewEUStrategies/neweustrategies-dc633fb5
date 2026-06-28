@@ -241,10 +241,12 @@ function AccountPage() {
                     {uploading === "avatar" ? t("profile.account.uploading") : t("profile.account.uploadAvatar")}
                   </Button>
                 </div>
+                <StatusBadge status={status.avatar} percent={progress.avatar} t={t} />
               </div>
             </div>
             <p className="text-xs text-muted-foreground">{t("profile.account.avatarHint")}</p>
           </div>
+
 
           {/* Cover */}
           <div className="grid gap-2">
