@@ -44,6 +44,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <ImpersonationBanner />
       <RouteProgress />
       <Header />
       <main
