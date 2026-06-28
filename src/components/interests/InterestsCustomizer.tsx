@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { Loader2, Check, Sparkles, LogIn } from "lucide-react";
+import { Loader2, Check, SlidersHorizontal, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useInterestCatalog, useMyInterests, type InterestItem } from "@/hooks/useInterests";
 import "@/lib/i18n-interests";
