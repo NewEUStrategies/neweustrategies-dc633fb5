@@ -668,18 +668,6 @@ a:focus-visible .cms-post-title,
   background-size: 100% 2px;
 }
 
-/* Slider: underline lives on the inner .eh-title-text span (native text-decoration).
-   Disable the outer .cms-post-title gradient underline to avoid double lines. */
-.cms-post-title:has(.eh-title-text) {
-  background-image: none !important;
-  padding-bottom: 0 !important;
-}
-.cms-post-title:has(.eh-title-text):hover,
-a:hover .cms-post-title:has(.eh-title-text),
-*:hover > .cms-post-title:has(.eh-title-text) {
-  background-size: 0 2px !important;
-}
-
 
 
 /* Prevent double underline on any anchor wrapping a .cms-post-title */
