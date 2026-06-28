@@ -39,46 +39,84 @@ function AccountPage() {
   });
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
+  const [progress, setProgress] = useState<Record<"avatar" | "cover", number>>({ avatar: 0, cover: 0 });
+  const [status, setStatus] = useState<Record<"avatar" | "cover", "idle" | "uploading" | "success" | "failed">>({
+    avatar: "idle",
+    cover: "idle",
+  });
   const avatarInput = useRef<HTMLInputElement | null>(null);
   const coverInput = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    if (!user) return;
-    let active = true;
-    void supabase
+  const refresh = async (uid: string) => {
+    const { data: row } = await supabase
       .from("profiles")
       .select("display_name, bio, avatar_url, cover_url, tenant_id")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data: row }) => {
-        if (active && row) setData(row as ProfileRow);
-      });
-    return () => {
-      active = false;
-    };
+      .eq("id", uid)
+      .maybeSingle();
+    if (row) setData(row as ProfileRow);
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    void refresh(user.id);
   }, [user]);
 
   const upload = async (file: File, kind: "avatar" | "cover") => {
     if (!user || !data.tenant_id) return;
     const max = kind === "avatar" ? MAX_AVATAR : MAX_COVER;
     if (file.size > max) {
+      setStatus((s) => ({ ...s, [kind]: "failed" }));
       toast.error(t("profile.account.fileTooLarge"));
       return;
     }
     setUploading(kind);
+    setStatus((s) => ({ ...s, [kind]: "uploading" }));
+    setProgress((p) => ({ ...p, [kind]: 0 }));
+
     const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
     const path = `${data.tenant_id}/users/${user.id}/${kind}-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage
-      .from("media")
-      .upload(path, file, { upsert: true, contentType: file.type });
-    if (error) {
-      setUploading(null);
+
+    try {
+      // Signed upload URL gives us real progress via XHR
+      const { data: signed, error: signErr } = await supabase.storage
+        .from("media")
+        .createSignedUploadUrl(path);
+      if (signErr || !signed) throw signErr ?? new Error("sign failed");
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", signed.signedUrl);
+        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        xhr.setRequestHeader("x-upsert", "true");
+        xhr.upload.onprogress = (evt) => {
+          if (evt.lengthComputable) {
+            setProgress((p) => ({ ...p, [kind]: Math.round((evt.loaded / evt.total) * 100) }));
+          }
+        };
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`HTTP ${xhr.status}`)));
+        xhr.onerror = () => reject(new Error("network"));
+        xhr.send(file);
+      });
+
+      const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
+      const field = kind === "avatar" ? "avatar_url" : "cover_url";
+
+      const { error: updErr } = await supabase
+        .from("profiles")
+        .update({ [field]: pub.publicUrl })
+        .eq("id", user.id);
+      if (updErr) throw updErr;
+
+      setProgress((p) => ({ ...p, [kind]: 100 }));
+      setStatus((s) => ({ ...s, [kind]: "success" }));
+      await refresh(user.id);
+      toast.success(t("profile.account.uploadSuccess"));
+    } catch {
+      setStatus((s) => ({ ...s, [kind]: "failed" }));
       toast.error(t("profile.account.uploadError"));
-      return;
+    } finally {
+      setUploading(null);
     }
-    const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
-    setData((d) => ({ ...d, [kind === "avatar" ? "avatar_url" : "cover_url"]: pub.publicUrl }));
-    setUploading(null);
   };
 
   const save = async (e: React.FormEvent) => {
@@ -101,6 +139,7 @@ function AccountPage() {
     }
     toast.success(t("profile.account.saved"));
   };
+
 
   return (
     <Card>
