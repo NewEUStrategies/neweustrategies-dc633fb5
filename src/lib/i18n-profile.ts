@@ -421,6 +421,12 @@ type ProfileExtras = {
       twitter: string; linkedin: string; website: string;
       facebook: string; instagram: string; spotify: string; email: string;
       save: string; saved: string;
+      tip: {
+        slug: string; bioPl: string; bioEn: string;
+        twitter: string; linkedin: string; website: string;
+        facebook: string; instagram: string; spotify: string; email: string;
+        save: string;
+      };
     };
 
     bookmarks: { title: string; subtitle: string; empty: string; remove: string; open: string; tabPosts: string; tabPages: string };
