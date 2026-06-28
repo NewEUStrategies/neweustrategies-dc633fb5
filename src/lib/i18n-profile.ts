@@ -210,6 +210,7 @@ const en: typeof pl = {
     },
     account: {
       displayName: "Display name",
+      displayNameAlt: "(account nickname)",
       firstName: "First name",
       lastName: "Last name",
       jobTitle: "Job title",
@@ -240,6 +241,20 @@ const en: typeof pl = {
       save: "Save changes",
       saved: "Saved",
       saveError: "Could not save",
+      tip: {
+        displayName: "How you appear publicly - on comments, posts and in the welcome header. Doesn't have to be your real name.",
+        firstName: "Your real first name. Used for personalised greetings and (optionally) on invoices.",
+        lastName: "Your real last name. Used in official communication and on invoices.",
+        jobTitle: "Job title shown on your public author profile.",
+        currentCompany: "Where you currently work - shown publicly next to your job title.",
+        location: "City and country. Helps readers understand the context of what you publish.",
+        phone: "Internal contact number - visible only to the editorial team.",
+        email: "Your sign-in address. To change it, use the Security tab.",
+        bio: "Short biography (up to 500 characters) shown on your public author page.",
+        avatar: "Profile picture - shown anywhere your nickname appears.",
+        cover: "Banner image at the top of your author page.",
+        save: "Saves all changes on the Account tab.",
+      },
     },
 
     security: {
