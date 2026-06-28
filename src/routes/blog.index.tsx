@@ -4,6 +4,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
 import { AdSlotView } from "@/components/AdSlot";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { useAdPlacements } from "@/lib/ads/queries";
 import { blogListQueryOptions } from "@/lib/queries/public";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -68,7 +69,16 @@ function BlogIndex() {
               return (
                 <Fragment key={p.id}>
                   <Link to={p.href} className="bg-card border border-border rounded-lg overflow-hidden hover:border-brand transition">
-                    {p.cover_image_url && <img src={p.cover_image_url} alt="" className="w-full h-44 object-cover" loading="lazy" />}
+                    {p.cover_image_url && (
+                      <OptimizedImage
+                        src={p.cover_image_url}
+                        alt={title}
+                        className="w-full h-44 object-cover"
+                        responsive
+                        sizes="(min-width: 1024px) 360px, (min-width: 768px) 45vw, 92vw"
+                        priority={idx === 0}
+                      />
+                    )}
                     <div className="p-5">
                       <h2 className="font-display text-base mb-2 line-clamp-2">{title}</h2>
                       {excerpt && <p className="text-sm text-muted-foreground line-clamp-3">{excerpt}</p>}

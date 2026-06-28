@@ -223,24 +223,19 @@ export const searchQueryOptions = (filters: SearchFilters) =>
     queryKey: ["public", "search", filters] as const,
     enabled: filters.q.trim().length >= 2,
     queryFn: async (): Promise<{ posts: BlogListItem[]; facets: SearchFacets }> => {
-      const q = filters.q.trim().replace(/[%_]/g, "\\$&");
-      const term = `%${q}%`;
-      let query = supabase
-        .from("posts")
-        .select(POST_COLS)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .or(
-          `title_pl.ilike.${term},title_en.ilike.${term},excerpt_pl.ilike.${term},excerpt_en.ilike.${term}`,
-        )
-        .order("published_at", { ascending: false })
-        .limit(80);
-      if (filters.authorId) query = query.eq("author_id", filters.authorId);
-      if (filters.dateFrom) query = query.gte("published_at", filters.dateFrom);
-      if (filters.dateTo) query = query.lte("published_at", `${filters.dateTo}T23:59:59Z`);
-
-      const { data: matchRows } = await query;
-      let rows = (matchRows ?? []) as Array<Omit<BlogListItem, "href"> & { author_id: string | null }>;
+      // Postgres full-text search (ranked, unaccent + prefix matching, indexuje
+      // też treść blocks_data/builder_data) zamiast ILIKE %q%. Author/data są
+      // filtrowane w RPC, kategoria pozostaje filtrem po stronie klienta (join).
+      const { data: matchRows } = await supabase.rpc("search_posts", {
+        _q: filters.q.trim(),
+        _limit: 80,
+        _author: filters.authorId ?? null,
+        _date_from: filters.dateFrom ?? null,
+        _date_to: filters.dateTo ? `${filters.dateTo}T23:59:59Z` : null,
+      });
+      let rows = (matchRows ?? []).map(
+        ({ rank: _rank, ...row }): Omit<BlogListItem, "href"> & { author_id: string | null } => row,
+      );
 
       // Category filter is post-join: filter ids via post_categories.
       if (filters.categoryId && rows.length > 0) {

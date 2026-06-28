@@ -4,6 +4,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLink } from "@/components/atoms/AppLink";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 
 interface Props {
   parentPageId: string;
@@ -59,10 +60,11 @@ export function ArchiveListing({ parentPageId, lang, parentPath }: Props) {
           <li key={r.id} className="group rounded-lg border border-border overflow-hidden bg-card hover:border-primary transition-colors">
             {r.cover_image_url && (
               <AppLink href={href} className="block overflow-hidden">
-                <img
+                <OptimizedImage
                   src={r.cover_image_url}
                   alt={title}
-                  loading="lazy"
+                  responsive
+                  sizes="(min-width: 1024px) 360px, (min-width: 640px) 45vw, 92vw"
                   className="w-full h-44 object-cover transition-transform duration-500 group-hover:scale-105"
                 />
               </AppLink>

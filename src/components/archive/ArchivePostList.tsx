@@ -1,6 +1,11 @@
 // Reusable post-card list for archive pages (author/tag/category/search).
 import { Link } from "@tanstack/react-router";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import type { BlogListItem } from "@/lib/queries/public";
+
+// Karty renderują się w siatce 1/2/3 kolumny w kontenerze max 1200px.
+const CARD_IMAGE_SIZES =
+  "(min-width: 1024px) 360px, (min-width: 768px) 45vw, 92vw";
 
 interface Props {
   posts: readonly BlogListItem[];
@@ -24,11 +29,12 @@ export function ArchivePostList({ posts, lang, emptyText }: Props) {
             className="bg-card border border-border rounded-lg overflow-hidden hover:border-brand transition"
           >
             {p.cover_image_url && (
-              <img
+              <OptimizedImage
                 src={p.cover_image_url}
-                alt=""
+                alt={title}
                 className="w-full h-44 object-cover"
-                loading="lazy"
+                responsive
+                sizes={CARD_IMAGE_SIZES}
               />
             )}
             <div className="p-5">

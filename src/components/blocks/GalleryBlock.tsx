@@ -3,6 +3,7 @@
 // trzymać state otwarcia (use client).
 import { useState } from "react";
 import { ImageLightbox } from "@/components/Lightbox";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 
 export interface GalleryItem {
   url: string;
@@ -34,11 +35,12 @@ export function GalleryBlock({ images, className }: Props) {
             className="group relative block overflow-hidden rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-label={img.alt || `Zdjęcie ${i + 1}`}
           >
-            <img
+            <OptimizedImage
               src={img.url}
               alt={img.alt}
+              responsive
+              sizes="(min-width: 640px) 33vw, 50vw"
               className="w-full h-full object-cover aspect-square transition-transform duration-500 group-hover:scale-[1.04]"
-              loading="lazy"
             />
           </button>
         ))}
