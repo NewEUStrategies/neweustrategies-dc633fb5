@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
 
 function StatusBadge({ status, percent, t }: { status: "idle" | "uploading" | "success" | "failed"; percent: number; t: (k: string, v?: Record<string, unknown>) => string }) {
