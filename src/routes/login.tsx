@@ -90,11 +90,21 @@ function LoginPage() {
     setBusy(true);
     try {
       if (mode === "signup") {
+        const trimmed = name.trim();
+        const parts = trimmed.split(/\s+/).filter(Boolean);
+        const firstName = parts[0] ?? "";
+        const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
+        const displayName = trimmed || email.split("@")[0];
         const { error } = await supabase.auth.signUp({
           email, password,
           options: {
             emailRedirectTo: `${window.location.origin}/admin`,
-            data: { display_name: name || email.split("@")[0] },
+            data: {
+              display_name: displayName,
+              first_name: firstName,
+              last_name: lastName,
+              full_name: trimmed || displayName,
+            },
           },
         });
         if (error) throw error;
