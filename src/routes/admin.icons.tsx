@@ -168,15 +168,40 @@ function BulkUpload({
   kind, tenantId, onDone,
 }: { kind: IconKind; tenantId: string; onDone: () => void }) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ index: number; total: number; base: string; status: string } | null>(null);
+  const [log, setLog] = useState<{ base: string; status: "done" | "skipped" | "error"; message?: string }[]>([]);
 
   const handle = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setBusy(true);
+    setLog([]);
+    setProgress({ index: 0, total: 0, base: "", status: "uploading" });
     try {
-      const res = await bulkImportIcons(tenantId, kind, Array.from(files));
-      toast.success(t("admin.icons.bulk.done", { created: res.created, updated: res.updated }));
+      // Pobieramy aktualną listę nazw, aby pomijać duplikaty.
+      const existing = await listIcons(kind);
+      const existingNames = new Set(existing.map((r) => r.name));
+
+      const res = await bulkImportIcons(tenantId, kind, Array.from(files), {
+        existingNames,
+        onProgress: (p) => {
+          setProgress({ index: p.index, total: p.total, base: p.base, status: p.status });
+          if (p.status === "done" || p.status === "skipped" || p.status === "error") {
+            const status = p.status as "done" | "skipped" | "error";
+            setLog((prev) => [...prev, { base: p.base, status, message: p.message }]);
+            if (p.status === "done") {
+              // Real-time: odświeżamy listę aby ikona pojawiła się w siatce.
+              qc.invalidateQueries({ queryKey: ["icon-library", kind] });
+            }
+          }
+        },
+      });
+      toast.success(
+        t("admin.icons.bulk.done", { created: res.created, updated: res.updated }) +
+        (res.skipped ? ` · pominięto: ${res.skipped}` : ""),
+      );
       if (res.errors.length) {
         toast.error(t("admin.icons.bulk.errors", { count: res.errors.length }));
       }
@@ -185,33 +210,73 @@ function BulkUpload({
       toast.error(e instanceof Error ? e.message : "Error");
     } finally {
       setBusy(false);
+      setProgress(null);
       if (ref.current) ref.current.value = "";
     }
   };
 
+  const pct = progress && progress.total > 0 ? Math.round((progress.index / progress.total) * 100) : 0;
+
   return (
-    <div className="rounded-lg border border-dashed border-border p-4 flex items-center justify-between gap-3 bg-muted/30">
-      <div className="flex items-start gap-3">
-        <Upload className="w-5 h-5 text-muted-foreground mt-0.5" />
-        <div className="space-y-0.5">
-          <div className="text-sm font-medium">{t("admin.icons.bulk.title")}</div>
-          <div className="text-xs text-muted-foreground">
-            {t("admin.icons.bulk.hint")}
+    <div className="rounded-lg border border-dashed border-border p-4 space-y-3 bg-muted/30">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <Upload className="w-5 h-5 text-muted-foreground mt-0.5" />
+          <div className="space-y-0.5">
+            <div className="text-sm font-medium">{t("admin.icons.bulk.title")}</div>
+            <div className="text-xs text-muted-foreground">{t("admin.icons.bulk.hint")}</div>
           </div>
         </div>
+        <input
+          ref={ref}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => handle(e.target.files)}
+        />
+        <Button variant="outline" onClick={() => ref.current?.click()} disabled={busy} className="h-9 shrink-0">
+          <Upload className="w-4 h-4 mr-1.5" />
+          {busy ? t("admin.icons.bulk.uploading") : t("admin.icons.bulk.choose")}
+        </Button>
       </div>
-      <input
-        ref={ref}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={(e) => handle(e.target.files)}
-      />
-      <Button variant="outline" onClick={() => ref.current?.click()} disabled={busy} className="h-9 shrink-0">
-        <Upload className="w-4 h-4 mr-1.5" />
-        {busy ? t("admin.icons.bulk.uploading") : t("admin.icons.bulk.choose")}
-      </Button>
+
+      {progress && (
+        <div className="space-y-2 pt-2 border-t border-border/60">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-mono truncate">
+              {progress.index} / {progress.total} · :{progress.base}:
+            </span>
+            <span className="text-muted-foreground">{pct}%</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-border/70 overflow-hidden">
+            <div
+              className="h-full bg-brand transition-all duration-300"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {log.length > 0 && (
+        <ul className="max-h-40 overflow-auto space-y-0.5 text-[11px] font-mono pt-2 border-t border-border/60">
+          {log.map((l, i) => (
+            <li
+              key={`${l.base}-${i}`}
+              className={
+                l.status === "done"
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : l.status === "skipped"
+                  ? "text-muted-foreground"
+                  : "text-destructive"
+              }
+            >
+              {l.status === "done" ? "✓" : l.status === "skipped" ? "↷" : "✕"} :{l.base}:
+              {l.message ? ` - ${l.message}` : ""}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

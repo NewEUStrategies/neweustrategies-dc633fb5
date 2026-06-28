@@ -120,7 +120,23 @@ export async function uploadIconAsset(
 export interface BulkResult {
   created: number;
   updated: number;
+  skipped: number;
   errors: { file: string; message: string }[];
+}
+
+export interface BulkProgress {
+  index: number;
+  total: number;
+  base: string;
+  status: "uploading" | "done" | "skipped" | "error";
+  message?: string;
+}
+
+export interface BulkOptions {
+  /** Set nazw, które już istnieją - takie grupy są pomijane (duplikaty). */
+  existingNames?: Set<string>;
+  /** Callback po każdej zmianie statusu grupy. */
+  onProgress?: (p: BulkProgress) => void;
 }
 
 /** Hurtowy upload - grupuje pliki po base name; `-dark`/`-light` to warianty. */
@@ -128,6 +144,7 @@ export async function bulkImportIcons(
   tenantId: string,
   kind: IconKind,
   files: File[],
+  options: BulkOptions = {},
 ): Promise<BulkResult> {
   const groups = new Map<string, { default?: File; light?: File; dark?: File }>();
   for (const f of files) {
@@ -137,38 +154,43 @@ export async function bulkImportIcons(
     g[variant] = f;
     groups.set(base, g);
   }
-  const result: BulkResult = { created: 0, updated: 0, errors: [] };
+  const total = groups.size;
+  const result: BulkResult = { created: 0, updated: 0, skipped: 0, errors: [] };
+  let index = 0;
   for (const [base, files] of groups) {
+    index += 1;
+    if (options.existingNames?.has(base)) {
+      result.skipped += 1;
+      options.onProgress?.({ index, total, base, status: "skipped", message: "duplikat" });
+      continue;
+    }
+    options.onProgress?.({ index, total, base, status: "uploading" });
     try {
       const [urlDefault, urlLight, urlDark] = await Promise.all([
         files.default ? uploadIconAsset(tenantId, kind, files.default) : Promise.resolve(""),
         files.light ? uploadIconAsset(tenantId, kind, files.light) : Promise.resolve(""),
         files.dark ? uploadIconAsset(tenantId, kind, files.dark) : Promise.resolve(""),
       ]);
-      const { data: existing } = await supabase
-        .from("icon_library")
-        .select("id,url_default,url_light,url_dark")
-        .eq("tenant_id", tenantId)
-        .eq("kind", kind)
-        .eq("name", base)
-        .maybeSingle();
       const payload = {
         tenant_id: tenantId,
         kind,
         name: base,
-        url_default: urlDefault || existing?.url_default || "",
-        url_light: urlLight || existing?.url_light || "",
-        url_dark: urlDark || existing?.url_dark || "",
+        url_default: urlDefault,
+        url_light: urlLight,
+        url_dark: urlDark,
         default_variant: "auto" as IconVariant,
       };
       const { error } = await supabase
         .from("icon_library")
         .upsert(payload, { onConflict: "tenant_id,kind,name" });
       if (error) throw error;
-      if (existing) result.updated += 1;
-      else result.created += 1;
+      result.created += 1;
+      options.existingNames?.add(base);
+      options.onProgress?.({ index, total, base, status: "done" });
     } catch (e) {
-      result.errors.push({ file: base, message: e instanceof Error ? e.message : "Błąd" });
+      const message = e instanceof Error ? e.message : "Błąd";
+      result.errors.push({ file: base, message });
+      options.onProgress?.({ index, total, base, status: "error", message });
     }
   }
   return result;
