@@ -56,10 +56,27 @@ export interface BrandIconProps extends SVGAttributes<SVGSVGElement> {
  * Renderuje ikonę z biblioteki (icon_library, kind='brand') jeśli istnieje;
  * w przeciwnym razie - Lucide fallback. Wybór wariantu light/dark zgodny z motywem.
  */
+const ALIASES: Record<string, string[]> = {
+  x: ["x", "twitter", "x-twitter"],
+  twitter: ["twitter", "x", "x-twitter"],
+  website: ["website", "globe", "web", "link"],
+  linkedin: ["linkedin", "linked-in"],
+  facebook: ["facebook", "fb", "meta"],
+  youtube: ["youtube", "yt"],
+  instagram: ["instagram", "ig"],
+  tiktok: ["tiktok", "tik-tok"],
+  threads: ["threads", "meta-threads"],
+};
+
 export function BrandIcon({ name, fallback: Fallback, className, alt, ...rest }: BrandIconProps) {
   const { theme } = useTheme();
   const { resolve } = useBrandIcons();
-  const row = resolve(name);
+  const candidates = ALIASES[name.toLowerCase()] ?? [name];
+  let row: IconRow | undefined;
+  for (const c of candidates) {
+    row = resolve(c);
+    if (row) break;
+  }
 
   if (row && (row.url_default || row.url_light || row.url_dark)) {
     const mode = theme === "dark" ? "dark" : "light";
