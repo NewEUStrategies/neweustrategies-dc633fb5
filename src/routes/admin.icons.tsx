@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, Trash2, Search, Plus, Tags, LayoutGrid, Shapes } from "@/lib/lucide-shim";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { listIcons, upsertIcon, deleteIcon, uploadIconAsset, bulkImportIcons, slugifyIconName, type IconKind, type IconRow, type IconVariant } from "@/lib/iconLibrary";
