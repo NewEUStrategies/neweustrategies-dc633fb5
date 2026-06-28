@@ -1,7 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Star, Mail, Bookmark, ChevronRight, Lock, Palette, LayoutGrid, Sparkles, PanelsTopLeft, Newspaper, Megaphone, Mic, Film, Brush, Wand2, Share2, Gauge } from "@/lib/lucide-shim";
+import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Star, Mail, Bookmark, ChevronRight, Lock, Palette, LayoutGrid, Shapes, PanelsTopLeft, Newspaper, Megaphone, Mic, Film, Brush, Wand2, Share2, Gauge } from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
