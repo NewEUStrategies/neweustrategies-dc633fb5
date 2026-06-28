@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Save, Eye, Mail, X, Image as ImageIcon } from "@/lib/lucide-shim";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { sanitizeHtml } from "@/lib/sanitize";
@@ -136,15 +137,17 @@ function Page() {
           <div className="grid sm:grid-cols-3 gap-3">
             <div>
               <Label>Trigger</Label>
-              <select
-                className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
+              <Select
                 value={cur.popup_trigger}
-                onChange={(e) => upd({ popup_trigger: e.target.value as NewsletterSettings["popup_trigger"] })}
+                onValueChange={(v) => upd({ popup_trigger: v as NewsletterSettings["popup_trigger"] })}
               >
-                <option value="delay">Po opóźnieniu</option>
-                <option value="scroll">Po przewinięciu %</option>
-                <option value="exit-intent">Exit-intent</option>
-              </select>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="delay">Po opóźnieniu</SelectItem>
+                  <SelectItem value="scroll">Po przewinięciu %</SelectItem>
+                  <SelectItem value="exit-intent">Exit-intent</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Opóźnienie (s)</Label>
@@ -168,14 +171,16 @@ function Page() {
             </div>
             <div>
               <Label>Układ popupu</Label>
-              <select
-                className="w-full px-3 py-2 rounded border border-input bg-background text-sm h-10"
+              <Select
                 value={cur.popup_layout}
-                onChange={(e) => upd({ popup_layout: e.target.value as NewsletterSettings["popup_layout"] })}
+                onValueChange={(v) => upd({ popup_layout: v as NewsletterSettings["popup_layout"] })}
               >
-                <option value="stacked">Klasyczny (okładka u góry)</option>
-                <option value="split">Split (grafika z lewej + formularz)</option>
-              </select>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="stacked">Klasyczny (okładka u góry)</SelectItem>
+                  <SelectItem value="split">Split (grafika z lewej + formularz)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
