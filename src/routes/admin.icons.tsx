@@ -25,8 +25,8 @@ export const Route = createFileRoute("/admin/icons")({
 
 const KIND_TABS: { id: IconKind; icon: typeof Sparkles; labelKey: string }[] = [
   { id: "custom", icon: Sparkles, labelKey: "admin.icons.tabs.custom" },
-  { id: "flag", icon: Flag, labelKey: "admin.icons.tabs.flag" },
-  { id: "brand", icon: Building2, labelKey: "admin.icons.tabs.brand" },
+  { id: "flag", icon: Tags, labelKey: "admin.icons.tabs.flag" },
+  { id: "brand", icon: LayoutGrid, labelKey: "admin.icons.tabs.brand" },
 ];
 
 function IconsAdmin() {
