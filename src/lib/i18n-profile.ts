@@ -28,6 +28,7 @@ const pl = {
     },
     account: {
       displayName: "Nazwa wyświetlana",
+      displayNameAlt: "(nick konta)",
       firstName: "Imię",
       lastName: "Nazwisko",
       jobTitle: "Stanowisko",
@@ -58,6 +59,20 @@ const pl = {
       save: "Zapisz zmiany",
       saved: "Zapisano",
       saveError: "Nie udało się zapisać",
+      tip: {
+        displayName: "Tak będziesz widoczny/a publicznie - przy komentarzach, wpisach i w nagłówku „Witaj". Nie musi to być prawdziwe imię.",
+        firstName: "Twoje prawdziwe imię. Wykorzystywane do personalizacji powitań i (opcjonalnie) na fakturach.",
+        lastName: "Twoje prawdziwe nazwisko. Wykorzystywane w komunikacji oficjalnej i fakturach.",
+        jobTitle: "Stanowisko, które wyświetla się przy Twoim profilu autora.",
+        currentCompany: "Firma, w której obecnie pracujesz - pokazywana publicznie obok stanowiska.",
+        location: "Miasto i kraj. Pomaga czytelnikom rozpoznać kontekst Twoich publikacji.",
+        phone: "Numer wewnętrzny, widoczny tylko dla zespołu redakcyjnego.",
+        email: "Adres logowania. Aby go zmienić, użyj zakładki Bezpieczeństwo.",
+        bio: "Krótki biogram (do 500 znaków) widoczny na publicznej stronie autora.",
+        avatar: "Zdjęcie profilowe - wyświetlane wszędzie, gdzie widoczny jest Twój nick.",
+        cover: "Panorama nad profilem autora i na stronie publicznej.",
+        save: "Zapisuje wszystkie zmiany na karcie Konto.",
+      },
     },
 
     security: {
