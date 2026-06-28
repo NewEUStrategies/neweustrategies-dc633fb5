@@ -12,6 +12,7 @@ import type {
 } from "@/lib/builder/types";
 import { WIDGETS } from "@/lib/builder/registry";
 import { pickMode, setMode as setThemedMode, isModeOverridden, isThemedValue } from "@/lib/builder/themed";
+import { broadcastWidgetTypography } from "@/lib/builder/liveTypography";
 import { Sun, Moon, Undo as RotateCcw } from "@/lib/lucide-shim";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -124,9 +125,13 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
   const getThemedTypography = (): WidgetTypography | undefined =>
     pickMode<WidgetTypography>(widget.style?.typography as Themed<WidgetTypography> | undefined, mode) ??
     pickMode<WidgetTypography>(widget.style?.typography as Themed<WidgetTypography> | undefined, mode === "dark" ? "light" : "dark");
-  const setThemedTypography = (t: WidgetTypography | undefined) => setStyle((s) => {
-    s.typography = t && Object.keys(t).length ? t : undefined;
-  });
+  const setThemedTypography = (t: WidgetTypography | undefined) => {
+    const next = t && Object.keys(t).length ? t : undefined;
+    setStyle((s) => {
+      s.typography = next;
+    });
+    broadcastWidgetTypography(widget.id, next);
+  };
 
   // ---- Themed hover colors ----
   const hoverValue: HoverStyle | undefined = (() => {

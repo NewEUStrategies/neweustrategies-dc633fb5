@@ -14,10 +14,11 @@
 //      post-style titles/excerpts (slider, post-list, rated-list,
 //      podcast-latest) so the mapping is uniform across widgets.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { render, cleanup, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/admin/builder/WidgetView";
 import type { WidgetNode, WidgetType, CommonStyle } from "@/lib/builder/types";
+import { broadcastWidgetTypography } from "@/lib/builder/liveTypography";
 
 vi.mock("@/integrations/supabase/client", () => {
   const b: Record<string, unknown> = {};
@@ -143,5 +144,35 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
       typography: { fontSize: { tablet: "19px" } },
     });
     expect(css).toContain(`[data-w-id="tm-slider"][data-w-id] .cms-post-title{font-size:19px !important;}`);
+  });
+
+  it("updates the rendered typography CSS immediately from the live editor channel", async () => {
+    const node: WidgetNode = {
+      id: "tm-live",
+      kind: "widget",
+      type: "post-list",
+      content: {},
+      style: { typography: { fontSize: { desktop: "14px" } } },
+    };
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { container } = render(
+      <QueryClientProvider client={qc}>
+        <WidgetView node={node} lang="pl" device="desktop" />
+      </QueryClientProvider>,
+    );
+
+    expect(container.querySelector(`[data-w-id="tm-live"] style`)?.innerHTML).toContain(
+      `[data-w-id="tm-live"][data-w-id] .cms-post-title{font-size:14px !important;}`,
+    );
+
+    act(() => {
+      broadcastWidgetTypography("tm-live", { fontSize: { desktop: "28px" } });
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector(`[data-w-id="tm-live"] style`)?.innerHTML).toContain(
+        `[data-w-id="tm-live"][data-w-id] .cms-post-title{font-size:28px !important;}`,
+      );
+    });
   });
 });
