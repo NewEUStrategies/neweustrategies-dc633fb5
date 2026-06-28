@@ -35,6 +35,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
   if (isAdmin || isLogin || ownChrome) {
     return (
       <>
+        <ImpersonationBanner />
         <RouteProgress />
         {children}
       </>
