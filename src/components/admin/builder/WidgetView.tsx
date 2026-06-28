@@ -5,7 +5,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device } from "@/lib/builder/types";
+import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device, WidgetTypography } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import {
   sanitizeHtmlId,
@@ -16,6 +16,7 @@ import {
 } from "@/lib/sanitize";
 import { useInView } from "@/hooks/use-in-view";
 import { hoverCss } from "@/lib/builder/hoverCss";
+import { subscribeWidgetTypography } from "@/lib/builder/liveTypography";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 import { useTheme } from "@/components/ThemeProvider";
 import { useBuilderMode } from "@/lib/builder/modeContext";
@@ -105,6 +106,7 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
   const { theme } = useTheme();
   const builderMode = useBuilderMode();
   const effectiveMode = builderMode ?? theme;
+  const [liveTypography, setLiveTypography] = useState<WidgetTypography | undefined>(undefined);
   const baseStyle = styleToCSS(node.style, device, effectiveMode);
   const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
   const htmlId = sanitizeHtmlId(node.advanced?.htmlId);
@@ -130,6 +132,8 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
   const scopedCss = scopeCustomCss(node.advanced?.customCss, node.id);
   const hover = hoverCss(node.id, node.style, device);
 
+  useEffect(() => subscribeWidgetTypography(node.id, setLiveTypography), [node.id]);
+
   // Widget-level color overrides win over any global/utility class colors
   // (text-foreground, text-muted-foreground, prose, etc.). When the user sets
   // a color on a widget, force descendants to inherit it.
@@ -151,7 +155,7 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
     // Typography metrics (size, weight, family, spacing, etc.) must stay
     // identical across light/dark - only color is mode-specific. Resolve a
     // single shared value (light wins, dark fills in) regardless of mode.
-    const typography =
+    const typography = liveTypography ??
       pickMode(node.style?.typography, "light") ??
       pickMode(node.style?.typography, "dark");
     if (!typography) return "";
@@ -216,7 +220,7 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
     if (typography.textAlign) rules.push(`${descendants}{text-align:${typography.textAlign} !important;}`);
 
     return rules.join("\n");
-  }, [device, effectiveMode, node.id, node.style?.typography]);
+  }, [device, effectiveMode, liveTypography, node.id, node.style?.typography]);
 
   const isImage = node.type === "image";
   const isMedia = isImage || node.type === "slider" || node.type === "video" || node.type === "gallery" || node.type === "map";
