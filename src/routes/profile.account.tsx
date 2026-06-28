@@ -161,6 +161,12 @@ function AccountPage() {
       .from("profiles")
       .update({
         display_name: data.display_name,
+        first_name: data.first_name,
+        last_name: data.last_name,
+        job_title: data.job_title,
+        current_company: data.current_company,
+        location: data.location,
+        phone: data.phone,
         bio: data.bio,
         avatar_url: data.avatar_url,
         cover_url: data.cover_url,
@@ -181,33 +187,69 @@ function AccountPage() {
         <CardTitle>{t("profile.nav.account")}</CardTitle>
       </CardHeader>
       <CardContent>
-        <form className="grid gap-4 max-w-lg" onSubmit={save}>
-          <div className="grid gap-2">
-            <Label htmlFor="email">{t("profile.account.email")}</Label>
-            <Input id="email" type="email" value={user?.email ?? ""} readOnly disabled />
-            <p className="text-xs text-muted-foreground">{t("profile.account.emailReadonly")}</p>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="display_name">{t("profile.account.displayName")}</Label>
-            <Input
-              id="display_name"
-              value={data.display_name ?? ""}
-              onChange={(e) => setData({ ...data, display_name: e.target.value })}
-              maxLength={120}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="bio">{t("profile.account.bio")}</Label>
-            <Textarea
-              id="bio"
-              value={data.bio ?? ""}
-              onChange={(e) => setData({ ...data, bio: e.target.value })}
-              maxLength={500}
-              rows={4}
-            />
-          </div>
+        <form className="grid gap-6 max-w-2xl" onSubmit={save}>
+          {/* Personal */}
+          <section className="grid gap-4">
+            <h3 className="text-sm font-semibold text-foreground/80">{t("profile.account.personalSection")}</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="first_name">{t("profile.account.firstName")}</Label>
+                <Input id="first_name" value={data.first_name ?? ""} onChange={(e) => setData({ ...data, first_name: e.target.value })} maxLength={80} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="last_name">{t("profile.account.lastName")}</Label>
+                <Input id="last_name" value={data.last_name ?? ""} onChange={(e) => setData({ ...data, last_name: e.target.value })} maxLength={80} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="job_title">{t("profile.account.jobTitle")}</Label>
+                <Input id="job_title" value={data.job_title ?? ""} onChange={(e) => setData({ ...data, job_title: e.target.value })} maxLength={120} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="current_company">{t("profile.account.currentCompany")}</Label>
+                <Input id="current_company" value={data.current_company ?? ""} onChange={(e) => setData({ ...data, current_company: e.target.value })} maxLength={160} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="location">{t("profile.account.location")}</Label>
+                <Input id="location" value={data.location ?? ""} onChange={(e) => setData({ ...data, location: e.target.value })} maxLength={160} placeholder={t("profile.account.locationPh")} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="phone">{t("profile.account.phone")}</Label>
+                <Input id="phone" type="tel" value={data.phone ?? ""} onChange={(e) => setData({ ...data, phone: e.target.value })} maxLength={32} placeholder={t("profile.account.phonePh")} />
+              </div>
+            </div>
+          </section>
+
+          {/* Contact */}
+          <section className="grid gap-4">
+            <h3 className="text-sm font-semibold text-foreground/80">{t("profile.account.contactSection")}</h3>
+            <div className="grid gap-2">
+              <Label htmlFor="email">{t("profile.account.email")}</Label>
+              <Input id="email" type="email" value={user?.email ?? ""} readOnly disabled />
+              <p className="text-xs text-muted-foreground">{t("profile.account.emailReadonly")}</p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="display_name">{t("profile.account.displayName")}</Label>
+              <Input
+                id="display_name"
+                value={data.display_name ?? ""}
+                onChange={(e) => setData({ ...data, display_name: e.target.value })}
+                maxLength={120}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="bio">{t("profile.account.bio")}</Label>
+              <Textarea
+                id="bio"
+                value={data.bio ?? ""}
+                onChange={(e) => setData({ ...data, bio: e.target.value })}
+                maxLength={500}
+                rows={4}
+              />
+            </div>
+          </section>
 
           {/* Avatar */}
+
           <div className="grid gap-2">
             <Label htmlFor="avatar">{t("profile.account.avatar")}</Label>
             <div className="flex items-center gap-3">
