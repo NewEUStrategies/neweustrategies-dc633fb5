@@ -257,12 +257,14 @@ function Page() {
               <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
             </TabsList>
             <TabsContent value="pl" className="space-y-3 mt-4">
+              <div><Label>Eyebrow (nad nagłówkiem)</Label><Input value={cur.popup_eyebrow_pl} onChange={(e) => upd({ popup_eyebrow_pl: e.target.value })} placeholder="Newsletter" /></div>
               <div><Label>Nagłówek</Label><Input value={cur.popup_title_pl} onChange={(e) => upd({ popup_title_pl: e.target.value })} /></div>
               <div><Label>Opis</Label><Textarea rows={2} value={cur.popup_description_pl} onChange={(e) => upd({ popup_description_pl: e.target.value })} /></div>
               <div><Label>CTA (przycisk)</Label><Input value={cur.popup_cta_pl} onChange={(e) => upd({ popup_cta_pl: e.target.value })} /></div>
               <div><Label>Treść zgody na regulamin (HTML)</Label><Textarea rows={2} value={cur.popup_terms_html_pl ?? ""} onChange={(e) => upd({ popup_terms_html_pl: e.target.value || null })} /></div>
             </TabsContent>
             <TabsContent value="en" className="space-y-3 mt-4">
+              <div><Label>Eyebrow (above heading)</Label><Input value={cur.popup_eyebrow_en} onChange={(e) => upd({ popup_eyebrow_en: e.target.value })} placeholder="Newsletter" /></div>
               <div><Label>Heading</Label><Input value={cur.popup_title_en} onChange={(e) => upd({ popup_title_en: e.target.value })} /></div>
               <div><Label>Description</Label><Textarea rows={2} value={cur.popup_description_en} onChange={(e) => upd({ popup_description_en: e.target.value })} /></div>
               <div><Label>CTA (button)</Label><Input value={cur.popup_cta_en} onChange={(e) => upd({ popup_cta_en: e.target.value })} /></div>
