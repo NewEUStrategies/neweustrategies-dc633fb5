@@ -638,7 +638,6 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
    text-decoration (which natively underlines per visual line, without
    forcing display:inline and without breaking line-clamp / flex layout). */
 .cms-post-title {
-  display: block;
   font-family: var(--td-pt-family, "Red Hat Display", system-ui, sans-serif);
   font-size: var(--td-pt-size, 15px);
   font-weight: var(--td-pt-weight, 600);
@@ -647,20 +646,24 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   text-transform: var(--td-pt-transform, none);
   letter-spacing: var(--td-pt-spacing, 0);
 
-  /* Animated underline grows from left to right on each wrapped line */
-  background-image: linear-gradient(currentColor, currentColor);
-  background-position: 0% 100%;
+  display: inline;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+
+  /* Subtle full-width highlight on each wrapped line, grows left-to-right */
+  background-image: linear-gradient(to right, hsl(var(--brand) / 0.12), hsl(var(--brand) / 0.12));
+  background-position: 0 0;
   background-repeat: no-repeat;
-  background-size: 0% 2px;
+  background-size: 0% 100%;
   transition: background-size 0.35s ease, color .2s ease;
 }
 .cms-post-title:hover,
 a:hover .cms-post-title,
 a:focus-visible .cms-post-title {
-  background-size: 100% 2px;
+  background-size: 100% 100%;
 }
 
-/* Prevent double underline: kill the underline on any anchor wrapping a .cms-post-title */
+/* Prevent double underline on any anchor wrapping a .cms-post-title */
 a:has(.cms-post-title),
 a:has(.cms-post-title):hover,
 a:has(.cms-post-title):focus {
