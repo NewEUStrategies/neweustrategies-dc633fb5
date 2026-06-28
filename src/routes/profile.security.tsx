@@ -5,8 +5,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile/security")({
@@ -42,6 +43,7 @@ function SecurityPage() {
   };
 
   return (
+    <TooltipProvider>
     <div className="space-y-6">
       <Card>
         <CardHeader>
@@ -50,25 +52,26 @@ function SecurityPage() {
         <CardContent>
           <form className="grid gap-4 max-w-sm" onSubmit={update}>
             <div className="grid gap-2">
-              <Label htmlFor="pw">{t("profile.security.newPassword")}</Label>
+              <FieldLabel htmlFor="pw" tip={t("profile.security.tip.newPassword")}>{t("profile.security.newPassword")}</FieldLabel>
               <Input id="pw" type="password" value={pw} onChange={(e) => setPw(e.target.value)} minLength={8} required autoComplete="new-password" />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="pw2">{t("profile.security.confirmPassword")}</Label>
+              <FieldLabel htmlFor="pw2" tip={t("profile.security.tip.confirmPassword")}>{t("profile.security.confirmPassword")}</FieldLabel>
               <Input id="pw2" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} minLength={8} required autoComplete="new-password" />
             </div>
-            <Button type="submit" disabled={busy}>{t("profile.security.update")}</Button>
+            <Button type="submit" disabled={busy} title={t("profile.security.tip.update")}>{t("profile.security.update")}</Button>
           </form>
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="pt-6">
-          <Button variant="outline" onClick={() => void signOut()}>
+          <Button variant="outline" onClick={() => void signOut()} title={t("profile.security.tip.signOut")}>
             {t("profile.security.signOut")}
           </Button>
         </CardContent>
       </Card>
     </div>
+    </TooltipProvider>
   );
 }

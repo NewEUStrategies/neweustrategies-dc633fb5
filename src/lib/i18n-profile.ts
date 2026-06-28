@@ -28,6 +28,7 @@ const pl = {
     },
     account: {
       displayName: "Nazwa wyświetlana",
+      displayNameAlt: "(nick konta)",
       firstName: "Imię",
       lastName: "Nazwisko",
       jobTitle: "Stanowisko",
@@ -58,6 +59,20 @@ const pl = {
       save: "Zapisz zmiany",
       saved: "Zapisano",
       saveError: "Nie udało się zapisać",
+      tip: {
+        displayName: "Tak będziesz widoczny/a publicznie - przy komentarzach, wpisach i w nagłówku powitania. Nie musi to być prawdziwe imię.",
+        firstName: "Twoje prawdziwe imię. Wykorzystywane do personalizacji powitań i (opcjonalnie) na fakturach.",
+        lastName: "Twoje prawdziwe nazwisko. Wykorzystywane w komunikacji oficjalnej i fakturach.",
+        jobTitle: "Stanowisko, które wyświetla się przy Twoim profilu autora.",
+        currentCompany: "Firma, w której obecnie pracujesz - pokazywana publicznie obok stanowiska.",
+        location: "Miasto i kraj. Pomaga czytelnikom rozpoznać kontekst Twoich publikacji.",
+        phone: "Numer wewnętrzny, widoczny tylko dla zespołu redakcyjnego.",
+        email: "Adres logowania. Aby go zmienić, użyj zakładki Bezpieczeństwo.",
+        bio: "Krótki biogram (do 500 znaków) widoczny na publicznej stronie autora.",
+        avatar: "Zdjęcie profilowe - wyświetlane wszędzie, gdzie widoczny jest Twój nick.",
+        cover: "Panorama nad profilem autora i na stronie publicznej.",
+        save: "Zapisuje wszystkie zmiany na karcie Konto.",
+      },
     },
 
     security: {
@@ -71,6 +86,12 @@ const pl = {
       signOut: "Wyloguj",
       deleteAccount: "Usuń konto",
       deleteConfirm: "Czy na pewno chcesz usunąć konto? Tej operacji nie można cofnąć.",
+      tip: {
+        newPassword: "Minimum 8 znaków. Używaj kombinacji liter, cyfr i znaków specjalnych.",
+        confirmPassword: "Powtórz nowe hasło, żeby uniknąć literówki.",
+        update: "Zapisuje nowe hasło. Pozostałe sesje pozostają aktywne.",
+        signOut: "Wylogowuje Cię na tym urządzeniu.",
+      },
     },
     billing: {
       title: "Dane rozliczeniowe",
@@ -89,6 +110,21 @@ const pl = {
       country: "Kraj",
       save: "Zapisz dane",
       saved: "Dane zapisane",
+      tip: {
+        isCompany: "Włącz, jeśli kupujesz jako firma - pojawi się pole na NIP.",
+        fullName: "Pełne imię i nazwisko, jak ma być widoczne na fakturze.",
+        company: "Oficjalna nazwa firmy do faktur.",
+        taxId: "Numer identyfikacji podatkowej (NIP/VAT). Wymagany dla kupujących firmowych.",
+        email: "Adres, na który wyślemy fakturę PDF.",
+        phone: "Telefon kontaktowy do pytań związanych z zamówieniem.",
+        addressLine1: "Ulica i numer (np. „Marszałkowska 1\").",
+        addressLine2: "Mieszkanie, piętro, lokal - opcjonalnie.",
+        city: "Miasto, w którym mieści się adres do faktury.",
+        postalCode: "Kod pocztowy adresu rozliczeniowego.",
+        region: "Województwo, stan lub region - jeśli dotyczy.",
+        country: "Dwuliterowy kod kraju ISO (np. PL, DE, US).",
+        save: "Zapisuje dane rozliczeniowe na Twoim koncie.",
+      },
     },
     subscription: {
       title: "Twoja subskrypcja",
@@ -195,6 +231,7 @@ const en: typeof pl = {
     },
     account: {
       displayName: "Display name",
+      displayNameAlt: "(account nickname)",
       firstName: "First name",
       lastName: "Last name",
       jobTitle: "Job title",
@@ -225,6 +262,20 @@ const en: typeof pl = {
       save: "Save changes",
       saved: "Saved",
       saveError: "Could not save",
+      tip: {
+        displayName: "How you appear publicly - on comments, posts and in the welcome header. Doesn't have to be your real name.",
+        firstName: "Your real first name. Used for personalised greetings and (optionally) on invoices.",
+        lastName: "Your real last name. Used in official communication and on invoices.",
+        jobTitle: "Job title shown on your public author profile.",
+        currentCompany: "Where you currently work - shown publicly next to your job title.",
+        location: "City and country. Helps readers understand the context of what you publish.",
+        phone: "Internal contact number - visible only to the editorial team.",
+        email: "Your sign-in address. To change it, use the Security tab.",
+        bio: "Short biography (up to 500 characters) shown on your public author page.",
+        avatar: "Profile picture - shown anywhere your nickname appears.",
+        cover: "Banner image at the top of your author page.",
+        save: "Saves all changes on the Account tab.",
+      },
     },
 
     security: {
@@ -238,6 +289,12 @@ const en: typeof pl = {
       signOut: "Sign out",
       deleteAccount: "Delete account",
       deleteConfirm: "Are you sure you want to delete your account? This cannot be undone.",
+      tip: {
+        newPassword: "Minimum 8 characters. Mix letters, digits and symbols for strength.",
+        confirmPassword: "Repeat your new password to avoid typos.",
+        update: "Saves your new password. Other sessions stay signed in.",
+        signOut: "Signs you out on this device.",
+      },
     },
     billing: {
       title: "Billing details",
@@ -256,6 +313,21 @@ const en: typeof pl = {
       country: "Country",
       save: "Save details",
       saved: "Saved",
+      tip: {
+        isCompany: "Enable if you're purchasing as a business - a VAT field will appear.",
+        fullName: "Full name as it should appear on the invoice.",
+        company: "Official company name for invoicing.",
+        taxId: "Tax ID / VAT number. Required for business buyers.",
+        email: "Where we'll send your PDF invoice.",
+        phone: "Contact number for questions about your order.",
+        addressLine1: "Street and number (e.g. \"5th Avenue 1\").",
+        addressLine2: "Apartment, floor, suite - optional.",
+        city: "City for the billing address.",
+        postalCode: "Postal / ZIP code of the billing address.",
+        region: "State or region, if applicable.",
+        country: "Two-letter ISO country code (e.g. PL, DE, US).",
+        save: "Saves your billing details to your account.",
+      },
     },
     subscription: {
       title: "Your subscription",
@@ -349,6 +421,12 @@ type ProfileExtras = {
       twitter: string; linkedin: string; website: string;
       facebook: string; instagram: string; spotify: string; email: string;
       save: string; saved: string;
+      tip: {
+        slug: string; bioPl: string; bioEn: string;
+        twitter: string; linkedin: string; website: string;
+        facebook: string; instagram: string; spotify: string; email: string;
+        save: string;
+      };
     };
 
     bookmarks: { title: string; subtitle: string; empty: string; remove: string; open: string; tabPosts: string; tabPages: string };
@@ -387,6 +465,19 @@ const extrasPl: ProfileExtras = {
       email: "E-mail kontaktowy",
       save: "Zapisz",
       saved: "Zapisano",
+      tip: {
+        slug: "Twój unikalny nick - tworzy adres /author/{nick} i pojawia się przy publikacjach.",
+        bioPl: "Krótki biogram po polsku (do 1000 znaków).",
+        bioEn: "Krótki biogram po angielsku (do 1000 znaków).",
+        twitter: "Pełny link do Twojego profilu X / Twitter (https://x.com/...).",
+        linkedin: "Pełny link do Twojego profilu LinkedIn (https://linkedin.com/in/...).",
+        website: "Twoja strona WWW - dowolny adres zaczynający się od https://.",
+        facebook: "Pełny link do Twojego profilu lub strony na Facebooku.",
+        instagram: "Pełny link do Twojego konta na Instagramie.",
+        spotify: "Pełny link do profilu artysty lub podcastu na Spotify.",
+        email: "Publiczny adres kontaktowy - widoczny na Twojej stronie autora.",
+        save: "Zapisuje sekcję mediów społecznościowych i profil publiczny.",
+      },
     },
     bookmarks: {
       title: "Zapisane materiały",
@@ -437,6 +528,19 @@ const extrasEn: ProfileExtras = {
       email: "Contact e-mail",
       save: "Save",
       saved: "Saved",
+      tip: {
+        slug: "Your unique handle - it builds the /author/{handle} URL and shows next to your posts.",
+        bioPl: "Short Polish biography (up to 1000 characters).",
+        bioEn: "Short English biography (up to 1000 characters).",
+        twitter: "Full URL of your X / Twitter profile (https://x.com/...).",
+        linkedin: "Full URL of your LinkedIn profile (https://linkedin.com/in/...).",
+        website: "Your website - any address starting with https://.",
+        facebook: "Full URL of your Facebook profile or page.",
+        instagram: "Full URL of your Instagram account.",
+        spotify: "Full URL of your artist or podcast profile on Spotify.",
+        email: "Public contact email shown on your author page.",
+        save: "Saves the social media & public profile section.",
+      },
     },
     bookmarks: {
       title: "Saved items",
