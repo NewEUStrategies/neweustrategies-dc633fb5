@@ -25,6 +25,7 @@ const Ctx = createContext<AuthCtx>({
   loading: true,
   isStaff: false,
   isAdmin: false,
+  isSuperAdmin: false,
   signOut: async () => {},
 });
 
