@@ -160,7 +160,7 @@ export const WIDGETS: WidgetDef[] = [
       signupHref: "/login?mode=signup",
       panelRadius: 12,
       panelWidth: 280,
-      items: [
+      items: ([
         { id: "g1", section: "guest", kind: "custom", icon: "LogIn", label_pl: "Zaloguj", label_en: "Sign in", customHref: "/login", desc_pl: "Dostęp do Twojego konta", desc_en: "Access your account" },
         { id: "g2", section: "guest", kind: "custom", icon: "UserPlus", label_pl: "Załóż konto", label_en: "Create account", customHref: "/login?mode=signup", desc_pl: "Bezpłatna rejestracja", desc_en: "Free registration" },
         { id: "a1", section: "auth", kind: "preset", presetKey: "profile", icon: "User", label_pl: "Mój profil", label_en: "My profile" },
@@ -171,7 +171,7 @@ export const WIDGETS: WidgetDef[] = [
         { id: "a6", section: "auth", kind: "preset", presetKey: "account", icon: "Settings", label_pl: "Ustawienia konta", label_en: "Account settings" },
         { id: "a7", section: "auth", kind: "logout", icon: "LogOut", label_pl: "Wyloguj", label_en: "Sign out" },
         { id: "s1", section: "staff", kind: "preset", presetKey: "admin", icon: "LayoutDashboard", label_pl: "Panel admina", label_en: "Admin panel" },
-      ],
+      ] as unknown as Json),
     }) },
   { type: "search-button", label: "Wyszukiwarka", category: "navigation", icon: Search,
     defaults: () => ({ label_pl: "Szukaj", label_en: "Search", height: 40, radius: 8, fontSize: 14, limit: 8, liveResults: "on" }) },
