@@ -28,6 +28,17 @@ const pl = {
     },
     account: {
       displayName: "Nazwa wyświetlana",
+      firstName: "Imię",
+      lastName: "Nazwisko",
+      jobTitle: "Stanowisko",
+      currentCompany: "Aktualna firma",
+      location: "Miejsce zamieszkania",
+      locationPh: "Miasto, kraj",
+      phone: "Telefon",
+      phonePh: "+48 600 000 000",
+      personalSection: "Dane osobowe",
+      contactSection: "Dane kontaktowe",
+      mediaSection: "Awatar i tło",
       email: "E-mail",
       emailReadonly: "Adres e-mail zmieniany przez ustawienia konta.",
       bio: "Krótki opis",
@@ -48,6 +59,7 @@ const pl = {
       saved: "Zapisano",
       saveError: "Nie udało się zapisać",
     },
+
     security: {
       changePassword: "Zmień hasło",
       newPassword: "Nowe hasło",
