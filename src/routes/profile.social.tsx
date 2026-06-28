@@ -56,10 +56,8 @@ function SocialPage() {
     facebook_url: "", instagram_url: "", spotify_url: "", contact_email: "",
   });
   const [busy, setBusy] = useState(false);
-  // Track whether slug is "owned" by user (manually edited) or auto-synced.
-  const [slugManual, setSlugManual] = useState(false);
-  // Source string we auto-derive from: "first last" || display_name || email-local.
-  const [autoSource, setAutoSource] = useState("");
+  // Suggestion source: "first last" || display_name || email-local. Never written automatically.
+  const [suggestSource, setSuggestSource] = useState("");
   const [slugStatus, setSlugStatus] = useState<SlugStatus>("idle");
   const [origin, setOrigin] = useState("");
 
@@ -85,14 +83,9 @@ function SocialPage() {
         };
         const nameParts = [r.first_name, r.last_name].filter((p): p is string => !!p && p.trim().length > 0).join(" ").trim();
         const base = nameParts || r.display_name?.trim() || user.email?.split("@")[0] || "";
-        const autoSlug = slugify(base);
-        const storedSlug = (r.slug ?? "").trim();
-        // If stored slug matches what we'd auto-generate (or is empty), treat as auto.
-        const isManual = storedSlug.length > 0 && storedSlug !== autoSlug;
-        setAutoSource(base);
-        setSlugManual(isManual);
+        setSuggestSource(base);
         setData({
-          slug: storedSlug || autoSlug,
+          slug: (r.slug ?? "").trim(),
           bio_pl: r.bio_pl, bio_en: r.bio_en,
           twitter_url: r.twitter_url, linkedin_url: r.linkedin_url, website_url: r.website_url,
           facebook_url: r.facebook_url, instagram_url: r.instagram_url, spotify_url: r.spotify_url,
@@ -102,35 +95,15 @@ function SocialPage() {
     return () => { active = false; };
   }, [user]);
 
-  // Re-sync slug live if the user updates name fields in another tab (BroadcastChannel-free fallback: poll on focus).
-  useEffect(() => {
-    if (!user || slugManual) return;
-    const onFocus = async () => {
-      const { data: row } = await supabase
-        .from("profiles")
-        .select("display_name, first_name, last_name")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (!row) return;
-      const r = row as { display_name?: string | null; first_name?: string | null; last_name?: string | null };
-      const nameParts = [r.first_name, r.last_name].filter((p): p is string => !!p && p.trim().length > 0).join(" ").trim();
-      const base = nameParts || r.display_name?.trim() || "";
-      if (!base || base === autoSource) return;
-      setAutoSource(base);
-      setData((d) => ({ ...d, slug: slugify(base) }));
-    };
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [user, slugManual, autoSource]);
-
   const onSlugChange = (value: string) => {
-    setSlugManual(true);
-    setData({ ...data, slug: value });
+    // Normalize as user types: lowercase + replace invalid chars with dash.
+    const normalized = value.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-{2,}/g, "-");
+    setData((d) => ({ ...d, slug: normalized }));
   };
 
-  const resetSlugAuto = () => {
-    setSlugManual(false);
-    setData({ ...data, slug: slugify(autoSource) });
+  const suggestSlug = () => {
+    const suggestion = slugify(suggestSource);
+    if (suggestion) setData((d) => ({ ...d, slug: suggestion }));
   };
 
   // Debounced slug validation + uniqueness check.
