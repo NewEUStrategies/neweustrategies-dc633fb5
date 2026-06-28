@@ -197,7 +197,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
           <PropField label="Kolor (light)"><ColorField value={txt("titleColor", "")} onChange={(v) => setContent("titleColor", (v ?? "") as Json)} /></PropField>
           <PropField label="Kolor (dark)"><ColorField value={txt("titleColorDark", "")} onChange={(v) => setContent("titleColorDark", (v ?? "") as Json)} /></PropField>
           <PropField label="Hover"><ColorField value={txt("titleHoverColor", "")} onChange={(v) => setContent("titleHoverColor", (v ?? "") as Json)} /></PropField>
-          <PropField label="Rozmiar (px)"><Input type="number" min={10} max={48} value={num("titleSizePx", 18)} onChange={(e) => setContent("titleSizePx", (Number(e.target.value) || 18) as Json)} className="h-8 text-xs" /></PropField>
+          {/* Rozmiar tytułu: zarządzany w zakładce „Styl" → Typografia (.cms-post-title). */}
           <PropField label="Grubość">
             <Select value={txt("titleWeight", "700")} onValueChange={(v) => setContent("titleWeight", v as Json)}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
@@ -242,7 +242,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
         <div className="grid grid-cols-2 gap-2">
           <PropField label="Kolor (light)"><ColorField value={txt("excerptColor", "")} onChange={(v) => setContent("excerptColor", (v ?? "") as Json)} /></PropField>
           <PropField label="Kolor (dark)"><ColorField value={txt("excerptColorDark", "")} onChange={(v) => setContent("excerptColorDark", (v ?? "") as Json)} /></PropField>
-          <PropField label="Rozmiar (px)"><Input type="number" min={10} max={20} value={num("excerptSizePx", 13)} onChange={(e) => setContent("excerptSizePx", (Number(e.target.value) || 13) as Json)} className="h-8 text-xs" /></PropField>
+          {/* Rozmiar excerpt: zarządzany w zakładce „Styl" → Typografia (.cms-post-excerpt). */}
           <PropField label="Linie (clamp)"><Input type="number" min={1} max={10} value={num("excerptLines", 3)} onChange={(e) => setContent("excerptLines", (Number(e.target.value) || 3) as Json)} className="h-8 text-xs" /></PropField>
         </div>
       </Collapsible>
