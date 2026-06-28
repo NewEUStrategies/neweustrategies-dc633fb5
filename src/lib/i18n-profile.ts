@@ -153,11 +153,13 @@ const en: typeof pl = {
     nav: {
       overview: "Overview",
       account: "Account",
+      social: "Social media",
       interests: "Interests",
+      bookmarks: "Saved items",
+      follows: "Following",
       billing: "Billing details",
       subscription: "Subscription",
       orders: "Payment history",
-      bookmarks: "Saved",
       security: "Security",
     },
     overview: {
