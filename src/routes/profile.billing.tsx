@@ -84,6 +84,9 @@ function BillingPage() {
 
   return (
     <Card>
+  return (
+    <TooltipProvider>
+    <Card>
       <CardHeader>
         <CardTitle>{t("profile.billing.title")}</CardTitle>
         <p className="text-sm text-muted-foreground">{t("profile.billing.subtitle")}</p>
@@ -96,71 +99,72 @@ function BillingPage() {
               checked={form.is_company}
               onCheckedChange={(v) => set("is_company", v)}
             />
-            <Label htmlFor="is_company">{t("profile.billing.isCompany")}</Label>
+            <Label htmlFor="is_company" title={t("profile.billing.tip.isCompany")}>{t("profile.billing.isCompany")}</Label>
           </div>
 
           {form.is_company ? (
             <div className="grid gap-2">
-              <Label htmlFor="company">{t("profile.billing.company")}</Label>
+              <FieldLabel htmlFor="company" tip={t("profile.billing.tip.company")}>{t("profile.billing.company")}</FieldLabel>
               <Input id="company" value={form.company ?? ""} onChange={(e) => set("company", e.target.value)} required maxLength={200} />
             </div>
           ) : (
             <div className="grid gap-2">
-              <Label htmlFor="full_name">{t("profile.billing.fullName")}</Label>
+              <FieldLabel htmlFor="full_name" tip={t("profile.billing.tip.fullName")}>{t("profile.billing.fullName")}</FieldLabel>
               <Input id="full_name" value={form.full_name ?? ""} onChange={(e) => set("full_name", e.target.value)} required maxLength={200} />
             </div>
           )}
 
           {form.is_company && (
             <div className="grid gap-2">
-              <Label htmlFor="tax_id">{t("profile.billing.taxId")}</Label>
+              <FieldLabel htmlFor="tax_id" tip={t("profile.billing.tip.taxId")}>{t("profile.billing.taxId")}</FieldLabel>
               <Input id="tax_id" value={form.tax_id ?? ""} onChange={(e) => set("tax_id", e.target.value)} maxLength={40} />
             </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="email">{t("profile.billing.email")}</Label>
+              <FieldLabel htmlFor="email" tip={t("profile.billing.tip.email")}>{t("profile.billing.email")}</FieldLabel>
               <Input id="email" type="email" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} maxLength={200} />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="phone">{t("profile.billing.phone")}</Label>
+              <FieldLabel htmlFor="phone" tip={t("profile.billing.tip.phone")}>{t("profile.billing.phone")}</FieldLabel>
               <Input id="phone" value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} maxLength={40} />
             </div>
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="address_line1">{t("profile.billing.addressLine1")}</Label>
+            <FieldLabel htmlFor="address_line1" tip={t("profile.billing.tip.addressLine1")}>{t("profile.billing.addressLine1")}</FieldLabel>
             <Input id="address_line1" value={form.address_line1 ?? ""} onChange={(e) => set("address_line1", e.target.value)} required maxLength={200} />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="address_line2">{t("profile.billing.addressLine2")}</Label>
+            <FieldLabel htmlFor="address_line2" tip={t("profile.billing.tip.addressLine2")}>{t("profile.billing.addressLine2")}</FieldLabel>
             <Input id="address_line2" value={form.address_line2 ?? ""} onChange={(e) => set("address_line2", e.target.value)} maxLength={200} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="postal_code">{t("profile.billing.postalCode")}</Label>
+              <FieldLabel htmlFor="postal_code" tip={t("profile.billing.tip.postalCode")}>{t("profile.billing.postalCode")}</FieldLabel>
               <Input id="postal_code" value={form.postal_code ?? ""} onChange={(e) => set("postal_code", e.target.value)} required maxLength={20} />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="city">{t("profile.billing.city")}</Label>
+              <FieldLabel htmlFor="city" tip={t("profile.billing.tip.city")}>{t("profile.billing.city")}</FieldLabel>
               <Input id="city" value={form.city ?? ""} onChange={(e) => set("city", e.target.value)} required maxLength={100} />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="region">{t("profile.billing.region")}</Label>
+              <FieldLabel htmlFor="region" tip={t("profile.billing.tip.region")}>{t("profile.billing.region")}</FieldLabel>
               <Input id="region" value={form.region ?? ""} onChange={(e) => set("region", e.target.value)} maxLength={100} />
             </div>
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="country_code">{t("profile.billing.country")}</Label>
+            <FieldLabel htmlFor="country_code" tip={t("profile.billing.tip.country")}>{t("profile.billing.country")}</FieldLabel>
             <Input id="country_code" value={form.country_code} onChange={(e) => set("country_code", e.target.value.toUpperCase())} maxLength={2} required />
           </div>
 
-          <Button type="submit" disabled={busy}>{t("profile.billing.save")}</Button>
+          <Button type="submit" disabled={busy} title={t("profile.billing.tip.save")}>{t("profile.billing.save")}</Button>
         </form>
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
 }
