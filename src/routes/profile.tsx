@@ -18,9 +18,9 @@ function ProfileLayout() {
   const { t } = useTranslation();
   return (
     <AuthGate>
-      <div className="container mx-auto max-w-6xl px-4 py-8 md:py-12">
-        <h1 className="mb-6 text-3xl font-bold tracking-tight">{t("profile.title")}</h1>
-        <div className="grid gap-6 md:grid-cols-[220px_1fr]">
+      <div className="profile-shell container mx-auto max-w-5xl px-4 py-6 md:py-10">
+        <h1 className="mb-5 text-2xl md:text-3xl font-semibold tracking-tight">{t("profile.title")}</h1>
+        <div className="grid gap-5 md:grid-cols-[200px_1fr]">
           <aside>
             <ProfileNav />
           </aside>
