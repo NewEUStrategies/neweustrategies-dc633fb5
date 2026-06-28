@@ -990,6 +990,7 @@ export type Database = {
           menu_order: number
           parent_id: string | null
           published_at: string | null
+          search_vector: unknown
           slug: string
           status: Database["public"]["Enums"]["post_status"]
           template_id: string | null
@@ -1016,6 +1017,7 @@ export type Database = {
           menu_order?: number
           parent_id?: string | null
           published_at?: string | null
+          search_vector?: unknown
           slug: string
           status?: Database["public"]["Enums"]["post_status"]
           template_id?: string | null
@@ -1042,6 +1044,7 @@ export type Database = {
           menu_order?: number
           parent_id?: string | null
           published_at?: string | null
+          search_vector?: unknown
           slug?: string
           status?: Database["public"]["Enums"]["post_status"]
           template_id?: string | null
@@ -1596,6 +1599,7 @@ export type Database = {
           published_at: string | null
           read_minutes: number | null
           related_override: Json | null
+          search_vector: unknown
           sidebar_layout_id: string | null
           slug: string
           status: Database["public"]["Enums"]["post_status"]
@@ -1627,6 +1631,7 @@ export type Database = {
           published_at?: string | null
           read_minutes?: number | null
           related_override?: Json | null
+          search_vector?: unknown
           sidebar_layout_id?: string | null
           slug: string
           status?: Database["public"]["Enums"]["post_status"]
@@ -1658,6 +1663,7 @@ export type Database = {
           published_at?: string | null
           read_minutes?: number | null
           related_override?: Json | null
+          search_vector?: unknown
           sidebar_layout_id?: string | null
           slug?: string
           status?: Database["public"]["Enums"]["post_status"]
@@ -2368,6 +2374,38 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_staff: { Args: never; Returns: boolean }
+      nes_jsonb_text: { Args: { _j: Json }; Returns: string }
+      nes_pages_search_vector: {
+        Args: {
+          _builder: Json
+          _content_en: string
+          _content_pl: string
+          _excerpt_en: string
+          _excerpt_pl: string
+          _slug: string
+          _title_en: string
+          _title_pl: string
+        }
+        Returns: unknown
+      }
+      nes_posts_search_vector: {
+        Args: {
+          _blocks: Json
+          _builder: Json
+          _content_en: string
+          _content_pl: string
+          _excerpt_en: string
+          _excerpt_pl: string
+          _slug: string
+          _takeaways_en: string[]
+          _takeaways_pl: string[]
+          _title_en: string
+          _title_pl: string
+        }
+        Returns: unknown
+      }
+      nes_search_tsquery: { Args: { _q: string }; Returns: unknown }
       page_breadcrumbs: {
         Args: { _page_id: string }
         Returns: {
@@ -2392,6 +2430,39 @@ export type Database = {
           post_id: string
         }[]
       }
+      search_posts: {
+        Args: {
+          _author?: string
+          _date_from?: string
+          _date_to?: string
+          _limit?: number
+          _q: string
+        }
+        Returns: {
+          author_id: string
+          cover_image_url: string
+          excerpt_en: string
+          excerpt_pl: string
+          id: string
+          parent_page_id: string
+          published_at: string
+          rank: number
+          slug: string
+          title_en: string
+          title_pl: string
+        }[]
+      }
+      search_quick: {
+        Args: { _limit?: number; _q: string }
+        Returns: {
+          id: string
+          kind: string
+          rank: number
+          slug: string
+          title_en: string
+          title_pl: string
+        }[]
+      }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
       trending_posts: {
         Args: { _days?: number; _limit?: number }
@@ -2406,6 +2477,7 @@ export type Database = {
           views_count: number
         }[]
       }
+      unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
       access_entity_type: "post" | "page" | "media"
