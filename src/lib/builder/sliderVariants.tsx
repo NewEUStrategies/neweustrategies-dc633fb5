@@ -357,12 +357,36 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       {/* Image */}
       <div
         data-widget-media
-        className={`relative w-full overflow-hidden bg-muted/40 eh-drag-surface ${dragRef.current.active ? "is-dragging" : ""}`}
+        role={href ? "link" : undefined}
+        tabIndex={href ? 0 : undefined}
+        aria-label={href ? title : undefined}
+        className={`relative w-full overflow-hidden bg-muted/40 eh-drag-surface ${dragRef.current.active ? "is-dragging" : ""} ${href ? "cursor-pointer" : ""}`}
         style={{ ...aspectStyle, borderRadius: 4 }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
+        onClick={(e) => {
+          if (preview || !href) return;
+          // Ignoruj klik jeśli był to drag (przesunięcie > 5px)
+          const d = dragRef.current;
+          if (Math.abs(d.lastX - d.startX) > 5) return;
+          // Nie przechwytuj klików na strzałkach
+          const target = e.target as HTMLElement;
+          if (target.closest(".eh-side-nav")) return;
+          if (href.startsWith("http://") || href.startsWith("https://")) {
+            window.open(href, "_blank", "noopener,noreferrer");
+          } else {
+            window.location.assign(href);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (!href || preview) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            window.location.assign(href);
+          }
+        }}
       >
         <div
           className="absolute inset-0"
@@ -383,6 +407,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
             />
           ))}
         </div>
+
 
         {/* Side arrows - overlay on the image */}
         {items.length > 1 && (
