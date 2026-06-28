@@ -3,7 +3,7 @@
 // cannot lie about tenant_id.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireStaff } from "@/integrations/supabase/require-staff";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { recordAudit } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
@@ -31,7 +31,7 @@ const RegisterUploadSchema = z.object({
  * tenant prefix, MIME allowlist, size cap, rate limit, audit.
  */
 export const registerMediaUpload = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((input: unknown) => RegisterUploadSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -86,7 +86,7 @@ export const registerMediaUpload = createServerFn({ method: "POST" })
 const DeleteSchema = z.object({ mediaId: z.string().uuid() });
 
 export const deleteMedia = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((input: unknown) => DeleteSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -132,7 +132,7 @@ export type MediaUsageItem = {
 };
 
 export const getMediaUsage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((input: unknown) => UsageSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ items: MediaUsageItem[] }> => {
     const { supabase } = context;
@@ -246,7 +246,7 @@ export interface ThumbnailRegenResult {
  * Supabase materialises and caches each variant.
  */
 export const regenerateThumbnails = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({
     limit: z.number().int().min(1).max(500).default(100),
   }).parse(i ?? {}))

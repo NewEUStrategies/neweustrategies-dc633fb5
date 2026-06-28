@@ -3,6 +3,7 @@
 // Returned shape is a small DTO consumable by the command palette.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { Database } from "@/integrations/supabase/types";
 
 export type SearchHitKind = "post" | "page";
 
@@ -22,44 +23,27 @@ const InputSchema = z.object({
 });
 
 export const globalSearch = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) => InputSchema.parse(data))
+  .inputValidator((data: z.input<typeof InputSchema>) => InputSchema.parse(data))
   .handler(async ({ data }): Promise<{ hits: SearchHit[] }> => {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_PUBLISHABLE_KEY;
     if (!url || !key) return { hits: [] };
     const { createClient } = await import("@supabase/supabase-js");
-    const sb = createClient(url, key, { auth: { persistSession: false } });
+    const sb = createClient<Database>(url, key, { auth: { persistSession: false } });
 
     const limit = data.limit ?? 12;
-    const pattern = `%${data.q.replace(/[%_]/g, (m) => `\\${m}`)}%`;
 
-    const [postsRes, pagesRes] = await Promise.all([
-      sb.from("posts")
-        .select("id, slug, title_pl, title_en, status")
-        .eq("status", "published")
-        .or(`title_pl.ilike.${pattern},title_en.ilike.${pattern},slug.ilike.${pattern}`)
-        .limit(limit),
-      sb.from("pages")
-        .select("id, slug, title_pl, title_en, status")
-        .eq("status", "published")
-        .or(`title_pl.ilike.${pattern},title_en.ilike.${pattern},slug.ilike.${pattern}`)
-        .limit(limit),
-    ]);
+    // Full-text search (ranking + unaccent + prefix) zamiast ILIKE; jeden RPC
+    // zwraca posty i strony posortowane wg trafności.
+    const { data: rows } = await sb.rpc("search_quick", { _q: data.q, _limit: limit });
 
-    const hits: SearchHit[] = [];
-    for (const row of postsRes.data ?? []) {
-      hits.push({
-        kind: "post", id: row.id, slug: row.slug,
-        title_pl: row.title_pl ?? "", title_en: row.title_en ?? "",
-        href: `/post/${row.slug}`,
-      });
-    }
-    for (const row of pagesRes.data ?? []) {
-      hits.push({
-        kind: "page", id: row.id, slug: row.slug,
-        title_pl: row.title_pl ?? "", title_en: row.title_en ?? "",
-        href: `/${row.slug}`,
-      });
-    }
+    const hits: SearchHit[] = (rows ?? []).map((row) => ({
+      kind: row.kind === "page" ? "page" : "post",
+      id: row.id,
+      slug: row.slug,
+      title_pl: row.title_pl ?? "",
+      title_en: row.title_en ?? "",
+      href: row.kind === "page" ? `/${row.slug}` : `/post/${row.slug}`,
+    }));
     return { hits };
   });

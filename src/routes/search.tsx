@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { searchQueryOptions, type SearchFilters } from "@/lib/queries/archives";
+import { activeLang } from "@/lib/seo/head";
+import "@/lib/i18n-search";
 
 const SearchParams = z.object({
   q: z.string().optional().default(""),
@@ -23,12 +25,18 @@ type SearchInput = z.infer<typeof SearchParams>;
 
 export const Route = createFileRoute("/search")({
   validateSearch: (s: Record<string, unknown>): SearchInput => SearchParams.parse(s),
-  head: () => ({
-    meta: [
-      { title: "Szukaj" },
-      { name: "description", content: "Wyszukiwarka wpisów" },
-    ],
-  }),
+  head: () => {
+    const lang = activeLang();
+    return {
+      meta: [
+        { title: lang === "en" ? "Search" : "Szukaj" },
+        {
+          name: "description",
+          content: lang === "en" ? "Article search" : "Wyszukiwarka wpisów",
+        },
+      ],
+    };
+  },
   component: SearchPage,
 });
 
@@ -69,40 +77,40 @@ function SearchPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <main className="flex-1 max-w-[1200px] w-full mx-auto px-4 lg:px-8 py-10">
-        <h1 className="font-display text-3xl lg:text-4xl mb-6">{t("search.title", { defaultValue: "Szukaj" })}</h1>
+        <h1 className="font-display text-3xl lg:text-4xl mb-6">{t("search.title")}</h1>
         <form onSubmit={submit} className="flex gap-2 mb-8">
           <div className="relative flex-1">
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={t("search.placeholder", { defaultValue: "Wpisz frazę..." })}
+              placeholder={t("search.placeholder")}
               className="pl-9"
               autoFocus
             />
           </div>
-          <Button type="submit">Szukaj</Button>
+          <Button type="submit">{t("search.submit")}</Button>
         </form>
 
         {search.q.trim().length < 2 ? (
-          <p className="text-sm text-muted-foreground">Wpisz co najmniej 2 znaki.</p>
+          <p className="text-sm text-muted-foreground">{t("search.min_chars")}</p>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-8">
             <aside className="space-y-5">
               <header className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Filtry</h2>
+                <h2 className="text-sm font-semibold">{t("search.filters")}</h2>
                 {active && (
                   <button onClick={clearAll} className="text-xs text-brand inline-flex items-center gap-1 hover:underline">
-                    <X className="w-3 h-3" />Wyczyść
+                    <X className="w-3 h-3" />{t("search.clear")}
                   </button>
                 )}
               </header>
 
               <div>
-                <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Data</h3>
+                <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("search.date")}</h3>
                 <div className="space-y-2">
                   <label className="block text-xs">
-                    Od
+                    {t("search.date_from")}
                     <Input
                       type="date"
                       value={search.from ?? ""}
@@ -110,7 +118,7 @@ function SearchPage() {
                     />
                   </label>
                   <label className="block text-xs">
-                    Do
+                    {t("search.date_to")}
                     <Input
                       type="date"
                       value={search.to ?? ""}
@@ -122,7 +130,7 @@ function SearchPage() {
 
               {data && data.facets.categories.length > 0 && (
                 <div>
-                  <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Kategorie</h3>
+                  <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("search.categories")}</h3>
                   <ul className="space-y-1 text-sm">
                     {data.facets.categories.map((c) => {
                       const isActive = search.category === c.id;
@@ -145,7 +153,7 @@ function SearchPage() {
 
               {data && data.facets.authors.length > 0 && (
                 <div>
-                  <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Autorzy</h3>
+                  <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("search.authors")}</h3>
                   <ul className="space-y-1 text-sm">
                     {data.facets.authors.map((a) => {
                       const isActive = search.author === a.id;
@@ -169,13 +177,13 @@ function SearchPage() {
 
             <section>
               <p className="text-sm text-muted-foreground mb-4">
-                {isFetching ? "Szukam..." : `Wyników: ${data?.posts.length ?? 0}`}
+                {isFetching ? t("search.searching") : t("search.results_count", { count: data?.posts.length ?? 0 })}
               </p>
               {data && (
                 <ArchivePostList
                   posts={data.posts}
                   lang={lang}
-                  emptyText="Brak wyników. Spróbuj innej frazy lub zmień filtry."
+                  emptyText={t("search.empty")}
                 />
               )}
             </section>
