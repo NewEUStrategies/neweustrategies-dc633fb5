@@ -217,16 +217,39 @@ function SocialPage() {
         <form className="grid gap-4 max-w-xl" onSubmit={save}>
           <div className="grid gap-2">
             <Label htmlFor="slug">{t("profile.social.slug")}</Label>
-            <Input id="slug" value={data.slug ?? ""} onChange={(e) => onSlugChange(e.target.value)} maxLength={64} placeholder="jan-kowalski" />
+            <Input
+              id="slug"
+              value={data.slug ?? ""}
+              onChange={(e) => onSlugChange(e.target.value)}
+              maxLength={64}
+              placeholder="jan-kowalski"
+              aria-invalid={slugBlocked || undefined}
+              className={slugBlocked ? "border-destructive focus-visible:ring-destructive" : slugStatus === "ok" ? "border-emerald-500/60 focus-visible:ring-emerald-500" : ""}
+            />
+            {data.slug ? (
+              <div className="flex items-center gap-2 rounded-[5px] border border-border/60 bg-muted/40 px-3 py-2 text-xs">
+                <span className="text-muted-foreground">{t("profile.social.slugPreview")}:</span>
+                <code className="font-mono text-foreground truncate">{origin}/author/{slugify(data.slug) || data.slug}</code>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">{t("profile.social.slugHint")}</p>
+              <p className={`text-xs ${slugStatus === "ok" ? "text-emerald-600 dark:text-emerald-400" : slugBlocked ? "text-destructive" : "text-muted-foreground"}`}>
+                {slugStatus === "checking" && t("profile.social.slugChecking")}
+                {slugStatus === "ok" && t("profile.social.slugAvailable")}
+                {slugStatus === "taken" && t("profile.social.slugTaken")}
+                {slugStatus === "reserved" && t("profile.social.slugReserved")}
+                {slugStatus === "invalid" && t("profile.social.slugInvalid")}
+                {slugStatus === "short" && t("profile.social.slugTooShort")}
+                {slugStatus === "idle" && t("profile.social.slugHint")}
+              </p>
               {slugManual && autoSource ? (
-                <button type="button" onClick={resetSlugAuto} className="text-xs text-primary hover:underline">
-                  {t("profile.social.slugReset", { defaultValue: "Auto z imienia i nazwiska" })}
+                <button type="button" onClick={resetSlugAuto} className="text-xs text-primary hover:underline shrink-0">
+                  {t("profile.social.slugReset")}
                 </button>
               ) : null}
             </div>
           </div>
+
 
           <div className="grid gap-2">
             <Label htmlFor="bio_pl">{t("profile.social.bioPl")}</Label>
