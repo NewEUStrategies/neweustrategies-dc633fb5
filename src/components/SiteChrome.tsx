@@ -3,6 +3,7 @@ import { type ReactNode } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { RouteProgress } from "@/components/RouteProgress";
+import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 
 /**
  * Global layout chrome. Renders <Header/> and <Footer/> around every route
