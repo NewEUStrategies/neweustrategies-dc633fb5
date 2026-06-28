@@ -2,7 +2,7 @@
 // Atom-level UI; receives all state via props (no internal logic).
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Undo2, Redo2, Check, Loader2, AlertTriangle, Circle } from "@/lib/lucide-shim";
+import { Undo2, Redo2, Check, Loader2, AlertTriangle, Circle, RotateCcw } from "@/lib/lucide-shim";
 import type { AutosaveStatus } from "@/hooks/useAutosave";
 
 interface Props {
@@ -12,9 +12,11 @@ interface Props {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  onDiscard?: () => void;
 }
 
-export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo }: Props) {
+export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo, onDiscard }: Props) {
+
   const { t } = useTranslation();
 
   const label =
