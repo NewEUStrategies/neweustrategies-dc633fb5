@@ -2501,7 +2501,7 @@ export type Database = {
         | "footer_slideup"
       ad_slot_kind: "html" | "script" | "image"
       ad_slot_status: "active" | "paused"
-      app_role: "admin" | "editor" | "author" | "user"
+      app_role: "admin" | "editor" | "author" | "user" | "super_admin"
       editor_type: "richtext" | "markdown" | "builder" | "blocks"
       order_kind: "subscription" | "one_time"
       order_status:
@@ -2664,7 +2664,7 @@ export const Constants = {
       ],
       ad_slot_kind: ["html", "script", "image"],
       ad_slot_status: ["active", "paused"],
-      app_role: ["admin", "editor", "author", "user"],
+      app_role: ["admin", "editor", "author", "user", "super_admin"],
       editor_type: ["richtext", "markdown", "builder", "blocks"],
       order_kind: ["subscription", "one_time"],
       order_status: [
