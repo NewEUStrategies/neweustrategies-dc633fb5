@@ -74,8 +74,11 @@ export const styleToCSS = (
   const t = pickMode<WidgetTypography>(s.typography, "light") ?? pickMode<WidgetTypography>(s.typography, "dark");
   if (t) {
     if (t.fontFamily) css.fontFamily = t.fontFamily;
-    const size = pick(t.fontSize, device);
-    if (size) css.fontSize = size;
+    // Do not set the title font-size on the widget wrapper. Post widgets map
+    // title/description sizes to `.cms-post-title` / `.cms-post-excerpt` via
+    // scoped CSS in WidgetView, while non-post text also gets descendant rules.
+    // A wrapper-level fontSize made the cascade ambiguous and duplicated the
+    // source of truth.
     if (t.fontWeight) css.fontWeight = t.fontWeight;
     if (t.fontStyle) css.fontStyle = t.fontStyle;
     if (t.lineHeight) css.lineHeight = t.lineHeight;

@@ -81,7 +81,7 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
   it("title fontSize maps to exactly one scoped `.cms-post-title{font-size:..!important}` rule per widget", () => {
     for (const type of POST_WIDGETS) {
       const css = widgetCss(type, { typography: { fontSize: { desktop: "22px" } } });
-      const scoped = `[data-w-id="tm-${type}"] .cms-post-title`;
+      const scoped = `[data-w-id="tm-${type}"][data-w-id] .cms-post-title`;
       // Exactly one override of .cms-post-title font-size, scoped to this widget.
       expect(countMatches(css, scoped), `${type}: one .cms-post-title rule`).toBe(1);
       expect(css).toContain(`${scoped}{font-size:22px !important;}`);
@@ -95,7 +95,7 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
       const css = widgetCss(type, {
         typography: { descriptionFontSize: { desktop: "13px" } },
       });
-      const scoped = `[data-w-id="tm-${type}"] .cms-post-excerpt`;
+      const scoped = `[data-w-id="tm-${type}"][data-w-id] .cms-post-excerpt`;
       expect(countMatches(css, scoped), `${type}: one .cms-post-excerpt rule`).toBe(1);
       expect(css).toContain(`${scoped}{font-size:13px !important;}`);
     }
@@ -109,8 +109,8 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
           descriptionFontSize: { desktop: "13px" },
         },
       });
-      expect(countMatches(css, `[data-w-id="tm-${type}"] .cms-post-title`)).toBe(1);
-      expect(countMatches(css, `[data-w-id="tm-${type}"] .cms-post-excerpt`)).toBe(1);
+      expect(countMatches(css, `[data-w-id="tm-${type}"][data-w-id] .cms-post-title`)).toBe(1);
+      expect(countMatches(css, `[data-w-id="tm-${type}"][data-w-id] .cms-post-excerpt`)).toBe(1);
     }
   });
 
@@ -123,7 +123,7 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
         },
       })
         .split("\n")
-        .map((l) => l.replace(/\[data-w-id="tm-[^"]+"\]/g, "[W]"))
+        .map((l) => l.replace(/\[data-w-id="tm-[^"]+"\]\[data-w-id\]/g, "[W]"))
         .sort();
 
     const reference = sample(POST_WIDGETS[0]);
@@ -142,6 +142,6 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
     const css = widgetCss("slider", {
       typography: { fontSize: { tablet: "19px" } },
     });
-    expect(css).toContain(`[data-w-id="tm-slider"] .cms-post-title{font-size:19px !important;}`);
+    expect(css).toContain(`[data-w-id="tm-slider"][data-w-id] .cms-post-title{font-size:19px !important;}`);
   });
 });
