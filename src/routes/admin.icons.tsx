@@ -395,3 +395,7 @@ function VariantSlot({
     </div>
   );
 }
+
+export const Route = createFileRoute("/admin/icons")({
+  component: IconsAdmin,
+});
