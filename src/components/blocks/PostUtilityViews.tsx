@@ -19,6 +19,7 @@ import {
   Link2,
   Check,
 } from "lucide-react";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
 
 type Lang = "pl" | "en";
 
