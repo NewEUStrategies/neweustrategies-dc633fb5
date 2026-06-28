@@ -60,6 +60,23 @@ export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo, o
         <Icon className={`w-3.5 h-3.5 ${status === "saving" ? "animate-spin" : ""}`} />
         {label}
       </span>
+      {onDiscard && status === "dirty" && (
+        <Button
+          type="button" size="sm" variant="ghost"
+          onClick={() => {
+            if (window.confirm(t("admin.autosave.discardConfirm", { defaultValue: "Odrzucić niezapisane zmiany?" }))) {
+              onDiscard();
+            }
+          }}
+          aria-label={t("admin.autosave.discard", { defaultValue: "Anuluj zmiany" })}
+          title={t("admin.autosave.discard", { defaultValue: "Anuluj zmiany" })}
+          className="text-destructive hover:text-destructive"
+        >
+          <RotateCcw className="w-4 h-4 mr-1" />
+          {t("admin.autosave.discard", { defaultValue: "Anuluj zmiany" })}
+        </Button>
+      )}
     </div>
+
   );
 }
