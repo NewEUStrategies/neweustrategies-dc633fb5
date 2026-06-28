@@ -60,6 +60,13 @@ function SocialPage() {
   const [slugManual, setSlugManual] = useState(false);
   // Source string we auto-derive from: "first last" || display_name || email-local.
   const [autoSource, setAutoSource] = useState("");
+  const [slugStatus, setSlugStatus] = useState<SlugStatus>("idle");
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") setOrigin(window.location.origin);
+  }, []);
+
 
   useEffect(() => {
     if (!user) return;
