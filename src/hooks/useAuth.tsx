@@ -3,7 +3,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-type Role = "admin" | "editor" | "author";
+export type Role = "super_admin" | "admin" | "editor" | "author" | "user";
 
 interface AuthCtx {
   session: Session | null;
@@ -13,6 +13,7 @@ interface AuthCtx {
   loading: boolean;
   isStaff: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   signOut: () => Promise<void>;
 }
 
