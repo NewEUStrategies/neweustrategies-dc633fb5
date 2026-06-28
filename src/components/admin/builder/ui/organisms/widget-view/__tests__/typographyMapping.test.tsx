@@ -123,7 +123,7 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
         },
       })
         .split("\n")
-        .map((l) => l.replace(/\[data-w-id="tm-[^"]+"\]\[data-w-id\]/g, "[W]"))
+        .map((l) => l.replace(/\[data-w-id="tm-[^"]+"\](?:\[data-w-id\])?/g, "[W]"))
         .sort();
 
     const reference = sample(POST_WIDGETS[0]);
