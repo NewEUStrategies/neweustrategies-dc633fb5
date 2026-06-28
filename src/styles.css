@@ -685,15 +685,15 @@ a:hover .cms-post-title,
 }
 
 /* Smaller widget headings (h2/h3) site-wide for post cards & widget tiles */
-:is([data-builder-renderer], [data-visual-canvas]) h2,
-.cms-widget h2 { font-size: 17px; line-height: 1.25; }
-:is([data-builder-renderer], [data-visual-canvas]) h3,
-.cms-widget h3 { font-size: 15px; line-height: 1.3; }
+:is([data-builder-renderer], [data-visual-canvas]) h2:not(.cms-post-title),
+.cms-widget h2:not(.cms-post-title) { font-size: 17px; line-height: 1.25; }
+:is([data-builder-renderer], [data-visual-canvas]) h3:not(.cms-post-title),
+.cms-widget h3:not(.cms-post-title) { font-size: 15px; line-height: 1.3; }
 @media (max-width: 640px) {
-  :is([data-builder-renderer], [data-visual-canvas]) h2,
-  .cms-widget h2 { font-size: 15px; }
-  :is([data-builder-renderer], [data-visual-canvas]) h3,
-  .cms-widget h3 { font-size: 14px; }
+  :is([data-builder-renderer], [data-visual-canvas]) h2:not(.cms-post-title),
+  .cms-widget h2:not(.cms-post-title) { font-size: 15px; }
+  :is([data-builder-renderer], [data-visual-canvas]) h3:not(.cms-post-title),
+  .cms-widget h3:not(.cms-post-title) { font-size: 14px; }
 }
 
 /* ===== Admin compact mode ===== */
@@ -985,9 +985,9 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 [data-builder-renderer][data-device="mobile"] nav li,
 [data-builder-renderer][data-device="mobile"] [role="menubar"] > * { width: auto !important; text-align: center !important; }
 [data-builder-renderer][data-device="mobile"] nav a { display: inline-flex !important; padding: 4px 6px !important; }
-[data-builder-renderer][data-device="mobile"] h1 { font-size: clamp(1.4rem, 7vw, 2rem) !important; line-height: 1.15 !important; }
-[data-builder-renderer][data-device="mobile"] h2 { font-size: clamp(1.25rem, 6vw, 1.75rem) !important; line-height: 1.2 !important; }
-[data-builder-renderer][data-device="mobile"] h3 { font-size: clamp(1.1rem, 5vw, 1.5rem) !important; line-height: 1.25 !important; }
+[data-builder-renderer][data-device="mobile"] h1:not(.cms-post-title) { font-size: clamp(1.4rem, 7vw, 2rem) !important; line-height: 1.15 !important; }
+[data-builder-renderer][data-device="mobile"] h2:not(.cms-post-title) { font-size: clamp(1.25rem, 6vw, 1.75rem) !important; line-height: 1.2 !important; }
+[data-builder-renderer][data-device="mobile"] h3:not(.cms-post-title) { font-size: clamp(1.1rem, 5vw, 1.5rem) !important; line-height: 1.25 !important; }
 /* Search widget fills the column on mobile */
 [data-builder-renderer][data-device="mobile"] .builder-search-widget { width: 100% !important; }
 /* Mega menu trigger button shrinks/wraps */
@@ -1031,9 +1031,9 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   [data-builder-renderer] h4, [data-builder-renderer] h5, [data-builder-renderer] h6,
   [data-builder-renderer] p, [data-builder-renderer] a, [data-builder-renderer] span,
   [data-builder-renderer] li { overflow-wrap: anywhere; word-break: normal; hyphens: auto; }
-  [data-builder-renderer] h1 { font-size: clamp(1.4rem, 7vw, 2rem) !important; line-height: 1.15 !important; }
-  [data-builder-renderer] h2 { font-size: clamp(1.25rem, 6vw, 1.75rem) !important; line-height: 1.2 !important; }
-  [data-builder-renderer] h3 { font-size: clamp(1.1rem, 5vw, 1.5rem) !important; line-height: 1.25 !important; }
+  [data-builder-renderer] h1:not(.cms-post-title) { font-size: clamp(1.4rem, 7vw, 2rem) !important; line-height: 1.15 !important; }
+  [data-builder-renderer] h2:not(.cms-post-title) { font-size: clamp(1.25rem, 6vw, 1.75rem) !important; line-height: 1.2 !important; }
+  [data-builder-renderer] h3:not(.cms-post-title) { font-size: clamp(1.1rem, 5vw, 1.5rem) !important; line-height: 1.25 !important; }
   /* Inline groups (account-link, lang switcher) keep items together */
   [data-builder-renderer] .inline-flex { max-width: 100% !important; flex-wrap: wrap; }
 }

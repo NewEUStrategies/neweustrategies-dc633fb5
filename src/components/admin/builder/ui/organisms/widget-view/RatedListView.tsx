@@ -53,7 +53,6 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
   const titleColorDark = autoDark(titleColor, getStr(c, "titleColorDark"));
   const titleHoverColor = getStr(c, "titleHoverColor");
   const titleHoverColorDark = titleHoverColor ? autoInvertColor(titleHoverColor, "dark") : "";
-  const titleSize = typeof c.titleSizePx === "number" ? c.titleSizePx : 18;
   const titleWeight = getStr(c, "titleWeight") || "700";
   const titleFont = getStr(c, "titleFont") || "display";
 
@@ -66,7 +65,6 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
   const showExcerpt = c.showExcerpt !== false;
   const excerptColor = getStr(c, "excerptColor");
   const excerptColorDark = autoDark(excerptColor, getStr(c, "excerptColorDark"));
-  const excerptSize = typeof c.excerptSizePx === "number" ? c.excerptSizePx : 13;
   const excerptLines = typeof c.excerptLines === "number" ? c.excerptLines : 3;
 
   const showReadMore = c.showReadMore === true;
@@ -292,7 +290,6 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
             ...(gridBorders === "between" && isGrid ? { borderBottom: `${gridBorderWidth}px solid ${gridBorderColor || "var(--border)"}`, paddingBottom: itemSpacing } : {}),
           };
           const titleStyle: CSSProperties = {
-            fontSize: `${titleSize}px`,
             fontWeight: titleWeight as CSSProperties["fontWeight"],
             lineHeight: 1.3,
           };
@@ -328,7 +325,6 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
                 </div>
                 {showExcerpt && it.excerpt && (
                   <p className="rl-exc cms-post-excerpt text-muted-foreground mt-2" style={{
-                    fontSize: `${excerptSize}px`,
                     display: "-webkit-box",
                     WebkitLineClamp: excerptLines,
                     WebkitBoxOrient: "vertical",

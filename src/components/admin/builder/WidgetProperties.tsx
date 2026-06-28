@@ -118,13 +118,14 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
     (s as Record<string, unknown>).borderStyle = v ?? undefined;
   });
 
-  // Typography is themed at the whole-object level (one block per mode).
+  // Typography metrics are shared between light/dark modes. Only colors are
+  // mode-specific. Store typography as a flat object so editing in dark mode
+  // immediately changes the same source of truth used by the renderer.
   const getThemedTypography = (): WidgetTypography | undefined =>
-    pickMode<WidgetTypography>(widget.style?.typography as Themed<WidgetTypography> | undefined, mode);
+    pickMode<WidgetTypography>(widget.style?.typography as Themed<WidgetTypography> | undefined, mode) ??
+    pickMode<WidgetTypography>(widget.style?.typography as Themed<WidgetTypography> | undefined, mode === "dark" ? "light" : "dark");
   const setThemedTypography = (t: WidgetTypography | undefined) => setStyle((s) => {
-    const prev = s.typography as Themed<WidgetTypography> | undefined;
-    (s.typography as Themed<WidgetTypography> | undefined) =
-      setThemedMode<WidgetTypography>(prev, mode, t && Object.keys(t).length ? t : undefined);
+    s.typography = t && Object.keys(t).length ? t : undefined;
   });
 
   // ---- Themed hover colors ----

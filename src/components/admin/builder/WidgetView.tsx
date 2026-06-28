@@ -174,8 +174,13 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
     // own their global Theme Design size). When the user explicitly sets a size
     // on a widget, we MUST also override those classes – otherwise the input
     // appears to do nothing on post-list / slider / podcast widgets.
-    const titleClassSel = `${sel} .cms-post-title`;
-    const excerptClassSel = `${sel} .cms-post-excerpt`;
+    // Duplicate the widget attribute in the selector to beat older/global
+    // `h2`/`h3` responsive rules that also use `!important` in the builder
+    // canvas. Without this, changing title/description sizes in the Style tab
+    // could look like it only changed padding or spacing.
+    const strongSel = `${sel}[data-w-id]`;
+    const titleClassSel = `${strongSel} .cms-post-title`;
+    const excerptClassSel = `${strongSel} .cms-post-excerpt`;
     if (fontSize) {
       if (descriptionFontSize) {
         // When both are set, scope title size to headings only so opis może mieć inny rozmiar.
@@ -183,7 +188,6 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
         rules.push(`${titleClassSel}{font-size:${fontSize} !important;}`);
       } else {
         rules.push(`${descendants}{font-size:${fontSize} !important;}`);
-        rules.push(`${excerptClassSel}{font-size:${fontSize} !important;}`);
         rules.push(`${titleClassSel}{font-size:${fontSize} !important;}`);
         rules.push(`${sel} input::placeholder, ${sel} textarea::placeholder{font-size:${fontSize} !important;}`);
       }
