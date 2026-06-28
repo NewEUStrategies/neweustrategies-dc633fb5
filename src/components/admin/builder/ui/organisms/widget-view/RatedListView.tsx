@@ -108,7 +108,7 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
     : titleFont === "mono" ? "font-mono"
     : "font-display";
   const numStyle: CSSProperties = {
-    fontSize: `${numSize}px`,
+    fontSize: `clamp(${Math.round(numSize * 0.6)}px, ${Math.round(numSize * 0.08)}vw + ${Math.round(numSize * 0.5)}px, ${numSize}px)`,
     fontWeight: numWeight as CSSProperties["fontWeight"],
     opacity: numOpacity,
   };
