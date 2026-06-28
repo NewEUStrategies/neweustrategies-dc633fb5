@@ -58,6 +58,7 @@ import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
 import { Route as AdminLiveBlogRouteImport } from './routes/admin.live-blog'
 import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
+import { Route as AdminIconsRouteImport } from './routes/admin.icons'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
 import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
@@ -331,6 +332,11 @@ const AdminImportWordpressRoute = AdminImportWordpressRouteImport.update({
   path: '/import-wordpress',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminIconsRoute = AdminIconsRouteImport.update({
+  id: '/icons',
+  path: '/icons',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCustomMetaRoute = AdminCustomMetaRouteImport.update({
   id: '/custom-meta',
   path: '/custom-meta',
@@ -487,6 +493,7 @@ export interface FileRoutesByFullPath {
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
+  '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
@@ -563,6 +570,7 @@ export interface FileRoutesByTo {
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
+  '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
@@ -641,6 +649,7 @@ export interface FileRoutesById {
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
+  '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
@@ -721,6 +730,7 @@ export interface FileRouteTypes {
     | '/admin/content-area'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
+    | '/admin/icons'
     | '/admin/import-wordpress'
     | '/admin/live-blog'
     | '/admin/login-settings'
@@ -797,6 +807,7 @@ export interface FileRouteTypes {
     | '/admin/content-area'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
+    | '/admin/icons'
     | '/admin/import-wordpress'
     | '/admin/live-blog'
     | '/admin/login-settings'
@@ -874,6 +885,7 @@ export interface FileRouteTypes {
     | '/admin/content-area'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
+    | '/admin/icons'
     | '/admin/import-wordpress'
     | '/admin/live-blog'
     | '/admin/login-settings'
@@ -1310,6 +1322,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminImportWordpressRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/icons': {
+      id: '/admin/icons'
+      path: '/icons'
+      fullPath: '/admin/icons'
+      preLoaderRoute: typeof AdminIconsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/custom-meta': {
       id: '/admin/custom-meta'
       path: '/custom-meta'
@@ -1583,6 +1602,7 @@ interface AdminRouteChildren {
   AdminContentAreaRoute: typeof AdminContentAreaRoute
   AdminCropSizesRoute: typeof AdminCropSizesRoute
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
+  AdminIconsRoute: typeof AdminIconsRoute
   AdminImportWordpressRoute: typeof AdminImportWordpressRoute
   AdminLiveBlogRoute: typeof AdminLiveBlogRoute
   AdminLoginSettingsRoute: typeof AdminLoginSettingsRoute
@@ -1612,6 +1632,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminContentAreaRoute: AdminContentAreaRoute,
   AdminCropSizesRoute: AdminCropSizesRoute,
   AdminCustomMetaRoute: AdminCustomMetaRoute,
+  AdminIconsRoute: AdminIconsRoute,
   AdminImportWordpressRoute: AdminImportWordpressRoute,
   AdminLiveBlogRoute: AdminLiveBlogRoute,
   AdminLoginSettingsRoute: AdminLoginSettingsRoute,
