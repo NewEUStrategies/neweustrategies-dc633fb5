@@ -425,7 +425,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
                 title={l.label}
                 className="inline-flex items-center justify-center h-9 rounded-[5px] text-muted-foreground hover:text-brand hover:bg-background hover:shadow-sm transition-all"
               >
-                <Icon className="w-[15px] h-[15px]" />
+                <BrandIcon name={l.id} fallback={Icon} alt={l.label} className="w-[15px] h-[15px]" />
               </a>
             );
           })}
@@ -651,7 +651,7 @@ export function FloatingShareBar({ title, url, lang, showAfter = 240, variant = 
                   aria-label={l.label}
                   className="inline-flex items-center justify-center h-11 rounded-[5px] border border-border/60 text-muted-foreground active:text-brand active:bg-muted transition"
                 >
-                  <Icon className="w-[17px] h-[17px]" />
+                  <BrandIcon name={l.id} fallback={Icon} alt={l.label} className="w-[17px] h-[17px]" />
                 </a>
               );
             })}
