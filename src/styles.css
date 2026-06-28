@@ -647,17 +647,17 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   text-transform: var(--td-pt-transform, none);
   letter-spacing: var(--td-pt-spacing, 0);
 
-  /* Underline follows each wrapped line of the title text on hover */
-  text-decoration: none;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  transition: color .2s ease, text-decoration-color .2s ease;
+  /* Animated underline grows from left to right on each wrapped line */
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 0% 100%;
+  background-repeat: no-repeat;
+  background-size: 0% 2px;
+  transition: background-size 0.35s ease, color .2s ease;
 }
 .cms-post-title:hover,
 a:hover .cms-post-title,
 a:focus-visible .cms-post-title {
-  text-decoration: underline;
-  text-decoration-color: currentColor;
+  background-size: 100% 2px;
 }
 
 /* Prevent double underline: kill the underline on any anchor wrapping a .cms-post-title */
