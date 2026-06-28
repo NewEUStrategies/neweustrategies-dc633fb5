@@ -169,17 +169,27 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
 
     const fontSize = pickResponsiveValue(typography.fontSize, device);
     const descriptionFontSize = pickResponsiveValue(typography.descriptionFontSize, device);
+    // Post widgets render titles/excerpts with `.cms-post-title` / `.cms-post-excerpt`,
+    // which are intentionally excluded from the generic descendant selectors (they
+    // own their global Theme Design size). When the user explicitly sets a size
+    // on a widget, we MUST also override those classes – otherwise the input
+    // appears to do nothing on post-list / slider / podcast widgets.
+    const titleClassSel = `${sel} .cms-post-title`;
+    const excerptClassSel = `${sel} .cms-post-excerpt`;
     if (fontSize) {
       if (descriptionFontSize) {
         // When both are set, scope title size to headings only so opis może mieć inny rozmiar.
         rules.push(`${headingSel}{font-size:${fontSize} !important;}`);
+        rules.push(`${titleClassSel}{font-size:${fontSize} !important;}`);
       } else {
         rules.push(`${descendants}{font-size:${fontSize} !important;}`);
+        rules.push(`${titleClassSel}{font-size:${fontSize} !important;}`);
         rules.push(`${sel} input::placeholder, ${sel} textarea::placeholder{font-size:${fontSize} !important;}`);
       }
     }
     if (descriptionFontSize) {
       rules.push(`${descriptionSel}{font-size:${descriptionFontSize} !important;}`);
+      rules.push(`${excerptClassSel}{font-size:${descriptionFontSize} !important;}`);
     }
     if (typeof typography.titleDescriptionGapPx === "number" && typography.titleDescriptionGapPx >= 0) {
       const gap = `${typography.titleDescriptionGapPx}px`;
