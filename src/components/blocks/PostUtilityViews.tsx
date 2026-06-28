@@ -222,6 +222,10 @@ export function ShareButtonsView({ networks, variant = "filled", lang = "pl", cl
       {list.map((n) => {
         const meta = NETWORK_META[n];
         const { Icon } = meta;
+        const brandName: Record<Network, string> = {
+          facebook: "facebook", x: "x", linkedin: "linkedin",
+          whatsapp: "whatsapp", telegram: "telegram", email: "email", copy: "copy",
+        };
         const className = `inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${variantCls(meta.color)}`;
         if (n === "copy") {
           return (
@@ -240,7 +244,7 @@ export function ShareButtonsView({ networks, variant = "filled", lang = "pl", cl
             className={className}
             aria-label={`${t.share} ${meta.label}`}
           >
-            <Icon className="w-3.5 h-3.5" />
+            <BrandIcon name={brandName[n]} fallback={Icon} className="w-3.5 h-3.5" alt={meta.label} />
             <span>{meta.label}</span>
           </a>
         );
