@@ -656,15 +656,18 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   background-image: linear-gradient(currentColor, currentColor);
   background-position: 0 100%;
   background-repeat: no-repeat;
-  background-size: 0% 1.5px;
-  transition: background-size 0.35s ease, color .2s ease;
+  background-size: 0% 2px;
+  padding-bottom: 2px;
+  transition: background-size 0.4s cubic-bezier(0.4, 0, 0.2, 1), color .2s ease;
   text-decoration: none;
 }
 .cms-post-title:hover,
 a:hover .cms-post-title,
-a:focus-visible .cms-post-title {
-  background-size: 100% 1.5px;
+a:focus-visible .cms-post-title,
+*:hover > .cms-post-title {
+  background-size: 100% 2px;
 }
+
 
 
 /* Prevent double underline on any anchor wrapping a .cms-post-title */
