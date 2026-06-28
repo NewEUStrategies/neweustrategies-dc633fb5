@@ -647,24 +647,11 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   text-transform: var(--td-pt-transform, none);
   letter-spacing: var(--td-pt-spacing, 0);
 
-  /* underline tokens — color follows the title (light + dark mode) */
-  text-decoration-line: underline;
-  text-decoration-color: transparent;
-  text-decoration-thickness: 1.5px;
-  text-underline-offset: 3px;
-  text-decoration-skip-ink: auto;
-  transition: text-decoration-color .35s ease, color .2s ease;
+  /* no underline on hover - per user request */
+  text-decoration: none;
+  transition: color .2s ease;
 }
-.group:hover .cms-post-title,
-a:hover .cms-post-title,
-.cms-post-title:hover {
-  text-decoration-color: color-mix(in oklab, currentColor 75%, transparent);
-}
-.dark .group:hover .cms-post-title,
-.dark a:hover .cms-post-title,
-.dark .cms-post-title:hover {
-  text-decoration-color: color-mix(in oklab, currentColor 85%, transparent);
-}
+
 /* Prevent double underline: kill the underline on any anchor wrapping a .cms-post-title */
 a:has(.cms-post-title),
 a:has(.cms-post-title):hover,
