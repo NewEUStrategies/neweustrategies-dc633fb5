@@ -156,6 +156,8 @@ export const Trash2 = makeIcon("Trash2", LTrash2);
 export const Type = makeIcon("Type", LType);
 export const Undo = makeIcon("Undo", LUndo);
 export const Undo2 = Undo;
+export const RotateCcw = makeIcon("RotateCcw", LRotateCcw);
+
 export const Upload = makeIcon("Upload", LUpload);
 export const User = makeIcon("User", LUser);
 export const Users = makeIcon("Users", LUsers);
