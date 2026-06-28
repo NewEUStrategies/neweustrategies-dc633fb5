@@ -237,8 +237,7 @@ export function renderSimpleWidget(
     case "theme-toggle":
       return <ThemeToggleWidget />;
     case "account-link": {
-      const { AccountMenuWidget } = require("./AccountMenuWidget") as typeof import("./AccountMenuWidget");
-      return <AccountMenuWidget config={c as never} lang={lang} />;
+      return <AccountMenuWidget config={c as unknown as AccountMenuConfig} lang={lang} />;
     }
     case "search-button": {
       const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Szukaj";
