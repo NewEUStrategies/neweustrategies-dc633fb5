@@ -317,7 +317,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         .eh-slider .eh-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .eh-slider .eh-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
-        /* Side arrow buttons (prev/next overlay on the image) */
+        /* Side arrow buttons (prev/next overlay on the image) - glassmorphism */
         .eh-slider .eh-side-nav {
           position: absolute;
           top: 50%;
@@ -326,28 +326,29 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 44px;
-          height: 44px;
+          width: 52px;
+          height: 52px;
           border-radius: 9999px;
-          background: rgba(17, 17, 17, 0.55);
+          background: rgba(255, 255, 255, 0.12);
           color: #fff;
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
-          border: 1px solid rgba(255, 255, 255, 0.18);
-          box-shadow: 0 6px 22px -8px rgba(0, 0, 0, 0.55);
-          opacity: 0;
-          transition: opacity 220ms ease, background 180ms ease, transform 180ms ease;
+          backdrop-filter: blur(16px) saturate(140%);
+          border: 1.5px solid rgba(255, 255, 255, 0.35);
+          box-shadow: 0 8px 32px -6px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+          opacity: 1;
+          transition: opacity 220ms ease, background 180ms ease, transform 180ms ease, border-color 180ms ease;
           cursor: pointer;
         }
         @media (max-width: 768px) {
-          .eh-slider .eh-side-nav { opacity: 0.9; width: 38px; height: 38px; }
+          .eh-slider .eh-side-nav { width: 44px; height: 44px; }
         }
-        .eh-slider:hover .eh-side-nav,
-        .eh-slider:focus-within .eh-side-nav { opacity: 1; }
-        .eh-slider .eh-side-nav:hover { background: rgba(17, 17, 17, 0.78); transform: translateY(-50%) scale(1.06); }
-        .eh-slider .eh-side-nav:focus-visible { outline: 2px solid #fff; outline-offset: 2px; opacity: 1; }
-        .eh-slider .eh-side-nav.eh-prev { left: 12px; }
-        .eh-slider .eh-side-nav.eh-next { right: 12px; }
+        .eh-slider .eh-side-nav:hover {
+          background: rgba(255, 255, 255, 0.28);
+          border-color: rgba(255, 255, 255, 0.55);
+          transform: translateY(-50%) scale(1.08);
+        }
+        .eh-slider .eh-side-nav:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+        .eh-slider .eh-side-nav.eh-prev { left: 16px; }
+        .eh-slider .eh-side-nav.eh-next { right: 16px; }
 
         .eh-slider .eh-drag-surface { cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
         .eh-slider .eh-drag-surface.is-dragging { cursor: grabbing; }
@@ -419,7 +420,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
               onPointerDown={(e) => e.stopPropagation()}
               className="eh-side-nav eh-prev"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-7 h-7" strokeWidth={2.5} />
             </button>
             <button
               type="button"
@@ -428,7 +429,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
               onPointerDown={(e) => e.stopPropagation()}
               className="eh-side-nav eh-next"
             >
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-7 h-7" strokeWidth={2.5} />
             </button>
           </>
         )}
