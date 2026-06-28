@@ -167,6 +167,7 @@ export const Lock = makeIcon("Lock", LLock);
 export const Palette = makeIcon("Palette", LPalette);
 export const LayoutGrid = makeIcon("LayoutGrid", LLayoutGrid);
 export const Sparkles = makeIcon("Sparkles", LSparkles);
+export const Shapes = makeIcon("Shapes", LShapes);
 export const PanelsTopLeft = makeIcon("PanelsTopLeft", LPanelsTopLeft);
 export const CreditCard = makeIcon("CreditCard", LCreditCard);
 export const Play = makeIcon("Play", LPlay);
