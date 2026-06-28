@@ -133,6 +133,32 @@ function SocialPage() {
     setData({ ...data, slug: slugify(autoSource) });
   };
 
+  // Debounced slug validation + uniqueness check.
+  useEffect(() => {
+    if (!user) return;
+    const raw = (data.slug ?? "").trim().toLowerCase();
+    if (!raw) { setSlugStatus("idle"); return; }
+    if (raw.length < 3) { setSlugStatus("short"); return; }
+    if (!SLUG_RE.test(raw)) { setSlugStatus("invalid"); return; }
+    if (RESERVED.has(raw)) { setSlugStatus("reserved"); return; }
+    setSlugStatus("checking");
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const { data: hit } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("slug", raw)
+        .neq("id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      setSlugStatus(hit ? "taken" : "ok");
+    }, 350);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [data.slug, user]);
+
+  const slugBlocked = slugStatus === "invalid" || slugStatus === "short" || slugStatus === "taken" || slugStatus === "reserved";
+
+
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
