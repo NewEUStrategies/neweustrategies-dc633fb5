@@ -14,7 +14,7 @@
 //      post-style titles/excerpts (slider, post-list, rated-list,
 //      podcast-latest) so the mapping is uniform across widgets.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, cleanup, waitFor } from "@testing-library/react";
+import { render, cleanup, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/admin/builder/WidgetView";
 import type { WidgetNode, WidgetType, CommonStyle } from "@/lib/builder/types";
@@ -165,7 +165,9 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
       `[data-w-id="tm-live"][data-w-id] .cms-post-title{font-size:14px !important;}`,
     );
 
-    broadcastWidgetTypography("tm-live", { fontSize: { desktop: "28px" } });
+    act(() => {
+      broadcastWidgetTypography("tm-live", { fontSize: { desktop: "28px" } });
+    });
 
     await waitFor(() => {
       expect(container.querySelector(`[data-w-id="tm-live"] style`)?.innerHTML).toContain(
