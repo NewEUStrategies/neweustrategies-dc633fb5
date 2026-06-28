@@ -36,6 +36,12 @@ export const Route = createFileRoute("/profile/account")({
 
 interface ProfileRow {
   display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  job_title: string | null;
+  current_company: string | null;
+  location: string | null;
+  phone: string | null;
   bio: string | null;
   avatar_url: string | null;
   cover_url: string | null;
@@ -51,6 +57,12 @@ function AccountPage() {
   const { user } = useAuth();
   const [data, setData] = useState<ProfileRow>({
     display_name: "",
+    first_name: "",
+    last_name: "",
+    job_title: "",
+    current_company: "",
+    location: "",
+    phone: "",
     bio: "",
     avatar_url: "",
     cover_url: "",
@@ -69,7 +81,7 @@ function AccountPage() {
   const refresh = async (uid: string) => {
     const { data: row } = await supabase
       .from("profiles")
-      .select("display_name, bio, avatar_url, cover_url, tenant_id")
+      .select("display_name, first_name, last_name, job_title, current_company, location, phone, bio, avatar_url, cover_url, tenant_id")
       .eq("id", uid)
       .maybeSingle();
     if (row) setData(row as ProfileRow);
@@ -79,6 +91,7 @@ function AccountPage() {
     if (!user) return;
     void refresh(user.id);
   }, [user]);
+
 
   const upload = async (file: File, kind: "avatar" | "cover") => {
     if (!user || !data.tenant_id) return;
