@@ -197,7 +197,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
           <PropField label="Kolor (light)"><ColorField value={txt("titleColor", "")} onChange={(v) => setContent("titleColor", (v ?? "") as Json)} /></PropField>
           <PropField label="Kolor (dark)"><ColorField value={txt("titleColorDark", "")} onChange={(v) => setContent("titleColorDark", (v ?? "") as Json)} /></PropField>
           <PropField label="Hover"><ColorField value={txt("titleHoverColor", "")} onChange={(v) => setContent("titleHoverColor", (v ?? "") as Json)} /></PropField>
-          <PropField label="Rozmiar (px)"><Input type="number" min={10} max={48} value={num("titleSizePx", 18)} onChange={(e) => setContent("titleSizePx", (Number(e.target.value) || 18) as Json)} className="h-8 text-xs" /></PropField>
+          {/* Rozmiar tytułu: zarządzany w zakładce „Styl" → Typografia (.cms-post-title). */}
           <PropField label="Grubość">
             <Select value={txt("titleWeight", "700")} onValueChange={(v) => setContent("titleWeight", v as Json)}>
               <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
