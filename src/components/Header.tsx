@@ -43,8 +43,13 @@ function HeaderInner() {
       <AlertBar />
       {trending.enabled !== false && (
         <TrendingTicker
+          source={trending.source ?? "trending"}
+          mode={trending.mode ?? "scroll"}
           days={trending.days ?? 7}
           limit={trending.limit ?? 8}
+          intervalSec={trending.intervalSec ?? 6}
+          pinnedPostId={trending.pinnedPostId}
+          pinnedUntil={trending.pinnedUntil ?? null}
           fullWidth={trending.fullWidth ?? true}
         />
       )}
