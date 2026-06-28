@@ -183,6 +183,7 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
         rules.push(`${titleClassSel}{font-size:${fontSize} !important;}`);
       } else {
         rules.push(`${descendants}{font-size:${fontSize} !important;}`);
+        rules.push(`${excerptClassSel}{font-size:${fontSize} !important;}`);
         rules.push(`${titleClassSel}{font-size:${fontSize} !important;}`);
         rules.push(`${sel} input::placeholder, ${sel} textarea::placeholder{font-size:${fontSize} !important;}`);
       }

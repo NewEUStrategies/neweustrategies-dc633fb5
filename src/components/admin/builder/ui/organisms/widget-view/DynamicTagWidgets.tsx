@@ -200,7 +200,7 @@ export function PostExcerptWidget({ node, lang }: { node: WidgetNode; lang: Lang
   const raw = pickLocalized(ctx, lang, "excerpt");
   if (!raw) return null;
   const text = max > 0 && raw.length > max ? raw.slice(0, max).trimEnd() + "…" : raw;
-  return <p className="text-base text-muted-foreground leading-relaxed">{text}</p>;
+  return <p className="cms-post-excerpt text-base text-muted-foreground leading-relaxed">{text}</p>;
 }
 
 export function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
