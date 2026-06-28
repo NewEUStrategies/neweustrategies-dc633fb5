@@ -3,6 +3,7 @@ import { type ReactNode } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { RouteProgress } from "@/components/RouteProgress";
+import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 
 /**
  * Global layout chrome. Renders <Header/> and <Footer/> around every route
@@ -34,6 +35,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
   if (isAdmin || isLogin || ownChrome) {
     return (
       <>
+        <ImpersonationBanner />
         <RouteProgress />
         {children}
       </>
@@ -42,6 +44,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <ImpersonationBanner />
       <RouteProgress />
       <Header />
       <main

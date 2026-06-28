@@ -680,6 +680,42 @@ export type Database = {
         }
         Relationships: []
       }
+      impersonation_sessions: {
+        Row: {
+          actor_user_id: string
+          ended_at: string | null
+          id: string
+          ip: string | null
+          reason: string | null
+          started_at: string
+          target_user_id: string
+          tenant_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          actor_user_id: string
+          ended_at?: string | null
+          id?: string
+          ip?: string | null
+          reason?: string | null
+          started_at?: string
+          target_user_id: string
+          tenant_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          actor_user_id?: string
+          ended_at?: string | null
+          id?: string
+          ip?: string | null
+          reason?: string | null
+          started_at?: string
+          target_user_id?: string
+          tenant_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       live_blog_entries: {
         Row: {
           block_id: string
