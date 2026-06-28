@@ -84,18 +84,20 @@ function readStr(x: Json | undefined): string | undefined {
 
 interface PageRef { slug: string; title: string }
 
-function usePagesIndex(enabled: boolean) {
+function usePagesIndex(enabled: boolean, lang: Lang) {
   return useQuery({
-    queryKey: ["account-menu-pages"],
+    queryKey: ["account-menu-pages", lang],
     enabled,
     staleTime: 60_000,
     queryFn: async (): Promise<PageRef[]> => {
       const { data } = await supabase
         .from("pages")
-        .select("slug, title")
+        .select("slug, title_pl, title_en")
         .eq("status", "published")
-        .order("title");
-      return (data ?? []).filter((p): p is PageRef => !!p.slug);
+        .order("title_pl");
+      return (data ?? [])
+        .filter((p): p is { slug: string; title_pl: string; title_en: string } => !!p?.slug)
+        .map((p) => ({ slug: p.slug, title: (lang === "pl" ? p.title_pl : p.title_en) || p.title_pl || p.title_en || p.slug }));
     },
   });
 }
