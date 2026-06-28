@@ -1751,12 +1751,18 @@ export type Database = {
           contact_email: string | null
           cover_url: string | null
           created_at: string
+          current_company: string | null
           display_name: string | null
           email: string | null
           facebook_url: string | null
+          first_name: string | null
           id: string
           instagram_url: string | null
+          job_title: string | null
+          last_name: string | null
           linkedin_url: string | null
+          location: string | null
+          phone: string | null
           prefs: Json
           slug: string | null
           spotify_url: string | null
@@ -1773,12 +1779,18 @@ export type Database = {
           contact_email?: string | null
           cover_url?: string | null
           created_at?: string
+          current_company?: string | null
           display_name?: string | null
           email?: string | null
           facebook_url?: string | null
+          first_name?: string | null
           id: string
           instagram_url?: string | null
+          job_title?: string | null
+          last_name?: string | null
           linkedin_url?: string | null
+          location?: string | null
+          phone?: string | null
           prefs?: Json
           slug?: string | null
           spotify_url?: string | null
@@ -1795,12 +1807,18 @@ export type Database = {
           contact_email?: string | null
           cover_url?: string | null
           created_at?: string
+          current_company?: string | null
           display_name?: string | null
           email?: string | null
           facebook_url?: string | null
+          first_name?: string | null
           id?: string
           instagram_url?: string | null
+          job_title?: string | null
+          last_name?: string | null
           linkedin_url?: string | null
+          location?: string | null
+          phone?: string | null
           prefs?: Json
           slug?: string | null
           spotify_url?: string | null

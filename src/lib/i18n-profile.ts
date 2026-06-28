@@ -28,6 +28,17 @@ const pl = {
     },
     account: {
       displayName: "Nazwa wyświetlana",
+      firstName: "Imię",
+      lastName: "Nazwisko",
+      jobTitle: "Stanowisko",
+      currentCompany: "Aktualna firma",
+      location: "Miejsce zamieszkania",
+      locationPh: "Miasto, kraj",
+      phone: "Telefon",
+      phonePh: "+48 600 000 000",
+      personalSection: "Dane osobowe",
+      contactSection: "Dane kontaktowe",
+      mediaSection: "Awatar i tło",
       email: "E-mail",
       emailReadonly: "Adres e-mail zmieniany przez ustawienia konta.",
       bio: "Krótki opis",
@@ -48,6 +59,7 @@ const pl = {
       saved: "Zapisano",
       saveError: "Nie udało się zapisać",
     },
+
     security: {
       changePassword: "Zmień hasło",
       newPassword: "Nowe hasło",
@@ -183,6 +195,17 @@ const en: typeof pl = {
     },
     account: {
       displayName: "Display name",
+      firstName: "First name",
+      lastName: "Last name",
+      jobTitle: "Job title",
+      currentCompany: "Current company",
+      location: "Place of residence",
+      locationPh: "City, country",
+      phone: "Phone",
+      phonePh: "+1 555 000 0000",
+      personalSection: "Personal details",
+      contactSection: "Contact details",
+      mediaSection: "Avatar and cover",
       email: "Email",
       emailReadonly: "Email is changed via account settings.",
       bio: "Short bio",
@@ -203,6 +226,7 @@ const en: typeof pl = {
       saved: "Saved",
       saveError: "Could not save",
     },
+
     security: {
       changePassword: "Change password",
       newPassword: "New password",
