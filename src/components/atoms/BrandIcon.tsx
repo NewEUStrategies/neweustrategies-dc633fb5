@@ -66,6 +66,9 @@ const ALIASES: Record<string, string[]> = {
   instagram: ["instagram", "ig"],
   tiktok: ["tiktok", "tik-tok"],
   threads: ["threads", "meta-threads"],
+  spotify: ["spotify"],
+  email: ["email", "mail", "envelope", "at"],
+  mail: ["mail", "email", "envelope"],
 };
 
 export function BrandIcon({ name, fallback: Fallback, className, alt, ...rest }: BrandIconProps) {
