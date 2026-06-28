@@ -105,7 +105,7 @@ function AccountPage() {
     setData(merged);
 
     // Persist auto-prefilled values so they show across the platform
-    const patch: Record<string, string> = {};
+    const patch: Partial<ProfileRow> = {};
     if (!row.first_name && metaFirst) patch.first_name = metaFirst;
     if (!row.last_name && metaLast) patch.last_name = metaLast;
     if (!row.display_name && metaDisplay) patch.display_name = metaDisplay;
