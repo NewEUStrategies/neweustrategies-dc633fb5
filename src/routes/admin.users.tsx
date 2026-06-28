@@ -137,11 +137,13 @@ function Users() {
                     <Badge>{u.roles[0] ?? "-"}</Badge>
                   ) : (
                     <Select value={u.roles[0] ?? ""} onValueChange={(v) => changeRole(u.id, v as Role)}>
-                      <SelectTrigger className="w-32"><SelectValue placeholder="-" /></SelectTrigger>
+                      <SelectTrigger className="w-36"><SelectValue placeholder="-" /></SelectTrigger>
                       <SelectContent>
+                        {isSuperAdmin && <SelectItem value="super_admin">Super admin</SelectItem>}
                         <SelectItem value="admin">Admin</SelectItem>
                         <SelectItem value="editor">Editor</SelectItem>
                         <SelectItem value="author">Author</SelectItem>
+                        <SelectItem value="user">User</SelectItem>
                       </SelectContent>
                     </Select>
                   )}
