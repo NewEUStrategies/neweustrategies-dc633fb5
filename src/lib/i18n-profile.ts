@@ -60,7 +60,7 @@ const pl = {
       saved: "Zapisano",
       saveError: "Nie udało się zapisać",
       tip: {
-        displayName: "Tak będziesz widoczny/a publicznie - przy komentarzach, wpisach i w nagłówku „Witaj". Nie musi to być prawdziwe imię.",
+        displayName: "Tak będziesz widoczny/a publicznie - przy komentarzach, wpisach i w nagłówku powitania. Nie musi to być prawdziwe imię.",
         firstName: "Twoje prawdziwe imię. Wykorzystywane do personalizacji powitań i (opcjonalnie) na fakturach.",
         lastName: "Twoje prawdziwe nazwisko. Wykorzystywane w komunikacji oficjalnej i fakturach.",
         jobTitle: "Stanowisko, które wyświetla się przy Twoim profilu autora.",
