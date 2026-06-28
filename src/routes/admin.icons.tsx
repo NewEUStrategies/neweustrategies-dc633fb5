@@ -189,7 +189,8 @@ function BulkUpload({
         onProgress: (p) => {
           setProgress({ index: p.index, total: p.total, base: p.base, status: p.status });
           if (p.status === "done" || p.status === "skipped" || p.status === "error") {
-            setLog((prev) => [...prev, { base: p.base, status: p.status, message: p.message }]);
+            const status = p.status as "done" | "skipped" | "error";
+            setLog((prev) => [...prev, { base: p.base, status, message: p.message }]);
             if (p.status === "done") {
               // Real-time: odświeżamy listę aby ikona pojawiła się w siatce.
               qc.invalidateQueries({ queryKey: ["icon-library", kind] });
