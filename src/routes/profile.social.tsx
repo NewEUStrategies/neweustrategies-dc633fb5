@@ -308,7 +308,7 @@ function SocialPage() {
             </Label>
             <Input id="contact_email" type="email" value={data.contact_email ?? ""} onChange={(e) => setData({ ...data, contact_email: e.target.value })} placeholder="kontakt@example.com" />
           </div>
-          <Button type="submit" disabled={busy}>{t("profile.social.save")}</Button>
+          <Button type="submit" disabled={busy || slugBlocked || slugStatus === "checking"}>{t("profile.social.save")}</Button>
         </form>
       </CardContent>
     </Card>
