@@ -9,11 +9,13 @@ const pl = {
     nav: {
       overview: "Przegląd",
       account: "Konto",
+      social: "Media społecznościowe",
       interests: "Zainteresowania",
+      bookmarks: "Zapisane materiały",
+      follows: "Obserwowane",
       billing: "Dane rozliczeniowe",
       subscription: "Subskrypcja",
       orders: "Historia płatności",
-      bookmarks: "Zapisane",
       security: "Bezpieczeństwo",
     },
     overview: {
