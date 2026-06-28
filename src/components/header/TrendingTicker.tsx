@@ -57,7 +57,7 @@ export function TrendingTicker({ days = 7, limit = 8, fullWidth = true, classNam
                 <span className="text-[10px] font-bold text-muted-foreground tabular-nums">
                   {String(i + 1).padStart(2, "0")}
                 </span>
-                <span className="truncate max-w-[280px] font-medium">{title}</span>
+                <span className="font-medium truncate max-w-[220px] sm:max-w-none sm:whitespace-nowrap">{title}</span>
               </AppLink>
             );
           })}
