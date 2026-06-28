@@ -139,7 +139,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
 
   const items = useMemo(() => Array.isArray(config.items) ? config.items : [], [config.items]);
   const hasPageItems = items.some((i) => i.kind === "page");
-  const { data: pages } = usePagesIndex(hasPageItems);
+  const { data: pages } = usePagesIndex(hasPageItems, lang);
 
   useEffect(() => {
     if (!user?.id) { setDisplayName(""); setAvatarUrl(null); return; }
