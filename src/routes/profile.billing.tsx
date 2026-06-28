@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile/billing")({
