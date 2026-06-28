@@ -14,7 +14,8 @@ export const Route = createFileRoute("/profile/follows")({
 });
 
 interface AuthorLite { id: string; display_name: string | null; slug: string | null; avatar_url: string | null }
-interface TaxonomyLite { id: string; slug: string; name_pl: string | null; name_en: string | null }
+interface CategoryLite { id: string; slug: string; name_pl: string | null; name_en: string | null }
+interface TagLite { id: string; slug: string; name: string }
 
 function localize(name_pl: string | null, name_en: string | null, lang: "pl" | "en") {
   return (lang === "en" ? name_en : name_pl) || name_pl || name_en || "-";
