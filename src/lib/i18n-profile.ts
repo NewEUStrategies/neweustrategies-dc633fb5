@@ -342,11 +342,15 @@ type ProfileExtras = {
     role: { badge: string; super_admin: string; admin: string; editor: string; author: string; user: string };
     social: {
       title: string; subtitle: string; slug: string; slugHint: string;
+      slugReset: string; slugPreview: string;
+      slugInvalid: string; slugTooShort: string; slugTaken: string;
+      slugAvailable: string; slugChecking: string; slugReserved: string;
       bioPl: string; bioEn: string;
       twitter: string; linkedin: string; website: string;
       facebook: string; instagram: string; spotify: string; email: string;
       save: string; saved: string;
     };
+
     bookmarks: { title: string; subtitle: string; empty: string; remove: string; open: string; tabPosts: string; tabPages: string };
     follows: {
       title: string; subtitle: string; empty: string; unfollow: string;
@@ -363,6 +367,15 @@ const extrasPl: ProfileExtras = {
       subtitle: "Te dane pojawią się na Twojej publicznej stronie autora.",
       slug: "Identyfikator profilu (slug)",
       slugHint: "Adres profilu: /author/{slug}. Małe litery, cyfry, myślniki.",
+      slugReset: "Auto z imienia i nazwiska",
+      slugPreview: "Podgląd adresu",
+      slugInvalid: "Dozwolone tylko małe litery, cyfry i myślnik (-). Bez polskich znaków i spacji.",
+      slugTooShort: "Minimum 3 znaki.",
+      slugTaken: "Ten identyfikator jest już zajęty.",
+      slugAvailable: "Identyfikator jest dostępny.",
+      slugChecking: "Sprawdzam dostępność...",
+      slugReserved: "Ten identyfikator jest zarezerwowany.",
+
       bioPl: "Biogram (PL)",
       bioEn: "Biogram (EN)",
       twitter: "X / Twitter (URL)",
@@ -404,6 +417,15 @@ const extrasEn: ProfileExtras = {
       subtitle: "These details appear on your public author page.",
       slug: "Profile slug",
       slugHint: "Profile URL: /author/{slug}. Lowercase letters, digits, dashes.",
+      slugReset: "Auto from first and last name",
+      slugPreview: "URL preview",
+      slugInvalid: "Only lowercase letters, digits and dashes (-) allowed. No spaces or special characters.",
+      slugTooShort: "Minimum 3 characters.",
+      slugTaken: "This slug is already taken.",
+      slugAvailable: "Slug is available.",
+      slugChecking: "Checking availability...",
+      slugReserved: "This slug is reserved.",
+
       bioPl: "Biography (PL)",
       bioEn: "Biography (EN)",
       twitter: "X / Twitter (URL)",

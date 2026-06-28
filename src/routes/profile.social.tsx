@@ -32,11 +32,20 @@ interface SocialRow {
 const URL_RE = /^https?:\/\/.+/i;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+const RESERVED = new Set([
+  "admin", "api", "auth", "author", "profile", "login", "logout",
+  "register", "settings", "about", "contact", "search", "tag",
+  "category", "page", "post", "rss", "sitemap", "static", "public",
+  "new", "edit", "delete", "me", "user", "users", "superadmin",
+]);
+
+type SlugStatus = "idle" | "checking" | "ok" | "invalid" | "short" | "taken" | "reserved";
 
 function slugify(s: string): string {
   return s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
 }
+
 
 function SocialPage() {
   const { t } = useTranslation();
@@ -51,6 +60,13 @@ function SocialPage() {
   const [slugManual, setSlugManual] = useState(false);
   // Source string we auto-derive from: "first last" || display_name || email-local.
   const [autoSource, setAutoSource] = useState("");
+  const [slugStatus, setSlugStatus] = useState<SlugStatus>("idle");
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") setOrigin(window.location.origin);
+  }, []);
+
 
   useEffect(() => {
     if (!user) return;
@@ -117,15 +133,46 @@ function SocialPage() {
     setData({ ...data, slug: slugify(autoSource) });
   };
 
+  // Debounced slug validation + uniqueness check.
+  useEffect(() => {
+    if (!user) return;
+    const raw = (data.slug ?? "").trim().toLowerCase();
+    if (!raw) { setSlugStatus("idle"); return; }
+    if (raw.length < 3) { setSlugStatus("short"); return; }
+    if (!SLUG_RE.test(raw)) { setSlugStatus("invalid"); return; }
+    if (RESERVED.has(raw)) { setSlugStatus("reserved"); return; }
+    setSlugStatus("checking");
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const { data: hit } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("slug", raw)
+        .neq("id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      setSlugStatus(hit ? "taken" : "ok");
+    }, 350);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [data.slug, user]);
+
+  const slugBlocked = slugStatus === "invalid" || slugStatus === "short" || slugStatus === "taken" || slugStatus === "reserved";
+
+
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     const slug = (data.slug ?? "").trim().toLowerCase() || null;
     if (slug && !SLUG_RE.test(slug)) {
-      toast.error("slug: a-z, 0-9, -");
+      toast.error(t("profile.social.slugInvalid"));
       return;
     }
+    if (slugBlocked) {
+      toast.error(t(`profile.social.slug${slugStatus === "taken" ? "Taken" : slugStatus === "reserved" ? "Reserved" : slugStatus === "short" ? "TooShort" : "Invalid"}`));
+      return;
+    }
+
     for (const [k, v] of [
       ["twitter_url", data.twitter_url], ["linkedin_url", data.linkedin_url], ["website_url", data.website_url],
       ["facebook_url", data.facebook_url], ["instagram_url", data.instagram_url], ["spotify_url", data.spotify_url],
@@ -170,16 +217,39 @@ function SocialPage() {
         <form className="grid gap-4 max-w-xl" onSubmit={save}>
           <div className="grid gap-2">
             <Label htmlFor="slug">{t("profile.social.slug")}</Label>
-            <Input id="slug" value={data.slug ?? ""} onChange={(e) => onSlugChange(e.target.value)} maxLength={64} placeholder="jan-kowalski" />
+            <Input
+              id="slug"
+              value={data.slug ?? ""}
+              onChange={(e) => onSlugChange(e.target.value)}
+              maxLength={64}
+              placeholder="jan-kowalski"
+              aria-invalid={slugBlocked || undefined}
+              className={slugBlocked ? "border-destructive focus-visible:ring-destructive" : slugStatus === "ok" ? "border-emerald-500/60 focus-visible:ring-emerald-500" : ""}
+            />
+            {data.slug ? (
+              <div className="flex items-center gap-2 rounded-[5px] border border-border/60 bg-muted/40 px-3 py-2 text-xs">
+                <span className="text-muted-foreground">{t("profile.social.slugPreview")}:</span>
+                <code className="font-mono text-foreground truncate">{origin}/author/{slugify(data.slug) || data.slug}</code>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">{t("profile.social.slugHint")}</p>
+              <p className={`text-xs ${slugStatus === "ok" ? "text-emerald-600 dark:text-emerald-400" : slugBlocked ? "text-destructive" : "text-muted-foreground"}`}>
+                {slugStatus === "checking" && t("profile.social.slugChecking")}
+                {slugStatus === "ok" && t("profile.social.slugAvailable")}
+                {slugStatus === "taken" && t("profile.social.slugTaken")}
+                {slugStatus === "reserved" && t("profile.social.slugReserved")}
+                {slugStatus === "invalid" && t("profile.social.slugInvalid")}
+                {slugStatus === "short" && t("profile.social.slugTooShort")}
+                {slugStatus === "idle" && t("profile.social.slugHint")}
+              </p>
               {slugManual && autoSource ? (
-                <button type="button" onClick={resetSlugAuto} className="text-xs text-primary hover:underline">
-                  {t("profile.social.slugReset", { defaultValue: "Auto z imienia i nazwiska" })}
+                <button type="button" onClick={resetSlugAuto} className="text-xs text-primary hover:underline shrink-0">
+                  {t("profile.social.slugReset")}
                 </button>
               ) : null}
             </div>
           </div>
+
 
           <div className="grid gap-2">
             <Label htmlFor="bio_pl">{t("profile.social.bioPl")}</Label>
@@ -238,7 +308,7 @@ function SocialPage() {
             </Label>
             <Input id="contact_email" type="email" value={data.contact_email ?? ""} onChange={(e) => setData({ ...data, contact_email: e.target.value })} placeholder="kontakt@example.com" />
           </div>
-          <Button type="submit" disabled={busy}>{t("profile.social.save")}</Button>
+          <Button type="submit" disabled={busy || slugBlocked || slugStatus === "checking"}>{t("profile.social.save")}</Button>
         </form>
       </CardContent>
     </Card>
