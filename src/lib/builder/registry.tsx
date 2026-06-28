@@ -1,6 +1,6 @@
 // Widget registry - defaults + renderer. Used both inside the canvas and on
 // the public site.
-import type { WidgetNode, WidgetType } from "./types";
+import type { WidgetNode, WidgetType, Json } from "./types";
 import { newId } from "./types";
 import {
   Heading1, Type as TypeIcon, Image as ImageIcon, MousePointerClick,
