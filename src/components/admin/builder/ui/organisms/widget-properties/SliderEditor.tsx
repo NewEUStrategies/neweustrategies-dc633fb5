@@ -279,50 +279,9 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         </PropField>
       </div>
 
-      {/* Typografia tytułu i opisu */}
-      <div className="space-y-2 rounded-md border border-border p-2 bg-muted/10">
-        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Typografia - tytuł i opis
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <PropField label="Rozmiar tytułu (px, 0 = auto)">
-            <Input type="number" min={0} max={120} value={titleSizePx}
-              onChange={(e) => setContent("titleSizePx", Number(e.target.value) || 0)}
-              className="h-8 text-xs" />
-          </PropField>
-          <PropField label="Grubość tytułu">
-            <Select value={String(titleWeight)} onValueChange={(v) => setContent("titleWeight", Number(v))}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="300">300 - Light</SelectItem>
-                <SelectItem value="400">400 - Regular</SelectItem>
-                <SelectItem value="500">500 - Medium</SelectItem>
-                <SelectItem value="600">600 - SemiBold</SelectItem>
-                <SelectItem value="700">700 - Bold</SelectItem>
-                <SelectItem value="800">800 - ExtraBold</SelectItem>
-                <SelectItem value="900">900 - Black</SelectItem>
-              </SelectContent>
-            </Select>
-          </PropField>
-          <PropField label="Rozmiar opisu (px, 0 = auto)">
-            <Input type="number" min={0} max={80} value={subtitleSizePx}
-              onChange={(e) => setContent("subtitleSizePx", Number(e.target.value) || 0)}
-              className="h-8 text-xs" />
-          </PropField>
-          <PropField label="Grubość opisu">
-            <Select value={String(subtitleWeight)} onValueChange={(v) => setContent("subtitleWeight", Number(v))}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="300">300 - Light</SelectItem>
-                <SelectItem value="400">400 - Regular</SelectItem>
-                <SelectItem value="500">500 - Medium</SelectItem>
-                <SelectItem value="600">600 - SemiBold</SelectItem>
-                <SelectItem value="700">700 - Bold</SelectItem>
-              </SelectContent>
-            </Select>
-          </PropField>
-        </div>
-      </div>
+      {/* Typografia: edytuj w zakładce „Styl" → Typografia (tytuł / opis) */}
+
+
 
 
       {/* Live preview */}
