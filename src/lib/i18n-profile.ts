@@ -38,8 +38,12 @@ const pl = {
       avatarHint: "Zalecane: 512×512 px, kwadrat, max 2 MB (JPG/PNG/WEBP)",
       coverHint: "Zalecane: 1500×500 px, panorama, max 5 MB (JPG/PNG/WEBP)",
       uploading: "Wgrywanie...",
+      uploadProgress: "Wgrywanie: {{percent}}%",
+      uploadSuccess: "Wgrano pomyślnie",
+      uploadFailed: "Wgrywanie nie powiodło się",
       uploadError: "Nie udało się wgrać pliku",
       fileTooLarge: "Plik jest zbyt duży",
+
       save: "Zapisz zmiany",
       saved: "Zapisano",
       saveError: "Nie udało się zapisać",
