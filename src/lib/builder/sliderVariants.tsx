@@ -441,7 +441,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         {href ? (
           <AppLink href={href} className="inline-block w-full">
             <h3
-              className="eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
+              className="cms-post-title eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
               style={{ minHeight: "calc(2 * 1.25em)", ...titleStyle }}
             >
               <span className="eh-title-text">{title || "\u00A0"}</span>
@@ -449,7 +449,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           </AppLink>
         ) : (
           <h3
-            className="eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
+            className="cms-post-title eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
             style={{ minHeight: "calc(2 * 1.25em)", ...titleStyle }}
           >
             <span className="eh-title-text">{title || "\u00A0"}</span>
@@ -458,11 +458,12 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
 
 
         <p
-          className="eh-clamp-3 mt-4 text-sm md:text-base text-muted-foreground max-w-3xl mx-auto leading-relaxed"
+          className="cms-post-excerpt eh-clamp-3 mt-4 text-sm md:text-base text-muted-foreground max-w-3xl mx-auto leading-relaxed"
           style={{ minHeight: "calc(3 * 1.625em)", ...subtitleStyle }}
         >
           {sub || "\u00A0"}
         </p>
+
 
         {/* Meta */}
         {(cur.author || cur.readTime) && (
