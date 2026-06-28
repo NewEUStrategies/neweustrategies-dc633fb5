@@ -358,52 +358,10 @@ export function PostListEditor({ c, lang, setContent }: Props) {
 
       <PerPostThumbnailsSection c={c} lang={lang} setContent={setContent} />
 
-      {/* ── Typografia tytułu i excerpt ───────────────────────── */}
-      <Collapsible title="Styl tekstu (tytuł, excerpt)" defaultOpen={false}>
-        <div className="grid grid-cols-2 gap-2">
-          <PropField label="Rozmiar tytułu (px)">
-            <Input
-              type="number" min={10} max={48}
-              value={num(c, "titleSizePx", 0) || ""}
-              placeholder="auto"
-              onChange={(e) => setContent("titleSizePx", Number(e.target.value) || 0)}
-              className="h-8 text-xs"
-            />
-          </PropField>
-          <PropField label="Grubość tytułu">
-            <Select value={str(c, "titleWeight", "")} onValueChange={(v) => setContent("titleWeight", v)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="domyślna" /></SelectTrigger>
-              <SelectContent>
-                {["", "300", "400", "500", "600", "700", "800", "900"].map((w) => (
-                  <SelectItem key={w || "default"} value={w} className="text-xs">{w || "domyślna"}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </PropField>
-          <PropField label="Rozmiar excerpt (px)">
-            <Input
-              type="number" min={10} max={28}
-              value={num(c, "excerptSizePx", 0) || ""}
-              placeholder="auto"
-              onChange={(e) => setContent("excerptSizePx", Number(e.target.value) || 0)}
-              className="h-8 text-xs"
-            />
-          </PropField>
-          <PropField label="Grubość excerpt">
-            <Select value={str(c, "excerptWeight", "")} onValueChange={(v) => setContent("excerptWeight", v)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="domyślna" /></SelectTrigger>
-              <SelectContent>
-                {["", "300", "400", "500", "600", "700"].map((w) => (
-                  <SelectItem key={w || "default"} value={w} className="text-xs">{w || "domyślna"}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </PropField>
-        </div>
-        <div className="mt-1 text-[10px] text-muted-foreground">
-          Działa we wszystkich wariantach (karty, lista, numerowana, overlay) - identycznie na desktop / tablet / mobile.
-        </div>
-      </Collapsible>
+      {/* Typografia tytułu / excerpt: zarządzana wyłącznie w zakładce
+          „Styl" → Typografia (single source of truth, działa przez
+          `.cms-post-title` / `.cms-post-excerpt`). Brak duplikatów tutaj. */}
+
 
       {(variant === "numbered" || variant === "ranked") && (
         <Collapsible title="Numeracja (01, 02, 03…)" defaultOpen>
