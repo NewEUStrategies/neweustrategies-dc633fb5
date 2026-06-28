@@ -99,13 +99,15 @@ function AccountPage() {
       });
 
       const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
-      const field = kind === "avatar" ? "avatar_url" : "cover_url";
+      const publicUrl = pub.publicUrl;
+      const patch = kind === "avatar" ? { avatar_url: publicUrl } : { cover_url: publicUrl };
 
       const { error: updErr } = await supabase
         .from("profiles")
-        .update({ [field]: pub.publicUrl })
+        .update(patch)
         .eq("id", user.id);
       if (updErr) throw updErr;
+
 
       setProgress((p) => ({ ...p, [kind]: 100 }));
       setStatus((s) => ({ ...s, [kind]: "success" }));
