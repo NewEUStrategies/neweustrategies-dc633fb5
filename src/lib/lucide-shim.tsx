@@ -29,6 +29,8 @@ import {
   Trash2 as LTrash2, Type as LType, Undo as LUndo, Upload as LUpload, User as LUser,
   Users as LUsers, Video as LVideo, X as LX,
   Lock as LLock, Palette as LPalette, LayoutGrid as LLayoutGrid, Sparkles as LSparkles, Shapes as LShapes,
+  SlidersHorizontal as LSlidersHorizontal, UserPlus as LUserPlus,
+
   PanelsTopLeft as LPanelsTopLeft, CreditCard as LCreditCard, Play as LPlay, Pause as LPause,
   Bell as LBell, Info as LInfo,
   Mic as LMic, Film as LFilm, Brush as LBrush, Rss as LRss, ShieldCheck as LShieldCheck,
