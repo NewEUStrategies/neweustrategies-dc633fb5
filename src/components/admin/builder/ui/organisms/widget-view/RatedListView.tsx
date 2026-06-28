@@ -327,7 +327,7 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
                   {it.href ? <AppLink href={it.href} className="block flex-1">{titleEl}</AppLink> : <div className="flex-1">{titleEl}</div>}
                 </div>
                 {showExcerpt && it.excerpt && (
-                  <p className="rl-exc text-muted-foreground mt-2" style={{
+                  <p className="rl-exc cms-post-excerpt text-muted-foreground mt-2" style={{
                     fontSize: `${excerptSize}px`,
                     display: "-webkit-box",
                     WebkitLineClamp: excerptLines,
