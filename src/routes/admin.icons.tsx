@@ -8,23 +8,10 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, Trash2, Search, Plus, Tags, LayoutGrid, Sparkles } from "@/lib/lucide-shim";
-import { useRequiredTenant } from "@/hooks/useAuth";
-import {
-  listIcons, upsertIcon, deleteIcon, bulkImportIcons,
-  uploadIconAsset, slugifyIconName,
-  type IconKind, type IconRow, type IconVariant,
-} from "@/lib/iconLibrary";
-
-export const Route = createFileRoute("/admin/icons")({
-  component: IconsAdmin,
-  head: () => ({ meta: [{ title: "Ikony - Admin" }, { name: "robots", content: "noindex, nofollow" }] }),
-  errorComponent: ({ error }) => <div role="alert" className="p-6">{error.message}</div>,
-  notFoundComponent: () => <div className="p-6">404</div>,
-});
-
-const KIND_TABS: { id: IconKind; icon: typeof Sparkles; labelKey: string }[] = [
-  { id: "custom", icon: Sparkles, labelKey: "admin.icons.tabs.custom" },
+import { Upload, Trash2, Search, Plus, Tags, LayoutGrid, Shapes } from "@/lib/lucide-shim";
+...
+const KIND_TABS: { id: IconKind; icon: typeof Shapes; labelKey: string }[] = [
+  { id: "custom", icon: Shapes, labelKey: "admin.icons.tabs.custom" },
   { id: "flag", icon: Tags, labelKey: "admin.icons.tabs.flag" },
   { id: "brand", icon: LayoutGrid, labelKey: "admin.icons.tabs.brand" },
 ];
