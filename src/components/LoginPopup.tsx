@@ -57,11 +57,22 @@ export function LoginPopup() {
         if (!settings.allow_public_signup) {
           throw new Error(lang === "pl" ? "Rejestracja jest wyłączona." : "Sign-up is disabled.");
         }
+        const trimmed = name.trim();
+        const parts = trimmed.split(/\s+/).filter(Boolean);
+        const firstName = parts[0] ?? "";
+        const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
+        const displayName = trimmed || email.split("@")[0];
         const { error } = await supabase.auth.signUp({
           email, password,
           options: {
             emailRedirectTo: `${window.location.origin}${settings.logged_in_redirect_url || "/"}`,
-            data: { display_name: name || email.split("@")[0], signup_type: "reader" },
+            data: {
+              display_name: displayName,
+              first_name: firstName,
+              last_name: lastName,
+              full_name: trimmed || displayName,
+              signup_type: "reader",
+            },
           },
         });
         if (error) throw error;

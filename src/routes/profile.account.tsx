@@ -84,12 +84,41 @@ function AccountPage() {
       .select("display_name, first_name, last_name, job_title, current_company, location, phone, bio, avatar_url, cover_url, tenant_id")
       .eq("id", uid)
       .maybeSingle();
-    if (row) setData(row as ProfileRow);
+    if (!row) return;
+
+    // Prefill empty profile fields from auth signup metadata
+    const meta = (user?.user_metadata ?? {}) as Record<string, string | undefined>;
+    const nameFromFull = (meta.full_name ?? meta.name ?? "").trim();
+    const fullParts = nameFromFull.split(/\s+/).filter(Boolean);
+    const metaFirst = meta.first_name || meta.given_name || fullParts[0] || "";
+    const metaLast = meta.last_name || meta.family_name || (fullParts.length > 1 ? fullParts.slice(1).join(" ") : "");
+    const metaDisplay = meta.display_name || meta.name || nameFromFull || "";
+    const metaAvatar = meta.avatar_url || meta.picture || "";
+
+    const merged: ProfileRow = {
+      ...(row as ProfileRow),
+      first_name: row.first_name || metaFirst || null,
+      last_name: row.last_name || metaLast || null,
+      display_name: row.display_name || metaDisplay || null,
+      avatar_url: row.avatar_url || metaAvatar || null,
+    };
+    setData(merged);
+
+    // Persist auto-prefilled values so they show across the platform
+    const patch: { first_name?: string; last_name?: string; display_name?: string; avatar_url?: string } = {};
+    if (!row.first_name && metaFirst) patch.first_name = metaFirst;
+    if (!row.last_name && metaLast) patch.last_name = metaLast;
+    if (!row.display_name && metaDisplay) patch.display_name = metaDisplay;
+    if (!row.avatar_url && metaAvatar) patch.avatar_url = metaAvatar;
+    if (Object.keys(patch).length > 0) {
+      await supabase.from("profiles").update(patch).eq("id", uid);
+    }
   };
 
   useEffect(() => {
     if (!user) return;
     void refresh(user.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
 
