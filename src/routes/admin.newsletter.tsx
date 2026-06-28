@@ -646,3 +646,22 @@ function PopupMini({ settings, lang }: { settings: NewsletterSettings; lang: "pl
   );
 }
 
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-12 rounded border border-input bg-background cursor-pointer p-0.5"
+          aria-label={label}
+        />
+        <Input value={value} onChange={(e) => onChange(e.target.value)} className="font-mono text-xs" />
+      </div>
+    </div>
+  );
+}
+
+
