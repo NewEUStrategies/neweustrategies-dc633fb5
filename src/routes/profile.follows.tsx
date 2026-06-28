@@ -51,26 +51,26 @@ function FollowsPage() {
   const categoriesQ = useQuery({
     queryKey: ["follows.categories", ids.category],
     enabled: !!user && ids.category.length > 0,
-    queryFn: async (): Promise<TaxonomyLite[]> => {
+    queryFn: async (): Promise<CategoryLite[]> => {
       const { data, error } = await supabase
         .from("categories")
         .select("id, slug, name_pl, name_en")
         .in("id", ids.category);
       if (error) throw error;
-      return (data ?? []) as TaxonomyLite[];
+      return (data ?? []) as CategoryLite[];
     },
   });
 
   const tagsQ = useQuery({
     queryKey: ["follows.tags", ids.tag],
     enabled: !!user && ids.tag.length > 0,
-    queryFn: async (): Promise<TaxonomyLite[]> => {
+    queryFn: async (): Promise<TagLite[]> => {
       const { data, error } = await supabase
         .from("tags")
-        .select("id, slug, name_pl, name_en")
+        .select("id, slug, name")
         .in("id", ids.tag);
       if (error) throw error;
-      return (data ?? []) as TaxonomyLite[];
+      return (data ?? []) as TagLite[];
     },
   });
 
