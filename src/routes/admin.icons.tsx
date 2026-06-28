@@ -379,21 +379,25 @@ function IconCard({
           <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
             {t("admin.icons.fields.defaultVariant")}
           </Label>
-          <select
+          <Select
             value={variant}
-            onChange={(e) => {
-              const v = e.target.value as IconVariant;
-              setVariant(v);
-              save({ default_variant: v });
+            onValueChange={(v) => {
+              const next = v as IconVariant;
+              setVariant(next);
+              save({ default_variant: next });
             }}
             disabled={saving}
-            className="h-8 text-xs rounded-md border border-border bg-background px-2 w-full"
           >
-            <option value="auto">{t("admin.icons.variants.auto")}</option>
-            <option value="default">{t("admin.icons.variants.default")}</option>
-            <option value="light">{t("admin.icons.variants.light")}</option>
-            <option value="dark">{t("admin.icons.variants.dark")}</option>
-          </select>
+            <SelectTrigger className="h-8 text-xs w-full md:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">{t("admin.icons.variants.auto")}</SelectItem>
+              <SelectItem value="default">{t("admin.icons.variants.default")}</SelectItem>
+              <SelectItem value="light">{t("admin.icons.variants.light")}</SelectItem>
+              <SelectItem value="dark">{t("admin.icons.variants.dark")}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
     </div>
