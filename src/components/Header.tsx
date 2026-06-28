@@ -9,9 +9,20 @@ import { AdZone } from "@/components/AdSlot";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 
+type TrendingCfg = {
+  enabled?: boolean;
+  source?: "trending" | "latest" | "pinned";
+  mode?: "scroll" | "rotate";
+  days?: number;
+  limit?: number;
+  intervalSec?: number;
+  pinnedPostId?: string;
+  pinnedUntil?: string | null;
+  fullWidth?: boolean;
+};
 type HeaderSettings = {
   builder_data?: BuilderDocument | null;
-  trending?: { enabled?: boolean; days?: number; limit?: number; fullWidth?: boolean };
+  trending?: TrendingCfg;
 };
 
 function HeaderInner() {
@@ -32,8 +43,13 @@ function HeaderInner() {
       <AlertBar />
       {trending.enabled !== false && (
         <TrendingTicker
+          source={trending.source ?? "trending"}
+          mode={trending.mode ?? "scroll"}
           days={trending.days ?? 7}
           limit={trending.limit ?? 8}
+          intervalSec={trending.intervalSec ?? 6}
+          pinnedPostId={trending.pinnedPostId}
+          pinnedUntil={trending.pinnedUntil ?? null}
           fullWidth={trending.fullWidth ?? true}
         />
       )}

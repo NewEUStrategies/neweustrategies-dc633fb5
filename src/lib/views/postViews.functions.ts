@@ -84,3 +84,48 @@ export const getTrendingPosts = createServerFn({ method: "GET" })
     }
     return results;
   });
+
+// Latest / pinned posts for the header ticker. Reuses TrendingPost shape so
+// the UI can swap sources without per-mode branching.
+const tickerSchema = z.object({
+  source: z.enum(["latest", "pinned"]),
+  limit: z.number().int().min(1).max(50).default(8),
+  pinnedPostId: z.string().uuid().optional(),
+});
+
+export const getTickerPosts = createServerFn({ method: "GET" })
+  .inputValidator((d) => tickerSchema.parse(d))
+  .handler(async ({ data }): Promise<TrendingPost[]> => {
+    const sb = client();
+    let q = sb
+      .from("posts")
+      .select("id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id")
+      .eq("status", "published")
+      .is("deleted_at", null);
+    if (data.source === "pinned" && data.pinnedPostId) {
+      q = q.eq("id", data.pinnedPostId).limit(1);
+    } else {
+      q = q.order("published_at", { ascending: false }).limit(data.limit);
+    }
+    const { data: rows, error } = await q;
+    if (error) {
+      console.warn("getTickerPosts failed:", error.message);
+      return [];
+    }
+    const results: TrendingPost[] = [];
+    for (const r of rows ?? []) {
+      const { data: path } = await sb.rpc("page_full_path", { _page_id: r.parent_page_id });
+      results.push({
+        id: r.id,
+        slug: r.slug,
+        title_pl: r.title_pl ?? "",
+        title_en: r.title_en ?? "",
+        cover_image_url: r.cover_image_url,
+        published_at: r.published_at,
+        parent_page_id: r.parent_page_id,
+        views_count: 0,
+        href: typeof path === "string" ? `/${path}/${r.slug}` : `/post/${r.slug}`,
+      });
+    }
+    return results;
+  });
