@@ -131,7 +131,7 @@ function IconByName({ name, className }: { name: string | undefined; className?:
 
 export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig; lang: Lang }) {
   const mounted = useHasMounted();
-  const { session, user, signOut, isStaff } = useAuth();
+  const { session, user, signOut, isStaff, isAdmin, isSuperAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -299,15 +299,40 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             <div className="flex flex-col gap-0.5">
               {effectiveAuth.map(renderItem)}
             </div>
-            {isStaff && staffItems.length > 0 && (
-              <>
-                <div className="my-1 h-px bg-border/70" />
-                <div className="px-2.5 pt-1 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  {lang === "pl" ? "Zespół" : "Staff"}
-                </div>
-                <div className="flex flex-col gap-0.5">{staffItems.map(renderItem)}</div>
-              </>
-            )}
+            {isStaff && (() => {
+              // Auto-defaults for staff: ensure admin / super-admin always have a route
+              // back into the management panels even when no custom items are configured.
+              const autoStaff: ReturnType<typeof sectionItems> = [];
+              if (isAdmin) {
+                autoStaff.push({
+                  raw: { id: "auto-admin", section: "staff", kind: "custom", icon: "LayoutDashboard", customHref: "/admin" },
+                  href: "/admin",
+                  label: lang === "pl" ? "Panel admina" : "Admin panel",
+                  desc: "",
+                });
+              }
+              if (isSuperAdmin) {
+                autoStaff.push({
+                  raw: { id: "auto-users", section: "staff", kind: "custom", icon: "ShieldCheck", customHref: "/admin/users" },
+                  href: "/admin/users",
+                  label: lang === "pl" ? "Super admin - użytkownicy" : "Super admin - users",
+                  desc: lang === "pl" ? "Zarządzanie rolami i wcielanie się" : "Roles & impersonation",
+                });
+              }
+              // Merge: auto entries first, then admin-configured items (deduped by href).
+              const seen = new Set(autoStaff.map((x) => x.href));
+              const merged = [...autoStaff, ...staffItems.filter((x) => !seen.has(x.href))];
+              if (merged.length === 0) return null;
+              return (
+                <>
+                  <div className="my-1 h-px bg-border/70" />
+                  <div className="px-2.5 pt-1 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {isSuperAdmin ? (lang === "pl" ? "Super Admin" : "Super Admin") : (lang === "pl" ? "Zespół" : "Staff")}
+                  </div>
+                  <div className="flex flex-col gap-0.5">{merged.map(renderItem)}</div>
+                </>
+              );
+            })()}
           </>
         ) : (
           <div className="flex flex-col gap-0.5">{effectiveGuest.map(renderItem)}</div>
