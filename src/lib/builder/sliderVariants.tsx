@@ -440,20 +440,24 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       >
         {href ? (
           <AppLink href={href} className="inline-block w-full">
-            <h3
-              className="cms-post-title eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
-              style={{ minHeight: "calc(2 * 1.25em)", ...titleStyle }}
-            >
-              <span className="eh-title-text">{title || "\u00A0"}</span>
-            </h3>
+            <div className="eh-title-clamp">
+              <h3
+                className="cms-post-title text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
+                style={titleStyle}
+              >
+                {title || "\u00A0"}
+              </h3>
+            </div>
           </AppLink>
         ) : (
-          <h3
-            className="cms-post-title eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
-            style={{ minHeight: "calc(2 * 1.25em)", ...titleStyle }}
-          >
-            <span className="eh-title-text">{title || "\u00A0"}</span>
-          </h3>
+          <div className="eh-title-clamp">
+            <h3
+              className="cms-post-title text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
+              style={titleStyle}
+            >
+              {title || "\u00A0"}
+            </h3>
+          </div>
         )}
 
 
