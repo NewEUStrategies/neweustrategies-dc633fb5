@@ -98,6 +98,7 @@ export function NewsletterPopup() {
     ["--nl-accent" as string]: s.popup_accent_color || "#f97316",
     ["--nl-accent-fg" as string]: s.popup_accent_text_color || "#ffffff",
     ["--nl-radius" as string]: radius,
+    ["--brand" as string]: s.popup_accent_color || "#f97316",
   };
 
   return (
