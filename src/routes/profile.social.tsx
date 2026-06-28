@@ -103,15 +103,24 @@ function SocialPage() {
             <Textarea id="bio_en" rows={3} maxLength={1000} value={data.bio_en ?? ""} onChange={(e) => setData({ ...data, bio_en: e.target.value })} />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="twitter">{t("profile.social.twitter")}</Label>
+            <Label htmlFor="twitter" className="flex items-center gap-2">
+              <BrandIcon name="x" fallback={Twitter} className="h-4 w-4" alt="X / Twitter" />
+              {t("profile.social.twitter")}
+            </Label>
             <Input id="twitter" type="url" value={data.twitter_url ?? ""} onChange={(e) => setData({ ...data, twitter_url: e.target.value })} placeholder="https://x.com/..." />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="linkedin">{t("profile.social.linkedin")}</Label>
+            <Label htmlFor="linkedin" className="flex items-center gap-2">
+              <BrandIcon name="linkedin" fallback={Linkedin} className="h-4 w-4" alt="LinkedIn" />
+              {t("profile.social.linkedin")}
+            </Label>
             <Input id="linkedin" type="url" value={data.linkedin_url ?? ""} onChange={(e) => setData({ ...data, linkedin_url: e.target.value })} placeholder="https://linkedin.com/in/..." />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="website">{t("profile.social.website")}</Label>
+            <Label htmlFor="website" className="flex items-center gap-2">
+              <BrandIcon name="website" fallback={Globe} className="h-4 w-4" alt="Website" />
+              {t("profile.social.website")}
+            </Label>
             <Input id="website" type="url" value={data.website_url ?? ""} onChange={(e) => setData({ ...data, website_url: e.target.value })} placeholder="https://..." />
           </div>
           <Button type="submit" disabled={busy}>{t("profile.social.save")}</Button>
