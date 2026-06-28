@@ -196,8 +196,7 @@ CREATE OR REPLACE FUNCTION public.search_posts(
   _limit int DEFAULT 80,
   _author uuid DEFAULT NULL,
   _date_from timestamptz DEFAULT NULL,
-  _date_to timestamptz DEFAULT NULL,
-  _tenant_id uuid DEFAULT NULL
+  _date_to timestamptz DEFAULT NULL
 )
 RETURNS TABLE (
   id uuid, slug text, title_pl text, title_en text,
@@ -209,16 +208,22 @@ STABLE
 SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
-  WITH tq AS (SELECT public.nes_search_tsquery(_q) AS q)
+  WITH ctx AS (
+    -- Tenant rozstrzygany WYŁĄCZNIE serwerowo: zalogowany użytkownik -> jego
+    -- własny tenant, anonim -> tenant publicznej strony. Brak parametru od
+    -- klienta, więc nie da się odczytać danych roboczych innej firmy.
+    SELECT coalesce(public.current_tenant_id(), public.public_tenant_id()) AS tid
+  ),
+  tq AS (SELECT public.nes_search_tsquery(_q) AS q)
   SELECT p.id, p.slug, p.title_pl, p.title_en, p.excerpt_pl, p.excerpt_en,
          p.cover_image_url, p.published_at, p.parent_page_id, p.author_id,
          ts_rank_cd(p.search_vector, tq.q)::real AS rank
-    FROM public.posts p, tq
+    FROM public.posts p, tq, ctx
    WHERE tq.q IS NOT NULL
      AND p.search_vector @@ tq.q
      AND p.status = 'published'
      AND p.deleted_at IS NULL
-     AND p.tenant_id = coalesce(_tenant_id, public.public_tenant_id())
+     AND p.tenant_id = ctx.tid
      AND (_author IS NULL OR p.author_id = _author)
      AND (_date_from IS NULL OR p.published_at >= _date_from)
      AND (_date_to IS NULL OR p.published_at <= _date_to)
@@ -229,8 +234,7 @@ $$;
 -- Szybkie podpowiedzi dla palety poleceń (posts + pages, minimalny DTO).
 CREATE OR REPLACE FUNCTION public.search_quick(
   _q text,
-  _limit int DEFAULT 12,
-  _tenant_id uuid DEFAULT NULL
+  _limit int DEFAULT 12
 )
 RETURNS TABLE (kind text, id uuid, slug text, title_pl text, title_en text, rank real)
 LANGUAGE sql
@@ -238,21 +242,25 @@ STABLE
 SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
-  WITH tq AS (SELECT public.nes_search_tsquery(_q) AS q),
+  WITH ctx AS (
+    -- Tenant wyłącznie serwerowo (jak w search_posts) - bez parametru klienta.
+    SELECT coalesce(public.current_tenant_id(), public.public_tenant_id()) AS tid
+  ),
+  tq AS (SELECT public.nes_search_tsquery(_q) AS q),
   hits AS (
     SELECT 'post'::text AS kind, p.id, p.slug, p.title_pl, p.title_en,
            ts_rank_cd(p.search_vector, tq.q)::real AS rank
-      FROM public.posts p, tq
+      FROM public.posts p, tq, ctx
      WHERE tq.q IS NOT NULL AND p.search_vector @@ tq.q
        AND p.status = 'published' AND p.deleted_at IS NULL
-       AND p.tenant_id = coalesce(_tenant_id, public.public_tenant_id())
+       AND p.tenant_id = ctx.tid
     UNION ALL
     SELECT 'page'::text AS kind, pg.id, pg.slug, pg.title_pl, pg.title_en,
            ts_rank_cd(pg.search_vector, tq.q)::real AS rank
-      FROM public.pages pg, tq
+      FROM public.pages pg, tq, ctx
      WHERE tq.q IS NOT NULL AND pg.search_vector @@ tq.q
        AND pg.status = 'published' AND pg.deleted_at IS NULL
-       AND pg.tenant_id = coalesce(_tenant_id, public.public_tenant_id())
+       AND pg.tenant_id = ctx.tid
   )
   SELECT kind, id, slug, title_pl, title_en, rank
     FROM hits
@@ -260,7 +268,7 @@ AS $$
    LIMIT GREATEST(LEAST(_limit, 50), 1);
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.search_posts(text, int, uuid, timestamptz, timestamptz, uuid) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.search_quick(text, int, uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.search_posts(text, int, uuid, timestamptz, timestamptz, uuid) TO anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.search_quick(text, int, uuid) TO anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION public.search_posts(text, int, uuid, timestamptz, timestamptz) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.search_quick(text, int) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.search_posts(text, int, uuid, timestamptz, timestamptz) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.search_quick(text, int) TO anon, authenticated, service_role;

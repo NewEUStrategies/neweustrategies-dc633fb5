@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { searchQueryOptions, type SearchFilters } from "@/lib/queries/archives";
+import { activeLang } from "@/lib/seo/head";
 import "@/lib/i18n-search";
 
 const SearchParams = z.object({
@@ -24,12 +25,18 @@ type SearchInput = z.infer<typeof SearchParams>;
 
 export const Route = createFileRoute("/search")({
   validateSearch: (s: Record<string, unknown>): SearchInput => SearchParams.parse(s),
-  head: () => ({
-    meta: [
-      { title: "Szukaj" },
-      { name: "description", content: "Wyszukiwarka wpisów" },
-    ],
-  }),
+  head: () => {
+    const lang = activeLang();
+    return {
+      meta: [
+        { title: lang === "en" ? "Search" : "Szukaj" },
+        {
+          name: "description",
+          content: lang === "en" ? "Article search" : "Wyszukiwarka wpisów",
+        },
+      ],
+    };
+  },
   component: SearchPage,
 });
 

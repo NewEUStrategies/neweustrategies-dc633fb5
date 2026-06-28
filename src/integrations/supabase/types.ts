@@ -2399,7 +2399,6 @@ export type Database = {
           _author?: string | null
           _date_from?: string | null
           _date_to?: string | null
-          _tenant_id?: string | null
         }
         Returns: {
           id: string
@@ -2416,7 +2415,7 @@ export type Database = {
         }[]
       }
       search_quick: {
-        Args: { _q: string; _limit?: number; _tenant_id?: string | null }
+        Args: { _q: string; _limit?: number }
         Returns: {
           kind: string
           id: string
