@@ -150,7 +150,25 @@ function Users() {
                   )}
                 </td>
                 <td className="p-3 text-xs text-muted-foreground">{new Date(u.created_at).toLocaleDateString(locale)}</td>
-                <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+                <td className="p-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  {isSuperAdmin && u.id !== user?.id && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title={i18n.language === "pl" ? "Zaloguj jako tego użytkownika" : "Sign in as this user"}
+                      onClick={async () => {
+                        try {
+                          await impersonateUser(u.id, u.display_name ?? u.email ?? u.id);
+                          toast.success(i18n.language === "pl" ? "Tryb podglądu aktywny" : "Impersonation active");
+                          window.location.assign("/profile");
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : "Error");
+                        }
+                      }}
+                    >
+                      <UserCog className="w-4 h-4" />
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={() => setOpenId(u.id)}><Eye className="w-4 h-4" /></Button>
                 </td>
               </tr>
