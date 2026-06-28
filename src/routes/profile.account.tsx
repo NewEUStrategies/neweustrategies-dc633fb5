@@ -9,7 +9,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+
+function StatusBadge({ status, percent, t }: { status: "idle" | "uploading" | "success" | "failed"; percent: number; t: (k: string, v?: Record<string, unknown>) => string }) {
+  if (status === "idle") return null;
+  if (status === "uploading") {
+    return (
+      <div className="grid gap-1">
+        <Progress value={percent} className="h-1.5" />
+        <p className="text-xs text-muted-foreground" aria-live="polite">{t("profile.account.uploadProgress", { percent })}</p>
+      </div>
+    );
+  }
+  const cls = status === "success" ? "text-green-600 dark:text-green-400" : "text-destructive";
+  return (
+    <p className={`text-xs ${cls}`} role="status" aria-live="polite">
+      {t(status === "success" ? "profile.account.uploadSuccess" : "profile.account.uploadFailed")}
+    </p>
+  );
+}
 
 export const Route = createFileRoute("/profile/account")({
   component: AccountPage,
