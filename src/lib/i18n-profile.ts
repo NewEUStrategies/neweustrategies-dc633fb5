@@ -342,11 +342,15 @@ type ProfileExtras = {
     role: { badge: string; super_admin: string; admin: string; editor: string; author: string; user: string };
     social: {
       title: string; subtitle: string; slug: string; slugHint: string;
+      slugReset: string; slugPreview: string;
+      slugInvalid: string; slugTooShort: string; slugTaken: string;
+      slugAvailable: string; slugChecking: string; slugReserved: string;
       bioPl: string; bioEn: string;
       twitter: string; linkedin: string; website: string;
       facebook: string; instagram: string; spotify: string; email: string;
       save: string; saved: string;
     };
+
     bookmarks: { title: string; subtitle: string; empty: string; remove: string; open: string; tabPosts: string; tabPages: string };
     follows: {
       title: string; subtitle: string; empty: string; unfollow: string;
