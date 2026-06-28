@@ -253,7 +253,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
 
   // System-wide limits - applied uniformly to every slide so layout height
   // is stable regardless of content length. Counts include spaces.
-  const TITLE_MAX = 80;   // ~2 linie na desktopie
+  const TITLE_MAX = 130;  // ~3 linie na desktopie
   const EXCERPT_MAX = 160; // ~3 linie na desktopie
   const truncate = (s: string, max: number) =>
     s.length > max ? s.slice(0, Math.max(0, max - 1)).trimEnd() + "…" : s;
@@ -305,7 +305,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         @keyframes ehFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
         .eh-slider .eh-title-clamp {
           display: block;
-          max-height: calc(1.25em * 2 + 8px);
+          max-height: calc(1.25em * 3 + 8px);
           overflow: hidden;
           min-height: calc(2 * 1.25em);
           padding-bottom: 4px;
