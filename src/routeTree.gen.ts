@@ -25,6 +25,7 @@ import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as WebStoriesSlugRouteImport } from './routes/web-stories.$slug'
 import { Route as TagSlugRouteImport } from './routes/tag.$slug'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
+import { Route as ProfileSocialRouteImport } from './routes/profile.social'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
 import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
@@ -165,6 +166,11 @@ const TagSlugRoute = TagSlugRouteImport.update({
 const ProfileSubscriptionRoute = ProfileSubscriptionRouteImport.update({
   id: '/subscription',
   path: '/subscription',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileSocialRoute = ProfileSocialRouteImport.update({
+  id: '/social',
+  path: '/social',
   getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileSecurityRoute = ProfileSecurityRouteImport.update({
@@ -527,6 +533,7 @@ export interface FileRoutesByFullPath {
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/security': typeof ProfileSecurityRoute
+  '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/tag/$slug': typeof TagSlugRoute
   '/web-stories/$slug': typeof WebStoriesSlugRoute
@@ -603,6 +610,7 @@ export interface FileRoutesByTo {
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/security': typeof ProfileSecurityRoute
+  '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/tag/$slug': typeof TagSlugRoute
   '/web-stories/$slug': typeof WebStoriesSlugRoute
@@ -683,6 +691,7 @@ export interface FileRoutesById {
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/security': typeof ProfileSecurityRoute
+  '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/tag/$slug': typeof TagSlugRoute
   '/web-stories/$slug': typeof WebStoriesSlugRoute
@@ -764,6 +773,7 @@ export interface FileRouteTypes {
     | '/profile/interests'
     | '/profile/orders'
     | '/profile/security'
+    | '/profile/social'
     | '/profile/subscription'
     | '/tag/$slug'
     | '/web-stories/$slug'
@@ -840,6 +850,7 @@ export interface FileRouteTypes {
     | '/profile/interests'
     | '/profile/orders'
     | '/profile/security'
+    | '/profile/social'
     | '/profile/subscription'
     | '/tag/$slug'
     | '/web-stories/$slug'
@@ -919,6 +930,7 @@ export interface FileRouteTypes {
     | '/profile/interests'
     | '/profile/orders'
     | '/profile/security'
+    | '/profile/social'
     | '/profile/subscription'
     | '/tag/$slug'
     | '/web-stories/$slug'
@@ -1089,6 +1101,13 @@ declare module '@tanstack/react-router' {
       path: '/subscription'
       fullPath: '/profile/subscription'
       preLoaderRoute: typeof ProfileSubscriptionRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/social': {
+      id: '/profile/social'
+      path: '/social'
+      fullPath: '/profile/social'
+      preLoaderRoute: typeof ProfileSocialRouteImport
       parentRoute: typeof ProfileRoute
     }
     '/profile/security': {
@@ -1663,6 +1682,7 @@ interface ProfileRouteChildren {
   ProfileInterestsRoute: typeof ProfileInterestsRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
   ProfileSecurityRoute: typeof ProfileSecurityRoute
+  ProfileSocialRoute: typeof ProfileSocialRoute
   ProfileSubscriptionRoute: typeof ProfileSubscriptionRoute
   ProfileIndexRoute: typeof ProfileIndexRoute
 }
@@ -1673,6 +1693,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileInterestsRoute: ProfileInterestsRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,
   ProfileSecurityRoute: ProfileSecurityRoute,
+  ProfileSocialRoute: ProfileSocialRoute,
   ProfileSubscriptionRoute: ProfileSubscriptionRoute,
   ProfileIndexRoute: ProfileIndexRoute,
 }
