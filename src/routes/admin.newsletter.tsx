@@ -221,6 +221,36 @@ function Page() {
             onChange={(popup_mailing_lists) => upd({ popup_mailing_lists })}
           />
 
+          <div className="pt-3 border-t border-border space-y-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Wygląd popupu - kolory i styl
+            </h3>
+            <div className="grid sm:grid-cols-3 gap-3">
+              <ColorField label="Tło popupu" value={cur.popup_bg_color} onChange={(v) => upd({ popup_bg_color: v })} />
+              <ColorField label="Kolor tekstu" value={cur.popup_text_color} onChange={(v) => upd({ popup_text_color: v })} />
+              <ColorField label="Tekst dodatkowy" value={cur.popup_muted_color} onChange={(v) => upd({ popup_muted_color: v })} />
+              <ColorField label="Kolor akcentu (CTA)" value={cur.popup_accent_color} onChange={(v) => upd({ popup_accent_color: v })} />
+              <ColorField label="Tekst na akcentcie" value={cur.popup_accent_text_color} onChange={(v) => upd({ popup_accent_text_color: v })} />
+              <div>
+                <Label>Overlay (tło za popupem)</Label>
+                <Input
+                  value={cur.popup_overlay_color}
+                  onChange={(e) => upd({ popup_overlay_color: e.target.value })}
+                  placeholder="rgba(0,0,0,0.7)"
+                />
+              </div>
+              <div>
+                <Label>Zaokrąglenie rogów (px)</Label>
+                <Input
+                  type="number" min={0} max={48}
+                  value={cur.popup_border_radius_px}
+                  onChange={(e) => upd({ popup_border_radius_px: Number(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+          </div>
+
+
           <Tabs defaultValue="pl">
             <TabsList>
               <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
