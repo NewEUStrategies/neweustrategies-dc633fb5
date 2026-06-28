@@ -289,6 +289,7 @@ function AccountPage() {
                 {uploading === "cover" ? t("profile.account.uploading") : t("profile.account.uploadCover")}
               </Button>
             </div>
+            <StatusBadge status={status.cover} percent={progress.cover} t={t} />
             <p className="text-xs text-muted-foreground">{t("profile.account.coverHint")}</p>
           </div>
 
