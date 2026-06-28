@@ -14,17 +14,29 @@ export interface BrandIconMap {
   resolve: (key: string) => IconRow | undefined;
 }
 
-/** Globalna mapa ikon brandów - cache współdzielony przez wszystkie komponenty. */
-export function useBrandIcons(kind: "brand" | "flag" | "custom" = "brand"): BrandIconMap {
+/**
+ * Globalna mapa ikon - cache współdzielony.
+ * Domyślnie przeszukuje wszystkie kindy (brand + custom + flag), z priorytetem
+ * brand > custom > flag, żeby ikony zapisane w /admin/icons (zazwyczaj jako
+ * "custom" po imporcie hurtowym) były dostępne wszędzie tam, gdzie używamy
+ * BrandIcon - bez wymagania ręcznej rekategoryzacji.
+ */
+export function useBrandIcons(kind?: "brand" | "flag" | "custom"): BrandIconMap {
   const { data = [] } = useQuery({
-    queryKey: ["icon-library", kind],
+    queryKey: ["icon-library", kind ?? "all"],
     queryFn: () => listIcons(kind),
     staleTime: STALE,
   });
 
   return useMemo(() => {
     const byName: Record<string, IconRow> = {};
-    for (const row of data) byName[row.name] = row;
+    const priority: Record<string, number> = { brand: 3, custom: 2, flag: 1 };
+    for (const row of data) {
+      const existing = byName[row.name];
+      if (!existing || (priority[row.kind] ?? 0) > (priority[existing.kind] ?? 0)) {
+        byName[row.name] = row;
+      }
+    }
     const resolve = (key: string) => byName[slugifyIconName(key)];
     return { byName, resolve };
   }, [data]);
