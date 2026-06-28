@@ -165,9 +165,14 @@ function SocialPage() {
     if (!user) return;
     const slug = (data.slug ?? "").trim().toLowerCase() || null;
     if (slug && !SLUG_RE.test(slug)) {
-      toast.error("slug: a-z, 0-9, -");
+      toast.error(t("profile.social.slugInvalid"));
       return;
     }
+    if (slugBlocked) {
+      toast.error(t(`profile.social.slug${slugStatus === "taken" ? "Taken" : slugStatus === "reserved" ? "Reserved" : slugStatus === "short" ? "TooShort" : "Invalid"}`));
+      return;
+    }
+
     for (const [k, v] of [
       ["twitter_url", data.twitter_url], ["linkedin_url", data.linkedin_url], ["website_url", data.website_url],
       ["facebook_url", data.facebook_url], ["instagram_url", data.instagram_url], ["spotify_url", data.spotify_url],
