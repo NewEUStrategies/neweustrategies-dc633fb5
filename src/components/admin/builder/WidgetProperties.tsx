@@ -604,6 +604,8 @@ function ContentFields({ widget, lang, setContent }: {
       return <MegaMenuEditor c={c} lang={lang} setContent={setContent} />;
     case "rich-text":
       return <RichTextEditor c={c} lang={lang} setContent={setContent} />;
+    case "account-link":
+      return <AccountLinkEditor c={c} lang={lang} setContent={setContent} />;
     case "ad-slot":
       return <AdSlotEditor c={c} setContent={setContent} />;
   }
