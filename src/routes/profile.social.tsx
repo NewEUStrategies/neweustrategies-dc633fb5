@@ -183,6 +183,7 @@ function SocialPage() {
   };
 
   return (
+    <TooltipProvider>
     <Card>
       <CardHeader>
         <CardTitle>{t("profile.social.title")}</CardTitle>
@@ -192,7 +193,7 @@ function SocialPage() {
         <form className="grid gap-5" onSubmit={save}>
           {/* Identity */}
           <div className="grid gap-2">
-            <Label htmlFor="slug">{t("profile.social.slug")}</Label>
+            <FieldLabel htmlFor="slug" tip={t("profile.social.tip.slug")}>{t("profile.social.slug")}</FieldLabel>
             <Input
               id="slug"
               value={data.slug ?? ""}
@@ -231,11 +232,11 @@ function SocialPage() {
             <h3>{t("profile.social.bioPl").replace(/\s*\(PL\)\s*$/i, "")}</h3>
             <div className="profile-grid-2">
               <div className="grid gap-2">
-                <Label htmlFor="bio_pl">{t("profile.social.bioPl")}</Label>
+                <FieldLabel htmlFor="bio_pl" tip={t("profile.social.tip.bioPl")}>{t("profile.social.bioPl")}</FieldLabel>
                 <Textarea id="bio_pl" rows={3} maxLength={1000} value={data.bio_pl ?? ""} onChange={(e) => setData({ ...data, bio_pl: e.target.value })} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="bio_en">{t("profile.social.bioEn")}</Label>
+                <FieldLabel htmlFor="bio_en" tip={t("profile.social.tip.bioEn")}>{t("profile.social.bioEn")}</FieldLabel>
                 <Textarea id="bio_en" rows={3} maxLength={1000} value={data.bio_en ?? ""} onChange={(e) => setData({ ...data, bio_en: e.target.value })} />
               </div>
             </div>
@@ -246,60 +247,75 @@ function SocialPage() {
             <h3>Social</h3>
             <div className="profile-grid-2">
               <div className="grid gap-2">
-                <Label htmlFor="twitter" className="flex items-center gap-2">
-                  <BrandIcon name="x" fallback={Twitter} className="h-3.5 w-3.5" alt="X / Twitter" />
-                  {t("profile.social.twitter")}
-                </Label>
+                <FieldLabel htmlFor="twitter" tip={t("profile.social.tip.twitter")}>
+                  <Label htmlFor="twitter" className="m-0 flex items-center gap-2">
+                    <BrandIcon name="x" fallback={Twitter} className="h-3.5 w-3.5" alt="X / Twitter" />
+                    {t("profile.social.twitter")}
+                  </Label>
+                </FieldLabel>
                 <Input id="twitter" type="url" value={data.twitter_url ?? ""} onChange={(e) => setData({ ...data, twitter_url: e.target.value })} placeholder="https://x.com/..." />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="linkedin" className="flex items-center gap-2">
-                  <BrandIcon name="linkedin" fallback={Linkedin} className="h-3.5 w-3.5" alt="LinkedIn" />
-                  {t("profile.social.linkedin")}
-                </Label>
+                <FieldLabel htmlFor="linkedin" tip={t("profile.social.tip.linkedin")}>
+                  <Label htmlFor="linkedin" className="m-0 flex items-center gap-2">
+                    <BrandIcon name="linkedin" fallback={Linkedin} className="h-3.5 w-3.5" alt="LinkedIn" />
+                    {t("profile.social.linkedin")}
+                  </Label>
+                </FieldLabel>
                 <Input id="linkedin" type="url" value={data.linkedin_url ?? ""} onChange={(e) => setData({ ...data, linkedin_url: e.target.value })} placeholder="https://linkedin.com/in/..." />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="facebook" className="flex items-center gap-2">
-                  <BrandIcon name="facebook" fallback={Facebook} className="h-3.5 w-3.5" alt="Facebook" />
-                  {t("profile.social.facebook")}
-                </Label>
+                <FieldLabel htmlFor="facebook" tip={t("profile.social.tip.facebook")}>
+                  <Label htmlFor="facebook" className="m-0 flex items-center gap-2">
+                    <BrandIcon name="facebook" fallback={Facebook} className="h-3.5 w-3.5" alt="Facebook" />
+                    {t("profile.social.facebook")}
+                  </Label>
+                </FieldLabel>
                 <Input id="facebook" type="url" value={data.facebook_url ?? ""} onChange={(e) => setData({ ...data, facebook_url: e.target.value })} placeholder="https://facebook.com/..." />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="instagram" className="flex items-center gap-2">
-                  <BrandIcon name="instagram" fallback={Instagram} className="h-3.5 w-3.5" alt="Instagram" />
-                  {t("profile.social.instagram")}
-                </Label>
+                <FieldLabel htmlFor="instagram" tip={t("profile.social.tip.instagram")}>
+                  <Label htmlFor="instagram" className="m-0 flex items-center gap-2">
+                    <BrandIcon name="instagram" fallback={Instagram} className="h-3.5 w-3.5" alt="Instagram" />
+                    {t("profile.social.instagram")}
+                  </Label>
+                </FieldLabel>
                 <Input id="instagram" type="url" value={data.instagram_url ?? ""} onChange={(e) => setData({ ...data, instagram_url: e.target.value })} placeholder="https://instagram.com/..." />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="spotify" className="flex items-center gap-2">
-                  <BrandIcon name="spotify" fallback={Music2} className="h-3.5 w-3.5" alt="Spotify" />
-                  {t("profile.social.spotify")}
-                </Label>
+                <FieldLabel htmlFor="spotify" tip={t("profile.social.tip.spotify")}>
+                  <Label htmlFor="spotify" className="m-0 flex items-center gap-2">
+                    <BrandIcon name="spotify" fallback={Music2} className="h-3.5 w-3.5" alt="Spotify" />
+                    {t("profile.social.spotify")}
+                  </Label>
+                </FieldLabel>
                 <Input id="spotify" type="url" value={data.spotify_url ?? ""} onChange={(e) => setData({ ...data, spotify_url: e.target.value })} placeholder="https://open.spotify.com/..." />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="website" className="flex items-center gap-2">
-                  <BrandIcon name="website" fallback={Globe} className="h-3.5 w-3.5" alt="Website" />
-                  {t("profile.social.website")}
-                </Label>
+                <FieldLabel htmlFor="website" tip={t("profile.social.tip.website")}>
+                  <Label htmlFor="website" className="m-0 flex items-center gap-2">
+                    <BrandIcon name="website" fallback={Globe} className="h-3.5 w-3.5" alt="Website" />
+                    {t("profile.social.website")}
+                  </Label>
+                </FieldLabel>
                 <Input id="website" type="url" value={data.website_url ?? ""} onChange={(e) => setData({ ...data, website_url: e.target.value })} placeholder="https://..." />
               </div>
               <div className="grid gap-2 col-full">
-                <Label htmlFor="contact_email" className="flex items-center gap-2">
-                  <BrandIcon name="email" fallback={Mail} className="h-3.5 w-3.5" alt="E-mail" />
-                  {t("profile.social.email")}
-                </Label>
+                <FieldLabel htmlFor="contact_email" tip={t("profile.social.tip.email")}>
+                  <Label htmlFor="contact_email" className="m-0 flex items-center gap-2">
+                    <BrandIcon name="email" fallback={Mail} className="h-3.5 w-3.5" alt="E-mail" />
+                    {t("profile.social.email")}
+                  </Label>
+                </FieldLabel>
                 <Input id="contact_email" type="email" value={data.contact_email ?? ""} onChange={(e) => setData({ ...data, contact_email: e.target.value })} placeholder="kontakt@example.com" />
               </div>
             </div>
           </section>
 
-          <Button type="submit" disabled={busy || slugBlocked || slugStatus === "checking"}>{t("profile.social.save")}</Button>
+          <Button type="submit" disabled={busy || slugBlocked || slugStatus === "checking"} title={t("profile.social.tip.save")}>{t("profile.social.save")}</Button>
         </form>
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
 }
