@@ -2368,7 +2368,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_staff: { Args: never; Returns: boolean }
       page_breadcrumbs: {
         Args: { _page_id: string }
         Returns: {
@@ -2391,39 +2390,6 @@ export type Database = {
         Returns: {
           page_id: string
           post_id: string
-        }[]
-      }
-      search_posts: {
-        Args: {
-          _q: string
-          _limit?: number
-          _author?: string | null
-          _date_from?: string | null
-          _date_to?: string | null
-        }
-        Returns: {
-          id: string
-          slug: string
-          title_pl: string
-          title_en: string
-          excerpt_pl: string | null
-          excerpt_en: string | null
-          cover_image_url: string | null
-          published_at: string | null
-          parent_page_id: string
-          author_id: string | null
-          rank: number
-        }[]
-      }
-      search_quick: {
-        Args: { _q: string; _limit?: number }
-        Returns: {
-          kind: string
-          id: string
-          slug: string
-          title_pl: string
-          title_en: string
-          rank: number
         }[]
       }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
