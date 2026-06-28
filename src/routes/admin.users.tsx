@@ -15,7 +15,7 @@ export const Route = createFileRoute("/admin/users")({
   component: Users,
 });
 
-type Role = "admin" | "editor" | "author";
+type Role = "super_admin" | "admin" | "editor" | "author" | "user";
 
 interface UserRow {
   id: string;
