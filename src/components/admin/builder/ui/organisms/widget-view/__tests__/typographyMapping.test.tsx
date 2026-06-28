@@ -123,7 +123,6 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
         },
       })
         .split("\n")
-        .filter((l) => l.includes(".cms-post-title") || l.includes(".cms-post-excerpt"))
         .map((l) => l.replace(/\[data-w-id="tm-[^"]+"\]/g, "[W]"))
         .sort();
 
