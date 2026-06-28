@@ -170,9 +170,17 @@ function SocialPage() {
         <form className="grid gap-4 max-w-xl" onSubmit={save}>
           <div className="grid gap-2">
             <Label htmlFor="slug">{t("profile.social.slug")}</Label>
-            <Input id="slug" value={data.slug ?? ""} onChange={(e) => setData({ ...data, slug: e.target.value })} maxLength={64} placeholder="jan-kowalski" />
-            <p className="text-xs text-muted-foreground">{t("profile.social.slugHint")}</p>
+            <Input id="slug" value={data.slug ?? ""} onChange={(e) => onSlugChange(e.target.value)} maxLength={64} placeholder="jan-kowalski" />
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">{t("profile.social.slugHint")}</p>
+              {slugManual && autoSource ? (
+                <button type="button" onClick={resetSlugAuto} className="text-xs text-primary hover:underline">
+                  {t("profile.social.slugReset", { defaultValue: "Auto z imienia i nazwiska" })}
+                </button>
+              ) : null}
+            </div>
           </div>
+
           <div className="grid gap-2">
             <Label htmlFor="bio_pl">{t("profile.social.bioPl")}</Label>
             <Textarea id="bio_pl" rows={3} maxLength={1000} value={data.bio_pl ?? ""} onChange={(e) => setData({ ...data, bio_pl: e.target.value })} />
