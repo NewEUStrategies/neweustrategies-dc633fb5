@@ -58,7 +58,7 @@ export interface BrandIconProps extends SVGAttributes<SVGSVGElement> {
  */
 export function BrandIcon({ name, fallback: Fallback, className, alt, ...rest }: BrandIconProps) {
   const { theme } = useTheme();
-  const { resolve } = useBrandIcons("brand");
+  const { resolve } = useBrandIcons();
   const row = resolve(name);
 
   if (row && (row.url_default || row.url_light || row.url_dark)) {
