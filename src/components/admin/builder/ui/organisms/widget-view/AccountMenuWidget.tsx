@@ -131,7 +131,7 @@ function IconByName({ name, className }: { name: string | undefined; className?:
 
 export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig; lang: Lang }) {
   const mounted = useHasMounted();
-  const { session, user, signOut, isStaff } = useAuth();
+  const { session, user, signOut, isStaff, isAdmin, isSuperAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
