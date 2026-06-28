@@ -94,11 +94,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTenantId(null);
   };
 
-  const isAdmin = roles.includes("admin");
+  const isSuperAdmin = roles.includes("super_admin");
+  const isAdmin = isSuperAdmin || roles.includes("admin");
   const isStaff = isAdmin || roles.includes("editor") || roles.includes("author");
 
   return (
-    <Ctx.Provider value={{ session, user: session?.user ?? null, roles, tenantId, loading, isStaff, isAdmin, signOut }}>
+    <Ctx.Provider value={{ session, user: session?.user ?? null, roles, tenantId, loading, isStaff, isAdmin, isSuperAdmin, signOut }}>
       {children}
     </Ctx.Provider>
   );
