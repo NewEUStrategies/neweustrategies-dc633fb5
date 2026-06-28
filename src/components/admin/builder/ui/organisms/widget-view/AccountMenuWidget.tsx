@@ -61,7 +61,7 @@ export const ACCOUNT_PRESETS: Array<{ key: string; href: string; label_pl: strin
   { key: "social", href: "/profile/social", label_pl: "Media społecznościowe", label_en: "Social media", icon: "Share2" },
   { key: "bookmarks", href: "/profile/bookmarks", label_pl: "Zapisane materiały", label_en: "Saved items", icon: "Bookmark" },
   { key: "follows", href: "/profile/follows", label_pl: "Obserwowane", label_en: "Following", icon: "Heart" },
-  { key: "interests", href: "/profile/interests", label_pl: "Zainteresowania", label_en: "Interests", icon: "Sparkles" },
+  { key: "interests", href: "/profile/interests", label_pl: "Zainteresowania", label_en: "Interests", icon: "SlidersHorizontal" },
   { key: "reading-list", href: "/reading-list", label_pl: "Do przeczytania", label_en: "Reading list", icon: "BookOpen" },
   { key: "subscription", href: "/profile/subscription", label_pl: "Subskrypcja", label_en: "Subscription", icon: "Crown" },
   { key: "billing", href: "/profile/billing", label_pl: "Płatności", label_en: "Billing", icon: "CreditCard" },

@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { Loader2, Check, Sparkles, LogIn } from "lucide-react";
+import { Loader2, Check, SlidersHorizontal, LogIn } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useInterestCatalog, useMyInterests, type InterestItem } from "@/hooks/useInterests";
 import "@/lib/i18n-interests";
@@ -80,7 +80,7 @@ export function InterestsCustomizer({ variant = "full", showHeader = true, class
       {showHeader && (
         <header className="mb-6">
           <div className="flex items-center gap-2 text-brand mb-2">
-            <Sparkles className="w-4 h-4" />
+            <SlidersHorizontal className="w-4 h-4" />
             <span className="text-xs uppercase tracking-wider font-semibold">
               {t("interests.customize")}
             </span>
