@@ -216,8 +216,8 @@ function SocialPage() {
                 {slugStatus === "short" && t("profile.social.slugTooShort")}
                 {slugStatus === "idle" && t("profile.social.slugHint")}
               </p>
-              {slugManual && autoSource ? (
-                <button type="button" onClick={resetSlugAuto} className="text-[11px] normal-case tracking-normal font-medium text-primary hover:underline shrink-0">
+              {suggestSource && slugify(suggestSource) && slugify(suggestSource) !== (data.slug ?? "").trim() ? (
+                <button type="button" onClick={suggestSlug} className="text-[11px] normal-case tracking-normal font-medium text-primary hover:underline shrink-0">
                   {t("profile.social.slugReset")}
                 </button>
               ) : null}
