@@ -213,6 +213,7 @@ function AccountPage() {
 
 
   return (
+    <TooltipProvider>
     <Card>
       <CardHeader>
         <CardTitle>{t("profile.nav.account")}</CardTitle>
@@ -224,27 +225,27 @@ function AccountPage() {
             <h3 className="text-sm font-semibold text-foreground/80">{t("profile.account.personalSection")}</h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
-                <Label htmlFor="first_name">{t("profile.account.firstName")}</Label>
+                <FieldLabel htmlFor="first_name" tip={t("profile.account.tip.firstName")}>{t("profile.account.firstName")}</FieldLabel>
                 <Input id="first_name" value={data.first_name ?? ""} onChange={(e) => setData({ ...data, first_name: e.target.value })} maxLength={80} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="last_name">{t("profile.account.lastName")}</Label>
+                <FieldLabel htmlFor="last_name" tip={t("profile.account.tip.lastName")}>{t("profile.account.lastName")}</FieldLabel>
                 <Input id="last_name" value={data.last_name ?? ""} onChange={(e) => setData({ ...data, last_name: e.target.value })} maxLength={80} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="job_title">{t("profile.account.jobTitle")}</Label>
+                <FieldLabel htmlFor="job_title" tip={t("profile.account.tip.jobTitle")}>{t("profile.account.jobTitle")}</FieldLabel>
                 <Input id="job_title" value={data.job_title ?? ""} onChange={(e) => setData({ ...data, job_title: e.target.value })} maxLength={120} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="current_company">{t("profile.account.currentCompany")}</Label>
+                <FieldLabel htmlFor="current_company" tip={t("profile.account.tip.currentCompany")}>{t("profile.account.currentCompany")}</FieldLabel>
                 <Input id="current_company" value={data.current_company ?? ""} onChange={(e) => setData({ ...data, current_company: e.target.value })} maxLength={160} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="location">{t("profile.account.location")}</Label>
+                <FieldLabel htmlFor="location" tip={t("profile.account.tip.location")}>{t("profile.account.location")}</FieldLabel>
                 <Input id="location" value={data.location ?? ""} onChange={(e) => setData({ ...data, location: e.target.value })} maxLength={160} placeholder={t("profile.account.locationPh")} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="phone">{t("profile.account.phone")}</Label>
+                <FieldLabel htmlFor="phone" tip={t("profile.account.tip.phone")}>{t("profile.account.phone")}</FieldLabel>
                 <Input id="phone" type="tel" value={data.phone ?? ""} onChange={(e) => setData({ ...data, phone: e.target.value })} maxLength={32} placeholder={t("profile.account.phonePh")} />
               </div>
             </div>
@@ -254,12 +255,18 @@ function AccountPage() {
           <section className="grid gap-4">
             <h3 className="text-sm font-semibold text-foreground/80">{t("profile.account.contactSection")}</h3>
             <div className="grid gap-2">
-              <Label htmlFor="email">{t("profile.account.email")}</Label>
+              <FieldLabel htmlFor="email" tip={t("profile.account.tip.email")}>{t("profile.account.email")}</FieldLabel>
               <Input id="email" type="email" value={user?.email ?? ""} readOnly disabled />
               <p className="text-xs text-muted-foreground">{t("profile.account.emailReadonly")}</p>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="display_name">{t("profile.account.displayName")}</Label>
+              <FieldLabel
+                htmlFor="display_name"
+                tip={t("profile.account.tip.displayName")}
+                hint={t("profile.account.displayNameAlt")}
+              >
+                {t("profile.account.displayName")}
+              </FieldLabel>
               <Input
                 id="display_name"
                 value={data.display_name ?? ""}
@@ -268,7 +275,7 @@ function AccountPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="bio">{t("profile.account.bio")}</Label>
+              <FieldLabel htmlFor="bio" tip={t("profile.account.tip.bio")}>{t("profile.account.bio")}</FieldLabel>
               <Textarea
                 id="bio"
                 value={data.bio ?? ""}
@@ -282,7 +289,7 @@ function AccountPage() {
           {/* Avatar */}
 
           <div className="grid gap-2">
-            <Label htmlFor="avatar">{t("profile.account.avatar")}</Label>
+            <FieldLabel htmlFor="avatar" tip={t("profile.account.tip.avatar")}>{t("profile.account.avatar")}</FieldLabel>
             <div className="flex items-center gap-3">
               {data.avatar_url ? (
                 <img
@@ -336,7 +343,7 @@ function AccountPage() {
 
           {/* Cover */}
           <div className="grid gap-2">
-            <Label htmlFor="cover">{t("profile.account.cover")}</Label>
+            <FieldLabel htmlFor="cover" tip={t("profile.account.tip.cover")}>{t("profile.account.cover")}</FieldLabel>
             {data.cover_url ? (
               <img
                 src={data.cover_url}
@@ -379,9 +386,10 @@ function AccountPage() {
             <p className="text-xs text-muted-foreground">{t("profile.account.coverHint")}</p>
           </div>
 
-          <Button type="submit" disabled={busy}>{t("profile.account.save")}</Button>
+          <Button type="submit" disabled={busy} title={t("profile.account.tip.save")}>{t("profile.account.save")}</Button>
         </form>
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
 }
