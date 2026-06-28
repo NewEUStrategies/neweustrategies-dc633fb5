@@ -646,22 +646,26 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   text-transform: var(--td-pt-transform, none);
   letter-spacing: var(--td-pt-spacing, 0);
 
+  /* Per-line underline that follows actual text width on each wrapped line.
+     Uses inline display + cloned box decoration so the gradient renders
+     separately per line fragment and grows left-to-right on hover. */
   display: inline;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 
-  /* Subtle full-width highlight on each wrapped line, grows left-to-right */
-  background-image: linear-gradient(to right, hsl(var(--brand) / 0.12), hsl(var(--brand) / 0.12));
-  background-position: 0 0;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 0 100%;
   background-repeat: no-repeat;
-  background-size: 0% 100%;
+  background-size: 0% 1.5px;
   transition: background-size 0.35s ease, color .2s ease;
+  text-decoration: none;
 }
 .cms-post-title:hover,
 a:hover .cms-post-title,
 a:focus-visible .cms-post-title {
-  background-size: 100% 100%;
+  background-size: 100% 1.5px;
 }
+
 
 /* Prevent double underline on any anchor wrapping a .cms-post-title */
 a:has(.cms-post-title),
