@@ -14,17 +14,29 @@ export interface BrandIconMap {
   resolve: (key: string) => IconRow | undefined;
 }
 
-/** Globalna mapa ikon brandów - cache współdzielony przez wszystkie komponenty. */
-export function useBrandIcons(kind: "brand" | "flag" | "custom" = "brand"): BrandIconMap {
+/**
+ * Globalna mapa ikon - cache współdzielony.
+ * Domyślnie przeszukuje wszystkie kindy (brand + custom + flag), z priorytetem
+ * brand > custom > flag, żeby ikony zapisane w /admin/icons (zazwyczaj jako
+ * "custom" po imporcie hurtowym) były dostępne wszędzie tam, gdzie używamy
+ * BrandIcon - bez wymagania ręcznej rekategoryzacji.
+ */
+export function useBrandIcons(kind?: "brand" | "flag" | "custom"): BrandIconMap {
   const { data = [] } = useQuery({
-    queryKey: ["icon-library", kind],
+    queryKey: ["icon-library", kind ?? "all"],
     queryFn: () => listIcons(kind),
     staleTime: STALE,
   });
 
   return useMemo(() => {
     const byName: Record<string, IconRow> = {};
-    for (const row of data) byName[row.name] = row;
+    const priority: Record<string, number> = { brand: 3, custom: 2, flag: 1 };
+    for (const row of data) {
+      const existing = byName[row.name];
+      if (!existing || (priority[row.kind] ?? 0) > (priority[existing.kind] ?? 0)) {
+        byName[row.name] = row;
+      }
+    }
     const resolve = (key: string) => byName[slugifyIconName(key)];
     return { byName, resolve };
   }, [data]);
@@ -44,10 +56,27 @@ export interface BrandIconProps extends SVGAttributes<SVGSVGElement> {
  * Renderuje ikonę z biblioteki (icon_library, kind='brand') jeśli istnieje;
  * w przeciwnym razie - Lucide fallback. Wybór wariantu light/dark zgodny z motywem.
  */
+const ALIASES: Record<string, string[]> = {
+  x: ["x", "twitter", "x-twitter"],
+  twitter: ["twitter", "x", "x-twitter"],
+  website: ["website", "globe", "web", "link"],
+  linkedin: ["linkedin", "linked-in"],
+  facebook: ["facebook", "fb", "meta"],
+  youtube: ["youtube", "yt"],
+  instagram: ["instagram", "ig"],
+  tiktok: ["tiktok", "tik-tok"],
+  threads: ["threads", "meta-threads"],
+};
+
 export function BrandIcon({ name, fallback: Fallback, className, alt, ...rest }: BrandIconProps) {
   const { theme } = useTheme();
-  const { resolve } = useBrandIcons("brand");
-  const row = resolve(name);
+  const { resolve } = useBrandIcons();
+  const candidates = ALIASES[name.toLowerCase()] ?? [name];
+  let row: IconRow | undefined;
+  for (const c of candidates) {
+    row = resolve(c);
+    if (row) break;
+  }
 
   if (row && (row.url_default || row.url_light || row.url_dark)) {
     const mode = theme === "dark" ? "dark" : "light";
