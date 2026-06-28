@@ -220,12 +220,20 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
     if (data.requireConsent !== false && !consent) { toast.error(L.consent); return; }
     setBusy(true);
     try {
+      const trimmed = name.trim();
+      const parts = trimmed.split(/\s+/).filter(Boolean);
+      const firstName = parts[0] ?? "";
+      const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
+      const displayName = trimmed || email.split("@")[0];
       const { error } = await supabase.auth.signUp({
         email, password,
         options: {
           emailRedirectTo: `${window.location.origin}${redirectTo}`,
           data: {
-            display_name: name || email.split("@")[0],
+            display_name: displayName,
+            first_name: firstName,
+            last_name: lastName,
+            full_name: trimmed || displayName,
             newsletter_opt_in: newsletter,
             consent_accepted_at: new Date().toISOString(),
           },
