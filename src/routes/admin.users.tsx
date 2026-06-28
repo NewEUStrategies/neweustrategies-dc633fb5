@@ -9,7 +9,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { ArrowUp, ArrowDown, ArrowUpDown, Eye } from "lucide-react";
+import { ArrowUp, ArrowDown, ArrowUpDown, Eye, UserCog } from "lucide-react";
+import { impersonateUser } from "@/lib/admin/impersonation";
 
 export const Route = createFileRoute("/admin/users")({
   component: Users,
