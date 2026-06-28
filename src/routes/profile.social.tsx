@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
-import { Twitter, Linkedin, Globe } from "lucide-react";
+import { Twitter, Linkedin, Globe, Facebook, Instagram, Music2, Mail } from "lucide-react";
 
 export const Route = createFileRoute("/profile/social")({
   component: SocialPage,
@@ -23,16 +23,23 @@ interface SocialRow {
   twitter_url: string | null;
   linkedin_url: string | null;
   website_url: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
+  spotify_url: string | null;
+  contact_email: string | null;
 }
 
 const URL_RE = /^https?:\/\/.+/i;
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 
 function SocialPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [data, setData] = useState<SocialRow>({
-    slug: "", bio_pl: "", bio_en: "", twitter_url: "", linkedin_url: "", website_url: "",
+    slug: "", bio_pl: "", bio_en: "",
+    twitter_url: "", linkedin_url: "", website_url: "",
+    facebook_url: "", instagram_url: "", spotify_url: "", contact_email: "",
   });
   const [busy, setBusy] = useState(false);
 
@@ -41,7 +48,7 @@ function SocialPage() {
     let active = true;
     void supabase
       .from("profiles")
-      .select("slug, bio_pl, bio_en, twitter_url, linkedin_url, website_url, display_name")
+      .select("slug, bio_pl, bio_en, twitter_url, linkedin_url, website_url, facebook_url, instagram_url, spotify_url, contact_email, display_name")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data: row }) => {
@@ -53,6 +60,8 @@ function SocialPage() {
           slug: r.slug ?? autoSlug,
           bio_pl: r.bio_pl, bio_en: r.bio_en,
           twitter_url: r.twitter_url, linkedin_url: r.linkedin_url, website_url: r.website_url,
+          facebook_url: r.facebook_url, instagram_url: r.instagram_url, spotify_url: r.spotify_url,
+          contact_email: r.contact_email,
         });
       });
     return () => { active = false; };
@@ -73,11 +82,16 @@ function SocialPage() {
     }
     for (const [k, v] of [
       ["twitter_url", data.twitter_url], ["linkedin_url", data.linkedin_url], ["website_url", data.website_url],
+      ["facebook_url", data.facebook_url], ["instagram_url", data.instagram_url], ["spotify_url", data.spotify_url],
     ] as const) {
       if (v && !URL_RE.test(v)) {
         toast.error(`${k}: must start with http(s)://`);
         return;
       }
+    }
+    if (data.contact_email && !EMAIL_RE.test(data.contact_email)) {
+      toast.error("contact_email: invalid format");
+      return;
     }
     setBusy(true);
     const { error } = await supabase
@@ -89,6 +103,10 @@ function SocialPage() {
         twitter_url: data.twitter_url ?? null,
         linkedin_url: data.linkedin_url ?? null,
         website_url: data.website_url ?? null,
+        facebook_url: data.facebook_url ?? null,
+        instagram_url: data.instagram_url ?? null,
+        spotify_url: data.spotify_url ?? null,
+        contact_email: data.contact_email ?? null,
       })
       .eq("id", user.id);
     setBusy(false);
