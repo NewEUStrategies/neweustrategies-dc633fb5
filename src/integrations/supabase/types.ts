@@ -1748,14 +1748,18 @@ export type Database = {
           bio: string | null
           bio_en: string | null
           bio_pl: string | null
+          contact_email: string | null
           cover_url: string | null
           created_at: string
           display_name: string | null
           email: string | null
+          facebook_url: string | null
           id: string
+          instagram_url: string | null
           linkedin_url: string | null
           prefs: Json
           slug: string | null
+          spotify_url: string | null
           tenant_id: string
           twitter_url: string | null
           updated_at: string
@@ -1766,14 +1770,18 @@ export type Database = {
           bio?: string | null
           bio_en?: string | null
           bio_pl?: string | null
+          contact_email?: string | null
           cover_url?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
+          facebook_url?: string | null
           id: string
+          instagram_url?: string | null
           linkedin_url?: string | null
           prefs?: Json
           slug?: string | null
+          spotify_url?: string | null
           tenant_id: string
           twitter_url?: string | null
           updated_at?: string
@@ -1784,14 +1792,18 @@ export type Database = {
           bio?: string | null
           bio_en?: string | null
           bio_pl?: string | null
+          contact_email?: string | null
           cover_url?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
+          facebook_url?: string | null
           id?: string
+          instagram_url?: string | null
           linkedin_url?: string | null
           prefs?: Json
           slug?: string | null
+          spotify_url?: string | null
           tenant_id?: string
           twitter_url?: string | null
           updated_at?: string
