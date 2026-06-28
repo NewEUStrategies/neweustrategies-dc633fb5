@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { Twitter, Linkedin, Globe, Facebook, Instagram, Music2, Mail } from "lucide-react";
