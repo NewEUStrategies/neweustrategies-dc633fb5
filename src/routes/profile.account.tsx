@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Upload } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,27 +20,66 @@ interface ProfileRow {
   bio: string | null;
   avatar_url: string | null;
   cover_url: string | null;
+  tenant_id: string | null;
 }
+
+const ACCEPT = "image/jpeg,image/png,image/webp,image/avif";
+const MAX_AVATAR = 2 * 1024 * 1024;
+const MAX_COVER = 5 * 1024 * 1024;
 
 function AccountPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [data, setData] = useState<ProfileRow>({ display_name: "", bio: "", avatar_url: "", cover_url: "" });
+  const [data, setData] = useState<ProfileRow>({
+    display_name: "",
+    bio: "",
+    avatar_url: "",
+    cover_url: "",
+    tenant_id: null,
+  });
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
+  const avatarInput = useRef<HTMLInputElement | null>(null);
+  const coverInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!user) return;
     let active = true;
     void supabase
       .from("profiles")
-      .select("display_name, bio, avatar_url, cover_url")
+      .select("display_name, bio, avatar_url, cover_url, tenant_id")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data: row }) => {
         if (active && row) setData(row as ProfileRow);
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [user]);
+
+  const upload = async (file: File, kind: "avatar" | "cover") => {
+    if (!user || !data.tenant_id) return;
+    const max = kind === "avatar" ? MAX_AVATAR : MAX_COVER;
+    if (file.size > max) {
+      toast.error(t("profile.account.fileTooLarge"));
+      return;
+    }
+    setUploading(kind);
+    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const path = `${data.tenant_id}/users/${user.id}/${kind}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage
+      .from("media")
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (error) {
+      setUploading(null);
+      toast.error(t("profile.account.uploadError"));
+      return;
+    }
+    const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
+    setData((d) => ({ ...d, [kind === "avatar" ? "avatar_url" : "cover_url"]: pub.publicUrl }));
+    setUploading(null);
+  };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,24 +133,103 @@ function AccountPage() {
               rows={4}
             />
           </div>
+
+          {/* Avatar */}
           <div className="grid gap-2">
             <Label htmlFor="avatar">{t("profile.account.avatar")}</Label>
-            <Input
-              id="avatar"
-              value={data.avatar_url ?? ""}
-              onChange={(e) => setData({ ...data, avatar_url: e.target.value })}
-              placeholder="https://..."
-            />
+            <div className="flex items-center gap-3">
+              {data.avatar_url ? (
+                <img
+                  src={data.avatar_url}
+                  alt=""
+                  className="h-16 w-16 object-cover border border-border"
+                  style={{ borderRadius: "6px" }}
+                />
+              ) : (
+                <div
+                  className="h-16 w-16 bg-muted border border-border"
+                  style={{ borderRadius: "6px" }}
+                />
+              )}
+              <div className="flex-1 grid gap-2">
+                <Input
+                  id="avatar"
+                  value={data.avatar_url ?? ""}
+                  onChange={(e) => setData({ ...data, avatar_url: e.target.value })}
+                  placeholder="https://..."
+                />
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={avatarInput}
+                    type="file"
+                    accept={ACCEPT}
+                    hidden
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void upload(f, "avatar");
+                      e.target.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => avatarInput.current?.click()}
+                    disabled={uploading === "avatar"}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {uploading === "avatar" ? t("profile.account.uploading") : t("profile.account.uploadAvatar")}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("profile.account.avatarHint")}</p>
           </div>
+
+          {/* Cover */}
           <div className="grid gap-2">
             <Label htmlFor="cover">{t("profile.account.cover")}</Label>
+            {data.cover_url ? (
+              <img
+                src={data.cover_url}
+                alt=""
+                className="w-full aspect-[3/1] object-cover border border-border rounded-md"
+              />
+            ) : (
+              <div className="w-full aspect-[3/1] bg-muted border border-border rounded-md" />
+            )}
             <Input
               id="cover"
               value={data.cover_url ?? ""}
               onChange={(e) => setData({ ...data, cover_url: e.target.value })}
               placeholder="https://..."
             />
+            <div className="flex items-center gap-2">
+              <input
+                ref={coverInput}
+                type="file"
+                accept={ACCEPT}
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void upload(f, "cover");
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => coverInput.current?.click()}
+                disabled={uploading === "cover"}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {uploading === "cover" ? t("profile.account.uploading") : t("profile.account.uploadCover")}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("profile.account.coverHint")}</p>
           </div>
+
           <Button type="submit" disabled={busy}>{t("profile.account.save")}</Button>
         </form>
       </CardContent>
