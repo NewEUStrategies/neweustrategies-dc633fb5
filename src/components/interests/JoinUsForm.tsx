@@ -5,7 +5,7 @@
 // user_follows.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Loader2, Sparkles } from "lucide-react";
+import { Check, Loader2, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { useInterestCatalog, useMyInterests } from "@/hooks/useInterests";
@@ -214,7 +214,7 @@ export function JoinUsForm({
         disabled={state === "loading"}
         className="inline-flex w-full items-center justify-center gap-2 rounded bg-brand px-4 py-2.5 text-sm font-semibold text-brand-foreground transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
       >
-        {state === "loading" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+        {state === "loading" ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
         {state === "loading" ? t("joinUs.submitting") : t("joinUs.submit")}
       </button>
 
