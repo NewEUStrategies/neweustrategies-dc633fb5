@@ -51,7 +51,8 @@ function writeAnon(v: AnonStored) {
 }
 
 export function useInterestCatalog(lang: "pl" | "en" = "pl") {
-  return useQuery<InterestCatalog>({
+  const qc = useQueryClient();
+  const query = useQuery<InterestCatalog>({
     queryKey: ["interests-catalog", lang],
     staleTime: 60_000,
     queryFn: async () => {
@@ -75,7 +76,24 @@ export function useInterestCatalog(lang: "pl" | "en" = "pl") {
       };
     },
   });
+
+  // Realtime: refresh catalog when admins add/edit/remove categories or tags.
+  useEffect(() => {
+    const channel = supabase
+      .channel("interests-catalog-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, () => {
+        void qc.invalidateQueries({ queryKey: ["interests-catalog"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "tags" }, () => {
+        void qc.invalidateQueries({ queryKey: ["interests-catalog"] });
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [qc]);
+
+  return query;
 }
+
 
 export function useCurrentUserId() {
   const [uid, setUid] = useState<string | null>(null);
