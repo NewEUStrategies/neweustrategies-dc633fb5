@@ -44,6 +44,16 @@ export interface NewsletterSettings {
   popup_terms_html_pl: string | null;
   popup_terms_html_en: string | null;
   popup_mailing_lists: NewsletterMailingList[];
+  // Style / branding
+  popup_bg_color: string;
+  popup_text_color: string;
+  popup_muted_color: string;
+  popup_accent_color: string;
+  popup_accent_text_color: string;
+  popup_overlay_color: string;
+  popup_border_radius_px: number;
+  popup_eyebrow_pl: string;
+  popup_eyebrow_en: string;
 }
 
 export function defaultNewsletterSettings(): NewsletterSettings {
