@@ -303,22 +303,12 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       <style>{`
         @keyframes ehFadeImg { from { opacity: 0; } to { opacity: 1; } }
         @keyframes ehFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-        .eh-slider .eh-title-text {
-          display: inline;
-          -webkit-box-decoration-break: clone;
-          box-decoration-break: clone;
-          background-image: linear-gradient(currentColor, currentColor);
-          background-repeat: no-repeat;
-          background-position: 0 100%;
-          background-size: 0% 2px;
-          padding-bottom: 2px;
-          text-decoration: none;
-          transition: background-size 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .eh-slider a:hover .eh-title-text,
-        .eh-slider a:focus-visible .eh-title-text,
-        .eh-slider .eh-title-text:hover {
-          background-size: 100% 2px;
+        .eh-slider .eh-title-clamp {
+          display: block;
+          max-height: calc(1.25em * 2 + 8px);
+          overflow: hidden;
+          min-height: calc(2 * 1.25em);
+          padding-bottom: 4px;
         }
 
 
@@ -440,20 +430,24 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       >
         {href ? (
           <AppLink href={href} className="inline-block w-full">
-            <h3
-              className="cms-post-title eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
-              style={{ minHeight: "calc(2 * 1.25em)", ...titleStyle }}
-            >
-              <span className="eh-title-text">{title || "\u00A0"}</span>
-            </h3>
+            <div className="eh-title-clamp">
+              <h3
+                className="cms-post-title text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
+                style={titleStyle}
+              >
+                {title || "\u00A0"}
+              </h3>
+            </div>
           </AppLink>
         ) : (
-          <h3
-            className="cms-post-title eh-clamp-2 text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
-            style={{ minHeight: "calc(2 * 1.25em)", ...titleStyle }}
-          >
-            <span className="eh-title-text">{title || "\u00A0"}</span>
-          </h3>
+          <div className="eh-title-clamp">
+            <h3
+              className="cms-post-title text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground"
+              style={titleStyle}
+            >
+              {title || "\u00A0"}
+            </h3>
+          </div>
         )}
 
 
