@@ -14,7 +14,7 @@ export const Route = createFileRoute("/profile/")({
 
 function ProfileOverview() {
   const { t, i18n } = useTranslation();
-  const { user, session } = useAuth();
+  const { user, session, roles } = useAuth();
   const lang = i18n.language;
 
   const sub = useQuery({
