@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, Trash2, Search, Plus, Flag, Building2, Sparkles } from "@/lib/lucide-shim";
+import { Upload, Trash2, Search, Plus, Tags, LayoutGrid, Sparkles } from "@/lib/lucide-shim";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import {
   listIcons, upsertIcon, deleteIcon, bulkImportIcons,
