@@ -635,6 +635,51 @@ export type Database = {
         }
         Relationships: []
       }
+      icon_library: {
+        Row: {
+          created_at: string
+          default_variant: string
+          id: string
+          kind: string
+          label: string | null
+          name: string
+          position: number
+          tenant_id: string
+          updated_at: string
+          url_dark: string
+          url_default: string
+          url_light: string
+        }
+        Insert: {
+          created_at?: string
+          default_variant?: string
+          id?: string
+          kind: string
+          label?: string | null
+          name: string
+          position?: number
+          tenant_id: string
+          updated_at?: string
+          url_dark?: string
+          url_default?: string
+          url_light?: string
+        }
+        Update: {
+          created_at?: string
+          default_variant?: string
+          id?: string
+          kind?: string
+          label?: string | null
+          name?: string
+          position?: number
+          tenant_id?: string
+          updated_at?: string
+          url_dark?: string
+          url_default?: string
+          url_light?: string
+        }
+        Relationships: []
+      }
       live_blog_entries: {
         Row: {
           block_id: string
