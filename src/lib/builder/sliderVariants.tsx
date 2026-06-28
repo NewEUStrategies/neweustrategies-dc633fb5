@@ -308,20 +308,6 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
           display: inline;
           text-decoration: none;
         }
-        .eh-slider .eh-title-text::after {
-          content: "";
-          position: absolute;
-          left: 0;
-          bottom: 0;
-          width: 100%;
-          height: 1px;
-          background: currentColor;
-          transform: scaleX(0);
-          transform-origin: left;
-          transition: transform 0.3s ease, opacity 0.3s ease;
-          opacity: 0.55;
-        }
-        .eh-slider:hover .eh-title-text::after { transform: scaleX(1); opacity: 0.55; }
 
         .eh-slider .eh-img { transform: none; transform-origin: center center; backface-visibility: hidden; }
         .eh-slider:hover .eh-img { transform: none; }
