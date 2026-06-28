@@ -663,7 +663,16 @@ a:hover .cms-post-title,
 .dark .group:hover .cms-post-title,
 .dark a:hover .cms-post-title,
 .dark .cms-post-title:hover {
+.dark .group:hover .cms-post-title,
+.dark a:hover .cms-post-title,
+.dark .cms-post-title:hover {
   text-decoration-color: color-mix(in oklab, currentColor 85%, transparent);
+}
+/* Prevent double underline: kill the underline on any anchor wrapping a .cms-post-title */
+a:has(.cms-post-title),
+a:has(.cms-post-title):hover,
+a:has(.cms-post-title):focus {
+  text-decoration: none !important;
 }
 @media (prefers-reduced-motion: reduce) {
   .cms-post-title { transition: none; }
