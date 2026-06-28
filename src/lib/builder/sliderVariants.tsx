@@ -305,9 +305,10 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
         @keyframes ehFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
         .eh-slider .eh-title-clamp {
           display: block;
-          max-height: calc(1.25em * 2 * 1.4);
+          max-height: calc(1.25em * 2 + 8px);
           overflow: hidden;
           min-height: calc(2 * 1.25em);
+          padding-bottom: 4px;
         }
 
 
