@@ -32,11 +32,20 @@ interface SocialRow {
 const URL_RE = /^https?:\/\/.+/i;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+const RESERVED = new Set([
+  "admin", "api", "auth", "author", "profile", "login", "logout",
+  "register", "settings", "about", "contact", "search", "tag",
+  "category", "page", "post", "rss", "sitemap", "static", "public",
+  "new", "edit", "delete", "me", "user", "users", "superadmin",
+]);
+
+type SlugStatus = "idle" | "checking" | "ok" | "invalid" | "short" | "taken" | "reserved";
 
 function slugify(s: string): string {
   return s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
 }
+
 
 function SocialPage() {
   const { t } = useTranslation();
