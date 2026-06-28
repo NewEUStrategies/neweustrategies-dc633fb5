@@ -41,16 +41,13 @@ function SocialPage() {
     let active = true;
     void supabase
       .from("profiles")
-      .select("slug, bio_pl, bio_en, twitter_url, linkedin_url, website_url, first_name, last_name, full_name")
+      .select("slug, bio_pl, bio_en, twitter_url, linkedin_url, website_url, display_name")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data: row }) => {
         if (!active || !row) return;
-        const r = row as SocialRow & { first_name?: string | null; last_name?: string | null; full_name?: string | null };
-        const autoBase = [r.first_name, r.last_name].filter(Boolean).join(" ").trim()
-          || r.full_name
-          || user.email?.split("@")[0]
-          || "";
+        const r = row as SocialRow & { display_name?: string | null };
+        const autoBase = r.display_name?.trim() || user.email?.split("@")[0] || "";
         const autoSlug = slugify(autoBase);
         setData({
           slug: r.slug ?? autoSlug,
