@@ -9,11 +9,13 @@ const pl = {
     nav: {
       overview: "Przegląd",
       account: "Konto",
+      social: "Media społecznościowe",
       interests: "Zainteresowania",
+      bookmarks: "Zapisane materiały",
+      follows: "Obserwowane",
       billing: "Dane rozliczeniowe",
       subscription: "Subskrypcja",
       orders: "Historia płatności",
-      bookmarks: "Zapisane",
       security: "Bezpieczeństwo",
     },
     overview: {
@@ -151,11 +153,13 @@ const en: typeof pl = {
     nav: {
       overview: "Overview",
       account: "Account",
+      social: "Social media",
       interests: "Interests",
+      bookmarks: "Saved items",
+      follows: "Following",
       billing: "Billing details",
       subscription: "Subscription",
       orders: "Payment history",
-      bookmarks: "Saved",
       security: "Security",
     },
     overview: {
@@ -287,7 +291,101 @@ const en: typeof pl = {
   },
 };
 
+type ProfileExtras = {
+  profile: {
+    role: { badge: string; super_admin: string; admin: string; editor: string; author: string; user: string };
+    social: {
+      title: string; subtitle: string; slug: string; slugHint: string;
+      bioPl: string; bioEn: string;
+      twitter: string; linkedin: string; website: string;
+      save: string; saved: string;
+    };
+    bookmarks: { title: string; subtitle: string; empty: string; remove: string; open: string; tabPosts: string; tabPages: string };
+    follows: {
+      title: string; subtitle: string; empty: string; unfollow: string;
+      tabAuthors: string; tabCategories: string; tabTags: string;
+    };
+  };
+};
+
+const extrasPl: ProfileExtras = {
+  profile: {
+    role: { badge: "Rola", super_admin: "Super admin", admin: "Administrator", editor: "Redaktor", author: "Autor", user: "Czytelnik" },
+    social: {
+      title: "Media społecznościowe i profil publiczny",
+      subtitle: "Te dane pojawią się na Twojej publicznej stronie autora.",
+      slug: "Identyfikator profilu (slug)",
+      slugHint: "Adres profilu: /author/{slug}. Małe litery, cyfry, myślniki.",
+      bioPl: "Biogram (PL)",
+      bioEn: "Biogram (EN)",
+      twitter: "X / Twitter (URL)",
+      linkedin: "LinkedIn (URL)",
+      website: "Strona WWW (URL)",
+      save: "Zapisz",
+      saved: "Zapisano",
+    },
+    bookmarks: {
+      title: "Zapisane materiały",
+      subtitle: "Wpisy i strony, które dodałeś do listy do przeczytania później.",
+      empty: "Nie masz jeszcze żadnych zapisanych materiałów.",
+      remove: "Usuń",
+      open: "Otwórz",
+      tabPosts: "Wpisy",
+      tabPages: "Strony",
+    },
+    follows: {
+      title: "Obserwowane",
+      subtitle: "Twoi obserwowani autorzy, kategorie i tagi.",
+      empty: "Niczego jeszcze nie obserwujesz.",
+      unfollow: "Przestań obserwować",
+      tabAuthors: "Autorzy",
+      tabCategories: "Kategorie",
+      tabTags: "Tagi",
+    },
+  },
+};
+
+const extrasEn: ProfileExtras = {
+  profile: {
+    role: { badge: "Role", super_admin: "Super admin", admin: "Administrator", editor: "Editor", author: "Author", user: "Reader" },
+    social: {
+      title: "Social media and public profile",
+      subtitle: "These details appear on your public author page.",
+      slug: "Profile slug",
+      slugHint: "Profile URL: /author/{slug}. Lowercase letters, digits, dashes.",
+      bioPl: "Biography (PL)",
+      bioEn: "Biography (EN)",
+      twitter: "X / Twitter (URL)",
+      linkedin: "LinkedIn (URL)",
+      website: "Website (URL)",
+      save: "Save",
+      saved: "Saved",
+    },
+    bookmarks: {
+      title: "Saved items",
+      subtitle: "Posts and pages you saved for later.",
+      empty: "You have no saved items yet.",
+      remove: "Remove",
+      open: "Open",
+      tabPosts: "Posts",
+      tabPages: "Pages",
+    },
+    follows: {
+      title: "Following",
+      subtitle: "Authors, categories and tags you follow.",
+      empty: "You are not following anything yet.",
+      unfollow: "Unfollow",
+      tabAuthors: "Authors",
+      tabCategories: "Categories",
+      tabTags: "Tags",
+    },
+  },
+};
+
 i18n.addResourceBundle("pl", "translation", pl, true, true);
 i18n.addResourceBundle("en", "translation", en, true, true);
+i18n.addResourceBundle("pl", "translation", extrasPl, true, true);
+i18n.addResourceBundle("en", "translation", extrasEn, true, true);
 
 export {};
+

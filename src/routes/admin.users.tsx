@@ -15,7 +15,7 @@ export const Route = createFileRoute("/admin/users")({
   component: Users,
 });
 
-type Role = "admin" | "editor" | "author";
+type Role = "super_admin" | "admin" | "editor" | "author" | "user";
 
 interface UserRow {
   id: string;
@@ -41,7 +41,7 @@ type SortDir = "asc" | "desc";
 function Users() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const tenantId = useRequiredTenant();
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -137,11 +137,13 @@ function Users() {
                     <Badge>{u.roles[0] ?? "-"}</Badge>
                   ) : (
                     <Select value={u.roles[0] ?? ""} onValueChange={(v) => changeRole(u.id, v as Role)}>
-                      <SelectTrigger className="w-32"><SelectValue placeholder="-" /></SelectTrigger>
+                      <SelectTrigger className="w-36"><SelectValue placeholder="-" /></SelectTrigger>
                       <SelectContent>
+                        {isSuperAdmin && <SelectItem value="super_admin">Super admin</SelectItem>}
                         <SelectItem value="admin">Admin</SelectItem>
                         <SelectItem value="editor">Editor</SelectItem>
                         <SelectItem value="author">Author</SelectItem>
+                        <SelectItem value="user">User</SelectItem>
                       </SelectContent>
                     </Select>
                   )}

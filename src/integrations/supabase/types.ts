@@ -1920,6 +1920,45 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_tiers: {
+        Row: {
+          created_at: string
+          description_en: string | null
+          description_pl: string | null
+          id: string
+          is_active: boolean
+          name_en: string
+          name_pl: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description_en?: string | null
+          description_pl?: string | null
+          id?: string
+          is_active?: boolean
+          name_en: string
+          name_pl: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description_en?: string | null
+          description_pl?: string | null
+          id?: string
+          is_active?: boolean
+          name_en?: string
+          name_pl?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tags: {
         Row: {
           created_at: string
@@ -2375,6 +2414,7 @@ export type Database = {
         Returns: boolean
       }
       is_staff: { Args: never; Returns: boolean }
+      is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
       nes_jsonb_text: { Args: { _j: Json }; Returns: string }
       nes_pages_search_vector: {
         Args: {
@@ -2501,7 +2541,7 @@ export type Database = {
         | "footer_slideup"
       ad_slot_kind: "html" | "script" | "image"
       ad_slot_status: "active" | "paused"
-      app_role: "admin" | "editor" | "author" | "user"
+      app_role: "admin" | "editor" | "author" | "user" | "super_admin"
       editor_type: "richtext" | "markdown" | "builder" | "blocks"
       order_kind: "subscription" | "one_time"
       order_status:
@@ -2664,7 +2704,7 @@ export const Constants = {
       ],
       ad_slot_kind: ["html", "script", "image"],
       ad_slot_status: ["active", "paused"],
-      app_role: ["admin", "editor", "author", "user"],
+      app_role: ["admin", "editor", "author", "user", "super_admin"],
       editor_type: ["richtext", "markdown", "builder", "blocks"],
       order_kind: ["subscription", "one_time"],
       order_status: [

@@ -14,7 +14,7 @@ export const Route = createFileRoute("/profile/")({
 
 function ProfileOverview() {
   const { t, i18n } = useTranslation();
-  const { user, session } = useAuth();
+  const { user, session, roles } = useAuth();
   const lang = i18n.language;
 
   const sub = useQuery({
@@ -40,6 +40,15 @@ function ProfileOverview() {
           <p className="text-sm text-muted-foreground">
             {t("profile.overview.memberSince", { date: memberSince })}
           </p>
+          {roles.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-3">
+              {roles.map((r) => (
+                <Badge key={r} variant={r === "super_admin" || r === "admin" ? "default" : "secondary"}>
+                  {t(`profile.role.${r}`)}
+                </Badge>
+              ))}
+            </div>
+          )}
         </CardHeader>
       </Card>
 
