@@ -145,7 +145,7 @@ function FollowsPage() {
                 {(tagsQ.data ?? []).map((tg) => (
                   <li key={tg.id} className="flex items-center gap-3 py-3">
                     <Link to="/tag/$slug" params={{ slug: tg.slug }} className="flex-1 font-medium hover:underline truncate">
-                      #{localize(tg.name_pl, tg.name_en, lang)}
+                      #{tg.name}
                     </Link>
                     <Button variant="outline" size="sm"
                       onClick={() => toggle.mutate({ targetType: "tag", targetId: tg.id, on: false })}>
