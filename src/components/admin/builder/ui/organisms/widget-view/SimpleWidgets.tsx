@@ -236,17 +236,8 @@ export function renderSimpleWidget(
     case "theme-toggle":
       return <ThemeToggleWidget />;
     case "account-link": {
-      const signin = getStr(c, `signin_${lang}`) || getStr(c, "signin_pl") || "Zaloguj";
-      const signup = getStr(c, `signup_${lang}`) || getStr(c, "signup_pl") || "Zarejestruj";
-      return (
-        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-none max-w-full" style={compactRowStyle}>
-          <AppLink href="/login" className="inline-flex h-7 items-center gap-1 whitespace-nowrap text-foreground hover:opacity-80 transition-colors">
-            <LucideIcons.LogIn className="w-3 h-3" /> {signin}
-          </AppLink>
-          <span className="text-muted-foreground/40" aria-hidden>|</span>
-          <AppLink href="/login?mode=signup" className="inline-flex h-7 items-center whitespace-nowrap text-brand hover:underline">{signup}</AppLink>
-        </span>
-      );
+      const { AccountMenuWidget } = require("./AccountMenuWidget") as typeof import("./AccountMenuWidget");
+      return <AccountMenuWidget config={c as never} lang={lang} />;
     }
     case "search-button": {
       const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || "Szukaj";
