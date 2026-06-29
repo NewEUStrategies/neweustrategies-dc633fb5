@@ -231,8 +231,24 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       visibleWhen: (c) => c.variant === "icon" },
     {
       key: "thickness", type: "number",
-      label: "Grubość / wysokość (px)", min: 1, max: 400,
+      label: "Grubość / wysokość (px)", min: 1, max: 400, default: 2,
       hint: 'Dla wariantu „tylko odstęp" wartość określa wysokość pustej przestrzeni.',
+    },
+    {
+      key: "widthPct", type: "number",
+      label: "Szerokość (%)", min: 10, max: 100, step: 5, default: 100,
+      hint: "Szerokość linii względem kontenera (10-100%).",
+      visibleWhen: (c) => c.variant !== "space",
+    },
+    {
+      key: "align", type: "select", label: "Wyrównanie",
+      options: [
+        { value: "left", label: "do lewej" },
+        { value: "center", label: "wyśrodkowane" },
+        { value: "right", label: "do prawej" },
+      ],
+      default: "center",
+      visibleWhen: (c) => c.variant !== "space" && Number(c.widthPct ?? 100) < 100,
     },
     {
       key: "color", type: "color", label: "Kolor",
