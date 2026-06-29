@@ -141,6 +141,7 @@ export const en = {
           themeDesign: "Theme Design",
           postLayouts: "Post layouts",
           icons: "Icons",
+          names: "Name dictionary",
           relatedPosts: "Related posts",
           contentArea: "Content Area",
           newsletter: "Newsletter",
