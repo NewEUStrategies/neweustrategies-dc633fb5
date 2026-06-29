@@ -55,49 +55,80 @@ export function renderSimpleWidget(
     case "divider": {
       const variant = getStr(c, "variant") || "line";
       const thickness = getNum(c, "thickness", 1);
+      const colorRaw = getStr(c, "color");
+      const color = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(colorRaw) ? colorRaw : "";
       // In builder/editable mode, force a visible minimum so freshly added
       // dividers (thickness 1, default subtle colors) aren't invisible.
-      const lineCls = editable ? "border-foreground/40" : "border-border";
-      const effThickness = editable ? Math.max(thickness, 2) : thickness;
+      const effThickness = editable && variant !== "space" ? Math.max(thickness, 2) : thickness;
       const wrapCls = editable
         ? "py-2 px-1 rounded-[6px] border border-dashed border-foreground/15 bg-foreground/[0.02] relative"
         : "";
       const label = editable ? (
         <span className="pointer-events-none absolute -top-2 left-2 px-1 text-[9px] uppercase tracking-wider text-muted-foreground bg-background rounded">
-          Rozdzielacz
+          {variant === "space" ? "Odstęp" : "Rozdzielacz"}
         </span>
       ) : null;
       const wrap = (inner: ReactNode) => editable
-        ? <div className={wrapCls} aria-label="Rozdzielacz">{label}{inner}</div>
+        ? <div className={wrapCls} aria-label={variant === "space" ? "Odstęp" : "Rozdzielacz"}>{label}{inner}</div>
         : <>{inner}</>;
+
+      // "space" variant: pure vertical spacing area, no line. Height = thickness.
+      if (variant === "space") {
+        const h = Math.max(thickness, 1);
+        if (editable) {
+          return (
+            <div
+              className="w-full flex items-center justify-center text-[10px] uppercase tracking-wider text-muted-foreground/70 border border-dashed border-foreground/20 rounded-[6px] bg-foreground/[0.03] relative"
+              style={{ height: `${h}px`, minHeight: `${h}px` }}
+              aria-label="Odstęp"
+            >
+              <span>↕ {h}px</span>
+            </div>
+          );
+        }
+        return <div style={{ height: `${h}px`, width: "100%" }} aria-hidden="true" />;
+      }
+
       if (variant === "gradient") {
+        const grad = color
+          ? `linear-gradient(to right, transparent, ${color}, transparent)`
+          : undefined;
         return wrap(
-          <div style={{ height: `${effThickness}px` }} className={editable
-            ? "bg-gradient-to-r from-transparent via-foreground/50 to-transparent"
-            : "bg-gradient-to-r from-transparent via-border to-transparent"} />
+          <div
+            style={{ height: `${effThickness}px`, ...(grad ? { backgroundImage: grad } : {}) }}
+            className={grad ? "" : (editable
+              ? "bg-gradient-to-r from-transparent via-foreground/50 to-transparent"
+              : "bg-gradient-to-r from-transparent via-border to-transparent")}
+          />
         );
       }
       if (variant === "icon") {
         const iconName = getStr(c, "iconName") || "Star";
-        const reg = LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
+        const reg = LucideIcons as Record<string, React.ComponentType<{ size?: number; color?: string }> | undefined>;
         const Icon = reg[iconName] ?? LucideIcons.Star;
+        const lineStyle: CSSProperties = { borderTopWidth: effThickness, ...(color ? { borderTopColor: color } : {}) };
+        const lineCls = color ? "flex-1 border-t" : (editable ? "flex-1 border-t border-foreground/40" : "flex-1 border-t border-border");
         return wrap(
-          <div className="flex items-center gap-3 text-muted-foreground">
-            <div className={`flex-1 border-t ${lineCls}`} style={{ borderTopWidth: effThickness }} />
+          <div className="flex items-center gap-3 text-muted-foreground" style={color ? { color } : undefined}>
+            <div className={lineCls} style={lineStyle} />
             <Icon size={16} />
-            <div className={`flex-1 border-t ${lineCls}`} style={{ borderTopWidth: effThickness }} />
+            <div className={lineCls} style={lineStyle} />
           </div>
         );
       }
       if (variant === "wave") {
         return wrap(
-          <svg viewBox="0 0 200 8" preserveAspectRatio="none" className={`w-full h-3 ${editable ? "text-foreground/50" : "text-border"}`}>
+          <svg viewBox="0 0 200 8" preserveAspectRatio="none"
+            className={color ? "w-full h-3" : `w-full h-3 ${editable ? "text-foreground/50" : "text-border"}`}
+            style={color ? { color } : undefined}>
             <path d="M0 4 Q 25 0 50 4 T 100 4 T 150 4 T 200 4" fill="none" stroke="currentColor" strokeWidth="1.5" />
           </svg>
         );
       }
       const styleType = variant === "dashed" ? "dashed" : variant === "dotted" ? "dotted" : variant === "double" ? "double" : "solid";
-      return wrap(<hr className={lineCls} style={{ borderTopStyle: styleType, borderTopWidth: effThickness }} />);
+      const hrStyle: CSSProperties = { borderTopStyle: styleType, borderTopWidth: effThickness, ...(color ? { borderTopColor: color } : {}) };
+      const hrCls = color ? "" : (editable ? "border-foreground/40" : "border-border");
+      return wrap(<hr className={hrCls} style={hrStyle} />);
     }
     case "spacer": {
       const h = getNum(c, "height", 32);
