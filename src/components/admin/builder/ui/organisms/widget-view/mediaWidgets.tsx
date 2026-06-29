@@ -209,8 +209,10 @@ export function PostsSliderWidget({ c, lang }: { c: WidgetNode["content"]; lang:
     },
   });
 
+  const columnsRaw = getNum(c, "columns", 3);
+  const columns = (Math.max(1, Math.min(4, columnsRaw)) as 1 | 2 | 3 | 4);
   const cfg = {
-    variant, ratio, autoplay, intervalMs, rounded, overlayOpacity,
+    variant, ratio, autoplay, intervalMs, rounded, overlayOpacity, columns,
     titleSizePx: typeof c.titleSizePx === "number" ? c.titleSizePx : undefined,
     titleWeight: typeof c.titleWeight === "number" ? c.titleWeight : undefined,
     subtitleSizePx: typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : undefined,
