@@ -88,7 +88,7 @@ function AccountPage() {
   const refresh = async (uid: string) => {
     const { data: row } = await supabase
       .from("profiles")
-      .select("display_name, first_name, last_name, job_title, current_company, location, phone, bio, avatar_url, cover_url, tenant_id")
+      .select("display_name, first_name, last_name, job_title, current_company, location, phone, bio, avatar_url, cover_url, tenant_id, gender")
       .eq("id", uid)
       .maybeSingle();
     if (!row) return;
