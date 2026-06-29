@@ -328,9 +328,10 @@ function cap(s: string) {
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[100px_1fr] items-center gap-2">
-      <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dt className="text-[10px] uppercase tracking-wide leading-normal text-muted-foreground">{label}</dt>
       <dd className="min-w-0 text-sm">{children}</dd>
     </div>
+
   );
 }
 
