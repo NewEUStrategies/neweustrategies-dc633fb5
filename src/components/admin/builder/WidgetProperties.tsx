@@ -56,7 +56,7 @@ interface Props {
 }
 
 export function WidgetProperties({ widget, lang, device, mode = "light", onModeChange, onChange }: Props) {
-  const setContent = (k: string, v: Json) => onChange((w) => { w.content[k] = v; });
+  const setContent = (k: string, v: Json) => onChange((w) => { w.content = w.content ?? {}; w.content[k] = v; });
   const setStyle = (mut: (s: CommonStyle) => void) => onChange((w) => {
     w.style = w.style ?? {}; mut(w.style);
   });
