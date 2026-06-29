@@ -83,6 +83,21 @@ const pl = {
         save: "Zapisuje wszystkie zmiany na karcie Konto.",
       },
     },
+    inline: {
+      viewAsGuest: "Podgląd jak gość",
+      editMode: "Tryb edycji",
+      adminPanel: "Panel administracyjny",
+      contactSection: "Dane kontaktowe",
+      activitySection: "Aktywność i obserwowane",
+      bioPlaceholder: "Opowiedz krótko o sobie - czym się zajmujesz, jakie tematy Cię interesują...",
+      addJobTitle: "Dodaj stanowisko",
+      addCompany: "Dodaj firmę",
+      addLocation: "Dodaj lokalizację",
+      notSet: "Nie ustawiono",
+      clickToEdit: "Kliknij, aby edytować",
+      saving: "Zapisywanie...",
+    },
+
 
     security: {
       changePassword: "Zmień hasło",
