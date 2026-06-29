@@ -9,6 +9,7 @@ import type {
 } from "@/lib/builder/types";
 import type { History } from "@/lib/builder/useHistory";
 import * as ops from "@/lib/builder/operations";
+import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
 import { buildHomepageDocument } from "@/lib/builder/homepageTemplate";
 import type { Selection, SelectionKind } from "../organisms/builder/types";
@@ -27,17 +28,19 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
   const docRef = useRef(doc);
   docRef.current = doc;
   const update = useCallback((mut: (d: BuilderDocument) => void) => {
-    const next: BuilderDocument = JSON.parse(JSON.stringify(docRef.current));
+    const next: BuilderDocument = safeParseBuilderDoc(JSON.parse(JSON.stringify(docRef.current)));
     mut(next);
-    docRef.current = next;
-    history.setDoc(next);
+    const normalized = safeParseBuilderDoc(next);
+    docRef.current = normalized;
+    history.setDoc(normalized);
   }, [history]);
 
   // ---------- focused column / add widget ----------
   const focusedColumn = useMemo<ColumnNode | null>(() => {
     if (selection.kind === "column" && selection.id) return ops.findColumn(doc, selection.id);
     if (selection.kind === "widget" && selection.id) return ops.findWidget(doc, selection.id)?.column ?? null;
-    for (const s of doc.sections) for (const c of s.children) {
+    const normalized = safeParseBuilderDoc(doc);
+    for (const s of normalized.sections) for (const c of s.children) {
       if (c.kind === "column") return c;
       if (c.kind === "inner-section" && c.columns[0]) return c.columns[0];
     }
@@ -71,7 +74,7 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     if (f) mut(f.widget);
   });
   const updateSection = (sid: string, mut: (s: SectionNode) => void) => update((d) => {
-    const s = d.sections.find((x) => x.id === sid);
+    const s = ops.findSection(d, sid);
     if (s) mut(s);
   });
   const updateColumn = (cid: string, mut: (c: ColumnNode) => void) => update((d) => {
