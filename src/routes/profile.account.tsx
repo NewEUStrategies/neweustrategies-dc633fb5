@@ -73,6 +73,7 @@ function AccountPage() {
     avatar_url: "",
     cover_url: "",
     tenant_id: null,
+    gender: null,
   });
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
