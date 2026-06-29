@@ -277,7 +277,7 @@ function ProfileInline() {
                   <ul className="divide-y divide-border/60">
                     {/* Email - read-only from auth */}
                     <ContactRow
-                      icon={<Mail className="h-4 w-4" />}
+                      icon={<BrandIcon name="mail" fallback={Mail} className="h-4 w-4" alt="" />}
                       ariaLabel={t("profile.account.email")}
                     >
                       <a href={`mailto:${user?.email ?? ""}`} className="truncate text-sm text-foreground/90 hover:text-primary">
@@ -287,7 +287,7 @@ function ProfileInline() {
 
                     {/* Phone */}
                     <ContactRow
-                      icon={<Phone className="h-4 w-4" />}
+                      icon={<BrandIcon name="phone" fallback={Phone} className="h-4 w-4" alt="" />}
                       ariaLabel={t("profile.account.phone")}
                     >
                       {editable ? (
@@ -309,7 +309,7 @@ function ProfileInline() {
 
                     {/* Location */}
                     <ContactRow
-                      icon={<MapPin className="h-4 w-4" />}
+                      icon={<BrandIcon name="location" fallback={MapPin} className="h-4 w-4" alt="" />}
                       ariaLabel={t("profile.account.location")}
                     >
                       {editable ? (
@@ -329,7 +329,7 @@ function ProfileInline() {
 
                     {/* LinkedIn */}
                     <ContactRow
-                      icon={<Linkedin className="h-4 w-4 text-[#0A66C2]" />}
+                      icon={<BrandIcon name="linkedin" fallback={Linkedin} className="h-4 w-4" alt="LinkedIn" />}
                       ariaLabel="LinkedIn"
                     >
                       {editable ? (
@@ -354,7 +354,7 @@ function ProfileInline() {
 
                     {/* X / Twitter */}
                     <ContactRow
-                      icon={<Twitter className="h-4 w-4" />}
+                      icon={<BrandIcon name="x" fallback={Twitter} className="h-4 w-4" alt="X" />}
                       ariaLabel="X"
                     >
                       {editable ? (
