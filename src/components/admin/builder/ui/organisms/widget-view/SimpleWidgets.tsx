@@ -72,7 +72,7 @@ export function renderSimpleWidget(
       // dividers (thickness 1, default subtle colors) aren't invisible.
       const effThickness = editable && variant !== "space" ? Math.max(thickness, 2) : thickness;
       const wrapCls = editable
-        ? "py-2 px-1 rounded-[6px] border border-dashed border-foreground/15 bg-foreground/[0.02] relative"
+        ? "py-2 px-1 rounded-[6px] border border-dashed border-foreground/15 bg-foreground/[0.02] relative flex items-center"
         : "";
       const label = editable ? (
         <span className="pointer-events-none absolute -top-2 left-2 px-1 text-[9px] uppercase tracking-wider text-muted-foreground bg-background rounded">
