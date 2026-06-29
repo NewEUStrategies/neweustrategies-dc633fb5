@@ -1,6 +1,8 @@
 // Organism: slider widget editor (variant grid + slide list + live preview).
 import { toJson } from "@/lib/builder/types";
 import { Image as ImageIcon } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -81,11 +83,30 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     updateItems(next);
   };
 
-  const demoItems: SliderItem[] = [
-    { image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1200", title_pl: "Przykładowy slajd", title_en: "Sample slide", subtitle_pl: "Podgląd wariantu – dodaj własne slajdy poniżej", subtitle_en: "Variant preview – add your own slides below", href: "#", cta_pl: "Zobacz", cta_en: "View" },
-    { image: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1200", title_pl: "Drugi slajd", title_en: "Second slide", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
-    { image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=1200", title_pl: "Trzeci slajd", title_en: "Third slide", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
-  ];
+  // Fallback preview items pulled from real published posts so editors see
+  // actual titles/excerpts (not "Pierwszy/Drugi slajd").
+  const { data: demoItems = [] } = useQuery({
+    queryKey: ["slider-editor-demo-posts"] as const,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<SliderItem[]> => {
+      const { data } = await supabase
+        .from("posts")
+        .select("slug,cover_image_url,title_pl,title_en,excerpt_pl,excerpt_en")
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .not("cover_image_url", "is", null)
+        .order("published_at", { ascending: false })
+        .limit(5);
+      return (data ?? []).map((p) => ({
+        image: p.cover_image_url ?? "",
+        title_pl: p.title_pl ?? "",
+        title_en: p.title_en ?? "",
+        subtitle_pl: p.excerpt_pl ?? "",
+        subtitle_en: p.excerpt_en ?? "",
+        href: `/post/${p.slug}`,
+      }));
+    },
+  });
   const hasRealItems = items.some((it) => it.image);
   const previewCfg = {
     variant, ratio, autoplay: true, intervalMs, rounded, overlayOpacity,
@@ -111,11 +132,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             const isActive = variant === v.value;
             const sample: SliderItem[] = items.length && items[0].image
               ? items.slice(0, 3)
-              : [
-                  { image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800", title_pl: "Przykład", title_en: "Sample", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
-                  { image: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800", title_pl: "Drugi slajd", title_en: "Second", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
-                  { image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800", title_pl: "Trzeci slajd", title_en: "Third", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
-                ];
+              : demoItems.slice(0, 3);
             return (
               <div
                 key={v.value}
