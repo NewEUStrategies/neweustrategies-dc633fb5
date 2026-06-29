@@ -91,6 +91,16 @@ export function ColorField({ value, onChange, placeholder, inheritedValue }: Pro
       >
         {transparent ? "✓" : ""}
       </button>
+      <button
+        type="button"
+        onClick={() => onChange(undefined)}
+        disabled={!hasOverride}
+        title="Przywróć domyślny / Reset to default"
+        aria-label="Przywróć domyślny"
+        className="h-8 w-8 shrink-0 rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        <RotateCcw className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
