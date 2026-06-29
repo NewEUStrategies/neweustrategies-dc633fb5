@@ -83,6 +83,21 @@ const pl = {
         save: "Zapisuje wszystkie zmiany na karcie Konto.",
       },
     },
+    inline: {
+      viewAsGuest: "Podgląd jak gość",
+      editMode: "Tryb edycji",
+      adminPanel: "Panel administracyjny",
+      contactSection: "Dane kontaktowe",
+      activitySection: "Aktywność i obserwowane",
+      bioPlaceholder: "Opowiedz krótko o sobie - czym się zajmujesz, jakie tematy Cię interesują...",
+      addJobTitle: "Dodaj stanowisko",
+      addCompany: "Dodaj firmę",
+      addLocation: "Dodaj lokalizację",
+      notSet: "Nie ustawiono",
+      clickToEdit: "Kliknij, aby edytować",
+      saving: "Zapisywanie...",
+    },
+
 
     security: {
       changePassword: "Zmień hasło",
@@ -295,6 +310,22 @@ const en: typeof pl = {
         save: "Saves all changes on the Account tab.",
       },
     },
+    inline: {
+      viewAsGuest: "View as guest",
+      editMode: "Edit mode",
+      adminPanel: "Admin panel",
+      contactSection: "Contact details",
+      activitySection: "Activity & following",
+      bioPlaceholder: "Tell readers a bit about yourself - what you do, what topics interest you...",
+      addJobTitle: "Add job title",
+      addCompany: "Add company",
+      addLocation: "Add location",
+      notSet: "Not set",
+      clickToEdit: "Click to edit",
+      saving: "Saving...",
+    },
+
+
 
     security: {
       changePassword: "Change password",

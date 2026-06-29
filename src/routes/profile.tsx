@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ProfileNav } from "@/components/profile/ProfileNav";
 import { AuthGate } from "@/components/profile/AuthGate";
@@ -16,6 +16,21 @@ export const Route = createFileRoute("/profile")({
 
 function ProfileLayout() {
   const { t } = useTranslation();
+  const { pathname } = useLocation();
+  // Inline-edit hero page is the canonical /profile experience.
+  // Sub-pages (billing, security, etc.) keep their own focused layout with a sidebar.
+  const isRoot = pathname === "/profile" || pathname === "/profile/";
+
+  if (isRoot) {
+    return (
+      <AuthGate>
+        <div className="profile-shell container mx-auto max-w-5xl px-3 py-6 md:py-10 sm:px-4">
+          <Outlet />
+        </div>
+      </AuthGate>
+    );
+  }
+
   return (
     <AuthGate>
       <div className="profile-shell container mx-auto max-w-5xl px-4 py-6 md:py-10">
