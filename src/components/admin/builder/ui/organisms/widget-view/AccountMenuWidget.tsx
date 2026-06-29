@@ -15,7 +15,6 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { supabase } from "@/integrations/supabase/client";
-import { useGreeting } from "@/lib/greetings/useGreeting";
 import type { Json } from "@/lib/builder/types";
 
 type Lang = "pl" | "en";
