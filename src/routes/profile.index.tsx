@@ -175,22 +175,27 @@ function ProfileInline() {
 
             {/* Roles + admin shortcuts */}
             {roles.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 pt-2">
+              <div className="flex flex-wrap items-center gap-1.5 pt-2">
                 {roles.map((r) => (
-                  <Badge key={r} variant={r === "super_admin" || r === "admin" ? "default" : "secondary"}>
+                  <Badge
+                    key={r}
+                    variant={r === "super_admin" || r === "admin" ? "default" : "secondary"}
+                    className="h-7 rounded-[6px] px-2.5 text-xs font-medium leading-none"
+                  >
                     {t(`profile.role.${r}`)}
                   </Badge>
                 ))}
                 {isStaff && (
-                  <Button asChild size="sm" variant="outline">
+                  <Button asChild size="sm" variant="outline" className="h-7 rounded-[6px] px-2.5 text-xs">
                     <Link to="/admin" className="!text-foreground">
-                      <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                      <ShieldCheck className="mr-1 h-3.5 w-3.5" />
                       {t("profile.inline.adminPanel")}
                     </Link>
                   </Button>
                 )}
               </div>
             )}
+
           </div>
         </section>
 
