@@ -57,6 +57,7 @@ import { Route as AdminPerformanceRouteImport } from './routes/admin.performance
 import { Route as AdminPaywallRouteImport } from './routes/admin.paywall'
 import { Route as AdminPagesRouteImport } from './routes/admin.pages'
 import { Route as AdminNewsletterRouteImport } from './routes/admin.newsletter'
+import { Route as AdminNamesRouteImport } from './routes/admin.names'
 import { Route as AdminMediaRouteImport } from './routes/admin.media'
 import { Route as AdminLoginSettingsRouteImport } from './routes/admin.login-settings'
 import { Route as AdminLiveBlogRouteImport } from './routes/admin.live-blog'
@@ -330,6 +331,11 @@ const AdminNewsletterRoute = AdminNewsletterRouteImport.update({
   path: '/newsletter',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminNamesRoute = AdminNamesRouteImport.update({
+  id: '/names',
+  path: '/names',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminMediaRoute = AdminMediaRouteImport.update({
   id: '/media',
   path: '/media',
@@ -516,6 +522,7 @@ export interface FileRoutesByFullPath {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/names': typeof AdminNamesRoute
   '/admin/newsletter': typeof AdminNewsletterRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
@@ -596,6 +603,7 @@ export interface FileRoutesByTo {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/names': typeof AdminNamesRoute
   '/admin/newsletter': typeof AdminNewsletterRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
@@ -678,6 +686,7 @@ export interface FileRoutesById {
   '/admin/live-blog': typeof AdminLiveBlogRoute
   '/admin/login-settings': typeof AdminLoginSettingsRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/names': typeof AdminNamesRoute
   '/admin/newsletter': typeof AdminNewsletterRoute
   '/admin/pages': typeof AdminPagesRouteWithChildren
   '/admin/paywall': typeof AdminPaywallRoute
@@ -762,6 +771,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/names'
     | '/admin/newsletter'
     | '/admin/pages'
     | '/admin/paywall'
@@ -842,6 +852,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/names'
     | '/admin/newsletter'
     | '/admin/pages'
     | '/admin/paywall'
@@ -923,6 +934,7 @@ export interface FileRouteTypes {
     | '/admin/live-blog'
     | '/admin/login-settings'
     | '/admin/media'
+    | '/admin/names'
     | '/admin/newsletter'
     | '/admin/pages'
     | '/admin/paywall'
@@ -1351,6 +1363,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/names': {
+      id: '/admin/names'
+      path: '/names'
+      fullPath: '/admin/names'
+      preLoaderRoute: typeof AdminNamesRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/media': {
       id: '/admin/media'
       path: '/media'
@@ -1664,6 +1683,7 @@ interface AdminRouteChildren {
   AdminLiveBlogRoute: typeof AdminLiveBlogRoute
   AdminLoginSettingsRoute: typeof AdminLoginSettingsRoute
   AdminMediaRoute: typeof AdminMediaRoute
+  AdminNamesRoute: typeof AdminNamesRoute
   AdminNewsletterRoute: typeof AdminNewsletterRoute
   AdminPagesRoute: typeof AdminPagesRouteWithChildren
   AdminPaywallRoute: typeof AdminPaywallRoute
@@ -1694,6 +1714,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLiveBlogRoute: AdminLiveBlogRoute,
   AdminLoginSettingsRoute: AdminLoginSettingsRoute,
   AdminMediaRoute: AdminMediaRoute,
+  AdminNamesRoute: AdminNamesRoute,
   AdminNewsletterRoute: AdminNewsletterRoute,
   AdminPagesRoute: AdminPagesRouteWithChildren,
   AdminPaywallRoute: AdminPaywallRoute,
