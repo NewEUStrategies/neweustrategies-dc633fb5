@@ -17,8 +17,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Trash2, Plus, Search, Download, Upload, Circle as Radio } from "@/lib/lucide-shim";
+
 import { normalize, type Gender } from "@/lib/greetings/greetings";
 
 export const Route = createFileRoute("/admin/names")({
