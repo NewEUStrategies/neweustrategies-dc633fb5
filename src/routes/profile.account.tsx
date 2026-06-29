@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { toast } from "sonner";
 
@@ -36,6 +37,8 @@ export const Route = createFileRoute("/profile/account")({
   component: AccountPage,
 });
 
+type Gender = "male" | "female" | "neutral";
+
 interface ProfileRow {
   display_name: string | null;
   first_name: string | null;
@@ -48,6 +51,7 @@ interface ProfileRow {
   avatar_url: string | null;
   cover_url: string | null;
   tenant_id: string | null;
+  gender: Gender | null;
 }
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/avif";
@@ -69,6 +73,7 @@ function AccountPage() {
     avatar_url: "",
     cover_url: "",
     tenant_id: null,
+    gender: null,
   });
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
@@ -83,7 +88,7 @@ function AccountPage() {
   const refresh = async (uid: string) => {
     const { data: row } = await supabase
       .from("profiles")
-      .select("display_name, first_name, last_name, job_title, current_company, location, phone, bio, avatar_url, cover_url, tenant_id")
+      .select("display_name, first_name, last_name, job_title, current_company, location, phone, bio, avatar_url, cover_url, tenant_id, gender")
       .eq("id", uid)
       .maybeSingle();
     if (!row) return;
@@ -201,6 +206,7 @@ function AccountPage() {
         bio: data.bio,
         avatar_url: data.avatar_url,
         cover_url: data.cover_url,
+        gender: data.gender,
       })
       .eq("id", user.id);
     setBusy(false);
@@ -247,6 +253,23 @@ function AccountPage() {
               <div className="grid gap-2">
                 <FieldLabel htmlFor="phone" tip={t("profile.account.tip.phone")}>{t("profile.account.phone")}</FieldLabel>
                 <Input id="phone" type="tel" value={data.phone ?? ""} onChange={(e) => setData({ ...data, phone: e.target.value })} maxLength={32} placeholder={t("profile.account.phonePh")} />
+              </div>
+              <div className="grid gap-2">
+                <FieldLabel htmlFor="gender" tip={t("profile.account.genderHint")}>{t("profile.account.gender")}</FieldLabel>
+                <Select
+                  value={data.gender ?? "auto"}
+                  onValueChange={(v) => setData({ ...data, gender: v === "auto" ? null : (v as Gender) })}
+                >
+                  <SelectTrigger id="gender">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">{t("profile.account.genderAuto")}</SelectItem>
+                    <SelectItem value="female">{t("profile.account.genderFemale")}</SelectItem>
+                    <SelectItem value="male">{t("profile.account.genderMale")}</SelectItem>
+                    <SelectItem value="neutral">{t("profile.account.genderNeutral")}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </section>

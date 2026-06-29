@@ -1822,6 +1822,7 @@ export type Database = {
           email: string | null
           facebook_url: string | null
           first_name: string | null
+          gender: Database["public"]["Enums"]["name_gender"] | null
           id: string
           instagram_url: string | null
           job_title: string | null
@@ -1850,6 +1851,7 @@ export type Database = {
           email?: string | null
           facebook_url?: string | null
           first_name?: string | null
+          gender?: Database["public"]["Enums"]["name_gender"] | null
           id: string
           instagram_url?: string | null
           job_title?: string | null
@@ -1878,6 +1880,7 @@ export type Database = {
           email?: string | null
           facebook_url?: string | null
           first_name?: string | null
+          gender?: Database["public"]["Enums"]["name_gender"] | null
           id?: string
           instagram_url?: string | null
           job_title?: string | null
@@ -2530,6 +2533,10 @@ export type Database = {
           content_en: string
           content_pl: string
         }[]
+      }
+      guess_gender_from_name: {
+        Args: { _name: string }
+        Returns: Database["public"]["Enums"]["name_gender"]
       }
       has_content_access: {
         Args: {
