@@ -159,12 +159,12 @@ export const submitContactMessage = createServerFn({ method: "POST" })
         .from("newsletter_subscribers")
         .upsert({
           email: data.email,
-          name: data.name,
+          display_name: data.name,
           tenant_id: inserted.tenant_id,
-          lang: data.lang,
+          language: data.lang,
           status: "pending",
           source: "contact-form",
-        }, { onConflict: "email,tenant_id" });
+        }, { onConflict: "tenant_id,email" });
     }
 
     return { ok: true as const };
