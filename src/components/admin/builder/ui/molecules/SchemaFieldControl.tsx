@@ -114,22 +114,28 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
       );
     }
 
-    case "select":
+    case "select": {
+      const EMPTY = "__default__";
+      const raw = asString(content[field.key]);
+      const current = raw === "" ? EMPTY : (raw || (field.options?.[0]?.value || EMPTY));
       return (
         <PropField label={field.label} hint={field.hint}>
           <Select
-            value={asString(content[field.key]) || (field.options?.[0]?.value ?? "")}
-            onValueChange={(v) => setContent(field.key, v)}
+            value={current}
+            onValueChange={(v) => setContent(field.key, v === EMPTY ? "" : v)}
           >
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               {field.options?.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label ?? o.value}</SelectItem>
+                <SelectItem key={o.value || EMPTY} value={o.value === "" ? EMPTY : o.value}>
+                  {o.label ?? o.value}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </PropField>
       );
+    }
 
     case "color": {
       const value = asString(content[field.key]);
