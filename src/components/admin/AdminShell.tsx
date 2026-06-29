@@ -36,7 +36,7 @@ export function AdminShell({ children, hideSidebar }: { children: ReactNode; hid
 function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideSidebar?: boolean }) {
 
   const { t, i18n } = useTranslation();
-  const { signOut, user, isAdmin } = useAuth();
+  const { signOut, user, isAdmin, isSuperAdmin } = useAuth();
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
