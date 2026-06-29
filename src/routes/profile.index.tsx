@@ -220,7 +220,7 @@ function ProfileInline() {
         </section>
 
         {/* TABS NAV */}
-        <nav className="sticky top-0 z-10 -mx-2 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <nav className="sticky top-0 z-10 rounded-[6px] border border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
           <div className="flex items-center gap-0.5 overflow-x-auto px-2">
             {tabs.map((it) => {
               const active = tab === it.key;
