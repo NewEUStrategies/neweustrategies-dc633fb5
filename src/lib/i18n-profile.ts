@@ -327,10 +327,17 @@ const en: typeof pl = {
       addJobTitle: "Add job title",
       addCompany: "Add company",
       addLocation: "Add location",
+      addPhone: "Add phone",
+      addLinkedin: "Add LinkedIn",
+      addTwitter: "Add X (Twitter)",
+      addSpecialization: "Add specialization",
+      interestsHint: "Pick topics, categories and tags you follow.",
+      shortcuts: "Shortcuts",
       notSet: "Not set",
       clickToEdit: "Click to edit",
       saving: "Saving...",
     },
+
 
 
 
