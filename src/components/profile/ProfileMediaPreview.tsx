@@ -111,7 +111,7 @@ export function ProfileMediaPreview({
 
             {/* Text block */}
             <div className="flex-1 min-w-0 space-y-0.5 pb-0.5">
-              <h3 className="text-base sm:text-lg font-semibold tracking-tight truncate">
+              <h3 className="text-[22px] sm:text-[24px] font-semibold tracking-tight truncate">
                 {displayName || fullName || t("profile.account.unnamed")}
               </h3>
               {headline && (
