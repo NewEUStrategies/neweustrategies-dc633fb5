@@ -342,25 +342,23 @@ export function insertWidgetNear(d: BuilderDocument, targetWidgetId: string, pos
   }
 }
 
-/** Append a ready-made widget to the first column of a section (creating one if needed). */
+/**
+ * Append a ready-made widget to a section. The widget is always placed in a
+ * full-width (span 12) column so that dropping a widget directly onto a
+ * section background gives it its own full-width row, rather than squeezing
+ * it into an existing narrow column.
+ *
+ * - Empty section → create a span-12 column.
+ * - Section with existing children → append a new span-12 column at the end
+ *   (the grid wraps so it lands on its own row underneath).
+ */
 export function appendWidgetToSection(d: BuilderDocument, sectionId: string, widget: WidgetNode): void {
   const s = d.sections.find((x) => x?.id === sectionId);
   if (!s) return;
-  let col: ColumnNode | null = null;
-  const children = s.children ?? [];
-  for (const ch of children) {
-    if (!ch) continue;
-    if (ch.kind === "column") { col = ch; break; }
-    if (ch.kind === "inner-section" && (ch.columns ?? [])[0]) { col = ch.columns[0]; break; }
-  }
-  if (!col) {
-    const newCol = newColumn(12);
-    if (!s.children) s.children = [];
-    s.children.push(newCol);
-    col = newCol;
-  }
-  if (!col.children) col.children = [];
-  col.children.push(widget);
+  if (!s.children) s.children = [];
+  const newCol = newColumn(12);
+  newCol.children = [widget];
+  s.children.push(newCol);
 }
 
 export function moveWidgetTo(d: BuilderDocument, srcId: string, targetId: string, pos: "before" | "after"): void {
