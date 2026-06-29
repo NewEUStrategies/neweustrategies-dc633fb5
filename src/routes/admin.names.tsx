@@ -367,6 +367,9 @@ function AdminNamesPage() {
         setIfMissing("english_form", row.english_form);
         setIfMissing("vocative_en", row.english_form);
         setIfMissing("origin", row.origin);
+        setIfMissing("origin_country", row.origin);
+        setIfMissing("is_compound", row.is_compound ? true : null);
+
         setIfMissing("notes", row.notes);
         if (Object.keys(patch).length === 0) {
           prog.skipped += 1;
