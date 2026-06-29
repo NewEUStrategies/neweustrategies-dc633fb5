@@ -30,6 +30,7 @@ import {
 import { LangCoverageBadges } from "@/components/admin/atoms/LangCoverageBadges";
 import { StatusBadge } from "@/components/admin/atoms/StatusBadge";
 import { useTenantAuthors, authorLabel } from "@/components/admin/hooks/useTenantAuthors";
+import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
 
 type Reading = {
   posts_per_page: number;
@@ -75,6 +76,8 @@ function PagesList() {
   const [authorFilter, setAuthorFilter] = useState<string>("all");
   const [trashFrom, setTrashFrom] = useState("");
   const [trashTo, setTrashTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
   const authorsQ = useTenantAuthors(tenantId);
   const authorMap = useMemo(
