@@ -172,6 +172,10 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
     ["--account-accent" as string]: config.panelAccent || "var(--brand, hsl(var(--primary)))",
   };
 
+  // Trigger - greeting based on time of day + gender + vocative (PL).
+  // Must be called unconditionally before any early return to preserve hook order.
+  const greeting = useGreeting();
+
   // Hydration-safe placeholder (matches SSR neutral state).
   if (!mounted) {
     return (
@@ -188,8 +192,6 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const authItems = sectionItems("auth");
   const staffItems = sectionItems("staff");
 
-  // Trigger - greeting based on time of day + gender + vocative (PL)
-  const greeting = useGreeting();
   const fallbackHello = lang === "pl" ? "Hej!" : "Hi!";
   const triggerLabel = greeting || firstName || displayName || fallbackHello;
   const trigger = session ? (
