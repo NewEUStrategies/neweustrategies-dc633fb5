@@ -143,7 +143,8 @@ function ProfileInline() {
             </div>
 
             {/* Roles + admin shortcut — top-right on desktop */}
-            {roles.length > 0 && (
+            {/* Ukrywamy role i skrót do panelu admina w widoku publicznym (Podgląd jak gość) - to dane wewnętrzne. */}
+            {!previewAsGuest && roles.length > 0 && (
               <div className="flex flex-wrap items-center justify-center sm:justify-end gap-1.5 shrink-0">
                 {roles.map((r) => (
                   <span
