@@ -67,6 +67,7 @@ import { Route as AdminIconsRouteImport } from './routes/admin.icons'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
 import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
+import { Route as AdminContactRouteImport } from './routes/admin.contact'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
 import { Route as AdminAdsRouteImport } from './routes/admin.ads'
@@ -382,6 +383,11 @@ const AdminContentAreaRoute = AdminContentAreaRouteImport.update({
   path: '/content-area',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminContactRoute = AdminContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
@@ -520,6 +526,7 @@ export interface FileRoutesByFullPath {
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
@@ -602,6 +609,7 @@ export interface FileRoutesByTo {
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
@@ -686,6 +694,7 @@ export interface FileRoutesById {
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
@@ -772,6 +781,7 @@ export interface FileRouteTypes {
     | '/admin/ads'
     | '/admin/appearance'
     | '/admin/categories'
+    | '/admin/contact'
     | '/admin/content-area'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
@@ -854,6 +864,7 @@ export interface FileRouteTypes {
     | '/admin/ads'
     | '/admin/appearance'
     | '/admin/categories'
+    | '/admin/contact'
     | '/admin/content-area'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
@@ -937,6 +948,7 @@ export interface FileRouteTypes {
     | '/admin/ads'
     | '/admin/appearance'
     | '/admin/categories'
+    | '/admin/contact'
     | '/admin/content-area'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
@@ -1445,6 +1457,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminContentAreaRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/contact': {
+      id: '/admin/contact'
+      path: '/contact'
+      fullPath: '/admin/contact'
+      preLoaderRoute: typeof AdminContactRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/categories': {
       id: '/admin/categories'
       path: '/categories'
@@ -1694,6 +1713,7 @@ interface AdminRouteChildren {
   AdminAdsRoute: typeof AdminAdsRoute
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
   AdminCategoriesRoute: typeof AdminCategoriesRoute
+  AdminContactRoute: typeof AdminContactRoute
   AdminContentAreaRoute: typeof AdminContentAreaRoute
   AdminCropSizesRoute: typeof AdminCropSizesRoute
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
@@ -1725,6 +1745,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAdsRoute: AdminAdsRoute,
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
   AdminCategoriesRoute: AdminCategoriesRoute,
+  AdminContactRoute: AdminContactRoute,
   AdminContentAreaRoute: AdminContentAreaRoute,
   AdminCropSizesRoute: AdminCropSizesRoute,
   AdminCustomMetaRoute: AdminCustomMetaRoute,
