@@ -697,8 +697,12 @@ function AdminNamesPage() {
               </Select>
             </div>
             <div className="text-xs text-muted-foreground mt-3">
-              {L ? "Wyświetlono" : "Showing"}: <strong>{filtered.length}</strong> / {rows.length}
+              {L ? "Wyświetlono" : "Showing"}:{" "}
+              <strong>{filtered.length === 0 ? 0 : pageStart + 1}-{Math.min(pageStart + PAGE_SIZE, filtered.length)}</strong>
+              {" "}{L ? "z" : "of"} <strong>{filtered.length}</strong>
+              {filtered.length !== rows.length && <> ({L ? "łącznie" : "total"} {rows.length})</>}
             </div>
+
           </CardContent>
         </Card>
 
