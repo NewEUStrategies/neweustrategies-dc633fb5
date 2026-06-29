@@ -12,10 +12,10 @@ import type {
   Device, WidgetType, ResponsiveValue,
 } from "@/lib/builder/types";
 
-function resolveSpan(span: ResponsiveValue<number>, device: Device, deskDefault: number): number {
-  if (device === "mobile") return span.mobile ?? 12;
-  if (device === "tablet") return span.tablet ?? span.desktop ?? deskDefault;
-  return span.desktop ?? deskDefault;
+function resolveSpan(span: ResponsiveValue<number> | undefined, device: Device, deskDefault: number): number {
+  if (device === "mobile") return span?.mobile ?? 12;
+  if (device === "tablet") return span?.tablet ?? span?.desktop ?? deskDefault;
+  return span?.desktop ?? deskDefault;
 }
 
 import {
@@ -30,6 +30,7 @@ import { AUTO_SIZE_WIDGETS, COMPACT_WIDGET_TYPES, hiddenOnDevice } from "../../o
 import { IconBtn } from "../../atoms/IconBtn";
 import type { Selection } from "./types";
 import type { HtmlTag } from "@/lib/builder/types";
+import { isKnownWidgetType } from "@/lib/builder/schema";
 
 const TOOLBAR_TAGS = new Set<HtmlTag>(["header", "footer", "nav"]);
 function isToolbarTag(tag?: HtmlTag): boolean {
