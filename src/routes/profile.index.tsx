@@ -684,20 +684,20 @@ function Card({ icon, title, action, children }: { icon?: ReactNode; title: stri
   );
 }
 
-function CompanyLogoIcon() {
+function CompanyLogoIcon({ className = "h-3 w-3" }: { className?: string }) {
   // Logo firmy zaciągane z Admin Panel -> Wygląd -> Theme Options (klucz "theme_options.logo").
   // Wybiera wariant zgodny z aktualnym motywem (light/dark); fallback: ikona Briefcase.
   const cfg = useSiteSetting<{ logo?: { main?: string; main_dark?: string } }>("theme_options", { logo: {} });
   const { theme } = useTheme();
   const l = cfg.logo ?? {};
   const src = theme === "dark" ? (l.main_dark || l.main) : (l.main || l.main_dark);
-  if (!src) return <Briefcase className="h-3 w-3" />;
+  if (!src) return <Briefcase className={cn("object-contain", className)} />;
   return (
     <img
       src={src}
       alt=""
       aria-hidden="true"
-      className="h-3 w-3 object-contain"
+      className={cn("object-contain", className)}
       loading="lazy"
       decoding="async"
       draggable={false}
