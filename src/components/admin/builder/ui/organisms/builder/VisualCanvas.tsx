@@ -128,6 +128,7 @@ export function VisualCanvas({
 
     const onDrop = (e: DragEvent) => {
       clearDropMarkers();
+      setDragging(false);
       const drag = dragRef.current;
       dragRef.current = null;
       const t = e.target as HTMLElement;
