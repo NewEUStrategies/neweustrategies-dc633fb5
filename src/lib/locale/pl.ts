@@ -141,6 +141,7 @@ export const pl = {
           themeDesign: "Theme Design",
           postLayouts: "Layouty wpisów",
           icons: "Ikony",
+          names: "Słownik imion",
           relatedPosts: "Powiązane wpisy",
           contentArea: "Content Area",
           newsletter: "Newsletter",
