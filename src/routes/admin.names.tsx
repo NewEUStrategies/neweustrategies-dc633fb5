@@ -723,8 +723,20 @@ function AdminNamesPage() {
 
         {/* Table */}
         <Card>
-          <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm">
+          <CardContent className="p-0 overflow-x-auto relative">
+            {pageChanging && (
+              <div
+                className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[1px] transition-opacity"
+                role="status"
+                aria-live="polite"
+              >
+                <div className="flex items-center gap-2 rounded-md border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  {L ? "Ładowanie strony…" : "Loading page…"}
+                </div>
+              </div>
+            )}
+            <table className={`w-full text-sm transition-opacity ${pageChanging ? "opacity-60" : "opacity-100"}`}>
               <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="text-left p-3">{L ? "Imię" : "Name"}</th>
