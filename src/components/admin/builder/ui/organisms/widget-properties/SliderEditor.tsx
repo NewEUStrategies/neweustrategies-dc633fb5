@@ -174,6 +174,29 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         </div>
       </div>
 
+      {/* Columns (only for multi-card carousel) */}
+      {variant === "multi-card" && (
+        <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Układ karuzeli</div>
+          <PropField label="Liczba kolumn (desktop)">
+            <Select value={String(columns)} onValueChange={(v) => setContent("columns", Number(v))}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 kolumna</SelectItem>
+                <SelectItem value="2">2 kolumny</SelectItem>
+                <SelectItem value="3">3 kolumny</SelectItem>
+                <SelectItem value="4">4 kolumny</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+          <div className="text-[10px] text-muted-foreground/80 leading-snug">
+            Tablet automatycznie 2 kolumny, mobile 1 kolumna.
+          </div>
+        </div>
+      )}
+
+
+
 
       {/* Source */}
       <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
