@@ -183,20 +183,23 @@ function rowFromCsv(headers: string[], cells: string[]): CsvParsedRow | null {
       : "male";
   const key = (get("key") || normalize(display)).toLowerCase();
   const truthy = (s: string) => /^(1|true|tak|yes|y|t)$/i.test(s);
+  const rawOrigin = get("origin") || get("origin_country") || get("country") || get("kraj") || null;
+  const resolved = resolveCountry(rawOrigin);
   return {
     key,
     display_name: display,
-    vocative_pl: get("vocative") || get("vocative_pl") || null,
-    instrumental_pl: get("instrumental") || null,
-    genitive_pl: get("genitive") || null,
-    dative_pl: get("dative") || null,
-    english_form: get("english_form") || get("vocative_en") || null,
+    vocative_pl: get("vocative") || get("vocative_pl") || get("wolacz") || get("wołacz") || null,
+    instrumental_pl: get("instrumental") || get("instrumental_pl") || get("narzednik") || get("narzędnik") || null,
+    genitive_pl: get("genitive") || get("genitive_pl") || get("dopelniacz") || get("dopełniacz") || null,
+    dative_pl: get("dative") || get("dative_pl") || get("celownik") || null,
+    english_form: get("english_form") || get("vocative_en") || get("english") || null,
     gender,
-    is_compound: truthy(get("is_compound")),
-    origin: get("origin") || get("origin_country") || null,
+    is_compound: truthy(get("is_compound")) || truthy(get("compound")) || truthy(get("zlozone")) || truthy(get("złożone")),
+    origin: resolved?.code ?? (rawOrigin || null),
     notes: get("notes") || null,
   };
 }
+
 
 function AdminNamesPage() {
   const { isSuperAdmin, loading } = useAuth();
