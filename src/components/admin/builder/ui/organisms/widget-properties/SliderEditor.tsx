@@ -132,11 +132,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             const isActive = variant === v.value;
             const sample: SliderItem[] = items.length && items[0].image
               ? items.slice(0, 3)
-              : [
-                  { image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800", title_pl: "Przykład", title_en: "Sample", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
-                  { image: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800", title_pl: "Drugi slajd", title_en: "Second", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
-                  { image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800", title_pl: "Trzeci slajd", title_en: "Third", subtitle_pl: "Podtytuł", subtitle_en: "Subtitle", href: "#", cta_pl: "Zobacz", cta_en: "View" },
-                ];
+              : demoItems.slice(0, 3);
             return (
               <div
                 key={v.value}
