@@ -8,7 +8,7 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { AdminShell } from "@/components/admin/AdminShell";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -355,9 +355,8 @@ function AdminNamesPage() {
   if (!isSuperAdmin) return <Navigate to="/admin" />;
 
   return (
-    <AdminShell>
-      <div className="space-y-5 max-w-7xl">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+    <div className="space-y-5 max-w-7xl">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold">{L ? "Słownik imion" : "Name dictionary"}</h1>
             <p className="text-sm text-muted-foreground">
@@ -589,8 +588,7 @@ function AdminNamesPage() {
           {L
             ? "Format CSV: key, display_name, vocative, instrumental, genitive, dative, english_form, gender (male/female/neutral), is_compound (true/false), origin, notes. Duplikaty po `key` są pomijane - chyba że wnoszą nowe wartości w pustych kolumnach (wtedy są scalane)."
             : "CSV format: key, display_name, vocative, instrumental, genitive, dative, english_form, gender (male/female/neutral), is_compound (true/false), origin, notes. Duplicates by `key` are skipped - unless they fill previously empty columns (then merged)."}
-        </p>
-      </div>
-    </AdminShell>
+      </p>
+    </div>
   );
 }
