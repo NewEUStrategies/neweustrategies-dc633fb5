@@ -190,6 +190,8 @@ function AccountPage() {
     }
   };
 
+  const qc = useQueryClient();
+
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -216,6 +218,8 @@ function AccountPage() {
       return;
     }
     toast.success(t("profile.account.saved"));
+    qc.invalidateQueries({ queryKey: ["header-profile", user.id] });
+    qc.invalidateQueries({ queryKey: ["greeting", user.id] });
   };
 
 
