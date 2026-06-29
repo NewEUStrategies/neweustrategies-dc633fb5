@@ -6,6 +6,7 @@
 //   - presety profilu (/profile, /profile/bookmarks, ...) + strony z DB pages + URL custom
 // Atomic design: AccountMenu = molecule (Popover + lista). i18n: PL/EN.
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useGreeting } from "@/lib/greetings/useGreeting";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as LucideIcons from "lucide-react";
