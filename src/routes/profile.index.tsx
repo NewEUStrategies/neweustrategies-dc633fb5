@@ -38,10 +38,10 @@ function ProfileInline() {
     enabled: !!session && !!user,
     queryFn: async () => {
       const [bm, fa, fc, ft] = await Promise.all([
-        supabase.from("bookmarks").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
-        supabase.from("follows").select("id", { count: "exact", head: true }).eq("user_id", user!.id).eq("subject_type", "author"),
-        supabase.from("follows").select("id", { count: "exact", head: true }).eq("user_id", user!.id).eq("subject_type", "category"),
-        supabase.from("follows").select("id", { count: "exact", head: true }).eq("user_id", user!.id).eq("subject_type", "tag"),
+        supabase.from("user_bookmarks").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
+        supabase.from("user_follows").select("id", { count: "exact", head: true }).eq("user_id", user!.id).eq("target_type", "author"),
+        supabase.from("user_follows").select("id", { count: "exact", head: true }).eq("user_id", user!.id).eq("target_type", "category"),
+        supabase.from("user_follows").select("id", { count: "exact", head: true }).eq("user_id", user!.id).eq("target_type", "tag"),
       ]);
       return {
         bookmarks: bm.count ?? 0,
