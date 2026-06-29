@@ -596,7 +596,7 @@ function CenteredHero({
                 </span>
                 {editable && (
                   <span className="text-[10px] font-medium tracking-wide uppercase">
-                    {t.addPhoto ?? (lang === "pl" ? "Dodaj zdjęcie" : "Add photo")}
+                    {lang === "pl" ? "Dodaj zdjęcie" : "Add photo"}
                   </span>
                 )}
               </button>
