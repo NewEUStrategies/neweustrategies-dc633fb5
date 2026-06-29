@@ -821,18 +821,19 @@ function AdminNamesPage() {
 
         {totalPages > 1 && (
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-muted-foreground flex items-center gap-2">
               {L ? "Strona" : "Page"} <strong>{page}</strong> {L ? "z" : "of"} <strong>{totalPages}</strong>
+              {pageChanging && <Loader2 className="w-3 h-3 animate-spin" aria-hidden />}
             </div>
             <div className="flex items-center gap-1">
-              <Button size="sm" variant="outline" onClick={() => setPage(1)} disabled={page === 1}>«</Button>
-              <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+              <Button size="sm" variant="outline" onClick={() => goToPage(1)} disabled={page === 1 || pageChanging}>«</Button>
+              <Button size="sm" variant="outline" onClick={() => goToPage((p) => p - 1)} disabled={page === 1 || pageChanging}>
                 {L ? "Poprzednia" : "Previous"}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+              <Button size="sm" variant="outline" onClick={() => goToPage((p) => p + 1)} disabled={page === totalPages || pageChanging}>
                 {L ? "Następna" : "Next"}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setPage(totalPages)} disabled={page === totalPages}>»</Button>
+              <Button size="sm" variant="outline" onClick={() => goToPage(totalPages)} disabled={page === totalPages || pageChanging}>»</Button>
             </div>
           </div>
         )}
