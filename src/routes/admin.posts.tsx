@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -30,6 +30,7 @@ import {
 import { LangCoverageBadges } from "@/components/admin/atoms/LangCoverageBadges";
 import { StatusBadge } from "@/components/admin/atoms/StatusBadge";
 import { useTenantAuthors, authorLabel } from "@/components/admin/hooks/useTenantAuthors";
+import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
 
 export const Route = createFileRoute("/admin/posts")({
   component: PostsLayout,
@@ -63,6 +64,8 @@ function PostsList() {
   const [authorFilter, setAuthorFilter] = useState<string>("all");
   const [trashFrom, setTrashFrom] = useState("");
   const [trashTo, setTrashTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
   const authorsQ = useTenantAuthors(tenantId);
   const authorMap = useMemo(
@@ -139,7 +142,12 @@ function PostsList() {
     });
   }, [posts, isTrash, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo]);
 
-  const allIds = useMemo(() => filteredPosts.map((p) => p.id), [filteredPosts]);
+  const pagedPosts = useMemo(() => {
+    const startIdx = (page - 1) * pageSize;
+    return filteredPosts.slice(startIdx, startIdx + pageSize);
+  }, [filteredPosts, page, pageSize]);
+  const allIds = useMemo(() => pagedPosts.map((p) => p.id), [pagedPosts]);
+  useEffect(() => { setPage(1); }, [view, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo, pageSize]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0 && !allSelected;
 
@@ -407,7 +415,7 @@ function PostsList() {
                 </tr>
               </thead>
               <tbody>
-                {filteredPosts.map((p) => {
+                {pagedPosts.map((p) => {
                   const cov = coverageOf(p);
                   const author = p.author_id ? authorMap.get(p.author_id) : null;
                   return (
@@ -482,6 +490,13 @@ function PostsList() {
                 })}
               </tbody>
             </table>
+            <AdminPagination
+              page={page}
+              pageSize={pageSize}
+              total={filteredPosts.length}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
         )}
       </div>

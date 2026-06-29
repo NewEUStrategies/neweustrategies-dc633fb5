@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -30,6 +30,7 @@ import {
 import { LangCoverageBadges } from "@/components/admin/atoms/LangCoverageBadges";
 import { StatusBadge } from "@/components/admin/atoms/StatusBadge";
 import { useTenantAuthors, authorLabel } from "@/components/admin/hooks/useTenantAuthors";
+import { AdminPagination } from "@/components/admin/molecules/AdminPagination";
 
 type Reading = {
   posts_per_page: number;
@@ -75,6 +76,8 @@ function PagesList() {
   const [authorFilter, setAuthorFilter] = useState<string>("all");
   const [trashFrom, setTrashFrom] = useState("");
   const [trashTo, setTrashTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
   const authorsQ = useTenantAuthors(tenantId);
   const authorMap = useMemo(
@@ -169,7 +172,12 @@ function PagesList() {
     });
   }, [pages, isTrash, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo]);
 
-  const allIds = useMemo(() => filteredPages.map((p) => p.id), [filteredPages]);
+  const pagedPages = useMemo(() => {
+    const startIdx = (page - 1) * pageSize;
+    return filteredPages.slice(startIdx, startIdx + pageSize);
+  }, [filteredPages, page, pageSize]);
+  const allIds = useMemo(() => pagedPages.map((p) => p.id), [pagedPages]);
+  useEffect(() => { setPage(1); }, [view, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo, pageSize]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0 && !allSelected;
 
@@ -417,7 +425,7 @@ function PagesList() {
                 </tr>
               </thead>
               <tbody>
-                {filteredPages.map((p) => {
+                {pagedPages.map((p) => {
                   const cov = coverageOf(p);
                   const author = p.author_id ? authorMap.get(p.author_id) : null;
                   return (
@@ -524,6 +532,13 @@ function PagesList() {
                 })}
               </tbody>
             </table>
+            <AdminPagination
+              page={page}
+              pageSize={pageSize}
+              total={filteredPages.length}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
         )}
       </div>
