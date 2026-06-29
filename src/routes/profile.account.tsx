@@ -2,37 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Upload } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FieldLabel } from "@/components/profile/FieldLabel";
+import { ProfileMediaPreview } from "@/components/profile/ProfileMediaPreview";
 import { toast } from "sonner";
-
-function StatusBadge({ status, percent, t }: { status: "idle" | "uploading" | "success" | "failed"; percent: number; t: (k: string, v?: Record<string, unknown>) => string }) {
-  if (status === "idle") return null;
-  if (status === "uploading") {
-    return (
-      <div className="grid gap-1">
-        <Progress value={percent} className="h-1.5" />
-        <p className="text-xs text-muted-foreground" aria-live="polite">{t("profile.account.uploadProgress", { percent })}</p>
-      </div>
-    );
-  }
-  const cls = status === "success" ? "text-green-600 dark:text-green-400" : "text-destructive";
-  return (
-    <p className={`text-xs ${cls}`} role="status" aria-live="polite">
-      {t(status === "success" ? "profile.account.uploadSuccess" : "profile.account.uploadFailed")}
-    </p>
-  );
-}
 
 export const Route = createFileRoute("/profile/account")({
   component: AccountPage,
@@ -314,105 +294,52 @@ function AccountPage() {
             </div>
           </section>
 
-          {/* Avatar */}
-
-          <div className="grid gap-2">
-            <FieldLabel htmlFor="avatar" tip={t("profile.account.tip.avatar")}>{t("profile.account.avatar")}</FieldLabel>
-            <div className="flex items-center gap-3">
-              {data.avatar_url ? (
-                <img
-                  src={data.avatar_url}
-                  alt=""
-                  className="h-16 w-16 object-cover border border-border"
-                  style={{ borderRadius: "6px" }}
-                />
-              ) : (
-                <div
-                  className="h-16 w-16 bg-muted border border-border"
-                  style={{ borderRadius: "6px" }}
-                />
-              )}
-              <div className="flex-1 grid gap-2">
-                <Input
-                  id="avatar"
-                  value={data.avatar_url ?? ""}
-                  onChange={(e) => setData({ ...data, avatar_url: e.target.value })}
-                  placeholder="https://..."
-                />
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={avatarInput}
-                    type="file"
-                    accept={ACCEPT}
-                    hidden
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void upload(f, "avatar");
-                      e.target.value = "";
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => avatarInput.current?.click()}
-                    disabled={uploading === "avatar"}
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    {uploading === "avatar" ? t("profile.account.uploading") : t("profile.account.uploadAvatar")}
-                  </Button>
-                </div>
-                <StatusBadge status={status.avatar} percent={progress.avatar} t={t} />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">{t("profile.account.avatarHint")}</p>
-          </div>
-
-
-          {/* Cover */}
-          <div className="grid gap-2">
-            <FieldLabel htmlFor="cover" tip={t("profile.account.tip.cover")}>{t("profile.account.cover")}</FieldLabel>
-            {data.cover_url ? (
-              <img
-                src={data.cover_url}
-                alt=""
-                className="w-full aspect-[3/1] object-cover border border-border rounded-md"
-              />
-            ) : (
-              <div className="w-full aspect-[3/1] bg-muted border border-border rounded-md" />
-            )}
-            <Input
-              id="cover"
-              value={data.cover_url ?? ""}
-              onChange={(e) => setData({ ...data, cover_url: e.target.value })}
-              placeholder="https://..."
+          {/* Media preview */}
+          <section className="grid gap-4">
+            <h3 className="text-sm font-semibold text-foreground/80">{t("profile.account.mediaSection")}</h3>
+            <ProfileMediaPreview
+              firstName={data.first_name}
+              lastName={data.last_name}
+              displayName={data.display_name}
+              jobTitle={data.job_title}
+              currentCompany={data.current_company}
+              location={data.location}
+              bio={data.bio}
+              avatarUrl={data.avatar_url}
+              coverUrl={data.cover_url}
+              uploading={uploading}
+              progress={progress}
+              status={status}
+              onAvatarUrlChange={(url) => setData({ ...data, avatar_url: url })}
+              onCoverUrlChange={(url) => setData({ ...data, cover_url: url })}
+              onAvatarUploadClick={() => avatarInput.current?.click()}
+              onCoverUploadClick={() => coverInput.current?.click()}
+              t={t}
             />
-            <div className="flex items-center gap-2">
-              <input
-                ref={coverInput}
-                type="file"
-                accept={ACCEPT}
-                hidden
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void upload(f, "cover");
-                  e.target.value = "";
-                }}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => coverInput.current?.click()}
-                disabled={uploading === "cover"}
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                {uploading === "cover" ? t("profile.account.uploading") : t("profile.account.uploadCover")}
-              </Button>
-            </div>
-            <StatusBadge status={status.cover} percent={progress.cover} t={t} />
-            <p className="text-xs text-muted-foreground">{t("profile.account.coverHint")}</p>
-          </div>
+            {/* Hidden file inputs triggered by the preview component */}
+            <input
+              ref={avatarInput}
+              type="file"
+              accept={ACCEPT}
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void upload(f, "avatar");
+                e.target.value = "";
+              }}
+            />
+            <input
+              ref={coverInput}
+              type="file"
+              accept={ACCEPT}
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void upload(f, "cover");
+                e.target.value = "";
+              }}
+            />
+          </section>
 
           <Button type="submit" disabled={busy} title={t("profile.account.tip.save")}>{t("profile.account.save")}</Button>
         </form>
