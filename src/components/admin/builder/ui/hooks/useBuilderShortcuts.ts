@@ -32,13 +32,18 @@ export function useBuilderShortcuts(p: Params) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
+      const isEditable = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
 
+      // Undo/redo/save always work, even inside property inputs.
       if (mod && k === "z" && !e.shiftKey) { e.preventDefault(); undo(); return; }
       if (mod && (k === "y" || (e.shiftKey && k === "z"))) { e.preventDefault(); redo(); return; }
       if (mod && k === "s" && onSave) { e.preventDefault(); onSave(); return; }
+
+      // Remaining shortcuts must not hijack normal text editing inside inputs.
+      if (isEditable) return;
+
       if (mod && k === "c") { copySelection(); return; }
       if (mod && k === "x") { e.preventDefault(); cutSelection(); return; }
       if (mod && k === "v") { e.preventDefault(); pasteFromClipboard(); return; }
