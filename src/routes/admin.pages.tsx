@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -177,6 +177,7 @@ function PagesList() {
     return filteredPages.slice(startIdx, startIdx + pageSize);
   }, [filteredPages, page, pageSize]);
   const allIds = useMemo(() => pagedPages.map((p) => p.id), [pagedPages]);
+  useEffect(() => { setPage(1); }, [view, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo, pageSize]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0 && !allSelected;
 
@@ -424,7 +425,7 @@ function PagesList() {
                 </tr>
               </thead>
               <tbody>
-                {filteredPages.map((p) => {
+                {pagedPages.map((p) => {
                   const cov = coverageOf(p);
                   const author = p.author_id ? authorMap.get(p.author_id) : null;
                   return (
@@ -531,6 +532,13 @@ function PagesList() {
                 })}
               </tbody>
             </table>
+            <AdminPagination
+              page={page}
+              pageSize={pageSize}
+              total={filteredPages.length}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
         )}
       </div>
