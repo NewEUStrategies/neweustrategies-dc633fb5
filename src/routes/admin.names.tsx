@@ -287,13 +287,21 @@ function AdminNamesPage() {
 
   const load = async () => {
     setBusy(true);
-    const { data, error } = await supabase
-      .from("name_dictionary")
-      .select(SELECT_COLS)
-      .order("name", { ascending: true });
+    const pageSize = 1000;
+    const all: NameRow[] = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("name_dictionary")
+        .select(SELECT_COLS)
+        .order("name", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) { setBusy(false); toast.error(error.message); return; }
+      const chunk = ((data ?? []) as unknown) as NameRow[];
+      all.push(...chunk);
+      if (chunk.length < pageSize) break;
+    }
     setBusy(false);
-    if (error) { toast.error(error.message); return; }
-    setRows(((data ?? []) as unknown) as NameRow[]);
+    setRows(all);
   };
 
   const filtered = useMemo(() => rows.filter((r) => {
@@ -303,6 +311,15 @@ function AdminNamesPage() {
     if (query.trim() && !r.name_normalized.includes(normalize(query))) return false;
     return true;
   }), [rows, filterGender, filterCountry, filterCompound, query]);
+
+  const PAGE_SIZE = 100;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  useEffect(() => { setPage(1); }, [query, filterGender, filterCountry, filterCompound]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pageRows = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
 
   const addOne = async () => {
     const name = draft.name.trim();
@@ -680,8 +697,12 @@ function AdminNamesPage() {
               </Select>
             </div>
             <div className="text-xs text-muted-foreground mt-3">
-              {L ? "Wyświetlono" : "Showing"}: <strong>{filtered.length}</strong> / {rows.length}
+              {L ? "Wyświetlono" : "Showing"}:{" "}
+              <strong>{filtered.length === 0 ? 0 : pageStart + 1}-{Math.min(pageStart + PAGE_SIZE, filtered.length)}</strong>
+              {" "}{L ? "z" : "of"} <strong>{filtered.length}</strong>
+              {filtered.length !== rows.length && <> ({L ? "łącznie" : "total"} {rows.length})</>}
             </div>
+
           </CardContent>
         </Card>
 
@@ -704,7 +725,7 @@ function AdminNamesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r) => (
+                {pageRows.map((r) => (
                   <tr key={r.id} className="border-t hover:bg-muted/20 align-top">
                     <td className="p-2 font-medium whitespace-nowrap">
                       <div>{r.display_name ?? r.name}</div>
@@ -770,6 +791,25 @@ function AdminNamesPage() {
             </table>
           </CardContent>
         </Card>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-xs text-muted-foreground">
+              {L ? "Strona" : "Page"} <strong>{page}</strong> {L ? "z" : "of"} <strong>{totalPages}</strong>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="outline" onClick={() => setPage(1)} disabled={page === 1}>«</Button>
+              <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+                {L ? "Poprzednia" : "Previous"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                {L ? "Następna" : "Next"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setPage(totalPages)} disabled={page === totalPages}>»</Button>
+            </div>
+          </div>
+        )}
+
 
         <p className="text-xs text-muted-foreground">
           {L
