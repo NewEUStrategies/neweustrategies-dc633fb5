@@ -272,6 +272,26 @@ export function VisualCanvas({
     [data-visual-canvas][data-device="mobile"] img[class*="object-fill"]{max-width:100% !important;}
     [data-visual-canvas][data-device="mobile"] img[data-fill-image]{max-width:100% !important;width:100% !important;height:100% !important;}
     [data-visual-canvas][data-device="tablet"] [data-widget-id]{max-width:100% !important;}
+    /* Divider/spacer have ~2px intrinsic height which makes them un-clickable
+       and "invisible" on the canvas. Give them a real hit target + a persistent
+       outline in the builder so they don't appear to vanish after blur. */
+    [data-visual-canvas] [data-widget-id][data-debug-type="divider"],
+    [data-visual-canvas] [data-widget-id][data-debug-type="spacer"]{
+      min-height:28px;
+      padding:8px 4px;
+      outline:1px dashed color-mix(in oklab, var(--brand) 35%, transparent) !important;
+      outline-offset:-2px;
+      background:color-mix(in oklab, var(--brand) 3%, transparent);
+    }
+    [data-visual-canvas] [data-widget-id][data-debug-type="divider"]:hover,
+    [data-visual-canvas] [data-widget-id][data-debug-type="spacer"]:hover{
+      outline-color:color-mix(in oklab, var(--brand) 65%, transparent) !important;
+      background:color-mix(in oklab, var(--brand) 7%, transparent);
+    }
+    [data-visual-canvas] [data-widget-id][data-debug-type="divider"].is-selected,
+    [data-visual-canvas] [data-widget-id][data-debug-type="spacer"].is-selected{
+      outline:2px solid var(--brand) !important;
+    }
   `;
 
 
