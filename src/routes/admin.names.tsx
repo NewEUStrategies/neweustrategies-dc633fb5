@@ -219,7 +219,9 @@ function AdminNamesPage() {
   const [filterCompound, setFilterCompound] = useState<"all" | "yes" | "no">("all");
   const [liveOn, setLiveOn] = useState(false);
   const [importProgress, setImportProgress] = useState<{ total: number; done: number; added: number; merged: number; skipped: number } | null>(null);
+  const [preview, setPreview] = useState<{ rows: CsvParsedRow[]; headers: string[]; willAdd: number; willMerge: number; willSkip: number } | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
 
   const [draft, setDraft] = useState({
     name: "", gender: "male" as Gender, origin_country: "PL",
