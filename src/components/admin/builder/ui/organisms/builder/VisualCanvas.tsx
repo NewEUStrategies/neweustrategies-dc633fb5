@@ -3,6 +3,7 @@ import type { BuilderDocument, Device, WidgetType } from "@/lib/builder/types";
 import { BuilderRenderer } from "../../../BuilderRenderer";
 import { SectionDropZone } from "./SectionDropZone";
 import type { Selection } from "./types";
+import { safeParseBuilderDoc } from "@/lib/builder/schema";
 
 export function VisualCanvas({
   doc, lang, device, selection, setSelection, onInsertSection, onRemoveSection,
@@ -23,17 +24,18 @@ export function VisualCanvas({
   onDropNewWidgetToSection: (sectionId: string, type: WidgetType) => void;
   firstLabel: string; lastLabel: string;
 }) {
+  const safeDoc = safeParseBuilderDoc(doc);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ kind: "widget" | "section"; id: string } | null>(null);
 
   const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = e.target as HTMLElement;
     const w = el.closest("[data-widget-id]") as HTMLElement | null;
-    if (w) { e.stopPropagation(); setSelection({ kind: "widget", id: w.dataset.widgetId! }); return; }
+    if (w?.dataset.widgetId) { e.stopPropagation(); setSelection({ kind: "widget", id: w.dataset.widgetId }); return; }
     const c = el.closest("[data-col-id]") as HTMLElement | null;
-    if (c) { e.stopPropagation(); setSelection({ kind: "column", id: c.dataset.colId! }); return; }
+    if (c?.dataset.colId) { e.stopPropagation(); setSelection({ kind: "column", id: c.dataset.colId }); return; }
     const s = el.closest("[data-sec-id]") as HTMLElement | null;
-    if (s) { e.stopPropagation(); setSelection({ kind: "section", id: s.dataset.secId! }); return; }
+    if (s?.dataset.secId) { e.stopPropagation(); setSelection({ kind: "section", id: s.dataset.secId }); return; }
     setSelection({ kind: null, id: null });
   };
 
@@ -178,7 +180,7 @@ export function VisualCanvas({
       root.removeEventListener("dragleave", onDragLeave);
       root.removeEventListener("drop", onDrop);
     };
-  }, [doc, selection, onMoveWidget, onMoveWidgetToColumn, onMoveWidgetToSection, onMoveSection, onDropNewWidgetToColumn, onDropNewWidgetNear, onDropNewWidgetToSection]);
+  }, [safeDoc, selection, onMoveWidget, onMoveWidgetToColumn, onMoveWidgetToSection, onMoveSection, onDropNewWidgetToColumn, onDropNewWidgetNear, onDropNewWidgetToSection]);
 
   const ringCss = `
     [data-visual-canvas] [data-widget-id]{position:relative;cursor:grab;outline:1px dashed transparent;outline-offset:2px;border-radius:4px;transition:outline-color .15s}
@@ -258,10 +260,10 @@ export function VisualCanvas({
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
       <div style={frameStyle}>
         <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} />
-        {doc.sections.map((s, idx) => (
+        {safeDoc.sections.map((s, idx) => (
           <div key={s.id} style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
-            <BuilderRenderer doc={{ ...doc, sections: [s] }} lang={lang} device={device} />
-            {idx === doc.sections.length - 1 && (
+            <BuilderRenderer doc={{ ...safeDoc, sections: [s] }} lang={lang} device={device} />
+            {idx === safeDoc.sections.length - 1 && (
               <SectionDropZone
                 onInsert={(cols) => onInsertSection(idx + 1, cols)}
                 index={idx + 1}

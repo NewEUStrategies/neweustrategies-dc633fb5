@@ -11,11 +11,12 @@ import type {
   SectionNode, ColumnNode, InnerSectionNode, WidgetNode,
   Device, WidgetType, ResponsiveValue,
 } from "@/lib/builder/types";
+import { isKnownWidgetType } from "@/lib/builder/schema";
 
-function resolveSpan(span: ResponsiveValue<number>, device: Device, deskDefault: number): number {
-  if (device === "mobile") return span.mobile ?? 12;
-  if (device === "tablet") return span.tablet ?? span.desktop ?? deskDefault;
-  return span.desktop ?? deskDefault;
+function resolveSpan(span: ResponsiveValue<number> | undefined, device: Device, deskDefault: number): number {
+  if (device === "mobile") return span?.mobile ?? 12;
+  if (device === "tablet") return span?.tablet ?? span?.desktop ?? deskDefault;
+  return span?.desktop ?? deskDefault;
 }
 
 import {
@@ -57,7 +58,8 @@ export interface SectionViewProps {
 
 export function SectionView(p: SectionViewProps) {
   const selected = p.selection.kind === "section" && p.selection.id === p.section.id;
-  const colsSum = p.section.children.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, p.device, 12) : 12), 0) || 12;
+  const children = (Array.isArray(p.section.children) ? p.section.children : []).filter((c): c is ColumnNode | InnerSectionNode => !!c);
+  const colsSum = children.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, p.device, 12) : 12), 0) || 12;
   const hidden = !!p.section.advanced?.hideOn?.[p.device];
   const skin: React.CSSProperties = {
     ...sectionWrapperStyle(p.section),
@@ -101,7 +103,7 @@ export function SectionView(p: SectionViewProps) {
 
       <div style={sectionContainerStyle(p.section)}>
         <div className="min-w-0 max-w-full overflow-hidden" style={columnsRowStyle(p.section, colsSum)}>
-          {p.section.children.map((child) => {
+          {children.map((child) => {
             const span = child.kind === "column" ? resolveSpan(child.span, p.device, 12) : 12;
             const gridColumn = p.device === "mobile" ? "1 / -1" : `span ${span}`;
             const sectionToolbar = isToolbarTag(p.section.layout?.htmlTag);
@@ -157,7 +159,8 @@ function InnerSectionView({
   onToggleHidden: (kind: "section" | "inner-section" | "column" | "widget", id: string) => void;
 }) {
   const selected = selection.kind === "inner-section" && selection.id === inner.id;
-  const colsSum = inner.columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
+  const columns = (Array.isArray(inner.columns) ? inner.columns : []).filter((c): c is ColumnNode => !!c);
+  const colsSum = columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
   const hidden = !!inner.advanced?.hideOn?.[device];
   const skin: React.CSSProperties = {
     ...sectionWrapperStyle(inner),
@@ -177,7 +180,7 @@ function InnerSectionView({
         <IconBtn onClick={(e) => { e.stopPropagation(); onToggleHidden("inner-section", inner.id); }} title={hidden ? `Pokaż na ${device}` : `Ukryj na ${device}`}><Eye className={`w-3 h-3 ${hidden ? "opacity-40" : ""}`} /></IconBtn>
       </div>
       <div className="grid gap-2 relative z-10 min-w-0 max-w-full" style={{ ...columnsRowStyle(inner, colsSum), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
-        {inner.columns.map((c) => (
+        {columns.map((c) => (
           <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}` }}>
 
             <ColumnView column={c} device={device} lang={lang} selection={selection}
@@ -212,7 +215,8 @@ function ColumnView({
   const hidden = !!column.advanced?.hideOn?.[device];
   const [dragOver, setDragOver] = useState(false);
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: "col:" + column.id });
-  const visibleChildren = column.children.filter((w) => !hiddenOnDevice(w.advanced, device));
+  const children = (Array.isArray(column.children) ? column.children : []).filter((w): w is WidgetNode => !!w && isKnownWidgetType(w.type));
+  const visibleChildren = children.filter((w) => !hiddenOnDevice(w.advanced, device));
   const isToolbar =
     forceToolbar ||
     (visibleChildren.length > 1 &&
@@ -244,12 +248,12 @@ function ColumnView({
         <IconBtn onClick={(e) => { e.stopPropagation(); onToggleHidden("column", column.id); }} title={hidden ? `Pokaż na ${device}` : `Ukryj na ${device}`}><Eye className={`w-3 h-3 ${hidden ? "opacity-40" : ""}`} /></IconBtn>
         <IconBtn onClick={(e) => { e.stopPropagation(); onRemove(); }} title="Usuń" danger><Trash2 className="w-3 h-3" /></IconBtn>
       </div>
-      {column.children.length === 0 && (
+      {children.length === 0 && (
         <div className="text-[10px] text-muted-foreground text-center py-6">
           {dragOver ? "Upuść widget tutaj" : "Przeciągnij lub kliknij widget z lewej kolumny"}
         </div>
       )}
-      <SortableContext items={column.children.map((w) => w.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext items={children.map((w) => w.id)} strategy={verticalListSortingStrategy}>
         {(() => {
           const va = column.verticalAlign ?? "start";
           const hClass = stacked
@@ -259,18 +263,18 @@ function ColumnView({
             ? (va === "center" ? "justify-center" : va === "end" ? "justify-end" : va === "stretch" ? "justify-stretch" : "justify-start")
             : (va === "center" ? "content-center items-center" : va === "end" ? "content-end items-end" : va === "stretch" ? "content-stretch items-stretch" : "content-start items-center");
           // Group consecutive inline widgets in stacked (non-toolbar) columns.
-          const groups: Array<{ inline: boolean; items: typeof column.children }> = [];
+          const groups: Array<{ inline: boolean; items: typeof children }> = [];
           if (!stacked) {
-            groups.push({ inline: true, items: column.children });
+            groups.push({ inline: true, items: children });
           } else {
-            for (const w of column.children) {
+            for (const w of children) {
               const inline = w.advanced?.layout === "inline";
               const last = groups[groups.length - 1];
               if (inline && last && last.inline) last.items.push(w);
               else groups.push({ inline, items: [w] });
             }
           }
-          const renderItem = (w: typeof column.children[number]) => (
+          const renderItem = (w: typeof children[number]) => (
             <SortableWidget key={w.id} widget={w} lang={lang} device={device}
               selected={selection.kind === "widget" && selection.id === w.id}
               onSelect={() => setSelection({ kind: "widget", id: w.id })}

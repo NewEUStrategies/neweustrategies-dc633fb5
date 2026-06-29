@@ -10,6 +10,7 @@ import type { Lang } from "@/lib/builder/postListQuery";
 import { postListQueryOptions } from "@/lib/builder/postListQuery";
 import { postRefQueryOptions } from "@/lib/builder/contentRefs";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderVariants";
+import { safeParseBuilderDoc } from "@/lib/builder/schema";
 
 /** A single cache target for a widget: its query key + matching stale-time. */
 export interface WidgetCacheTarget {
@@ -34,14 +35,15 @@ function collectWidgetsFromChild(child: SectionChild | null | undefined, out: Wi
 
 export function collectSectionWidgets(section: SectionNode): WidgetNode[] {
   const widgets: WidgetNode[] = [];
-  (section.children ?? []).forEach((child) => collectWidgetsFromChild(child, widgets));
+  (Array.isArray(section?.children) ? section.children : []).forEach((child) => collectWidgetsFromChild(child, widgets));
   return widgets.filter(isWidget);
 }
 
 
 export function collectBuilderWidgets(doc: BuilderDocument): WidgetNode[] {
+  const safeDoc = safeParseBuilderDoc(doc);
   const widgets: WidgetNode[] = [];
-  doc.sections.forEach((section) => collectSectionWidgets(section).forEach((w) => widgets.push(w)));
+  safeDoc.sections.forEach((section) => collectSectionWidgets(section).forEach((w) => widgets.push(w)));
   return widgets;
 }
 

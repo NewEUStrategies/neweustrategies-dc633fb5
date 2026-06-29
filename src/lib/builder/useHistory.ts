@@ -2,6 +2,7 @@
 // exposes commit/undo/redo. Pair with autosave on the rendered document.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BuilderDocument } from "./types";
+import { safeParseBuilderDoc } from "./schema";
 
 const MAX_HISTORY = 50;
 
@@ -21,28 +22,31 @@ export function useHistory(
   initial: BuilderDocument,
   onChange: (d: BuilderDocument) => void,
 ): History {
+  const normalizedInitial = safeParseBuilderDoc(initial);
   const [past, setPast] = useState<BuilderDocument[]>([]);
-  const [present, setPresent] = useState<BuilderDocument>(initial);
+  const [present, setPresent] = useState<BuilderDocument>(normalizedInitial);
   const [future, setFuture] = useState<BuilderDocument[]>([]);
-  const lastExternal = useRef<BuilderDocument>(initial);
+  const lastExternal = useRef<BuilderDocument>(normalizedInitial);
 
   // External value change (e.g. autosave refresh) → reset present without recording.
   useEffect(() => {
-    if (!eq(initial, lastExternal.current)) {
-      lastExternal.current = initial;
-      setPresent(initial);
+    const next = safeParseBuilderDoc(initial);
+    if (!eq(next, lastExternal.current)) {
+      lastExternal.current = next;
+      setPresent(next);
     }
   }, [initial]);
 
   const setDoc = useCallback((next: BuilderDocument) => {
+    const normalized = safeParseBuilderDoc(next);
     setPast((p) => {
       const np = [...p, present];
       return np.length > MAX_HISTORY ? np.slice(np.length - MAX_HISTORY) : np;
     });
     setFuture([]);
-    setPresent(next);
-    lastExternal.current = next;
-    onChange(next);
+    setPresent(normalized);
+    lastExternal.current = normalized;
+    onChange(normalized);
   }, [present, onChange]);
 
   const undo = useCallback(() => {
