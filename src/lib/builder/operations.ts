@@ -9,6 +9,7 @@ import type {
   BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode, Device,
 } from "./types";
 import { newId } from "./types";
+import { isKnownWidgetType } from "./schema";
 
 export type NodeKind = "section" | "inner-section" | "column" | "widget";
 
@@ -75,27 +76,40 @@ export function getColumnByPath(doc: BuilderDocument, p: FoundPath): ColumnNode 
 // ---------- deep clone with fresh ids ----------
 
 export function cloneWidget(w: WidgetNode): WidgetNode {
-  return { ...JSON.parse(JSON.stringify(w)) as WidgetNode, id: newId() };
+  const copy = JSON.parse(JSON.stringify(w ?? {})) as Partial<WidgetNode>;
+  return {
+    ...copy,
+    id: newId(),
+    kind: "widget",
+    type: isKnownWidgetType(copy.type) ? copy.type : "text",
+    content: copy.content && typeof copy.content === "object" && !Array.isArray(copy.content) ? copy.content : {},
+  } as WidgetNode;
 }
 
 export function cloneColumn(c: ColumnNode): ColumnNode {
-  const copy = JSON.parse(JSON.stringify(c)) as ColumnNode;
+  const copy = JSON.parse(JSON.stringify(c ?? {})) as ColumnNode;
   copy.id = newId();
-  copy.children = (copy.children ?? []).filter(Boolean).map((w) => ({ ...w, id: newId() }));
+  copy.kind = "column";
+  copy.span = copy.span && typeof copy.span === "object" && !Array.isArray(copy.span) ? copy.span : {};
+  copy.children = (Array.isArray(copy.children) ? copy.children : [])
+    .filter((w): w is WidgetNode => !!w && isKnownWidgetType(w.type))
+    .map(cloneWidget);
   return copy;
 }
 
 export function cloneInner(s: InnerSectionNode): InnerSectionNode {
-  const copy = JSON.parse(JSON.stringify(s)) as InnerSectionNode;
+  const copy = JSON.parse(JSON.stringify(s ?? {})) as InnerSectionNode;
   copy.id = newId();
-  copy.columns = (copy.columns ?? []).filter(Boolean).map(cloneColumn);
+  copy.kind = "inner-section";
+  copy.columns = (Array.isArray(copy.columns) ? copy.columns : []).filter(Boolean).map(cloneColumn);
   return copy;
 }
 
 export function cloneSection(s: SectionNode): SectionNode {
-  const copy = JSON.parse(JSON.stringify(s)) as SectionNode;
+  const copy = JSON.parse(JSON.stringify(s ?? {})) as SectionNode;
   copy.id = newId();
-  copy.children = (copy.children ?? []).filter(Boolean).map((c) =>
+  copy.kind = "section";
+  copy.children = (Array.isArray(copy.children) ? copy.children : []).filter(Boolean).map((c) =>
     c.kind === "inner-section" ? cloneInner(c) : cloneColumn(c),
   );
   return copy;
