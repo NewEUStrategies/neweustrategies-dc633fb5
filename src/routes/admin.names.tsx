@@ -102,6 +102,7 @@ const COUNTRIES: { code: string; pl: string; en: string; aliases?: string[] }[] 
   { code: "IL", pl: "Izrael", en: "Israel", aliases: ["israeli", "izraelski", "hebrew", "hebrajski", "il"] },
   { code: "IR", pl: "Iran", en: "Iran", aliases: ["iranian", "persian", "perski", "ir"] },
   { code: "PK", pl: "Pakistan", en: "Pakistan", aliases: ["pakistani", "pakistański", "pakistanski", "pk", "urdu"] },
+  { code: "RS", pl: "Serbia", en: "Serbia", aliases: ["serbian", "serbski", "rs", "srbija", "balkan", "bałkany", "balkany", "balkański", "balkanski"] },
   { code: "OTHER", pl: "Inny", en: "Other", aliases: ["other", "inny"] },
 ];
 
