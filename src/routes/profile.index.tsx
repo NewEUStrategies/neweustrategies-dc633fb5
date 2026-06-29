@@ -731,3 +731,24 @@ function SecondaryLink({ to, icon, children }: { to: string; icon: ReactNode; ch
 function cap(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+function ContactRow({ icon, ariaLabel, children }: { icon: ReactNode; ariaLabel: string; children: ReactNode }) {
+  return (
+    <li className="flex min-w-0 items-center gap-3 py-2 first:pt-0 last:pb-0" aria-label={ariaLabel}>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[6px] bg-muted/70 text-muted-foreground">
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">{children}</div>
+    </li>
+  );
+}
+
+function prettyUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return (u.host + u.pathname).replace(/\/$/, "").replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
