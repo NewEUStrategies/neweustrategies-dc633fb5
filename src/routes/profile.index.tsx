@@ -318,6 +318,11 @@ function ProfileInline() {
           </div>
         </section>
 
+        {/* EXPERIENCE / EDUCATION / SKILLS / AWARDS / CV + sticky sidebar (Personality, Hobbies) */}
+        {user?.id && data.tenant_id ? (
+          <ProfileExtraSections userId={user.id} tenantId={data.tenant_id} editable={editable} />
+        ) : null}
+
       </div>
     </TooltipProvider>
   );
