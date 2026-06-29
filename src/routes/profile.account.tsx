@@ -2,37 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Upload } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FieldLabel } from "@/components/profile/FieldLabel";
+import { ProfileMediaPreview } from "@/components/profile/ProfileMediaPreview";
 import { toast } from "sonner";
-
-function StatusBadge({ status, percent, t }: { status: "idle" | "uploading" | "success" | "failed"; percent: number; t: (k: string, v?: Record<string, unknown>) => string }) {
-  if (status === "idle") return null;
-  if (status === "uploading") {
-    return (
-      <div className="grid gap-1">
-        <Progress value={percent} className="h-1.5" />
-        <p className="text-xs text-muted-foreground" aria-live="polite">{t("profile.account.uploadProgress", { percent })}</p>
-      </div>
-    );
-  }
-  const cls = status === "success" ? "text-green-600 dark:text-green-400" : "text-destructive";
-  return (
-    <p className={`text-xs ${cls}`} role="status" aria-live="polite">
-      {t(status === "success" ? "profile.account.uploadSuccess" : "profile.account.uploadFailed")}
-    </p>
-  );
-}
 
 export const Route = createFileRoute("/profile/account")({
   component: AccountPage,
