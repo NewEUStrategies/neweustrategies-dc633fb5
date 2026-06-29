@@ -506,7 +506,9 @@ function CenteredHero({
   linkedinUrl: string | null;
   twitterUrl: string | null;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language?.startsWith("pl") ? "pl" : "en";
+
   const avatarInput = useRef<HTMLInputElement | null>(null);
   const coverInput = useRef<HTMLInputElement | null>(null);
   const [hoverCover, setHoverCover] = useState(false);
@@ -569,40 +571,58 @@ function CenteredHero({
 
       {/* Avatar - centered, overlapping */}
       <div
-        className="absolute left-1/2 -translate-x-1/2 -bottom-12 sm:-bottom-14 z-20"
+        className="absolute left-1/2 -translate-x-1/2 -bottom-14 sm:-bottom-16 z-20"
         onMouseEnter={() => setHoverAvatar(true)}
         onMouseLeave={() => setHoverAvatar(false)}
       >
-        <div className="relative h-24 w-24 sm:h-28 sm:w-28">
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt={fullName}
-              className="h-full w-full rounded-[6px] ring-4 ring-background bg-background object-cover shadow-md"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-[6px] ring-4 ring-background bg-gradient-to-br from-primary/30 to-primary/10 text-3xl font-semibold text-primary shadow-md">
-              {initial}
-            </div>
-          )}
+        {/* Gradient halo ring */}
+        <div className="relative h-28 w-28 sm:h-32 sm:w-32 rounded-[10px] bg-gradient-to-br from-primary/60 via-primary/20 to-transparent p-[3px] shadow-[0_10px_30px_-10px_hsl(var(--primary)/0.45)]">
+          <div className="relative h-full w-full rounded-[7px] ring-[3px] ring-background bg-background overflow-hidden">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={fullName}
+                className="h-full w-full rounded-[7px] object-cover"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => editable && avatarInput.current?.click()}
+                disabled={!editable || upAvatar}
+                className="group flex h-full w-full flex-col items-center justify-center gap-1 rounded-[7px] bg-gradient-to-br from-muted to-muted/40 text-muted-foreground transition-colors hover:from-primary/15 hover:to-primary/5 hover:text-primary"
+              >
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-background/80 ring-1 ring-border shadow-sm group-hover:ring-primary/40">
+                  {upAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                </span>
+                {editable && (
+                  <span className="text-[10px] font-medium tracking-wide uppercase">
+                    {lang === "pl" ? "Dodaj zdjęcie" : "Add photo"}
+                  </span>
+                )}
+              </button>
+            )}
 
-          {editable && (
-            <button
-              type="button"
-              onClick={() => avatarInput.current?.click()}
-              disabled={upAvatar}
-              className={cn(
-                "absolute inset-0 inline-flex items-center justify-center rounded-[6px] bg-black/55 text-white backdrop-blur-[2px] transition-opacity",
-                hoverAvatar || upAvatar ? "opacity-100" : "opacity-0",
-              )}
-            >
-              {upAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-            </button>
-          )}
+            {editable && avatarUrl && (
+              <button
+                type="button"
+                onClick={() => avatarInput.current?.click()}
+                disabled={upAvatar}
+                className={cn(
+                  "absolute inset-0 inline-flex flex-col items-center justify-center gap-1 rounded-[7px] bg-black/55 text-white backdrop-blur-[2px] transition-opacity",
+                  hoverAvatar || upAvatar ? "opacity-100" : "opacity-0",
+                )}
+              >
+                {upAvatar ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+                <span className="text-[10px] font-medium tracking-wide uppercase">
+                  {lang === "pl" ? "Zmień" : "Change"}
+                </span>
+              </button>
+            )}
+          </div>
 
           {/* Social mini-icons bottom-right */}
           {(linkedinUrl || twitterUrl) && (
-            <div className="absolute -bottom-1.5 -right-1.5 flex items-center gap-1">
+            <div className="absolute -bottom-1.5 -right-1.5 flex items-center gap-1 z-10">
               {linkedinUrl && (
                 <a
                   href={linkedinUrl}
@@ -629,12 +649,13 @@ function CenteredHero({
           )}
 
           {upAvatar && (
-            <div className="absolute -bottom-2 left-0 right-0">
+            <div className="absolute -bottom-2 left-1 right-1 z-10">
               <Progress value={progress.avatar} className="h-1" />
             </div>
           )}
         </div>
       </div>
+
 
       {/* Hidden file inputs */}
       <input
