@@ -124,7 +124,7 @@ function ProfileInline() {
           </div>
 
           {/* Job + Company */}
-          <div className="mt-1.5 flex flex-wrap items-center justify-center sm:justify-start gap-x-2 gap-y-1">
+          <div className="mt-1.5 flex flex-wrap items-baseline justify-center sm:justify-start gap-x-2 gap-y-1">
             {editable ? (
               <InlineText
                 value={data.job_title}
@@ -143,7 +143,7 @@ function ProfileInline() {
             {data.current_company ? (
               <>
                 <span className="text-muted-foreground/60 text-[13px]">•</span>
-                <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-foreground">
+                <span className="inline-flex items-baseline gap-1.5 text-[13px] font-medium text-foreground">
                   <CompanyLogoIcon className="h-5 w-5" />
                   {data.current_company}
                 </span>
@@ -155,7 +155,7 @@ function ProfileInline() {
                   const v = window.prompt(t("profile.account.currentCompany"));
                   if (v != null) void saveField("current_company", v.trim() || null);
                 }}
-                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground italic hover:text-foreground transition-colors"
+                className="inline-flex items-baseline gap-1.5 text-[13px] font-medium text-muted-foreground italic hover:text-foreground transition-colors"
               >
                 <CompanyLogoIcon className="h-5 w-5 opacity-60" />
                 {t("profile.inline.addCompany")}
