@@ -185,7 +185,8 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const staffItems = sectionItems("staff");
 
   // Trigger
-  const triggerLabel = greeting || displayName || user?.email || "";
+  const fallbackHello = lang === "pl" ? "Hej!" : "Hi!";
+  const triggerLabel = greeting || fallbackHello;
   const trigger = session ? (
     <button
       type="button"
