@@ -54,6 +54,8 @@ export interface SliderConfig {
   titleWeight?: number;
   subtitleSizePx?: number;
   subtitleWeight?: number;
+  /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
+  columns?: 1 | 2 | 3 | 4;
 }
 
 const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
