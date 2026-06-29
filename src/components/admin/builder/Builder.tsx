@@ -21,6 +21,7 @@ import {
 } from "@/lib/lucide-shim";
 import type { BuilderDocument, Device, Mode } from "@/lib/builder/types";
 import { emptyDocument } from "@/lib/builder/types";
+import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { BuilderModeProvider } from "@/lib/builder/modeContext";
 import { useTheme } from "@/components/ThemeProvider";
 import { findWidget, findSection, findColumn, findInner } from "@/lib/builder/operations";
@@ -66,9 +67,9 @@ const SCOPE_COPY = {
 export function Builder({ value, onChange, lang, onLangChange, hideChrome = false, scope = "page" }: Props) {
   const copy = SCOPE_COPY[scope];
 
-  const initial = value ?? emptyDocument();
+  const initial = safeParseBuilderDoc(value ?? emptyDocument());
   const history = useHistory(initial, onChange);
-  const doc = history.doc;
+  const doc = safeParseBuilderDoc(history.doc);
   const [device, setDevice] = useState<Device>("desktop");
   // Default canvas preview mode follows the live site theme so the editor
   // shows the same colors/tokens visitors see - keeps admin and prod parity.
