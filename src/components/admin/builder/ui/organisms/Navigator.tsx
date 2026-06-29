@@ -6,6 +6,7 @@ import type {
   BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode, Device,
 } from "@/lib/builder/types";
 import { WIDGET_MAP } from "@/lib/builder/registry";
+import { safeParseBuilderDoc } from "@/lib/builder/schema";
 
 interface Selection { kind: "section" | "column" | "widget" | "inner-section" | null; id: string | null; }
 
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function Navigator(p: Props) {
+  const doc = safeParseBuilderDoc(p.doc);
   return (
     <div className="text-xs">
       <div className="px-3 py-2 border-b border-border inline-flex items-center gap-2 w-full bg-card">
@@ -25,10 +27,10 @@ export function Navigator(p: Props) {
         <span className="font-medium">Nawigator</span>
       </div>
       <div className="p-1 max-h-[260px] overflow-y-auto">
-        {p.doc.sections.length === 0 && (
+        {doc.sections.length === 0 && (
           <div className="text-muted-foreground p-2 text-[11px]">Brak sekcji.</div>
         )}
-        {p.doc.sections.map((s, i) => (
+        {doc.sections.map((s, i) => (
           <SectionRow key={s.id} section={s} index={i + 1} {...p} />
         ))}
       </div>
@@ -54,7 +56,7 @@ function SectionRow({
         onSelect={() => onSelect({ kind: "section", id: section.id })}
         onToggleHidden={() => onToggleHidden(section.id, "section")}
       />
-      {open &&  (section.children ?? []).filter(Boolean).map((c) =>
+      {open && (Array.isArray(section.children) ? section.children : []).filter((c): c is ColumnNode | InnerSectionNode => !!c).map((c) =>
         c.kind === "inner-section"
           ? <InnerRow key={c.id} inner={c} selection={selection} device={device} onSelect={onSelect} onToggleHidden={onToggleHidden} doc={{ version: 1, sections: [] }} />
           : <ColumnRow key={c.id} column={c} depth={1} selection={selection} device={device} onSelect={onSelect} onToggleHidden={onToggleHidden} />,
@@ -73,7 +75,7 @@ function InnerRow({
       <Row depth={1} open={open} onToggle={() => setOpen(!open)} selected={selected} hidden={false}
         label="Sekcja wewn." onSelect={() => onSelect({ kind: "inner-section", id: inner.id })}
         onToggleHidden={() => {}} />
-      {open &&  (inner.columns ?? []).filter(Boolean).map((c) => (
+      {open && (Array.isArray(inner.columns) ? inner.columns : []).filter((c): c is ColumnNode => !!c).map((c) => (
         <ColumnRow key={c.id} column={c} depth={2} selection={selection} device={device} onSelect={onSelect} onToggleHidden={onToggleHidden} />
       ))}
     </div>
@@ -93,7 +95,7 @@ function ColumnRow({
         label={`Kolumna (${column.span?.[device] ?? column.span?.desktop ?? 12})`}
         onSelect={() => onSelect({ kind: "column", id: column.id })}
         onToggleHidden={() => onToggleHidden(column.id, "column")} />
-      {open &&  (column.children ?? []).filter(Boolean).map((w) => (
+      {open && (Array.isArray(column.children) ? column.children : []).filter((w): w is WidgetNode => !!w).map((w) => (
         <WidgetRow key={w.id} widget={w} depth={depth + 1} selection={selection} device={device} onSelect={onSelect} onToggleHidden={onToggleHidden} />
       ))}
     </div>
