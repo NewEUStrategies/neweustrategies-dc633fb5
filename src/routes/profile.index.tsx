@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRef, useState, type ReactNode } from "react";
 import {
   Eye, Pencil, Mail, MapPin, Briefcase, ShieldCheck, Receipt, Bookmark, Users,
-  Sparkles, Globe, ExternalLink, Camera, Image as ImageIcon, Loader2, Linkedin,
+  Award, Activity, Tag, Globe, ExternalLink, Camera, Image as ImageIcon, Loader2, Linkedin,
   Twitter, Phone, User as UserIcon, Cake, Heart,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -243,7 +243,7 @@ function ProfileInline() {
             {tab === "about" && (
               <>
                 <Card
-                  icon={<Sparkles className="h-3.5 w-3.5" />}
+                  icon={<Activity className="h-3.5 w-3.5" />}
                   title={t("profile.account.bio")}
                 >
                   {editable ? (
@@ -394,17 +394,17 @@ function ProfileInline() {
 
             {tab === "activity" && (
               <>
-                <Card icon={<Sparkles className="h-3.5 w-3.5" />} title={t("profile.inline.activitySection")}>
+                <Card icon={<Activity className="h-3.5 w-3.5" />} title={t("profile.inline.activitySection")}>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <Stat icon={<Bookmark className="h-3.5 w-3.5" />} value={counts.data?.bookmarks ?? 0} label={t("profile.nav.bookmarks")} to="/profile/bookmarks" />
                     <Stat icon={<Users className="h-3.5 w-3.5" />} value={counts.data?.authors ?? 0} label={t("profile.follows.tabAuthors")} to="/profile/follows" />
                     <Stat icon={<Globe className="h-3.5 w-3.5" />} value={counts.data?.categories ?? 0} label={t("profile.follows.tabCategories")} to="/profile/follows" />
-                    <Stat icon={<Sparkles className="h-3.5 w-3.5" />} value={counts.data?.tags ?? 0} label={t("profile.follows.tabTags")} to="/profile/follows" />
+                    <Stat icon={<Activity className="h-3.5 w-3.5" />} value={counts.data?.tags ?? 0} label={t("profile.follows.tabTags")} to="/profile/follows" />
                   </div>
                 </Card>
                 <Card icon={<Globe className="h-3.5 w-3.5" />} title={t("profile.inline.shortcuts")}>
                   <div className="grid gap-1">
-                    <SecondaryLink to="/profile/interests" icon={<Sparkles className="h-3.5 w-3.5" />}>{t("profile.nav.interests")}</SecondaryLink>
+                    <SecondaryLink to="/profile/interests" icon={<Activity className="h-3.5 w-3.5" />}>{t("profile.nav.interests")}</SecondaryLink>
                     <SecondaryLink to="/profile/social" icon={<ExternalLink className="h-3.5 w-3.5" />}>{t("profile.nav.social")}</SecondaryLink>
                     <SecondaryLink to="/profile/billing" icon={<Receipt className="h-3.5 w-3.5" />}>{t("profile.nav.billing")}</SecondaryLink>
                     <SecondaryLink to="/profile/subscription" icon={<ShieldCheck className="h-3.5 w-3.5" />}>{t("profile.nav.subscription")}</SecondaryLink>
