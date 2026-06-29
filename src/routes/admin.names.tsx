@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+// Słownik imion - rozszerzony edytor (i18n PL/EN) z polami:
+// key, display_name, vocative_pl, instrumental_pl, genitive_pl, dative_pl,
+// english_form, gender, is_compound, origin, notes.
+// Funkcje: import/eksport CSV (dedupe po `key` z uzupełnianiem brakujących pól),
+// nasłuch zmian w czasie rzeczywistym, filtry (gender, origin, search).
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Trash2, Plus, Search } from "@/lib/lucide-shim";
+import { Trash2, Plus, Search, Download, Upload, Radio } from "@/lib/lucide-shim";
 import { normalize, type Gender } from "@/lib/greetings/greetings";
 
 export const Route = createFileRoute("/admin/names")({
@@ -24,12 +29,26 @@ interface NameRow {
   id: string;
   name: string;
   name_normalized: string;
+  key: string | null;
+  display_name: string | null;
   gender: Gender;
   origin_country: string | null;
+  origin: string | null;
   vocative_pl: string | null;
+  instrumental_pl: string | null;
+  genitive_pl: string | null;
+  dative_pl: string | null;
   vocative_en: string | null;
+  english_form: string | null;
+  is_compound: boolean;
   notes: string | null;
 }
+
+type RowPatch = Partial<Omit<NameRow, "id">>;
+
+const SELECT_COLS =
+  "id, name, name_normalized, key, display_name, gender, origin_country, origin," +
+  " vocative_pl, instrumental_pl, genitive_pl, dative_pl, vocative_en, english_form, is_compound, notes";
 
 const COUNTRIES: { code: string; pl: string; en: string }[] = [
   { code: "PL", pl: "Polska", en: "Poland" },
@@ -48,21 +67,124 @@ const COUNTRIES: { code: string; pl: string; en: string }[] = [
   { code: "OTHER", pl: "Inny", en: "Other" },
 ];
 
+// CSV columns in canonical order (used for import + export).
+const CSV_COLS = [
+  "key", "display_name", "vocative", "instrumental", "genitive", "dative",
+  "english_form", "gender", "is_compound", "origin", "notes",
+] as const;
+
+function csvEscape(v: string): string {
+  if (v === "") return "";
+  if (/[",\n\r;]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
+  return v;
+}
+
+function toCSV(rows: NameRow[]): string {
+  const head = CSV_COLS.join(",");
+  const body = rows.map((r) => [
+    r.key ?? r.name_normalized,
+    r.display_name ?? r.name,
+    r.vocative_pl ?? "",
+    r.instrumental_pl ?? "",
+    r.genitive_pl ?? "",
+    r.dative_pl ?? "",
+    r.english_form ?? r.vocative_en ?? "",
+    r.gender,
+    r.is_compound ? "true" : "false",
+    r.origin ?? r.origin_country ?? "",
+    r.notes ?? "",
+  ].map((v) => csvEscape(String(v))).join(","));
+  return [head, ...body].join("\n");
+}
+
+// Minimal CSV parser supporting quoted fields and embedded commas/newlines.
+function parseCSV(text: string): string[][] {
+  const out: string[][] = [];
+  let row: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"' && text[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { cur += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ",") { row.push(cur); cur = ""; }
+      else if (ch === "\n" || ch === "\r") {
+        if (ch === "\r" && text[i + 1] === "\n") i++;
+        row.push(cur); cur = ""; out.push(row); row = [];
+      } else { cur += ch; }
+    }
+  }
+  if (cur.length || row.length) { row.push(cur); out.push(row); }
+  return out.filter((r) => r.some((c) => c.trim() !== ""));
+}
+
+interface CsvParsedRow {
+  key: string;
+  display_name: string;
+  vocative_pl: string | null;
+  instrumental_pl: string | null;
+  genitive_pl: string | null;
+  dative_pl: string | null;
+  english_form: string | null;
+  gender: Gender;
+  is_compound: boolean;
+  origin: string | null;
+  notes: string | null;
+}
+
+function rowFromCsv(headers: string[], cells: string[]): CsvParsedRow | null {
+  const get = (h: string) => {
+    const idx = headers.indexOf(h);
+    return idx >= 0 ? (cells[idx] ?? "").trim() : "";
+  };
+  const display = get("display_name") || get("name");
+  if (!display) return null;
+  const rawGender = get("gender").toLowerCase();
+  const gender: Gender = rawGender === "female" || rawGender === "f" || rawGender === "ż" || rawGender === "z"
+    ? "female"
+    : rawGender === "neutral" || rawGender === "n"
+      ? "neutral"
+      : "male";
+  const key = (get("key") || normalize(display)).toLowerCase();
+  const truthy = (s: string) => /^(1|true|tak|yes|y|t)$/i.test(s);
+  return {
+    key,
+    display_name: display,
+    vocative_pl: get("vocative") || get("vocative_pl") || null,
+    instrumental_pl: get("instrumental") || null,
+    genitive_pl: get("genitive") || null,
+    dative_pl: get("dative") || null,
+    english_form: get("english_form") || get("vocative_en") || null,
+    gender,
+    is_compound: truthy(get("is_compound")),
+    origin: get("origin") || get("origin_country") || null,
+    notes: get("notes") || null,
+  };
+}
+
 function AdminNamesPage() {
   const { isSuperAdmin, loading } = useAuth();
   const { i18n, t } = useTranslation();
   const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+  const L = lang === "pl";
 
   const [rows, setRows] = useState<NameRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [filterGender, setFilterGender] = useState<"all" | Gender>("all");
   const [filterCountry, setFilterCountry] = useState<string>("all");
+  const [filterCompound, setFilterCompound] = useState<"all" | "yes" | "no">("all");
+  const [liveOn, setLiveOn] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ total: number; done: number; added: number; merged: number; skipped: number } | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
-  // Draft for the "Add" form.
   const [draft, setDraft] = useState({
     name: "", gender: "male" as Gender, origin_country: "PL",
-    vocative_pl: "", vocative_en: "",
+    vocative_pl: "", english_form: "",
   });
 
   useEffect(() => {
@@ -70,45 +192,73 @@ function AdminNamesPage() {
     void load();
   }, [isSuperAdmin]);
 
+  // Realtime subscription on name_dictionary so multiple admins / bulk imports
+  // surface immediately without manual refresh.
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    const ch = supabase
+      .channel("admin-names")
+      .on("postgres_changes", { event: "*", schema: "public", table: "name_dictionary" }, (payload) => {
+        setLiveOn(true);
+        if (payload.eventType === "INSERT") {
+          const r = payload.new as NameRow;
+          setRows((rs) => rs.some((x) => x.id === r.id) ? rs : [...rs, r].sort((a, b) => (a.display_name ?? a.name).localeCompare(b.display_name ?? b.name)));
+        } else if (payload.eventType === "UPDATE") {
+          const r = payload.new as NameRow;
+          setRows((rs) => rs.map((x) => x.id === r.id ? { ...x, ...r } : x));
+        } else if (payload.eventType === "DELETE") {
+          const r = payload.old as NameRow;
+          setRows((rs) => rs.filter((x) => x.id !== r.id));
+        }
+      })
+      .subscribe((status) => { if (status === "SUBSCRIBED") setLiveOn(true); });
+    return () => { void supabase.removeChannel(ch); };
+  }, [isSuperAdmin]);
+
   const load = async () => {
     setBusy(true);
     const { data, error } = await supabase
       .from("name_dictionary")
-      .select("id, name, name_normalized, gender, origin_country, vocative_pl, vocative_en, notes")
+      .select(SELECT_COLS)
       .order("name", { ascending: true });
     setBusy(false);
     if (error) { toast.error(error.message); return; }
-    setRows((data ?? []) as NameRow[]);
+    setRows(((data ?? []) as unknown) as NameRow[]);
   };
 
   const filtered = useMemo(() => rows.filter((r) => {
     if (filterGender !== "all" && r.gender !== filterGender) return false;
-    if (filterCountry !== "all" && (r.origin_country ?? "") !== filterCountry) return false;
+    if (filterCountry !== "all" && (r.origin_country ?? r.origin ?? "") !== filterCountry) return false;
+    if (filterCompound !== "all" && !!r.is_compound !== (filterCompound === "yes")) return false;
     if (query.trim() && !r.name_normalized.includes(normalize(query))) return false;
     return true;
-  }), [rows, filterGender, filterCountry, query]);
+  }), [rows, filterGender, filterCountry, filterCompound, query]);
 
   const addOne = async () => {
     const name = draft.name.trim();
-    if (!name) { toast.error(lang === "pl" ? "Podaj imię" : "Enter a name"); return; }
+    if (!name) { toast.error(L ? "Podaj imię" : "Enter a name"); return; }
     setBusy(true);
-    const { error } = await supabase.from("name_dictionary").insert({
+    const payload = {
       name,
       name_normalized: normalize(name),
+      display_name: name,
+      key: normalize(name),
       gender: draft.gender,
       origin_country: draft.origin_country,
+      origin: draft.origin_country,
       vocative_pl: draft.vocative_pl.trim() || null,
-      vocative_en: draft.vocative_en.trim() || null,
-    });
+      english_form: draft.english_form.trim() || null,
+      vocative_en: draft.english_form.trim() || null,
+    };
+    const { error } = await supabase.from("name_dictionary").insert(payload as never);
     setBusy(false);
     if (error) { toast.error(error.message); return; }
-    setDraft({ name: "", gender: draft.gender, origin_country: draft.origin_country, vocative_pl: "", vocative_en: "" });
-    toast.success(lang === "pl" ? "Dodano" : "Added");
-    void load();
+    setDraft({ name: "", gender: draft.gender, origin_country: draft.origin_country, vocative_pl: "", english_form: "" });
+    toast.success(L ? "Dodano" : "Added");
   };
 
-  const updateRow = async (id: string, patch: Partial<NameRow>) => {
-    const { error } = await supabase.from("name_dictionary").update(patch).eq("id", id);
+  const updateRow = async (id: string, patch: RowPatch) => {
+    const { error } = await supabase.from("name_dictionary").update(patch as never).eq("id", id);
     if (error) { toast.error(error.message); return; }
     setRows((rs) => rs.map((r) => r.id === id ? { ...r, ...patch } : r));
   };
@@ -116,28 +266,150 @@ function AdminNamesPage() {
   const deleteRow = async (id: string) => {
     const { error } = await supabase.from("name_dictionary").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
-    setRows((rs) => rs.filter((r) => r.id !== id));
+  };
+
+  // Export current (filtered) view as CSV so the user can backup or share.
+  const exportCsv = () => {
+    const csv = toCSV(filtered.length ? filtered : rows);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `names-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Import CSV with dedupe-on-key. When key already exists we only patch the
+  // columns that were previously empty - this lets users top up missing forms
+  // (e.g. dative) without overwriting curated values.
+  const onImportFile = async (file: File) => {
+    const text = await file.text();
+    const matrix = parseCSV(text);
+    if (!matrix.length) { toast.error(L ? "Pusty plik" : "Empty file"); return; }
+    const headers = matrix[0].map((h) => h.trim().toLowerCase());
+    const dataRows = matrix.slice(1).map((cells) => rowFromCsv(headers, cells)).filter((x): x is CsvParsedRow => !!x);
+    if (!dataRows.length) { toast.error(L ? "Brak prawidłowych wierszy" : "No valid rows"); return; }
+
+    const byKey = new Map(rows.map((r) => [r.key ?? r.name_normalized, r] as const));
+    const prog = { total: dataRows.length, done: 0, added: 0, merged: 0, skipped: 0 };
+    setImportProgress({ ...prog });
+
+    for (const row of dataRows) {
+      const existing = byKey.get(row.key);
+      if (!existing) {
+        const insertPayload = {
+          name: row.display_name,
+          name_normalized: normalize(row.display_name),
+          key: row.key,
+          display_name: row.display_name,
+          gender: row.gender,
+          origin_country: row.origin,
+          origin: row.origin,
+          vocative_pl: row.vocative_pl,
+          instrumental_pl: row.instrumental_pl,
+          genitive_pl: row.genitive_pl,
+          dative_pl: row.dative_pl,
+          english_form: row.english_form,
+          vocative_en: row.english_form,
+          is_compound: row.is_compound,
+          notes: row.notes,
+        };
+        const { error } = await supabase.from("name_dictionary").insert(insertPayload as never);
+        if (error) prog.skipped += 1; else prog.added += 1;
+      } else {
+        const patch: RowPatch = {};
+        const setIfMissing = <K extends keyof NameRow>(key: K, val: NameRow[K] | null | undefined) => {
+          if (val === null || val === undefined || val === "") return;
+          if (existing[key] === null || existing[key] === undefined || existing[key] === "") {
+            (patch as Record<string, unknown>)[key as string] = val;
+          }
+        };
+        setIfMissing("vocative_pl", row.vocative_pl);
+        setIfMissing("instrumental_pl", row.instrumental_pl);
+        setIfMissing("genitive_pl", row.genitive_pl);
+        setIfMissing("dative_pl", row.dative_pl);
+        setIfMissing("english_form", row.english_form);
+        setIfMissing("vocative_en", row.english_form);
+        setIfMissing("origin", row.origin);
+        setIfMissing("notes", row.notes);
+        if (Object.keys(patch).length === 0) {
+          prog.skipped += 1;
+        } else {
+          const { error } = await supabase.from("name_dictionary").update(patch as never).eq("id", existing.id);
+          if (error) prog.skipped += 1; else prog.merged += 1;
+        }
+      }
+      prog.done += 1;
+      setImportProgress({ ...prog });
+    }
+    toast.success(
+      L
+        ? `Import: dodano ${prog.added}, uzupełniono ${prog.merged}, pominięto ${prog.skipped}`
+        : `Import: added ${prog.added}, merged ${prog.merged}, skipped ${prog.skipped}`,
+    );
+    setTimeout(() => setImportProgress(null), 4000);
   };
 
   if (loading) return null;
   if (!isSuperAdmin) return <Navigate to="/admin" />;
 
-  const L = lang === "pl";
-
   return (
     <AdminShell>
-      <div className="space-y-5 max-w-6xl">
+      <div className="space-y-5 max-w-7xl">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold">{L ? "Słownik imion" : "Name dictionary"}</h1>
             <p className="text-sm text-muted-foreground">
               {L
-                ? "Imiona, płeć, kraj pochodzenia i formy wołacza. Używane do personalizowanych powitań."
-                : "Names, gender, country of origin and vocative forms. Powers personalized greetings."}
+                ? "Imiona z formami gramatycznymi (wołacz, narzędnik, dopełniacz, celownik), płeć, pochodzenie. Używane do personalizacji."
+                : "Names with grammatical cases (vocative, instrumental, genitive, dative), gender and origin. Powers personalization."}
             </p>
           </div>
-          <Badge variant="secondary">{rows.length}</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={liveOn ? "default" : "secondary"} className="gap-1">
+              <Radio className={`w-3 h-3 ${liveOn ? "animate-pulse" : ""}`} />
+              {liveOn ? (L ? "Live" : "Live") : (L ? "Offline" : "Offline")}
+            </Badge>
+            <Badge variant="secondary">{rows.length}</Badge>
+            <Button variant="outline" size="sm" onClick={exportCsv}>
+              <Download className="w-4 h-4 mr-2" />{L ? "Eksport CSV" : "Export CSV"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+              <Upload className="w-4 h-4 mr-2" />{L ? "Import CSV" : "Import CSV"}
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void onImportFile(f);
+                e.target.value = "";
+              }}
+            />
+          </div>
         </div>
+
+        {importProgress && (
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span>{L ? "Import w toku" : "Import in progress"}</span>
+                <span className="tabular-nums text-muted-foreground">
+                  {importProgress.done}/{importProgress.total} · +{importProgress.added} · ~{importProgress.merged} · ×{importProgress.skipped}
+                </span>
+              </div>
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-[width] duration-200"
+                  style={{ width: `${Math.round((importProgress.done / Math.max(1, importProgress.total)) * 100)}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Add */}
         <Card>
@@ -170,11 +442,11 @@ function AdminNamesPage() {
               </div>
               <div>
                 <Label>{L ? "Wołacz PL" : "Vocative PL"}</Label>
-                <Input value={draft.vocative_pl} onChange={(e) => setDraft({ ...draft, vocative_pl: e.target.value })} placeholder={L ? "Aleksandrze" : "—"} />
+                <Input value={draft.vocative_pl} onChange={(e) => setDraft({ ...draft, vocative_pl: e.target.value })} placeholder={L ? "Aleksandrze" : "-"} />
               </div>
               <div>
-                <Label>{L ? "Forma EN" : "Vocative EN"}</Label>
-                <Input value={draft.vocative_en} onChange={(e) => setDraft({ ...draft, vocative_en: e.target.value })} placeholder="Alexander" />
+                <Label>{L ? "Forma EN" : "English form"}</Label>
+                <Input value={draft.english_form} onChange={(e) => setDraft({ ...draft, english_form: e.target.value })} placeholder="Alexander" />
               </div>
               <div className="md:col-span-6 flex justify-end">
                 <Button onClick={addOne} disabled={busy}><Plus className="w-4 h-4 mr-2" />{L ? "Dodaj" : "Add"}</Button>
@@ -186,8 +458,8 @@ function AdminNamesPage() {
         {/* Filters */}
         <Card>
           <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="relative">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+              <div className="relative md:col-span-2">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={query}
@@ -212,9 +484,17 @@ function AdminNamesPage() {
                   {COUNTRIES.map((c) => <SelectItem key={c.code} value={c.code}>{L ? c.pl : c.en}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <div className="text-sm text-muted-foreground self-center">
-                {L ? "Wyświetlono" : "Showing"}: <strong>{filtered.length}</strong>
-              </div>
+              <Select value={filterCompound} onValueChange={(v) => setFilterCompound(v as "all" | "yes" | "no")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{L ? "Wszystkie (złożone)" : "All (compound)"}</SelectItem>
+                  <SelectItem value="yes">{L ? "Złożone" : "Compound"}</SelectItem>
+                  <SelectItem value="no">{L ? "Pojedyncze" : "Single"}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="text-xs text-muted-foreground mt-3">
+              {L ? "Wyświetlono" : "Showing"}: <strong>{filtered.length}</strong> / {rows.length}
             </div>
           </CardContent>
         </Card>
@@ -228,15 +508,22 @@ function AdminNamesPage() {
                   <th className="text-left p-3">{L ? "Imię" : "Name"}</th>
                   <th className="text-left p-3">{L ? "Płeć" : "Gender"}</th>
                   <th className="text-left p-3">{L ? "Kraj" : "Country"}</th>
-                  <th className="text-left p-3">{L ? "Wołacz PL" : "Vocative PL"}</th>
-                  <th className="text-left p-3">{L ? "Forma EN" : "Vocative EN"}</th>
+                  <th className="text-left p-3">{L ? "Wołacz" : "Vocative"}</th>
+                  <th className="text-left p-3">{L ? "Narzędnik" : "Instrumental"}</th>
+                  <th className="text-left p-3">{L ? "Dopełniacz" : "Genitive"}</th>
+                  <th className="text-left p-3">{L ? "Celownik" : "Dative"}</th>
+                  <th className="text-left p-3">{L ? "Forma EN" : "English"}</th>
+                  <th className="text-left p-3">{L ? "Złożone" : "Compound"}</th>
                   <th className="p-3 w-12"></th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((r) => (
-                  <tr key={r.id} className="border-t hover:bg-muted/20">
-                    <td className="p-2 font-medium">{r.name}</td>
+                  <tr key={r.id} className="border-t hover:bg-muted/20 align-top">
+                    <td className="p-2 font-medium whitespace-nowrap">
+                      <div>{r.display_name ?? r.name}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">{r.key ?? r.name_normalized}</div>
+                    </td>
                     <td className="p-2">
                       <Select value={r.gender} onValueChange={(v) => void updateRow(r.id, { gender: v as Gender })}>
                         <SelectTrigger className="h-8 w-[120px]"><SelectValue /></SelectTrigger>
@@ -249,33 +536,38 @@ function AdminNamesPage() {
                     </td>
                     <td className="p-2">
                       <Select
-                        value={r.origin_country ?? "OTHER"}
-                        onValueChange={(v) => void updateRow(r.id, { origin_country: v })}
+                        value={r.origin_country ?? r.origin ?? "OTHER"}
+                        onValueChange={(v) => void updateRow(r.id, { origin_country: v, origin: v })}
                       >
-                        <SelectTrigger className="h-8 w-[150px]"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 w-[140px]"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {COUNTRIES.map((c) => <SelectItem key={c.code} value={c.code}>{L ? c.pl : c.en}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </td>
-                    <td className="p-2">
-                      <Input
-                        defaultValue={r.vocative_pl ?? ""}
-                        className="h-8"
-                        onBlur={(e) => {
-                          const v = e.target.value.trim();
-                          if (v !== (r.vocative_pl ?? "")) void updateRow(r.id, { vocative_pl: v || null });
-                        }}
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Input
-                        defaultValue={r.vocative_en ?? ""}
-                        className="h-8"
-                        onBlur={(e) => {
-                          const v = e.target.value.trim();
-                          if (v !== (r.vocative_en ?? "")) void updateRow(r.id, { vocative_en: v || null });
-                        }}
+                    {(["vocative_pl", "instrumental_pl", "genitive_pl", "dative_pl", "english_form"] as const).map((field) => (
+                      <td key={field} className="p-2">
+                        <Input
+                          defaultValue={r[field] ?? ""}
+                          className="h-8 min-w-[120px]"
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (v !== (r[field] ?? "")) {
+                              const patch: RowPatch = { [field]: v || null } as RowPatch;
+                              if (field === "english_form") patch.vocative_en = v || null;
+                              void updateRow(r.id, patch);
+                            }
+                          }}
+                        />
+                      </td>
+                    ))}
+                    <td className="p-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={!!r.is_compound}
+                        onChange={(e) => void updateRow(r.id, { is_compound: e.target.checked })}
+                        className="h-4 w-4 accent-primary"
+                        aria-label={L ? "Imię złożone" : "Compound name"}
                       />
                     </td>
                     <td className="p-2 text-right">
@@ -286,12 +578,18 @@ function AdminNamesPage() {
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">{L ? "Brak wyników" : "No results"}</td></tr>
+                  <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">{L ? "Brak wyników" : "No results"}</td></tr>
                 )}
               </tbody>
             </table>
           </CardContent>
         </Card>
+
+        <p className="text-xs text-muted-foreground">
+          {L
+            ? "Format CSV: key, display_name, vocative, instrumental, genitive, dative, english_form, gender (male/female/neutral), is_compound (true/false), origin, notes. Duplikaty po `key` są pomijane - chyba że wnoszą nowe wartości w pustych kolumnach (wtedy są scalane)."
+            : "CSV format: key, display_name, vocative, instrumental, genitive, dative, english_form, gender (male/female/neutral), is_compound (true/false), origin, notes. Duplicates by `key` are skipped - unless they fill previously empty columns (then merged)."}
+        </p>
       </div>
     </AdminShell>
   );
