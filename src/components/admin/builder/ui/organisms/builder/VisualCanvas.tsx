@@ -185,11 +185,15 @@ export function VisualCanvas({
     root.addEventListener("dragover", onDragOver);
     root.addEventListener("dragleave", onDragLeave);
     root.addEventListener("drop", onDrop);
+    root.addEventListener("dragend", onDragEnd);
+    window.addEventListener("dragend", onDragEnd);
     return () => {
       root.removeEventListener("dragstart", onDragStart);
       root.removeEventListener("dragover", onDragOver);
       root.removeEventListener("dragleave", onDragLeave);
       root.removeEventListener("drop", onDrop);
+      root.removeEventListener("dragend", onDragEnd);
+      window.removeEventListener("dragend", onDragEnd);
     };
   }, [safeDoc, selection, onMoveWidget, onMoveWidgetToColumn, onMoveWidgetToSection, onMoveSection, onDropNewWidgetToColumn, onDropNewWidgetNear, onDropNewWidgetToSection]);
 
