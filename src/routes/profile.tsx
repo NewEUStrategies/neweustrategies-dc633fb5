@@ -24,8 +24,20 @@ function ProfileLayout() {
   if (isRoot) {
     return (
       <AuthGate>
-        <div className="profile-shell container mx-auto max-w-5xl px-3 py-6 md:py-10 sm:px-4">
-          <Outlet />
+        <div className="profile-shell container mx-auto max-w-7xl px-3 py-6 md:py-10 sm:px-4">
+          <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+            <aside className="hidden lg:block">
+              <div className="sticky top-4">
+                <h2 className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t("profile.title")}
+                </h2>
+                <ProfileNav />
+              </div>
+            </aside>
+            <section className="min-w-0">
+              <Outlet />
+            </section>
+          </div>
         </div>
       </AuthGate>
     );
