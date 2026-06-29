@@ -524,27 +524,28 @@ function CenteredHero({
         {/* Action bar top-right */}
         <div className="absolute right-2.5 top-2.5 z-10 flex items-center gap-1.5">
           {editable && (
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="secondary"
               onClick={() => coverInput.current?.click()}
               disabled={upCover}
               className={cn(
-                "inline-flex items-center gap-1 rounded-[6px] border border-white/30 bg-black/40 px-2 py-1 text-[11px] font-medium text-white backdrop-blur-md hover:bg-black/60 transition-opacity",
-                hoverCover || upCover ? "opacity-100" : "opacity-70",
+                "backdrop-blur-md bg-background/70 hover:bg-background/90 transition-opacity",
+                hoverCover || upCover ? "opacity-100" : "opacity-80",
               )}
             >
-              {upCover ? <Loader2 className="h-3 w-3 animate-spin" /> : <Camera className="h-3 w-3" />}
+              {upCover ? <Loader2 className="animate-spin" /> : <Camera />}
               {upCover ? t("profile.account.uploading") : t("profile.account.uploadCover")}
-            </button>
+            </Button>
           )}
           <Button
             type="button"
             size="sm"
             variant={previewAsGuest ? "default" : "secondary"}
             onClick={onTogglePreview}
-            className="h-7 px-2.5 text-[11px] shadow-sm"
           >
-            {previewAsGuest ? <Pencil className="mr-1 h-3 w-3" /> : <Eye className="mr-1 h-3 w-3" />}
+            {previewAsGuest ? <Pencil /> : <Eye />}
             {previewAsGuest ? t("profile.inline.editMode") : t("profile.inline.viewAsGuest")}
           </Button>
         </div>
