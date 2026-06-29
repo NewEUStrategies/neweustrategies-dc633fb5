@@ -8,6 +8,8 @@ import {
   Twitter, Phone, User as UserIcon, Cake, Heart,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
+
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
