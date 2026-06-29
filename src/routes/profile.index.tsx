@@ -194,14 +194,6 @@ function ProfileInline() {
           {/* Meta row: chips left, email right */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              {data.current_company ? (
-                <Chip icon={<CompanyLogoIcon />} tone="solid" size="lg">{data.current_company}</Chip>
-              ) : editable ? (
-                <Chip icon={<CompanyLogoIcon />} tone="muted" size="lg" onClick={() => {
-                  const v = window.prompt(t("profile.account.currentCompany"));
-                  if (v != null) void saveField("current_company", v.trim() || null);
-                }}>{t("profile.inline.addCompany")}</Chip>
-              ) : null}
 
               {data.specialization ? (
                 <Chip icon={<Award className="h-3.5 w-3.5" />} tone="accent" size="lg">{data.specialization}</Chip>
