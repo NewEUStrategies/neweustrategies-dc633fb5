@@ -170,7 +170,7 @@ SectionsList.displayName = "SectionsList";
 
 const RenderSection = memo(function RenderSection({ section, lang, device }: { section: SectionNode; lang: "pl"|"en"; device: Device }) {
   const accessCtx = useAccessContext();
-  const visibleCols = section.children.filter((c) => evaluateAccess(c.advanced?.access, accessCtx));
+  const visibleCols = (section.children ?? []).filter((c): c is NonNullable<typeof c> => !!c && evaluateAccess(c.advanced?.access, accessCtx));
   const colsSum = visibleCols.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12), 0) || 12;
   const Tag = (section.layout?.htmlTag ?? "section") as ElementType;
   const bgStyle = backgroundLayerStyle(section.background);
@@ -245,8 +245,8 @@ RenderInner.displayName = "RenderInner";
 const RenderColumn = memo(function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   const va = column.verticalAlign ?? "start";
   const accessCtx = useAccessContext();
-  const visibleChildren = column.children.filter(
-    (w) => !hiddenOnDevice(w.advanced, device) && evaluateAccess(w.advanced?.access, accessCtx),
+  const visibleChildren = (column.children ?? []).filter(
+    (w): w is NonNullable<typeof w> => !!w && !hiddenOnDevice(w.advanced, device) && evaluateAccess(w.advanced?.access, accessCtx),
   );
   const isToolbar =
     visibleChildren.length > 1 &&
