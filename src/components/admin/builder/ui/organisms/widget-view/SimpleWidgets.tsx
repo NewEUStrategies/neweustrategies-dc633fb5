@@ -55,30 +55,49 @@ export function renderSimpleWidget(
     case "divider": {
       const variant = getStr(c, "variant") || "line";
       const thickness = getNum(c, "thickness", 1);
+      // In builder/editable mode, force a visible minimum so freshly added
+      // dividers (thickness 1, default subtle colors) aren't invisible.
+      const lineCls = editable ? "border-foreground/40" : "border-border";
+      const effThickness = editable ? Math.max(thickness, 2) : thickness;
+      const wrapCls = editable
+        ? "py-2 px-1 rounded-[6px] border border-dashed border-foreground/15 bg-foreground/[0.02] relative"
+        : "";
+      const label = editable ? (
+        <span className="pointer-events-none absolute -top-2 left-2 px-1 text-[9px] uppercase tracking-wider text-muted-foreground bg-background rounded">
+          Rozdzielacz
+        </span>
+      ) : null;
+      const wrap = (inner: ReactNode) => editable
+        ? <div className={wrapCls} aria-label="Rozdzielacz">{label}{inner}</div>
+        : <>{inner}</>;
       if (variant === "gradient") {
-        return <div style={{ height: `${thickness}px` }} className="bg-gradient-to-r from-transparent via-border to-transparent" />;
+        return wrap(
+          <div style={{ height: `${effThickness}px` }} className={editable
+            ? "bg-gradient-to-r from-transparent via-foreground/50 to-transparent"
+            : "bg-gradient-to-r from-transparent via-border to-transparent"} />
+        );
       }
       if (variant === "icon") {
         const iconName = getStr(c, "iconName") || "Star";
         const reg = LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
         const Icon = reg[iconName] ?? LucideIcons.Star;
-        return (
+        return wrap(
           <div className="flex items-center gap-3 text-muted-foreground">
-            <div className="flex-1 border-t border-border" style={{ borderTopWidth: thickness }} />
+            <div className={`flex-1 border-t ${lineCls}`} style={{ borderTopWidth: effThickness }} />
             <Icon size={16} />
-            <div className="flex-1 border-t border-border" style={{ borderTopWidth: thickness }} />
+            <div className={`flex-1 border-t ${lineCls}`} style={{ borderTopWidth: effThickness }} />
           </div>
         );
       }
       if (variant === "wave") {
-        return (
-          <svg viewBox="0 0 200 8" preserveAspectRatio="none" className="w-full h-3 text-border">
+        return wrap(
+          <svg viewBox="0 0 200 8" preserveAspectRatio="none" className={`w-full h-3 ${editable ? "text-foreground/50" : "text-border"}`}>
             <path d="M0 4 Q 25 0 50 4 T 100 4 T 150 4 T 200 4" fill="none" stroke="currentColor" strokeWidth="1.5" />
           </svg>
         );
       }
       const styleType = variant === "dashed" ? "dashed" : variant === "dotted" ? "dotted" : variant === "double" ? "double" : "solid";
-      return <hr className="border-border" style={{ borderTopStyle: styleType, borderTopWidth: thickness }} />;
+      return wrap(<hr className={lineCls} style={{ borderTopStyle: styleType, borderTopWidth: effThickness }} />);
     }
     case "spacer": {
       const h = getNum(c, "height", 32);
