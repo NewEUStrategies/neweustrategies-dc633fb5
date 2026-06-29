@@ -104,123 +104,138 @@ function ProfileInline() {
           twitterUrl={data.twitter_url ?? null}
         />
 
-        <section className="rounded-[6px] border border-border bg-card px-6 pt-14 sm:pt-16 pb-5">
-          {/* Top: name + role/admin actions */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] sm:items-end gap-3">
-            <div className="min-w-0 text-center sm:text-left">
-              {editable ? (
-                <InlineText
-                  value={data.display_name || fullName}
-                  onSave={(v) => saveField("display_name", v || null)}
-                  ariaLabel={t("profile.account.displayName")}
-                  placeholder={t("profile.account.displayName")}
-                  emptyLabel={t("profile.account.unnamed")}
-                  variant="title"
-                  maxLength={120}
-                  className="inline-block"
-                />
-              ) : (
-                <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight leading-tight">{fullName}</h1>
-              )}
-
-              {/* Job title + Company badge */}
-              <div className="mt-2 flex flex-row items-center gap-3 flex-wrap">
-                <div className="text-sm text-muted-foreground leading-normal">
-                  {editable ? (
-                    <InlineText
-                      value={data.job_title}
-                      onSave={(v) => saveField("job_title", v || null)}
-                      ariaLabel={t("profile.account.jobTitle")}
-                      placeholder={t("profile.account.jobTitle")}
-                      emptyLabel={t("profile.inline.addJobTitle")}
-                      variant="subtitle"
-                      maxLength={120}
-                      className="inline-block"
-                    />
-                  ) : (
-                    <span>{data.job_title || "-"}</span>
-                  )}
-                </div>
-
-                {data.current_company ? (
-                  <span className="inline-flex items-center gap-2 rounded-[6px] border border-border bg-background px-3 py-1.5 shadow-sm">
-                    <CompanyLogoIcon className="h-7 w-7" />
-                    <span className="text-xs font-medium text-foreground">{data.current_company}</span>
-                  </span>
-                ) : editable ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const v = window.prompt(t("profile.account.currentCompany"));
-                      if (v != null) void saveField("current_company", v.trim() || null);
-                    }}
-                    className="inline-flex items-center gap-2 rounded-[6px] border border-dashed border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground italic hover:bg-accent hover:text-accent-foreground"
-                  >
-                    <CompanyLogoIcon className="h-7 w-7 opacity-60" />
-                    {t("profile.inline.addCompany")}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            {/* Roles + admin shortcut — top-right on desktop */}
-            {/* Ukrywamy role i skrót do panelu admina w widoku publicznym (Podgląd jak gość) - to dane wewnętrzne. */}
-            {!previewAsGuest && roles.length > 0 && (
-              <div className="flex flex-wrap items-center justify-center sm:justify-end gap-1.5 shrink-0">
-                {roles.map((r) => (
-                  <span
-                    key={r}
-                    className="inline-flex items-center gap-1 h-auto rounded-[6px] border border-border bg-background px-2.5 py-1 text-[10px] font-medium leading-[1.2] text-foreground whitespace-nowrap"
-                  >
-                    <ShieldCheck className="h-3 w-3 text-primary" />
-                    {t(`profile.role.${r}`)}
-                  </span>
-                ))}
-                {isStaff && (
-                  <Button asChild size="sm" variant="outline" className="h-auto rounded-[6px] px-2.5 py-1 text-[10px] leading-[1.2] gap-1">
-                    <Link to="/admin" className="!text-foreground inline-flex items-center">
-                      <ShieldCheck className="h-3 w-3" />
-                      {t("profile.inline.adminPanel")}
-                    </Link>
-                  </Button>
-                )}
-              </div>
+        <section className="rounded-[6px] border border-border bg-card px-5 sm:px-6 pt-16 sm:pt-20 pb-5">
+          {/* Name */}
+          <div className="text-center sm:text-left">
+            {editable ? (
+              <InlineText
+                value={data.display_name || fullName}
+                onSave={(v) => saveField("display_name", v || null)}
+                ariaLabel={t("profile.account.displayName")}
+                placeholder={t("profile.account.displayName")}
+                emptyLabel={t("profile.account.unnamed")}
+                variant="title"
+                maxLength={120}
+                className="inline-block"
+              />
+            ) : (
+              <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight leading-[1.1]">{fullName}</h1>
             )}
           </div>
 
-          {/* Divider */}
-          <div className="my-4 h-px bg-border/70" />
+          {/* Job + Company */}
+          <div className="mt-1.5 flex flex-wrap items-center justify-center sm:justify-start gap-x-2 gap-y-1">
+            {editable ? (
+              <InlineText
+                value={data.job_title}
+                onSave={(v) => saveField("job_title", v || null)}
+                ariaLabel={t("profile.account.jobTitle")}
+                placeholder={t("profile.account.jobTitle")}
+                emptyLabel={t("profile.inline.addJobTitle")}
+                variant="subtitle"
+                maxLength={120}
+                className="inline-block"
+              />
+            ) : (
+              <span className="text-[13px] font-medium text-foreground">{data.job_title || "-"}</span>
+            )}
 
-          {/* Meta row: chips left, email right */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+            {data.current_company ? (
+              <>
+                <span className="text-muted-foreground/60 text-[13px]">•</span>
+                <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-foreground">
+                  <CompanyLogoIcon className="h-5 w-5" />
+                  {data.current_company}
+                </span>
+              </>
+            ) : editable ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const v = window.prompt(t("profile.account.currentCompany"));
+                  if (v != null) void saveField("current_company", v.trim() || null);
+                }}
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground italic hover:text-foreground transition-colors"
+              >
+                <CompanyLogoIcon className="h-5 w-5 opacity-60" />
+                {t("profile.inline.addCompany")}
+              </button>
+            ) : null}
+          </div>
 
-              {data.specialization ? (
-                <Chip icon={<Award className="h-3.5 w-3.5" />} tone="accent" size="lg">{data.specialization}</Chip>
-              ) : editable ? (
-                <Chip icon={<Award className="h-3.5 w-3.5" />} tone="muted" size="lg" onClick={() => {
+          {/* Meta pills: specialization, location, email */}
+          <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+            {data.specialization ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground">
+                <Award className="h-3 w-3 text-primary" />
+                {data.specialization}
+              </span>
+            ) : editable ? (
+              <button
+                type="button"
+                onClick={() => {
                   const v = window.prompt(t("profile.account.specialization"));
                   if (v != null) void saveField("specialization", v.trim() || null);
-                }}>{t("profile.inline.addSpecialization")}</Chip>
-              ) : null}
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground italic hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <Award className="h-3 w-3" />
+                {t("profile.inline.addSpecialization")}
+              </button>
+            ) : null}
 
-              {data.location ? (
-                <Chip icon={<MapPin className="h-3.5 w-3.5" />} tone="accent" size="lg">{data.location}</Chip>
-              ) : editable ? (
-                <Chip icon={<MapPin className="h-3.5 w-3.5" />} tone="muted" size="lg" onClick={() => {
+            {data.location ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground">
+                <MapPin className="h-3 w-3 text-primary" />
+                {data.location}
+              </span>
+            ) : editable ? (
+              <button
+                type="button"
+                onClick={() => {
                   const v = window.prompt(t("profile.account.locationPh"));
                   if (v != null) void saveField("location", v.trim() || null);
-                }}>{t("profile.inline.addLocation")}</Chip>
-              ) : null}
-            </div>
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground italic hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <MapPin className="h-3 w-3" />
+                {t("profile.inline.addLocation")}
+              </button>
+            ) : null}
 
             {user?.email && (
-              <div className="flex items-center justify-center sm:justify-end gap-1.5 text-xs text-muted-foreground min-w-0">
-                <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                <a href={`mailto:${user.email}`} className="truncate hover:text-foreground">{user.email}</a>
-              </div>
+              <a
+                href={`mailto:${user.email}`}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-muted/60 transition-colors"
+              >
+                <Mail className="h-3 w-3 text-primary" />
+                <span className="truncate max-w-[200px] sm:max-w-[280px]">{user.email}</span>
+              </a>
             )}
           </div>
+
+          {/* Roles + admin — compact pill row */}
+          {!previewAsGuest && roles.length > 0 && (
+            <div className="mt-2.5 flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
+              {roles.map((r) => (
+                <span
+                  key={r}
+                  className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-primary/[0.08] px-2.5 py-[3px] text-[10px] font-semibold text-primary leading-none whitespace-nowrap"
+                >
+                  <ShieldCheck className="h-3 w-3" />
+                  {t(`profile.role.${r}`)}
+                </span>
+              ))}
+              {isStaff && (
+                <Button asChild size="sm" variant="outline" className="h-6 rounded-full px-3 text-[10px] font-semibold gap-1 border-primary/20 hover:bg-primary/[0.05] hover:text-primary">
+                  <Link to="/admin" className="!text-foreground inline-flex items-center">
+                    <ShieldCheck className="h-3 w-3" />
+                    {t("profile.inline.adminPanel")}
+                  </Link>
+                </Button>
+              )}
+            </div>
+          )}
         </section>
 
 
@@ -575,7 +590,7 @@ function CenteredHero({
 
       {/* Avatar - centered, overlapping */}
       <div
-        className="absolute left-1/2 -translate-x-1/2 -bottom-14 sm:-bottom-16 z-20"
+        className="absolute left-1/2 -translate-x-1/2 -bottom-10 sm:-bottom-12 z-20"
         onMouseEnter={() => setHoverAvatar(true)}
         onMouseLeave={() => setHoverAvatar(false)}
       >
