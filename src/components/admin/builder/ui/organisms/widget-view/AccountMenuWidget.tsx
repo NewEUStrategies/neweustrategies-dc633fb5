@@ -188,9 +188,9 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const authItems = sectionItems("auth");
   const staffItems = sectionItems("staff");
 
-  // Trigger
+  // Trigger - shows the first name from /profile/account
   const fallbackHello = lang === "pl" ? "Hej!" : "Hi!";
-  const triggerLabel = greeting || fallbackHello;
+  const triggerLabel = firstName || displayName || fallbackHello;
   const trigger = session ? (
     <button
       type="button"
@@ -201,7 +201,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       <Avatar className="h-6 w-6">
         {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
         <AvatarFallback className="text-[10px]">
-          {(displayName || user?.email || "?").slice(0, 1).toUpperCase()}
+          {(firstName || displayName || user?.email || "?").slice(0, 1).toUpperCase()}
         </AvatarFallback>
       </Avatar>
       <span className="hidden sm:inline max-w-[200px] truncate">{triggerLabel}</span>
