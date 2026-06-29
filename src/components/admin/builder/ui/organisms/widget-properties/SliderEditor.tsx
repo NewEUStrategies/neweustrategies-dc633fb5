@@ -111,7 +111,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   });
   const hasRealItems = items.some((it) => it.image);
   const previewCfg = {
-    variant, ratio, autoplay: true, intervalMs, rounded, overlayOpacity,
+    variant, ratio, autoplay: true, intervalMs, rounded, overlayOpacity, columns,
     titleSizePx: titleSizePx > 0 ? titleSizePx : undefined,
     titleWeight,
     subtitleSizePx: subtitleSizePx > 0 ? subtitleSizePx : undefined,
