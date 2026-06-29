@@ -1176,3 +1176,120 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   letter-spacing: 0.01em;
 }
 
+
+/* ============================================================
+   Contact form widget — shell, layered backgrounds & 6 animations
+   ============================================================ */
+.cf-shell {
+  position: relative;
+  border-radius: var(--cf-radius, 12px);
+  background: var(--cf-bg-light, hsl(var(--card)));
+  color: var(--cf-text, inherit);
+  overflow: hidden;
+  isolation: isolate;
+}
+.dark .cf-shell { background: var(--cf-bg-dark, var(--cf-bg-light, hsl(var(--card)))); }
+.cf-shell--card { border: 1px solid var(--cf-border, hsl(var(--border))); }
+.cf-shell .cf-inner { position: relative; z-index: 2; padding: var(--cf-padding, 32px); }
+.cf-shell .cf-input {
+  display: block; width: 100%;
+  border: 1px solid var(--cf-border, hsl(var(--border)));
+  background: color-mix(in oklab, hsl(var(--background)) 92%, transparent);
+  border-radius: 6px; padding: 8px 10px;
+  font-size: 14px; line-height: 1.4; color: inherit; outline: none;
+}
+.cf-shell .cf-input:focus { border-color: hsl(var(--primary)); box-shadow: 0 0 0 2px hsl(var(--primary)/0.2); }
+
+/* Image background */
+.cf-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; border-radius: inherit; }
+.cf-bg--image { background-size: cover; background-position: center; }
+.cf-bg__overlay { position: absolute; inset: 0; }
+
+/* 1. Aurora */
+.cf-bg--aurora span {
+  position: absolute; width: 60%; height: 60%; border-radius: 50%;
+  filter: blur(60px); opacity: 0.45; mix-blend-mode: screen;
+  animation: cf-aurora 18s ease-in-out infinite;
+}
+.cf-bg--aurora span:nth-child(1) { top: -20%; left: -10%; background: hsl(var(--primary)); }
+.cf-bg--aurora span:nth-child(2) { bottom: -25%; right: -10%; background: hsl(var(--brand, var(--primary))); animation-delay: -6s; }
+.cf-bg--aurora span:nth-child(3) { top: 30%; left: 40%; background: hsl(var(--accent)); animation-delay: -12s; opacity: 0.3; }
+@keyframes cf-aurora {
+  0%, 100% { transform: translate3d(0,0,0) scale(1); }
+  50%      { transform: translate3d(8%, -6%, 0) scale(1.1); }
+}
+
+/* 2. Mesh drift */
+.cf-bg--mesh {
+  background:
+    radial-gradient(60% 60% at 20% 20%, hsl(var(--primary)/0.25), transparent 60%),
+    radial-gradient(50% 50% at 80% 30%, hsl(var(--accent)/0.22), transparent 60%),
+    radial-gradient(70% 70% at 50% 90%, hsl(var(--brand, var(--primary))/0.2), transparent 60%);
+  background-size: 200% 200%;
+  animation: cf-mesh 22s ease-in-out infinite alternate;
+}
+@keyframes cf-mesh { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+
+/* 3. Floating dots */
+.cf-bg--dots span {
+  position: absolute; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor; opacity: 0.18;
+  animation: cf-float 12s linear infinite;
+}
+@keyframes cf-float {
+  0%   { transform: translateY(0) scale(1);   opacity: 0; }
+  10%  { opacity: 0.18; }
+  90%  { opacity: 0.18; }
+  100% { transform: translateY(-40px) scale(1.4); opacity: 0; }
+}
+
+/* 4. Wave lines */
+.cf-bg--waves svg { display: block; width: 100%; height: 100%; }
+.cf-bg--waves path { fill: hsl(var(--primary)/0.18); animation: cf-wave 8s ease-in-out infinite alternate; transform-origin: center; }
+.cf-bg--waves path:nth-child(2) { animation-duration: 11s; }
+.cf-bg--waves path:nth-child(3) { animation-duration: 14s; }
+@keyframes cf-wave { from { transform: translateX(-2%); } to { transform: translateX(2%); } }
+
+/* 5. Noise shimmer */
+.cf-bg--shimmer {
+  background:
+    repeating-linear-gradient(115deg,
+      transparent 0 60px,
+      hsl(var(--primary)/0.06) 60px 62px),
+    linear-gradient(115deg, transparent 30%, hsl(var(--primary)/0.18) 50%, transparent 70%);
+  background-size: 100% 100%, 200% 100%;
+  animation: cf-shimmer 7s linear infinite;
+}
+@keyframes cf-shimmer { from { background-position: 0 0, -100% 0; } to { background-position: 0 0, 100% 0; } }
+
+/* 6. Orbits */
+.cf-bg--orbits span {
+  position: absolute; left: 50%; top: 50%;
+  border: 1px solid hsl(var(--primary)/0.18);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: cf-orbit 24s linear infinite;
+}
+.cf-bg--orbits span:nth-child(1) { width: 60%; height: 60%; }
+.cf-bg--orbits span:nth-child(2) { width: 80%; height: 80%; animation-duration: 34s; animation-direction: reverse; }
+.cf-bg--orbits span:nth-child(3) { width: 110%; height: 110%; animation-duration: 44s; }
+.cf-bg--orbits span:nth-child(4) {
+  width: 14px; height: 14px; border: none;
+  background: hsl(var(--primary)); opacity: 0.6;
+  margin-left: -7px; margin-top: -7px;
+  animation: cf-orbit-dot 14s linear infinite;
+}
+@keyframes cf-orbit { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes cf-orbit-dot {
+  from { transform: rotate(0deg) translate(120px) rotate(0deg); }
+  to   { transform: rotate(360deg) translate(120px) rotate(-360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-bg--aurora span,
+  .cf-bg--mesh,
+  .cf-bg--dots span,
+  .cf-bg--waves path,
+  .cf-bg--shimmer,
+  .cf-bg--orbits span { animation: none !important; }
+}
