@@ -85,7 +85,7 @@ export function useProfileEditor() {
       const prev = data[field];
       // optimistic
       setData((d) => ({ ...d, [field]: value }));
-      const patch = { [field]: value } as Partial<ProfileEditorRow>;
+      const patch: Record<string, string | null> = { [field as string]: value as string | null };
       const { error } = await supabase
         .from("profiles")
         .update(patch)
