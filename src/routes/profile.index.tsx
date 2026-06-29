@@ -322,9 +322,9 @@ function cap(s: string) {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[120px_1fr] items-center gap-3">
-      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className="min-w-0">{children}</dd>
+    <div className="grid grid-cols-[100px_1fr] items-center gap-2">
+      <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-sm">{children}</dd>
     </div>
   );
 }
@@ -333,11 +333,11 @@ function Stat({ icon, value, label, to }: { icon: React.ReactNode; value: number
   return (
     <Link
       to={to}
-      className="group flex flex-col items-start gap-1 rounded-[6px] border border-border bg-background p-3 transition-colors hover:border-primary/40 hover:bg-primary/5"
+      className="group flex flex-col items-start gap-0.5 rounded-[6px] border border-border bg-background p-2.5 transition-colors hover:border-primary/40 hover:bg-primary/5"
     >
       <span className="text-muted-foreground group-hover:text-primary">{icon}</span>
-      <span className="text-xl font-semibold leading-none">{value}</span>
-      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-base font-semibold leading-none">{value}</span>
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
     </Link>
   );
 }
@@ -346,13 +346,13 @@ function SecondaryLink({ to, icon, children }: { to: string; icon: React.ReactNo
   return (
     <Link
       to={to}
-      className="flex items-center justify-between rounded-[6px] px-3 py-2 text-sm text-foreground/85 transition-colors hover:bg-muted hover:text-foreground"
+      className="flex items-center justify-between rounded-[6px] px-2.5 py-1.5 text-xs text-foreground/85 transition-colors hover:bg-muted hover:text-foreground"
     >
       <span className="flex items-center gap-2">
         <span className="text-muted-foreground">{icon}</span>
         {children}
       </span>
-      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+      <ExternalLink className="h-3 w-3 text-muted-foreground" />
     </Link>
   );
 }
@@ -361,15 +361,15 @@ function ReadOnlyMedia({ avatarUrl, coverUrl, fullName }: { avatarUrl: string | 
   const initial = fullName.trim().charAt(0).toUpperCase() || "·";
   return (
     <div className="relative">
-      <div className="h-40 sm:h-56 md:h-64 w-full overflow-hidden rounded-[6px] border border-border bg-muted">
+      <div className="h-28 sm:h-36 md:h-44 w-full overflow-hidden rounded-[6px] bg-muted">
         {coverUrl && <img src={coverUrl} alt="" className="h-full w-full object-cover" />}
       </div>
-      <div className="absolute left-4 sm:left-6 -bottom-12 sm:-bottom-16">
-        <div className="h-24 w-24 sm:h-32 sm:w-32">
+      <div className="absolute left-4 sm:left-5 -bottom-8 sm:-bottom-10">
+        <div className="h-16 w-16 sm:h-20 sm:w-20">
           {avatarUrl ? (
-            <img src={avatarUrl} alt={fullName} className="h-full w-full rounded-[6px] border-[3px] border-background bg-background object-cover shadow-md" />
+            <img src={avatarUrl} alt={fullName} className="h-full w-full rounded-[6px] ring-2 ring-background bg-background object-cover shadow-sm" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-[6px] border-[3px] border-background bg-gradient-to-br from-primary/30 to-primary/10 text-3xl sm:text-4xl font-semibold text-primary shadow-md">
+            <div className="flex h-full w-full items-center justify-center rounded-[6px] ring-2 ring-background bg-gradient-to-br from-primary/30 to-primary/10 text-xl sm:text-2xl font-semibold text-primary shadow-sm">
               {initial}
             </div>
           )}
@@ -378,3 +378,4 @@ function ReadOnlyMedia({ avatarUrl, coverUrl, fullName }: { avatarUrl: string | 
     </div>
   );
 }
+
