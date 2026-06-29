@@ -26,10 +26,10 @@ import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
 // runs on the server anyway).
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
-function resolveSpan(span: ResponsiveValue<number>, device: Device, deskDefault: number): number {
-  if (device === "mobile") return span.mobile ?? 12;
-  if (device === "tablet") return span.tablet ?? span.desktop ?? deskDefault;
-  return span.desktop ?? deskDefault;
+function resolveSpan(span: ResponsiveValue<number> | undefined, device: Device, deskDefault: number): number {
+  if (device === "mobile") return span?.mobile ?? 12;
+  if (device === "tablet") return span?.tablet ?? span?.desktop ?? deskDefault;
+  return span?.desktop ?? deskDefault;
 }
 
 
