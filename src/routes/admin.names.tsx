@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Trash2, Plus, Search, Download, Upload, Radio } from "@/lib/lucide-shim";
+import { Trash2, Plus, Search, Download, Upload, Circle as Radio } from "@/lib/lucide-shim";
 import { normalize, type Gender } from "@/lib/greetings/greetings";
 
 export const Route = createFileRoute("/admin/names")({
