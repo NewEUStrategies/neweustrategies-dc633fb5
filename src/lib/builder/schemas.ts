@@ -25,8 +25,8 @@ export interface SchemaField {
   min?: number;
   max?: number;
   step?: number;
-  /** Optional default value used when content has no value yet (number fields). */
-  default?: number;
+  /** Optional default value used when content has no value yet. */
+  default?: number | string;
   /** For select fields. */
   options?: ReadonlyArray<{ value: string; label?: string }>;
   /** For textarea fields. */
