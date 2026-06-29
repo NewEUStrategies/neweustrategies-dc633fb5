@@ -21,7 +21,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Trash2, Plus, Search, Download, Upload, Circle as Radio } from "@/lib/lucide-shim";
+import { Trash2, Plus, Search, Download, Upload, Circle as Radio, Loader2 } from "@/lib/lucide-shim";
 
 import { normalize, type Gender } from "@/lib/greetings/greetings";
 
