@@ -100,10 +100,10 @@ export function ProfileMediaPreview({
                 <img
                   src={avatarUrl}
                   alt={fullName}
-                  className="h-20 w-20 sm:h-24 sm:w-24 rounded-full object-cover border-[3px] border-background shadow-md bg-background"
+                  className="h-20 w-20 sm:h-24 sm:w-24 rounded-[6px] object-cover border-[3px] border-background shadow-md bg-background"
                 />
               ) : (
-                <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-full bg-muted border-[3px] border-background shadow-md flex items-center justify-center text-xs text-muted-foreground">
+                <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-[6px] bg-muted border-[3px] border-background shadow-md flex items-center justify-center text-xs text-muted-foreground">
                   {t("profile.account.avatarPlaceholder")}
                 </div>
               )}
