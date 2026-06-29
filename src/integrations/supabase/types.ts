@@ -467,9 +467,74 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_form_settings: {
+        Row: {
+          auto_reply_body_en: string
+          auto_reply_body_pl: string
+          auto_reply_enabled: boolean
+          auto_reply_subject_en: string
+          auto_reply_subject_pl: string
+          created_at: string
+          default_recipient: string | null
+          from_address: string | null
+          from_name: string | null
+          newsletter_double_optin: boolean
+          notify_admin_enabled: boolean
+          notify_admin_subject_en: string
+          notify_admin_subject_pl: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          auto_reply_body_en?: string
+          auto_reply_body_pl?: string
+          auto_reply_enabled?: boolean
+          auto_reply_subject_en?: string
+          auto_reply_subject_pl?: string
+          created_at?: string
+          default_recipient?: string | null
+          from_address?: string | null
+          from_name?: string | null
+          newsletter_double_optin?: boolean
+          notify_admin_enabled?: boolean
+          notify_admin_subject_en?: string
+          notify_admin_subject_pl?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          auto_reply_body_en?: string
+          auto_reply_body_pl?: string
+          auto_reply_enabled?: boolean
+          auto_reply_subject_en?: string
+          auto_reply_subject_pl?: string
+          created_at?: string
+          default_recipient?: string | null
+          from_address?: string | null
+          from_name?: string | null
+          newsletter_double_optin?: boolean
+          notify_admin_enabled?: boolean
+          notify_admin_subject_en?: string
+          notify_admin_subject_pl?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_form_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_messages: {
         Row: {
+          archived_at: string | null
+          assigned_to: string | null
           company: string | null
+          confirmation_sent_at: string | null
           consent: boolean
           created_at: string
           email: string
@@ -477,15 +542,23 @@ export type Database = {
           lang: string
           message: string
           name: string
+          newsletter_opt_in: boolean
           phone: string | null
+          read_at: string | null
           recipient: string | null
+          source: string | null
           status: string
           subject: string | null
+          tags: string[]
           tenant_id: string
           updated_at: string
+          user_agent: string | null
         }
         Insert: {
+          archived_at?: string | null
+          assigned_to?: string | null
           company?: string | null
+          confirmation_sent_at?: string | null
           consent?: boolean
           created_at?: string
           email: string
@@ -493,15 +566,23 @@ export type Database = {
           lang?: string
           message: string
           name: string
+          newsletter_opt_in?: boolean
           phone?: string | null
+          read_at?: string | null
           recipient?: string | null
+          source?: string | null
           status?: string
           subject?: string | null
+          tags?: string[]
           tenant_id?: string
           updated_at?: string
+          user_agent?: string | null
         }
         Update: {
+          archived_at?: string | null
+          assigned_to?: string | null
           company?: string | null
+          confirmation_sent_at?: string | null
           consent?: boolean
           created_at?: string
           email?: string
@@ -509,12 +590,17 @@ export type Database = {
           lang?: string
           message?: string
           name?: string
+          newsletter_opt_in?: boolean
           phone?: string | null
+          read_at?: string | null
           recipient?: string | null
+          source?: string | null
           status?: string
           subject?: string | null
+          tags?: string[]
           tenant_id?: string
           updated_at?: string
+          user_agent?: string | null
         }
         Relationships: []
       }
