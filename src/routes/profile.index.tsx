@@ -13,6 +13,8 @@ import { useProfileEditor } from "@/lib/profile/useProfileEditor";
 import { InlineText } from "@/components/profile/inline/InlineText";
 import { InlineTextarea } from "@/components/profile/inline/InlineTextarea";
 import { InlineMedia } from "@/components/profile/inline/InlineMedia";
+import { ProfileExtraSections } from "@/components/profile/sections/ProfileExtraSections";
+import "@/lib/i18n-profile-extras2";
 
 export const Route = createFileRoute("/profile/")({
   component: ProfileInline,
