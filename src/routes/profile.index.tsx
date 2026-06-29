@@ -506,7 +506,9 @@ function CenteredHero({
   linkedinUrl: string | null;
   twitterUrl: string | null;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language?.startsWith("pl") ? "pl" : "en";
+
   const avatarInput = useRef<HTMLInputElement | null>(null);
   const coverInput = useRef<HTMLInputElement | null>(null);
   const [hoverCover, setHoverCover] = useState(false);
