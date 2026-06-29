@@ -144,7 +144,7 @@ function ProfileInline() {
             {data.current_company ? (
               <>
                 <span className="inline-flex h-[24px] items-center text-[13px] leading-none text-muted-foreground/60">•</span>
-                <span className="inline-grid min-h-[24px] max-w-full grid-cols-[20px_minmax(0,1fr)] items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-foreground">
+                <span className="inline-flex min-h-[24px] max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-foreground align-middle">
                   <CompanyLogoIcon className="h-5 w-5 shrink-0 self-center object-contain" />
                   <span className="min-w-0 leading-[1.2]">{data.current_company}</span>
                 </span>
@@ -156,7 +156,7 @@ function ProfileInline() {
                   const v = window.prompt(t("profile.account.currentCompany"));
                   if (v != null) void saveField("current_company", v.trim() || null);
                 }}
-                className="inline-grid min-h-[24px] grid-cols-[20px_minmax(0,1fr)] items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-muted-foreground italic transition-colors hover:text-foreground"
+                className="inline-flex min-h-[24px] max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-muted-foreground italic align-middle transition-colors hover:text-foreground"
               >
                 <CompanyLogoIcon className="h-5 w-5 shrink-0 self-center object-contain opacity-60" />
                 <span className="min-w-0 leading-[1.2]">{t("profile.inline.addCompany")}</span>
