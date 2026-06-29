@@ -88,7 +88,7 @@ export function useProfileEditor() {
       const patch = { [field]: value } as { [P in K]: ProfileEditorRow[P] };
       const { error } = await supabase
         .from("profiles")
-        .update(patch)
+        .update(patch as never)
         .eq("id", user.id);
       if (error) {
         setData((d) => ({ ...d, [field]: prev }));
