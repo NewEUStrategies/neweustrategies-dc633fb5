@@ -65,7 +65,7 @@ function ProfileInline() {
 
   return (
     <TooltipProvider>
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* HERO: cover + avatar */}
         <section className="relative">
           {editable ? (
@@ -83,23 +83,24 @@ function ProfileInline() {
           )}
 
           {/* Top-right preview toggle */}
-          <div className="absolute right-3 top-3 z-10">
+          <div className="absolute right-2.5 top-2.5 z-10">
             <Button
               type="button"
               size="sm"
               variant={previewAsGuest ? "default" : "secondary"}
               onClick={() => setPreviewAsGuest((v) => !v)}
-              className="shadow-sm"
+              className="h-7 px-2.5 text-[11px] shadow-sm"
             >
-              {previewAsGuest ? <Pencil className="mr-1.5 h-3.5 w-3.5" /> : <Eye className="mr-1.5 h-3.5 w-3.5" />}
+              {previewAsGuest ? <Pencil className="mr-1 h-3 w-3" /> : <Eye className="mr-1 h-3 w-3" />}
               {previewAsGuest ? t("profile.inline.editMode") : t("profile.inline.viewAsGuest")}
             </Button>
           </div>
         </section>
 
         {/* IDENTITY block (offset to clear the overlapping avatar) */}
-        <section className="pl-4 pr-4 pt-14 sm:pl-44 sm:pr-6 sm:pt-4">
-          <div className="space-y-1.5">
+        <section className="pl-4 pr-4 pt-10 sm:pl-28 sm:pr-2 sm:pt-2">
+          <div className="space-y-1">
+
             {editable ? (
               <InlineText
                 value={data.display_name || fullName}
