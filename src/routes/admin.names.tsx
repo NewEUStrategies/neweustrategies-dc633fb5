@@ -792,6 +792,25 @@ function AdminNamesPage() {
           </CardContent>
         </Card>
 
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-xs text-muted-foreground">
+              {L ? "Strona" : "Page"} <strong>{page}</strong> {L ? "z" : "of"} <strong>{totalPages}</strong>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="outline" onClick={() => setPage(1)} disabled={page === 1}>«</Button>
+              <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+                {L ? "Poprzednia" : "Previous"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                {L ? "Następna" : "Next"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setPage(totalPages)} disabled={page === totalPages}>»</Button>
+            </div>
+          </div>
+        )}
+
+
         <p className="text-xs text-muted-foreground">
           {L
             ? "Format CSV: key, display_name, vocative, instrumental, genitive, dative, english_form, gender (male/female/neutral), is_compound (true/false), origin, notes. Duplikaty po `key` są pomijane - chyba że wnoszą nowe wartości w pustych kolumnach (wtedy są scalane)."
