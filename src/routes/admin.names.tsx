@@ -314,11 +314,26 @@ function AdminNamesPage() {
 
   const PAGE_SIZE = 100;
   const [page, setPage] = useState(1);
+  const [pageChanging, setPageChanging] = useState(false);
+  const pageChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   useEffect(() => { setPage(1); }, [query, filterGender, filterCountry, filterCompound]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const pageStart = (page - 1) * PAGE_SIZE;
   const pageRows = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
+  const goToPage = (next: number | ((p: number) => number)) => {
+    setPage((p) => {
+      const target = typeof next === "function" ? next(p) : next;
+      const clamped = Math.min(totalPages, Math.max(1, target));
+      if (clamped === p) return p;
+      setPageChanging(true);
+      if (pageChangeTimer.current) clearTimeout(pageChangeTimer.current);
+      pageChangeTimer.current = setTimeout(() => setPageChanging(false), 320);
+      return clamped;
+    });
+  };
+  useEffect(() => () => { if (pageChangeTimer.current) clearTimeout(pageChangeTimer.current); }, []);
 
 
   const addOne = async () => {
