@@ -2218,6 +2218,7 @@ export type Database = {
           phone: string | null
           prefs: Json
           slug: string | null
+          specialization: string | null
           spotify_url: string | null
           tenant_id: string
           twitter_url: string | null
@@ -2247,6 +2248,7 @@ export type Database = {
           phone?: string | null
           prefs?: Json
           slug?: string | null
+          specialization?: string | null
           spotify_url?: string | null
           tenant_id: string
           twitter_url?: string | null
@@ -2276,6 +2278,7 @@ export type Database = {
           phone?: string | null
           prefs?: Json
           slug?: string | null
+          specialization?: string | null
           spotify_url?: string | null
           tenant_id?: string
           twitter_url?: string | null
