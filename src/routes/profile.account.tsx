@@ -37,6 +37,8 @@ export const Route = createFileRoute("/profile/account")({
   component: AccountPage,
 });
 
+type Gender = "male" | "female" | "neutral";
+
 interface ProfileRow {
   display_name: string | null;
   first_name: string | null;
@@ -49,6 +51,7 @@ interface ProfileRow {
   avatar_url: string | null;
   cover_url: string | null;
   tenant_id: string | null;
+  gender: Gender | null;
 }
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/avif";
