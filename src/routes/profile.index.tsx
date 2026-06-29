@@ -123,22 +123,43 @@ function ProfileInline() {
                 <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight leading-tight">{fullName}</h1>
               )}
 
-              {/* Job title */}
-              <div className="mt-0.5 text-sm text-muted-foreground">
-                {editable ? (
-                  <InlineText
-                    value={data.job_title}
-                    onSave={(v) => saveField("job_title", v || null)}
-                    ariaLabel={t("profile.account.jobTitle")}
-                    placeholder={t("profile.account.jobTitle")}
-                    emptyLabel={t("profile.inline.addJobTitle")}
-                    variant="subtitle"
-                    maxLength={120}
-                    className="inline-block"
-                  />
-                ) : (
-                  <span>{data.job_title || "-"}</span>
-                )}
+              {/* Job title + Company badge */}
+              <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="text-sm text-muted-foreground leading-normal">
+                  {editable ? (
+                    <InlineText
+                      value={data.job_title}
+                      onSave={(v) => saveField("job_title", v || null)}
+                      ariaLabel={t("profile.account.jobTitle")}
+                      placeholder={t("profile.account.jobTitle")}
+                      emptyLabel={t("profile.inline.addJobTitle")}
+                      variant="subtitle"
+                      maxLength={120}
+                      className="inline-block"
+                    />
+                  ) : (
+                    <span>{data.job_title || "-"}</span>
+                  )}
+                </div>
+
+                {data.current_company ? (
+                  <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-[6px] border border-border bg-background px-3 py-1.5 shadow-sm">
+                    <CompanyLogoIcon className="h-5 w-5" />
+                    <span className="text-xs font-medium text-foreground">{data.current_company}</span>
+                  </span>
+                ) : editable ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const v = window.prompt(t("profile.account.currentCompany"));
+                      if (v != null) void saveField("current_company", v.trim() || null);
+                    }}
+                    className="inline-flex items-center gap-2 self-start rounded-[6px] border border-dashed border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground italic hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <CompanyLogoIcon className="h-5 w-5 opacity-60" />
+                    {t("profile.inline.addCompany")}
+                  </button>
+                ) : null}
               </div>
             </div>
 
