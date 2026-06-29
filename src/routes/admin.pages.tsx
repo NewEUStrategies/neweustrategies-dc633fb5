@@ -172,7 +172,11 @@ function PagesList() {
     });
   }, [pages, isTrash, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo]);
 
-  const allIds = useMemo(() => filteredPages.map((p) => p.id), [filteredPages]);
+  const pagedPages = useMemo(() => {
+    const startIdx = (page - 1) * pageSize;
+    return filteredPages.slice(startIdx, startIdx + pageSize);
+  }, [filteredPages, page, pageSize]);
+  const allIds = useMemo(() => pagedPages.map((p) => p.id), [pagedPages]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0 && !allSelected;
 
