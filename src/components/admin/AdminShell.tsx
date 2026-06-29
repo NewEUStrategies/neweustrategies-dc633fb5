@@ -85,6 +85,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
       label: t("admin.navGroups.engagement"),
       items: [
         { to: "/admin/newsletter", icon: Mail, label: t("admin.nav.newsletter") },
+        { to: "/admin/contact", icon: Inbox, label: t("admin.nav.contact", { defaultValue: lang === "pl" ? "Centrum kontaktu" : "Contact center" }) },
         { to: "/admin/podcasts", icon: Mic, label: t("admin.nav.podcasts") },
         { to: "/admin/web-stories", icon: Film, label: t("admin.nav.webStories") },
         { to: "/admin/personalized", icon: Wand2, label: t("admin.nav.personalized") },
