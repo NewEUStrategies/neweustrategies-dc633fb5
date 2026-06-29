@@ -67,6 +67,11 @@ export function VisualCanvas({
     const isLibraryDrag = (e: DragEvent) =>
       !!e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("application/x-widget-type");
 
+    const setDragging = (on: boolean) => {
+      if (on) root.setAttribute("data-canvas-dragging", "1");
+      else root.removeAttribute("data-canvas-dragging");
+    };
+
     const onDragStart = (e: DragEvent) => {
       const t = e.target as HTMLElement;
       const w = t.closest?.("[data-widget-id]") as HTMLElement | null;
@@ -75,6 +80,7 @@ export function VisualCanvas({
         dragRef.current = { kind: "widget", id: w.dataset.widgetId };
         e.dataTransfer?.setData("text/plain", w.dataset.widgetId);
         if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+        setDragging(true);
         return;
       }
       const s = t.closest?.("[data-sec-id]") as HTMLElement | null;
@@ -82,8 +88,11 @@ export function VisualCanvas({
         dragRef.current = { kind: "section", id: s.dataset.secId };
         e.dataTransfer?.setData("text/plain", s.dataset.secId);
         if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+        setDragging(true);
       }
     };
+
+    const onDragEnd = () => { setDragging(false); clearDropMarkers(); };
 
     const onDragOver = (e: DragEvent) => {
       const lib = isLibraryDrag(e);
