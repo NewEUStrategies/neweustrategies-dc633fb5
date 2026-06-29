@@ -75,9 +75,9 @@ export function InlineText({
 
   const variantCls =
     variant === "title"
-      ? "text-xl sm:text-2xl font-semibold tracking-tight leading-tight"
+      ? "text-[26px] sm:text-[32px] font-bold tracking-tight leading-[1.1]"
       : variant === "subtitle"
-        ? "text-sm sm:text-base text-foreground/85"
+        ? "text-[13px] font-medium text-foreground/85"
         : variant === "muted"
           ? "text-xs sm:text-sm text-muted-foreground"
           : "text-sm";
