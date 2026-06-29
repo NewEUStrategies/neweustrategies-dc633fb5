@@ -232,6 +232,26 @@ export function VisualCanvas({
     [data-visual-canvas] .is-drop-before::before{top:-2px}
     [data-visual-canvas] .is-drop-after::after{bottom:-2px}
     [data-visual-canvas] .is-drop-into{outline:2px dashed var(--brand) !important;outline-offset:-2px;background:color-mix(in oklab, var(--brand) 6%, transparent)}
+    /* Section separator becomes prominent during any drag operation */
+    [data-visual-canvas][data-canvas-dragging="1"] [data-section-inserter]{
+      margin-top:10px;margin-bottom:10px;
+    }
+    [data-visual-canvas][data-canvas-dragging="1"] [data-section-inserter] > button{
+      height:44px !important;
+      border:2px dashed var(--brand) !important;
+      background:color-mix(in oklab, var(--brand) 10%, transparent) !important;
+      color:var(--brand) !important;
+      font-weight:600;
+      box-shadow:0 0 0 4px color-mix(in oklab, var(--brand) 14%, transparent);
+      animation:cms-dz-pulse 1.2s ease-in-out infinite;
+    }
+    [data-visual-canvas][data-canvas-dragging="1"] [data-section-inserter] > button svg{
+      opacity:1 !important;width:14px;height:14px;
+    }
+    @keyframes cms-dz-pulse{
+      0%,100%{box-shadow:0 0 0 4px color-mix(in oklab, var(--brand) 14%, transparent)}
+      50%{box-shadow:0 0 0 6px color-mix(in oklab, var(--brand) 28%, transparent)}
+    }
     [data-visual-canvas] a{pointer-events:none}
     [data-visual-canvas] button{pointer-events:none}
     [data-visual-canvas] [data-section-inserter] button,
