@@ -272,6 +272,7 @@ export const WIDGETS: WidgetDef[] = [
       intervalMs: 4500,
       rounded: "md",
       overlayOpacity: 0.45,
+      columns: 3,
       items: [],
     }) },
 

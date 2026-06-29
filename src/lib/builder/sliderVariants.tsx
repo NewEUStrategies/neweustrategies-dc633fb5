@@ -54,6 +54,8 @@ export interface SliderConfig {
   titleWeight?: number;
   subtitleSizePx?: number;
   subtitleWeight?: number;
+  /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
+  columns?: 1 | 2 | 3 | 4;
 }
 
 const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
@@ -205,9 +207,9 @@ const SHARED_STYLES = `
 /* Multi-card carousel track */
 .eh-slider .eh-track { display: flex; gap: 16px; will-change: transform; transition: transform 480ms cubic-bezier(.22,.61,.36,1); }
 .eh-slider .eh-track.is-dragging { transition: none; }
-.eh-slider .eh-card { flex: 0 0 auto; width: calc((100% - 32px) / 3); }
-@media (max-width: 1024px) { .eh-slider .eh-card { width: calc((100% - 16px) / 2); } }
-@media (max-width: 640px) { .eh-slider .eh-card { width: 100%; } .eh-slider .eh-track { gap: 12px; } }
+.eh-slider .eh-card { flex: 0 0 auto; }
+@media (max-width: 1024px) { .eh-slider .eh-card { width: calc((100% - 16px) / 2) !important; } }
+@media (max-width: 640px) { .eh-slider .eh-card { width: 100% !important; } .eh-slider .eh-track { gap: 12px !important; } }
 `;
 
 interface NavArrowsProps {
@@ -344,7 +346,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
 
   const [idx, setIdx] = useState(0);
   useEffect(() => { setIdx(0); }, [items.length]);
-  const visibleCount = variant === "multi-card" ? 3 : 1;
+  const columns = Math.max(1, Math.min(4, config.columns ?? 3)) as 1 | 2 | 3 | 4;
+  const visibleCount = variant === "multi-card" ? columns : 1;
   const stepCount = Math.max(1, items.length - (variant === "multi-card" ? visibleCount - 1 : 0));
   useEffect(() => {
     if (preview || !autoplay || items.length < 2) return;
@@ -417,7 +420,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     titleStyle, subtitleStyle, rounded, ratio, aspectStyle,
     overlayOpacity, fallbackImages, markImageFailed,
     dragRef, dragDx, onPointerDown, onPointerMove, endDrag,
-    navigateTo,
+    navigateTo, columns,
   };
 
   return (
@@ -459,6 +462,7 @@ type VariantProps = {
   onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
   endDrag: (e: React.PointerEvent<HTMLDivElement>) => void;
   navigateTo: (href?: string) => void;
+  columns: 1 | 2 | 3 | 4;
 };
 
 function pickSlideStrings(it: SliderItem, lang: "pl" | "en") {
@@ -578,7 +582,10 @@ function EditorialHeroVariant(p: VariantProps) {
 function MultiCardVariant(p: VariantProps) {
   // Card has its own ratio - use 4/3 visual ratio per slide image.
   const dragging = p.dragRef.current.active;
-  const trackTransform = `translate3d(calc(${-p.safeIdx * (100 / 3)}% + ${p.dragDx}px), 0, 0)`;
+  const cols = p.columns;
+  const gapPx = 16;
+  const cardWidth = `calc((100% - ${(cols - 1) * gapPx}px) / ${cols})`;
+  const trackTransform = `translate3d(calc(${-p.safeIdx * (100 / cols)}% + ${p.dragDx}px), 0, 0)`;
   return (
     <div className="relative">
       <div
@@ -586,11 +593,12 @@ function MultiCardVariant(p: VariantProps) {
         onPointerDown={p.onPointerDown} onPointerMove={p.onPointerMove}
         onPointerUp={p.endDrag} onPointerCancel={p.endDrag}
       >
-        <div className={`eh-track ${dragging ? "is-dragging" : ""}`} style={{ transform: trackTransform }}>
+        <div className={`eh-track ${dragging ? "is-dragging" : ""}`} style={{ transform: trackTransform, gap: `${gapPx}px` }}>
           {p.items.map((it, i) => {
             const { title, sub, cat, href, catColor } = pickSlideStrings(it, p.lang);
             return (
-              <article key={i} className="eh-card group">
+              <article key={i} className="eh-card group" style={{ width: cardWidth, flex: "0 0 auto" }}>
+
                 <div
                   className={`relative overflow-hidden bg-muted ${href ? "cursor-pointer" : ""}`}
                   style={{ aspectRatio: "4 / 3", borderRadius: p.rounded }}
@@ -645,7 +653,7 @@ function MultiCardVariant(p: VariantProps) {
           })}
         </div>
       </div>
-      <DotsNav count={Math.max(1, p.items.length - 2)} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} />
+      <DotsNav count={Math.max(1, p.items.length - (p.columns - 1))} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} />
     </div>
   );
 }

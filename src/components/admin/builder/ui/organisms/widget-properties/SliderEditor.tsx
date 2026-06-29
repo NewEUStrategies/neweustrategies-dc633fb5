@@ -43,6 +43,8 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const titleWeight = typeof c.titleWeight === "number" ? c.titleWeight : 700;
   const subtitleSizePx = typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : 0;
   const subtitleWeight = typeof c.subtitleWeight === "number" ? c.subtitleWeight : 400;
+  const columnsRaw = typeof c.columns === "number" ? c.columns : 3;
+  const columns = (Math.max(1, Math.min(4, columnsRaw)) as 1 | 2 | 3 | 4);
 
 
   const rawItems = Array.isArray(c.items) ? (c.items as unknown[]) : [];
@@ -109,7 +111,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   });
   const hasRealItems = items.some((it) => it.image);
   const previewCfg = {
-    variant, ratio, autoplay: true, intervalMs, rounded, overlayOpacity,
+    variant, ratio, autoplay: true, intervalMs, rounded, overlayOpacity, columns,
     titleSizePx: titleSizePx > 0 ? titleSizePx : undefined,
     titleWeight,
     subtitleSizePx: subtitleSizePx > 0 ? subtitleSizePx : undefined,
@@ -171,6 +173,29 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           })}
         </div>
       </div>
+
+      {/* Columns (only for multi-card carousel) */}
+      {variant === "multi-card" && (
+        <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Układ karuzeli</div>
+          <PropField label="Liczba kolumn (desktop)">
+            <Select value={String(columns)} onValueChange={(v) => setContent("columns", Number(v))}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 kolumna</SelectItem>
+                <SelectItem value="2">2 kolumny</SelectItem>
+                <SelectItem value="3">3 kolumny</SelectItem>
+                <SelectItem value="4">4 kolumny</SelectItem>
+              </SelectContent>
+            </Select>
+          </PropField>
+          <div className="text-[10px] text-muted-foreground/80 leading-snug">
+            Tablet automatycznie 2 kolumny, mobile 1 kolumna.
+          </div>
+        </div>
+      )}
+
+
 
 
       {/* Source */}
