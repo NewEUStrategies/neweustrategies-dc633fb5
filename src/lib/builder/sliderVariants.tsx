@@ -420,7 +420,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     titleStyle, subtitleStyle, rounded, ratio, aspectStyle,
     overlayOpacity, fallbackImages, markImageFailed,
     dragRef, dragDx, onPointerDown, onPointerMove, endDrag,
-    navigateTo,
+    navigateTo, columns,
   };
 
   return (
