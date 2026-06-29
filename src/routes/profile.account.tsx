@@ -206,6 +206,7 @@ function AccountPage() {
         bio: data.bio,
         avatar_url: data.avatar_url,
         cover_url: data.cover_url,
+        gender: data.gender,
       })
       .eq("id", user.id);
     setBusy(false);
