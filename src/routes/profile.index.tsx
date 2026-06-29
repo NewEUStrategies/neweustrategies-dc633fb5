@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRef, useState, type ReactNode } from "react";
 import {
   Eye, Pencil, Mail, MapPin, Briefcase, ShieldCheck, Receipt, Bookmark, Users,
-  Sparkles, Globe, ExternalLink, Camera, Image as ImageIcon, Loader2, Linkedin,
+  Award, Activity, Tag, Globe, ExternalLink, Camera, Image as ImageIcon, Loader2, Linkedin,
   Twitter, Phone, User as UserIcon, Cake, Heart,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -172,29 +172,29 @@ function ProfileInline() {
 
           {/* Meta row: chips left, email right */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
               {data.current_company ? (
-                <Chip icon={<CompanyLogoIcon />} tone="primary">{data.current_company}</Chip>
+                <Chip icon={<CompanyLogoIcon />} tone="solid" size="lg">{data.current_company}</Chip>
               ) : editable ? (
-                <Chip icon={<CompanyLogoIcon />} tone="muted" onClick={() => {
+                <Chip icon={<CompanyLogoIcon />} tone="muted" size="lg" onClick={() => {
                   const v = window.prompt(t("profile.account.currentCompany"));
                   if (v != null) void saveField("current_company", v.trim() || null);
                 }}>{t("profile.inline.addCompany")}</Chip>
               ) : null}
 
               {data.specialization ? (
-                <Chip icon={<Sparkles className="h-3 w-3" />} tone="primary">{data.specialization}</Chip>
+                <Chip icon={<Award className="h-3.5 w-3.5" />} tone="accent" size="lg">{data.specialization}</Chip>
               ) : editable ? (
-                <Chip icon={<Sparkles className="h-3 w-3" />} tone="muted" onClick={() => {
+                <Chip icon={<Award className="h-3.5 w-3.5" />} tone="muted" size="lg" onClick={() => {
                   const v = window.prompt(t("profile.account.specialization"));
                   if (v != null) void saveField("specialization", v.trim() || null);
                 }}>{t("profile.inline.addSpecialization")}</Chip>
               ) : null}
 
               {data.location ? (
-                <Chip icon={<MapPin className="h-3 w-3" />} tone="muted">{data.location}</Chip>
+                <Chip icon={<MapPin className="h-3.5 w-3.5" />} tone="accent" size="lg">{data.location}</Chip>
               ) : editable ? (
-                <Chip icon={<MapPin className="h-3 w-3" />} tone="muted" onClick={() => {
+                <Chip icon={<MapPin className="h-3.5 w-3.5" />} tone="muted" size="lg" onClick={() => {
                   const v = window.prompt(t("profile.account.locationPh"));
                   if (v != null) void saveField("location", v.trim() || null);
                 }}>{t("profile.inline.addLocation")}</Chip>
@@ -243,7 +243,7 @@ function ProfileInline() {
             {tab === "about" && (
               <>
                 <Card
-                  icon={<Sparkles className="h-3.5 w-3.5" />}
+                  icon={<Activity className="h-3.5 w-3.5" />}
                   title={t("profile.account.bio")}
                 >
                   {editable ? (
@@ -394,17 +394,17 @@ function ProfileInline() {
 
             {tab === "activity" && (
               <>
-                <Card icon={<Sparkles className="h-3.5 w-3.5" />} title={t("profile.inline.activitySection")}>
+                <Card icon={<Activity className="h-3.5 w-3.5" />} title={t("profile.inline.activitySection")}>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <Stat icon={<Bookmark className="h-3.5 w-3.5" />} value={counts.data?.bookmarks ?? 0} label={t("profile.nav.bookmarks")} to="/profile/bookmarks" />
                     <Stat icon={<Users className="h-3.5 w-3.5" />} value={counts.data?.authors ?? 0} label={t("profile.follows.tabAuthors")} to="/profile/follows" />
                     <Stat icon={<Globe className="h-3.5 w-3.5" />} value={counts.data?.categories ?? 0} label={t("profile.follows.tabCategories")} to="/profile/follows" />
-                    <Stat icon={<Sparkles className="h-3.5 w-3.5" />} value={counts.data?.tags ?? 0} label={t("profile.follows.tabTags")} to="/profile/follows" />
+                    <Stat icon={<Tag className="h-3.5 w-3.5" />} value={counts.data?.tags ?? 0} label={t("profile.follows.tabTags")} to="/profile/follows" />
                   </div>
                 </Card>
                 <Card icon={<Globe className="h-3.5 w-3.5" />} title={t("profile.inline.shortcuts")}>
                   <div className="grid gap-1">
-                    <SecondaryLink to="/profile/interests" icon={<Sparkles className="h-3.5 w-3.5" />}>{t("profile.nav.interests")}</SecondaryLink>
+                    <SecondaryLink to="/profile/interests" icon={<Heart className="h-3.5 w-3.5" />}>{t("profile.nav.interests")}</SecondaryLink>
                     <SecondaryLink to="/profile/social" icon={<ExternalLink className="h-3.5 w-3.5" />}>{t("profile.nav.social")}</SecondaryLink>
                     <SecondaryLink to="/profile/billing" icon={<Receipt className="h-3.5 w-3.5" />}>{t("profile.nav.billing")}</SecondaryLink>
                     <SecondaryLink to="/profile/subscription" icon={<ShieldCheck className="h-3.5 w-3.5" />}>{t("profile.nav.subscription")}</SecondaryLink>
@@ -705,12 +705,22 @@ function CompanyLogoIcon() {
   );
 }
 
-function Chip({ icon, children, tone = "muted", onClick }: { icon?: ReactNode; children: ReactNode; tone?: "primary" | "muted"; onClick?: () => void }) {
-  // Ujednolicony styl: identyczny rozmiar/padding/outline jak role-badge i
-  // przycisk "Panel administracyjny" (Button size="sm" variant="outline").
+function Chip({ icon, children, tone = "muted", size = "sm", onClick }: { icon?: ReactNode; children: ReactNode; tone?: "primary" | "muted" | "solid" | "accent"; size?: "sm" | "lg"; onClick?: () => void }) {
+  const sizeCls = size === "lg"
+    ? "h-8 px-3 py-1.5 text-xs gap-1.5"
+    : "h-auto px-2.5 py-1 text-[10px] gap-1";
+  const toneCls =
+    tone === "solid"
+      ? "border border-primary/30 bg-primary/10 text-foreground [&_svg]:text-primary shadow-sm"
+      : tone === "accent"
+      ? "border border-border bg-muted/60 text-foreground [&_svg]:text-primary"
+      : tone === "primary"
+      ? "border border-border bg-background text-foreground [&_svg]:text-primary"
+      : "border border-border bg-background text-foreground/80 [&_svg]:text-muted-foreground";
   const cls = cn(
-    "inline-flex items-center gap-1 h-auto rounded-[6px] border border-border bg-background px-2.5 py-1 text-[10px] font-medium leading-[1.2] whitespace-nowrap transition-colors",
-    tone === "primary" ? "text-foreground [&_svg]:text-primary" : "text-foreground/80 [&_svg]:text-muted-foreground",
+    "inline-flex items-center rounded-[6px] font-medium leading-[1.2] whitespace-nowrap transition-colors",
+    sizeCls,
+    toneCls,
     onClick && "cursor-pointer border-dashed italic hover:bg-accent hover:text-accent-foreground",
   );
   if (onClick) return <button type="button" onClick={onClick} className={cls}>{icon}{children}</button>;
