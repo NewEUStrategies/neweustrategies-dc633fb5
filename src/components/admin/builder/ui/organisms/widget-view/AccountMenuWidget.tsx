@@ -153,6 +153,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
     return () => { cancelled = true; };
   }, [user?.id, user?.email]);
 
+  const greeting = useGreeting();
   const signInLabel = (lang === "pl" ? config.signin_pl : config.signin_en) || (lang === "pl" ? "Zaloguj" : "Sign in");
   const signUpLabel = (lang === "pl" ? config.signup_pl : config.signup_en) || (lang === "pl" ? "Zarejestruj" : "Sign up");
   const logoutLabel = (lang === "pl" ? config.logout_pl : config.logout_en) || (lang === "pl" ? "Wyloguj" : "Sign out");
@@ -184,7 +185,6 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const staffItems = sectionItems("staff");
 
   // Trigger
-  const greeting = useGreeting();
   const triggerLabel = greeting || displayName || user?.email || "";
   const trigger = session ? (
     <button
