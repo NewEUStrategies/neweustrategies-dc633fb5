@@ -55,52 +55,80 @@ const SELECT_COLS =
   " vocative_pl, instrumental_pl, genitive_pl, dative_pl, vocative_en, english_form, is_compound, notes";
 
 const COUNTRIES: { code: string; pl: string; en: string; aliases?: string[] }[] = [
-  { code: "PL", pl: "Polska", en: "Poland", aliases: ["polish", "polski", "polskie", "pl"] },
-  { code: "US", pl: "USA", en: "USA", aliases: ["american", "english-us", "us", "usa"] },
-  { code: "GB", pl: "Wielka Brytania", en: "United Kingdom", aliases: ["english", "angielski", "british", "uk", "gb", "england"] },
-  { code: "DE", pl: "Niemcy", en: "Germany", aliases: ["german", "niemiecki", "de"] },
-  { code: "FR", pl: "Francja", en: "France", aliases: ["french", "francuski", "fr"] },
-  { code: "IT", pl: "Włochy", en: "Italy", aliases: ["italian", "włoski", "wloski", "it"] },
-  { code: "ES", pl: "Hiszpania", en: "Spain", aliases: ["spanish", "hiszpański", "hiszpanski", "es"] },
+  { code: "PL", pl: "Polska", en: "Poland", aliases: ["polish", "polski", "polskie", "pl", "polonia", "pologne", "polen"] },
+  { code: "US", pl: "USA", en: "United States", aliases: ["usa", "us", "u.s.", "u.s.a.", "united states of america", "america", "american", "stany zjednoczone", "stany", "estados unidos"] },
+  { code: "GB", pl: "Wielka Brytania", en: "United Kingdom", aliases: ["english", "angielski", "british", "britain", "great britain", "uk", "u.k.", "gb", "england", "anglia", "brytyjski"] },
+  { code: "DE", pl: "Niemcy", en: "Germany", aliases: ["german", "niemiecki", "de", "deutschland", "allemagne"] },
+  { code: "FR", pl: "Francja", en: "France", aliases: ["french", "francuski", "fr", "francais", "français"] },
+  { code: "IT", pl: "Włochy", en: "Italy", aliases: ["italian", "włoski", "wloski", "it", "italia", "italie"] },
+  { code: "ES", pl: "Hiszpania", en: "Spain", aliases: ["spanish", "hiszpański", "hiszpanski", "es", "espana", "españa", "espagne"] },
   { code: "PT", pl: "Portugalia", en: "Portugal", aliases: ["portuguese", "portugalski", "pt"] },
-  { code: "UA", pl: "Ukraina", en: "Ukraine", aliases: ["ukrainian", "ukraiński", "ua"] },
-  { code: "CZ", pl: "Czechy", en: "Czechia", aliases: ["czech", "czeski", "cz"] },
-  { code: "SK", pl: "Słowacja", en: "Slovakia", aliases: ["slovak", "słowacki", "sk"] },
+  { code: "UA", pl: "Ukraina", en: "Ukraine", aliases: ["ukrainian", "ukraiński", "ukrainski", "ua"] },
+  { code: "CZ", pl: "Czechy", en: "Czechia", aliases: ["czech", "czech republic", "czeski", "cz"] },
+  { code: "SK", pl: "Słowacja", en: "Slovakia", aliases: ["slovak", "słowacki", "slowacki", "sk"] },
   { code: "LT", pl: "Litwa", en: "Lithuania", aliases: ["lithuanian", "litewski", "lt"] },
-  { code: "BY", pl: "Białoruś", en: "Belarus", aliases: ["belarusian", "białoruski", "by"] },
-  { code: "RU", pl: "Rosja", en: "Russia", aliases: ["russian", "rosyjski", "ru"] },
-  { code: "GR", pl: "Grecja", en: "Greece", aliases: ["greek", "grecki", "gr"] },
-  { code: "TR", pl: "Turcja", en: "Turkey", aliases: ["turkish", "turecki", "tr"] },
-  { code: "JP", pl: "Japonia", en: "Japan", aliases: ["japanese", "japoński", "japonski", "jp"] },
-  { code: "CN", pl: "Chiny", en: "China", aliases: ["chinese", "chiński", "chinski", "cn"] },
+  { code: "BY", pl: "Białoruś", en: "Belarus", aliases: ["belarusian", "białoruski", "bialoruski", "by"] },
+  { code: "RU", pl: "Rosja", en: "Russia", aliases: ["russian", "rosyjski", "ru", "russian federation"] },
+  { code: "GR", pl: "Grecja", en: "Greece", aliases: ["greek", "grecki", "gr", "hellas"] },
+  { code: "TR", pl: "Turcja", en: "Turkey", aliases: ["turkish", "turecki", "tr", "türkiye", "turkiye"] },
+  { code: "JP", pl: "Japonia", en: "Japan", aliases: ["japanese", "japoński", "japonski", "jp", "nippon"] },
+  { code: "CN", pl: "Chiny", en: "China", aliases: ["chinese", "chiński", "chinski", "cn", "prc"] },
   { code: "IN", pl: "Indie", en: "India", aliases: ["hindi", "indian", "indyjski", "in"] },
   { code: "SA", pl: "Arabia Saudyjska", en: "Saudi Arabia", aliases: ["arabic", "arabski", "arab", "sa"] },
-  { code: "SE", pl: "Szwecja", en: "Sweden", aliases: ["swedish", "szwedzki", "scandinavian", "skandynawski", "se"] },
-  { code: "NO", pl: "Norwegia", en: "Norway", aliases: ["norwegian", "norweski", "no"] },
-  { code: "FI", pl: "Finlandia", en: "Finland", aliases: ["finnish", "fiński", "finski", "fi"] },
-  { code: "DK", pl: "Dania", en: "Denmark", aliases: ["danish", "duński", "dunski", "dk"] },
-  { code: "NL", pl: "Holandia", en: "Netherlands", aliases: ["dutch", "holenderski", "nl"] },
-  { code: "IE", pl: "Irlandia", en: "Ireland", aliases: ["irish", "irlandzki", "ie"] },
+  { code: "SE", pl: "Szwecja", en: "Sweden", aliases: ["swedish", "szwedzki", "scandinavian", "skandynawski", "se", "sverige"] },
+  { code: "NO", pl: "Norwegia", en: "Norway", aliases: ["norwegian", "norweski", "no", "norge"] },
+  { code: "FI", pl: "Finlandia", en: "Finland", aliases: ["finnish", "fiński", "finski", "fi", "suomi"] },
+  { code: "DK", pl: "Dania", en: "Denmark", aliases: ["danish", "duński", "dunski", "dk", "danmark"] },
+  { code: "NL", pl: "Holandia", en: "Netherlands", aliases: ["dutch", "holenderski", "nl", "holland", "the netherlands", "nederland"] },
+  { code: "IE", pl: "Irlandia", en: "Ireland", aliases: ["irish", "irlandzki", "ie", "eire", "éire"] },
   { code: "RO", pl: "Rumunia", en: "Romania", aliases: ["romanian", "rumuński", "rumunski", "ro"] },
-  { code: "HU", pl: "Węgry", en: "Hungary", aliases: ["hungarian", "węgierski", "wegierski", "hu"] },
+  { code: "HU", pl: "Węgry", en: "Hungary", aliases: ["hungarian", "węgierski", "wegierski", "hu", "magyarorszag", "magyarország"] },
   { code: "BG", pl: "Bułgaria", en: "Bulgaria", aliases: ["bulgarian", "bułgarski", "bulgarski", "bg"] },
+  { code: "AT", pl: "Austria", en: "Austria", aliases: ["austrian", "austriacki", "at", "österreich", "osterreich"] },
+  { code: "CH", pl: "Szwajcaria", en: "Switzerland", aliases: ["swiss", "szwajcarski", "ch", "schweiz", "suisse"] },
+  { code: "BE", pl: "Belgia", en: "Belgium", aliases: ["belgian", "belgijski", "be", "belgique", "belgie", "belgië"] },
+  { code: "CA", pl: "Kanada", en: "Canada", aliases: ["canadian", "kanadyjski", "ca"] },
+  { code: "AU", pl: "Australia", en: "Australia", aliases: ["australian", "australijski", "au"] },
+  { code: "BR", pl: "Brazylia", en: "Brazil", aliases: ["brazilian", "brazylijski", "br", "brasil"] },
+  { code: "MX", pl: "Meksyk", en: "Mexico", aliases: ["mexican", "meksykański", "meksykanski", "mx", "mejico", "méjico"] },
+  { code: "AR", pl: "Argentyna", en: "Argentina", aliases: ["argentinian", "argentyński", "argentynski", "ar"] },
+  { code: "KR", pl: "Korea Południowa", en: "South Korea", aliases: ["korean", "koreański", "koreanski", "kr", "korea", "republic of korea"] },
+  { code: "VN", pl: "Wietnam", en: "Vietnam", aliases: ["vietnamese", "wietnamski", "vn", "viet nam"] },
+  { code: "TH", pl: "Tajlandia", en: "Thailand", aliases: ["thai", "tajski", "th"] },
+  { code: "ID", pl: "Indonezja", en: "Indonesia", aliases: ["indonesian", "indonezyjski", "id"] },
+  { code: "PH", pl: "Filipiny", en: "Philippines", aliases: ["filipino", "filipiński", "filipinski", "ph"] },
+  { code: "ZA", pl: "RPA", en: "South Africa", aliases: ["south african", "południowoafrykański", "za", "rpa"] },
+  { code: "EG", pl: "Egipt", en: "Egypt", aliases: ["egyptian", "egipski", "eg"] },
+  { code: "IL", pl: "Izrael", en: "Israel", aliases: ["israeli", "izraelski", "hebrew", "hebrajski", "il"] },
+  { code: "IR", pl: "Iran", en: "Iran", aliases: ["iranian", "persian", "perski", "ir"] },
+  { code: "PK", pl: "Pakistan", en: "Pakistan", aliases: ["pakistani", "pakistański", "pakistanski", "pk", "urdu"] },
   { code: "OTHER", pl: "Inny", en: "Other", aliases: ["other", "inny"] },
 ];
+
+// Diacritic + punctuation insensitive normalization for matching.
+function normCountry(s: string): string {
+  return s.trim().toLowerCase()
+    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[._]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 // Normalize any user/CSV input (country name PL/EN, ISO code, language adjective)
 // to canonical { code, label }. Returns null when no match.
 function resolveCountry(input: string | null | undefined): { code: string; pl: string; en: string } | null {
   if (!input) return null;
-  const q = input.trim().toLowerCase();
+  const q = normCountry(input);
   if (!q) return null;
   for (const c of COUNTRIES) {
-    if (c.code.toLowerCase() === q) return c;
-    if (c.pl.toLowerCase() === q) return c;
-    if (c.en.toLowerCase() === q) return c;
-    if (c.aliases?.some((a) => a.toLowerCase() === q)) return c;
+    if (normCountry(c.code) === q) return c;
+    if (normCountry(c.pl) === q) return c;
+    if (normCountry(c.en) === q) return c;
+    if (c.aliases?.some((a) => normCountry(a) === q)) return c;
   }
   return null;
 }
+
 
 
 // CSV columns in canonical order (used for import + export).
