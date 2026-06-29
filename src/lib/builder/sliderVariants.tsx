@@ -346,7 +346,8 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
 
   const [idx, setIdx] = useState(0);
   useEffect(() => { setIdx(0); }, [items.length]);
-  const visibleCount = variant === "multi-card" ? 3 : 1;
+  const columns = Math.max(1, Math.min(4, config.columns ?? 3)) as 1 | 2 | 3 | 4;
+  const visibleCount = variant === "multi-card" ? columns : 1;
   const stepCount = Math.max(1, items.length - (variant === "multi-card" ? visibleCount - 1 : 0));
   useEffect(() => {
     if (preview || !autoplay || items.length < 2) return;
