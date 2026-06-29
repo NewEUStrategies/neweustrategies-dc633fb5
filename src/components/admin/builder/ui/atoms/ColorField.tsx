@@ -3,6 +3,7 @@
 // When `value` is empty, displays the `inheritedValue` (resolved from global colors)
 // as a ghost swatch + placeholder so the user can see what color is actually applied.
 import { Input } from "@/components/ui/input";
+import { RotateCcw } from "@/lib/lucide-shim";
 
 interface Props {
   value: string | undefined;
