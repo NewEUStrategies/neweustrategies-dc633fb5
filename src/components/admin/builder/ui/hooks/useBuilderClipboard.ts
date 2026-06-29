@@ -9,6 +9,7 @@ import {
 } from "@/lib/builder/operations";
 import { copyToClipboard, readClipboard, type ClipEnvelope } from "@/lib/builder/clipboard";
 import type { Selection } from "../organisms/builder";
+import { safeParseBuilderDoc } from "@/lib/builder/schema";
 
 interface Params {
   doc: BuilderDocument;
@@ -34,28 +35,40 @@ export function useBuilderClipboard({ doc, selection, focusedColumn, update }: P
     const env = readClipboard();
     if (!env) return;
     update((d) => {
+      const safeD = safeParseBuilderDoc(d);
+      d.version = safeD.version;
+      d.sections = safeD.sections;
       if (env.kind === "section") {
         const cloned = cloneSection(env.node as SectionNode);
         const i = selection.kind === "section" && selection.id
-          ? d.sections.findIndex((s) => s.id === selection.id) : -1;
+          ? d.sections.findIndex((s) => s?.id === selection.id) : -1;
         if (i >= 0) d.sections.splice(i + 1, 0, cloned); else d.sections.push(cloned);
       } else if (env.kind === "widget") {
         const cloned = cloneWidget(env.node as WidgetNode);
         const colId = focusedColumn?.id;
         if (!colId) return;
         const col = findColumn(d, colId);
-        if (col) col.children.push(cloned);
+        if (col) {
+          if (!Array.isArray(col.children)) col.children = [];
+          col.children.push(cloned);
+        }
       } else if (env.kind === "column") {
         const cloned = cloneColumn(env.node as ColumnNode);
         if (selection.kind === "section" && selection.id) {
-          const s = d.sections.find((x) => x.id === selection.id);
-          if (s) s.children.push(cloned);
+          const s = d.sections.find((x) => x?.id === selection.id);
+          if (s) {
+            if (!Array.isArray(s.children)) s.children = [];
+            s.children.push(cloned);
+          }
         } else { d.sections.push({ id: newId(), kind: "section", children: [cloned] }); }
       } else if (env.kind === "inner-section") {
         const cloned = cloneInner(env.node as InnerSectionNode);
         if (selection.kind === "section" && selection.id) {
-          const s = d.sections.find((x) => x.id === selection.id);
-          if (s) s.children.push(cloned);
+          const s = d.sections.find((x) => x?.id === selection.id);
+          if (s) {
+            if (!Array.isArray(s.children)) s.children = [];
+            s.children.push(cloned);
+          }
         }
       }
     });
