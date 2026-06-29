@@ -33,6 +33,8 @@ const pl = {
       lastName: "Nazwisko",
       jobTitle: "Stanowisko",
       currentCompany: "Aktualna firma",
+      specialization: "Specjalizacja",
+
       location: "Miejsce zamieszkania",
       locationPh: "Miasto, kraj",
       phone: "Telefon",
