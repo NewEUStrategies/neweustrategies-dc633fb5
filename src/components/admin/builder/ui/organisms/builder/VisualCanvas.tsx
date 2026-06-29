@@ -97,6 +97,7 @@ export function VisualCanvas({
     const onDragOver = (e: DragEvent) => {
       const lib = isLibraryDrag(e);
       if (!dragRef.current && !lib) return;
+      if (lib) setDragging(true);
 
       clearDropMarkers();
       const t = e.target as HTMLElement;
@@ -122,7 +123,7 @@ export function VisualCanvas({
     };
 
     const onDragLeave = (e: DragEvent) => {
-      if (!root.contains(e.relatedTarget as Node)) clearDropMarkers();
+      if (!root.contains(e.relatedTarget as Node)) { clearDropMarkers(); setDragging(false); }
     };
 
     const onDrop = (e: DragEvent) => {
