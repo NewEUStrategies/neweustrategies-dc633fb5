@@ -172,29 +172,29 @@ function ProfileInline() {
 
           {/* Meta row: chips left, email right */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
               {data.current_company ? (
-                <Chip icon={<CompanyLogoIcon />} tone="primary">{data.current_company}</Chip>
+                <Chip icon={<CompanyLogoIcon />} tone="solid" size="lg">{data.current_company}</Chip>
               ) : editable ? (
-                <Chip icon={<CompanyLogoIcon />} tone="muted" onClick={() => {
+                <Chip icon={<CompanyLogoIcon />} tone="muted" size="lg" onClick={() => {
                   const v = window.prompt(t("profile.account.currentCompany"));
                   if (v != null) void saveField("current_company", v.trim() || null);
                 }}>{t("profile.inline.addCompany")}</Chip>
               ) : null}
 
               {data.specialization ? (
-                <Chip icon={<Sparkles className="h-3 w-3" />} tone="primary">{data.specialization}</Chip>
+                <Chip icon={<Award className="h-3.5 w-3.5" />} tone="accent" size="lg">{data.specialization}</Chip>
               ) : editable ? (
-                <Chip icon={<Sparkles className="h-3 w-3" />} tone="muted" onClick={() => {
+                <Chip icon={<Award className="h-3.5 w-3.5" />} tone="muted" size="lg" onClick={() => {
                   const v = window.prompt(t("profile.account.specialization"));
                   if (v != null) void saveField("specialization", v.trim() || null);
                 }}>{t("profile.inline.addSpecialization")}</Chip>
               ) : null}
 
               {data.location ? (
-                <Chip icon={<MapPin className="h-3 w-3" />} tone="muted">{data.location}</Chip>
+                <Chip icon={<MapPin className="h-3.5 w-3.5" />} tone="accent" size="lg">{data.location}</Chip>
               ) : editable ? (
-                <Chip icon={<MapPin className="h-3 w-3" />} tone="muted" onClick={() => {
+                <Chip icon={<MapPin className="h-3.5 w-3.5" />} tone="muted" size="lg" onClick={() => {
                   const v = window.prompt(t("profile.account.locationPh"));
                   if (v != null) void saveField("location", v.trim() || null);
                 }}>{t("profile.inline.addLocation")}</Chip>
