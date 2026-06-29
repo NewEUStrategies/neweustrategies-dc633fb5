@@ -254,6 +254,23 @@ function AccountPage() {
                 <FieldLabel htmlFor="phone" tip={t("profile.account.tip.phone")}>{t("profile.account.phone")}</FieldLabel>
                 <Input id="phone" type="tel" value={data.phone ?? ""} onChange={(e) => setData({ ...data, phone: e.target.value })} maxLength={32} placeholder={t("profile.account.phonePh")} />
               </div>
+              <div className="grid gap-2">
+                <FieldLabel htmlFor="gender" tip={t("profile.account.genderHint")}>{t("profile.account.gender")}</FieldLabel>
+                <Select
+                  value={data.gender ?? "auto"}
+                  onValueChange={(v) => setData({ ...data, gender: v === "auto" ? null : (v as Gender) })}
+                >
+                  <SelectTrigger id="gender">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">{t("profile.account.genderAuto")}</SelectItem>
+                    <SelectItem value="female">{t("profile.account.genderFemale")}</SelectItem>
+                    <SelectItem value="male">{t("profile.account.genderMale")}</SelectItem>
+                    <SelectItem value="neutral">{t("profile.account.genderNeutral")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </section>
 
