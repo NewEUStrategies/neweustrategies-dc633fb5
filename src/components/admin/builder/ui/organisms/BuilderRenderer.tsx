@@ -16,6 +16,7 @@ import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
 import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
 import { useBuilderDebug, toggleBuilderDebug } from "@/lib/builder/builderDebug";
+import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
 
 // SSR has no viewport, so the first render is "desktop". On a phone the client
 // must correct to "mobile" - running that correction in a *layout* effect lands
@@ -69,6 +70,7 @@ const DEBUG_OVERLAY_CSS = `
 export function BuilderRenderer({ doc, lang, device }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? detectViewportDevice());
+  const safeDoc = safeParseBuilderDoc(doc);
   // Debug state is shared across every BuilderRenderer on the page; only the
   // "primary" instance renders the overlay (toggle + debug CSS) - see builderDebug.
   const { debug, isPrimary } = useBuilderDebug();
@@ -103,9 +105,9 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
   return (
     <UsedPostIdsProvider>
       <div ref={rootRef} data-builder-renderer data-debug={debug ? "1" : "0"} data-device={effectiveDevice}>
-        <SectionsList sections={doc.sections} lang={lang} device={effectiveDevice} />
+        <SectionsList sections={safeDoc.sections} lang={lang} device={effectiveDevice} />
       </div>
-      {isPrimary && <BuilderDebugOverlay debug={debug} doc={doc} />}
+      {isPrimary && <BuilderDebugOverlay debug={debug} doc={safeDoc} />}
     </UsedPostIdsProvider>
   );
 }
@@ -155,8 +157,8 @@ const SectionsList = memo(function SectionsList({ sections, lang, device }: { se
   const accessCtx = useAccessContext();
   return (
     <>
-      {sections
-        .filter((s) => evaluateAccess(s.advanced?.access, accessCtx))
+      {(Array.isArray(sections) ? sections : [])
+        .filter((s): s is SectionNode => !!s && evaluateAccess(s.advanced?.access, accessCtx))
         .map((s) => (
           <RenderErrorBoundary key={s.id} label={`section:${s.id}`}>
             <RenderSection section={s} lang={lang} device={device} />
@@ -170,7 +172,7 @@ SectionsList.displayName = "SectionsList";
 
 const RenderSection = memo(function RenderSection({ section, lang, device }: { section: SectionNode; lang: "pl"|"en"; device: Device }) {
   const accessCtx = useAccessContext();
-  const visibleCols = (section.children ?? []).filter((c): c is NonNullable<typeof c> => !!c && evaluateAccess(c.advanced?.access, accessCtx));
+  const visibleCols = (Array.isArray(section.children) ? section.children : []).filter((c): c is ColumnNode | InnerSectionNode => !!c && evaluateAccess(c.advanced?.access, accessCtx));
   const colsSum = visibleCols.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12), 0) || 12;
   const Tag = (section.layout?.htmlTag ?? "section") as ElementType;
   const bgStyle = backgroundLayerStyle(section.background);
@@ -225,11 +227,12 @@ const RenderSection = memo(function RenderSection({ section, lang, device }: { s
 RenderSection.displayName = "RenderSection";
 
 const RenderInner = memo(function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "pl"|"en"; device: Device }) {
-  const colsSum =  (inner.columns ?? []).reduce((a, c) => a + (c ? resolveSpan(c.span, device, 6) : 0), 0) || 12;
+  const columns = (Array.isArray(inner.columns) ? inner.columns : []).filter((c): c is ColumnNode => !!c);
+  const colsSum =  columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()} style={{ ...sectionWrapperStyle(inner), ...backgroundLayerStyle(inner.background), ...borderStyle(inner.border), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
       <div data-columns-row className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(inner, colsSum), gridTemplateColumns: device === "mobile" ? "minmax(0, 1fr)" : columnsRowStyle(inner, colsSum).gridTemplateColumns }}>
-        { (inner.columns ?? []).filter(Boolean).map((c) => (
+        {columns.map((c) => (
           <div key={c.id} data-column-slot className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}` }}>
 
             <RenderColumn column={c} lang={lang} device={device} />
@@ -245,8 +248,8 @@ RenderInner.displayName = "RenderInner";
 const RenderColumn = memo(function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   const va = column.verticalAlign ?? "start";
   const accessCtx = useAccessContext();
-  const visibleChildren = (column.children ?? []).filter(
-    (w): w is NonNullable<typeof w> => !!w && !hiddenOnDevice(w.advanced, device) && evaluateAccess(w.advanced?.access, accessCtx),
+  const visibleChildren = (Array.isArray(column.children) ? column.children : []).filter(
+    (w): w is NonNullable<typeof w> => !!w && isKnownWidgetType(w.type) && !hiddenOnDevice(w.advanced, device) && evaluateAccess(w.advanced?.access, accessCtx),
   );
   const isToolbar =
     visibleChildren.length > 1 &&
