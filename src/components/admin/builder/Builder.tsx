@@ -67,7 +67,7 @@ const SCOPE_COPY = {
 export function Builder({ value, onChange, lang, onLangChange, hideChrome = false, scope = "page" }: Props) {
   const copy = SCOPE_COPY[scope];
 
-  const initial = safeParseBuilderDoc(value ?? emptyDocument());
+  const initial = useMemo(() => safeParseBuilderDoc(value ?? emptyDocument()), [value]);
   const history = useHistory(initial, onChange);
   const doc = safeParseBuilderDoc(history.doc);
   const [device, setDevice] = useState<Device>("desktop");
