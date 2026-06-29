@@ -269,6 +269,8 @@ const en: typeof pl = {
       lastName: "Last name",
       jobTitle: "Job title",
       currentCompany: "Current company",
+      specialization: "Specialization",
+
       location: "Place of residence",
       locationPh: "City, country",
       phone: "Phone",
