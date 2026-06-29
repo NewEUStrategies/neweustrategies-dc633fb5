@@ -195,10 +195,10 @@ function ProfileInline() {
         </section>
 
         {/* BIO */}
-        <section className="grid gap-3 rounded-[6px] border border-border bg-card p-5">
+        <section className="grid gap-2 rounded-[6px] border border-border bg-card p-4">
           <header className="flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-foreground/70">
-              <Sparkles className="h-4 w-4 text-primary" /> {t("profile.account.bio")}
+            <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
+              <Sparkles className="h-3.5 w-3.5 text-primary" /> {t("profile.account.bio")}
             </h2>
           </header>
           {editable ? (
@@ -209,7 +209,7 @@ function ProfileInline() {
               placeholder={t("profile.inline.bioPlaceholder")}
               emptyLabel={t("profile.inline.bioPlaceholder")}
               maxLength={500}
-              rows={5}
+              rows={3}
             />
           ) : (
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
