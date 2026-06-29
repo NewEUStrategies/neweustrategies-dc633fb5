@@ -355,9 +355,8 @@ function AdminNamesPage() {
   if (!isSuperAdmin) return <Navigate to="/admin" />;
 
   return (
-    <AdminShell>
-      <div className="space-y-5 max-w-7xl">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+    <div className="space-y-5 max-w-7xl">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold">{L ? "Słownik imion" : "Name dictionary"}</h1>
             <p className="text-sm text-muted-foreground">
