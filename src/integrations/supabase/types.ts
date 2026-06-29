@@ -823,11 +823,19 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          dative_pl: string | null
+          display_name: string | null
+          english_form: string | null
           gender: Database["public"]["Enums"]["name_gender"]
+          genitive_pl: string | null
           id: string
+          instrumental_pl: string | null
+          is_compound: boolean
+          key: string | null
           name: string
           name_normalized: string
           notes: string | null
+          origin: string | null
           origin_country: string | null
           updated_at: string
           vocative_en: string | null
@@ -836,11 +844,19 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          dative_pl?: string | null
+          display_name?: string | null
+          english_form?: string | null
           gender: Database["public"]["Enums"]["name_gender"]
+          genitive_pl?: string | null
           id?: string
+          instrumental_pl?: string | null
+          is_compound?: boolean
+          key?: string | null
           name: string
           name_normalized: string
           notes?: string | null
+          origin?: string | null
           origin_country?: string | null
           updated_at?: string
           vocative_en?: string | null
@@ -849,11 +865,19 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          dative_pl?: string | null
+          display_name?: string | null
+          english_form?: string | null
           gender?: Database["public"]["Enums"]["name_gender"]
+          genitive_pl?: string | null
           id?: string
+          instrumental_pl?: string | null
+          is_compound?: boolean
+          key?: string | null
           name?: string
           name_normalized?: string
           notes?: string | null
+          origin?: string | null
           origin_country?: string | null
           updated_at?: string
           vocative_en?: string | null
