@@ -245,8 +245,8 @@ RenderInner.displayName = "RenderInner";
 const RenderColumn = memo(function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
   const va = column.verticalAlign ?? "start";
   const accessCtx = useAccessContext();
-  const visibleChildren = column.children.filter(
-    (w) => !hiddenOnDevice(w.advanced, device) && evaluateAccess(w.advanced?.access, accessCtx),
+  const visibleChildren = (column.children ?? []).filter(
+    (w): w is NonNullable<typeof w> => !!w && !hiddenOnDevice(w.advanced, device) && evaluateAccess(w.advanced?.access, accessCtx),
   );
   const isToolbar =
     visibleChildren.length > 1 &&
