@@ -123,22 +123,43 @@ function ProfileInline() {
                 <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight leading-tight">{fullName}</h1>
               )}
 
-              {/* Job title */}
-              <div className="mt-0.5 text-sm text-muted-foreground">
-                {editable ? (
-                  <InlineText
-                    value={data.job_title}
-                    onSave={(v) => saveField("job_title", v || null)}
-                    ariaLabel={t("profile.account.jobTitle")}
-                    placeholder={t("profile.account.jobTitle")}
-                    emptyLabel={t("profile.inline.addJobTitle")}
-                    variant="subtitle"
-                    maxLength={120}
-                    className="inline-block"
-                  />
-                ) : (
-                  <span>{data.job_title || "-"}</span>
-                )}
+              {/* Job title + Company badge */}
+              <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="text-sm text-muted-foreground leading-normal">
+                  {editable ? (
+                    <InlineText
+                      value={data.job_title}
+                      onSave={(v) => saveField("job_title", v || null)}
+                      ariaLabel={t("profile.account.jobTitle")}
+                      placeholder={t("profile.account.jobTitle")}
+                      emptyLabel={t("profile.inline.addJobTitle")}
+                      variant="subtitle"
+                      maxLength={120}
+                      className="inline-block"
+                    />
+                  ) : (
+                    <span>{data.job_title || "-"}</span>
+                  )}
+                </div>
+
+                {data.current_company ? (
+                  <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-[6px] border border-border bg-background px-3 py-1.5 shadow-sm">
+                    <CompanyLogoIcon className="h-5 w-5" />
+                    <span className="text-xs font-medium text-foreground">{data.current_company}</span>
+                  </span>
+                ) : editable ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const v = window.prompt(t("profile.account.currentCompany"));
+                      if (v != null) void saveField("current_company", v.trim() || null);
+                    }}
+                    className="inline-flex items-center gap-2 self-start rounded-[6px] border border-dashed border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground italic hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <CompanyLogoIcon className="h-5 w-5 opacity-60" />
+                    {t("profile.inline.addCompany")}
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -173,14 +194,6 @@ function ProfileInline() {
           {/* Meta row: chips left, email right */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              {data.current_company ? (
-                <Chip icon={<CompanyLogoIcon />} tone="solid" size="lg">{data.current_company}</Chip>
-              ) : editable ? (
-                <Chip icon={<CompanyLogoIcon />} tone="muted" size="lg" onClick={() => {
-                  const v = window.prompt(t("profile.account.currentCompany"));
-                  if (v != null) void saveField("current_company", v.trim() || null);
-                }}>{t("profile.inline.addCompany")}</Chip>
-              ) : null}
 
               {data.specialization ? (
                 <Chip icon={<Award className="h-3.5 w-3.5" />} tone="accent" size="lg">{data.specialization}</Chip>
@@ -684,20 +697,20 @@ function Card({ icon, title, action, children }: { icon?: ReactNode; title: stri
   );
 }
 
-function CompanyLogoIcon() {
+function CompanyLogoIcon({ className = "h-3 w-3" }: { className?: string }) {
   // Logo firmy zaciągane z Admin Panel -> Wygląd -> Theme Options (klucz "theme_options.logo").
   // Wybiera wariant zgodny z aktualnym motywem (light/dark); fallback: ikona Briefcase.
   const cfg = useSiteSetting<{ logo?: { main?: string; main_dark?: string } }>("theme_options", { logo: {} });
   const { theme } = useTheme();
   const l = cfg.logo ?? {};
   const src = theme === "dark" ? (l.main_dark || l.main) : (l.main || l.main_dark);
-  if (!src) return <Briefcase className="h-3 w-3" />;
+  if (!src) return <Briefcase className={cn("object-contain", className)} />;
   return (
     <img
       src={src}
       alt=""
       aria-hidden="true"
-      className="h-3 w-3 object-contain"
+      className={cn("object-contain", className)}
       loading="lazy"
       decoding="async"
       draggable={false}
