@@ -144,13 +144,13 @@ function ProfileInline() {
             {roles.length > 0 && (
               <div className="flex flex-wrap items-center justify-center sm:justify-end gap-1.5 shrink-0">
                 {roles.map((r) => (
-                  <Badge
+                  <span
                     key={r}
-                    variant={r === "super_admin" || r === "admin" ? "default" : "secondary"}
-                    className="inline-flex items-center rounded-[6px] px-2.5 py-1 text-[10px] font-medium leading-[1.2] whitespace-nowrap"
+                    className="inline-flex items-center gap-1 h-auto rounded-[6px] border border-border bg-background px-2.5 py-1 text-[10px] font-medium leading-[1.2] text-foreground whitespace-nowrap"
                   >
+                    <ShieldCheck className="h-3 w-3 text-primary" />
                     {t(`profile.role.${r}`)}
-                  </Badge>
+                  </span>
                 ))}
                 {isStaff && (
                   <Button asChild size="sm" variant="outline" className="h-auto rounded-[6px] px-2.5 py-1 text-[10px] leading-[1.2] gap-1">
