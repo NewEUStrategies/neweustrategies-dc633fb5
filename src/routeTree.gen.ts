@@ -27,6 +27,7 @@ import { Route as TagSlugRouteImport } from './routes/tag.$slug'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
 import { Route as ProfileSocialRouteImport } from './routes/profile.social'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
+import { Route as ProfilePersonalityRouteImport } from './routes/profile.personality'
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
 import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
 import { Route as ProfileFollowsRouteImport } from './routes/profile.follows'
@@ -179,6 +180,11 @@ const ProfileSocialRoute = ProfileSocialRouteImport.update({
 const ProfileSecurityRoute = ProfileSecurityRouteImport.update({
   id: '/security',
   path: '/security',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfilePersonalityRoute = ProfilePersonalityRouteImport.update({
+  id: '/personality',
+  path: '/personality',
   getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileOrdersRoute = ProfileOrdersRouteImport.update({
@@ -553,6 +559,7 @@ export interface FileRoutesByFullPath {
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
@@ -633,6 +640,7 @@ export interface FileRoutesByTo {
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
@@ -717,6 +725,7 @@ export interface FileRoutesById {
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
   '/profile/orders': typeof ProfileOrdersRoute
+  '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/security': typeof ProfileSecurityRoute
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
@@ -802,6 +811,7 @@ export interface FileRouteTypes {
     | '/profile/follows'
     | '/profile/interests'
     | '/profile/orders'
+    | '/profile/personality'
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
@@ -882,6 +892,7 @@ export interface FileRouteTypes {
     | '/profile/follows'
     | '/profile/interests'
     | '/profile/orders'
+    | '/profile/personality'
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
@@ -965,6 +976,7 @@ export interface FileRouteTypes {
     | '/profile/follows'
     | '/profile/interests'
     | '/profile/orders'
+    | '/profile/personality'
     | '/profile/security'
     | '/profile/social'
     | '/profile/subscription'
@@ -1151,6 +1163,13 @@ declare module '@tanstack/react-router' {
       path: '/security'
       fullPath: '/profile/security'
       preLoaderRoute: typeof ProfileSecurityRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/personality': {
+      id: '/profile/personality'
+      path: '/personality'
+      fullPath: '/profile/personality'
+      preLoaderRoute: typeof ProfilePersonalityRouteImport
       parentRoute: typeof ProfileRoute
     }
     '/profile/orders': {
@@ -1742,6 +1761,7 @@ interface ProfileRouteChildren {
   ProfileFollowsRoute: typeof ProfileFollowsRoute
   ProfileInterestsRoute: typeof ProfileInterestsRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
+  ProfilePersonalityRoute: typeof ProfilePersonalityRoute
   ProfileSecurityRoute: typeof ProfileSecurityRoute
   ProfileSocialRoute: typeof ProfileSocialRoute
   ProfileSubscriptionRoute: typeof ProfileSubscriptionRoute
@@ -1755,6 +1775,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileFollowsRoute: ProfileFollowsRoute,
   ProfileInterestsRoute: ProfileInterestsRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,
+  ProfilePersonalityRoute: ProfilePersonalityRoute,
   ProfileSecurityRoute: ProfileSecurityRoute,
   ProfileSocialRoute: ProfileSocialRoute,
   ProfileSubscriptionRoute: ProfileSubscriptionRoute,

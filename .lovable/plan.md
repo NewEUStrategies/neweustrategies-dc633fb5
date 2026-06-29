@@ -1,130 +1,117 @@
+# Pełny profil (LinkedIn-style) — plan
+
 ## Cel
+Przebudować `/profile` (właściciel, live-edit) oraz dodać publiczną stronę `/u/$slug` z układem 2-kolumnowym i tabami, zgodnie z załączonymi screenami.
 
-Zbudować w panelu admina dedykowaną stronę "Post Sidebar Builder" w stylu Elementora, w której administrator komponuje sidebar wpisu z bloków/widgetów. Aktualny panel reading-rail (Spis treści + postęp + Zapisz / PDF / Drukuj / ikony social) zostaje opakowany w pojedynczy widget CMS "Reading Panel". Jedyne ustawienia tego widgetu to wybór platform social, na które można udostępnić wpis (X, Facebook, LinkedIn, Mail, Copy link, WhatsApp, Telegram, Reddit). Wszystko z i18n (PL/EN), tenant_id, RLS, testami, atomic design, semantycznymi tokenami, 5px radius.
-
-## Architektura danych (Lovable Cloud)
-
-Nowa tabela `post_sidebar_layouts` (per tenant, jeden "default" + opcjonalne nazwane warianty):
+## Layout
 
 ```text
-post_sidebar_layouts
-  id uuid pk
-  tenant_id uuid not null (RLS)
-  name text not null            -- "default", "longform", ...
-  is_default boolean default false
-  widgets jsonb not null        -- [{ id, type, settings, hidden }]
-  created_at / updated_at / created_by
+┌──────────────────────────────────────────────────────────┐
+│  COVER  (h-44)              [Avatar + social chips]      │
+├──────────────────────────────────────────────────────────┤
+│  Imię Nazwisko          [Edytuj profil] [View as guest]  │
+│  Tytuł zawodowy                                          │
+│  [Tenant] [Specjalizacja]                                │
+│  ✉ email                                                 │
+├───────────────────────────────────┬──────────────────────┤
+│ [O mnie][Doświadczenie][Odznaki]  │  SIDEBAR (sticky)    │
+│ [Aktywność][Ustawienia]           │  • Dane osobowe      │
+│                                   │  • Osobowość (test)  │
+│  ── treść aktywnej zakładki ──    │  • Zainteresowania   │
+│                                   │  • Hobby             │
+└───────────────────────────────────┴──────────────────────┘
 ```
 
-- GRANT + RLS: SELECT dla `anon` i `authenticated` (publiczny render), INSERT/UPDATE/DELETE tylko dla roli `admin`/`editor` przez `has_role(auth.uid(), 'admin', tenant_id)`.
-- Index: `(tenant_id, is_default)` i `(tenant_id, name)` unique.
-- Unique constraint zapewniający dokładnie jeden `is_default = true` per tenant.
+## Zakładki
 
-Override per-wpis: nowa kolumna `posts.sidebar_layout_id uuid null` (FK -> post_sidebar_layouts). Brak = używamy default tenantu.
+1. **O mnie** — Bio, Projekty (tenanta), Kontakt (email/lokalizacja/social), CV/Plik (upload + historia wersji).
+2. **Doświadczenie** — Stanowiska, Wykształcenie, Umiejętności (tagi z poziomem).
+3. **Odznaki** — Odznaki i nagrody (system), Nagrody Recognition (otrzymane od innych), Otrzymane wyróżnienia (handpick admina).
+4. **Aktywność** — Zapisane, Autorzy, Kategorie, Tagi, ostatnio czytane.
+5. **Ustawienia** — Dane rozliczeniowe, Subskrypcja, Bezpieczeństwo, Media społecznościowe, Powiadomienia.
 
-## Rejestr widgetów sidebar
+## Sidebar
 
-`src/lib/sidebarBuilder/registry.ts` - rejestr typów widgetów, każdy z `type`, `label PL/EN`, `icon`, `defaultSettings`, `Editor`, `Viewer`, `schema (zod)`.
+- **Dane osobowe**: data ur., płeć, lokalizacja, label (rola), data dołączenia.
+- **Osobowość**: 5 osi Big Five (Otwartość, Sumienność, Ekstrawertyczność, Ugodowość, Stabilność emocjonalna) z gradientowymi paskami + przycisk „Powtórz test".
+- **Zainteresowania**: pigułki + „Dodaj".
+- **Hobby**: pigułki + „Dodaj".
 
-Wersja MVP - 6 widgetów:
+## Nowe tabele (migracja)
 
-1. `reading-panel` - obecny FloatingShareBar w wariancie sidebar. Settings: `{ social: { x, facebook, linkedin, mail, copy, whatsapp, telegram, reddit }: boolean, showToc, showProgress, showSaveLater, showPrint, showPdf }`. UI ustawień - wyłącznie toggle dla 8 platform + 5 sekcji.
-2. `tags` - chmura tagów wpisu.
-3. `author-card` - karta autora.
-4. `related-posts` - lista powiązanych (reuse `RelatedPosts`).
-5. `newsletter` - formularz newslettera (reuse `NewsletterForm`).
-6. `ad-slot` - slot reklamowy (reuse `AdZone position="sidebar"`).
+- `profile_experiences` (tenant_id, user_id, role_title, company, start_date, end_date, current, description, logo_url)
+- `profile_education` (tenant_id, user_id, school, degree, field, start_date, end_date, description)
+- `profile_skills` (tenant_id, user_id, label, level 1-5, category)
+- `profile_awards` (tenant_id, user_id, title, issuer, awarded_at, description, icon)
+- `profile_hobbies` (tenant_id, user_id, label, icon)
+- `profile_cv_files` (tenant_id, user_id, file_url, file_name, size_bytes, version, is_current, uploaded_at)
+- `personality_questions` (id, locale, axis, text, reverse) — seed Big Five 30 pytań PL/EN
+- `personality_results` (tenant_id, user_id, openness, conscientiousness, extraversion, agreeableness, neuroticism, taken_at, answers jsonb)
 
-Każdy widget renderuje się w sticky kontenerze sidebar. `reading-panel` ma własny sticky.
+Każda tabela: tenant_id NOT NULL, GRANT-y, RLS:
+- właściciel: ALL na własnych wierszach,
+- czytelnicy publicznego profilu: SELECT przez `has_profile_public_access(_user_id)` (security definer), które sprawdza `profiles.is_public`.
 
-## Renderer publiczny
+## Routing
 
-`src/components/post/PostSidebarRenderer.tsx`:
-
-- pobiera layout (override lub default tenantu) przez query (cache 5 min, SWR)
-- mapuje `widgets[]` -> komponent `Viewer` z rejestru
-- przekazuje kontekst `{ post, articleRef, lang, tenantId, tags }`
-- pomija widget gdy `hidden = true`
-
-`src/routes/$.tsx` w slocie `sidebar={...}` przestaje hardkodować `<FloatingShareBar variant="sidebar" />` i renderuje `<PostSidebarRenderer postId={post.id} layoutId={post.sidebar_layout_id} ... />`.
-
-## Edytor admina (Elementor-style)
-
-Trasa: `src/routes/admin.appearance.post-sidebar.tsx` (pod istniejącym layoutem `_authenticated/admin`).
-
-Layout 3-kolumnowy:
-
-```text
-+-------------------+--------------------------------+------------------------+
-| Library           | Canvas (live preview)          | Inspector (settings)   |
-| (lista widgetów   | sticky kolumna 320-360 px,     | edytor wybranego       |
-|  do przeciagniecia| renderuje aktualny layout      | widgetu + delete /     |
-|  na canvas)       | z dummy artykulem obok         | hide / duplicate       |
-+-------------------+--------------------------------+------------------------+
-```
-
-- Drag & drop: `@dnd-kit/core` + `@dnd-kit/sortable` (juz w projekcie).
-- Lewy panel: lista kart widgetow z ikona i opisem PL/EN, klik = dodaj na koniec, drag = wstaw na pozycji.
-- Canvas: pionowa lista widgetow w sticky kontenerze, kazdy z handle (grab), przycisk hide, delete, klik = wybor do inspector.
-- Inspector: dynamicznie renderuje `widget.Editor` (np. dla `reading-panel` tylko 8 togglow social + 5 sekcji toggle).
-- Top bar: select layoutu (default / nazwane warianty), New, Rename, Duplicate, Delete, Save (mutacja), "Set as default", przelacznik podgladu Desktop / Mobile.
-- Po stronie obok canvasu krotki dummy artykul z naglowkami h2/h3 zeby `reading-panel` mial Spis tresci do pokazania.
-- Wszystkie napisy przez `useT()` z istniejacego `src/lib/i18n`.
-
-Per-post override: na stronie edycji wpisu (`/admin/posts/$slug`) w sekcji "Post Layout" dodatkowy `Select` "Sidebar layout" (Default tenantu / nazwane warianty / Brak sidebara).
+- `/profile` (owner, _authenticated) — live-edit, taby przez `?tab=`.
+- `/u/$slug` (public) — read-only, „View as guest" z `/profile` linkuje tutaj.
+- `/profile/personality` — kwestionariusz (formularz, scoring, zapis).
 
 ## Server functions
 
-`src/lib/sidebarBuilder/sidebarLayouts.functions.ts` (createServerFn, requireSupabaseAuth):
+`src/lib/profile.functions.ts` — wszystkie pod `requireSupabaseAuth`:
+- `listExperiences/Education/Skills/Awards/Hobbies/CVs` (read własne)
+- `upsert*` / `delete*` (write własne)
+- `uploadCV(formData)` → media bucket, wpis do `profile_cv_files`, oznaczenie poprzednich `is_current=false`
+- `submitPersonality({ answers })` → scoring po stronie serwera, zapis do `personality_results`
+- `getPublicProfile({ slug })` — przez publishable client + RLS public
 
-- `listSidebarLayouts()` - lista layoutow tenantu
-- `getSidebarLayout({ id | name })` - jeden layout
-- `getDefaultSidebarLayout()` - default tenantu
-- `upsertSidebarLayout({ id?, name, widgets, is_default })` - tylko admin/editor
-- `deleteSidebarLayout({ id })` - tylko admin/editor
+## Komponenty (atomic)
 
-Publiczny odczyt na froncie idzie przez publishable client (RLS select dla anon) zeby uniknac uwierzytelnienia w SSR loaderze.
-
-## Bezpieczenstwo
-
-- RLS: SELECT public (anon + authenticated), pisarstwo tylko przez `has_role(auth.uid(), 'admin', tenant_id)` lub `'editor'`.
-- Zod walidacja `widgets[]` (typ jest w rejestrze, settings per typ).
-- Sanitizacja: `widgets` zawiera wylacznie wartosci primitive + znane klucze; brak dowolnego HTML.
+`src/components/profile/`
+- `layout/ProfileShell.tsx` — header + tabs + sidebar grid
+- `layout/ProfileTabs.tsx` — TanStack search-params synced
+- `tabs/AboutTab.tsx`, `ExperienceTab.tsx`, `BadgesTab.tsx`, `ActivityTab.tsx`, `SettingsTab.tsx`
+- `sections/BioCard.tsx`, `ProjectsCard.tsx`, `ContactCard.tsx`, `CvCard.tsx`, `ExperienceList.tsx`, `EducationList.tsx`, `SkillsCloud.tsx`, `AwardsList.tsx`
+- `sidebar/PersonalDataCard.tsx`, `PersonalityCard.tsx`, `InterestsCard.tsx`, `HobbiesCard.tsx`
+- `personality/PersonalityTest.tsx`, `PersonalityBars.tsx`
+- Wszystkie sekcje korzystają z istniejących `Inline*` (live-edit dla owner) lub `ReadOnly*` (guest).
 
 ## i18n
 
-Nowy plik `src/lib/i18n/locales/sidebarBuilder.ts` (PL/EN) z kluczami:
-- nazwy widgetow i opisy
-- etykiety platform social (X, Facebook, LinkedIn, E-mail, Kopiuj link, WhatsApp, Telegram, Reddit)
-- UI builderu (Library, Canvas, Inspector, Add widget, Hide, Show, Duplicate, Delete, Save, Set as default, New layout, ...)
+`src/lib/i18n-profile.ts` — rozszerzenie o klucze: tabs.*, sections.*, personality.axes.*, awards.*, cv.*, hobby.*. Pełne PL/EN.
+
+## Atomic design + tenant_id
+
+- Atomy/molekuły w `components/profile/` jak wyżej.
+- Każdy insert/select scoped przez `tenant_id = current_tenant_id()`.
+- RLS używa `has_role` z tenant scope (już istnieje).
 
 ## Testy
 
-- Unit: rejestr widgetow (`getWidgetDef`, defaultSettings), zod schema, sanitizacja.
-- Component: `PostSidebarRenderer` mapuje widgets -> komponenty i pomija hidden.
-- Component: edytor - dodawanie / usuwanie / reorder (dnd-kit testing utils), zapis wywoluje server fn z poprawnym payloadem.
-- Reading panel social toggles: kazdy wylaczony przycisk znika z DOM.
-- Integration: posty z `sidebar_layout_id` renderuja override, bez - default tenantu.
+- `src/lib/__tests__/personality.test.ts` — scoring (reverse keying, klamry 0-100).
+- `src/components/profile/__tests__/ProfileShell.test.tsx` — render zakładek, sticky sidebar, guest-mode chowa edytory.
+- `src/lib/__tests__/profileSlug.test.ts` — walidacja / kolizje.
 
-## Migracja istniejacych wpisow
+## Etapy wdrożenia
 
-Seed: dla kazdego tenantu utworz `default` layout zawierajacy pojedynczy widget `reading-panel` ze wszystkimi platformami social wlaczonymi + `related-posts` na dole. Dzieki temu zachowanie publiczne nie zmienia sie po wdrozeniu.
+1. **Migracja** (tabele + RLS + seed 30 pytań Big Five PL/EN).
+2. **Server fns** + i18n.
+3. **ProfileShell + Sidebar + Tabs** szkielet, zachować obecne sekcje jako fallback.
+4. **AboutTab** (Bio, Projekty, Kontakt, CV) — przeniesienie istniejących + CV upload.
+5. **ExperienceTab** (Experience, Education, Skills CRUD).
+6. **BadgesTab** + **ActivityTab** (refactor obecnych `/profile/bookmarks` itd. jako wbudowane sekcje).
+7. **SettingsTab** (linki + inline).
+8. **PersonalityCard + /profile/personality** kwestionariusz + scoring.
+9. **/u/$slug** publiczna read-only.
+10. **Testy + cleanup starych route'ów** (`/profile/billing` itd. nadal działają jako bezpośrednie linki, ale UI domyślnie pokazuje wszystko inline).
 
-## Wdrozenie krok po kroku
+## Założenia, które potwierdzę kodem (nie pytaniem)
 
-1. Migracja SQL: tabela `post_sidebar_layouts` + RLS + GRANT + index + kolumna `posts.sidebar_layout_id` + seed default per tenant.
-2. Rejestr widgetow + Viewery (reading-panel w nowej formie + 5 reuse).
-3. `PostSidebarRenderer` + podmiana w `src/routes/$.tsx`.
-4. Server functions + cache query.
-5. Trasa admina `admin.appearance.post-sidebar.tsx` (Library + Canvas + Inspector + dnd-kit).
-6. Override Select na stronie edycji wpisu.
-7. i18n PL/EN.
-8. Testy (unit + component + integration).
-9. Smoke test E2E (Playwright headless) - publiczny render + builder.
+- Big Five: 30 pytań (6 na oś), skala 1-5, reverse keying, wynik 0-100.
+- CV: do 5 wersji per user (najnowsza = AKTUALNE), max 10 MB, mime: pdf/doc/docx.
+- Slug profilu już istnieje w `profiles.slug` — wykorzystam.
+- Dane już istniejące (bookmarks, follows, interests) nie wymagają migracji.
 
-## Out of scope (na pozniej)
-
-- Conditional display rules (per kategoria, per autor).
-- Wlasne CSS per widget.
-- Wiecej widgetow (TOC standalone, share-only standalone, table of contents typu numbered) - latwo dodac przez rejestr.
-- Wariant dla stron (`pages`) - obecnie tylko `posts`.
+Po zatwierdzeniu zaczynam od migracji.

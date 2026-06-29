@@ -1254,6 +1254,83 @@ export type Database = {
           },
         ]
       }
+      personality_questions: {
+        Row: {
+          axis: string
+          id: number
+          reverse: boolean
+          sort_order: number
+          text_en: string
+          text_pl: string
+        }
+        Insert: {
+          axis: string
+          id: number
+          reverse?: boolean
+          sort_order?: number
+          text_en: string
+          text_pl: string
+        }
+        Update: {
+          axis?: string
+          id?: number
+          reverse?: boolean
+          sort_order?: number
+          text_en?: string
+          text_pl?: string
+        }
+        Relationships: []
+      }
+      personality_results: {
+        Row: {
+          agreeableness: number
+          answers: Json
+          conscientiousness: number
+          created_at: string
+          extraversion: number
+          neuroticism: number
+          openness: number
+          taken_at: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agreeableness: number
+          answers?: Json
+          conscientiousness: number
+          created_at?: string
+          extraversion: number
+          neuroticism: number
+          openness: number
+          taken_at?: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agreeableness?: number
+          answers?: Json
+          conscientiousness?: number
+          created_at?: string
+          extraversion?: number
+          neuroticism?: number
+          openness?: number
+          taken_at?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personality_results_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       podcast_settings: {
         Row: {
           apple_url: string | null
@@ -1801,6 +1878,315 @@ export type Database = {
           },
           {
             foreignKeyName: "posts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_awards: {
+        Row: {
+          awarded_at: string | null
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          issuer: string | null
+          kind: string
+          sort_order: number
+          tenant_id: string
+          title: string
+          updated_at: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          awarded_at?: string | null
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          issuer?: string | null
+          kind?: string
+          sort_order?: number
+          tenant_id: string
+          title: string
+          updated_at?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          awarded_at?: string | null
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          issuer?: string | null
+          kind?: string
+          sort_order?: number
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_awards_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_cv_files: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_url: string
+          id: string
+          is_current: boolean
+          mime_type: string | null
+          size_bytes: number
+          tenant_id: string
+          updated_at: string
+          uploaded_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_url: string
+          id?: string
+          is_current?: boolean
+          mime_type?: string | null
+          size_bytes?: number
+          tenant_id: string
+          updated_at?: string
+          uploaded_at?: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_url?: string
+          id?: string
+          is_current?: boolean
+          mime_type?: string | null
+          size_bytes?: number
+          tenant_id?: string
+          updated_at?: string
+          uploaded_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_cv_files_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_education: {
+        Row: {
+          created_at: string
+          degree: string | null
+          description: string | null
+          end_date: string | null
+          field: string | null
+          id: string
+          logo_url: string | null
+          school: string
+          sort_order: number
+          start_date: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          degree?: string | null
+          description?: string | null
+          end_date?: string | null
+          field?: string | null
+          id?: string
+          logo_url?: string | null
+          school: string
+          sort_order?: number
+          start_date?: string | null
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          degree?: string | null
+          description?: string | null
+          end_date?: string | null
+          field?: string | null
+          id?: string
+          logo_url?: string | null
+          school?: string
+          sort_order?: number
+          start_date?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_education_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_experiences: {
+        Row: {
+          company: string | null
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          is_current: boolean
+          location: string | null
+          logo_url: string | null
+          role_title: string
+          sort_order: number
+          start_date: string | null
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_current?: boolean
+          location?: string | null
+          logo_url?: string | null
+          role_title: string
+          sort_order?: number
+          start_date?: string | null
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_current?: boolean
+          location?: string | null
+          logo_url?: string | null
+          role_title?: string
+          sort_order?: number
+          start_date?: string | null
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_experiences_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_hobbies: {
+        Row: {
+          created_at: string
+          icon: string | null
+          id: string
+          label: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          label: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          label?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_hobbies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_skills: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: string
+          label: string
+          level: number
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          label: string
+          level?: number
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          label?: string
+          level?: number
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_skills_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -2597,6 +2983,7 @@ export type Database = {
         }[]
       }
       page_full_path: { Args: { _page_id: string }; Returns: string }
+      profile_is_public: { Args: { _user_id: string }; Returns: boolean }
       public_tenant_id: { Args: never; Returns: string }
       record_post_view: {
         Args: { _post_id: string; _viewer_hash: string }
