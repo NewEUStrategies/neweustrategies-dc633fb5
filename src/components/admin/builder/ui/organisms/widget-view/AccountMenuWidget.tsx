@@ -188,9 +188,10 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const authItems = sectionItems("auth");
   const staffItems = sectionItems("staff");
 
-  // Trigger - shows the first name from /profile/account
+  // Trigger - greeting based on time of day + gender + vocative (PL)
+  const greeting = useGreeting();
   const fallbackHello = lang === "pl" ? "Hej!" : "Hi!";
-  const triggerLabel = firstName || displayName || fallbackHello;
+  const triggerLabel = greeting || firstName || displayName || fallbackHello;
   const trigger = session ? (
     <button
       type="button"
