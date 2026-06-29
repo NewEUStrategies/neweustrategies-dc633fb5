@@ -2,7 +2,7 @@
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "@/lib/lucide-shim";
+import { ChevronLeft, ChevronRight } from "@/lib/lucide-shim";
 
 export interface AdminPaginationProps {
   page: number;
@@ -54,7 +54,7 @@ export function AdminPagination({
       <div className="flex items-center gap-1">
         <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={safePage <= 1}
           onClick={() => onPageChange(1)} aria-label={t("admin.pagination.first", { defaultValue: "Pierwsza" })}>
-          <ChevronsLeft className="w-3.5 h-3.5" />
+          <span className="inline-flex"><ChevronLeft className="w-3.5 h-3.5" /><ChevronLeft className="w-3.5 h-3.5 -ml-2" /></span>
         </Button>
         <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={safePage <= 1}
           onClick={() => onPageChange(safePage - 1)} aria-label={t("admin.pagination.prev", { defaultValue: "Poprzednia" })}>
@@ -69,7 +69,7 @@ export function AdminPagination({
         </Button>
         <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={safePage >= pageCount}
           onClick={() => onPageChange(pageCount)} aria-label={t("admin.pagination.last", { defaultValue: "Ostatnia" })}>
-          <ChevronsRight className="w-3.5 h-3.5" />
+          <span className="inline-flex"><ChevronRight className="w-3.5 h-3.5" /><ChevronRight className="w-3.5 h-3.5 -ml-2" /></span>
         </Button>
       </div>
     </div>
