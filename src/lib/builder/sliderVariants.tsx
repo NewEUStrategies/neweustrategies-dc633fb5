@@ -207,9 +207,9 @@ const SHARED_STYLES = `
 /* Multi-card carousel track */
 .eh-slider .eh-track { display: flex; gap: 16px; will-change: transform; transition: transform 480ms cubic-bezier(.22,.61,.36,1); }
 .eh-slider .eh-track.is-dragging { transition: none; }
-.eh-slider .eh-card { flex: 0 0 auto; width: calc((100% - 32px) / 3); }
-@media (max-width: 1024px) { .eh-slider .eh-card { width: calc((100% - 16px) / 2); } }
-@media (max-width: 640px) { .eh-slider .eh-card { width: 100%; } .eh-slider .eh-track { gap: 12px; } }
+.eh-slider .eh-card { flex: 0 0 auto; }
+@media (max-width: 1024px) { .eh-slider .eh-card { width: calc((100% - 16px) / 2) !important; } }
+@media (max-width: 640px) { .eh-slider .eh-card { width: 100% !important; } .eh-slider .eh-track { gap: 12px !important; } }
 `;
 
 interface NavArrowsProps {
