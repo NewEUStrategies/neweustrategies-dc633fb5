@@ -705,12 +705,22 @@ function CompanyLogoIcon() {
   );
 }
 
-function Chip({ icon, children, tone = "muted", onClick }: { icon?: ReactNode; children: ReactNode; tone?: "primary" | "muted"; onClick?: () => void }) {
-  // Ujednolicony styl: identyczny rozmiar/padding/outline jak role-badge i
-  // przycisk "Panel administracyjny" (Button size="sm" variant="outline").
+function Chip({ icon, children, tone = "muted", size = "sm", onClick }: { icon?: ReactNode; children: ReactNode; tone?: "primary" | "muted" | "solid" | "accent"; size?: "sm" | "lg"; onClick?: () => void }) {
+  const sizeCls = size === "lg"
+    ? "h-8 px-3 py-1.5 text-xs gap-1.5"
+    : "h-auto px-2.5 py-1 text-[10px] gap-1";
+  const toneCls =
+    tone === "solid"
+      ? "border border-primary/30 bg-primary/10 text-foreground [&_svg]:text-primary shadow-sm"
+      : tone === "accent"
+      ? "border border-border bg-muted/60 text-foreground [&_svg]:text-primary"
+      : tone === "primary"
+      ? "border border-border bg-background text-foreground [&_svg]:text-primary"
+      : "border border-border bg-background text-foreground/80 [&_svg]:text-muted-foreground";
   const cls = cn(
-    "inline-flex items-center gap-1 h-auto rounded-[6px] border border-border bg-background px-2.5 py-1 text-[10px] font-medium leading-[1.2] whitespace-nowrap transition-colors",
-    tone === "primary" ? "text-foreground [&_svg]:text-primary" : "text-foreground/80 [&_svg]:text-muted-foreground",
+    "inline-flex items-center rounded-[6px] font-medium leading-[1.2] whitespace-nowrap transition-colors",
+    sizeCls,
+    toneCls,
     onClick && "cursor-pointer border-dashed italic hover:bg-accent hover:text-accent-foreground",
   );
   if (onClick) return <button type="button" onClick={onClick} className={cls}>{icon}{children}</button>;
