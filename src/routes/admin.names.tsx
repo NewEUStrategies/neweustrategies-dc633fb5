@@ -321,9 +321,9 @@ function AdminNamesPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Import CSV with dedupe-on-key. When key already exists we only patch the
-  // columns that were previously empty - this lets users top up missing forms
-  // (e.g. dative) without overwriting curated values.
+  // Parse CSV and stage a preview - the user reviews the field mapping
+  // (country resolved to ISO, grammatical cases, gender, compound flag) before
+  // we touch the database.
   const onImportFile = async (file: File) => {
     const text = await file.text();
     const matrix = parseCSV(text);
@@ -333,10 +333,36 @@ function AdminNamesPage() {
     if (!dataRows.length) { toast.error(L ? "Brak prawidłowych wierszy" : "No valid rows"); return; }
 
     const byKey = new Map(rows.map((r) => [r.key ?? r.name_normalized, r] as const));
+    let willAdd = 0, willMerge = 0, willSkip = 0;
+    for (const row of dataRows) {
+      const existing = byKey.get(row.key);
+      if (!existing) { willAdd += 1; continue; }
+      const fields: (keyof CsvParsedRow)[] = ["vocative_pl", "instrumental_pl", "genitive_pl", "dative_pl", "english_form", "origin", "notes"];
+      const hasNew = fields.some((k) => {
+        const v = row[k];
+        if (v === null || v === undefined || v === "") return false;
+        const ex = (existing as unknown as Record<string, unknown>)[k as string];
+        return ex === null || ex === undefined || ex === "";
+      });
+      if (hasNew) willMerge += 1; else willSkip += 1;
+    }
+    setPreview({ rows: dataRows, headers, willAdd, willMerge, willSkip });
+  };
+
+  // Apply the staged import. Country values are written as canonical ISO codes
+  // to both `origin_country` (ISO) and `origin` (kept in sync) so Polish forms
+  // ("Polska") match English ("Poland") when we look up existing records.
+  const commitImport = async () => {
+    if (!preview) return;
+    const { rows: dataRows } = preview;
+    const byKey = new Map(rows.map((r) => [r.key ?? r.name_normalized, r] as const));
     const prog = { total: dataRows.length, done: 0, added: 0, merged: 0, skipped: 0 };
+    setPreview(null);
     setImportProgress({ ...prog });
 
     for (const row of dataRows) {
+      const resolved = resolveCountry(row.origin);
+      const iso = resolved?.code ?? row.origin ?? null;
       const existing = byKey.get(row.key);
       if (!existing) {
         const insertPayload = {
@@ -345,8 +371,8 @@ function AdminNamesPage() {
           key: row.key,
           display_name: row.display_name,
           gender: row.gender,
-          origin_country: row.origin,
-          origin: row.origin,
+          origin_country: iso,
+          origin: iso,
           vocative_pl: row.vocative_pl,
           instrumental_pl: row.instrumental_pl,
           genitive_pl: row.genitive_pl,
@@ -372,10 +398,9 @@ function AdminNamesPage() {
         setIfMissing("dative_pl", row.dative_pl);
         setIfMissing("english_form", row.english_form);
         setIfMissing("vocative_en", row.english_form);
-        setIfMissing("origin", row.origin);
-        setIfMissing("origin_country", row.origin);
+        setIfMissing("origin", iso);
+        setIfMissing("origin_country", iso);
         setIfMissing("is_compound", row.is_compound ? true : null);
-
         setIfMissing("notes", row.notes);
         if (Object.keys(patch).length === 0) {
           prog.skipped += 1;
@@ -393,6 +418,7 @@ function AdminNamesPage() {
         : `Import: added ${prog.added}, merged ${prog.merged}, skipped ${prog.skipped}`,
     );
     setTimeout(() => setImportProgress(null), 4000);
+
   };
 
   if (loading) return null;
