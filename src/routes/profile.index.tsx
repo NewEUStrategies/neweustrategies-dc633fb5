@@ -575,7 +575,7 @@ function CenteredHero({
 
       {/* Avatar - centered, overlapping */}
       <div
-        className="absolute left-1/2 -translate-x-1/2 -bottom-14 sm:-bottom-16 z-20"
+        className="absolute left-1/2 -translate-x-1/2 -bottom-10 sm:-bottom-12 z-20"
         onMouseEnter={() => setHoverAvatar(true)}
         onMouseLeave={() => setHoverAvatar(false)}
       >
