@@ -224,11 +224,21 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "gradient", label: "gradient" },
         { value: "icon", label: "z ikoną na środku" },
         { value: "wave", label: "fala" },
+        { value: "space", label: "tylko odstęp (bez linii)" },
       ],
     },
     { key: "iconName", type: "text", label: "Ikona (dla wariantu z ikoną)",
       visibleWhen: (c) => c.variant === "icon" },
-    { key: "thickness", type: "number", label: "Grubość (px)", min: 1, max: 12 },
+    {
+      key: "thickness", type: "number",
+      label: "Grubość / wysokość (px)", min: 1, max: 400,
+      hint: "Dla wariantu „tylko odstęp" wartość określa wysokość pustej przestrzeni.",
+    },
+    {
+      key: "color", type: "color", label: "Kolor",
+      hint: "Pozostaw puste, aby użyć koloru motywu (border).",
+      visibleWhen: (c) => c.variant !== "space",
+    },
   ],
   spacer: [
     { key: "height", type: "number", label: "Wysokość (px)", min: 1, max: 800 },
