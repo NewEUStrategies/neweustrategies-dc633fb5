@@ -18,22 +18,26 @@ export interface WidgetCacheTarget {
 }
 
 function isWidget(node: SectionChild | WidgetNode): node is WidgetNode {
-  return node.kind === "widget";
+  return !!node && node.kind === "widget";
 }
 
-function collectWidgetsFromChild(child: SectionChild, out: WidgetNode[]) {
+function collectWidgetsFromChild(child: SectionChild | null | undefined, out: WidgetNode[]) {
+  if (!child) return;
   if (child.kind === "column") {
-    child.children.forEach((node) => out.push(node));
+    (child.children ?? []).forEach((node) => { if (node) out.push(node); });
     return;
   }
-  child.columns.forEach((column) => column.children.forEach((node) => out.push(node)));
+  (child.columns ?? []).forEach((column) =>
+    (column?.children ?? []).forEach((node) => { if (node) out.push(node); }),
+  );
 }
 
 export function collectSectionWidgets(section: SectionNode): WidgetNode[] {
   const widgets: WidgetNode[] = [];
-  section.children.forEach((child) => collectWidgetsFromChild(child, widgets));
+  (section.children ?? []).forEach((child) => collectWidgetsFromChild(child, widgets));
   return widgets.filter(isWidget);
 }
+
 
 export function collectBuilderWidgets(doc: BuilderDocument): WidgetNode[] {
   const widgets: WidgetNode[] = [];
