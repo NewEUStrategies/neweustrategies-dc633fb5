@@ -104,7 +104,7 @@ function ProfileInline() {
           twitterUrl={data.twitter_url ?? null}
         />
 
-        <section className="rounded-[6px] border border-border bg-card px-6 pt-14 sm:pt-16 pb-5">
+        <section className="rounded-[6px] border border-border bg-card px-5 sm:px-6 pt-16 sm:pt-20 pb-5">
           {/* Top: name + role/admin actions */}
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] sm:items-end gap-3">
             <div className="min-w-0 text-center sm:text-left">
