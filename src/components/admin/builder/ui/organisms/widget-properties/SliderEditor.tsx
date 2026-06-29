@@ -43,6 +43,8 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const titleWeight = typeof c.titleWeight === "number" ? c.titleWeight : 700;
   const subtitleSizePx = typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : 0;
   const subtitleWeight = typeof c.subtitleWeight === "number" ? c.subtitleWeight : 400;
+  const columnsRaw = typeof c.columns === "number" ? c.columns : 3;
+  const columns = (Math.max(1, Math.min(4, columnsRaw)) as 1 | 2 | 3 | 4);
 
 
   const rawItems = Array.isArray(c.items) ? (c.items as unknown[]) : [];
