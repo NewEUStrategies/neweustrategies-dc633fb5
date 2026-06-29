@@ -95,15 +95,15 @@ export function ProfileMediaPreview({
         <div className="relative px-4 pb-5 sm:px-6">
           <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4">
             {/* Avatar */}
-            <div className="shrink-0 -mt-10 sm:-mt-12">
+            <div className="shrink-0 -mt-12 sm:-mt-16">
               {avatarUrl ? (
                 <img
                   src={avatarUrl}
                   alt={fullName}
-                  className="h-20 w-20 sm:h-24 sm:w-24 rounded-[6px] object-cover border-[3px] border-background shadow-md bg-background"
+                  className="h-24 w-24 sm:h-32 sm:w-32 rounded-[6px] object-cover border-[3px] border-background shadow-md bg-background"
                 />
               ) : (
-                <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-[6px] bg-muted border-[3px] border-background shadow-md flex items-center justify-center text-xs text-muted-foreground">
+                <div className="h-24 w-24 sm:h-32 sm:w-32 rounded-[6px] bg-muted border-[3px] border-background shadow-md flex items-center justify-center text-xs text-muted-foreground">
                   {t("profile.account.avatarPlaceholder")}
                 </div>
               )}
