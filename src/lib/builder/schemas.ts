@@ -724,6 +724,8 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ] },
     { key: "recipient", type: "text", label: "E-mail odbiorcy (override)", placeholder: "kontakt@firma.pl" },
   ],
+};
+
 
 
 
