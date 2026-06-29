@@ -6,6 +6,7 @@
 //   - presety profilu (/profile, /profile/bookmarks, ...) + strony z DB pages + URL custom
 // Atomic design: AccountMenu = molecule (Popover + lista). i18n: PL/EN.
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useGreeting } from "@/lib/greetings/useGreeting";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as LucideIcons from "lucide-react";
@@ -187,9 +188,10 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const authItems = sectionItems("auth");
   const staffItems = sectionItems("staff");
 
-  // Trigger - shows the first name from /profile/account
+  // Trigger - greeting based on time of day + gender + vocative (PL)
+  const greeting = useGreeting();
   const fallbackHello = lang === "pl" ? "Hej!" : "Hi!";
-  const triggerLabel = firstName || displayName || fallbackHello;
+  const triggerLabel = greeting || firstName || displayName || fallbackHello;
   const trigger = session ? (
     <button
       type="button"
