@@ -137,7 +137,8 @@ export function InlineText({
     >
       <span
         className={cn(
-          "min-w-0 truncate",
+          "min-w-0",
+          variant === "title" ? "break-words" : "truncate",
           variantCls,
           isEmpty && "italic text-muted-foreground/70",
         )}
