@@ -101,7 +101,7 @@ function ProfileInline() {
         />
 
         {/* IDENTITY (centered, below avatar) */}
-        <section className="text-center px-4 pt-12 sm:pt-14">
+        <section className="rounded-[6px] border border-border bg-card text-center px-4 pt-12 sm:pt-14 pb-6">
           {editable ? (
             <InlineText
               value={data.display_name || fullName}
