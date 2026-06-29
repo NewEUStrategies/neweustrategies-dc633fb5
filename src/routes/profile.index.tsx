@@ -1,19 +1,27 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Eye, Pencil, Mail, MapPin, Briefcase, ShieldCheck, Receipt, Bookmark, Users, Sparkles, Globe, ExternalLink } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
+import {
+  Eye, Pencil, Mail, MapPin, Briefcase, ShieldCheck, Receipt, Bookmark, Users,
+  Sparkles, Globe, ExternalLink, Camera, Image as ImageIcon, Loader2, Linkedin,
+  Twitter, Phone, User as UserIcon, Cake, Heart,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useProfileEditor } from "@/lib/profile/useProfileEditor";
 import { InlineText } from "@/components/profile/inline/InlineText";
 import { InlineTextarea } from "@/components/profile/inline/InlineTextarea";
-import { InlineMedia } from "@/components/profile/inline/InlineMedia";
-import { ProfileExtraSections } from "@/components/profile/sections/ProfileExtraSections";
+import {
+  ExperienceSection, EducationSection, SkillsSection, AwardsSection, CvSection,
+  PersonalityCard, HobbiesCard,
+} from "@/components/profile/sections/ProfileExtraSections";
+import { cn } from "@/lib/utils";
 import "@/lib/i18n-profile-extras2";
 
 export const Route = createFileRoute("/profile/")({
@@ -21,12 +29,14 @@ export const Route = createFileRoute("/profile/")({
 });
 
 type Gender = "male" | "female" | "neutral";
+type TabKey = "about" | "experience" | "badges" | "activity" | "settings";
 
 function ProfileInline() {
   const { t } = useTranslation();
   const { user, roles, session } = useAuth();
   const { data, loading, saveField, upload, progress, status } = useProfileEditor();
   const [previewAsGuest, setPreviewAsGuest] = useState(false);
+  const [tab, setTab] = useState<TabKey>("about");
 
   const fullName =
     [data.first_name, data.last_name].filter(Boolean).join(" ") ||
@@ -34,7 +44,6 @@ function ProfileInline() {
     user?.email?.split("@")[0] ||
     t("profile.account.unnamed");
 
-  // Bookmark / follow counts shown as inline meta
   const counts = useQuery({
     queryKey: ["profile-counts", user?.id],
     enabled: !!session && !!user,
@@ -65,284 +74,549 @@ function ProfileInline() {
     );
   }
 
+  const tabs: { key: TabKey; label: string }[] = [
+    { key: "about", label: t("profile.tabs.about") },
+    { key: "experience", label: t("profile.tabs.experience") },
+    { key: "badges", label: t("profile.tabs.badges") },
+    { key: "activity", label: t("profile.tabs.activity") },
+    { key: "settings", label: t("profile.tabs.settings") },
+  ];
+
   return (
     <TooltipProvider>
-      <div className="space-y-4">
-        {/* HERO: cover + avatar */}
-        <section className="relative">
+      <div className="mx-auto w-full max-w-6xl space-y-4">
+        {/* HERO */}
+        <CenteredHero
+          editable={editable}
+          avatarUrl={data.avatar_url}
+          coverUrl={data.cover_url}
+          fullName={fullName}
+          onUpload={upload}
+          status={status}
+          progress={progress}
+          previewAsGuest={previewAsGuest}
+          onTogglePreview={() => setPreviewAsGuest((v) => !v)}
+          linkedinUrl={data.linkedin_url ?? null}
+          twitterUrl={data.twitter_url ?? null}
+        />
+
+        {/* IDENTITY (centered, below avatar) */}
+        <section className="text-center px-4 pt-12 sm:pt-14">
           {editable ? (
-            <InlineMedia
-              avatarUrl={data.avatar_url}
-              coverUrl={data.cover_url}
-              fullName={fullName}
-              onUpload={upload}
-              status={status}
-              progress={progress}
-              t={t}
+            <InlineText
+              value={data.display_name || fullName}
+              onSave={(v) => saveField("display_name", v || null)}
+              ariaLabel={t("profile.account.displayName")}
+              placeholder={t("profile.account.displayName")}
+              emptyLabel={t("profile.account.unnamed")}
+              variant="title"
+              maxLength={120}
+              className="mx-auto inline-block"
             />
           ) : (
-            <ReadOnlyMedia avatarUrl={data.avatar_url} coverUrl={data.cover_url} fullName={fullName} />
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{fullName}</h1>
           )}
 
-          {/* Top-right preview toggle */}
-          <div className="absolute right-2.5 top-2.5 z-10">
-            <Button
-              type="button"
-              size="sm"
-              variant={previewAsGuest ? "default" : "secondary"}
-              onClick={() => setPreviewAsGuest((v) => !v)}
-              className="h-7 px-2.5 text-[11px] shadow-sm"
-            >
-              {previewAsGuest ? <Pencil className="mr-1 h-3 w-3" /> : <Eye className="mr-1 h-3 w-3" />}
-              {previewAsGuest ? t("profile.inline.editMode") : t("profile.inline.viewAsGuest")}
-            </Button>
-          </div>
-        </section>
-
-        {/* IDENTITY block (offset to clear the overlapping avatar) */}
-        <section className="pl-4 pr-4 pt-10 sm:pl-28 sm:pr-2 sm:pt-2">
-          <div className="space-y-1">
-
+          {/* Job title (subtitle, centered) */}
+          <div className="mt-1 text-sm sm:text-base text-foreground/80">
             {editable ? (
               <InlineText
-                value={data.display_name || fullName}
-                onSave={(v) => saveField("display_name", v || null)}
-                ariaLabel={t("profile.account.displayName")}
-                placeholder={t("profile.account.displayName")}
-                emptyLabel={t("profile.account.unnamed")}
-                variant="title"
+                value={data.job_title}
+                onSave={(v) => saveField("job_title", v || null)}
+                ariaLabel={t("profile.account.jobTitle")}
+                placeholder={t("profile.account.jobTitle")}
+                emptyLabel={t("profile.inline.addJobTitle")}
+                variant="subtitle"
                 maxLength={120}
+                className="mx-auto inline-block"
               />
             ) : (
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{fullName}</h1>
+              <span>{data.job_title || "-"}</span>
             )}
-
-            {/* Job title · Company */}
-            <div className="flex flex-wrap items-center gap-1.5 text-foreground/85">
-              <Briefcase className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-              {editable ? (
-                <>
-                  <InlineText
-                    value={data.job_title}
-                    onSave={(v) => saveField("job_title", v || null)}
-                    ariaLabel={t("profile.account.jobTitle")}
-                    placeholder={t("profile.account.jobTitle")}
-                    emptyLabel={t("profile.inline.addJobTitle")}
-                    variant="subtitle"
-                    maxLength={120}
-                  />
-                  {(data.current_company || data.job_title) && <span className="text-muted-foreground">·</span>}
-                  <InlineText
-                    value={data.current_company}
-                    onSave={(v) => saveField("current_company", v || null)}
-                    ariaLabel={t("profile.account.currentCompany")}
-                    placeholder={t("profile.account.currentCompany")}
-                    emptyLabel={t("profile.inline.addCompany")}
-                    variant="subtitle"
-                    maxLength={160}
-                  />
-                </>
-              ) : (
-                <span className="text-base sm:text-lg">
-                  {[data.job_title, data.current_company].filter(Boolean).join(" · ") || "-"}
-                </span>
-              )}
-            </div>
-
-            {/* Location */}
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <MapPin className="h-4 w-4 shrink-0" aria-hidden />
-              {editable ? (
-                <InlineText
-                  value={data.location}
-                  onSave={(v) => saveField("location", v || null)}
-                  ariaLabel={t("profile.account.location")}
-                  placeholder={t("profile.account.locationPh")}
-                  emptyLabel={t("profile.inline.addLocation")}
-                  variant="muted"
-                  maxLength={160}
-                />
-              ) : (
-                <span className="text-sm">{data.location || "-"}</span>
-              )}
-            </div>
-
-            {/* Email (readonly) */}
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Mail className="h-4 w-4 shrink-0" aria-hidden />
-              <a href={`mailto:${user?.email ?? ""}`} className="text-sm hover:text-foreground">
-                {user?.email}
-              </a>
-            </div>
-
-            {/* Roles + admin shortcuts */}
-            {roles.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 pt-2">
-                {roles.map((r) => (
-                  <Badge
-                    key={r}
-                    variant={r === "super_admin" || r === "admin" ? "default" : "secondary"}
-                    className="h-7 rounded-[6px] px-2.5 text-xs font-medium leading-none"
-                  >
-                    {t(`profile.role.${r}`)}
-                  </Badge>
-                ))}
-                {isStaff && (
-                  <Button asChild size="sm" variant="outline" className="h-7 rounded-[6px] px-2.5 text-xs">
-                    <Link to="/admin" className="!text-foreground">
-                      <ShieldCheck className="mr-1 h-3.5 w-3.5" />
-                      {t("profile.inline.adminPanel")}
-                    </Link>
-                  </Button>
-                )}
-              </div>
-            )}
-
           </div>
-        </section>
 
-        {/* BIO */}
-        <section className="grid gap-2 rounded-[6px] border border-border bg-card p-4">
-          <header className="flex items-center justify-between">
-            <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
-              <Sparkles className="h-3.5 w-3.5 text-primary" /> {t("profile.account.bio")}
-            </h2>
-          </header>
-          {editable ? (
-            <InlineTextarea
-              value={data.bio}
-              onSave={(v) => saveField("bio", v || null)}
-              ariaLabel={t("profile.account.bio")}
-              placeholder={t("profile.inline.bioPlaceholder")}
-              emptyLabel={t("profile.inline.bioPlaceholder")}
-              maxLength={500}
-              rows={3}
-            />
-          ) : (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-              {data.bio || "-"}
-            </p>
+          {/* Chips (company, specialization) */}
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
+            {data.current_company ? (
+              <Chip icon={<Briefcase className="h-3 w-3" />} tone="primary">
+                {data.current_company}
+              </Chip>
+            ) : editable ? (
+              <Chip
+                icon={<Briefcase className="h-3 w-3" />}
+                tone="muted"
+                onClick={() => {
+                  const v = window.prompt(t("profile.account.currentCompany"));
+                  if (v != null) void saveField("current_company", v.trim() || null);
+                }}
+              >
+                {t("profile.inline.addCompany")}
+              </Chip>
+            ) : null}
+
+            {data.specialization ? (
+              <Chip icon={<Sparkles className="h-3 w-3" />} tone="primary">
+                {data.specialization}
+              </Chip>
+            ) : editable ? (
+              <Chip
+                icon={<Sparkles className="h-3 w-3" />}
+                tone="muted"
+                onClick={() => {
+                  const v = window.prompt(t("profile.account.specialization"));
+                  if (v != null) void saveField("specialization", v.trim() || null);
+                }}
+              >
+                {t("profile.inline.addSpecialization")}
+              </Chip>
+            ) : null}
+
+            {data.location ? (
+              <Chip icon={<MapPin className="h-3 w-3" />} tone="muted">{data.location}</Chip>
+            ) : editable ? (
+              <Chip
+                icon={<MapPin className="h-3 w-3" />}
+                tone="muted"
+                onClick={() => {
+                  const v = window.prompt(t("profile.account.locationPh"));
+                  if (v != null) void saveField("location", v.trim() || null);
+                }}
+              >
+                {t("profile.inline.addLocation")}
+              </Chip>
+            ) : null}
+          </div>
+
+          {/* Email */}
+          {user?.email && (
+            <div className="mt-2 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+              <Mail className="h-3.5 w-3.5" aria-hidden />
+              <a href={`mailto:${user.email}`} className="hover:text-foreground">{user.email}</a>
+            </div>
+          )}
+
+          {/* Roles & admin shortcut */}
+          {roles.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
+              {roles.map((r) => (
+                <Badge
+                  key={r}
+                  variant={r === "super_admin" || r === "admin" ? "default" : "secondary"}
+                  className="h-6 rounded-[6px] px-2 text-[11px] font-medium leading-none"
+                >
+                  {t(`profile.role.${r}`)}
+                </Badge>
+              ))}
+              {isStaff && (
+                <Button asChild size="sm" variant="outline" className="h-6 rounded-[6px] px-2 text-[11px]">
+                  <Link to="/admin" className="!text-foreground">
+                    <ShieldCheck className="mr-1 h-3 w-3" />
+                    {t("profile.inline.adminPanel")}
+                  </Link>
+                </Button>
+              )}
+            </div>
           )}
         </section>
 
-        {/* GRID: meta + activity */}
-        <section className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-[6px] border border-border bg-card p-4">
-            <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
-              {t("profile.inline.contactSection")}
-            </h2>
-            <dl className="grid gap-2 text-sm">
-              <Row label={t("profile.account.firstName")}>
-                {editable ? (
-                  <InlineText
-                    value={data.first_name}
-                    onSave={(v) => saveField("first_name", v || null)}
-                    ariaLabel={t("profile.account.firstName")}
-                    emptyLabel={t("profile.inline.notSet")}
-                    maxLength={80}
-                  />
-                ) : (
-                  <span>{data.first_name || "-"}</span>
-                )}
-              </Row>
-              <Row label={t("profile.account.lastName")}>
-                {editable ? (
-                  <InlineText
-                    value={data.last_name}
-                    onSave={(v) => saveField("last_name", v || null)}
-                    ariaLabel={t("profile.account.lastName")}
-                    emptyLabel={t("profile.inline.notSet")}
-                    maxLength={80}
-                  />
-                ) : (
-                  <span>{data.last_name || "-"}</span>
-                )}
-              </Row>
-              <Row label={t("profile.account.phone")}>
-                {editable ? (
-                  <InlineText
-                    value={data.phone}
-                    onSave={(v) => saveField("phone", v || null)}
-                    ariaLabel={t("profile.account.phone")}
-                    placeholder={t("profile.account.phonePh")}
-                    emptyLabel={t("profile.inline.notSet")}
-                    maxLength={32}
-                  />
-                ) : (
-                  <span>{data.phone || "-"}</span>
-                )}
-              </Row>
-              <Row label={t("profile.account.gender")}>
-                {editable ? (
-                  <Select
-                    value={data.gender ?? "auto"}
-                    onValueChange={(v) =>
-                      saveField("gender", v === "auto" ? null : (v as Gender))
-                    }
-                  >
-                    <SelectTrigger className="h-7 w-full max-w-[220px] text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto">{t("profile.account.genderAuto")}</SelectItem>
-                      <SelectItem value="female">{t("profile.account.genderFemale")}</SelectItem>
-                      <SelectItem value="male">{t("profile.account.genderMale")}</SelectItem>
-                      <SelectItem value="neutral">{t("profile.account.genderNeutral")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <span>{data.gender ? t(`profile.account.gender${cap(data.gender)}`) : "-"}</span>
-                )}
-              </Row>
-            </dl>
+        {/* TABS NAV */}
+        <nav className="sticky top-0 z-10 -mx-2 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+          <div className="flex items-center gap-0.5 overflow-x-auto px-2">
+            {tabs.map((it) => {
+              const active = tab === it.key;
+              return (
+                <button
+                  key={it.key}
+                  type="button"
+                  onClick={() => setTab(it.key)}
+                  className={cn(
+                    "relative shrink-0 px-3 py-2.5 text-xs font-medium transition-colors",
+                    active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {it.label}
+                  {active && (
+                    <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" aria-hidden />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        {/* MAIN GRID */}
+        <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+          {/* LEFT: tab content */}
+          <div className="space-y-4 min-w-0">
+            {tab === "about" && (
+              <>
+                <Card
+                  icon={<Sparkles className="h-3.5 w-3.5" />}
+                  title={t("profile.account.bio")}
+                >
+                  {editable ? (
+                    <InlineTextarea
+                      value={data.bio}
+                      onSave={(v) => saveField("bio", v || null)}
+                      ariaLabel={t("profile.account.bio")}
+                      placeholder={t("profile.inline.bioPlaceholder")}
+                      emptyLabel={t("profile.inline.bioPlaceholder")}
+                      maxLength={500}
+                      rows={3}
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+                      {data.bio || "-"}
+                    </p>
+                  )}
+                </Card>
+
+                <Card icon={<Mail className="h-3.5 w-3.5" />} title={t("profile.inline.contactSection")}>
+                  <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                    <Row label={t("profile.account.firstName")}>
+                      {editable ? (
+                        <InlineText value={data.first_name} onSave={(v) => saveField("first_name", v || null)} ariaLabel={t("profile.account.firstName")} emptyLabel={t("profile.inline.notSet")} maxLength={80} />
+                      ) : <span>{data.first_name || "-"}</span>}
+                    </Row>
+                    <Row label={t("profile.account.lastName")}>
+                      {editable ? (
+                        <InlineText value={data.last_name} onSave={(v) => saveField("last_name", v || null)} ariaLabel={t("profile.account.lastName")} emptyLabel={t("profile.inline.notSet")} maxLength={80} />
+                      ) : <span>{data.last_name || "-"}</span>}
+                    </Row>
+                    <Row label={t("profile.account.phone")}>
+                      {editable ? (
+                        <InlineText value={data.phone} onSave={(v) => saveField("phone", v || null)} ariaLabel={t("profile.account.phone")} placeholder={t("profile.account.phonePh")} emptyLabel={t("profile.inline.notSet")} maxLength={32} />
+                      ) : <span>{data.phone || "-"}</span>}
+                    </Row>
+                    <Row label={t("profile.account.email")}>
+                      <span className="text-foreground/80">{user?.email}</span>
+                    </Row>
+                  </dl>
+                </Card>
+
+                {user?.id && data.tenant_id ? (
+                  <CvSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
+                ) : null}
+              </>
+            )}
+
+            {tab === "experience" && user?.id && data.tenant_id && (
+              <>
+                <ExperienceSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
+                <EducationSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
+                <SkillsSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
+              </>
+            )}
+
+            {tab === "badges" && user?.id && data.tenant_id && (
+              <>
+                <AwardsSection userId={user.id} tenantId={data.tenant_id} editable={editable} kind="award" />
+                <AwardsSection userId={user.id} tenantId={data.tenant_id} editable={editable} kind="recognition" />
+                <AwardsSection userId={user.id} tenantId={data.tenant_id} editable={editable} kind="mention" />
+              </>
+            )}
+
+            {tab === "activity" && (
+              <>
+                <Card icon={<Sparkles className="h-3.5 w-3.5" />} title={t("profile.inline.activitySection")}>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <Stat icon={<Bookmark className="h-3.5 w-3.5" />} value={counts.data?.bookmarks ?? 0} label={t("profile.nav.bookmarks")} to="/profile/bookmarks" />
+                    <Stat icon={<Users className="h-3.5 w-3.5" />} value={counts.data?.authors ?? 0} label={t("profile.follows.tabAuthors")} to="/profile/follows" />
+                    <Stat icon={<Globe className="h-3.5 w-3.5" />} value={counts.data?.categories ?? 0} label={t("profile.follows.tabCategories")} to="/profile/follows" />
+                    <Stat icon={<Sparkles className="h-3.5 w-3.5" />} value={counts.data?.tags ?? 0} label={t("profile.follows.tabTags")} to="/profile/follows" />
+                  </div>
+                </Card>
+                <Card icon={<Globe className="h-3.5 w-3.5" />} title={t("profile.inline.shortcuts")}>
+                  <div className="grid gap-1">
+                    <SecondaryLink to="/profile/interests" icon={<Sparkles className="h-3.5 w-3.5" />}>{t("profile.nav.interests")}</SecondaryLink>
+                    <SecondaryLink to="/profile/social" icon={<ExternalLink className="h-3.5 w-3.5" />}>{t("profile.nav.social")}</SecondaryLink>
+                    <SecondaryLink to="/profile/billing" icon={<Receipt className="h-3.5 w-3.5" />}>{t("profile.nav.billing")}</SecondaryLink>
+                    <SecondaryLink to="/profile/subscription" icon={<ShieldCheck className="h-3.5 w-3.5" />}>{t("profile.nav.subscription")}</SecondaryLink>
+                    <SecondaryLink to="/profile/security" icon={<ShieldCheck className="h-3.5 w-3.5" />}>{t("profile.nav.security")}</SecondaryLink>
+                  </div>
+                </Card>
+              </>
+            )}
+
+            {tab === "settings" && (
+              <Card icon={<ShieldCheck className="h-3.5 w-3.5" />} title={t("profile.tabs.settings")}>
+                <dl className="grid gap-2 text-sm">
+                  <Row label={t("profile.account.gender")}>
+                    {editable ? (
+                      <Select
+                        value={data.gender ?? "auto"}
+                        onValueChange={(v) => saveField("gender", v === "auto" ? null : (v as Gender))}
+                      >
+                        <SelectTrigger className="h-7 w-full max-w-[240px] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">{t("profile.account.genderAuto")}</SelectItem>
+                          <SelectItem value="female">{t("profile.account.genderFemale")}</SelectItem>
+                          <SelectItem value="male">{t("profile.account.genderMale")}</SelectItem>
+                          <SelectItem value="neutral">{t("profile.account.genderNeutral")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span>{data.gender ? t(`profile.account.gender${cap(data.gender)}`) : "-"}</span>
+                    )}
+                  </Row>
+                  <Row label={t("profile.account.location")}>
+                    {editable ? (
+                      <InlineText value={data.location} onSave={(v) => saveField("location", v || null)} ariaLabel={t("profile.account.location")} placeholder={t("profile.account.locationPh")} emptyLabel={t("profile.inline.notSet")} maxLength={160} />
+                    ) : <span>{data.location || "-"}</span>}
+                  </Row>
+                </dl>
+              </Card>
+            )}
           </div>
 
-          <div className="rounded-[6px] border border-border bg-card p-4">
-            <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
-              {t("profile.inline.activitySection")}
-            </h2>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Stat icon={<Bookmark className="h-3.5 w-3.5" />} value={counts.data?.bookmarks ?? 0} label={t("profile.nav.bookmarks")} to="/profile/bookmarks" />
-              <Stat icon={<Users className="h-3.5 w-3.5" />} value={counts.data?.authors ?? 0} label={t("profile.follows.tabAuthors")} to="/profile/follows" />
-              <Stat icon={<Globe className="h-3.5 w-3.5" />} value={counts.data?.categories ?? 0} label={t("profile.follows.tabCategories")} to="/profile/follows" />
-              <Stat icon={<Sparkles className="h-3.5 w-3.5" />} value={counts.data?.tags ?? 0} label={t("profile.follows.tabTags")} to="/profile/follows" />
-            </div>
-
-            <div className="mt-3 grid gap-1">
-              <SecondaryLink to="/profile/interests" icon={<Sparkles className="h-3.5 w-3.5" />}>{t("profile.nav.interests")}</SecondaryLink>
-              <SecondaryLink to="/profile/social" icon={<ExternalLink className="h-3.5 w-3.5" />}>{t("profile.nav.social")}</SecondaryLink>
-              <SecondaryLink to="/profile/billing" icon={<Receipt className="h-3.5 w-3.5" />}>{t("profile.nav.billing")}</SecondaryLink>
-              <SecondaryLink to="/profile/subscription" icon={<ShieldCheck className="h-3.5 w-3.5" />}>{t("profile.nav.subscription")}</SecondaryLink>
-              <SecondaryLink to="/profile/security" icon={<ShieldCheck className="h-3.5 w-3.5" />}>{t("profile.nav.security")}</SecondaryLink>
-            </div>
-          </div>
-        </section>
-
-        {/* EXPERIENCE / EDUCATION / SKILLS / AWARDS / CV + sticky sidebar (Personality, Hobbies) */}
-        {user?.id && data.tenant_id ? (
-          <ProfileExtraSections userId={user.id} tenantId={data.tenant_id} editable={editable} />
-        ) : null}
-
+          {/* RIGHT: sticky sidebar */}
+          <aside className="space-y-3 lg:sticky lg:top-14 lg:self-start">
+            <Card icon={<UserIcon className="h-3.5 w-3.5" />} title={t("profile.sidebar.personalData")}>
+              <dl className="grid gap-1.5 text-xs">
+                <MiniRow icon={<Cake className="h-3 w-3" />} label={t("profile.sidebar.birthDate")} value="-" />
+                <MiniRow icon={<UserIcon className="h-3 w-3" />} label={t("profile.account.gender")} value={data.gender ? t(`profile.account.gender${cap(data.gender)}`) : "-"} />
+                <MiniRow icon={<MapPin className="h-3 w-3" />} label={t("profile.account.location")} value={data.location || "-"} />
+                <MiniRow icon={<Phone className="h-3 w-3" />} label={t("profile.account.phone")} value={data.phone || "-"} />
+              </dl>
+            </Card>
+            {user?.id ? <PersonalityCard userId={user.id} editable={editable} /> : null}
+            <Card icon={<Heart className="h-3.5 w-3.5" />} title={t("profile.nav.interests")} action={
+              <Link to="/profile/interests" className="text-[11px] text-primary hover:underline">
+                {t("profile.actions.manage")}
+              </Link>
+            }>
+              <p className="text-xs text-muted-foreground">{t("profile.inline.interestsHint")}</p>
+            </Card>
+            {user?.id && data.tenant_id ? (
+              <HobbiesCard userId={user.id} tenantId={data.tenant_id} editable={editable} />
+            ) : null}
+          </aside>
+        </div>
       </div>
     </TooltipProvider>
   );
 }
 
-function cap(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
+/* ----------------------------- Hero ---------------------------------- */
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+type UploadKind = "avatar" | "cover";
+type Status = "idle" | "uploading" | "success" | "failed";
+
+function CenteredHero({
+  editable, avatarUrl, coverUrl, fullName, onUpload, status, progress,
+  previewAsGuest, onTogglePreview, linkedinUrl, twitterUrl,
+}: {
+  editable: boolean;
+  avatarUrl: string | null;
+  coverUrl: string | null;
+  fullName: string;
+  onUpload: (file: File, kind: UploadKind) => Promise<void>;
+  status: Record<UploadKind, Status>;
+  progress: Record<UploadKind, number>;
+  previewAsGuest: boolean;
+  onTogglePreview: () => void;
+  linkedinUrl: string | null;
+  twitterUrl: string | null;
+}) {
+  const { t } = useTranslation();
+  const avatarInput = useRef<HTMLInputElement | null>(null);
+  const coverInput = useRef<HTMLInputElement | null>(null);
+  const [hoverCover, setHoverCover] = useState(false);
+  const [hoverAvatar, setHoverAvatar] = useState(false);
+  const initial = fullName.trim().charAt(0).toUpperCase() || "·";
+  const upCover = status.cover === "uploading";
+  const upAvatar = status.avatar === "uploading";
+
   return (
-    <div className="grid grid-cols-[100px_1fr] items-center gap-2">
-      <dt className="text-[10px] uppercase tracking-wide leading-normal text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-sm">{children}</dd>
-    </div>
+    <section className="relative">
+      {/* Cover */}
+      <div
+        className="relative h-40 sm:h-52 md:h-60 w-full overflow-hidden rounded-[6px] bg-gradient-to-br from-muted via-muted/60 to-primary/10"
+        onMouseEnter={() => setHoverCover(true)}
+        onMouseLeave={() => setHoverCover(false)}
+      >
+        {coverUrl ? (
+          <img src={coverUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+            <ImageIcon className="mr-1.5 h-4 w-4" aria-hidden />
+            {t("profile.account.coverPlaceholder")}
+          </div>
+        )}
 
+        {/* Action bar top-right */}
+        <div className="absolute right-2.5 top-2.5 z-10 flex items-center gap-1.5">
+          {editable && (
+            <button
+              type="button"
+              onClick={() => coverInput.current?.click()}
+              disabled={upCover}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-[6px] border border-white/30 bg-black/40 px-2 py-1 text-[11px] font-medium text-white backdrop-blur-md hover:bg-black/60 transition-opacity",
+                hoverCover || upCover ? "opacity-100" : "opacity-70",
+              )}
+            >
+              {upCover ? <Loader2 className="h-3 w-3 animate-spin" /> : <Camera className="h-3 w-3" />}
+              {upCover ? t("profile.account.uploading") : t("profile.account.uploadCover")}
+            </button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant={previewAsGuest ? "default" : "secondary"}
+            onClick={onTogglePreview}
+            className="h-7 px-2.5 text-[11px] shadow-sm"
+          >
+            {previewAsGuest ? <Pencil className="mr-1 h-3 w-3" /> : <Eye className="mr-1 h-3 w-3" />}
+            {previewAsGuest ? t("profile.inline.editMode") : t("profile.inline.viewAsGuest")}
+          </Button>
+        </div>
+
+        {upCover && (
+          <div className="absolute inset-x-2.5 bottom-2.5 z-10">
+            <Progress value={progress.cover} className="h-1" />
+          </div>
+        )}
+      </div>
+
+      {/* Avatar - centered, overlapping */}
+      <div
+        className="absolute left-1/2 -translate-x-1/2 -bottom-12 sm:-bottom-14 z-20"
+        onMouseEnter={() => setHoverAvatar(true)}
+        onMouseLeave={() => setHoverAvatar(false)}
+      >
+        <div className="relative h-24 w-24 sm:h-28 sm:w-28">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={fullName}
+              className="h-full w-full rounded-[6px] ring-4 ring-background bg-background object-cover shadow-md"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center rounded-[6px] ring-4 ring-background bg-gradient-to-br from-primary/30 to-primary/10 text-3xl font-semibold text-primary shadow-md">
+              {initial}
+            </div>
+          )}
+
+          {editable && (
+            <button
+              type="button"
+              onClick={() => avatarInput.current?.click()}
+              disabled={upAvatar}
+              className={cn(
+                "absolute inset-0 inline-flex items-center justify-center rounded-[6px] bg-black/55 text-white backdrop-blur-[2px] transition-opacity",
+                hoverAvatar || upAvatar ? "opacity-100" : "opacity-0",
+              )}
+            >
+              {upAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+            </button>
+          )}
+
+          {/* Social mini-icons bottom-right */}
+          {(linkedinUrl || twitterUrl) && (
+            <div className="absolute -bottom-1.5 -right-1.5 flex items-center gap-1">
+              {linkedinUrl && (
+                <a
+                  href={linkedinUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="LinkedIn"
+                  className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground/80 ring-2 ring-background shadow-sm hover:text-primary"
+                >
+                  <Linkedin className="h-3.5 w-3.5" />
+                </a>
+              )}
+              {twitterUrl && (
+                <a
+                  href={twitterUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="X"
+                  className="grid h-6 w-6 place-items-center rounded-full bg-background text-foreground/80 ring-2 ring-background shadow-sm hover:text-primary"
+                >
+                  <Twitter className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
+          )}
+
+          {upAvatar && (
+            <div className="absolute -bottom-2 left-0 right-0">
+              <Progress value={progress.avatar} className="h-1" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Hidden file inputs */}
+      <input
+        ref={coverInput}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/avif"
+        hidden
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) void onUpload(f, "cover"); e.target.value = ""; }}
+      />
+      <input
+        ref={avatarInput}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/avif"
+        hidden
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) void onUpload(f, "avatar"); e.target.value = ""; }}
+      />
+    </section>
   );
 }
 
-function Stat({ icon, value, label, to }: { icon: React.ReactNode; value: number; label: string; to: string }) {
+/* --------------------------- UI atoms -------------------------------- */
+
+function Card({ icon, title, action, children }: { icon?: ReactNode; title: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="rounded-[6px] border border-border bg-card p-4">
+      <header className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
+          {icon ? <span className="text-primary">{icon}</span> : null}
+          {title}
+        </h2>
+        {action}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function Chip({ icon, children, tone = "muted", onClick }: { icon?: ReactNode; children: ReactNode; tone?: "primary" | "muted"; onClick?: () => void }) {
+  const cls = cn(
+    "inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[11px] font-medium leading-none transition-colors",
+    tone === "primary"
+      ? "bg-primary/15 text-primary hover:bg-primary/20"
+      : "bg-muted text-foreground/80 hover:bg-muted/70",
+    onClick && "cursor-pointer border border-dashed border-border italic",
+  );
+  if (onClick) return <button type="button" onClick={onClick} className={cls}>{icon}{children}</button>;
+  return <span className={cls}>{icon}{children}</span>;
+}
+
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[110px_1fr] items-center gap-2">
+      <dt className="text-[10px] uppercase tracking-wide leading-normal text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-sm">{children}</dd>
+    </div>
+  );
+}
+
+function MiniRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-[6px] px-1.5 py-1 hover:bg-muted/50">
+      <span className="flex items-center gap-1.5 text-muted-foreground">{icon}{label}</span>
+      <span className="truncate text-foreground/90">{value}</span>
+    </div>
+  );
+}
+
+function Stat({ icon, value, label, to }: { icon: ReactNode; value: number; label: string; to: string }) {
   return (
     <Link
       to={to}
@@ -355,7 +629,7 @@ function Stat({ icon, value, label, to }: { icon: React.ReactNode; value: number
   );
 }
 
-function SecondaryLink({ to, icon, children }: { to: string; icon: React.ReactNode; children: React.ReactNode }) {
+function SecondaryLink({ to, icon, children }: { to: string; icon: ReactNode; children: ReactNode }) {
   return (
     <Link
       to={to}
@@ -370,25 +644,6 @@ function SecondaryLink({ to, icon, children }: { to: string; icon: React.ReactNo
   );
 }
 
-function ReadOnlyMedia({ avatarUrl, coverUrl, fullName }: { avatarUrl: string | null; coverUrl: string | null; fullName: string }) {
-  const initial = fullName.trim().charAt(0).toUpperCase() || "·";
-  return (
-    <div className="relative">
-      <div className="h-28 sm:h-36 md:h-44 w-full overflow-hidden rounded-[6px] bg-muted">
-        {coverUrl && <img src={coverUrl} alt="" className="h-full w-full object-cover" />}
-      </div>
-      <div className="absolute left-4 sm:left-5 -bottom-8 sm:-bottom-10">
-        <div className="h-16 w-16 sm:h-20 sm:w-20">
-          {avatarUrl ? (
-            <img src={avatarUrl} alt={fullName} className="h-full w-full rounded-[6px] ring-2 ring-background bg-background object-cover shadow-sm" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-[6px] ring-2 ring-background bg-gradient-to-br from-primary/30 to-primary/10 text-xl sm:text-2xl font-semibold text-primary shadow-sm">
-              {initial}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+function cap(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
-
