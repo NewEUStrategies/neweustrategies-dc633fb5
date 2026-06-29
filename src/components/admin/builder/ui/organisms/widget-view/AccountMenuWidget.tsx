@@ -134,24 +134,28 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const mounted = useHasMounted();
   const { session, user, signOut, isStaff, isAdmin, isSuperAdmin } = useAuth();
   const [open, setOpen] = useState(false);
-  const [displayName, setDisplayName] = useState<string>("");
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const { t } = useTranslation();
 
   const items = useMemo(() => Array.isArray(config.items) ? config.items : [], [config.items]);
   const hasPageItems = items.some((i) => i.kind === "page");
   const { data: pages } = usePagesIndex(hasPageItems, lang);
 
-  useEffect(() => {
-    if (!user?.id) { setDisplayName(""); setAvatarUrl(null); return; }
-    let cancelled = false;
-    void supabase.from("profiles").select("display_name, avatar_url").eq("id", user.id).maybeSingle().then(({ data }) => {
-      if (cancelled) return;
-      setDisplayName(data?.display_name ?? user.email ?? "");
-      setAvatarUrl(data?.avatar_url ?? null);
-    });
-    return () => { cancelled = true; };
-  }, [user?.id, user?.email]);
+  const { data: profile } = useQuery({
+    queryKey: ["header-profile", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("first_name, display_name, avatar_url")
+        .eq("id", user!.id)
+        .maybeSingle();
+      return data;
+    },
+  });
+
+  const firstName = profile?.first_name ?? "";
+  const displayName = profile?.display_name ?? user?.email ?? "";
+  const avatarUrl = profile?.avatar_url ?? null;
 
   const greeting = useGreeting();
   const signInLabel = (lang === "pl" ? config.signin_pl : config.signin_en) || (lang === "pl" ? "Zaloguj" : "Sign in");
