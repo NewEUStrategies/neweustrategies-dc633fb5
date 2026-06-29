@@ -102,124 +102,111 @@ function ProfileInline() {
           twitterUrl={data.twitter_url ?? null}
         />
 
-        {/* IDENTITY (centered, below avatar) */}
-        <section className="rounded-[6px] border border-border bg-card text-center px-4 pt-12 sm:pt-14 pb-6">
-          {editable ? (
-            <InlineText
-              value={data.display_name || fullName}
-              onSave={(v) => saveField("display_name", v || null)}
-              ariaLabel={t("profile.account.displayName")}
-              placeholder={t("profile.account.displayName")}
-              emptyLabel={t("profile.account.unnamed")}
-              variant="title"
-              maxLength={120}
-              className="mx-auto inline-block"
-            />
-          ) : (
-            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{fullName}</h1>
-          )}
+        <section className="rounded-[6px] border border-border bg-card px-6 pt-14 sm:pt-16 pb-5">
+          {/* Top: name + role/admin actions */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] sm:items-end gap-3">
+            <div className="min-w-0 text-center sm:text-left">
+              {editable ? (
+                <InlineText
+                  value={data.display_name || fullName}
+                  onSave={(v) => saveField("display_name", v || null)}
+                  ariaLabel={t("profile.account.displayName")}
+                  placeholder={t("profile.account.displayName")}
+                  emptyLabel={t("profile.account.unnamed")}
+                  variant="title"
+                  maxLength={120}
+                  className="inline-block"
+                />
+              ) : (
+                <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight leading-tight">{fullName}</h1>
+              )}
 
-          {/* Job title (subtitle, centered) */}
-          <div className="mt-1 text-sm sm:text-base text-foreground/80">
-            {editable ? (
-              <InlineText
-                value={data.job_title}
-                onSave={(v) => saveField("job_title", v || null)}
-                ariaLabel={t("profile.account.jobTitle")}
-                placeholder={t("profile.account.jobTitle")}
-                emptyLabel={t("profile.inline.addJobTitle")}
-                variant="subtitle"
-                maxLength={120}
-                className="mx-auto inline-block"
-              />
-            ) : (
-              <span>{data.job_title || "-"}</span>
+              {/* Job title */}
+              <div className="mt-0.5 text-sm text-muted-foreground">
+                {editable ? (
+                  <InlineText
+                    value={data.job_title}
+                    onSave={(v) => saveField("job_title", v || null)}
+                    ariaLabel={t("profile.account.jobTitle")}
+                    placeholder={t("profile.account.jobTitle")}
+                    emptyLabel={t("profile.inline.addJobTitle")}
+                    variant="subtitle"
+                    maxLength={120}
+                    className="inline-block"
+                  />
+                ) : (
+                  <span>{data.job_title || "-"}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Roles + admin shortcut — top-right on desktop */}
+            {roles.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center sm:justify-end gap-1.5 shrink-0">
+                {roles.map((r) => (
+                  <Badge
+                    key={r}
+                    variant={r === "super_admin" || r === "admin" ? "default" : "secondary"}
+                    className="inline-flex items-center rounded-[6px] px-2.5 py-1 text-[10px] font-medium leading-[1.2] whitespace-nowrap"
+                  >
+                    {t(`profile.role.${r}`)}
+                  </Badge>
+                ))}
+                {isStaff && (
+                  <Button asChild size="sm" variant="outline" className="h-auto rounded-[6px] px-2.5 py-1 text-[10px] leading-[1.2] gap-1">
+                    <Link to="/admin" className="!text-foreground inline-flex items-center">
+                      <ShieldCheck className="h-3 w-3" />
+                      {t("profile.inline.adminPanel")}
+                    </Link>
+                  </Button>
+                )}
+              </div>
             )}
           </div>
 
-          {/* Chips (company, specialization) */}
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
-            {data.current_company ? (
-              <Chip icon={<Briefcase className="h-3 w-3" />} tone="primary">
-                {data.current_company}
-              </Chip>
-            ) : editable ? (
-              <Chip
-                icon={<Briefcase className="h-3 w-3" />}
-                tone="muted"
-                onClick={() => {
+          {/* Divider */}
+          <div className="my-4 h-px bg-border/70" />
+
+          {/* Meta row: chips left, email right */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
+              {data.current_company ? (
+                <Chip icon={<Briefcase className="h-3 w-3" />} tone="primary">{data.current_company}</Chip>
+              ) : editable ? (
+                <Chip icon={<Briefcase className="h-3 w-3" />} tone="muted" onClick={() => {
                   const v = window.prompt(t("profile.account.currentCompany"));
                   if (v != null) void saveField("current_company", v.trim() || null);
-                }}
-              >
-                {t("profile.inline.addCompany")}
-              </Chip>
-            ) : null}
+                }}>{t("profile.inline.addCompany")}</Chip>
+              ) : null}
 
-            {data.specialization ? (
-              <Chip icon={<Sparkles className="h-3 w-3" />} tone="primary">
-                {data.specialization}
-              </Chip>
-            ) : editable ? (
-              <Chip
-                icon={<Sparkles className="h-3 w-3" />}
-                tone="muted"
-                onClick={() => {
+              {data.specialization ? (
+                <Chip icon={<Sparkles className="h-3 w-3" />} tone="primary">{data.specialization}</Chip>
+              ) : editable ? (
+                <Chip icon={<Sparkles className="h-3 w-3" />} tone="muted" onClick={() => {
                   const v = window.prompt(t("profile.account.specialization"));
                   if (v != null) void saveField("specialization", v.trim() || null);
-                }}
-              >
-                {t("profile.inline.addSpecialization")}
-              </Chip>
-            ) : null}
+                }}>{t("profile.inline.addSpecialization")}</Chip>
+              ) : null}
 
-            {data.location ? (
-              <Chip icon={<MapPin className="h-3 w-3" />} tone="muted">{data.location}</Chip>
-            ) : editable ? (
-              <Chip
-                icon={<MapPin className="h-3 w-3" />}
-                tone="muted"
-                onClick={() => {
+              {data.location ? (
+                <Chip icon={<MapPin className="h-3 w-3" />} tone="muted">{data.location}</Chip>
+              ) : editable ? (
+                <Chip icon={<MapPin className="h-3 w-3" />} tone="muted" onClick={() => {
                   const v = window.prompt(t("profile.account.locationPh"));
                   if (v != null) void saveField("location", v.trim() || null);
-                }}
-              >
-                {t("profile.inline.addLocation")}
-              </Chip>
-            ) : null}
+                }}>{t("profile.inline.addLocation")}</Chip>
+              ) : null}
+            </div>
+
+            {user?.email && (
+              <div className="flex items-center justify-center sm:justify-end gap-1.5 text-xs text-muted-foreground min-w-0">
+                <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <a href={`mailto:${user.email}`} className="truncate hover:text-foreground">{user.email}</a>
+              </div>
+            )}
           </div>
-
-          {/* Email */}
-          {user?.email && (
-            <div className="mt-2 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-              <Mail className="h-3.5 w-3.5" aria-hidden />
-              <a href={`mailto:${user.email}`} className="hover:text-foreground">{user.email}</a>
-            </div>
-          )}
-
-          {/* Roles & admin shortcut */}
-          {roles.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
-              {roles.map((r) => (
-                <Badge
-                  key={r}
-                  variant={r === "super_admin" || r === "admin" ? "default" : "secondary"}
-                  className="inline-flex items-center rounded-[6px] px-2.5 py-1 text-[10px] font-medium leading-[1.2] whitespace-nowrap"
-                >
-                  {t(`profile.role.${r}`)}
-                </Badge>
-              ))}
-              {isStaff && (
-                <Button asChild size="sm" variant="outline" className="h-auto rounded-[6px] px-2.5 py-1 text-[10px] leading-[1.2] gap-1">
-                  <Link to="/admin" className="!text-foreground inline-flex items-center">
-                    <ShieldCheck className="h-3 w-3" />
-                    {t("profile.inline.adminPanel")}
-                  </Link>
-                </Button>
-              )}
-            </div>
-          )}
         </section>
+
 
         {/* TABS NAV */}
         <nav className="sticky top-0 z-10 rounded-[6px] border border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
