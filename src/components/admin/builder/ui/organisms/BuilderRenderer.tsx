@@ -225,11 +225,11 @@ const RenderSection = memo(function RenderSection({ section, lang, device }: { s
 RenderSection.displayName = "RenderSection";
 
 const RenderInner = memo(function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "pl"|"en"; device: Device }) {
-  const colsSum = inner.columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
+  const colsSum =  (inner.columns ?? []).reduce((a, c) => a + (c ? resolveSpan(c.span, device, 6) : 0), 0) || 12;
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()} style={{ ...sectionWrapperStyle(inner), ...backgroundLayerStyle(inner.background), ...borderStyle(inner.border), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
       <div data-columns-row className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(inner, colsSum), gridTemplateColumns: device === "mobile" ? "minmax(0, 1fr)" : columnsRowStyle(inner, colsSum).gridTemplateColumns }}>
-        {inner.columns.map((c) => (
+        { (inner.columns ?? []).filter(Boolean).map((c) => (
           <div key={c.id} data-column-slot className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}` }}>
 
             <RenderColumn column={c} lang={lang} device={device} />

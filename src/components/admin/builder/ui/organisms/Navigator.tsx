@@ -54,7 +54,7 @@ function SectionRow({
         onSelect={() => onSelect({ kind: "section", id: section.id })}
         onToggleHidden={() => onToggleHidden(section.id, "section")}
       />
-      {open && section.children.map((c) =>
+      {open &&  (section.children ?? []).filter(Boolean).map((c) =>
         c.kind === "inner-section"
           ? <InnerRow key={c.id} inner={c} selection={selection} device={device} onSelect={onSelect} onToggleHidden={onToggleHidden} doc={{ version: 1, sections: [] }} />
           : <ColumnRow key={c.id} column={c} depth={1} selection={selection} device={device} onSelect={onSelect} onToggleHidden={onToggleHidden} />,
@@ -73,7 +73,7 @@ function InnerRow({
       <Row depth={1} open={open} onToggle={() => setOpen(!open)} selected={selected} hidden={false}
         label="Sekcja wewn." onSelect={() => onSelect({ kind: "inner-section", id: inner.id })}
         onToggleHidden={() => {}} />
-      {open && inner.columns.map((c) => (
+      {open &&  (inner.columns ?? []).filter(Boolean).map((c) => (
         <ColumnRow key={c.id} column={c} depth={2} selection={selection} device={device} onSelect={onSelect} onToggleHidden={onToggleHidden} />
       ))}
     </div>
@@ -93,7 +93,7 @@ function ColumnRow({
         label={`Kolumna (${column.span?.[device] ?? column.span?.desktop ?? 12})`}
         onSelect={() => onSelect({ kind: "column", id: column.id })}
         onToggleHidden={() => onToggleHidden(column.id, "column")} />
-      {open && column.children.map((w) => (
+      {open &&  (column.children ?? []).filter(Boolean).map((w) => (
         <WidgetRow key={w.id} widget={w} depth={depth + 1} selection={selection} device={device} onSelect={onSelect} onToggleHidden={onToggleHidden} />
       ))}
     </div>

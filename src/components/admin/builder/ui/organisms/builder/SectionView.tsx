@@ -57,7 +57,7 @@ export interface SectionViewProps {
 
 export function SectionView(p: SectionViewProps) {
   const selected = p.selection.kind === "section" && p.selection.id === p.section.id;
-  const colsSum = p.section.children.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, p.device, 12) : 12), 0) || 12;
+  const colsSum =  (p.section.children ?? []).reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, p.device, 12) : 12), 0) || 12;
   const hidden = !!p.section.advanced?.hideOn?.[p.device];
   const skin: React.CSSProperties = {
     ...sectionWrapperStyle(p.section),
@@ -101,7 +101,7 @@ export function SectionView(p: SectionViewProps) {
 
       <div style={sectionContainerStyle(p.section)}>
         <div className="min-w-0 max-w-full overflow-hidden" style={columnsRowStyle(p.section, colsSum)}>
-          {p.section.children.map((child) => {
+          { (p.section.children ?? []).filter(Boolean).map((child) => {
             const span = child.kind === "column" ? resolveSpan(child.span, p.device, 12) : 12;
             const gridColumn = p.device === "mobile" ? "1 / -1" : `span ${span}`;
             const sectionToolbar = isToolbarTag(p.section.layout?.htmlTag);
@@ -157,7 +157,7 @@ function InnerSectionView({
   onToggleHidden: (kind: "section" | "inner-section" | "column" | "widget", id: string) => void;
 }) {
   const selected = selection.kind === "inner-section" && selection.id === inner.id;
-  const colsSum = inner.columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
+  const colsSum =  (inner.columns ?? []).reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
   const hidden = !!inner.advanced?.hideOn?.[device];
   const skin: React.CSSProperties = {
     ...sectionWrapperStyle(inner),
@@ -177,7 +177,7 @@ function InnerSectionView({
         <IconBtn onClick={(e) => { e.stopPropagation(); onToggleHidden("inner-section", inner.id); }} title={hidden ? `Pokaż na ${device}` : `Ukryj na ${device}`}><Eye className={`w-3 h-3 ${hidden ? "opacity-40" : ""}`} /></IconBtn>
       </div>
       <div className="grid gap-2 relative z-10 min-w-0 max-w-full" style={{ ...columnsRowStyle(inner, colsSum), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
-        {inner.columns.map((c) => (
+        { (inner.columns ?? []).filter(Boolean).map((c) => (
           <div key={c.id} className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}` }}>
 
             <ColumnView column={c} device={device} lang={lang} selection={selection}
@@ -249,7 +249,7 @@ function ColumnView({
           {dragOver ? "Upuść widget tutaj" : "Przeciągnij lub kliknij widget z lewej kolumny"}
         </div>
       )}
-      <SortableContext items={column.children.map((w) => w.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext items={ (column.children ?? []).filter(Boolean).map((w) => w.id)} strategy={verticalListSortingStrategy}>
         {(() => {
           const va = column.verticalAlign ?? "start";
           const hClass = stacked
