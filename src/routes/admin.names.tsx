@@ -287,13 +287,21 @@ function AdminNamesPage() {
 
   const load = async () => {
     setBusy(true);
-    const { data, error } = await supabase
-      .from("name_dictionary")
-      .select(SELECT_COLS)
-      .order("name", { ascending: true });
+    const pageSize = 1000;
+    const all: NameRow[] = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("name_dictionary")
+        .select(SELECT_COLS)
+        .order("name", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) { setBusy(false); toast.error(error.message); return; }
+      const chunk = ((data ?? []) as unknown) as NameRow[];
+      all.push(...chunk);
+      if (chunk.length < pageSize) break;
+    }
     setBusy(false);
-    if (error) { toast.error(error.message); return; }
-    setRows(((data ?? []) as unknown) as NameRow[]);
+    setRows(all);
   };
 
   const filtered = useMemo(() => rows.filter((r) => {
@@ -303,6 +311,15 @@ function AdminNamesPage() {
     if (query.trim() && !r.name_normalized.includes(normalize(query))) return false;
     return true;
   }), [rows, filterGender, filterCountry, filterCompound, query]);
+
+  const PAGE_SIZE = 100;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  useEffect(() => { setPage(1); }, [query, filterGender, filterCountry, filterCompound]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pageRows = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
 
   const addOne = async () => {
     const name = draft.name.trim();
