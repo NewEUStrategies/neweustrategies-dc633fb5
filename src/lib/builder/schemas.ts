@@ -232,7 +232,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     {
       key: "thickness", type: "number",
       label: "Grubość / wysokość (px)", min: 1, max: 400,
-      hint: "Dla wariantu „tylko odstęp" wartość określa wysokość pustej przestrzeni.",
+      hint: 'Dla wariantu „tylko odstęp" wartość określa wysokość pustej przestrzeni.',
     },
     {
       key: "color", type: "color", label: "Kolor",
