@@ -582,7 +582,10 @@ function EditorialHeroVariant(p: VariantProps) {
 function MultiCardVariant(p: VariantProps) {
   // Card has its own ratio - use 4/3 visual ratio per slide image.
   const dragging = p.dragRef.current.active;
-  const trackTransform = `translate3d(calc(${-p.safeIdx * (100 / 3)}% + ${p.dragDx}px), 0, 0)`;
+  const cols = p.columns;
+  const gapPx = 16;
+  const cardWidth = `calc((100% - ${(cols - 1) * gapPx}px) / ${cols})`;
+  const trackTransform = `translate3d(calc(${-p.safeIdx * (100 / cols)}% + ${p.dragDx}px), 0, 0)`;
   return (
     <div className="relative">
       <div
@@ -590,11 +593,12 @@ function MultiCardVariant(p: VariantProps) {
         onPointerDown={p.onPointerDown} onPointerMove={p.onPointerMove}
         onPointerUp={p.endDrag} onPointerCancel={p.endDrag}
       >
-        <div className={`eh-track ${dragging ? "is-dragging" : ""}`} style={{ transform: trackTransform }}>
+        <div className={`eh-track ${dragging ? "is-dragging" : ""}`} style={{ transform: trackTransform, gap: `${gapPx}px` }}>
           {p.items.map((it, i) => {
             const { title, sub, cat, href, catColor } = pickSlideStrings(it, p.lang);
             return (
-              <article key={i} className="eh-card group">
+              <article key={i} className="eh-card group" style={{ width: cardWidth, flex: "0 0 auto" }}>
+
                 <div
                   className={`relative overflow-hidden bg-muted ${href ? "cursor-pointer" : ""}`}
                   style={{ aspectRatio: "4 / 3", borderRadius: p.rounded }}
