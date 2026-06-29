@@ -17,8 +17,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Trash2, Plus, Search, Download, Upload, Circle as Radio } from "@/lib/lucide-shim";
+
 import { normalize, type Gender } from "@/lib/greetings/greetings";
 
 export const Route = createFileRoute("/admin/names")({
@@ -215,7 +219,9 @@ function AdminNamesPage() {
   const [filterCompound, setFilterCompound] = useState<"all" | "yes" | "no">("all");
   const [liveOn, setLiveOn] = useState(false);
   const [importProgress, setImportProgress] = useState<{ total: number; done: number; added: number; merged: number; skipped: number } | null>(null);
+  const [preview, setPreview] = useState<{ rows: CsvParsedRow[]; headers: string[]; willAdd: number; willMerge: number; willSkip: number } | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
 
   const [draft, setDraft] = useState({
     name: "", gender: "male" as Gender, origin_country: "PL",
@@ -315,9 +321,9 @@ function AdminNamesPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Import CSV with dedupe-on-key. When key already exists we only patch the
-  // columns that were previously empty - this lets users top up missing forms
-  // (e.g. dative) without overwriting curated values.
+  // Parse CSV and stage a preview - the user reviews the field mapping
+  // (country resolved to ISO, grammatical cases, gender, compound flag) before
+  // we touch the database.
   const onImportFile = async (file: File) => {
     const text = await file.text();
     const matrix = parseCSV(text);
@@ -327,10 +333,36 @@ function AdminNamesPage() {
     if (!dataRows.length) { toast.error(L ? "Brak prawidłowych wierszy" : "No valid rows"); return; }
 
     const byKey = new Map(rows.map((r) => [r.key ?? r.name_normalized, r] as const));
+    let willAdd = 0, willMerge = 0, willSkip = 0;
+    for (const row of dataRows) {
+      const existing = byKey.get(row.key);
+      if (!existing) { willAdd += 1; continue; }
+      const fields: (keyof CsvParsedRow)[] = ["vocative_pl", "instrumental_pl", "genitive_pl", "dative_pl", "english_form", "origin", "notes"];
+      const hasNew = fields.some((k) => {
+        const v = row[k];
+        if (v === null || v === undefined || v === "") return false;
+        const ex = (existing as unknown as Record<string, unknown>)[k as string];
+        return ex === null || ex === undefined || ex === "";
+      });
+      if (hasNew) willMerge += 1; else willSkip += 1;
+    }
+    setPreview({ rows: dataRows, headers, willAdd, willMerge, willSkip });
+  };
+
+  // Apply the staged import. Country values are written as canonical ISO codes
+  // to both `origin_country` (ISO) and `origin` (kept in sync) so Polish forms
+  // ("Polska") match English ("Poland") when we look up existing records.
+  const commitImport = async () => {
+    if (!preview) return;
+    const { rows: dataRows } = preview;
+    const byKey = new Map(rows.map((r) => [r.key ?? r.name_normalized, r] as const));
     const prog = { total: dataRows.length, done: 0, added: 0, merged: 0, skipped: 0 };
+    setPreview(null);
     setImportProgress({ ...prog });
 
     for (const row of dataRows) {
+      const resolved = resolveCountry(row.origin);
+      const iso = resolved?.code ?? row.origin ?? null;
       const existing = byKey.get(row.key);
       if (!existing) {
         const insertPayload = {
@@ -339,8 +371,8 @@ function AdminNamesPage() {
           key: row.key,
           display_name: row.display_name,
           gender: row.gender,
-          origin_country: row.origin,
-          origin: row.origin,
+          origin_country: iso,
+          origin: iso,
           vocative_pl: row.vocative_pl,
           instrumental_pl: row.instrumental_pl,
           genitive_pl: row.genitive_pl,
@@ -366,10 +398,9 @@ function AdminNamesPage() {
         setIfMissing("dative_pl", row.dative_pl);
         setIfMissing("english_form", row.english_form);
         setIfMissing("vocative_en", row.english_form);
-        setIfMissing("origin", row.origin);
-        setIfMissing("origin_country", row.origin);
+        setIfMissing("origin", iso);
+        setIfMissing("origin_country", iso);
         setIfMissing("is_compound", row.is_compound ? true : null);
-
         setIfMissing("notes", row.notes);
         if (Object.keys(patch).length === 0) {
           prog.skipped += 1;
@@ -387,6 +418,7 @@ function AdminNamesPage() {
         : `Import: added ${prog.added}, merged ${prog.merged}, skipped ${prog.skipped}`,
     );
     setTimeout(() => setImportProgress(null), 4000);
+
   };
 
   if (loading) return null;
@@ -447,6 +479,94 @@ function AdminNamesPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Preview before commit */}
+        <Dialog open={!!preview} onOpenChange={(o) => { if (!o) setPreview(null); }}>
+          <DialogContent className="max-w-5xl">
+            <DialogHeader>
+              <DialogTitle>{L ? "Podgląd importu CSV" : "CSV import preview"}</DialogTitle>
+              <DialogDescription>
+                {L
+                  ? "Sprawdź zmapowane pola (wołacz, narzędnik, dopełniacz, celownik, złożone, kraj/język). Kraje są zapisywane jako kanoniczny kod ISO."
+                  : "Review mapped fields (vocative, instrumental, genitive, dative, compound, country/language). Countries are stored as canonical ISO codes."}
+              </DialogDescription>
+            </DialogHeader>
+            {preview && (
+              <>
+                <div className="flex items-center gap-2 text-sm flex-wrap">
+                  <Badge variant="default">{L ? "Dodawane" : "To add"}: {preview.willAdd}</Badge>
+                  <Badge variant="secondary">{L ? "Scalane" : "To merge"}: {preview.willMerge}</Badge>
+                  <Badge variant="outline">{L ? "Pomijane" : "To skip"}: {preview.willSkip}</Badge>
+                  <span className="text-muted-foreground ml-auto">
+                    {L ? "Łącznie wierszy" : "Total rows"}: {preview.rows.length}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {L ? "Wykryte nagłówki" : "Detected headers"}: {preview.headers.join(", ")}
+                </div>
+                <div className="max-h-[55vh] overflow-auto border rounded-md">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted sticky top-0">
+                      <tr className="text-left">
+                        <th className="p-2">{L ? "Imię" : "Name"}</th>
+                        <th className="p-2">{L ? "Płeć" : "Gender"}</th>
+                        <th className="p-2">{L ? "Kraj (ISO)" : "Country (ISO)"}</th>
+                        <th className="p-2">{L ? "Wołacz" : "Vocative"}</th>
+                        <th className="p-2">{L ? "Narzędnik" : "Instrumental"}</th>
+                        <th className="p-2">{L ? "Dopełniacz" : "Genitive"}</th>
+                        <th className="p-2">{L ? "Celownik" : "Dative"}</th>
+                        <th className="p-2">EN</th>
+                        <th className="p-2">{L ? "Złożone" : "Compound"}</th>
+                        <th className="p-2">{L ? "Akcja" : "Action"}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.rows.slice(0, 200).map((r, i) => {
+                        const c = resolveCountry(r.origin);
+                        const label = c ? `${c.code} · ${L ? c.pl : c.en}` : (r.origin ?? "-");
+                        const existing = rows.find((x) => (x.key ?? x.name_normalized) === r.key);
+                        const action = !existing
+                          ? (L ? "Dodaj" : "Add")
+                          : ["vocative_pl", "instrumental_pl", "genitive_pl", "dative_pl", "english_form", "origin", "notes"].some((k) => {
+                              const v = (r as unknown as Record<string, unknown>)[k];
+                              if (v === null || v === undefined || v === "") return false;
+                              const ex = (existing as unknown as Record<string, unknown>)[k];
+                              return ex === null || ex === undefined || ex === "";
+                            })
+                            ? (L ? "Scal" : "Merge")
+                            : (L ? "Pomiń" : "Skip");
+                        return (
+                          <tr key={i} className="border-t">
+                            <td className="p-2 font-medium">{r.display_name}</td>
+                            <td className="p-2">{r.gender}</td>
+                            <td className="p-2">{label}</td>
+                            <td className="p-2">{r.vocative_pl ?? "-"}</td>
+                            <td className="p-2">{r.instrumental_pl ?? "-"}</td>
+                            <td className="p-2">{r.genitive_pl ?? "-"}</td>
+                            <td className="p-2">{r.dative_pl ?? "-"}</td>
+                            <td className="p-2">{r.english_form ?? "-"}</td>
+                            <td className="p-2">{r.is_compound ? "✓" : "-"}</td>
+                            <td className="p-2"><Badge variant={action === (L ? "Dodaj" : "Add") ? "default" : action === (L ? "Scal" : "Merge") ? "secondary" : "outline"}>{action}</Badge></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {preview.rows.length > 200 && (
+                    <div className="p-2 text-center text-xs text-muted-foreground">
+                      {L ? `... i ${preview.rows.length - 200} więcej` : `... and ${preview.rows.length - 200} more`}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPreview(null)}>{L ? "Anuluj" : "Cancel"}</Button>
+              <Button onClick={() => void commitImport()}>{L ? "Zatwierdź import" : "Confirm import"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
 
         {/* Add */}
         <Card>
