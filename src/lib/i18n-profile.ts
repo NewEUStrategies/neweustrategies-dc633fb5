@@ -93,10 +93,17 @@ const pl = {
       addJobTitle: "Dodaj stanowisko",
       addCompany: "Dodaj firmę",
       addLocation: "Dodaj lokalizację",
+      addPhone: "Dodaj telefon",
+      addLinkedin: "Dodaj LinkedIn",
+      addTwitter: "Dodaj X (Twitter)",
+      addSpecialization: "Dodaj specjalizację",
+      interestsHint: "Wybierz obserwowane tematy, kategorie i tagi.",
+      shortcuts: "Skróty",
       notSet: "Nie ustawiono",
       clickToEdit: "Kliknij, aby edytować",
       saving: "Zapisywanie...",
     },
+
 
 
     security: {
