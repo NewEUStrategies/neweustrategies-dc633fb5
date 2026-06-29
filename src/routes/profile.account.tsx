@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Upload } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -189,6 +190,8 @@ function AccountPage() {
     }
   };
 
+  const qc = useQueryClient();
+
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -215,6 +218,8 @@ function AccountPage() {
       return;
     }
     toast.success(t("profile.account.saved"));
+    qc.invalidateQueries({ queryKey: ["header-profile", user.id] });
+    qc.invalidateQueries({ queryKey: ["greeting", user.id] });
   };
 
 

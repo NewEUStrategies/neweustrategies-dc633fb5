@@ -15,7 +15,6 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { supabase } from "@/integrations/supabase/client";
-import { useGreeting } from "@/lib/greetings/useGreeting";
 import type { Json } from "@/lib/builder/types";
 
 type Lang = "pl" | "en";
@@ -134,26 +133,30 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const mounted = useHasMounted();
   const { session, user, signOut, isStaff, isAdmin, isSuperAdmin } = useAuth();
   const [open, setOpen] = useState(false);
-  const [displayName, setDisplayName] = useState<string>("");
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const { t } = useTranslation();
 
   const items = useMemo(() => Array.isArray(config.items) ? config.items : [], [config.items]);
   const hasPageItems = items.some((i) => i.kind === "page");
   const { data: pages } = usePagesIndex(hasPageItems, lang);
 
-  useEffect(() => {
-    if (!user?.id) { setDisplayName(""); setAvatarUrl(null); return; }
-    let cancelled = false;
-    void supabase.from("profiles").select("display_name, avatar_url").eq("id", user.id).maybeSingle().then(({ data }) => {
-      if (cancelled) return;
-      setDisplayName(data?.display_name ?? user.email ?? "");
-      setAvatarUrl(data?.avatar_url ?? null);
-    });
-    return () => { cancelled = true; };
-  }, [user?.id, user?.email]);
+  const { data: profile } = useQuery({
+    queryKey: ["header-profile", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("first_name, display_name, avatar_url")
+        .eq("id", user!.id)
+        .maybeSingle();
+      return data;
+    },
+  });
 
-  const greeting = useGreeting();
+  const firstName = profile?.first_name ?? "";
+  const displayName = profile?.display_name ?? user?.email ?? "";
+  const avatarUrl = profile?.avatar_url ?? null;
+
+  
   const signInLabel = (lang === "pl" ? config.signin_pl : config.signin_en) || (lang === "pl" ? "Zaloguj" : "Sign in");
   const signUpLabel = (lang === "pl" ? config.signup_pl : config.signup_en) || (lang === "pl" ? "Zarejestruj" : "Sign up");
   const logoutLabel = (lang === "pl" ? config.logout_pl : config.logout_en) || (lang === "pl" ? "Wyloguj" : "Sign out");
@@ -184,9 +187,9 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const authItems = sectionItems("auth");
   const staffItems = sectionItems("staff");
 
-  // Trigger
+  // Trigger - shows the first name from /profile/account
   const fallbackHello = lang === "pl" ? "Hej!" : "Hi!";
-  const triggerLabel = greeting || fallbackHello;
+  const triggerLabel = firstName || displayName || fallbackHello;
   const trigger = session ? (
     <button
       type="button"
@@ -197,7 +200,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       <Avatar className="h-6 w-6">
         {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
         <AvatarFallback className="text-[10px]">
-          {(displayName || user?.email || "?").slice(0, 1).toUpperCase()}
+          {(firstName || displayName || user?.email || "?").slice(0, 1).toUpperCase()}
         </AvatarFallback>
       </Avatar>
       <span className="hidden sm:inline max-w-[200px] truncate">{triggerLabel}</span>
