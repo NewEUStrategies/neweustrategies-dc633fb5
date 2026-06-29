@@ -681,6 +681,27 @@ function Card({ icon, title, action, children }: { icon?: ReactNode; title: stri
   );
 }
 
+function CompanyLogoIcon() {
+  // Logo firmy zaciągane z Admin Panel -> Wygląd -> Theme Options (klucz "theme_options.logo").
+  // Wybiera wariant zgodny z aktualnym motywem (light/dark); fallback: ikona Briefcase.
+  const cfg = useSiteSetting<{ logo?: { main?: string; main_dark?: string } }>("theme_options", { logo: {} });
+  const { theme } = useTheme();
+  const l = cfg.logo ?? {};
+  const src = theme === "dark" ? (l.main_dark || l.main) : (l.main || l.main_dark);
+  if (!src) return <Briefcase className="h-3 w-3" />;
+  return (
+    <img
+      src={src}
+      alt=""
+      aria-hidden="true"
+      className="h-3 w-3 object-contain"
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+    />
+  );
+}
+
 function Chip({ icon, children, tone = "muted", onClick }: { icon?: ReactNode; children: ReactNode; tone?: "primary" | "muted"; onClick?: () => void }) {
   // Ujednolicony styl: identyczny rozmiar/padding/outline jak role-badge i
   // przycisk "Panel administracyjny" (Button size="sm" variant="outline").
