@@ -480,6 +480,94 @@ function AdminNamesPage() {
           </Card>
         )}
 
+        {/* Preview before commit */}
+        <Dialog open={!!preview} onOpenChange={(o) => { if (!o) setPreview(null); }}>
+          <DialogContent className="max-w-5xl">
+            <DialogHeader>
+              <DialogTitle>{L ? "Podgląd importu CSV" : "CSV import preview"}</DialogTitle>
+              <DialogDescription>
+                {L
+                  ? "Sprawdź zmapowane pola (wołacz, narzędnik, dopełniacz, celownik, złożone, kraj/język). Kraje są zapisywane jako kanoniczny kod ISO."
+                  : "Review mapped fields (vocative, instrumental, genitive, dative, compound, country/language). Countries are stored as canonical ISO codes."}
+              </DialogDescription>
+            </DialogHeader>
+            {preview && (
+              <>
+                <div className="flex items-center gap-2 text-sm flex-wrap">
+                  <Badge variant="default">{L ? "Dodawane" : "To add"}: {preview.willAdd}</Badge>
+                  <Badge variant="secondary">{L ? "Scalane" : "To merge"}: {preview.willMerge}</Badge>
+                  <Badge variant="outline">{L ? "Pomijane" : "To skip"}: {preview.willSkip}</Badge>
+                  <span className="text-muted-foreground ml-auto">
+                    {L ? "Łącznie wierszy" : "Total rows"}: {preview.rows.length}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {L ? "Wykryte nagłówki" : "Detected headers"}: {preview.headers.join(", ")}
+                </div>
+                <div className="max-h-[55vh] overflow-auto border rounded-md">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted sticky top-0">
+                      <tr className="text-left">
+                        <th className="p-2">{L ? "Imię" : "Name"}</th>
+                        <th className="p-2">{L ? "Płeć" : "Gender"}</th>
+                        <th className="p-2">{L ? "Kraj (ISO)" : "Country (ISO)"}</th>
+                        <th className="p-2">{L ? "Wołacz" : "Vocative"}</th>
+                        <th className="p-2">{L ? "Narzędnik" : "Instrumental"}</th>
+                        <th className="p-2">{L ? "Dopełniacz" : "Genitive"}</th>
+                        <th className="p-2">{L ? "Celownik" : "Dative"}</th>
+                        <th className="p-2">EN</th>
+                        <th className="p-2">{L ? "Złożone" : "Compound"}</th>
+                        <th className="p-2">{L ? "Akcja" : "Action"}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.rows.slice(0, 200).map((r, i) => {
+                        const c = resolveCountry(r.origin);
+                        const label = c ? `${c.code} · ${L ? c.pl : c.en}` : (r.origin ?? "-");
+                        const existing = rows.find((x) => (x.key ?? x.name_normalized) === r.key);
+                        const action = !existing
+                          ? (L ? "Dodaj" : "Add")
+                          : ["vocative_pl", "instrumental_pl", "genitive_pl", "dative_pl", "english_form", "origin", "notes"].some((k) => {
+                              const v = (r as unknown as Record<string, unknown>)[k];
+                              if (v === null || v === undefined || v === "") return false;
+                              const ex = (existing as unknown as Record<string, unknown>)[k];
+                              return ex === null || ex === undefined || ex === "";
+                            })
+                            ? (L ? "Scal" : "Merge")
+                            : (L ? "Pomiń" : "Skip");
+                        return (
+                          <tr key={i} className="border-t">
+                            <td className="p-2 font-medium">{r.display_name}</td>
+                            <td className="p-2">{r.gender}</td>
+                            <td className="p-2">{label}</td>
+                            <td className="p-2">{r.vocative_pl ?? "-"}</td>
+                            <td className="p-2">{r.instrumental_pl ?? "-"}</td>
+                            <td className="p-2">{r.genitive_pl ?? "-"}</td>
+                            <td className="p-2">{r.dative_pl ?? "-"}</td>
+                            <td className="p-2">{r.english_form ?? "-"}</td>
+                            <td className="p-2">{r.is_compound ? "✓" : "-"}</td>
+                            <td className="p-2"><Badge variant={action === (L ? "Dodaj" : "Add") ? "default" : action === (L ? "Scal" : "Merge") ? "secondary" : "outline"}>{action}</Badge></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {preview.rows.length > 200 && (
+                    <div className="p-2 text-center text-xs text-muted-foreground">
+                      {L ? `... i ${preview.rows.length - 200} więcej` : `... and ${preview.rows.length - 200} more`}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPreview(null)}>{L ? "Anuluj" : "Cancel"}</Button>
+              <Button onClick={() => void commitImport()}>{L ? "Zatwierdź import" : "Confirm import"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+
         {/* Add */}
         <Card>
           <CardHeader><CardTitle className="text-base">{L ? "Dodaj imię" : "Add a name"}</CardTitle></CardHeader>
