@@ -219,12 +219,12 @@ function ProfileInline() {
         </section>
 
         {/* GRID: meta + activity */}
-        <section className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-[6px] border border-border bg-card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground/70">
+        <section className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-[6px] border border-border bg-card p-4">
+            <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
               {t("profile.inline.contactSection")}
             </h2>
-            <dl className="grid gap-3 text-sm">
+            <dl className="grid gap-2 text-sm">
               <Row label={t("profile.account.firstName")}>
                 {editable ? (
                   <InlineText
@@ -273,7 +273,7 @@ function ProfileInline() {
                       saveField("gender", v === "auto" ? null : (v as Gender))
                     }
                   >
-                    <SelectTrigger className="h-8 w-full max-w-[240px] text-sm">
+                    <SelectTrigger className="h-7 w-full max-w-[220px] text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -290,26 +290,27 @@ function ProfileInline() {
             </dl>
           </div>
 
-          <div className="rounded-[6px] border border-border bg-card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground/70">
+          <div className="rounded-[6px] border border-border bg-card p-4">
+            <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
               {t("profile.inline.activitySection")}
             </h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Stat icon={<Bookmark className="h-4 w-4" />} value={counts.data?.bookmarks ?? 0} label={t("profile.nav.bookmarks")} to="/profile/bookmarks" />
-              <Stat icon={<Users className="h-4 w-4" />} value={counts.data?.authors ?? 0} label={t("profile.follows.tabAuthors")} to="/profile/follows" />
-              <Stat icon={<Globe className="h-4 w-4" />} value={counts.data?.categories ?? 0} label={t("profile.follows.tabCategories")} to="/profile/follows" />
-              <Stat icon={<Sparkles className="h-4 w-4" />} value={counts.data?.tags ?? 0} label={t("profile.follows.tabTags")} to="/profile/follows" />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Stat icon={<Bookmark className="h-3.5 w-3.5" />} value={counts.data?.bookmarks ?? 0} label={t("profile.nav.bookmarks")} to="/profile/bookmarks" />
+              <Stat icon={<Users className="h-3.5 w-3.5" />} value={counts.data?.authors ?? 0} label={t("profile.follows.tabAuthors")} to="/profile/follows" />
+              <Stat icon={<Globe className="h-3.5 w-3.5" />} value={counts.data?.categories ?? 0} label={t("profile.follows.tabCategories")} to="/profile/follows" />
+              <Stat icon={<Sparkles className="h-3.5 w-3.5" />} value={counts.data?.tags ?? 0} label={t("profile.follows.tabTags")} to="/profile/follows" />
             </div>
 
-            <div className="mt-5 grid gap-2">
-              <SecondaryLink to="/profile/interests" icon={<Sparkles className="h-4 w-4" />}>{t("profile.nav.interests")}</SecondaryLink>
-              <SecondaryLink to="/profile/social" icon={<ExternalLink className="h-4 w-4" />}>{t("profile.nav.social")}</SecondaryLink>
-              <SecondaryLink to="/profile/billing" icon={<Receipt className="h-4 w-4" />}>{t("profile.nav.billing")}</SecondaryLink>
-              <SecondaryLink to="/profile/subscription" icon={<ShieldCheck className="h-4 w-4" />}>{t("profile.nav.subscription")}</SecondaryLink>
-              <SecondaryLink to="/profile/security" icon={<ShieldCheck className="h-4 w-4" />}>{t("profile.nav.security")}</SecondaryLink>
+            <div className="mt-3 grid gap-1">
+              <SecondaryLink to="/profile/interests" icon={<Sparkles className="h-3.5 w-3.5" />}>{t("profile.nav.interests")}</SecondaryLink>
+              <SecondaryLink to="/profile/social" icon={<ExternalLink className="h-3.5 w-3.5" />}>{t("profile.nav.social")}</SecondaryLink>
+              <SecondaryLink to="/profile/billing" icon={<Receipt className="h-3.5 w-3.5" />}>{t("profile.nav.billing")}</SecondaryLink>
+              <SecondaryLink to="/profile/subscription" icon={<ShieldCheck className="h-3.5 w-3.5" />}>{t("profile.nav.subscription")}</SecondaryLink>
+              <SecondaryLink to="/profile/security" icon={<ShieldCheck className="h-3.5 w-3.5" />}>{t("profile.nav.security")}</SecondaryLink>
             </div>
           </div>
         </section>
+
       </div>
     </TooltipProvider>
   );
