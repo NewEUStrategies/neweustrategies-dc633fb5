@@ -24,6 +24,8 @@ import {
   PersonalityCard, HobbiesCard,
 } from "@/components/profile/sections/ProfileExtraSections";
 import { cn } from "@/lib/utils";
+import { useSiteSetting } from "@/lib/useSiteSetting";
+import { useTheme } from "@/components/ThemeProvider";
 import "@/lib/i18n-profile-extras2";
 
 export const Route = createFileRoute("/profile/")({
@@ -171,9 +173,9 @@ function ProfileInline() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
               {data.current_company ? (
-                <Chip icon={<Briefcase className="h-3 w-3" />} tone="primary">{data.current_company}</Chip>
+                <Chip icon={<CompanyLogoIcon />} tone="primary">{data.current_company}</Chip>
               ) : editable ? (
-                <Chip icon={<Briefcase className="h-3 w-3" />} tone="muted" onClick={() => {
+                <Chip icon={<CompanyLogoIcon />} tone="muted" onClick={() => {
                   const v = window.prompt(t("profile.account.currentCompany"));
                   if (v != null) void saveField("current_company", v.trim() || null);
                 }}>{t("profile.inline.addCompany")}</Chip>
@@ -678,6 +680,27 @@ function Card({ icon, title, action, children }: { icon?: ReactNode; title: stri
       </header>
       {children}
     </section>
+  );
+}
+
+function CompanyLogoIcon() {
+  // Logo firmy zaciągane z Admin Panel -> Wygląd -> Theme Options (klucz "theme_options.logo").
+  // Wybiera wariant zgodny z aktualnym motywem (light/dark); fallback: ikona Briefcase.
+  const cfg = useSiteSetting<{ logo?: { main?: string; main_dark?: string } }>("theme_options", { logo: {} });
+  const { theme } = useTheme();
+  const l = cfg.logo ?? {};
+  const src = theme === "dark" ? (l.main_dark || l.main) : (l.main || l.main_dark);
+  if (!src) return <Briefcase className="h-3 w-3" />;
+  return (
+    <img
+      src={src}
+      alt=""
+      aria-hidden="true"
+      className="h-3 w-3 object-contain"
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+    />
   );
 }
 
