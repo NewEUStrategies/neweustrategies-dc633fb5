@@ -1,117 +1,52 @@
-# Pełny profil (LinkedIn-style) — plan
+## Plan: Rozbudowa widgetu „Formularz kontaktowy" + centrum kontaktu w Admin Panel
 
-## Cel
-Przebudować `/profile` (właściciel, live-edit) oraz dodać publiczną stronę `/u/$slug` z układem 2-kolumnowym i tabami, zgodnie z załączonymi screenami.
+### 1. Rozszerzenie schemy widgetu `contact-form`
+Plik: `src/lib/builder/registry.tsx` + `src/lib/builder/schemas.ts`
 
-## Layout
+Nowe pola konfiguracji (PL/EN):
+- **Pola formularza** (repeater): typ (`text|email|phone|textarea|select|checkbox|file|date`), label PL/EN, placeholder PL/EN, `required`, `width` (`full|half|third`), opcje (dla select).
+- **Layout**: `columns` (1/2/3), `gap`, `labelPosition` (`top|inline|floating`).
+- **Przycisk**: `label_pl/en`, `align` (`left|center|right|full`), `position` (`bottom|inline-right`), `variant` (`solid|outline|ghost|gradient`), `size`.
+- **Tło**: `bgLight`, `bgDark`, `bgImage` (upload — rekomendowane **1600×900 px**, hero **2400×1200 px**), `bgImageMobile` (**800×1000 px**), `overlay`, `animationVariant` (6 wariantów, p. niżej).
+- **Inne**: kolor tekstu light/dark, kolor borderu, radius, padding, ikona nagłówka (upload **128×128 px**).
 
-```text
-┌──────────────────────────────────────────────────────────┐
-│  COVER  (h-44)              [Avatar + social chips]      │
-├──────────────────────────────────────────────────────────┤
-│  Imię Nazwisko          [Edytuj profil] [View as guest]  │
-│  Tytuł zawodowy                                          │
-│  [Tenant] [Specjalizacja]                                │
-│  ✉ email                                                 │
-├───────────────────────────────────┬──────────────────────┤
-│ [O mnie][Doświadczenie][Odznaki]  │  SIDEBAR (sticky)    │
-│ [Aktywność][Ustawienia]           │  • Dane osobowe      │
-│                                   │  • Osobowość (test)  │
-│  ── treść aktywnej zakładki ──    │  • Zainteresowania   │
-│                                   │  • Hobby             │
-└───────────────────────────────────┴──────────────────────┘
-```
+### 2. Sześć wariantów subtelnej animacji tła
+Plik: `src/components/blocks/ContactFormBackgrounds.tsx` (nowy) + CSS w `src/styles.css`:
+1. `aurora` - powolne gradientowe „zorze"
+2. `mesh-drift` - mesh gradient dryfujący
+3. `floating-dots` - cząsteczki/kropki w tle
+4. `wave-lines` - delikatne fale SVG
+5. `noise-shimmer` - subtle grain + shimmer
+6. `orbits` - orbitujące koła z blurem
 
-## Zakładki
+Każdy wariant: `prefers-reduced-motion` ⇒ static fallback, light/dark aware (CSS vars), GPU-only (transform/opacity).
 
-1. **O mnie** — Bio, Projekty (tenanta), Kontakt (email/lokalizacja/social), CV/Plik (upload + historia wersji).
-2. **Doświadczenie** — Stanowiska, Wykształcenie, Umiejętności (tagi z poziomem).
-3. **Odznaki** — Odznaki i nagrody (system), Nagrody Recognition (otrzymane od innych), Otrzymane wyróżnienia (handpick admina).
-4. **Aktywność** — Zapisane, Autorzy, Kategorie, Tagi, ostatnio czytane.
-5. **Ustawienia** — Dane rozliczeniowe, Subskrypcja, Bezpieczeństwo, Media społecznościowe, Powiadomienia.
+### 3. Renderer
+Plik: `src/components/blocks/ContactFormView.tsx` - generuje pola dynamicznie z konfiguracji, respektuje `columns`/`width`/`position`, zachowuje walidację (zod) i honeypot, integruje warstwę tła.
 
-## Sidebar
+### 4. Admin panel - „Centrum kontaktu"
+- Route: `src/routes/admin.contact.tsx` (tabela `contact_messages` - lista, filtry, status, oznacz jako przeczytane, eksport CSV, podgląd wiadomości).
+- Link w bocznym menu admina.
+- Tabela `contact_messages` już istnieje (`src/lib/contact.functions.ts`) — dodaję migrację:
+  - kolumny: `read_at`, `archived_at`, `tags text[]`, `assigned_to uuid`,
+  - GRANT + RLS scoped tenant + has_role('admin'),
+  - indeksy `created_at desc`, `status`.
 
-- **Dane osobowe**: data ur., płeć, lokalizacja, label (rola), data dołączenia.
-- **Osobowość**: 5 osi Big Five (Otwartość, Sumienność, Ekstrawertyczność, Ugodowość, Stabilność emocjonalna) z gradientowymi paskami + przycisk „Powtórz test".
-- **Zainteresowania**: pigułki + „Dodaj".
-- **Hobby**: pigułki + „Dodaj".
+### 5. Auto-potwierdzenie e-mail
+Rozszerzenie `submitContactMessage` w `src/lib/contact.functions.ts`:
+- Po insercie - wysyłka 2 maili (do nadawcy „dziękujemy" + do `recipient`) przez istniejący kanał Resend/Mailer (sprawdzę secrets/connector).
+- Jeśli brak `RESEND_API_KEY` ⇒ degradacja: zapis + log; pokażę userowi co dodać.
+- Lokalizacja treści PL/EN, opcjonalny szablon konfigurowalny w `admin.contact` (Tab „Ustawienia").
 
-## Nowe tabele (migracja)
+### 6. i18n / a11y / tenant
+- Wszystkie etykiety w `src/lib/i18n.ts` (`contactForm.*`).
+- `tenant_id` dopisany do `contact_messages` przy zapisie.
+- ARIA: `aria-describedby` dla błędów, `aria-live="polite"` dla sukcesu, focus management.
 
-- `profile_experiences` (tenant_id, user_id, role_title, company, start_date, end_date, current, description, logo_url)
-- `profile_education` (tenant_id, user_id, school, degree, field, start_date, end_date, description)
-- `profile_skills` (tenant_id, user_id, label, level 1-5, category)
-- `profile_awards` (tenant_id, user_id, title, issuer, awarded_at, description, icon)
-- `profile_hobbies` (tenant_id, user_id, label, icon)
-- `profile_cv_files` (tenant_id, user_id, file_url, file_name, size_bytes, version, is_current, uploaded_at)
-- `personality_questions` (id, locale, axis, text, reverse) — seed Big Five 30 pytań PL/EN
-- `personality_results` (tenant_id, user_id, openness, conscientiousness, extraversion, agreeableness, neuroticism, taken_at, answers jsonb)
+### 7. Testy
+- `src/components/blocks/__tests__/ContactFormView.test.tsx` - render dynamicznych pól, walidacja, layout columns.
+- `src/lib/__tests__/contactFormSchema.test.ts` - parsowanie konfiguracji.
 
-Każda tabela: tenant_id NOT NULL, GRANT-y, RLS:
-- właściciel: ALL na własnych wierszach,
-- czytelnicy publicznego profilu: SELECT przez `has_profile_public_access(_user_id)` (security definer), które sprawdza `profiles.is_public`.
-
-## Routing
-
-- `/profile` (owner, _authenticated) — live-edit, taby przez `?tab=`.
-- `/u/$slug` (public) — read-only, „View as guest" z `/profile` linkuje tutaj.
-- `/profile/personality` — kwestionariusz (formularz, scoring, zapis).
-
-## Server functions
-
-`src/lib/profile.functions.ts` — wszystkie pod `requireSupabaseAuth`:
-- `listExperiences/Education/Skills/Awards/Hobbies/CVs` (read własne)
-- `upsert*` / `delete*` (write własne)
-- `uploadCV(formData)` → media bucket, wpis do `profile_cv_files`, oznaczenie poprzednich `is_current=false`
-- `submitPersonality({ answers })` → scoring po stronie serwera, zapis do `personality_results`
-- `getPublicProfile({ slug })` — przez publishable client + RLS public
-
-## Komponenty (atomic)
-
-`src/components/profile/`
-- `layout/ProfileShell.tsx` — header + tabs + sidebar grid
-- `layout/ProfileTabs.tsx` — TanStack search-params synced
-- `tabs/AboutTab.tsx`, `ExperienceTab.tsx`, `BadgesTab.tsx`, `ActivityTab.tsx`, `SettingsTab.tsx`
-- `sections/BioCard.tsx`, `ProjectsCard.tsx`, `ContactCard.tsx`, `CvCard.tsx`, `ExperienceList.tsx`, `EducationList.tsx`, `SkillsCloud.tsx`, `AwardsList.tsx`
-- `sidebar/PersonalDataCard.tsx`, `PersonalityCard.tsx`, `InterestsCard.tsx`, `HobbiesCard.tsx`
-- `personality/PersonalityTest.tsx`, `PersonalityBars.tsx`
-- Wszystkie sekcje korzystają z istniejących `Inline*` (live-edit dla owner) lub `ReadOnly*` (guest).
-
-## i18n
-
-`src/lib/i18n-profile.ts` — rozszerzenie o klucze: tabs.*, sections.*, personality.axes.*, awards.*, cv.*, hobby.*. Pełne PL/EN.
-
-## Atomic design + tenant_id
-
-- Atomy/molekuły w `components/profile/` jak wyżej.
-- Każdy insert/select scoped przez `tenant_id = current_tenant_id()`.
-- RLS używa `has_role` z tenant scope (już istnieje).
-
-## Testy
-
-- `src/lib/__tests__/personality.test.ts` — scoring (reverse keying, klamry 0-100).
-- `src/components/profile/__tests__/ProfileShell.test.tsx` — render zakładek, sticky sidebar, guest-mode chowa edytory.
-- `src/lib/__tests__/profileSlug.test.ts` — walidacja / kolizje.
-
-## Etapy wdrożenia
-
-1. **Migracja** (tabele + RLS + seed 30 pytań Big Five PL/EN).
-2. **Server fns** + i18n.
-3. **ProfileShell + Sidebar + Tabs** szkielet, zachować obecne sekcje jako fallback.
-4. **AboutTab** (Bio, Projekty, Kontakt, CV) — przeniesienie istniejących + CV upload.
-5. **ExperienceTab** (Experience, Education, Skills CRUD).
-6. **BadgesTab** + **ActivityTab** (refactor obecnych `/profile/bookmarks` itd. jako wbudowane sekcje).
-7. **SettingsTab** (linki + inline).
-8. **PersonalityCard + /profile/personality** kwestionariusz + scoring.
-9. **/u/$slug** publiczna read-only.
-10. **Testy + cleanup starych route'ów** (`/profile/billing` itd. nadal działają jako bezpośrednie linki, ale UI domyślnie pokazuje wszystko inline).
-
-## Założenia, które potwierdzę kodem (nie pytaniem)
-
-- Big Five: 30 pytań (6 na oś), skala 1-5, reverse keying, wynik 0-100.
-- CV: do 5 wersji per user (najnowsza = AKTUALNE), max 10 MB, mime: pdf/doc/docx.
-- Slug profilu już istnieje w `profiles.slug` — wykorzystam.
-- Dane już istniejące (bookmarks, follows, interests) nie wymagają migracji.
-
-Po zatwierdzeniu zaczynam od migracji.
+### Pytanie do potwierdzenia
+1. **E-mail provider**: użyć **Resend** (zalecam, prosty edge-friendly) czy masz preferencję innego (SendGrid / SMTP / Lovable Mail)? Jeśli Resend - poproszę o `RESEND_API_KEY` po akceptacji planu.
+2. **Newsletter confirmation** - w treści wspominasz „potwierdzenie zapisania się do newslettera". Czy chodzi o: (a) double opt-in dla istniejącego widgetu Newsletter (osobno), czy (b) auto-odpowiedź dla Formularza kontaktowego po wysłaniu wiadomości? Zakładam **(b) + opcjonalny checkbox „Zapisz mnie do newslettera" w formularzu**, który po zaznaczeniu dodaje subskrybenta i wysyła double opt-in mail. Potwierdzisz?
