@@ -12,7 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Archive, Check, Trash2, Inbox, RefreshCw, Send } from "@/lib/lucide-shim";
+import { Mail, Mic, Trash2, Send } from "@/lib/lucide-shim";
+import { Archive, Inbox, RefreshCw, Check } from "lucide-react";
+void Mic;
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/contact")({
@@ -93,8 +95,8 @@ function Inboxes({ L }: { L: typeof PL }) {
   const current = filtered.find((r) => r.id === selected) ?? null;
 
   const mark = useMutation({
-    mutationFn: async ({ id, patch }: { id: string; patch: Partial<ContactMessage> }) => {
-      const { error } = await supabase.from("contact_messages").update(patch).eq("id", id);
+    mutationFn: async ({ id, patch }: { id: string; patch: Record<string, unknown> }) => {
+      const { error } = await supabase.from("contact_messages").update(patch as never).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-contact-messages"] }); },
@@ -327,8 +329,8 @@ const PL = {
     email: "Wysyłka e-maili wymaga skonfigurowanego konektora Resend (RESEND_API_KEY). Bez niego wiadomości są zapisywane, ale e-maile nie są wysyłane.",
     newsletter: "Po wysłaniu wiadomości użytkownik otrzyma osobny e-mail z linkiem potwierdzającym zapis do newslettera.",
   },
-} as const;
-const EN: typeof PL = {
+};
+const EN = {
   title: "Contact Center",
   tab: { inbox: "Messages", settings: "Settings" },
   filter: { unread: "Unread", all: "All", archived: "Archived" },
