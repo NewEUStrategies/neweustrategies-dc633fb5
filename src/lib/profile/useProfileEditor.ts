@@ -51,7 +51,7 @@ const MAX_SIZE: Record<UploadKind, number> = {
   cover: 5 * 1024 * 1024,
 };
 
-const FIELDS = "display_name, first_name, last_name, job_title, current_company, location, phone, bio, avatar_url, cover_url, tenant_id, gender";
+const FIELDS = "display_name, first_name, last_name, job_title, current_company, specialization, location, phone, bio, avatar_url, cover_url, tenant_id, gender, linkedin_url, twitter_url";
 
 /**
  * Inline profile editor: per-field optimistic save with toast feedback.
