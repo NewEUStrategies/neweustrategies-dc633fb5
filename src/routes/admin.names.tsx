@@ -21,7 +21,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Trash2, Plus, Search, Download, Upload, Circle as Radio } from "@/lib/lucide-shim";
+import { Trash2, Plus, Search, Download, Upload, Circle as Radio, Loader2 } from "@/lib/lucide-shim";
 
 import { normalize, type Gender } from "@/lib/greetings/greetings";
 
@@ -314,11 +314,26 @@ function AdminNamesPage() {
 
   const PAGE_SIZE = 100;
   const [page, setPage] = useState(1);
+  const [pageChanging, setPageChanging] = useState(false);
+  const pageChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   useEffect(() => { setPage(1); }, [query, filterGender, filterCountry, filterCompound]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const pageStart = (page - 1) * PAGE_SIZE;
   const pageRows = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
+  const goToPage = (next: number | ((p: number) => number)) => {
+    setPage((p) => {
+      const target = typeof next === "function" ? next(p) : next;
+      const clamped = Math.min(totalPages, Math.max(1, target));
+      if (clamped === p) return p;
+      setPageChanging(true);
+      if (pageChangeTimer.current) clearTimeout(pageChangeTimer.current);
+      pageChangeTimer.current = setTimeout(() => setPageChanging(false), 320);
+      return clamped;
+    });
+  };
+  useEffect(() => () => { if (pageChangeTimer.current) clearTimeout(pageChangeTimer.current); }, []);
 
 
   const addOne = async () => {
@@ -708,8 +723,20 @@ function AdminNamesPage() {
 
         {/* Table */}
         <Card>
-          <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm">
+          <CardContent className="p-0 overflow-x-auto relative">
+            {pageChanging && (
+              <div
+                className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[1px] transition-opacity"
+                role="status"
+                aria-live="polite"
+              >
+                <div className="flex items-center gap-2 rounded-md border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  {L ? "Ładowanie strony…" : "Loading page…"}
+                </div>
+              </div>
+            )}
+            <table className={`w-full text-sm transition-opacity ${pageChanging ? "opacity-60" : "opacity-100"}`}>
               <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="text-left p-3">{L ? "Imię" : "Name"}</th>
@@ -794,18 +821,19 @@ function AdminNamesPage() {
 
         {totalPages > 1 && (
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-muted-foreground flex items-center gap-2">
               {L ? "Strona" : "Page"} <strong>{page}</strong> {L ? "z" : "of"} <strong>{totalPages}</strong>
+              {pageChanging && <Loader2 className="w-3 h-3 animate-spin" aria-hidden />}
             </div>
             <div className="flex items-center gap-1">
-              <Button size="sm" variant="outline" onClick={() => setPage(1)} disabled={page === 1}>«</Button>
-              <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+              <Button size="sm" variant="outline" onClick={() => goToPage(1)} disabled={page === 1 || pageChanging}>«</Button>
+              <Button size="sm" variant="outline" onClick={() => goToPage((p) => p - 1)} disabled={page === 1 || pageChanging}>
                 {L ? "Poprzednia" : "Previous"}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+              <Button size="sm" variant="outline" onClick={() => goToPage((p) => p + 1)} disabled={page === totalPages || pageChanging}>
                 {L ? "Następna" : "Next"}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setPage(totalPages)} disabled={page === totalPages}>»</Button>
+              <Button size="sm" variant="outline" onClick={() => goToPage(totalPages)} disabled={page === totalPages || pageChanging}>»</Button>
             </div>
           </div>
         )}
