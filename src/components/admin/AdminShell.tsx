@@ -99,7 +99,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
         { to: "/admin/theme-options", icon: Palette, label: t("admin.nav.themeOptions") },
         { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
         { to: "/admin/icons", icon: Shapes, label: t("admin.nav.icons") },
-
+        ...(isSuperAdmin ? [{ to: "/admin/names", icon: Users, label: t("admin.nav.names") }] : []),
       ],
     },
     ...(isAdmin

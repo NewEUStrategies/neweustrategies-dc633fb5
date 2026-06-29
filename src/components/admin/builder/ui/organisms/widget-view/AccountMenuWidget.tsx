@@ -15,6 +15,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { supabase } from "@/integrations/supabase/client";
+import { useGreeting } from "@/lib/greetings/useGreeting";
 import type { Json } from "@/lib/builder/types";
 
 type Lang = "pl" | "en";
@@ -183,11 +184,14 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const staffItems = sectionItems("staff");
 
   // Trigger
+  const greeting = useGreeting();
+  const triggerLabel = greeting || displayName || user?.email || "";
   const trigger = session ? (
     <button
       type="button"
       className="inline-flex h-8 items-center gap-2 rounded-full pl-1 pr-3 text-xs font-medium hover:bg-muted/60 transition-colors"
       aria-label={displayName || "Account"}
+      title={triggerLabel}
     >
       <Avatar className="h-6 w-6">
         {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
@@ -195,7 +199,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           {(displayName || user?.email || "?").slice(0, 1).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      <span className="hidden sm:inline max-w-[120px] truncate">{displayName || user?.email}</span>
+      <span className="hidden sm:inline max-w-[200px] truncate">{triggerLabel}</span>
     </button>
   ) : (
     <button
