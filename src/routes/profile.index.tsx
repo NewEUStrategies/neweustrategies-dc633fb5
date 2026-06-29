@@ -204,15 +204,15 @@ function ProfileInline() {
                 <Badge
                   key={r}
                   variant={r === "super_admin" || r === "admin" ? "default" : "secondary"}
-                  className="h-6 rounded-[6px] px-2 text-[11px] font-medium leading-none"
+                  className="inline-flex items-center rounded-[6px] px-2.5 py-1 text-[10px] font-medium leading-[1.2] whitespace-nowrap"
                 >
                   {t(`profile.role.${r}`)}
                 </Badge>
               ))}
               {isStaff && (
-                <Button asChild size="sm" variant="outline" className="h-6 rounded-[6px] px-2 text-[11px]">
-                  <Link to="/admin" className="!text-foreground">
-                    <ShieldCheck className="mr-1 h-3 w-3" />
+                <Button asChild size="sm" variant="outline" className="h-auto rounded-[6px] px-2.5 py-1 text-[10px] leading-[1.2] gap-1">
+                  <Link to="/admin" className="!text-foreground inline-flex items-center">
+                    <ShieldCheck className="h-3 w-3" />
                     {t("profile.inline.adminPanel")}
                   </Link>
                 </Button>
