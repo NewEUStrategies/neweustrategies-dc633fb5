@@ -156,7 +156,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const displayName = profile?.display_name ?? user?.email ?? "";
   const avatarUrl = profile?.avatar_url ?? null;
 
-  const greeting = useGreeting();
+  
   const signInLabel = (lang === "pl" ? config.signin_pl : config.signin_en) || (lang === "pl" ? "Zaloguj" : "Sign in");
   const signUpLabel = (lang === "pl" ? config.signup_pl : config.signup_en) || (lang === "pl" ? "Zarejestruj" : "Sign up");
   const logoutLabel = (lang === "pl" ? config.logout_pl : config.logout_en) || (lang === "pl" ? "Wyloguj" : "Sign out");
