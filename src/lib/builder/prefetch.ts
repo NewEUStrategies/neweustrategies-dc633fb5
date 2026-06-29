@@ -35,7 +35,7 @@ function collectWidgetsFromChild(child: SectionChild | null | undefined, out: Wi
 
 export function collectSectionWidgets(section: SectionNode): WidgetNode[] {
   const widgets: WidgetNode[] = [];
-  (section.children ?? []).forEach((child) => collectWidgetsFromChild(child, widgets));
+  (Array.isArray(section?.children) ? section.children : []).forEach((child) => collectWidgetsFromChild(child, widgets));
   return widgets.filter(isWidget);
 }
 
