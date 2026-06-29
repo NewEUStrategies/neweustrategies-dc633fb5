@@ -653,7 +653,7 @@ function MultiCardVariant(p: VariantProps) {
           })}
         </div>
       </div>
-      <DotsNav count={Math.max(1, p.items.length - 2)} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} />
+      <DotsNav count={Math.max(1, p.items.length - (p.columns - 1))} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} />
     </div>
   );
 }
