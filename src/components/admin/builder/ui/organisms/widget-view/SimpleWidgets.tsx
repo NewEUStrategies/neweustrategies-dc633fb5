@@ -57,6 +57,17 @@ export function renderSimpleWidget(
       const thickness = getNum(c, "thickness", 1);
       const colorRaw = getStr(c, "color");
       const color = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(colorRaw) ? colorRaw : "";
+      const widthPct = Math.max(10, Math.min(100, getNum(c, "widthPct", 100)));
+      const alignRaw = getStr(c, "align") || "center";
+      const align: "left" | "center" | "right" =
+        alignRaw === "left" ? "left" : alignRaw === "right" ? "right" : "center";
+      const marginX = align === "center" ? "auto" : (align === "right" ? "auto 0 auto auto" : undefined);
+      const alignStyle: CSSProperties = align === "center"
+        ? { marginLeft: "auto", marginRight: "auto" }
+        : align === "right"
+          ? { marginLeft: "auto", marginRight: 0 }
+          : { marginLeft: 0, marginRight: "auto" };
+      void marginX;
       // In builder/editable mode, force a visible minimum so freshly added
       // dividers (thickness 1, default subtle colors) aren't invisible.
       const effThickness = editable && variant !== "space" ? Math.max(thickness, 2) : thickness;
@@ -89,15 +100,17 @@ export function renderSimpleWidget(
         return <div style={{ height: `${h}px`, width: "100%" }} aria-hidden="true" />;
       }
 
+      const widthStyle: CSSProperties = { width: `${widthPct}%`, ...alignStyle };
+
       if (variant === "gradient") {
         const grad = color
           ? `linear-gradient(to right, transparent, ${color}, transparent)`
           : undefined;
         return wrap(
           <div
-            style={{ height: `${effThickness}px`, ...(grad ? { backgroundImage: grad } : {}) }}
+            style={{ height: `${effThickness}px`, ...widthStyle, ...(grad ? { backgroundImage: grad } : {}) }}
             className={grad ? "" : (editable
-              ? "bg-gradient-to-r from-transparent via-foreground/50 to-transparent"
+              ? "bg-gradient-to-r from-transparent via-foreground/60 to-transparent"
               : "bg-gradient-to-r from-transparent via-border to-transparent")}
           />
         );
@@ -106,10 +119,10 @@ export function renderSimpleWidget(
         const iconName = getStr(c, "iconName") || "Star";
         const reg = LucideIcons as Record<string, React.ComponentType<{ size?: number; color?: string }> | undefined>;
         const Icon = reg[iconName] ?? LucideIcons.Star;
-        const lineStyle: CSSProperties = { borderTopWidth: effThickness, ...(color ? { borderTopColor: color } : {}) };
-        const lineCls = color ? "flex-1 border-t" : (editable ? "flex-1 border-t border-foreground/40" : "flex-1 border-t border-border");
+        const lineStyle: CSSProperties = { borderTopWidth: effThickness, borderTopStyle: "solid", ...(color ? { borderTopColor: color } : {}) };
+        const lineCls = color ? "flex-1 border-t" : (editable ? "flex-1 border-t border-foreground/60" : "flex-1 border-t border-border");
         return wrap(
-          <div className="flex items-center gap-3 text-muted-foreground" style={color ? { color } : undefined}>
+          <div className="flex items-center gap-3 text-muted-foreground" style={{ ...widthStyle, ...(color ? { color } : {}) }}>
             <div className={lineCls} style={lineStyle} />
             <Icon size={16} />
             <div className={lineCls} style={lineStyle} />
@@ -119,16 +132,24 @@ export function renderSimpleWidget(
       if (variant === "wave") {
         return wrap(
           <svg viewBox="0 0 200 8" preserveAspectRatio="none"
-            className={color ? "w-full h-3" : `w-full h-3 ${editable ? "text-foreground/50" : "text-border"}`}
-            style={color ? { color } : undefined}>
+            className={color ? "h-3" : `h-3 ${editable ? "text-foreground/60" : "text-border"}`}
+            style={{ ...widthStyle, ...(color ? { color } : {}) }}>
             <path d="M0 4 Q 25 0 50 4 T 100 4 T 150 4 T 200 4" fill="none" stroke="currentColor" strokeWidth="1.5" />
           </svg>
         );
       }
       const styleType = variant === "dashed" ? "dashed" : variant === "dotted" ? "dotted" : variant === "double" ? "double" : "solid";
-      const hrStyle: CSSProperties = { borderTopStyle: styleType, borderTopWidth: effThickness, ...(color ? { borderTopColor: color } : {}) };
-      const hrCls = color ? "" : (editable ? "border-foreground/40" : "border-border");
-      return wrap(<hr className={hrCls} style={hrStyle} />);
+      // Render as <div> with border-top so width + alignment work reliably
+      // (hr has UA quirks with margin/width interplay in some browsers).
+      const lineColor = color || (editable ? "rgba(127,127,127,0.6)" : "var(--border)");
+      const dividerStyle: CSSProperties = {
+        borderTopStyle: styleType,
+        borderTopWidth: effThickness,
+        borderTopColor: lineColor,
+        height: 0,
+        ...widthStyle,
+      };
+      return wrap(<div role="separator" aria-orientation="horizontal" style={dividerStyle} />);
     }
     case "spacer": {
       const h = getNum(c, "height", 32);
