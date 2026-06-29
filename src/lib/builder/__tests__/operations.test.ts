@@ -188,10 +188,14 @@ describe("widget mutations", () => {
     expect(ids(c)).toEqual(["new"]);
   });
 
-  it("appendWidgetToSection reuses the first existing column", () => {
+  it("appendWidgetToSection appends a new full-width column even when one exists", () => {
     const d = doc(sec("s1", [col("c1", [w("w1")])]));
     ops.appendWidgetToSection(d, "s1", w("new"));
-    expect(ids(d.sections[0].children[0] as ColumnNode)).toEqual(["w1", "new"]);
+    expect(d.sections[0].children).toHaveLength(2);
+    const second = d.sections[0].children[1] as ColumnNode;
+    expect(second.kind).toBe("column");
+    expect(second.span).toBe(12);
+    expect(ids(second)).toEqual(["new"]);
   });
 });
 
