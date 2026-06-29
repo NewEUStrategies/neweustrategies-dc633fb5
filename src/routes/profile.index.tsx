@@ -124,7 +124,7 @@ function ProfileInline() {
               )}
 
               {/* Job title + Company badge */}
-              <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="mt-2 flex flex-row items-center gap-3 flex-wrap">
                 <div className="text-sm text-muted-foreground leading-normal">
                   {editable ? (
                     <InlineText
@@ -143,8 +143,8 @@ function ProfileInline() {
                 </div>
 
                 {data.current_company ? (
-                  <span className="inline-flex items-center gap-2 self-start sm:self-auto rounded-[6px] border border-border bg-background px-3 py-1.5 shadow-sm">
-                    <CompanyLogoIcon className="h-5 w-5" />
+                  <span className="inline-flex items-center gap-2 rounded-[6px] border border-border bg-background px-3 py-1.5 shadow-sm">
+                    <CompanyLogoIcon className="h-7 w-7" />
                     <span className="text-xs font-medium text-foreground">{data.current_company}</span>
                   </span>
                 ) : editable ? (
@@ -154,9 +154,9 @@ function ProfileInline() {
                       const v = window.prompt(t("profile.account.currentCompany"));
                       if (v != null) void saveField("current_company", v.trim() || null);
                     }}
-                    className="inline-flex items-center gap-2 self-start rounded-[6px] border border-dashed border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground italic hover:bg-accent hover:text-accent-foreground"
+                    className="inline-flex items-center gap-2 rounded-[6px] border border-dashed border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground italic hover:bg-accent hover:text-accent-foreground"
                   >
-                    <CompanyLogoIcon className="h-5 w-5 opacity-60" />
+                    <CompanyLogoIcon className="h-7 w-7 opacity-60" />
                     {t("profile.inline.addCompany")}
                   </button>
                 ) : null}
