@@ -50,22 +50,54 @@ const SELECT_COLS =
   "id, name, name_normalized, key, display_name, gender, origin_country, origin," +
   " vocative_pl, instrumental_pl, genitive_pl, dative_pl, vocative_en, english_form, is_compound, notes";
 
-const COUNTRIES: { code: string; pl: string; en: string }[] = [
-  { code: "PL", pl: "Polska", en: "Poland" },
-  { code: "US", pl: "USA", en: "USA" },
-  { code: "GB", pl: "Wielka Brytania", en: "United Kingdom" },
-  { code: "DE", pl: "Niemcy", en: "Germany" },
-  { code: "FR", pl: "Francja", en: "France" },
-  { code: "IT", pl: "Włochy", en: "Italy" },
-  { code: "ES", pl: "Hiszpania", en: "Spain" },
-  { code: "UA", pl: "Ukraina", en: "Ukraine" },
-  { code: "CZ", pl: "Czechy", en: "Czechia" },
-  { code: "SK", pl: "Słowacja", en: "Slovakia" },
-  { code: "LT", pl: "Litwa", en: "Lithuania" },
-  { code: "BY", pl: "Białoruś", en: "Belarus" },
-  { code: "RU", pl: "Rosja", en: "Russia" },
-  { code: "OTHER", pl: "Inny", en: "Other" },
+const COUNTRIES: { code: string; pl: string; en: string; aliases?: string[] }[] = [
+  { code: "PL", pl: "Polska", en: "Poland", aliases: ["polish", "polski", "polskie", "pl"] },
+  { code: "US", pl: "USA", en: "USA", aliases: ["american", "english-us", "us", "usa"] },
+  { code: "GB", pl: "Wielka Brytania", en: "United Kingdom", aliases: ["english", "angielski", "british", "uk", "gb", "england"] },
+  { code: "DE", pl: "Niemcy", en: "Germany", aliases: ["german", "niemiecki", "de"] },
+  { code: "FR", pl: "Francja", en: "France", aliases: ["french", "francuski", "fr"] },
+  { code: "IT", pl: "Włochy", en: "Italy", aliases: ["italian", "włoski", "wloski", "it"] },
+  { code: "ES", pl: "Hiszpania", en: "Spain", aliases: ["spanish", "hiszpański", "hiszpanski", "es"] },
+  { code: "PT", pl: "Portugalia", en: "Portugal", aliases: ["portuguese", "portugalski", "pt"] },
+  { code: "UA", pl: "Ukraina", en: "Ukraine", aliases: ["ukrainian", "ukraiński", "ua"] },
+  { code: "CZ", pl: "Czechy", en: "Czechia", aliases: ["czech", "czeski", "cz"] },
+  { code: "SK", pl: "Słowacja", en: "Slovakia", aliases: ["slovak", "słowacki", "sk"] },
+  { code: "LT", pl: "Litwa", en: "Lithuania", aliases: ["lithuanian", "litewski", "lt"] },
+  { code: "BY", pl: "Białoruś", en: "Belarus", aliases: ["belarusian", "białoruski", "by"] },
+  { code: "RU", pl: "Rosja", en: "Russia", aliases: ["russian", "rosyjski", "ru"] },
+  { code: "GR", pl: "Grecja", en: "Greece", aliases: ["greek", "grecki", "gr"] },
+  { code: "TR", pl: "Turcja", en: "Turkey", aliases: ["turkish", "turecki", "tr"] },
+  { code: "JP", pl: "Japonia", en: "Japan", aliases: ["japanese", "japoński", "japonski", "jp"] },
+  { code: "CN", pl: "Chiny", en: "China", aliases: ["chinese", "chiński", "chinski", "cn"] },
+  { code: "IN", pl: "Indie", en: "India", aliases: ["hindi", "indian", "indyjski", "in"] },
+  { code: "SA", pl: "Arabia Saudyjska", en: "Saudi Arabia", aliases: ["arabic", "arabski", "arab", "sa"] },
+  { code: "SE", pl: "Szwecja", en: "Sweden", aliases: ["swedish", "szwedzki", "scandinavian", "skandynawski", "se"] },
+  { code: "NO", pl: "Norwegia", en: "Norway", aliases: ["norwegian", "norweski", "no"] },
+  { code: "FI", pl: "Finlandia", en: "Finland", aliases: ["finnish", "fiński", "finski", "fi"] },
+  { code: "DK", pl: "Dania", en: "Denmark", aliases: ["danish", "duński", "dunski", "dk"] },
+  { code: "NL", pl: "Holandia", en: "Netherlands", aliases: ["dutch", "holenderski", "nl"] },
+  { code: "IE", pl: "Irlandia", en: "Ireland", aliases: ["irish", "irlandzki", "ie"] },
+  { code: "RO", pl: "Rumunia", en: "Romania", aliases: ["romanian", "rumuński", "rumunski", "ro"] },
+  { code: "HU", pl: "Węgry", en: "Hungary", aliases: ["hungarian", "węgierski", "wegierski", "hu"] },
+  { code: "BG", pl: "Bułgaria", en: "Bulgaria", aliases: ["bulgarian", "bułgarski", "bulgarski", "bg"] },
+  { code: "OTHER", pl: "Inny", en: "Other", aliases: ["other", "inny"] },
 ];
+
+// Normalize any user/CSV input (country name PL/EN, ISO code, language adjective)
+// to canonical { code, label }. Returns null when no match.
+function resolveCountry(input: string | null | undefined): { code: string; pl: string; en: string } | null {
+  if (!input) return null;
+  const q = input.trim().toLowerCase();
+  if (!q) return null;
+  for (const c of COUNTRIES) {
+    if (c.code.toLowerCase() === q) return c;
+    if (c.pl.toLowerCase() === q) return c;
+    if (c.en.toLowerCase() === q) return c;
+    if (c.aliases?.some((a) => a.toLowerCase() === q)) return c;
+  }
+  return null;
+}
+
 
 // CSV columns in canonical order (used for import + export).
 const CSV_COLS = [
@@ -151,20 +183,23 @@ function rowFromCsv(headers: string[], cells: string[]): CsvParsedRow | null {
       : "male";
   const key = (get("key") || normalize(display)).toLowerCase();
   const truthy = (s: string) => /^(1|true|tak|yes|y|t)$/i.test(s);
+  const rawOrigin = get("origin") || get("origin_country") || get("country") || get("kraj") || null;
+  const resolved = resolveCountry(rawOrigin);
   return {
     key,
     display_name: display,
-    vocative_pl: get("vocative") || get("vocative_pl") || null,
-    instrumental_pl: get("instrumental") || null,
-    genitive_pl: get("genitive") || null,
-    dative_pl: get("dative") || null,
-    english_form: get("english_form") || get("vocative_en") || null,
+    vocative_pl: get("vocative") || get("vocative_pl") || get("wolacz") || get("wołacz") || null,
+    instrumental_pl: get("instrumental") || get("instrumental_pl") || get("narzednik") || get("narzędnik") || null,
+    genitive_pl: get("genitive") || get("genitive_pl") || get("dopelniacz") || get("dopełniacz") || null,
+    dative_pl: get("dative") || get("dative_pl") || get("celownik") || null,
+    english_form: get("english_form") || get("vocative_en") || get("english") || null,
     gender,
-    is_compound: truthy(get("is_compound")),
-    origin: get("origin") || get("origin_country") || null,
+    is_compound: truthy(get("is_compound")) || truthy(get("compound")) || truthy(get("zlozone")) || truthy(get("złożone")),
+    origin: resolved?.code ?? (rawOrigin || null),
     notes: get("notes") || null,
   };
 }
+
 
 function AdminNamesPage() {
   const { isSuperAdmin, loading } = useAuth();
@@ -332,6 +367,9 @@ function AdminNamesPage() {
         setIfMissing("english_form", row.english_form);
         setIfMissing("vocative_en", row.english_form);
         setIfMissing("origin", row.origin);
+        setIfMissing("origin_country", row.origin);
+        setIfMissing("is_compound", row.is_compound ? true : null);
+
         setIfMissing("notes", row.notes);
         if (Object.keys(patch).length === 0) {
           prog.skipped += 1;
