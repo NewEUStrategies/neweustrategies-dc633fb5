@@ -389,9 +389,32 @@ export const WIDGETS: WidgetDef[] = [
       successMsg_pl: "Dziękujemy! Wiadomość została wysłana.",
       successMsg_en: "Thanks! Your message has been sent.",
       requireConsent: true,
+      showName: true,
+      showEmail: true,
       showPhone: false,
       showCompany: false,
       showSubject: true,
+      showMessage: true,
+      showNewsletterOptIn: false,
+      newsletterLabel_pl: "Zapisz mnie do newslettera",
+      newsletterLabel_en: "Subscribe me to the newsletter",
+      columns: 2,                  // 1 | 2 | 3
+      buttonAlign: "left",         // left | center | right | full
+      buttonPosition: "bottom",    // bottom | inline-right
+      buttonVariant: "solid",      // solid | outline | ghost | gradient
+      buttonSize: "md",            // sm | md | lg
+      // appearance
+      bgLight: "",                 // hex or token; "" = card default
+      bgDark: "",                  // hex; "" = card default
+      textColor: "",
+      borderColor: "",
+      radiusPx: 12,
+      paddingPx: 32,
+      bgImage: "",                 // recommended 1600x900 px (hero 2400x1200)
+      bgImageMobile: "",           // recommended 800x1000 px
+      bgOverlay: 0,                // 0-100
+      bgAnimation: "none",         // none | aurora | mesh-drift | floating-dots | wave-lines | noise-shimmer | orbits
+      iconUrl: "",                 // recommended 128x128 px
       recipient: "",
     }) },
 ];

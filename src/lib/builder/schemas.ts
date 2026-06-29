@@ -651,7 +651,82 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "showHeader", type: "select", label: "Pokaż nagłówek",
       options: [ { value: "1", label: "tak" }, { value: "0", label: "nie" } ] },
   ],
+  "contact-form": [
+    { key: "variant", type: "select", label: "Wariant",
+      options: [{ value: "card", label: "Karta" }, { value: "flat", label: "Płaski" }] },
+    { key: "title", type: "i18nText", label: "Tytuł" },
+    { key: "subtitle", type: "i18nText", label: "Podtytuł" },
+    { key: "iconUrl", type: "image", label: "Ikona nagłówka", hint: "Rekomendowane 128x128 px (PNG/SVG, kwadrat)" },
+    // ----- Pola formularza -----
+    { key: "showName", type: "select", label: "Pole: Imię i nazwisko",
+      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
+    { key: "showEmail", type: "select", label: "Pole: E-mail",
+      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
+    { key: "showPhone", type: "select", label: "Pole: Telefon",
+      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
+    { key: "showCompany", type: "select", label: "Pole: Firma",
+      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
+    { key: "showSubject", type: "select", label: "Pole: Temat",
+      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
+    { key: "showMessage", type: "select", label: "Pole: Wiadomość",
+      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
+    { key: "requireConsent", type: "select", label: "Wymagaj zgody (RODO)",
+      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
+    { key: "showNewsletterOptIn", type: "select", label: "Pole: Zapis do newslettera",
+      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
+    { key: "newsletterLabel", type: "i18nText", label: "Etykieta zapisu do newslettera" },
+    // ----- Layout & przycisk -----
+    { key: "columns", type: "select", label: "Kolumny",
+      options: [{ value: "1", label: "1" }, { value: "2", label: "2" }, { value: "3", label: "3" }] },
+    { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
+    { key: "buttonPosition", type: "select", label: "Pozycja przycisku",
+      options: [
+        { value: "bottom", label: "pod formularzem" },
+        { value: "inline-right", label: "obok pól (po prawej)" },
+      ] },
+    { key: "buttonAlign", type: "select", label: "Wyrównanie przycisku",
+      options: [
+        { value: "left", label: "lewa" },
+        { value: "center", label: "środek" },
+        { value: "right", label: "prawa" },
+        { value: "full", label: "pełna szerokość" },
+      ] },
+    { key: "buttonVariant", type: "select", label: "Wariant przycisku",
+      options: [
+        { value: "solid", label: "wypełniony" },
+        { value: "outline", label: "obrysowany" },
+        { value: "ghost", label: "ghost" },
+        { value: "gradient", label: "gradient" },
+      ] },
+    { key: "buttonSize", type: "select", label: "Rozmiar przycisku",
+      options: [
+        { value: "sm", label: "S" }, { value: "md", label: "M" }, { value: "lg", label: "L" },
+      ] },
+    // ----- Wygląd / tło -----
+    { key: "bgLight", type: "color", label: "Tło (light mode)" },
+    { key: "bgDark", type: "color", label: "Tło (dark mode)" },
+    { key: "textColor", type: "color", label: "Kolor tekstu" },
+    { key: "borderColor", type: "color", label: "Kolor obramowania" },
+    { key: "radiusPx", type: "number", label: "Zaokrąglenie (px)", min: 0, max: 64, step: 1 },
+    { key: "paddingPx", type: "number", label: "Padding wewnętrzny (px)", min: 0, max: 96, step: 2 },
+    { key: "bgImage", type: "image", label: "Obraz tła (desktop)", hint: "Rekomendowane 1600x900 px (lub 2400x1200 dla hero)" },
+    { key: "bgImageMobile", type: "image", label: "Obraz tła (mobile)", hint: "Rekomendowane 800x1000 px (portret)" },
+    { key: "bgOverlay", type: "number", label: "Przyciemnienie obrazu tła (%)", min: 0, max: 100, step: 5 },
+    { key: "bgAnimation", type: "select", label: "Animacja tła",
+      options: [
+        { value: "none", label: "brak" },
+        { value: "aurora", label: "Aurora (zorze)" },
+        { value: "mesh-drift", label: "Mesh drift (dryf)" },
+        { value: "floating-dots", label: "Floating dots" },
+        { value: "wave-lines", label: "Wave lines (fale)" },
+        { value: "noise-shimmer", label: "Noise shimmer (poświata)" },
+        { value: "orbits", label: "Orbits (orbity)" },
+      ] },
+    { key: "recipient", type: "text", label: "E-mail odbiorcy (override)", placeholder: "kontakt@firma.pl" },
+  ],
 };
+
+
 
 
 
