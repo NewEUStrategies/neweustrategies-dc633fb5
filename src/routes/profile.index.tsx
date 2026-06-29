@@ -65,7 +65,7 @@ function ProfileInline() {
 
   return (
     <TooltipProvider>
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* HERO: cover + avatar */}
         <section className="relative">
           {editable ? (
@@ -83,23 +83,24 @@ function ProfileInline() {
           )}
 
           {/* Top-right preview toggle */}
-          <div className="absolute right-3 top-3 z-10">
+          <div className="absolute right-2.5 top-2.5 z-10">
             <Button
               type="button"
               size="sm"
               variant={previewAsGuest ? "default" : "secondary"}
               onClick={() => setPreviewAsGuest((v) => !v)}
-              className="shadow-sm"
+              className="h-7 px-2.5 text-[11px] shadow-sm"
             >
-              {previewAsGuest ? <Pencil className="mr-1.5 h-3.5 w-3.5" /> : <Eye className="mr-1.5 h-3.5 w-3.5" />}
+              {previewAsGuest ? <Pencil className="mr-1 h-3 w-3" /> : <Eye className="mr-1 h-3 w-3" />}
               {previewAsGuest ? t("profile.inline.editMode") : t("profile.inline.viewAsGuest")}
             </Button>
           </div>
         </section>
 
         {/* IDENTITY block (offset to clear the overlapping avatar) */}
-        <section className="pl-4 pr-4 pt-14 sm:pl-44 sm:pr-6 sm:pt-4">
-          <div className="space-y-1.5">
+        <section className="pl-4 pr-4 pt-10 sm:pl-28 sm:pr-2 sm:pt-2">
+          <div className="space-y-1">
+
             {editable ? (
               <InlineText
                 value={data.display_name || fullName}
@@ -194,10 +195,10 @@ function ProfileInline() {
         </section>
 
         {/* BIO */}
-        <section className="grid gap-3 rounded-[6px] border border-border bg-card p-5">
+        <section className="grid gap-2 rounded-[6px] border border-border bg-card p-4">
           <header className="flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-foreground/70">
-              <Sparkles className="h-4 w-4 text-primary" /> {t("profile.account.bio")}
+            <h2 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
+              <Sparkles className="h-3.5 w-3.5 text-primary" /> {t("profile.account.bio")}
             </h2>
           </header>
           {editable ? (
@@ -208,7 +209,7 @@ function ProfileInline() {
               placeholder={t("profile.inline.bioPlaceholder")}
               emptyLabel={t("profile.inline.bioPlaceholder")}
               maxLength={500}
-              rows={5}
+              rows={3}
             />
           ) : (
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
@@ -218,12 +219,12 @@ function ProfileInline() {
         </section>
 
         {/* GRID: meta + activity */}
-        <section className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-[6px] border border-border bg-card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground/70">
+        <section className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-[6px] border border-border bg-card p-4">
+            <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
               {t("profile.inline.contactSection")}
             </h2>
-            <dl className="grid gap-3 text-sm">
+            <dl className="grid gap-2 text-sm">
               <Row label={t("profile.account.firstName")}>
                 {editable ? (
                   <InlineText
@@ -272,7 +273,7 @@ function ProfileInline() {
                       saveField("gender", v === "auto" ? null : (v as Gender))
                     }
                   >
-                    <SelectTrigger className="h-8 w-full max-w-[240px] text-sm">
+                    <SelectTrigger className="h-7 w-full max-w-[220px] text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -289,26 +290,27 @@ function ProfileInline() {
             </dl>
           </div>
 
-          <div className="rounded-[6px] border border-border bg-card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground/70">
+          <div className="rounded-[6px] border border-border bg-card p-4">
+            <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
               {t("profile.inline.activitySection")}
             </h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Stat icon={<Bookmark className="h-4 w-4" />} value={counts.data?.bookmarks ?? 0} label={t("profile.nav.bookmarks")} to="/profile/bookmarks" />
-              <Stat icon={<Users className="h-4 w-4" />} value={counts.data?.authors ?? 0} label={t("profile.follows.tabAuthors")} to="/profile/follows" />
-              <Stat icon={<Globe className="h-4 w-4" />} value={counts.data?.categories ?? 0} label={t("profile.follows.tabCategories")} to="/profile/follows" />
-              <Stat icon={<Sparkles className="h-4 w-4" />} value={counts.data?.tags ?? 0} label={t("profile.follows.tabTags")} to="/profile/follows" />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Stat icon={<Bookmark className="h-3.5 w-3.5" />} value={counts.data?.bookmarks ?? 0} label={t("profile.nav.bookmarks")} to="/profile/bookmarks" />
+              <Stat icon={<Users className="h-3.5 w-3.5" />} value={counts.data?.authors ?? 0} label={t("profile.follows.tabAuthors")} to="/profile/follows" />
+              <Stat icon={<Globe className="h-3.5 w-3.5" />} value={counts.data?.categories ?? 0} label={t("profile.follows.tabCategories")} to="/profile/follows" />
+              <Stat icon={<Sparkles className="h-3.5 w-3.5" />} value={counts.data?.tags ?? 0} label={t("profile.follows.tabTags")} to="/profile/follows" />
             </div>
 
-            <div className="mt-5 grid gap-2">
-              <SecondaryLink to="/profile/interests" icon={<Sparkles className="h-4 w-4" />}>{t("profile.nav.interests")}</SecondaryLink>
-              <SecondaryLink to="/profile/social" icon={<ExternalLink className="h-4 w-4" />}>{t("profile.nav.social")}</SecondaryLink>
-              <SecondaryLink to="/profile/billing" icon={<Receipt className="h-4 w-4" />}>{t("profile.nav.billing")}</SecondaryLink>
-              <SecondaryLink to="/profile/subscription" icon={<ShieldCheck className="h-4 w-4" />}>{t("profile.nav.subscription")}</SecondaryLink>
-              <SecondaryLink to="/profile/security" icon={<ShieldCheck className="h-4 w-4" />}>{t("profile.nav.security")}</SecondaryLink>
+            <div className="mt-3 grid gap-1">
+              <SecondaryLink to="/profile/interests" icon={<Sparkles className="h-3.5 w-3.5" />}>{t("profile.nav.interests")}</SecondaryLink>
+              <SecondaryLink to="/profile/social" icon={<ExternalLink className="h-3.5 w-3.5" />}>{t("profile.nav.social")}</SecondaryLink>
+              <SecondaryLink to="/profile/billing" icon={<Receipt className="h-3.5 w-3.5" />}>{t("profile.nav.billing")}</SecondaryLink>
+              <SecondaryLink to="/profile/subscription" icon={<ShieldCheck className="h-3.5 w-3.5" />}>{t("profile.nav.subscription")}</SecondaryLink>
+              <SecondaryLink to="/profile/security" icon={<ShieldCheck className="h-3.5 w-3.5" />}>{t("profile.nav.security")}</SecondaryLink>
             </div>
           </div>
         </section>
+
       </div>
     </TooltipProvider>
   );
@@ -320,9 +322,9 @@ function cap(s: string) {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[120px_1fr] items-center gap-3">
-      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className="min-w-0">{children}</dd>
+    <div className="grid grid-cols-[100px_1fr] items-center gap-2">
+      <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-sm">{children}</dd>
     </div>
   );
 }
@@ -331,11 +333,11 @@ function Stat({ icon, value, label, to }: { icon: React.ReactNode; value: number
   return (
     <Link
       to={to}
-      className="group flex flex-col items-start gap-1 rounded-[6px] border border-border bg-background p-3 transition-colors hover:border-primary/40 hover:bg-primary/5"
+      className="group flex flex-col items-start gap-0.5 rounded-[6px] border border-border bg-background p-2.5 transition-colors hover:border-primary/40 hover:bg-primary/5"
     >
       <span className="text-muted-foreground group-hover:text-primary">{icon}</span>
-      <span className="text-xl font-semibold leading-none">{value}</span>
-      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-base font-semibold leading-none">{value}</span>
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
     </Link>
   );
 }
@@ -344,13 +346,13 @@ function SecondaryLink({ to, icon, children }: { to: string; icon: React.ReactNo
   return (
     <Link
       to={to}
-      className="flex items-center justify-between rounded-[6px] px-3 py-2 text-sm text-foreground/85 transition-colors hover:bg-muted hover:text-foreground"
+      className="flex items-center justify-between rounded-[6px] px-2.5 py-1.5 text-xs text-foreground/85 transition-colors hover:bg-muted hover:text-foreground"
     >
       <span className="flex items-center gap-2">
         <span className="text-muted-foreground">{icon}</span>
         {children}
       </span>
-      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+      <ExternalLink className="h-3 w-3 text-muted-foreground" />
     </Link>
   );
 }
@@ -359,15 +361,15 @@ function ReadOnlyMedia({ avatarUrl, coverUrl, fullName }: { avatarUrl: string | 
   const initial = fullName.trim().charAt(0).toUpperCase() || "·";
   return (
     <div className="relative">
-      <div className="h-40 sm:h-56 md:h-64 w-full overflow-hidden rounded-[6px] border border-border bg-muted">
+      <div className="h-28 sm:h-36 md:h-44 w-full overflow-hidden rounded-[6px] bg-muted">
         {coverUrl && <img src={coverUrl} alt="" className="h-full w-full object-cover" />}
       </div>
-      <div className="absolute left-4 sm:left-6 -bottom-12 sm:-bottom-16">
-        <div className="h-24 w-24 sm:h-32 sm:w-32">
+      <div className="absolute left-4 sm:left-5 -bottom-8 sm:-bottom-10">
+        <div className="h-16 w-16 sm:h-20 sm:w-20">
           {avatarUrl ? (
-            <img src={avatarUrl} alt={fullName} className="h-full w-full rounded-[6px] border-[3px] border-background bg-background object-cover shadow-md" />
+            <img src={avatarUrl} alt={fullName} className="h-full w-full rounded-[6px] ring-2 ring-background bg-background object-cover shadow-sm" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-[6px] border-[3px] border-background bg-gradient-to-br from-primary/30 to-primary/10 text-3xl sm:text-4xl font-semibold text-primary shadow-md">
+            <div className="flex h-full w-full items-center justify-center rounded-[6px] ring-2 ring-background bg-gradient-to-br from-primary/30 to-primary/10 text-xl sm:text-2xl font-semibold text-primary shadow-sm">
               {initial}
             </div>
           )}
@@ -376,3 +378,4 @@ function ReadOnlyMedia({ avatarUrl, coverUrl, fullName }: { avatarUrl: string | 
     </div>
   );
 }
+

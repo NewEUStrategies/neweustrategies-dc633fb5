@@ -75,11 +75,11 @@ export function InlineText({
 
   const variantCls =
     variant === "title"
-      ? "text-2xl sm:text-3xl font-semibold tracking-tight"
+      ? "text-xl sm:text-2xl font-semibold tracking-tight leading-tight"
       : variant === "subtitle"
-        ? "text-base sm:text-lg text-foreground/85"
+        ? "text-sm sm:text-base text-foreground/85"
         : variant === "muted"
-          ? "text-sm text-muted-foreground"
+          ? "text-xs sm:text-sm text-muted-foreground"
           : "text-sm";
 
   if (editing) {
@@ -137,7 +137,8 @@ export function InlineText({
     >
       <span
         className={cn(
-          "min-w-0 truncate",
+          "min-w-0",
+          variant === "title" ? "break-words" : "truncate",
           variantCls,
           isEmpty && "italic text-muted-foreground/70",
         )}
