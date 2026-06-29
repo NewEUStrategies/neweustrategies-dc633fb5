@@ -725,7 +725,7 @@ function AdminNamesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r) => (
+                {pageRows.map((r) => (
                   <tr key={r.id} className="border-t hover:bg-muted/20 align-top">
                     <td className="p-2 font-medium whitespace-nowrap">
                       <div>{r.display_name ?? r.name}</div>
