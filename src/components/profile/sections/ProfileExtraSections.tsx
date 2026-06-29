@@ -124,7 +124,7 @@ type Experience = {
   is_current: boolean;
 };
 
-function ExperienceSection({ userId, tenantId, editable }: { userId: string; tenantId: string; editable: boolean }) {
+export function ExperienceSection({ userId, tenantId, editable }: { userId: string; tenantId: string; editable: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const q = useUserList<Experience>("profile_experiences", "sort_order", true, userId);
@@ -223,7 +223,7 @@ type Education = {
   start_date: string | null; end_date: string | null; description: string | null;
 };
 
-function EducationSection({ userId, tenantId, editable }: { userId: string; tenantId: string; editable: boolean }) {
+export function EducationSection({ userId, tenantId, editable }: { userId: string; tenantId: string; editable: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const q = useUserList<Education>("profile_education", "sort_order", true, userId);
@@ -305,7 +305,7 @@ function EducationSection({ userId, tenantId, editable }: { userId: string; tena
 
 type Skill = { id: string; label: string; level: number; category: string | null };
 
-function SkillsSection({ userId, tenantId, editable }: { userId: string; tenantId: string; editable: boolean }) {
+export function SkillsSection({ userId, tenantId, editable }: { userId: string; tenantId: string; editable: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const q = useUserList<Skill>("profile_skills", "sort_order", true, userId);
@@ -373,7 +373,7 @@ type Award = {
   description: string | null; kind: string; url: string | null;
 };
 
-function AwardsSection({ userId, tenantId, editable, kind }: { userId: string; tenantId: string; editable: boolean; kind: "award" | "recognition" | "mention" }) {
+export function AwardsSection({ userId, tenantId, editable, kind }: { userId: string; tenantId: string; editable: boolean; kind: "award" | "recognition" | "mention" }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const q = useUserList<Award>("profile_awards", "sort_order", true, userId);
@@ -463,7 +463,7 @@ type CvFile = {
   size_bytes: number; version: number; is_current: boolean; uploaded_at: string;
 };
 
-function CvSection({ userId, tenantId, editable }: { userId: string; tenantId: string; editable: boolean }) {
+export function CvSection({ userId, tenantId, editable }: { userId: string; tenantId: string; editable: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const q = useUserList<CvFile>("profile_cv_files", "uploaded_at", false, userId);
@@ -610,7 +610,7 @@ const AXIS_COLOR: Record<string, string> = {
   neuroticism: "bg-rose-500",
 };
 
-function PersonalityCard({ userId, editable }: { userId: string; editable: boolean }) {
+export function PersonalityCard({ userId, editable }: { userId: string; editable: boolean }) {
   const { t } = useTranslation();
   const q = useQuery({
     queryKey: ["personality_results", userId],
@@ -669,7 +669,7 @@ function PersonalityCard({ userId, editable }: { userId: string; editable: boole
 
 type Hobby = { id: string; label: string; icon: string | null };
 
-function HobbiesCard({ userId, tenantId, editable }: { userId: string; tenantId: string; editable: boolean }) {
+export function HobbiesCard({ userId, tenantId, editable }: { userId: string; tenantId: string; editable: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const q = useUserList<Hobby>("profile_hobbies", "sort_order", true, userId);

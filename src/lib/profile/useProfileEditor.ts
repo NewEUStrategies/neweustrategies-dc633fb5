@@ -12,6 +12,7 @@ export interface ProfileEditorRow {
   last_name: string | null;
   job_title: string | null;
   current_company: string | null;
+  specialization: string | null;
   location: string | null;
   phone: string | null;
   bio: string | null;
@@ -19,6 +20,8 @@ export interface ProfileEditorRow {
   cover_url: string | null;
   tenant_id: string | null;
   gender: Gender | null;
+  linkedin_url: string | null;
+  twitter_url: string | null;
 }
 
 const EMPTY: ProfileEditorRow = {
@@ -27,6 +30,7 @@ const EMPTY: ProfileEditorRow = {
   last_name: null,
   job_title: null,
   current_company: null,
+  specialization: null,
   location: null,
   phone: null,
   bio: null,
@@ -34,7 +38,10 @@ const EMPTY: ProfileEditorRow = {
   cover_url: null,
   tenant_id: null,
   gender: null,
+  linkedin_url: null,
+  twitter_url: null,
 };
+
 
 type UploadKind = "avatar" | "cover";
 type Status = "idle" | "uploading" | "success" | "failed";
@@ -44,7 +51,7 @@ const MAX_SIZE: Record<UploadKind, number> = {
   cover: 5 * 1024 * 1024,
 };
 
-const FIELDS = "display_name, first_name, last_name, job_title, current_company, location, phone, bio, avatar_url, cover_url, tenant_id, gender";
+const FIELDS = "display_name, first_name, last_name, job_title, current_company, specialization, location, phone, bio, avatar_url, cover_url, tenant_id, gender, linkedin_url, twitter_url";
 
 /**
  * Inline profile editor: per-field optimistic save with toast feedback.
