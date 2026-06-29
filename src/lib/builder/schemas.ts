@@ -11,6 +11,7 @@ export type FieldType =
   | "image"       // URL input + file upload to storage
   | "number"
   | "select"
+  | "color"       // hex color with native picker + text fallback ("" = inherit)
   | "textarea"
   | "stringArray"; // textarea with one item per line
 
