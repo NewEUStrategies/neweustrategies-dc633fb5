@@ -33,6 +33,8 @@ const pl = {
       lastName: "Nazwisko",
       jobTitle: "Stanowisko",
       currentCompany: "Aktualna firma",
+      specialization: "Specjalizacja",
+
       location: "Miejsce zamieszkania",
       locationPh: "Miasto, kraj",
       phone: "Telefon",
@@ -93,10 +95,17 @@ const pl = {
       addJobTitle: "Dodaj stanowisko",
       addCompany: "Dodaj firmę",
       addLocation: "Dodaj lokalizację",
+      addPhone: "Dodaj telefon",
+      addLinkedin: "Dodaj LinkedIn",
+      addTwitter: "Dodaj X (Twitter)",
+      addSpecialization: "Dodaj specjalizację",
+      interestsHint: "Wybierz obserwowane tematy, kategorie i tagi.",
+      shortcuts: "Skróty",
       notSet: "Nie ustawiono",
       clickToEdit: "Kliknij, aby edytować",
       saving: "Zapisywanie...",
     },
+
 
 
     security: {
@@ -260,6 +269,8 @@ const en: typeof pl = {
       lastName: "Last name",
       jobTitle: "Job title",
       currentCompany: "Current company",
+      specialization: "Specialization",
+
       location: "Place of residence",
       locationPh: "City, country",
       phone: "Phone",
@@ -320,10 +331,17 @@ const en: typeof pl = {
       addJobTitle: "Add job title",
       addCompany: "Add company",
       addLocation: "Add location",
+      addPhone: "Add phone",
+      addLinkedin: "Add LinkedIn",
+      addTwitter: "Add X (Twitter)",
+      addSpecialization: "Add specialization",
+      interestsHint: "Pick topics, categories and tags you follow.",
+      shortcuts: "Shortcuts",
       notSet: "Not set",
       clickToEdit: "Click to edit",
       saving: "Saving...",
     },
+
 
 
 

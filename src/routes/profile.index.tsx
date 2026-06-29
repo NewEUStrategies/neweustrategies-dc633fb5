@@ -272,27 +272,111 @@ function ProfileInline() {
                 </Card>
 
                 <Card icon={<Mail className="h-3.5 w-3.5" />} title={t("profile.inline.contactSection")}>
-                  <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                    <Row label={t("profile.account.firstName")}>
+                  <ul className="divide-y divide-border/60">
+                    {/* Email - read-only from auth */}
+                    <ContactRow
+                      icon={<Mail className="h-4 w-4" />}
+                      ariaLabel={t("profile.account.email")}
+                    >
+                      <a href={`mailto:${user?.email ?? ""}`} className="truncate text-sm text-foreground/90 hover:text-primary">
+                        {user?.email}
+                      </a>
+                    </ContactRow>
+
+                    {/* Phone */}
+                    <ContactRow
+                      icon={<Phone className="h-4 w-4" />}
+                      ariaLabel={t("profile.account.phone")}
+                    >
                       {editable ? (
-                        <InlineText value={data.first_name} onSave={(v) => saveField("first_name", v || null)} ariaLabel={t("profile.account.firstName")} emptyLabel={t("profile.inline.notSet")} maxLength={80} />
-                      ) : <span>{data.first_name || "-"}</span>}
-                    </Row>
-                    <Row label={t("profile.account.lastName")}>
+                        <InlineText
+                          value={data.phone}
+                          onSave={(v) => saveField("phone", v || null)}
+                          ariaLabel={t("profile.account.phone")}
+                          placeholder={t("profile.account.phonePh")}
+                          emptyLabel={t("profile.inline.addPhone")}
+                          maxLength={32}
+                          className="w-full"
+                        />
+                      ) : data.phone ? (
+                        <a href={`tel:${data.phone}`} className="truncate text-sm text-foreground/90 hover:text-primary">{data.phone}</a>
+                      ) : (
+                        <span className="text-sm italic text-muted-foreground/70">-</span>
+                      )}
+                    </ContactRow>
+
+                    {/* Location */}
+                    <ContactRow
+                      icon={<MapPin className="h-4 w-4" />}
+                      ariaLabel={t("profile.account.location")}
+                    >
                       {editable ? (
-                        <InlineText value={data.last_name} onSave={(v) => saveField("last_name", v || null)} ariaLabel={t("profile.account.lastName")} emptyLabel={t("profile.inline.notSet")} maxLength={80} />
-                      ) : <span>{data.last_name || "-"}</span>}
-                    </Row>
-                    <Row label={t("profile.account.phone")}>
+                        <InlineText
+                          value={data.location}
+                          onSave={(v) => saveField("location", v || null)}
+                          ariaLabel={t("profile.account.location")}
+                          placeholder={t("profile.account.locationPh")}
+                          emptyLabel={t("profile.inline.addLocation")}
+                          maxLength={160}
+                          className="w-full"
+                        />
+                      ) : (
+                        <span className="truncate text-sm text-foreground/90">{data.location || "-"}</span>
+                      )}
+                    </ContactRow>
+
+                    {/* LinkedIn */}
+                    <ContactRow
+                      icon={<Linkedin className="h-4 w-4 text-[#0A66C2]" />}
+                      ariaLabel="LinkedIn"
+                    >
                       {editable ? (
-                        <InlineText value={data.phone} onSave={(v) => saveField("phone", v || null)} ariaLabel={t("profile.account.phone")} placeholder={t("profile.account.phonePh")} emptyLabel={t("profile.inline.notSet")} maxLength={32} />
-                      ) : <span>{data.phone || "-"}</span>}
-                    </Row>
-                    <Row label={t("profile.account.email")}>
-                      <span className="text-foreground/80">{user?.email}</span>
-                    </Row>
-                  </dl>
+                        <InlineText
+                          value={data.linkedin_url}
+                          onSave={(v) => saveField("linkedin_url", v || null)}
+                          ariaLabel="LinkedIn"
+                          placeholder="https://linkedin.com/in/..."
+                          emptyLabel={t("profile.inline.addLinkedin")}
+                          maxLength={240}
+                          className="w-full"
+                        />
+                      ) : data.linkedin_url ? (
+                        <a href={data.linkedin_url} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-0 items-center gap-1 truncate text-sm text-foreground/90 hover:text-primary">
+                          {prettyUrl(data.linkedin_url)}
+                          <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                        </a>
+                      ) : (
+                        <span className="text-sm italic text-muted-foreground/70">-</span>
+                      )}
+                    </ContactRow>
+
+                    {/* X / Twitter */}
+                    <ContactRow
+                      icon={<Twitter className="h-4 w-4" />}
+                      ariaLabel="X"
+                    >
+                      {editable ? (
+                        <InlineText
+                          value={data.twitter_url}
+                          onSave={(v) => saveField("twitter_url", v || null)}
+                          ariaLabel="X"
+                          placeholder="https://x.com/..."
+                          emptyLabel={t("profile.inline.addTwitter")}
+                          maxLength={240}
+                          className="w-full"
+                        />
+                      ) : data.twitter_url ? (
+                        <a href={data.twitter_url} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-0 items-center gap-1 truncate text-sm text-foreground/90 hover:text-primary">
+                          {prettyUrl(data.twitter_url)}
+                          <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                        </a>
+                      ) : (
+                        <span className="text-sm italic text-muted-foreground/70">-</span>
+                      )}
+                    </ContactRow>
+                  </ul>
                 </Card>
+
 
                 {user?.id && data.tenant_id ? (
                   <CvSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
@@ -647,3 +731,24 @@ function SecondaryLink({ to, icon, children }: { to: string; icon: ReactNode; ch
 function cap(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+function ContactRow({ icon, ariaLabel, children }: { icon: ReactNode; ariaLabel: string; children: ReactNode }) {
+  return (
+    <li className="flex min-w-0 items-center gap-3 py-2 first:pt-0 last:pb-0" aria-label={ariaLabel}>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[6px] bg-muted/70 text-muted-foreground">
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">{children}</div>
+    </li>
+  );
+}
+
+function prettyUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return (u.host + u.pathname).replace(/\/$/, "").replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
