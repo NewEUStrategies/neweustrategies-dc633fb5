@@ -682,16 +682,17 @@ function Card({ icon, title, action, children }: { icon?: ReactNode; title: stri
 }
 
 function Chip({ icon, children, tone = "muted", onClick }: { icon?: ReactNode; children: ReactNode; tone?: "primary" | "muted"; onClick?: () => void }) {
+  // Ujednolicony styl: identyczny rozmiar/padding/outline jak role-badge i
+  // przycisk "Panel administracyjny" (Button size="sm" variant="outline").
   const cls = cn(
-    "inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[11px] font-medium leading-none transition-colors",
-    tone === "primary"
-      ? "bg-primary/15 text-primary hover:bg-primary/20"
-      : "bg-muted text-foreground/80 hover:bg-muted/70",
-    onClick && "cursor-pointer border border-dashed border-border italic",
+    "inline-flex items-center gap-1 h-auto rounded-[6px] border border-border bg-background px-2.5 py-1 text-[10px] font-medium leading-[1.2] whitespace-nowrap transition-colors",
+    tone === "primary" ? "text-foreground [&_svg]:text-primary" : "text-foreground/80 [&_svg]:text-muted-foreground",
+    onClick && "cursor-pointer border-dashed italic hover:bg-accent hover:text-accent-foreground",
   );
   if (onClick) return <button type="button" onClick={onClick} className={cls}>{icon}{children}</button>;
   return <span className={cls}>{icon}{children}</span>;
 }
+
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
