@@ -819,6 +819,48 @@ export type Database = {
           },
         ]
       }
+      name_dictionary: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          gender: Database["public"]["Enums"]["name_gender"]
+          id: string
+          name: string
+          name_normalized: string
+          notes: string | null
+          origin_country: string | null
+          updated_at: string
+          vocative_en: string | null
+          vocative_pl: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          gender: Database["public"]["Enums"]["name_gender"]
+          id?: string
+          name: string
+          name_normalized: string
+          notes?: string | null
+          origin_country?: string | null
+          updated_at?: string
+          vocative_en?: string | null
+          vocative_pl?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          gender?: Database["public"]["Enums"]["name_gender"]
+          id?: string
+          name?: string
+          name_normalized?: string
+          notes?: string | null
+          origin_country?: string | null
+          updated_at?: string
+          vocative_en?: string | null
+          vocative_pl?: string | null
+        }
+        Relationships: []
+      }
       newsletter_settings: {
         Row: {
           description_en: string
@@ -2609,6 +2651,7 @@ export type Database = {
       ad_slot_status: "active" | "paused"
       app_role: "admin" | "editor" | "author" | "user" | "super_admin"
       editor_type: "richtext" | "markdown" | "builder" | "blocks"
+      name_gender: "male" | "female" | "neutral"
       order_kind: "subscription" | "one_time"
       order_status:
         | "pending"
@@ -2772,6 +2815,7 @@ export const Constants = {
       ad_slot_status: ["active", "paused"],
       app_role: ["admin", "editor", "author", "user", "super_admin"],
       editor_type: ["richtext", "markdown", "builder", "blocks"],
+      name_gender: ["male", "female", "neutral"],
       order_kind: ["subscription", "one_time"],
       order_status: [
         "pending",
