@@ -394,6 +394,9 @@ function LeadDrawer({ leadId, onClose, L }: { leadId: string | null; onClose: ()
           <Tabs defaultValue="overview" className="mt-3">
             <TabsList className="flex flex-wrap">
               <TabsTrigger value="overview" className="text-[12px]">{L.detail.overview}</TabsTrigger>
+              <TabsTrigger value="timeline" className="text-[12px]">
+                <Clock className="w-3 h-3 mr-1" />{L.detail.timeline}
+              </TabsTrigger>
               <TabsTrigger value="consents" className="text-[12px]">
                 <ShieldCheck className="w-3 h-3 mr-1" />{L.detail.consents}
               </TabsTrigger>
@@ -401,6 +404,9 @@ function LeadDrawer({ leadId, onClose, L }: { leadId: string | null; onClose: ()
               <TabsTrigger value="notes" className="text-[12px]">{L.detail.notes}</TabsTrigger>
               <TabsTrigger value="integ" className="text-[12px]">{L.detail.integ}</TabsTrigger>
             </TabsList>
+            <TabsContent value="timeline" className="pt-3">
+              <LeadTimeline leadId={leadId!} L={L} />
+            </TabsContent>
 
             <TabsContent value="overview" className="space-y-3 pt-3">
               <OverviewForm lead={lead} L={L} onSave={(p) => updateMut.mutate(p)} saving={updateMut.isPending} />
