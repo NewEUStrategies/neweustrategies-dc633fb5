@@ -241,19 +241,15 @@ function ShapeSvg({
   let body: React.ReactNode = null;
   switch (shape) {
     case "underline":
-      viewBox = "0 0 200 12";
-      // Pen-like swoosh: lifts slightly at start, dips through middle, finishes
-      // with a small upward flick. Soft S-curve mimics a fountain pen.
-      body = <path d="M3 7 C 35 3, 80 9, 120 6 S 180 5, 197 8" />;
+      viewBox = "0 0 200 10";
+      body = <path d="M2 6 Q 100 2 198 6" />;
       break;
     case "double-underline":
-      viewBox = "0 0 200 18";
+      viewBox = "0 0 200 16";
       body = (
         <>
-          {/* Top line — slightly tighter, classic pen stroke */}
-          <path d="M3 5 C 40 2, 90 7, 130 4 S 180 4, 197 6" />
-          {/* Bottom line — slightly shorter, gentler curve, like a confident second pass */}
-          <path d="M8 13 C 50 11, 100 15, 140 12 S 180 13, 192 14" />
+          <path d="M2 5 Q 100 1 198 5" />
+          <path d="M3 12 Q 100 9 197 12" />
         </>
       );
       break;
