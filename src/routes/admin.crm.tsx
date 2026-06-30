@@ -550,6 +550,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+type ConsentMapItem = {
+  source_key: string;
+  source_label: string;
+  merydian_field: string;
+  merydian_category: string;
+  required: boolean;
+};
+
 type IntegrationSettings = {
   merydian_enabled: boolean;
   merydian_mode: "webhook" | "api" | "both";
@@ -559,10 +567,12 @@ type IntegrationSettings = {
   merydian_api_key: string | null;
   merydian_workspace_id: string | null;
   forward_stages: Stage[];
+  consent_mapping: ConsentMapItem[];
   last_sync_at: string | null;
   last_sync_status: string | null;
   last_sync_error: string | null;
 };
+
 
 function IntegrationsTab({ L }: { L: typeof PL }) {
   const qc = useQueryClient();
