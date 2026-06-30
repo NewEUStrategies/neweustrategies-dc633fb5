@@ -145,6 +145,7 @@ const EN = {
   } as Record<Stage,string>,
   detail: {
     title: "Lead card", overview: "Profile", consents: "Consents", history: "Form history", notes: "Notes", integ: "Integrations",
+    timeline: "Timeline",
     firstName: "First name", lastName: "Last name", phone: "Phone", company: "Company", tags: "Tags (comma separated)",
     save: "Save", stage: "Pipeline stage",
     nlStatus: "Newsletter status", marketing: "Marketing consent", lastActivity: "Last activity", sources: "Interactions",
@@ -154,6 +155,9 @@ const EN = {
     noteAdd: "Add note", notePlaceholder: "Note visible to the team only…",
     noteSave: "Add", noteEmpty: "No notes.", noteDelete: "Delete",
     push: "Push to Merydian",
+    tlEmpty: "No timeline events yet.",
+    tlExportCsv: "Export CSV", tlExportPdf: "Export PDF",
+    tlTypes: { submit: "Submission", consent: "Consent", note: "Note", stage_change: "Stage change", webhook: "Webhook", newsletter: "Newsletter" } as Record<string, string>,
   },
   integ: {
     title: "Merydian integration", enabled: "Enable integration",
