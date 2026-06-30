@@ -536,16 +536,25 @@ export type Database = {
           company: string | null
           confirmation_sent_at: string | null
           consent: boolean
+          consents: Json
           created_at: string
           email: string
+          first_name: string | null
+          form_id: string | null
+          form_name: string | null
+          form_type: string
           id: string
+          ip: string | null
           lang: string
+          last_name: string | null
           message: string
           name: string
           newsletter_opt_in: boolean
+          page_url: string | null
           phone: string | null
           read_at: string | null
           recipient: string | null
+          referer: string | null
           source: string | null
           status: string
           subject: string | null
@@ -560,16 +569,25 @@ export type Database = {
           company?: string | null
           confirmation_sent_at?: string | null
           consent?: boolean
+          consents?: Json
           created_at?: string
           email: string
+          first_name?: string | null
+          form_id?: string | null
+          form_name?: string | null
+          form_type?: string
           id?: string
+          ip?: string | null
           lang?: string
+          last_name?: string | null
           message: string
           name: string
           newsletter_opt_in?: boolean
+          page_url?: string | null
           phone?: string | null
           read_at?: string | null
           recipient?: string | null
+          referer?: string | null
           source?: string | null
           status?: string
           subject?: string | null
@@ -584,16 +602,25 @@ export type Database = {
           company?: string | null
           confirmation_sent_at?: string | null
           consent?: boolean
+          consents?: Json
           created_at?: string
           email?: string
+          first_name?: string | null
+          form_id?: string | null
+          form_name?: string | null
+          form_type?: string
           id?: string
+          ip?: string | null
           lang?: string
+          last_name?: string | null
           message?: string
           name?: string
           newsletter_opt_in?: boolean
+          page_url?: string | null
           phone?: string | null
           read_at?: string | null
           recipient?: string | null
+          referer?: string | null
           source?: string | null
           status?: string
           subject?: string | null
@@ -679,6 +706,222 @@ export type Database = {
           note?: string | null
           snapshot?: Json
           tenant_id?: string
+        }
+        Relationships: []
+      }
+      crm_consent_log: {
+        Row: {
+          consent_key: string
+          consent_text: string
+          consent_version: string | null
+          created_at: string
+          email: string
+          form_id: string | null
+          form_name: string | null
+          given: boolean
+          id: string
+          ip: string | null
+          lang: string | null
+          source_id: string | null
+          source_type: Database["public"]["Enums"]["crm_source_type"]
+          tenant_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          consent_key: string
+          consent_text: string
+          consent_version?: string | null
+          created_at?: string
+          email: string
+          form_id?: string | null
+          form_name?: string | null
+          given: boolean
+          id?: string
+          ip?: string | null
+          lang?: string | null
+          source_id?: string | null
+          source_type: Database["public"]["Enums"]["crm_source_type"]
+          tenant_id?: string
+          user_agent?: string | null
+        }
+        Update: {
+          consent_key?: string
+          consent_text?: string
+          consent_version?: string | null
+          created_at?: string
+          email?: string
+          form_id?: string | null
+          form_name?: string | null
+          given?: boolean
+          id?: string
+          ip?: string | null
+          lang?: string | null
+          source_id?: string | null
+          source_type?: Database["public"]["Enums"]["crm_source_type"]
+          tenant_id?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      crm_integrations: {
+        Row: {
+          created_at: string
+          forward_stages: Database["public"]["Enums"]["crm_stage"][]
+          id: string
+          last_sync_at: string | null
+          last_sync_error: string | null
+          last_sync_status: string | null
+          merydian_api_base: string | null
+          merydian_api_key: string | null
+          merydian_enabled: boolean
+          merydian_mode: string
+          merydian_webhook_secret: string | null
+          merydian_webhook_url: string | null
+          merydian_workspace_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          forward_stages?: Database["public"]["Enums"]["crm_stage"][]
+          id?: string
+          last_sync_at?: string | null
+          last_sync_error?: string | null
+          last_sync_status?: string | null
+          merydian_api_base?: string | null
+          merydian_api_key?: string | null
+          merydian_enabled?: boolean
+          merydian_mode?: string
+          merydian_webhook_secret?: string | null
+          merydian_webhook_url?: string | null
+          merydian_workspace_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          forward_stages?: Database["public"]["Enums"]["crm_stage"][]
+          id?: string
+          last_sync_at?: string | null
+          last_sync_error?: string | null
+          last_sync_status?: string | null
+          merydian_api_base?: string | null
+          merydian_api_key?: string | null
+          merydian_enabled?: boolean
+          merydian_mode?: string
+          merydian_webhook_secret?: string | null
+          merydian_webhook_url?: string | null
+          merydian_workspace_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      crm_lead_notes: {
+        Row: {
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          is_internal: boolean
+          lead_id: string
+          tenant_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          is_internal?: boolean
+          lead_id: string
+          tenant_id?: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          is_internal?: boolean
+          lead_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_lead_notes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_lead_notes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads_all"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_leads: {
+        Row: {
+          company: string | null
+          created_at: string
+          email: string
+          email_norm: string
+          first_name: string | null
+          follow_up_at: string | null
+          id: string
+          last_activity_at: string
+          last_name: string | null
+          marketing_consent: boolean
+          newsletter_status: string | null
+          owner_id: string | null
+          phone: string | null
+          source_count: number
+          stage: Database["public"]["Enums"]["crm_stage"]
+          tags: string[]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          email: string
+          email_norm: string
+          first_name?: string | null
+          follow_up_at?: string | null
+          id?: string
+          last_activity_at?: string
+          last_name?: string | null
+          marketing_consent?: boolean
+          newsletter_status?: string | null
+          owner_id?: string | null
+          phone?: string | null
+          source_count?: number
+          stage?: Database["public"]["Enums"]["crm_stage"]
+          tags?: string[]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          email?: string
+          email_norm?: string
+          first_name?: string | null
+          follow_up_at?: string | null
+          id?: string
+          last_activity_at?: string
+          last_name?: string | null
+          marketing_consent?: boolean
+          newsletter_status?: string | null
+          owner_id?: string | null
+          phone?: string | null
+          source_count?: number
+          stage?: Database["public"]["Enums"]["crm_stage"]
+          tags?: string[]
+          tenant_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1108,14 +1351,19 @@ export type Database = {
           confirmation_expires_at: string | null
           confirmation_token: string | null
           confirmed_at: string | null
+          consents: Json
           created_at: string
           display_name: string | null
           email: string
+          first_name: string | null
           id: string
           ip: unknown
           language: string
+          last_name: string | null
           meta: Json | null
           source: string | null
+          source_form_id: string | null
+          source_form_name: string | null
           status: string
           tenant_id: string
           unsubscribed_at: string | null
@@ -1126,14 +1374,19 @@ export type Database = {
           confirmation_expires_at?: string | null
           confirmation_token?: string | null
           confirmed_at?: string | null
+          consents?: Json
           created_at?: string
           display_name?: string | null
           email: string
+          first_name?: string | null
           id?: string
           ip?: unknown
           language?: string
+          last_name?: string | null
           meta?: Json | null
           source?: string | null
+          source_form_id?: string | null
+          source_form_name?: string | null
           status?: string
           tenant_id?: string
           unsubscribed_at?: string | null
@@ -1144,14 +1397,19 @@ export type Database = {
           confirmation_expires_at?: string | null
           confirmation_token?: string | null
           confirmed_at?: string | null
+          consents?: Json
           created_at?: string
           display_name?: string | null
           email?: string
+          first_name?: string | null
           id?: string
           ip?: unknown
           language?: string
+          last_name?: string | null
           meta?: Json | null
           source?: string | null
+          source_form_id?: string | null
+          source_form_name?: string | null
           status?: string
           tenant_id?: string
           unsubscribed_at?: string | null
@@ -2993,9 +3251,46 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      crm_leads_all: {
+        Row: {
+          company: string | null
+          created_at: string | null
+          email: string | null
+          email_norm: string | null
+          first_name: string | null
+          follow_up_at: string | null
+          id: string | null
+          last_activity_at: string | null
+          last_name: string | null
+          marketing_consent: boolean | null
+          newsletter_status: string | null
+          owner_id: string | null
+          phone: string | null
+          source_count: number | null
+          stage: Database["public"]["Enums"]["crm_stage"] | null
+          tags: string[] | null
+          tenant_id: string | null
+          tenant_name: string | null
+          tenant_slug: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      crm_upsert_lead: {
+        Args: {
+          _company: string
+          _email: string
+          _first_name: string
+          _last_name: string
+          _marketing: boolean
+          _newsletter: boolean
+          _phone: string
+          _tenant: string
+        }
+        Returns: string
+      }
       current_tenant_id: { Args: never; Returns: string }
       get_entity_content: {
         Args: {
@@ -3157,6 +3452,21 @@ export type Database = {
       ad_slot_kind: "html" | "script" | "image"
       ad_slot_status: "active" | "paused"
       app_role: "admin" | "editor" | "author" | "user" | "super_admin"
+      crm_source_type:
+        | "contact_form"
+        | "newsletter"
+        | "comment"
+        | "webinar"
+        | "import"
+        | "other"
+      crm_stage:
+        | "new"
+        | "contacted"
+        | "qualified"
+        | "proposal"
+        | "won"
+        | "lost"
+        | "archived"
       editor_type: "richtext" | "markdown" | "builder" | "blocks"
       name_gender: "male" | "female" | "neutral"
       order_kind: "subscription" | "one_time"
@@ -3321,6 +3631,23 @@ export const Constants = {
       ad_slot_kind: ["html", "script", "image"],
       ad_slot_status: ["active", "paused"],
       app_role: ["admin", "editor", "author", "user", "super_admin"],
+      crm_source_type: [
+        "contact_form",
+        "newsletter",
+        "comment",
+        "webinar",
+        "import",
+        "other",
+      ],
+      crm_stage: [
+        "new",
+        "contacted",
+        "qualified",
+        "proposal",
+        "won",
+        "lost",
+        "archived",
+      ],
       editor_type: ["richtext", "markdown", "builder", "blocks"],
       name_gender: ["male", "female", "neutral"],
       order_kind: ["subscription", "one_time"],
