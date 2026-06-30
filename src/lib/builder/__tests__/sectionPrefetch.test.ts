@@ -9,6 +9,9 @@ import {
   prefetchBuilderDocumentQueries,
   prefetchAboveFoldQueries,
   prefetchCachedRouteQueries,
+  widgetQueryOptionsList,
+  sectionQueryOptionsList,
+  pendingSectionQueries,
   ABOVE_FOLD_SECTION_COUNT,
 } from "@/lib/builder/prefetch";
 
@@ -67,7 +70,10 @@ describe("section prefetch helpers", () => {
   it("collectBuilderWidgets flattens across sections", () => {
     const a = makeWidget("post-list");
     const b = makeWidget("slider");
+    // safeParseBuilderDoc (used by collectBuilderWidgets) only trusts a document
+    // tagged `version: 1` - the canonical BuilderDocument shape.
     const doc: BuilderDocument = {
+      version: 1,
       sections: [makeSection([a], "s1"), makeSection([b], "s2")],
     } as unknown as BuilderDocument;
     expect(collectBuilderWidgets(doc).map((w) => w.id).sort()).toEqual([a.id, b.id].sort());
@@ -108,6 +114,7 @@ describe("prefetchSectionQueries", () => {
   it("whole-document prefetch fans out across sections", async () => {
     const spy = vi.spyOn(qc, "prefetchQuery").mockResolvedValue(undefined);
     const doc: BuilderDocument = {
+      version: 1,
       sections: [
         makeSection([makeWidget("post-list")], "s1"),
         makeSection([makeWidget("carousel")], "s2"),
@@ -232,5 +239,87 @@ describe("prefetchCachedRouteQueries", () => {
     await prefetchCachedRouteQueries(qc, docOfSections(4), "pl", 40);
     // Returned because the budget elapsed, not because the prefetch settled.
     expect(Date.now() - start).toBeLessThan(1000);
+  });
+});
+
+describe("widgetQueryOptionsList", () => {
+  it("maps post-list / carousel to one list query each", () => {
+    expect(widgetQueryOptionsList(makeWidget("post-list"), "pl")).toHaveLength(1);
+    expect(widgetQueryOptionsList(makeWidget("carousel"), "pl")).toHaveLength(1);
+    const [opts] = widgetQueryOptionsList(makeWidget("post-list"), "pl");
+    expect(opts.queryKey[0]).toBe("builder-post-list");
+  });
+
+  it("maps a slider to one ref per UNIQUE post id plus a fallback-images query", () => {
+    const slider = makeWidget("slider", {
+      content: { items: [{ postId: "p1" }, { postId: "p2" }, { postId: "p1" }] },
+    } as Partial<WidgetNode>);
+    const opts = widgetQueryOptionsList(slider, "en");
+    expect(opts).toHaveLength(3);
+    const keys = opts.map((o) => o.queryKey[0]);
+    expect(keys.filter((k) => k === "post-ref")).toHaveLength(2);
+    expect(keys).toContain("builder-slider-fallback-images");
+  });
+
+  it("returns nothing for widgets with no data binding", () => {
+    expect(widgetQueryOptionsList(makeWidget("heading"), "pl")).toHaveLength(0);
+    expect(widgetQueryOptionsList(makeWidget("text"), "pl")).toHaveLength(0);
+  });
+
+  it("is the single source of truth behind prefetchWidgets' fan-out count", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const spy = vi.spyOn(qc, "prefetchQuery").mockResolvedValue(undefined);
+    const slider = makeWidget("slider", {
+      content: { items: [{ postId: "p1" }, { postId: "p2" }] },
+    } as Partial<WidgetNode>);
+    const section = makeSection([makeWidget("post-list"), slider, makeWidget("heading")]);
+    const expected = sectionQueryOptionsList(section, "pl").length;
+    await prefetchSectionQueries(qc, section, "pl");
+    expect(spy).toHaveBeenCalledTimes(expected);
+    expect(expected).toBe(4); // 1 post-list + (2 refs + 1 fallback)
+  });
+});
+
+describe("sectionQueryOptionsList", () => {
+  it("flattens every data query across a section's widgets", () => {
+    expect(
+      sectionQueryOptionsList(makeSection([makeWidget("post-list"), makeWidget("heading")]), "pl"),
+    ).toHaveLength(1);
+    expect(
+      sectionQueryOptionsList(makeSection([makeWidget("heading"), makeWidget("text")]), "pl"),
+    ).toHaveLength(0);
+  });
+});
+
+describe("pendingSectionQueries", () => {
+  let qc: QueryClient;
+  beforeEach(() => {
+    qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  });
+
+  it("treats a section with no data queries as fully settled", () => {
+    const section = makeSection([makeWidget("heading")]);
+    expect(pendingSectionQueries(qc, section, "pl")).toHaveLength(0);
+  });
+
+  it("reports every query as pending when the cache is cold", () => {
+    const section = makeSection([makeWidget("post-list")]);
+    expect(pendingSectionQueries(qc, section, "pl")).toHaveLength(1);
+  });
+
+  it("drops queries whose cache entry has resolved (success)", () => {
+    const section = makeSection([makeWidget("post-list")]);
+    sectionQueryOptionsList(section, "pl").forEach((o) => qc.setQueryData(o.queryKey, []));
+    expect(pendingSectionQueries(qc, section, "pl")).toHaveLength(0);
+  });
+
+  it("treats an errored query as settled (the widget renders its own fallback)", () => {
+    const section = makeSection([makeWidget("post-list")]);
+    const [opts] = sectionQueryOptionsList(section, "pl");
+    qc.setQueryData(opts.queryKey, []);
+    const query = qc.getQueryCache().find({ queryKey: opts.queryKey });
+    const state = qc.getQueryState(opts.queryKey);
+    if (query && state) query.setState({ ...state, status: "error", error: new Error("boom") });
+    expect(pendingSectionQueries(qc, section, "pl")).toHaveLength(0);
   });
 });

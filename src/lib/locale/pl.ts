@@ -124,6 +124,9 @@ export const pl = {
           tags: "Tagi",
         },
       },
+      builder: {
+        sectionLoading: "Wczytywanie sekcji…",
+      },
       admin: {
 
         nav: {

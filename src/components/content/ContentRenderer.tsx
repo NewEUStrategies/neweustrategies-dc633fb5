@@ -37,6 +37,12 @@ interface Props {
   postId?: string;
   /** Dynamic-tag widgets (post-title, post-meta, …) read the current post here. */
   currentPostCtx?: CurrentPostCtx;
+  /**
+   * Suspense-stream below-the-fold builder sections (forwarded to
+   * BuilderRenderer). Only the builder engine honours it; blocks/html bodies are
+   * already a single streamed subtree. Defaults off.
+   */
+  stream?: boolean;
 }
 
 export function ContentRenderer({
@@ -47,6 +53,7 @@ export function ContentRenderer({
   lang,
   postId,
   currentPostCtx,
+  stream = false,
 }: Props) {
   const engine = resolveContentEngine({ editor, builderDoc, blocksDoc });
 
@@ -56,7 +63,7 @@ export function ContentRenderer({
   }
 
   if (engine === "builder") {
-    const tree = <BuilderRenderer doc={builderDoc} lang={lang} />;
+    const tree = <BuilderRenderer doc={builderDoc} lang={lang} stream={stream} />;
     return currentPostCtx ? <CurrentPostProvider value={currentPostCtx}>{tree}</CurrentPostProvider> : tree;
   }
 
