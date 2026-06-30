@@ -10,6 +10,7 @@ import {
   SITE_NAME,
   SITE_DEFAULT_TITLE,
   SITE_DEFAULT_DESCRIPTION,
+  SITE_DEFAULT_OG_IMAGE,
 } from "@/lib/seo/meta";
 
 const find = (meta: Array<Record<string, string>>, key: string, val: string) =>
@@ -90,11 +91,21 @@ describe("buildContentHead", () => {
     expect(meta.filter((m) => m.property === "article:tag")).toHaveLength(2);
   });
 
-  it("uses summary card without an image and can mark noindex", () => {
+  it("uses the page image for og:image / twitter:image when present", () => {
+    const { meta } = buildContentHead(base);
+    expect(find(meta, "property", "og:image")?.content).toBe(base.image);
+    expect(find(meta, "name", "twitter:image")?.content).toBe(base.image);
+  });
+
+  it("falls back to the brand default social image (absolute) and can mark noindex", () => {
     const { meta } = buildContentHead({ ...base, image: null, noindex: true });
-    expect(find(meta, "name", "twitter:card")?.content).toBe("summary");
+    // No page image -> brand default, resolved to an absolute URL via the origin,
+    // and a large-image card (we always ship a rich preview now).
+    const expected = `https://nes.eu${SITE_DEFAULT_OG_IMAGE}`;
+    expect(find(meta, "name", "twitter:card")?.content).toBe("summary_large_image");
     expect(find(meta, "name", "robots")?.content).toBe("noindex, nofollow");
-    expect(find(meta, "property", "og:image")).toBeUndefined();
+    expect(find(meta, "property", "og:image")?.content).toBe(expected);
+    expect(find(meta, "name", "twitter:image")?.content).toBe(expected);
   });
 
   it("omits article meta for website type", () => {
@@ -137,7 +148,11 @@ describe("buildRootHead", () => {
 
   it("mirrors og into the Twitter card without a stale @handle", () => {
     const en = buildRootHead("en");
-    expect(find(en, "name", "twitter:card")?.content).toBe("summary");
+    // buildRootHead is origin-less (error/fallback documents), so the brand
+    // default image stays a root-relative path; the card is large-image.
+    expect(find(en, "name", "twitter:card")?.content).toBe("summary_large_image");
+    expect(find(en, "property", "og:image")?.content).toBe(SITE_DEFAULT_OG_IMAGE);
+    expect(find(en, "name", "twitter:image")?.content).toBe(SITE_DEFAULT_OG_IMAGE);
     expect(find(en, "name", "twitter:title")?.content).toBe(SITE_DEFAULT_TITLE.en);
     expect(find(en, "name", "twitter:description")?.content).toBe(SITE_DEFAULT_DESCRIPTION.en);
     expect(en.find((m) => m.name === "twitter:site")).toBeUndefined();

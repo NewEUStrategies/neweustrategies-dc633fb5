@@ -8,8 +8,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
 
 const VALID_SOURCES = new Set(["onerror", "unhandledrejection", "react_error_boundary"]);
+// Error bursts are noisier than vitals but still bounded: 30-token burst, one
+// every 2s sustained per IP, enough for a genuinely erroring page without
+// letting a single client flood the table.
+const limiter = createRateLimiter({ capacity: 30, refillPerSec: 0.5 });
 
 function noContent(): Response {
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
@@ -24,8 +29,10 @@ export const Route = createFileRoute("/api/public/client-errors")({
     handlers: {
       POST: async () => {
         try {
+          const req = getRequest();
+          if (!limiter.check(clientIpFromHeaders(req.headers), Date.now())) return noContent();
           // sendBeacon sends a JSON string (content-type text/plain), so read raw.
-          const raw = await getRequest().text();
+          const raw = await req.text();
           if (!raw || raw.length > 16_000) return noContent();
           const body = JSON.parse(raw) as Record<string, unknown>;
 

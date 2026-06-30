@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { stripeRecurringInterval, type StripeRecurringInterval } from "@/lib/billing/entitlement";
 
 // Create a payment order (server-side, RLS as user).
 // Stripe wiring is intentionally pluggable: if STRIPE_SECRET_KEY is set we create a Checkout Session,
@@ -25,12 +26,16 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let amountCents = 0;
     let currency = "PLN";
     let label = "";
+    // Billing cadence for a subscription Checkout Session. Resolved from the
+    // plan below (default monthly) so a yearly/weekly plan is billed on its real
+    // interval rather than always monthly.
+    let recurringInterval: StripeRecurringInterval = "month";
 
     if (data.kind === "subscription") {
       if (!data.plan_id) throw new Error("plan_id_required");
       const { data: plan, error } = await supabase
         .from("access_plans")
-        .select("price_cents, currency, name_pl, name_en, active")
+        .select("price_cents, currency, name_pl, name_en, active, interval")
         .eq("id", data.plan_id)
         .maybeSingle();
       if (error) throw error;
@@ -38,6 +43,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       amountCents = Number(plan.price_cents);
       currency = String(plan.currency);
       label = String(plan.name_pl || plan.name_en);
+      recurringInterval = stripeRecurringInterval(String(plan.interval));
     } else {
       if (!data.entity_type || !data.entity_id) throw new Error("entity_required");
       // Price is taken from the per-entity access rule server-side, so the
@@ -113,10 +119,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         params.set("line_items[0][price_data][unit_amount]", String(amountCents));
         params.set("line_items[0][price_data][product_data][name]", label || "Order");
         if (data.kind === "subscription") {
-          params.set(
-            "line_items[0][price_data][recurring][interval]",
-            "month", // refined by webhook with plan.interval
-          );
+          params.set("line_items[0][price_data][recurring][interval]", recurringInterval);
         }
         params.set("line_items[0][quantity]", "1");
         params.set("metadata[order_id]", order.id);

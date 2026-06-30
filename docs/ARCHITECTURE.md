@@ -176,25 +176,29 @@ either direction — every converter preserves the source columns.
 
 ---
 
-## 3. Quality gates — run locally (CI is dormant)
+## 3. Quality gates - CI runs on every PR and push to main
 
-This org has no GitHub Actions runners/budget, so the `.github/workflows`
-(CI / E2E / Lighthouse) are set to **`workflow_dispatch` only** (manual) — they
-do not run on push/PR and never go red. There is therefore **no automated gate
-between a merge and production** (the platform auto-merges + deploys), and
-crucially **`vite build` does NOT typecheck** (esbuild strips types), so a type
-error or a failing test will ship unless it's caught by hand.
+The `.github/workflows` (CI / E2E / Lighthouse) run on `pull_request` and
+`push: { branches: [main] }` (plus manual `workflow_dispatch`). They use
+GitHub-hosted `ubuntu-latest` runners - no self-hosted fleet is required - and a
+`concurrency` group cancels superseded runs so a busy branch never spends Actions
+minutes on stale commits. CI repoints the private-registry pins in `bun.lock` to
+public npm at install time, so the exact pinned versions install in CI.
 
-**Run these locally before merging anything non-trivial:**
+`CI` is the real gate between a merge and production. Because **`vite build` does
+NOT typecheck** (esbuild strips types), the pipeline runs an explicit
+`tsc --noEmit` step *before* the build - that is the type gate, not the build.
+Order: **typecheck -> test + coverage gate -> build -> bundle budget**, then a
+non-blocking lint (Prettier backlog).
+
+**Run the same gates locally before opening a PR for fast feedback:**
 
 ```bash
 bunx tsc --noEmit        # types (the build will NOT catch these)
 bun run test:coverage    # tests + the coverage gate
 bun run build            # production build
 bun run check:bundle     # gzipped bundle budget
-bun run lint             # optional (Prettier backlog → currently non-blocking)
+bun run lint             # non-blocking (Prettier backlog)
 ```
 
-A change is "green" only when the first four pass. To restore real CI later
-(once runners/budget exist), revert each workflow's `on:` back to
-`push: { branches: [main] }` + `pull_request:` — the job definitions are intact.
+A change is "green" only when the first four pass - the same bar CI enforces.

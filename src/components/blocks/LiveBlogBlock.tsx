@@ -2,7 +2,7 @@
 // (postgres_changes) i pokazuje wpisy posortowane wg occurred_at.
 // SSR-friendly: pierwszy fetch w useEffect, channel posprzątany na unmount.
 import { useEffect, useMemo, useState } from "react";
-import DOMPurify from "isomorphic-dompurify";
+import { sanitizeHtml } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
 
 const LABELS = {
@@ -158,7 +158,7 @@ export function LiveBlogBlock({
 }
 
 function LiveEntryRow({ entry, lang }: { entry: LiveBlogEntry; lang: "pl" | "en" }) {
-  const html = DOMPurify.sanitize(entry.body_html, { USE_PROFILES: { html: true } });
+  const html = sanitizeHtml(entry.body_html);
   return (
     <li className="px-4 py-3" id={`lb-${entry.id}`}>
       <div className="flex items-baseline gap-3 mb-1">

@@ -3,7 +3,7 @@
 
 import { useEffect, useId, useMemo, useState, useCallback } from "react";
 import type { Json } from "@/lib/blocks/types";
-import DOMPurify from "isomorphic-dompurify";
+import { sanitizeHtml } from "@/lib/sanitize";
 import { ChevronDown } from "lucide-react";
 
 type Lang = "pl" | "en";
@@ -13,8 +13,10 @@ const L = {
   en: { days: "days", hours: "hrs", minutes: "min", seconds: "s", expired: "Ended" },
 } as const;
 
+// Shared HTML policy (forbids iframe/form/script/style + inline handlers),
+// identical to the rest of the blocks engine - see lib/sanitize.
 function clean(html: string): string {
-  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+  return sanitizeHtml(html);
 }
 
 interface ItemLite { label: string; body: string }

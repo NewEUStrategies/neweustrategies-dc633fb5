@@ -3,6 +3,25 @@
 
 export type PlanInterval = "day" | "week" | "month" | "year" | "one_time" | string;
 
+/** The cadence values Stripe accepts for `recurring[interval]`. */
+export type StripeRecurringInterval = "day" | "week" | "month" | "year";
+
+/**
+ * Map a plan interval to a Stripe `recurring[interval]`. Stripe only accepts
+ * day/week/month/year, so a "once"/"one_time"/unknown interval falls back to
+ * "month" (a subscription has to recur on some cadence). This keeps the Checkout
+ * Session's billing cadence in lockstep with the plan instead of charging every
+ * plan monthly regardless of its real interval.
+ */
+export function stripeRecurringInterval(
+  interval: PlanInterval | null | undefined,
+): StripeRecurringInterval {
+  if (interval === "day" || interval === "week" || interval === "month" || interval === "year") {
+    return interval;
+  }
+  return "month";
+}
+
 /**
  * End of the access window for a subscription, given its plan interval.
  * Defaults to one month for unknown/missing intervals.

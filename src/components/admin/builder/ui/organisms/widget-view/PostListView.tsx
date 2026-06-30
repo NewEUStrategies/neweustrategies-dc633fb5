@@ -2,7 +2,7 @@
 // All query knobs (categories, tags, exclusions, author, format, order,
 // limit, offset, date range, popularity) are driven by widget content and
 // edited via PostListEditor.
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,7 +12,7 @@ import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { readThumbnailOverrides } from "@/lib/builder/thumbnailOverrides";
-import { postListInput, postListQueryOptions, type Lang, type PostRow } from "@/lib/builder/postListQuery";
+import { dedupeAndSlice, postListQueryOptions, type Lang, type PostRow } from "@/lib/builder/postListQuery";
 
 // Cover renders across a 1-4 column responsive grid. Images are always painted
 // into a stable frame so mobile CSS cannot stretch/squash their crop.
@@ -61,25 +61,38 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
   const mobileHScroll = c["mobileHorizontalScroll"] === true || c["mobileHorizontalScroll"] === "true";
 
   const used = useUsedPostIds();
-  // Snapshot once per mount so we don't re-fetch when other widgets register.
-  const usedSnapshot = useMemo(
-    () => (uniqueOnPage ? used.getSnapshot() : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [uniqueOnPage],
-  );
+  // Stable, snapshot-independent query: the server prefetch / stream gate and the
+  // client resolve the SAME cache entry, so a streamed uniqueOnPage widget reuses
+  // the dehydrated rows instead of refetching under a divergent key (no skeleton
+  // flash). When uniqueOnPage the query over-fetches (see postListInput) so the
+  // client de-dup below can still fill the grid.
+  const { data, isPending, isFetching } = useQuery(postListQueryOptions(c, lang));
 
-  const input = useMemo(() => postListInput(c, lang, usedSnapshot), [c, lang, usedSnapshot]);
-  const { data, isPending, isFetching } = useQuery(postListQueryOptions(c, lang, input.usedSnapshot));
-
-  // Register fetched IDs so later "uniqueOnPage" widgets exclude them.
+  // uniqueOnPage de-dup is a CLIENT-ONLY display refinement, never part of the
+  // query key. `excludeIds` starts empty - so the server render and the first
+  // client (hydration) render are identical (no hydration mismatch) - then adopts
+  // the page snapshot after mount, refining the visible rows from already-cached
+  // data without any network round-trip.
+  const [excludeIds, setExcludeIds] = useState<readonly string[]>([]);
   useEffect(() => {
-    if (data && data.length) used.register(data.map((r) => r.id));
-  }, [data, used]);
+    if (!uniqueOnPage) return;
+    setExcludeIds(used.getSnapshot());
+  }, [uniqueOnPage, used, data]);
 
   const overrides = useMemo(() => readThumbnailOverrides(c), [c]);
-  const rows = (data ?? []).map((p) =>
+  const visibleRows = uniqueOnPage ? dedupeAndSlice(data ?? [], excludeIds, limit) : (data ?? []).slice(0, limit);
+  const rows = visibleRows.map((p) =>
     overrides[p.id] ? { ...p, cover_image_url: overrides[p.id] } : p,
   );
+
+  // Register the IDs this widget actually DISPLAYS (not the over-fetched extras)
+  // so later uniqueOnPage widgets exclude exactly what the reader saw. Keyed on
+  // the joined id list so it re-runs only when the visible set changes;
+  // register() is idempotent (set union).
+  const visibleIdsKey = rows.map((r) => r.id).join(",");
+  useEffect(() => {
+    if (visibleIdsKey) used.register(visibleIdsKey.split(","));
+  }, [visibleIdsKey, used]);
 
   // Fetch author display names for variants that show "By <author>".
   const authorIds = useMemo(

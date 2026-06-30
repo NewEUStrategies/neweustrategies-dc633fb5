@@ -20,6 +20,16 @@ export const SITE_NAME = "New European Strategies";
 export const OG_LOCALE: Record<Lang, string> = { pl: "pl_PL", en: "en_US" };
 
 /**
+ * Brand-default social-share image (served from `public/`). Used as the
+ * `og:image` / `twitter:image` fallback whenever a page has no cover image of
+ * its own - notably the homepage and listing pages - so every shared link gets a
+ * rich card instead of a bare-text preview. A relative path: callers that have a
+ * request origin (buildContentHead) resolve it to an absolute URL, which is what
+ * scrapers require. Replace with a purpose-built 1200x630 card when available.
+ */
+export const SITE_DEFAULT_OG_IMAGE = "/og-default.jpg";
+
+/**
  * Brand-default page title per language. Single source of truth shared by the
  * global <head> fallback (buildRootHead) and the homepage's own head(), so the
  * front page and any route without its own head() stay byte-identical.
@@ -102,6 +112,11 @@ export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
   const { origin, path } = splitUrl(input.url);
   const canonical = absoluteUrl(origin, path);
   const altLang: Lang = input.lang === "pl" ? "en" : "pl";
+  // Always emit a social image: the page's own cover when present, else the
+  // brand default (resolved to an absolute URL via the request origin). This is
+  // why every share - including the homepage, which has no cover - gets a rich
+  // "summary_large_image" card rather than a bare-text preview.
+  const image = input.image || absoluteUrl(origin, SITE_DEFAULT_OG_IMAGE);
 
   const meta: Array<Record<string, string>> = [
     { title: input.title },
@@ -112,17 +127,15 @@ export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
     { property: "og:site_name", content: SITE_NAME },
     { property: "og:locale", content: OG_LOCALE[input.lang] },
     { property: "og:locale:alternate", content: OG_LOCALE[altLang] },
-    { name: "twitter:card", content: input.image ? "summary_large_image" : "summary" },
+    { name: "twitter:card", content: "summary_large_image" },
     { name: "twitter:title", content: input.title },
     { name: "twitter:description", content: input.description },
     { httpEquiv: "content-language", content: input.lang },
   ];
 
   if (canonical) meta.push({ property: "og:url", content: canonical });
-  if (input.image) {
-    meta.push({ property: "og:image", content: input.image });
-    meta.push({ name: "twitter:image", content: input.image });
-  }
+  meta.push({ property: "og:image", content: image });
+  meta.push({ name: "twitter:image", content: image });
   if (input.noindex) meta.push({ name: "robots", content: "noindex, nofollow" });
 
   if (input.type === "article") {
@@ -167,7 +180,13 @@ export function buildRootHead(lang: Lang): Array<Record<string, string>> {
     { property: "og:type", content: "website" },
     { property: "og:site_name", content: SITE_NAME },
     { property: "og:locale", content: OG_LOCALE[lang] },
-    { name: "twitter:card", content: "summary" },
+    // Brand-default share image. buildRootHead is origin-less (it backs error /
+    // fallback documents), so this stays a root-relative path; the content
+    // surfaces that matter for sharing go through buildContentHead, which emits
+    // an absolute URL.
+    { property: "og:image", content: SITE_DEFAULT_OG_IMAGE },
+    { name: "twitter:card", content: "summary_large_image" },
+    { name: "twitter:image", content: SITE_DEFAULT_OG_IMAGE },
     { name: "twitter:title", content: title },
     { name: "twitter:description", content: description },
   ];

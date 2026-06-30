@@ -1,12 +1,16 @@
 name: CI
 
 on:
-  # DORMANT — this org has no GitHub Actions runners / budget, so automatic runs
-  # only ever failed instantly (no runner assigned, runner_id=0). Manual-trigger
-  # only, so the repo isn't permanently red and no Actions minutes are spent.
-  # Run the equivalent gates LOCALLY before merging (vite build does NOT typecheck):
-  #   bun run test:coverage && bunx tsc --noEmit && bun run build && bun run check:bundle
-  # Re-enable in CI later by restoring:  push: { branches: [main] }  + pull_request:
+  # Active gate between merge and production. Runs on every PR and on pushes to
+  # main. `vite build` does NOT typecheck (esbuild strips types), so the explicit
+  # Typecheck step below is the real type gate. The concurrency group cancels
+  # superseded runs, so a busy branch never spends Actions minutes on stale
+  # commits. Uses GitHub-hosted ubuntu-latest runners (no self-hosted fleet
+  # required); the bun.lock repoint step makes the private-registry pins
+  # installable from public npm in CI.
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 # Cancel superseded runs on the same ref.

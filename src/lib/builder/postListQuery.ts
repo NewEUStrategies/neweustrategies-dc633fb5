@@ -19,6 +19,8 @@ export interface PostRow {
 
 interface PostListInput {
   variant: string;
+  /** Number of rows to FETCH. Over-fetched past the display limit when
+   *  uniqueOnPage is set, so the client-side de-dup still fills the grid. */
   limit: number;
   offset: number;
   cols: number;
@@ -35,9 +37,14 @@ interface PostListInput {
   excludeTags: string[];
   includeIds: string[];
   excludeIds: string[];
-  usedSnapshot: readonly string[];
   lang: Lang;
 }
+
+// Extra rows fetched when a widget opts into uniqueOnPage, so that after the
+// client filters out posts already shown by earlier widgets there are still
+// enough left to fill the display limit. Stable (content-derived), so it never
+// changes the query key between server prefetch and client render.
+const UNIQUE_FETCH_HEADROOM = 18;
 
 function getStr(c: WidgetContent, key: string): string {
   const value = c[key];
@@ -62,14 +69,27 @@ function safeOrderBy(raw: string): PostListInput["orderByRaw"] {
   return raw === "title" || raw === "random" || raw === "popular" ? raw : "published_at";
 }
 
-export function postListInput(
-  c: WidgetContent,
-  lang: Lang,
-  usedSnapshot: readonly string[] = [],
-): PostListInput {
+/** The display limit a post-list widget renders (before any over-fetch). */
+export function postListDisplayLimit(c: WidgetContent): number {
+  return Math.max(1, Math.min(100, getNum(c, "limit", 6)));
+}
+
+function wantsUniqueOnPage(c: WidgetContent): boolean {
+  return c["uniqueOnPage"] === true || c["uniqueOnPage"] === "true";
+}
+
+export function postListInput(c: WidgetContent, lang: Lang): PostListInput {
+  const displayLimit = postListDisplayLimit(c);
+  // Over-fetch when uniqueOnPage so the client-side de-dup (which removes posts
+  // already shown by earlier widgets) can still fill the grid. The fetch size is
+  // derived purely from content, so the query key stays identical between the
+  // server prefetch and the client render - no refetch / skeleton flash.
+  const fetchLimit = wantsUniqueOnPage(c)
+    ? Math.min(100, displayLimit + UNIQUE_FETCH_HEADROOM)
+    : displayLimit;
   return {
     variant: getStr(c, "variant") || "card",
-    limit: Math.max(1, Math.min(100, getNum(c, "limit", 6))),
+    limit: fetchLimit,
     offset: Math.max(0, getNum(c, "offset", 0)),
     cols: Math.max(1, Math.min(6, getNum(c, "columns", 3))),
     orderByRaw: safeOrderBy(getStr(c, "orderBy") || "published_at"),
@@ -85,9 +105,30 @@ export function postListInput(
     excludeTags: csv(c, "excludeTagsCsv"),
     includeIds: csv(c, "includeIdsCsv"),
     excludeIds: csv(c, "excludeIdsCsv"),
-    usedSnapshot,
     lang,
   };
+}
+
+/**
+ * Pure de-dup + window for uniqueOnPage rendering: drop rows whose id is in
+ * `excludeIds` (posts already shown by earlier widgets) and take the first
+ * `displayLimit`. Exported so the ordering/uniqueness contract is unit-testable
+ * without React or the database. Applied on the CLIENT over already-cached rows,
+ * so it never triggers a network round-trip.
+ */
+export function dedupeAndSlice<T extends { id: string }>(
+  rows: readonly T[],
+  excludeIds: readonly string[],
+  displayLimit: number,
+): T[] {
+  const exclude = new Set(excludeIds);
+  const out: T[] = [];
+  for (const row of rows) {
+    if (exclude.has(row.id)) continue;
+    out.push(row);
+    if (out.length >= displayLimit) break;
+  }
+  return out;
 }
 
 async function fetchPostIdsBySlugs(
@@ -196,7 +237,6 @@ async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
     ...excCatIds,
     ...excTagIds,
     ...input.excludeIds,
-    ...input.usedSnapshot,
   ]);
 
   // "popular" ranking comes from the tenant-scoped popular_post_ids RPC, which
@@ -252,13 +292,13 @@ async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
   return rows;
 }
 
-export const postListQueryOptions = (
-  c: WidgetContent,
-  lang: Lang,
-  usedSnapshot: readonly string[] = [],
-) => {
-  const input = postListInput(c, lang, usedSnapshot);
+export const postListQueryOptions = (c: WidgetContent, lang: Lang) => {
+  const input = postListInput(c, lang);
   return queryOptions({
+    // Snapshot-independent key: identical between the server prefetch/stream gate
+    // and the client render, so a streamed uniqueOnPage widget reuses the
+    // dehydrated rows instead of refetching under a divergent key. uniqueOnPage
+    // de-dup happens client-side via dedupeAndSlice, not in this key.
     queryKey: ["builder-post-list", input] as const,
     queryFn: () => fetchPostListRows(input),
     staleTime: 2 * 60_000,
