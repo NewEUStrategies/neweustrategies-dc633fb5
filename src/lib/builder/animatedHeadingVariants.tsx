@@ -147,6 +147,7 @@ function ShapeSvg({
   animKey: string | number;
 }) {
   if (shape === "none") return null;
+  if (shape.startsWith("hover-line-")) return null;
 
   // Special case: hand-drawn scribble - two slightly curvy underlines drawn
   // sequentially (second shorter, slightly offset), mimicking a marker.
