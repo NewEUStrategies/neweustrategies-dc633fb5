@@ -408,6 +408,8 @@ export function AnimatedHeadingRender({
   const isUnderlineLike =
     shape === "underline" || shape === "double-underline" || shape === "curly" || shape === "zigzag";
   const needsFrame = shape === "circle" || shape === "framed" || shape === "x";
+  const isHoverLine = shape.startsWith("hover-line-");
+  const hoverClass = isHoverLine ? `ah-hu ah-hu-${shape.slice("hover-line-".length)}` : "";
 
   return (
     <Tag
@@ -420,9 +422,11 @@ export function AnimatedHeadingRender({
         paddingTop: needsFrame ? "0.15em" : undefined,
       }}
     >
+      {isHoverLine ? <style>{HOVER_LINE_CSS}</style> : null}
       {config.textBefore ? <span>{config.textBefore}{config.textBefore.endsWith(" ") ? "" : " "}</span> : null}
       <span
         key={animKey}
+        className={hoverClass}
         style={{
           position: "relative",
           display: "inline-block",
