@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   listCrmLeads, getCrmLead, updateCrmLead, addCrmNote, deleteCrmNote,
   exportCrmLeadsCsv, getCrmIntegrations, upsertCrmIntegrations, pushLeadToMerydian,
+  getCrmLeadTimeline, exportCrmLeadTimelineCsv,
 } from "@/lib/crm.functions";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
