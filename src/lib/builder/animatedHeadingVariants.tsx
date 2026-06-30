@@ -7,7 +7,7 @@
 // `accentColor` (animated text + the shape stroke - duo tone).
 import { useEffect, useState, type CSSProperties } from "react";
 
-export type AnimatedHeadingMode = "highlight" | "rotate" | "hover-underline";
+export type AnimatedHeadingMode = "highlight" | "rotate" | "hover-underline" | "hover-allsides";
 
 export type AnimatedHeadingShape =
   | "none"
@@ -29,7 +29,15 @@ export type AnimatedHeadingShape =
   | "hover-line-5"
   | "hover-line-6"
   | "hover-line-7"
-  | "hover-line-8";
+  | "hover-line-8"
+  | "hover-allsides-1"
+  | "hover-allsides-2"
+  | "hover-allsides-3"
+  | "hover-allsides-4"
+  | "hover-allsides-5"
+  | "hover-allsides-6"
+  | "hover-allsides-7"
+  | "hover-allsides-8";
 
 export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] = [
   { value: "none",              label: "Brak" },
@@ -52,6 +60,14 @@ export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] =
   { value: "hover-line-6",      label: "Hover: dwa segmenty" },
   { value: "hover-line-7",      label: "Hover: sprężyna" },
   { value: "hover-line-8",      label: "Hover: snap środek" },
+  { value: "hover-allsides-1",  label: "Allsides: rogi po przekątnej" },
+  { value: "hover-allsides-2",  label: "Allsides: z dwóch rogów" },
+  { value: "hover-allsides-3",  label: "Allsides: ze środka boków" },
+  { value: "hover-allsides-4",  label: "Allsides: spiralnie" },
+  { value: "hover-allsides-5",  label: "Allsides: skręt naprzemienny" },
+  { value: "hover-allsides-6",  label: "Allsides: 4 rogi (krótkie)" },
+  { value: "hover-allsides-7",  label: "Allsides: dół + prawo" },
+  { value: "hover-allsides-8",  label: "Allsides: rogi-segmenty" },
 ];
 
 export const HOVER_LINE_CSS = `
@@ -74,10 +90,31 @@ export const HOVER_LINE_CSS = `
 .ah-hu-8:hover { --p:10.1%; transition: .5s cubic-bezier(0,800,1,800); }
 `;
 
+export const HOVER_ALLSIDES_CSS = `
+.ah-as { display: inline-block; padding: 8px; cursor: pointer; }
+.ah-as-1 { background: linear-gradient(currentColor 0 0) 100% 0, linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 100% 100%; background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
+.ah-as-1:hover { --d: 100%; }
+.ah-as-2 { background: linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 100% 100%, linear-gradient(currentColor 0 0) 100% 100%; background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
+.ah-as-2:hover { --d: 100%; }
+.ah-as-3 { background: linear-gradient(currentColor 0 0) top, linear-gradient(currentColor 0 0) left, linear-gradient(currentColor 0 0) bottom, linear-gradient(currentColor 0 0) right; background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
+.ah-as-3:hover { --d: 100%; }
+.ah-as-4 { background: linear-gradient(currentColor 0 0) var(--p,100%) 0, linear-gradient(currentColor 0 0) 0 var(--d,0), linear-gradient(currentColor 0 0) var(--d,0) 100%, linear-gradient(currentColor 0 0) 100% var(--p,100%); background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s, background-position 0s .5s; }
+.ah-as-4:hover { --d: 100%; --p: 0%; }
+.ah-as-5 { background: linear-gradient(currentColor 0 0) var(--d,0) 0, linear-gradient(currentColor 0 0) 0 var(--d,0), linear-gradient(currentColor 0 0) var(--p,100%) 100%, linear-gradient(currentColor 0 0) 100% var(--p,100%); background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s, background-position 0s .5s; }
+.ah-as-5:hover { --d: 100%; --p: 0%; }
+.ah-as-6 { background: linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 100% 0, linear-gradient(currentColor 0 0) 100% 0, linear-gradient(currentColor 0 0) 100% 100%, linear-gradient(currentColor 0 0) 100% 100%; background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
+.ah-as-6:hover { --d: 20px; }
+.ah-as-7 { background: linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 100% 100%, linear-gradient(currentColor 0 0) 100% 100%; background-size: var(--p,50%) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
+.ah-as-7:hover { --d: 100%; --p: 0%; }
+.ah-as-8 { background: linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 100% 0, linear-gradient(currentColor 0 0) 100% 0; background-size: 20px 3px, 3px 20px; background-repeat: no-repeat; transition: .5s; }
+.ah-as-8:hover { background-position: 100% 100%, 0 0, 0 0, 100% 100%; }
+`;
+
 export const ANIMATED_MODES: { value: AnimatedHeadingMode; label: string }[] = [
   { value: "highlight",       label: "Wyróżnione słowo" },
   { value: "rotate",          label: "Rotujące słowa" },
   { value: "hover-underline", label: "Hover - podkreślenie" },
+  { value: "hover-allsides",  label: "Hover - ramka (allsides)" },
 ];
 
 export interface AnimatedHeadingConfig {
@@ -116,6 +153,8 @@ const shapeStroke: Record<AnimatedHeadingShape, number> = {
   framed: 3,
   "hover-line-1": 0, "hover-line-2": 0, "hover-line-3": 0, "hover-line-4": 0,
   "hover-line-5": 0, "hover-line-6": 0, "hover-line-7": 0, "hover-line-8": 0,
+  "hover-allsides-1": 0, "hover-allsides-2": 0, "hover-allsides-3": 0, "hover-allsides-4": 0,
+  "hover-allsides-5": 0, "hover-allsides-6": 0, "hover-allsides-7": 0, "hover-allsides-8": 0,
 };
 
 // Rough path lengths (user-units) used to drive stroke-dashoffset animation.
@@ -135,6 +174,8 @@ const shapePathLen: Record<AnimatedHeadingShape, number> = {
   framed: 460,
   "hover-line-1": 0, "hover-line-2": 0, "hover-line-3": 0, "hover-line-4": 0,
   "hover-line-5": 0, "hover-line-6": 0, "hover-line-7": 0, "hover-line-8": 0,
+  "hover-allsides-1": 0, "hover-allsides-2": 0, "hover-allsides-3": 0, "hover-allsides-4": 0,
+  "hover-allsides-5": 0, "hover-allsides-6": 0, "hover-allsides-7": 0, "hover-allsides-8": 0,
 };
 
 function ShapeSvg({
@@ -149,6 +190,7 @@ function ShapeSvg({
 }) {
   if (shape === "none") return null;
   if (shape.startsWith("hover-line-")) return null;
+  if (shape.startsWith("hover-allsides-")) return null;
 
   // Special case: hand-drawn scribble - two slightly curvy underlines drawn
   // sequentially (second shorter, slightly offset), mimicking a marker.
@@ -410,7 +452,12 @@ export function AnimatedHeadingRender({
     shape === "underline" || shape === "double-underline" || shape === "curly" || shape === "zigzag";
   const needsFrame = shape === "circle" || shape === "framed" || shape === "x";
   const isHoverLine = shape.startsWith("hover-line-");
-  const hoverClass = isHoverLine ? `ah-hu ah-hu-${shape.slice("hover-line-".length)}` : "";
+  const isHoverAllsides = shape.startsWith("hover-allsides-");
+  const hoverClass = isHoverLine
+    ? `ah-hu ah-hu-${shape.slice("hover-line-".length)}`
+    : isHoverAllsides
+      ? `ah-as ah-as-${shape.slice("hover-allsides-".length)}`
+      : "";
 
   return (
     <Tag
@@ -424,6 +471,7 @@ export function AnimatedHeadingRender({
       }}
     >
       {isHoverLine ? <style>{HOVER_LINE_CSS}</style> : null}
+      {isHoverAllsides ? <style>{HOVER_ALLSIDES_CSS}</style> : null}
       {config.textBefore ? <span>{config.textBefore}{config.textBefore.endsWith(" ") ? "" : " "}</span> : null}
       <span
         key={animKey}
