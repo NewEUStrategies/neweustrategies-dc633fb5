@@ -75,8 +75,9 @@ export const HOVER_LINE_CSS = `
 `;
 
 export const ANIMATED_MODES: { value: AnimatedHeadingMode; label: string }[] = [
-  { value: "highlight", label: "Wyróżnione słowo" },
-  { value: "rotate",    label: "Rotujące słowa" },
+  { value: "highlight",       label: "Wyróżnione słowo" },
+  { value: "rotate",          label: "Rotujące słowa" },
+  { value: "hover-underline", label: "Hover - podkreślenie" },
 ];
 
 export interface AnimatedHeadingConfig {
