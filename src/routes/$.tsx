@@ -57,7 +57,6 @@ import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
 import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
-import { requestLangOverridesCache } from "@/lib/i18n";
 import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
 
 
@@ -100,10 +99,10 @@ export const Route = createFileRoute("/$")({
     if (!data) throw notFound();
     // ISR-like edge caching: the public SSR is the anonymous shell (gated bodies
     // are fetched client-side after hydration), so it is safe to share-cache and
-    // serve stale-while-revalidate from the CDN. EXCEPT when the language was
-    // chosen by a cookie (no ?lang=, cookie ≠ default): the CDN keys on URL only,
-    // so that render must not be shared or it poisons the URL for other visitors.
-    setCacheControlHeader(contentCacheControl({ personalized: requestLangOverridesCache() }));
+    // serve stale-while-revalidate from the CDN. The language lives in the URL
+    // path (PL at the bare path, EN under "/en"), so each language is its own
+    // cache entry - no cookie-driven personalization, no language poisoning.
+    setCacheControlHeader(contentCacheControl());
     const url = getRequestUrl() || `/${splat}`;
     const lang: "pl" | "en" = activeLang(url) === "en" ? "en" : "pl";
     const doc = parseBuilderDoc(data.item.builder_data);

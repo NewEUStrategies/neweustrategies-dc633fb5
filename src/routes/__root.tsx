@@ -15,6 +15,7 @@ import appCss from "../styles.css?url";
 import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url";
 import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
 import { fontPreloadLinks } from "../lib/seo/fontPreload";
+import { buildRootHead } from "../lib/seo/meta";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import i18n, { syncI18nToRequest } from "../lib/i18n";
 import "../lib/i18n-profile";
@@ -27,6 +28,7 @@ import { ContentAreaStyle } from "../components/ContentAreaStyle";
 import { ThemeOptionsStyle } from "../components/ThemeOptionsStyle";
 import { ThemeDesignStyle } from "../components/theme/ThemeDesignStyle";
 import { ConsentBanner } from "../components/ConsentBanner";
+import { LocalePreferenceRedirect } from "../components/LocalePreferenceRedirect";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
 import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
@@ -128,35 +130,37 @@ function RouteLoadingSkeleton() {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-    ],
-    // Red Hat Display is self-hosted via @font-face in styles.css (see there),
-    // so no Google Fonts stylesheet / preconnect is needed - one fewer
-    // render-blocking third-party request, and no visitor IPs sent to Google.
-    links: [
-      { rel: "stylesheet", href: appCss },
-      // Preload the critical font subset(s) so heading text (a frequent LCP
-      // element) swaps in without waiting for the CSS to parse first. Latin
-      // backs both languages; Latin-ext (Polish diacritics) only for PL.
-      ...fontPreloadLinks(i18n.language === "en" ? "en" : "pl", {
-        latin: redHatDisplayLatin,
-        latinExt: redHatDisplayLatinExt,
-      }),
-      { rel: "dns-prefetch", href: "https://unnltowbgszpdzwpawdu.supabase.co" },
-      { rel: "preconnect", href: "https://unnltowbgszpdzwpawdu.supabase.co", crossOrigin: "anonymous" },
-    ],
-  }),
+  head: () => {
+    // One language source for the whole document head, matching the <html lang>
+    // RootShell emits from the same i18n singleton (synced to the request in the
+    // loader below), so the branded meta and the font preload never disagree.
+    const lang = i18n.language === "en" ? "en" : "pl";
+    return {
+      // Branded New European Strategies defaults (PL/EN). Any route without its
+      // own head() - error pages, parts of the admin, fallbacks - and the first
+      // social-share preview inherit these instead of the generator defaults.
+      meta: buildRootHead(lang),
+      // Red Hat Display is self-hosted via @font-face in styles.css (see there),
+      // so no Google Fonts stylesheet / preconnect is needed - one fewer
+      // render-blocking third-party request, and no visitor IPs sent to Google.
+      links: [
+        { rel: "stylesheet", href: appCss },
+        // Preload the critical font subset(s) so heading text (a frequent LCP
+        // element) swaps in without waiting for the CSS to parse first. Latin
+        // backs both languages; Latin-ext (Polish diacritics) only for PL.
+        ...fontPreloadLinks(lang, {
+          latin: redHatDisplayLatin,
+          latinExt: redHatDisplayLatinExt,
+        }),
+        { rel: "dns-prefetch", href: "https://unnltowbgszpdzwpawdu.supabase.co" },
+        {
+          rel: "preconnect",
+          href: "https://unnltowbgszpdzwpawdu.supabase.co",
+          crossOrigin: "anonymous",
+        },
+      ],
+    };
+  },
   // Prefetch the entire site_settings bulk map on the server. The same query
   // backs Header, Footer, navigation menus, AlertBar and CopyrightBar - one
   // round-trip on the edge hydrates every layout chunk so chrome renders
@@ -199,6 +203,7 @@ function RootComponent() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <LocalePreferenceRedirect />
         <IconPackSync />
         <WidgetLiveSync />
         <SiteSettingsLiveSync />
