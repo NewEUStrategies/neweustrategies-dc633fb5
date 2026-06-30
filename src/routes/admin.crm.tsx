@@ -687,7 +687,54 @@ function IntegrationsTab({ L }: { L: typeof PL }) {
         </div>
       </Field>
 
+      <div className="rounded-md border bg-card p-3 space-y-3">
+        <div className="flex items-start gap-2">
+          <ShieldCheck className="w-4 h-4 text-brand mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <h4 className="text-sm font-medium">{L.integ.mapping}</h4>
+            <p className="text-[11px] text-muted-foreground">{L.integ.mappingHint}</p>
+          </div>
+          <Button size="sm" variant="outline" type="button" onClick={() =>
+            upd("consent_mapping", [...s.consent_mapping, { source_key: "", source_label: "", merydian_field: "", merydian_category: "", required: false }])
+          }>
+            <Plus className="w-3.5 h-3.5 mr-1" />{L.integ.mappingAdd}
+          </Button>
+        </div>
+        {s.consent_mapping.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground italic">{L.integ.mappingEmpty}</p>
+        ) : (
+          <div className="space-y-2">
+            {s.consent_mapping.map((m, idx) => {
+              const patch = (p: Partial<ConsentMapItem>) =>
+                upd("consent_mapping", s.consent_mapping.map((x, i) => (i === idx ? { ...x, ...p } : x)));
+              return (
+                <div key={idx} className="grid grid-cols-1 sm:grid-cols-12 gap-1.5 items-center rounded-md border bg-background p-2">
+                  <Input className="h-8 text-[12px] sm:col-span-3" placeholder={L.integ.mappingSourceKey}
+                    value={m.source_key} onChange={(e) => patch({ source_key: e.target.value })} />
+                  <Input className="h-8 text-[12px] sm:col-span-3" placeholder={L.integ.mappingSourceLabel}
+                    value={m.source_label} onChange={(e) => patch({ source_label: e.target.value })} />
+                  <Input className="h-8 text-[12px] sm:col-span-2" placeholder={L.integ.mappingField}
+                    value={m.merydian_field} onChange={(e) => patch({ merydian_field: e.target.value })} />
+                  <Input className="h-8 text-[12px] sm:col-span-2" placeholder={L.integ.mappingCategory}
+                    value={m.merydian_category} onChange={(e) => patch({ merydian_category: e.target.value })} />
+                  <label className="flex items-center gap-1 text-[11px] sm:col-span-1">
+                    <Switch checked={m.required} onCheckedChange={(v) => patch({ required: v })} />
+                    <span className="truncate">{L.integ.mappingRequired}</span>
+                  </label>
+                  <Button size="sm" variant="ghost" type="button" className="sm:col-span-1 h-8 px-2"
+                    aria-label={L.integ.mappingRemove}
+                    onClick={() => upd("consent_mapping", s.consent_mapping.filter((_, i) => i !== idx))}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <p className="text-[11px] text-muted-foreground">{L.integ.docs}</p>
+
 
       <div className="flex justify-end">
         <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
