@@ -145,6 +145,8 @@ const shapePathLen: Record<AnimatedHeadingShape, number> = {
   framed: 460,
   "hover-line-1": 0, "hover-line-2": 0, "hover-line-3": 0, "hover-line-4": 0,
   "hover-line-5": 0, "hover-line-6": 0, "hover-line-7": 0, "hover-line-8": 0,
+  "hover-allsides-1": 0, "hover-allsides-2": 0, "hover-allsides-3": 0, "hover-allsides-4": 0,
+  "hover-allsides-5": 0, "hover-allsides-6": 0, "hover-allsides-7": 0, "hover-allsides-8": 0,
 };
 
 function ShapeSvg({
