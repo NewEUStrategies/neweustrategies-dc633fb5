@@ -270,16 +270,22 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           className="absolute h-0 w-0 -left-[9999px] opacity-0" aria-hidden="true" />
 
         <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
-          {showName && (
-            <Field label={t.name} error={errors.name} className={widthCls(showEmail ? 1 : 2)}>
-              <input name="name" required className="cf-input" autoComplete="name" />
+          {showFirstName && (
+            <Field label={t.firstName} error={errors.firstName} className={widthCls(1)}>
+              <input name="firstName" required className="cf-input" autoComplete="given-name" placeholder={lang === "pl" ? "Jan" : "John"} />
+            </Field>
+          )}
+          {showLastName && (
+            <Field label={t.lastName} error={errors.lastName} className={widthCls(1)}>
+              <input name="lastName" required className="cf-input" autoComplete="family-name" placeholder={lang === "pl" ? "Kowalski" : "Doe"} />
             </Field>
           )}
           {showEmail && (
-            <Field label={t.email} error={errors.email} className={widthCls(showName ? 1 : 2)}>
-              <input name="email" type="email" required className="cf-input" autoComplete="email" />
+            <Field label={t.email} error={errors.email} className={widthCls(showFirstName || showLastName ? 1 : 2)}>
+              <input name="email" type="email" required className="cf-input" autoComplete="email" placeholder="name@example.com" />
             </Field>
           )}
+
           {showPhone && (
             <Field label={t.phone} className={widthCls(1)}>
               <input name="phone" type="tel" className="cf-input" autoComplete="tel" />
