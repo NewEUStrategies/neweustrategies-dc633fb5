@@ -66,6 +66,7 @@ import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-
 import { Route as AdminIconsRouteImport } from './routes/admin.icons'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
+import { Route as AdminCrmRouteImport } from './routes/admin.crm'
 import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
 import { Route as AdminContactRouteImport } from './routes/admin.contact'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
@@ -378,6 +379,11 @@ const AdminCropSizesRoute = AdminCropSizesRouteImport.update({
   path: '/crop-sizes',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCrmRoute = AdminCrmRouteImport.update({
+  id: '/crm',
+  path: '/crm',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminContentAreaRoute = AdminContentAreaRouteImport.update({
   id: '/content-area',
   path: '/content-area',
@@ -528,6 +534,7 @@ export interface FileRoutesByFullPath {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/icons': typeof AdminIconsRoute
@@ -611,6 +618,7 @@ export interface FileRoutesByTo {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/icons': typeof AdminIconsRoute
@@ -696,6 +704,7 @@ export interface FileRoutesById {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
+  '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
   '/admin/icons': typeof AdminIconsRoute
@@ -783,6 +792,7 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/contact'
     | '/admin/content-area'
+    | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
     | '/admin/icons'
@@ -866,6 +876,7 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/contact'
     | '/admin/content-area'
+    | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
     | '/admin/icons'
@@ -950,6 +961,7 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/contact'
     | '/admin/content-area'
+    | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
     | '/admin/icons'
@@ -1450,6 +1462,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCropSizesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/crm': {
+      id: '/admin/crm'
+      path: '/crm'
+      fullPath: '/admin/crm'
+      preLoaderRoute: typeof AdminCrmRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/content-area': {
       id: '/admin/content-area'
       path: '/content-area'
@@ -1715,6 +1734,7 @@ interface AdminRouteChildren {
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminContactRoute: typeof AdminContactRoute
   AdminContentAreaRoute: typeof AdminContentAreaRoute
+  AdminCrmRoute: typeof AdminCrmRoute
   AdminCropSizesRoute: typeof AdminCropSizesRoute
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
   AdminIconsRoute: typeof AdminIconsRoute
@@ -1747,6 +1767,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminContactRoute: AdminContactRoute,
   AdminContentAreaRoute: AdminContentAreaRoute,
+  AdminCrmRoute: AdminCrmRoute,
   AdminCropSizesRoute: AdminCropSizesRoute,
   AdminCustomMetaRoute: AdminCustomMetaRoute,
   AdminIconsRoute: AdminIconsRoute,

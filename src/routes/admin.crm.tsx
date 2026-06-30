@@ -23,9 +23,10 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import {
-  Users, Download, Send, RefreshCw, Search, FileText, ShieldCheck,
-  Tag as TagIcon, Mail, Trash2, Plus,
+  Users, Download, Send, Search, FileText, ShieldCheck,
+  Mail, Trash2, Plus,
 } from "@/lib/lucide-shim";
+import { RefreshCw, Tag as TagIcon } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/crm")({
