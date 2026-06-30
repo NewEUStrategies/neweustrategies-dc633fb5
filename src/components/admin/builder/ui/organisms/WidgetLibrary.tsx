@@ -28,7 +28,7 @@ export function WidgetLibrary({ onPickStructure, onPickTemplate }: Props) {
       return next;
     });
   };
-  const filtered = WIDGETS.filter((w) => w.label.toLowerCase().includes(search.toLowerCase()));
+  const filtered = WIDGETS.filter((w) => !w.hiddenInPalette && w.label.toLowerCase().includes(search.toLowerCase()));
   const labels: Record<string, string> = {
     basic: "Podstawowe", media: "Media", dynamic: "Dynamiczne",
     form: "Formularze", navigation: "Nawigacja", blocks: "Bloki",

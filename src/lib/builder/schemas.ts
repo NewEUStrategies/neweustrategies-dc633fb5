@@ -408,14 +408,10 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       { value: "between", label: "rozsunięte" },
     ]},
   ],
-  contact: [
-    { key: "to", type: "text", label: "Email odbiorcy", placeholder: "kontakt@..." },
-    { key: "variant", type: "select", label: "Wariant", options: [
-      { value: "stacked", label: "kolumna" },
-      { value: "compact", label: "kompaktowy" },
-      { value: "card", label: "karta" },
-    ]},
-  ],
+  // Legacy "contact" alias - same fields as the new "contact-form" widget.
+  // Actual array is attached after WIDGET_SCHEMAS is constructed (see bottom of file).
+  contact: [],
+
   "nav-link": [
     { key: "label", type: "i18nText", label: "Etykieta" },
     { key: "href", type: "url", label: "Docelowy URL", placeholder: "/about lub https://…" },
@@ -730,3 +726,8 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
 
 
 
+
+// Alias legacy "contact" widget schema to the new "contact-form" schema so any
+// page still referencing the old type gets the full property panel.
+(WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField> | undefined>).contact =
+  WIDGET_SCHEMAS["contact-form"];

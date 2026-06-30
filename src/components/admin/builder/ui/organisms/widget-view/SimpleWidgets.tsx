@@ -514,27 +514,10 @@ export function renderSimpleWidget(
       };
       return <AnimatedHeadingRender config={ahCfg} />;
     }
-    case "contact": {
-      const variant = getStr(c, "variant") || "stacked";
-      const wrapCls = variant === "card" ? "space-y-3 bg-card border border-border rounded-xl p-5" : "space-y-3";
-      if (variant === "compact") {
-        return (
-          <form className="flex flex-col sm:flex-row gap-2">
-            <input placeholder="Email" className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" />
-            <input placeholder="Wiadomość" className="flex-[2] bg-background border border-border rounded px-3 py-2 text-sm" />
-            <button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Wyślij</button>
-          </form>
-        );
-      }
-      return (
-        <form className={wrapCls}>
-          <input placeholder="Imię" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" />
-          <input placeholder="Email" className="w-full bg-background border border-border rounded px-3 py-2 text-sm" />
-          <textarea placeholder="Wiadomość" rows={4} className="w-full bg-background border border-border rounded px-3 py-2 text-sm" />
-          <button type="button" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Wyślij</button>
-        </form>
-      );
-    }
+    case "contact":
+      // Legacy alias: delegate to the full-featured contact-form renderer.
+      return <ContactFormView data={(node.content ?? {}) as Record<string, unknown>} lang={lang} />;
+
     case "accordion": {
       const items = Array.isArray(c.items) ? c.items as Array<Record<string, string>> : [];
       const variant = getStr(c, "variant") || "bordered";

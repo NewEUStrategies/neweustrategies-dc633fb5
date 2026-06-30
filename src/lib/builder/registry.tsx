@@ -20,7 +20,10 @@ export interface WidgetDef {
   category: "basic" | "media" | "dynamic" | "form" | "navigation" | "blocks";
   icon: LucideIcon;
   defaults: () => WidgetNode["content"];
+  /** Hide from the "Add widget" palette; the type stays valid for already-saved nodes. */
+  hiddenInPalette?: boolean;
 }
+
 
 export const WIDGETS: WidgetDef[] = [
   // Basic
@@ -81,8 +84,21 @@ export const WIDGETS: WidgetDef[] = [
   // Forms
   { type: "newsletter", label: "Newsletter", category: "form", icon: Mail,
     defaults: () => ({ title_pl: "Zapisz się", title_en: "Subscribe" }) },
-  { type: "contact", label: "Formularz kontaktowy", category: "form", icon: Send,
-    defaults: () => ({ to: "" }) },
+  // Legacy "contact" widget kept for backward compatibility with already-saved
+  // pages. New panels should use "contact-form" (richer config). Defaults are
+  // intentionally aligned with contact-form so the property panel behaves the
+  // same for both types.
+  { type: "contact", label: "Formularz kontaktowy (legacy)", category: "form", icon: Send, hiddenInPalette: true,
+    defaults: () => ({
+      variant: "card",
+      title_pl: "Skontaktuj się z nami", title_en: "Contact us",
+      submitLabel_pl: "Wyślij wiadomość", submitLabel_en: "Send message",
+      successMsg_pl: "Dziękujemy!", successMsg_en: "Thanks!",
+      requireConsent: true, showName: true, showEmail: true, showMessage: true,
+      columns: 2, buttonAlign: "left", buttonPosition: "bottom",
+      buttonVariant: "solid", buttonSize: "md",
+      radiusPx: 12, paddingPx: 32, bgOverlay: 0, bgAnimation: "none",
+    }) },
   { type: "cta", label: "Wezwanie do akcji", category: "form", icon: Megaphone,
     defaults: () => ({ title_pl: "Działajmy razem", title_en: "Let's act together", href: "#", cta_pl: "Skontaktuj się", cta_en: "Contact us" }) },
   { type: "join-us", label: "Dołącz do nas", category: "form", icon: UserPlus,
