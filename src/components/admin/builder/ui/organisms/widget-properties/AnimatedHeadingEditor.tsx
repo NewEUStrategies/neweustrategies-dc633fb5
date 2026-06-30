@@ -24,6 +24,20 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
   const mode = (typeof c.mode === "string" ? c.mode : "highlight") as AnimatedHeadingMode;
   const shape = (typeof c.shape === "string" ? c.shape : "underline") as AnimatedHeadingShape;
   const tag = (typeof c.tag === "string" ? c.tag : "h2") as "h1"|"h2"|"h3"|"h4"|"h5"|"h6";
+
+  const isHoverMode = mode === "hover-underline";
+  const visibleShapes = isHoverMode
+    ? ANIMATED_SHAPES.filter((s) => s.value.startsWith("hover-line-"))
+    : ANIMATED_SHAPES.filter((s) => !s.value.startsWith("hover-line-"));
+
+  const handleModeChange = (v: string) => {
+    setContent("mode", v);
+    if (v === "hover-underline" && !shape.startsWith("hover-line-")) {
+      setContent("shape", "hover-line-1");
+    } else if (v !== "hover-underline" && shape.startsWith("hover-line-")) {
+      setContent("shape", "underline");
+    }
+  };
   const align = (typeof c.align === "string" ? c.align : "left") as "left" | "center" | "right";
 
   const textBefore = (c[`textBefore_${lang}`] as string) || "";
