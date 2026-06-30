@@ -5,6 +5,7 @@ import {
   hreflangLinks,
   buildContentHead,
   buildArticleJsonLd,
+  imagePreloadLink,
   SITE_NAME,
 } from "@/lib/seo/meta";
 
@@ -138,5 +139,40 @@ describe("buildArticleJsonLd", () => {
   it("emits WebPage (not NewsArticle) for pages", () => {
     expect(buildArticleJsonLd({ ...base, isArticle: false })["@type"]).toBe("WebPage");
     expect(buildArticleJsonLd({ ...base, isArticle: false }).author).toBeUndefined();
+  });
+});
+
+describe("imagePreloadLink", () => {
+  it("emits a high-priority responsive image preload matching the <img>", () => {
+    const link = imagePreloadLink({
+      href: "https://cdn/img.jpg",
+      imageSrcSet: "https://cdn/img.jpg?width=320 320w, https://cdn/img.jpg?width=640 640w",
+      imageSizes: "(max-width: 768px) 100vw, 672px",
+    });
+    expect(link).toEqual({
+      rel: "preload",
+      as: "image",
+      href: "https://cdn/img.jpg",
+      fetchPriority: "high",
+      imageSrcSet: "https://cdn/img.jpg?width=320 320w, https://cdn/img.jpg?width=640 640w",
+      imageSizes: "(max-width: 768px) 100vw, 672px",
+    });
+  });
+
+  it("falls back to a plain href preload when there is no srcSet (non-responsive img)", () => {
+    const link = imagePreloadLink({ href: "https://cdn/img.jpg", imageSrcSet: "" });
+    expect(link).toEqual({
+      rel: "preload",
+      as: "image",
+      href: "https://cdn/img.jpg",
+      fetchPriority: "high",
+    });
+    expect(link.imageSrcSet).toBeUndefined();
+    expect(link.imageSizes).toBeUndefined();
+  });
+
+  it("defaults imageSizes to 100vw when a srcSet is given without explicit sizes", () => {
+    const link = imagePreloadLink({ href: "x", imageSrcSet: "x 320w" });
+    expect(link.imageSizes).toBe("100vw");
   });
 });

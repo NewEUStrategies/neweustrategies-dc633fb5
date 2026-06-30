@@ -1,7 +1,7 @@
 // Renderuje pojedynczy wpis zgodnie z wybranym presetem layoutu.
 // Owija stronę "single post" w odpowiedni układ (cover, nagłówek, content area).
 import type { ReactNode } from "react";
-import { findLayout, type PostFormat, type PostLayoutSettings } from "@/lib/postLayouts";
+import { findLayout, coverImageSizes, type PostFormat, type PostLayoutSettings } from "@/lib/postLayouts";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { ReadingHeader } from "@/components/share/ReadingHeader";
 
@@ -48,27 +48,27 @@ export function PostLayoutRenderer({
     if (preset.cover === "full-bleed") {
       return (
         <div className="-mx-4 lg:-mx-8 mb-0">
-          <OptimizedImage src={coverImageUrl} alt={title} className="w-full h-[60vh] object-cover" priority responsive sizes="100vw" />
+          <OptimizedImage src={coverImageUrl} alt={title} className="w-full h-[60vh] object-cover" priority responsive sizes={coverImageSizes(preset)} />
         </div>
       );
     }
     if (preset.cover === "ratio" && ratioPct) {
       return (
         <div className="mb-8" style={{ aspectRatio: `100 / ${ratioPct}` }}>
-          <OptimizedImage src={coverImageUrl} alt={title} className="w-full h-full rounded-lg object-cover" priority responsive sizes="100vw" />
+          <OptimizedImage src={coverImageUrl} alt={title} className="w-full h-full rounded-lg object-cover" priority responsive sizes={coverImageSizes(preset)} />
         </div>
       );
     }
     if (preset.cover === "boxed") {
       return (
         <div className="mb-8 max-w-2xl mx-auto">
-          <OptimizedImage src={coverImageUrl} alt={title} className="w-full rounded-lg max-h-[420px] object-cover" priority responsive sizes="(max-width: 768px) 100vw, 672px" />
+          <OptimizedImage src={coverImageUrl} alt={title} className="w-full rounded-lg max-h-[420px] object-cover" priority responsive sizes={coverImageSizes(preset)} />
         </div>
       );
     }
     if (preset.cover === "side") return null; // side rendered separately
     return (
-      <OptimizedImage src={coverImageUrl} alt={title} className="w-full rounded-lg mb-8 max-h-[480px] object-cover" priority responsive sizes="100vw" />
+      <OptimizedImage src={coverImageUrl} alt={title} className="w-full rounded-lg mb-8 max-h-[480px] object-cover" priority responsive sizes={coverImageSizes(preset)} />
     );
   })();
 
@@ -79,7 +79,7 @@ export function PostLayoutRenderer({
         <ReadingHeader title={title} />
         <div className={`relative ${preset.cover === "full-bleed" ? "-mx-4 lg:-mx-8" : ""}`}>
           <div className="relative h-[60vh] rounded-lg overflow-hidden mb-8">
-            <OptimizedImage src={coverImageUrl} alt={title} className="absolute inset-0 w-full h-full object-cover" priority responsive sizes="100vw" />
+            <OptimizedImage src={coverImageUrl} alt={title} className="absolute inset-0 w-full h-full object-cover" priority responsive sizes={coverImageSizes(preset)} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
             <div className={`absolute inset-x-0 bottom-0 p-6 lg:p-10 ${center ? "text-center" : ""} text-white`}>
               <h1 className="font-display text-3xl lg:text-5xl mb-3">{title}</h1>
@@ -100,7 +100,7 @@ export function PostLayoutRenderer({
         <ReadingHeader title={title} />
         <div>
           <div className="grid lg:grid-cols-2 gap-8 items-center mb-10">
-            <OptimizedImage src={coverImageUrl} alt={title} className="w-full rounded-lg max-h-[420px] object-cover" priority responsive sizes="(max-width: 1024px) 100vw, 50vw" />
+            <OptimizedImage src={coverImageUrl} alt={title} className="w-full rounded-lg max-h-[420px] object-cover" priority responsive sizes={coverImageSizes(preset)} />
             <div className={center ? "text-center" : ""}>
               <h1 className="font-display text-3xl lg:text-5xl mb-4">{title}</h1>
               {excerpt && <p className="text-lg text-muted-foreground mb-4">{excerpt}</p>}

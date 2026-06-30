@@ -108,6 +108,38 @@ export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
   return { meta, links };
 }
 
+export interface ImagePreloadInput {
+  /** Absolute or storage URL of the LCP image (used as the fallback `href`). */
+  href: string;
+  /** Responsive candidate set - must byte-match the rendered `<img srcSet>`. */
+  imageSrcSet?: string;
+  /** `sizes` the image renders at - must match the `<img sizes>` exactly, or
+   *  the browser preloads a different candidate than it paints (double fetch). */
+  imageSizes?: string;
+}
+
+/**
+ * Build a `<link rel="preload" as="image">` descriptor for the above-the-fold
+ * LCP image, so the browser starts the fetch from the document <head> instead
+ * of waiting until the `<img>` is parsed in the body. When a `srcSet` is given,
+ * `imageSrcSet` + `imageSizes` are emitted so the preloaded candidate is exactly
+ * the one the responsive `<img>` selects; otherwise a plain `href` preload is
+ * emitted (matching a non-responsive `<img src>`). Pure - no framework deps.
+ */
+export function imagePreloadLink(input: ImagePreloadInput): Record<string, string> {
+  const link: Record<string, string> = {
+    rel: "preload",
+    as: "image",
+    href: input.href,
+    fetchPriority: "high",
+  };
+  if (input.imageSrcSet) {
+    link.imageSrcSet = input.imageSrcSet;
+    link.imageSizes = input.imageSizes ?? "100vw";
+  }
+  return link;
+}
+
 export interface ArticleJsonLdInput {
   url: string;
   lang: Lang;
