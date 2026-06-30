@@ -90,10 +90,31 @@ export const HOVER_LINE_CSS = `
 .ah-hu-8:hover { --p:10.1%; transition: .5s cubic-bezier(0,800,1,800); }
 `;
 
+export const HOVER_ALLSIDES_CSS = `
+.ah-as { display: inline-block; padding: 8px; cursor: pointer; }
+.ah-as-1 { background: linear-gradient(currentColor 0 0) 100% 0, linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 100% 100%; background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
+.ah-as-1:hover { --d: 100%; }
+.ah-as-2 { background: linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 100% 100%, linear-gradient(currentColor 0 0) 100% 100%; background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
+.ah-as-2:hover { --d: 100%; }
+.ah-as-3 { background: linear-gradient(currentColor 0 0) top, linear-gradient(currentColor 0 0) left, linear-gradient(currentColor 0 0) bottom, linear-gradient(currentColor 0 0) right; background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
+.ah-as-3:hover { --d: 100%; }
+.ah-as-4 { background: linear-gradient(currentColor 0 0) var(--p,100%) 0, linear-gradient(currentColor 0 0) 0 var(--d,0), linear-gradient(currentColor 0 0) var(--d,0) 100%, linear-gradient(currentColor 0 0) 100% var(--p,100%); background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s, background-position 0s .5s; }
+.ah-as-4:hover { --d: 100%; --p: 0%; }
+.ah-as-5 { background: linear-gradient(currentColor 0 0) var(--d,0) 0, linear-gradient(currentColor 0 0) 0 var(--d,0), linear-gradient(currentColor 0 0) var(--p,100%) 100%, linear-gradient(currentColor 0 0) 100% var(--p,100%); background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s, background-position 0s .5s; }
+.ah-as-5:hover { --d: 100%; --p: 0%; }
+.ah-as-6 { background: linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 100% 0, linear-gradient(currentColor 0 0) 100% 0, linear-gradient(currentColor 0 0) 100% 100%, linear-gradient(currentColor 0 0) 100% 100%; background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
+.ah-as-6:hover { --d: 20px; }
+.ah-as-7 { background: linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 100% 100%, linear-gradient(currentColor 0 0) 100% 100%; background-size: var(--p,50%) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
+.ah-as-7:hover { --d: 100%; --p: 0%; }
+.ah-as-8 { background: linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 100% 0, linear-gradient(currentColor 0 0) 100% 0; background-size: 20px 3px, 3px 20px; background-repeat: no-repeat; transition: .5s; }
+.ah-as-8:hover { background-position: 100% 100%, 0 0, 0 0, 100% 100%; }
+`;
+
 export const ANIMATED_MODES: { value: AnimatedHeadingMode; label: string }[] = [
   { value: "highlight",       label: "Wyróżnione słowo" },
   { value: "rotate",          label: "Rotujące słowa" },
   { value: "hover-underline", label: "Hover - podkreślenie" },
+  { value: "hover-allsides",  label: "Hover - ramka (allsides)" },
 ];
 
 export interface AnimatedHeadingConfig {
