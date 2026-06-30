@@ -21,7 +21,15 @@ export type AnimatedHeadingShape =
   | "strike"
   | "x"
   | "double-strike"
-  | "framed";
+  | "framed"
+  | "hover-line-1"
+  | "hover-line-2"
+  | "hover-line-3"
+  | "hover-line-4"
+  | "hover-line-5"
+  | "hover-line-6"
+  | "hover-line-7"
+  | "hover-line-8";
 
 export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] = [
   { value: "none",              label: "Brak" },
@@ -36,7 +44,35 @@ export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] =
   { value: "double-strike",     label: "Podwójne przekreślenie" },
   { value: "x",                 label: "X" },
   { value: "framed",            label: "Ramka" },
+  { value: "hover-line-1",      label: "Hover: rozwijana ze środka" },
+  { value: "hover-line-2",      label: "Hover: ze środka w 2 strony" },
+  { value: "hover-line-3",      label: "Hover: od krawędzi do środka" },
+  { value: "hover-line-4",      label: "Hover: skok w bok" },
+  { value: "hover-line-5",      label: "Hover: punkt + linia" },
+  { value: "hover-line-6",      label: "Hover: dwa segmenty" },
+  { value: "hover-line-7",      label: "Hover: sprężyna" },
+  { value: "hover-line-8",      label: "Hover: snap środek" },
 ];
+
+export const HOVER_LINE_CSS = `
+.ah-hu { display: inline-block; padding-bottom: 5px; cursor: pointer; }
+.ah-hu-1 { background: linear-gradient(currentColor 0 0) var(--p,50%) 100%/var(--d,10%) 3px no-repeat; transition: .3s, background-position .3s .3s; }
+.ah-hu-1:hover { --d:100%; --p:0%; transition: .3s, background-size .3s .3s; }
+.ah-hu-2 { background: linear-gradient(currentColor 0 0) left var(--p,50%) bottom 0/var(--d,10%) 3px no-repeat, linear-gradient(currentColor 0 0) right var(--p,50%) bottom 0/var(--d,10%) 3px no-repeat; transition: .3s, background-position .3s .3s; }
+.ah-hu-2:hover { --d:50%; --p:50.1%; transition: cubic-bezier(0,500,1,500) .3s, background-size .3s .3s; }
+.ah-hu-3 { background: linear-gradient(currentColor 0 0) left var(--p,50%) bottom 0/var(--d,10%) 3px no-repeat, linear-gradient(currentColor 0 0) right var(--p,50%) bottom 0/var(--d,10%) 3px no-repeat; transition: .3s, background-position .3s .3s; }
+.ah-hu-3:hover { --d:100%; --p:100%; transition: .3s, background-size .3s .3s; }
+.ah-hu-4 { background: linear-gradient(currentColor 0 0) var(--p,50%) 100%/var(--d,10%) 3px no-repeat; transition: .3s, background-position 0s; }
+.ah-hu-4:hover { --d:100%; --p:0%; transition: .3s, background-size .3s .3s; }
+.ah-hu-5 { background: linear-gradient(currentColor 0 0) calc(50% + 10px) 100%/20px 3px no-repeat, linear-gradient(90deg, transparent calc(100% - 20px), currentColor 0) 0 100%/var(--d,50%) 3px no-repeat; transition: .3s; }
+.ah-hu-5:hover { --d:0%; background-position: calc(50% + 0px) 100%, 0 100%; transition: .3s cubic-bezier(0,-5,1,-5), background-size .3s .3s; }
+.ah-hu-6 { background: linear-gradient(currentColor 0 0) left var(--p,50%) bottom 0/var(--d,20px) 3px no-repeat, linear-gradient(currentColor 0 0) right var(--p,50%) bottom 0/var(--d,20px) 3px no-repeat; transition: .3s, background-position 0s; }
+.ah-hu-6:hover { --d:100%; --p:100%; transition: .3s, background-size .3s .3s; }
+.ah-hu-7 { background: linear-gradient(currentColor 0 0) -20% 100%/var(--p,10%) 3px no-repeat; transition: .5s .3s cubic-bezier(0,1.25,1,1.8), background-size .3s; }
+.ah-hu-7:hover { background-position: 50% 100%; --p:50%; transition: .5s cubic-bezier(0,1.25,1,1.8), background-size .2s .7s; }
+.ah-hu-8 { background: linear-gradient(currentColor 0 0) bottom/var(--p,10%) 3px no-repeat; transition: 0s; }
+.ah-hu-8:hover { --p:10.1%; transition: .5s cubic-bezier(0,800,1,800); }
+`;
 
 export const ANIMATED_MODES: { value: AnimatedHeadingMode; label: string }[] = [
   { value: "highlight", label: "Wyróżnione słowo" },
@@ -77,6 +113,8 @@ const shapeStroke: Record<AnimatedHeadingShape, number> = {
   "double-strike": 2.5,
   x: 3,
   framed: 3,
+  "hover-line-1": 0, "hover-line-2": 0, "hover-line-3": 0, "hover-line-4": 0,
+  "hover-line-5": 0, "hover-line-6": 0, "hover-line-7": 0, "hover-line-8": 0,
 };
 
 // Rough path lengths (user-units) used to drive stroke-dashoffset animation.
@@ -94,6 +132,8 @@ const shapePathLen: Record<AnimatedHeadingShape, number> = {
   "double-strike": 440,
   x: 440,
   framed: 460,
+  "hover-line-1": 0, "hover-line-2": 0, "hover-line-3": 0, "hover-line-4": 0,
+  "hover-line-5": 0, "hover-line-6": 0, "hover-line-7": 0, "hover-line-8": 0,
 };
 
 function ShapeSvg({
@@ -107,6 +147,7 @@ function ShapeSvg({
   animKey: string | number;
 }) {
   if (shape === "none") return null;
+  if (shape.startsWith("hover-line-")) return null;
 
   // Special case: hand-drawn scribble - two slightly curvy underlines drawn
   // sequentially (second shorter, slightly offset), mimicking a marker.
@@ -367,6 +408,8 @@ export function AnimatedHeadingRender({
   const isUnderlineLike =
     shape === "underline" || shape === "double-underline" || shape === "curly" || shape === "zigzag";
   const needsFrame = shape === "circle" || shape === "framed" || shape === "x";
+  const isHoverLine = shape.startsWith("hover-line-");
+  const hoverClass = isHoverLine ? `ah-hu ah-hu-${shape.slice("hover-line-".length)}` : "";
 
   return (
     <Tag
@@ -379,9 +422,11 @@ export function AnimatedHeadingRender({
         paddingTop: needsFrame ? "0.15em" : undefined,
       }}
     >
+      {isHoverLine ? <style>{HOVER_LINE_CSS}</style> : null}
       {config.textBefore ? <span>{config.textBefore}{config.textBefore.endsWith(" ") ? "" : " "}</span> : null}
       <span
         key={animKey}
+        className={hoverClass}
         style={{
           position: "relative",
           display: "inline-block",
