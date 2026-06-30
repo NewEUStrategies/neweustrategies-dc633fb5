@@ -1,11 +1,12 @@
 name: Lighthouse CI
 
 on:
-  # DORMANT — see ci.yml. This org has no GitHub Actions runners / budget, so
-  # automatic runs only ever failed instantly. Manual-trigger only, so the repo
-  # isn't permanently red and no Actions minutes are spent. Lighthouse is
-  # advisory; run it locally against the dev/preview server if needed.
-  # Re-enable in CI later by restoring:  push: { branches: [main] } + pull_request:
+  # Active on PRs and pushes to main (see ci.yml). Lighthouse runs in one of two
+  # honest modes (deployed vs dev-server) depending on whether LHCI_URL is set;
+  # the concurrency group cancels superseded runs to keep Actions minutes bounded.
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 concurrency:

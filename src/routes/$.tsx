@@ -245,7 +245,12 @@ function PublicPage() {
   const { html: processedHtml } = processManualToc(footnoteHtml, lang);
   // Single source of truth for the rendering engine (builder | blocks | html).
   const engine = resolveContentEngine({ editor: it.editor, builderDoc: doc, blocksDoc });
-  const notes = engine === "builder" ? builderNotes : htmlNotes;
+  // Blocks render their own footnotes section + inline [n] tooltips inside
+  // BlocksRenderer, so the page-level FootnotesList / FootnoteTooltips below must
+  // stay empty for the blocks engine. Otherwise a legacy content_pl/en field that
+  // still contains [fn] markers would emit a SECOND, mismatched footnotes list
+  // with duplicate #fn-/#footnotes-heading ids.
+  const notes = engine === "builder" ? builderNotes : engine === "html" ? htmlNotes : [];
   const articleRef = useRef<HTMLDivElement>(null);
 
   // Custom meta definitions (publicly readable, cached).

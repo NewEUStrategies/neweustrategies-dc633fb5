@@ -10,7 +10,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { aggregateVitals, type VitalSample, type VitalsReport } from "./aggregate";
+import {
+  aggregateVitals,
+  trendsFromDailyP75,
+  type DailyP75Row,
+  type VitalSample,
+  type VitalsReport,
+} from "./aggregate";
 
 // Bound the in-memory aggregation. The percentile math runs over the most recent
 // rows in the window; if a busy site exceeds this within the window the report is
@@ -76,7 +82,26 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       const samples = (rows ?? []) as unknown as VitalSample[];
       const report = aggregateVitals(samples, { windowDays: data.days });
       const windowTotal = windowCount ?? samples.length;
-      return { ...report, windowTotal, capped: windowTotal > SAMPLE_CAP };
+
+      // The in-memory trend above is computed over only the capped newest rows,
+      // so on a busy site it truncates to the most recent days. Recompute the
+      // per-day p75 trend in Postgres over the FULL window via an RPC. If the
+      // function isn't present yet (older DB), fall back to the in-memory trend
+      // - same degrade-gracefully contract as the rest of this handler.
+      let trends = report.trends;
+      try {
+        const { data: trendRows, error: trendErr } = await supabaseAdmin.rpc(
+          "web_vitals_daily_p75" as never,
+          { p_since: since } as never,
+        );
+        if (!trendErr && Array.isArray(trendRows)) {
+          trends = trendsFromDailyP75(trendRows as unknown as DailyP75Row[]);
+        }
+      } catch {
+        // Keep the in-memory trend.
+      }
+
+      return { ...report, trends, windowTotal, capped: windowTotal > SAMPLE_CAP };
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn("[vitals] summary read failed; returning empty report:", e instanceof Error ? e.message : e);

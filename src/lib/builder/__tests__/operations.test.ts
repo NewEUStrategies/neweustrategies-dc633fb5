@@ -194,7 +194,8 @@ describe("widget mutations", () => {
     expect(d.sections[0].children).toHaveLength(2);
     const second = d.sections[0].children[1] as ColumnNode;
     expect(second.kind).toBe("column");
-    expect(second.span).toBe(12);
+    // newColumn() builds a responsive span object, not a bare number.
+    expect(second.span).toEqual({ desktop: 12 });
     expect(ids(second)).toEqual(["new"]);
   });
 });

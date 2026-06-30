@@ -99,10 +99,12 @@ export function percentile(sortedAsc: number[], p: number): number {
 }
 
 /** Round a metric value for display: CLS to 3 decimals, time metrics to whole ms. */
-function roundFor(metric: VitalName, v: number): number {
+export function roundVitalValue(metric: VitalName, v: number): number {
   if (metric === "CLS") return Math.round(v * 1000) / 1000;
   return Math.round(v);
 }
+// Internal alias kept so the existing call sites read unchanged.
+const roundFor = roundVitalValue;
 
 const RATING_KEYS = new Set<VitalRating>(["good", "needs-improvement", "poor"]);
 
@@ -119,6 +121,42 @@ function dayKey(iso: string | null | undefined): string | null {
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return null;
   return new Date(t).toISOString().slice(0, 10);
+}
+
+/** One row of the DB-side per-day p75 aggregate (see web_vitals_daily_p75). */
+export interface DailyP75Row {
+  /** UTC calendar day; only the leading YYYY-MM-DD is used. */
+  day: string;
+  metric: string;
+  p75: number;
+}
+
+/**
+ * Build the chronological per-day p75 trend from DB-side daily aggregates (one
+ * row per day+metric, computed over the FULL window in Postgres). This is the
+ * accurate counterpart to the in-memory trend in `aggregateVitals`, which is
+ * computed over only the capped newest sample set and therefore truncates to the
+ * most recent days on a busy site. Unknown metrics and non-finite values are
+ * ignored; values are rounded for display exactly as the in-memory path does.
+ */
+export function trendsFromDailyP75(rows: DailyP75Row[]): VitalTrendPoint[] {
+  const byDay = new Map<string, Partial<Record<VitalName, number>>>();
+  for (const r of rows) {
+    if (!isVitalName(r.metric)) continue;
+    const v = Number(r.p75);
+    if (!Number.isFinite(v)) continue;
+    const day = typeof r.day === "string" ? r.day.slice(0, 10) : "";
+    if (!day) continue;
+    let point = byDay.get(day);
+    if (!point) {
+      point = {};
+      byDay.set(day, point);
+    }
+    point[r.metric] = roundVitalValue(r.metric, v);
+  }
+  return Array.from(byDay.keys())
+    .sort()
+    .map((day) => ({ day, p75: byDay.get(day)! }));
 }
 
 /**

@@ -17,7 +17,8 @@ import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.wof
 import { fontPreloadLinks } from "../lib/seo/fontPreload";
 import { buildRootHead } from "../lib/seo/meta";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import i18n, { syncI18nToRequest } from "../lib/i18n";
+import { syncI18nToRequest } from "../lib/i18n";
+import { currentLang } from "../lib/i18n/localeRuntime";
 import "../lib/i18n-profile";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { AuthProvider } from "../hooks/useAuth";
@@ -132,9 +133,12 @@ function RouteLoadingSkeleton() {
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => {
     // One language source for the whole document head, matching the <html lang>
-    // RootShell emits from the same i18n singleton (synced to the request in the
-    // loader below), so the branded meta and the font preload never disagree.
-    const lang = i18n.language === "en" ? "en" : "pl";
+    // RootShell emits. Both read the request-scoped currentLang() (NOT the
+    // module-global i18next singleton, which is shared across concurrent SSR
+    // requests and would race), so the branded meta, the font preload and the
+    // <html lang> are always derived from this request's URL and never disagree
+    // - even under concurrent multi-language SSR sharing one worker.
+    const lang = currentLang();
     return {
       // Branded New European Strategies defaults (PL/EN). Any route without its
       // own head() - error pages, parts of the admin, fallbacks - and the first
@@ -178,7 +182,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 const themeInitScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark';document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`;
 
 function RootShell({ children }: { children: ReactNode }) {
-  const lang = i18n.language === "en" ? "en" : "pl";
+  const lang = currentLang();
   return (
     <html lang={lang} suppressHydrationWarning>
       <head>

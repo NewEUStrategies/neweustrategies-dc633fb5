@@ -2,7 +2,7 @@
 
 import type { Block, BlocksDoc, Json } from "@/lib/blocks/types";
 import { safeParseBlocks } from "@/lib/blocks/schema";
-import DOMPurify from "isomorphic-dompurify";
+import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
 import { LiveBlogBlock } from "./LiveBlogBlock";
 import { GalleryBlock } from "./GalleryBlock";
@@ -84,7 +84,7 @@ function replaceFootnotes(html: string, fn: FootnoteCollector): string {
 
 /** Zamienia treść przypisu z plain/markdown na czysty tekst dla listy końcowej. */
 function renderFootnoteHtml(text: string): string {
-  return DOMPurify.sanitize(text, { USE_PROFILES: { html: true } });
+  return sanitizeHtml(text);
 }
 
 export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
@@ -152,8 +152,14 @@ function alignClass(b: Block): string {
   return "";
 }
 
+// Single sanitizer for all block HTML sinks. Delegates to the shared
+// sanitizeHtml (lib/sanitize), which - unlike a bare DOMPurify {html:true}
+// profile - also forbids iframe/form/object/embed/style and inline event
+// handlers. This keeps the blocks engine's HTML policy identical to the builder
+// engine's, so a CMS author cannot smuggle a phishing <form> or clickjacking
+// <iframe> into a paragraph/html/spoiler block.
 function sanitize(html: string): string {
-  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+  return sanitizeHtml(html);
 }
 
 function readBlocksArray(raw: Json | undefined): Block[] {
@@ -200,10 +206,12 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       return <Tag id={id} className={cls}>{text}</Tag>;
     }
     case "image": {
-      const url = String(block.data.url ?? "");
+      // Sanitize author-supplied URLs: image src restricted to http(s)/data:image/
+      // relative, link href restricted to safe schemes (drops javascript: etc.).
+      const url = safeImageUrl(String(block.data.url ?? ""));
       const alt = String(block.data.alt ?? "");
       const cap = String(block.data.caption ?? "");
-      const href = String(block.data.href ?? "");
+      const href = safeUrl(String(block.data.href ?? ""), "");
       if (!url) return null;
       const img = <OptimizedImage src={url} alt={alt} className="rounded-lg" responsive sizes="(max-width: 768px) 100vw, 800px" />;
       const wrapped = href ? <a href={href} target="_blank" rel="noopener noreferrer">{img}</a> : img;
@@ -247,7 +255,9 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const url = String(block.data.url ?? "");
       const parsed = parseEmbedUrl(url);
       if (!parsed || !isIframeEmbed(parsed)) {
-        return url ? <p className={cls}><a href={url} target="_blank" rel="noopener noreferrer">{url}</a></p> : null;
+        // Non-embeddable: render as a plain link, but only for a safe-scheme URL.
+        const link = safeUrl(url, "");
+        return link ? <p className={cls}><a href={link} target="_blank" rel="noopener noreferrer">{link}</a></p> : null;
       }
       return (
         <div className={`relative aspect-video w-full ${cls}`}>
@@ -263,8 +273,8 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       );
     }
     case "video": {
-      const url = String(block.data.url ?? "");
-      const poster = String(block.data.poster ?? "");
+      const url = safeUrl(String(block.data.url ?? ""), "");
+      const poster = safeImageUrl(String(block.data.poster ?? ""));
       if (!url) return null;
       return <video src={url} poster={poster || undefined} controls preload="metadata" className={`w-full rounded-lg ${cls}`} />;
     }
@@ -315,7 +325,7 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
     }
     case "button": {
       const label = String(block.data.label ?? "");
-      const href = String(block.data.href ?? "#");
+      const href = safeUrl(String(block.data.href ?? "#"));
       const variant = String(block.data.variant ?? "default");
       const stl =
         variant === "outline" ? "border border-primary text-primary hover:bg-primary/10"
@@ -528,7 +538,7 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       );
     }
     case "cover": {
-      const url = String(block.data.url ?? "");
+      const url = safeImageUrl(String(block.data.url ?? ""));
       const title = String(block.data.title ?? "");
       const overlay = Math.min(100, Math.max(0, Number(block.data.overlay ?? 50)));
       const minHeight = Math.min(800, Math.max(120, Number(block.data.minHeight ?? 360)));
@@ -536,7 +546,9 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       return (
         <div
           className={`relative w-full rounded-lg overflow-hidden flex items-center justify-center not-prose my-4 ${cls}`}
-          style={{ minHeight, backgroundImage: `url(${url})`, backgroundSize: "cover", backgroundPosition: "center" }}
+          // url is scheme-restricted by safeImageUrl; quote it so the value stays a
+          // single CSS url() token even if it contains parentheses.
+          style={{ minHeight, backgroundImage: `url("${url}")`, backgroundSize: "cover", backgroundPosition: "center" }}
         >
           <div className="absolute inset-0 bg-black" style={{ opacity: overlay / 100 }} />
           {title && <h2 className="relative z-10 text-white text-3xl md:text-5xl font-semibold text-center px-6">{title}</h2>}
@@ -544,7 +556,7 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       );
     }
     case "file": {
-      const url = String(block.data.url ?? "");
+      const url = safeUrl(String(block.data.url ?? ""), "");
       const label = String(block.data.label ?? "") || (lang === "pl" ? "Pobierz plik" : "Download file");
       const showButton = block.data.showButton !== false;
       if (!url) return null;
@@ -559,7 +571,7 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       );
     }
     case "media-text": {
-      const url = String(block.data.url ?? "");
+      const url = safeImageUrl(String(block.data.url ?? ""));
       const text = String(block.data.text ?? "");
       const isRight = String(block.data.mediaPosition ?? "left") === "right";
       return (
@@ -657,7 +669,7 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
         <div className={`not-prose flex flex-wrap gap-2 ${alignCls} ${cls}`}>
           {raw.map((it, i) => {
             const label = String(it.label ?? "");
-            const href = String(it.href ?? "#");
+            const href = safeUrl(String(it.href ?? "#"));
             const variant = String(it.variant ?? "default");
             const stl =
               variant === "outline" ? "border border-primary text-primary hover:bg-primary/10"
@@ -688,7 +700,7 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
         <div className={`not-prose flex flex-wrap gap-3 ${alignCls} ${cls}`}>
           {raw.map((it, i) => {
             const Icon = ICON_MAP[String(it.platform ?? "").toLowerCase()] ?? Rss;
-            const url = String(it.url ?? "");
+            const url = safeUrl(String(it.url ?? ""), "");
             if (!url) return null;
             return (
               <a

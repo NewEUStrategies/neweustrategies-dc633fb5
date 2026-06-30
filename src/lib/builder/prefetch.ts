@@ -8,6 +8,7 @@ import type {
 } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
 import { postListQueryOptions } from "@/lib/builder/postListQuery";
+import { newsTickerQueryOptions } from "@/lib/builder/newsTickerQuery";
 import { postRefQueryOptions } from "@/lib/builder/contentRefs";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderVariants";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
@@ -68,6 +69,7 @@ function contentItems(c: WidgetContent): Record<string, unknown>[] {
  */
 export type BuilderSectionQuery =
   | ReturnType<typeof postListQueryOptions>
+  | ReturnType<typeof newsTickerQueryOptions>
   | ReturnType<typeof postRefQueryOptions>
   | ReturnType<typeof sliderFallbackImagesQueryOptions>;
 
@@ -97,6 +99,9 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   const out: BuilderSectionQuery[] = [];
   if (widget.type === "post-list" || widget.type === "carousel") {
     out.push(postListQueryOptions(widget.content, lang));
+  }
+  if (widget.type === "news-ticker") {
+    out.push(newsTickerQueryOptions(widget.content, lang));
   }
   if (widget.type === "slider") {
     const items = contentItems(widget.content);
@@ -176,6 +181,10 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
   const out: WidgetCacheTarget[] = [];
   if (widget.type === "post-list" || widget.type === "carousel") {
     const opts = postListQueryOptions(widget.content, lang);
+    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
+  }
+  if (widget.type === "news-ticker") {
+    const opts = newsTickerQueryOptions(widget.content, lang);
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
   if (widget.type === "slider") {
