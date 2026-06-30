@@ -271,7 +271,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
                     : <span className="text-muted-foreground text-[11px]">—</span>}
                 </td>
                 <td className="p-2 hidden md:table-cell text-[11px] text-muted-foreground">
-                  {new Date(l.last_activity_at).toLocaleString(lang)}
+                  {new Date(l.last_activity_at).toLocaleString()}
                 </td>
               </tr>
             ))}
