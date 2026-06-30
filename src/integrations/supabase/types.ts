@@ -3435,6 +3435,15 @@ export type Database = {
         }[]
       }
       unaccent: { Args: { "": string }; Returns: string }
+      web_vitals_daily_p75: {
+        Args: { p_since: string }
+        Returns: {
+          day: string
+          metric: string
+          p75: number
+          samples: number
+        }[]
+      }
     }
     Enums: {
       access_entity_type: "post" | "page" | "media"
