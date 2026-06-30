@@ -320,10 +320,11 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             {requireConsent && (
               <label className="flex items-start gap-2 text-xs opacity-80">
                 <input type="checkbox" name="consent" className="mt-0.5" />
-                <span>{t.consent}</span>
+                <span>{renderConsentText(consentTextRaw)}</span>
                 {errors.consent && <span className="text-destructive ml-1">*</span>}
               </label>
             )}
+
             {showNewsletter && (
               <label className="flex items-start gap-2 text-xs opacity-80">
                 <input type="checkbox" name="newsletter_optin" className="mt-0.5" />
