@@ -112,6 +112,68 @@ function ShapeSvg({
 }) {
   if (shape === "none") return null;
 
+  // Special case: marker / brush stroke - thick tapered swoosh drawn left to
+  // right, followed by a thinner return sweep, mimicking a highlighter pen.
+  if (shape === "brush") {
+    const iter = loop ? "infinite" : "1";
+    const halfDur = Math.max(220, Math.round(durationMs * 0.6));
+    const totalDur = halfDur * 2;
+    const len1 = 230;
+    const len2 = 170;
+    const animA = `aHead-brushA-${animKey}`;
+    const animB = `aHead-brushB-${animKey}`;
+    const splitPct = Math.round((halfDur / totalDur) * 100);
+    const cssBrush = `
+      @keyframes ${animA} {
+        0%   { stroke-dashoffset: ${len1}; }
+        ${splitPct}% { stroke-dashoffset: 0; }
+        100% { stroke-dashoffset: 0; }
+      }
+      @keyframes ${animB} {
+        0%   { stroke-dashoffset: ${len2}; }
+        ${splitPct}% { stroke-dashoffset: ${len2}; }
+        100% { stroke-dashoffset: 0; }
+      }
+      .ahead-brushA-${animKey} {
+        stroke-dasharray: ${len1};
+        stroke-dashoffset: ${len1};
+        animation: ${animA} ${totalDur}ms ${delayMs}ms ${iter} forwards cubic-bezier(.45,.05,.25,1);
+      }
+      .ahead-brushB-${animKey} {
+        stroke-dasharray: ${len2};
+        stroke-dashoffset: ${len2};
+        animation: ${animB} ${totalDur}ms ${delayMs}ms ${iter} forwards cubic-bezier(.45,.05,.25,1);
+      }
+    `;
+    const positionBrush: CSSProperties = {
+      position: "absolute", left: 0, right: 0, top: "100%",
+      width: "100%", height: "0.75em", marginTop: "-0.18em",
+      pointerEvents: "none", zIndex: 0, overflow: "visible",
+    };
+    return (
+      <>
+        <style>{cssBrush}</style>
+        <svg viewBox="0 0 200 24" preserveAspectRatio="none" style={positionBrush}>
+          <g fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
+            <path
+              className={`ahead-brushA-${animKey}`}
+              d="M4 9 Q 60 3 110 7 T 196 8"
+              strokeWidth={9}
+              opacity={0.95}
+            />
+            <path
+              className={`ahead-brushB-${animKey}`}
+              d="M14 18 Q 70 14 130 17 T 188 17"
+              strokeWidth={4.5}
+              opacity={0.85}
+            />
+          </g>
+        </svg>
+      </>
+    );
+  }
+
+
   // Special case: hand-drawn scribble - two slightly curvy underlines drawn
   // sequentially (second shorter, slightly offset), mimicking a marker.
   if (shape === "scribble") {
