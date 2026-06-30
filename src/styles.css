@@ -1193,12 +1193,16 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 .cf-shell .cf-inner { position: relative; z-index: 2; padding: var(--cf-padding, 32px); }
 .cf-shell .cf-input {
   display: block; width: 100%;
-  border: 1px solid var(--cf-border, hsl(var(--border)));
-  background: color-mix(in oklab, hsl(var(--background)) 92%, transparent);
-  border-radius: 6px; padding: 8px 10px;
+  border: 1.5px solid var(--cf-border, hsl(var(--border)));
+  background: color-mix(in oklab, hsl(var(--background)) 70%, transparent);
+  border-radius: 8px; padding: 10px 12px;
   font-size: 14px; line-height: 1.4; color: inherit; outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
-.cf-shell .cf-input:focus { border-color: hsl(var(--primary)); box-shadow: 0 0 0 2px hsl(var(--primary)/0.2); }
+.cf-shell .cf-input::placeholder { color: color-mix(in oklab, currentColor 45%, transparent); }
+.cf-shell .cf-input:hover { border-color: color-mix(in oklab, hsl(var(--primary)) 50%, var(--cf-border, hsl(var(--border)))); }
+.cf-shell .cf-input:focus { border-color: hsl(var(--primary)); box-shadow: 0 0 0 3px hsl(var(--primary)/0.18); background: hsl(var(--background)); }
+
 
 /* Image background */
 .cf-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; border-radius: inherit; }

@@ -6,18 +6,21 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 const ContactInput = z.object({
-  name: z.string().min(1).max(200),
-  email: z.string().email().max(320),
-  phone: z.string().max(40).optional(),
-  company: z.string().max(200).optional(),
-  subject: z.string().max(300).optional(),
-  message: z.string().min(1).max(8000),
+  name: z.string().trim().min(1).max(200),
+  firstName: z.string().trim().max(100).optional(),
+  lastName: z.string().trim().max(100).optional(),
+  email: z.string().trim().email().max(320),
+  phone: z.string().trim().max(40).optional(),
+  company: z.string().trim().max(200).optional(),
+  subject: z.string().trim().max(300).optional(),
+  message: z.string().trim().min(1).max(8000),
   consent: z.boolean(),
   newsletterOptIn: z.boolean().optional(),
   lang: z.enum(["pl", "en"]),
-  recipient: z.string().email().max(320).optional(),
-  source: z.string().max(500).optional(),
+  recipient: z.string().trim().email().max(320).optional(),
+  source: z.string().trim().max(500).optional(),
 });
+
 
 type ContactPayload = z.infer<typeof ContactInput>;
 

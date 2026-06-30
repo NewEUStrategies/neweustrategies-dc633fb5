@@ -29,7 +29,8 @@ function num(data: Cfg, key: string, fallback: number): number {
 
 const T = {
   pl: {
-    name: "Imię i nazwisko", email: "E-mail", phone: "Telefon", company: "Firma",
+    firstName: "Imię", lastName: "Nazwisko",
+    email: "E-mail", phone: "Telefon", company: "Firma",
     subject: "Temat", message: "Wiadomość",
     consent: "Wyrażam zgodę na przetwarzanie danych w celu odpowiedzi na zapytanie.",
     newsletter: "Zapisz mnie do newslettera",
@@ -37,7 +38,8 @@ const T = {
     sending: "Wysyłanie...", error: "Wystąpił błąd. Spróbuj ponownie.",
   },
   en: {
-    name: "Full name", email: "Email", phone: "Phone", company: "Company",
+    firstName: "First name", lastName: "Last name",
+    email: "Email", phone: "Phone", company: "Company",
     subject: "Subject", message: "Message",
     consent: "I agree to processing of my data to receive a reply.",
     newsletter: "Subscribe me to the newsletter",
@@ -45,6 +47,49 @@ const T = {
     sending: "Sending...", error: "Something went wrong. Please try again.",
   },
 } as const;
+
+/**
+ * Render consent text with inline markdown links: [label](https://url).
+ * Only http(s), mailto: and same-site "/..." URLs are allowed; everything
+ * else is stripped down to plain text. Returns a JSX fragment.
+ */
+function renderConsentText(text: string): ReactNode {
+  if (!text) return null;
+  const re = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const out: ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let i = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const label = m[1];
+    const raw = m[2].trim();
+    const safe =
+      /^https?:\/\//i.test(raw) || /^mailto:/i.test(raw) || raw.startsWith("/")
+        ? raw
+        : "";
+    if (safe) {
+      const external = /^https?:\/\//i.test(safe);
+      out.push(
+        <a
+          key={`l-${i++}`}
+          href={safe}
+          className="underline underline-offset-2 hover:opacity-80"
+          target={external ? "_blank" : undefined}
+          rel={external ? "noopener noreferrer" : undefined}
+        >
+          {label}
+        </a>,
+      );
+    } else {
+      out.push(label);
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return <>{out}</>;
+}
+
 
 export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const t = T[lang];
@@ -61,7 +106,10 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const iconUrl = s(data, "iconUrl");
   const newsletterLabel = s(data, `newsletterLabel_${lang}`, t.newsletter);
 
-  const showName = bool(data, "showName", true);
+  // Backward compat: legacy `showName` toggled both name parts together.
+  const legacyShowName = data.showName === undefined ? null : bool(data, "showName", true);
+  const showFirstName = bool(data, "showFirstName", legacyShowName ?? true);
+  const showLastName = bool(data, "showLastName", legacyShowName ?? true);
   const showEmail = bool(data, "showEmail", true);
   const showPhone = bool(data, "showPhone");
   const showCompany = bool(data, "showCompany");
@@ -69,6 +117,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const showMessage = bool(data, "showMessage", true);
   const requireConsent = bool(data, "requireConsent", true);
   const showNewsletter = bool(data, "showNewsletterOptIn");
+  const consentTextRaw = s(data, `consentText_${lang}`, t.consent);
+
 
   const columns = Math.max(1, Math.min(3, num(data, "columns", 2)));
   const buttonAlign = s(data, "buttonAlign", "left") as "left" | "center" | "right" | "full";
@@ -104,8 +154,12 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     if ((fd.get("website") as string)?.length) return; // honeypot
+    const firstName = String(fd.get("firstName") ?? "").trim();
+    const lastName = String(fd.get("lastName") ?? "").trim();
     const payload = {
-      name: String(fd.get("name") ?? "").trim(),
+      name: [firstName, lastName].filter(Boolean).join(" "),
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
       email: String(fd.get("email") ?? "").trim(),
       phone: String(fd.get("phone") ?? "").trim() || undefined,
       company: String(fd.get("company") ?? "").trim() || undefined,
@@ -118,11 +172,13 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       source: typeof window !== "undefined" ? window.location.pathname : undefined,
     };
     const errs: Record<string, string> = {};
-    if (showName && !payload.name) errs.name = t.required;
+    if (showFirstName && !firstName) errs.firstName = t.required;
+    if (showLastName && !lastName) errs.lastName = t.required;
     if (showEmail && !payload.email) errs.email = t.required;
     else if (showEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) errs.email = t.invalidEmail;
     if (showMessage && !payload.message) errs.message = t.required;
     if (requireConsent && !payload.consent) errs.consent = t.required;
+
     setErrors(errs);
     if (Object.keys(errs).length) return;
     setStatus("sending");
@@ -214,16 +270,22 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           className="absolute h-0 w-0 -left-[9999px] opacity-0" aria-hidden="true" />
 
         <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
-          {showName && (
-            <Field label={t.name} error={errors.name} className={widthCls(showEmail ? 1 : 2)}>
-              <input name="name" required className="cf-input" autoComplete="name" />
+          {showFirstName && (
+            <Field label={t.firstName} error={errors.firstName} className={widthCls(1)}>
+              <input name="firstName" required className="cf-input" autoComplete="given-name" placeholder={lang === "pl" ? "Jan" : "John"} />
+            </Field>
+          )}
+          {showLastName && (
+            <Field label={t.lastName} error={errors.lastName} className={widthCls(1)}>
+              <input name="lastName" required className="cf-input" autoComplete="family-name" placeholder={lang === "pl" ? "Kowalski" : "Doe"} />
             </Field>
           )}
           {showEmail && (
-            <Field label={t.email} error={errors.email} className={widthCls(showName ? 1 : 2)}>
-              <input name="email" type="email" required className="cf-input" autoComplete="email" />
+            <Field label={t.email} error={errors.email} className={widthCls(showFirstName || showLastName ? 1 : 2)}>
+              <input name="email" type="email" required className="cf-input" autoComplete="email" placeholder="name@example.com" />
             </Field>
           )}
+
           {showPhone && (
             <Field label={t.phone} className={widthCls(1)}>
               <input name="phone" type="tel" className="cf-input" autoComplete="tel" />
@@ -258,10 +320,11 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             {requireConsent && (
               <label className="flex items-start gap-2 text-xs opacity-80">
                 <input type="checkbox" name="consent" className="mt-0.5" />
-                <span>{t.consent}</span>
+                <span>{renderConsentText(consentTextRaw)}</span>
                 {errors.consent && <span className="text-destructive ml-1">*</span>}
               </label>
             )}
+
             {showNewsletter && (
               <label className="flex items-start gap-2 text-xs opacity-80">
                 <input type="checkbox" name="newsletter_optin" className="mt-0.5" />
