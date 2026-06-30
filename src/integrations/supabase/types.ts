@@ -765,6 +765,7 @@ export type Database = {
       }
       crm_integrations: {
         Row: {
+          consent_mapping: Json
           created_at: string
           forward_stages: Database["public"]["Enums"]["crm_stage"][]
           id: string
@@ -782,6 +783,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          consent_mapping?: Json
           created_at?: string
           forward_stages?: Database["public"]["Enums"]["crm_stage"][]
           id?: string
@@ -799,6 +801,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          consent_mapping?: Json
           created_at?: string
           forward_stages?: Database["public"]["Enums"]["crm_stage"][]
           id?: string
@@ -877,6 +880,7 @@ export type Database = {
           newsletter_status: string | null
           owner_id: string | null
           phone: string | null
+          phone_norm: string | null
           source_count: number
           stage: Database["public"]["Enums"]["crm_stage"]
           tags: string[]
@@ -897,6 +901,7 @@ export type Database = {
           newsletter_status?: string | null
           owner_id?: string | null
           phone?: string | null
+          phone_norm?: string | null
           source_count?: number
           stage?: Database["public"]["Enums"]["crm_stage"]
           tags?: string[]
@@ -917,6 +922,7 @@ export type Database = {
           newsletter_status?: string | null
           owner_id?: string | null
           phone?: string | null
+          phone_norm?: string | null
           source_count?: number
           stage?: Database["public"]["Enums"]["crm_stage"]
           tags?: string[]
@@ -3278,6 +3284,7 @@ export type Database = {
       }
     }
     Functions: {
+      crm_normalize_phone: { Args: { _phone: string }; Returns: string }
       crm_upsert_lead: {
         Args: {
           _company: string

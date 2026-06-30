@@ -157,6 +157,14 @@ export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
 
 // ============ Integrations: Merydian ============
 
+const ConsentMappingItem = z.object({
+  source_key: z.string().trim().min(1).max(120),
+  source_label: z.string().trim().max(200).optional().default(""),
+  merydian_field: z.string().trim().max(120).optional().default(""),
+  merydian_category: z.string().trim().max(120).optional().default(""),
+  required: z.boolean().optional().default(false),
+});
+
 const IntegrationsInput = z.object({
   merydian_enabled: z.boolean(),
   merydian_mode: z.enum(["webhook","api","both"]).default("webhook"),
@@ -166,7 +174,9 @@ const IntegrationsInput = z.object({
   merydian_api_key: z.string().max(500).nullable().optional(),
   merydian_workspace_id: z.string().max(120).nullable().optional(),
   forward_stages: z.array(STAGE_ENUM).default(["new"]),
+  consent_mapping: z.array(ConsentMappingItem).max(50).default([]),
 });
+
 
 export const getCrmIntegrations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -227,6 +237,20 @@ export async function dispatchMerydian(
   const stages = (cfg.forward_stages as Stage[] | null) ?? ["new"];
   if (!stages.includes(lead.stage)) return { ok: true, via: "skipped_stage" };
 
+  const mapping = (cfg.consent_mapping as Array<{ source_key: string; source_label?: string; merydian_field?: string; merydian_category?: string; required?: boolean }> | null) ?? [];
+  const consents = mapping.map((m) => ({
+    source_key: m.source_key,
+    source_label: m.source_label ?? "",
+    merydian_field: m.merydian_field ?? "",
+    merydian_category: m.merydian_category ?? "",
+    required: !!m.required,
+    granted: m.source_key === "newsletter_opt_in"
+      ? lead.newsletter_status != null
+      : m.source_key === "marketing_consent"
+        ? lead.marketing_consent
+        : false,
+  }));
+
   const payload = {
     id: lead.id, email: lead.email,
     first_name: lead.first_name, last_name: lead.last_name,
@@ -235,9 +259,11 @@ export async function dispatchMerydian(
     marketing_consent: lead.marketing_consent,
     newsletter_status: lead.newsletter_status,
     workspace_id: cfg.merydian_workspace_id ?? null,
+    consents,
     created_at: lead.created_at, last_activity_at: lead.last_activity_at,
   };
   const body = JSON.stringify(payload);
+
   const out: { webhook?: { ok: boolean; status?: number; error?: string }; api?: { ok: boolean; status?: number; error?: string } } = {};
 
   if (mode === "webhook" || mode === "both") {
