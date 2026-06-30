@@ -93,6 +93,7 @@ const PL = {
   } as Record<Stage,string>,
   detail: {
     title: "Karta leada", overview: "Profil", consents: "Zgody", history: "Historia formularzy", notes: "Notatki", integ: "Integracje",
+    timeline: "Oś czasu",
     firstName: "Imię", lastName: "Nazwisko", phone: "Telefon", company: "Firma", tags: "Tagi (oddziel przecinkiem)",
     save: "Zapisz", stage: "Etap pipeline",
     nlStatus: "Status newslettera", marketing: "Zgoda marketingowa", lastActivity: "Ostatnia aktywność", sources: "Liczba interakcji",
@@ -102,6 +103,9 @@ const PL = {
     noteAdd: "Dodaj notatkę", notePlaceholder: "Notatka widoczna tylko dla zespołu…",
     noteSave: "Dodaj", noteEmpty: "Brak notatek.", noteDelete: "Usuń",
     push: "Wyślij do Merydian",
+    tlEmpty: "Brak zdarzeń na osi czasu.",
+    tlExportCsv: "Eksport CSV", tlExportPdf: "Eksport PDF",
+    tlTypes: { submit: "Zgłoszenie", consent: "Zgoda", note: "Notatka", stage_change: "Zmiana etapu", webhook: "Webhook", newsletter: "Newsletter" } as Record<string, string>,
   },
   integ: {
     title: "Integracja Merydian", enabled: "Włącz integrację",
