@@ -34,7 +34,7 @@ const tileFrame = (a: ImageAspect) => `relative block ${ASPECT_CLASS[a]} w-full 
 const overlayFrame = (a: ImageAspect) => `relative block ${ASPECT_CLASS[a]} w-full shrink-0 overflow-hidden bg-muted`;
 const listFrame = (a: ImageAspect) => `relative block ${ASPECT_CLASS[a]} w-[112px] sm:w-[128px] shrink-0 overflow-hidden rounded-sm bg-muted`;
 
-type Variant = "card" | "minimal" | "overlay" | "list" | "numbered" | "ranked";
+type Variant = "card" | "minimal" | "overlay" | "list" | "numbered" | "ranked" | "classic" | "flex-grid" | "boxed-grid" | "boxed-list";
 
 export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; lang: Lang; carousel?: boolean }) {
   const { t } = useTranslation();
@@ -381,10 +381,66 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
       </div>
     );
   }
+  if (variant === "classic") {
+    // Single-column lead layout - big cover, headline + excerpt below. Stacks N items.
+    return (
+      <div className="w-full flex flex-col gap-8">
+        {rows.map((p) => (
+          <AppLink key={p.id} href={`/post/${p.slug}`} className="block group">
+            {p.cover_image_url && (
+              <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-md mb-4`} sizes="(max-width: 1024px) 100vw, 900px" foregroundClassName={COVER_IMG_CLASS} />
+            )}
+            <h3 className="cms-post-title leading-tight line-clamp-3" style={tStyle}>{title(p)}</h3>
+            {excerpt(p) && <p className="cms-post-excerpt mt-2 line-clamp-3" style={eStyle}>{excerpt(p)}</p>}
+          </AppLink>
+        ))}
+      </div>
+    );
+  }
 
+  if (variant === "flex-grid" && rows.length > 0) {
+    // 1 large lead + remaining as a side column of compact list rows.
+    const [lead, ...rest] = rows;
+    return (
+      <div className="w-full grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2">
+        <AppLink href={`/post/${lead.slug}`} className="block group">
+          {lead.cover_image_url && (
+            <WidgetMediaImage src={lead.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-md mb-3`} sizes="(max-width: 768px) 100vw, 50vw" foregroundClassName={COVER_IMG_CLASS} />
+          )}
+          <h3 className="cms-post-title leading-tight line-clamp-3" style={tStyle}>{title(lead)}</h3>
+          {excerpt(lead) && <p className="cms-post-excerpt mt-1.5 line-clamp-2" style={eStyle}>{excerpt(lead)}</p>}
+        </AppLink>
+        <div className="flex flex-col divide-y divide-border">
+          {rest.map((p) => (
+            <AppLink key={p.id} href={`/post/${p.slug}`} className={`grid ${p.cover_image_url ? "grid-cols-[96px_minmax(0,1fr)]" : "grid-cols-1"} items-start gap-3 py-3 first:pt-0 group`}>
+              {p.cover_image_url && (
+                <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={listFrame(aspect)} sizes="96px" foregroundClassName={COVER_IMG_CLASS} />
+              )}
+              <h4 className="cms-post-title leading-snug line-clamp-2" style={tStyle}>{title(p)}</h4>
+            </AppLink>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-
-
+  if (variant === "boxed-list") {
+    return (
+      <div className={`w-full grid gap-3 ${mobileHScroll ? "cms-mobile-hscroll" : ""}`} style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}>
+        {rows.map((p) => (
+          <AppLink key={p.id} href={`/post/${p.slug}`} className={`grid ${p.cover_image_url ? "grid-cols-[112px_minmax(0,1fr)]" : "grid-cols-1"} items-start gap-3 p-3 rounded-md bg-card border border-border hover:border-brand transition group`}>
+            {p.cover_image_url && (
+              <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={listFrame(aspect)} sizes="112px" foregroundClassName={COVER_IMG_CLASS} />
+            )}
+            <div className="min-w-0">
+              <h4 className="cms-post-title leading-snug line-clamp-2" style={tStyle}>{title(p)}</h4>
+              {excerpt(p) && <p className="cms-post-excerpt mt-1 line-clamp-2" style={eStyle}>{excerpt(p)}</p>}
+            </div>
+          </AppLink>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -412,7 +468,8 @@ function PostCard({
   titleStyle?: React.CSSProperties;
   excerptStyle?: React.CSSProperties;
 }) {
-  const base = `bg-transparent border border-border rounded-md overflow-hidden hover:border-brand transition ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`;
+  const isBoxed = variant === "boxed-grid";
+  const base = `${isBoxed ? "bg-card" : "bg-transparent"} border border-border rounded-md overflow-hidden hover:border-brand transition ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`;
 
   if (variant === "overlay" && p.cover_image_url) {
     return (
