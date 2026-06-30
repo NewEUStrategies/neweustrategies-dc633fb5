@@ -157,6 +157,14 @@ export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
 
 // ============ Integrations: Merydian ============
 
+const ConsentMappingItem = z.object({
+  source_key: z.string().trim().min(1).max(120),
+  source_label: z.string().trim().max(200).optional().default(""),
+  merydian_field: z.string().trim().max(120).optional().default(""),
+  merydian_category: z.string().trim().max(120).optional().default(""),
+  required: z.boolean().optional().default(false),
+});
+
 const IntegrationsInput = z.object({
   merydian_enabled: z.boolean(),
   merydian_mode: z.enum(["webhook","api","both"]).default("webhook"),
@@ -166,7 +174,9 @@ const IntegrationsInput = z.object({
   merydian_api_key: z.string().max(500).nullable().optional(),
   merydian_workspace_id: z.string().max(120).nullable().optional(),
   forward_stages: z.array(STAGE_ENUM).default(["new"]),
+  consent_mapping: z.array(ConsentMappingItem).max(50).default([]),
 });
+
 
 export const getCrmIntegrations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
