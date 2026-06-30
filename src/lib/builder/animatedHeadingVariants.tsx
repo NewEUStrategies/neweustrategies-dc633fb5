@@ -160,12 +160,35 @@ function ShapeSvg({
 
   const stroke = shapeStroke[shape];
   const len = shapePathLen[shape];
-  const dur = `${durationMs}ms`;
   const delay = `${delayMs}ms`;
-  const iter = loop ? "infinite" : "1";
   const animName = `aHead-draw-${animKey}`;
 
-  const css = `
+  // Cycle: draw → hold → fade-out → pause → repeat (when loop is true).
+  // Single-shot: draw and stay (forwards).
+  const holdMs = 1400;
+  const fadeMs = 600;
+  const pauseMs = 800;
+  const cycleMs = durationMs + holdMs + fadeMs + pauseMs;
+  const drawEnd = (durationMs / cycleMs) * 100;
+  const holdEnd = ((durationMs + holdMs) / cycleMs) * 100;
+  const fadeEnd = ((durationMs + holdMs + fadeMs) / cycleMs) * 100;
+
+  const css = loop
+    ? `
+    @keyframes ${animName} {
+      0%                       { stroke-dashoffset: ${len}; opacity: 1; }
+      ${drawEnd.toFixed(2)}%   { stroke-dashoffset: 0;     opacity: 1; }
+      ${holdEnd.toFixed(2)}%   { stroke-dashoffset: 0;     opacity: 1; }
+      ${fadeEnd.toFixed(2)}%   { stroke-dashoffset: 0;     opacity: 0; }
+      100%                     { stroke-dashoffset: ${len}; opacity: 0; }
+    }
+    .ahead-path-${animKey} {
+      stroke-dasharray: ${len};
+      stroke-dashoffset: ${len};
+      animation: ${animName} ${cycleMs}ms ${delay} infinite ease-in-out;
+    }
+  `
+    : `
     @keyframes ${animName} {
       from { stroke-dashoffset: ${len}; }
       to   { stroke-dashoffset: 0; }
@@ -173,7 +196,7 @@ function ShapeSvg({
     .ahead-path-${animKey} {
       stroke-dasharray: ${len};
       stroke-dashoffset: ${len};
-      animation: ${animName} ${dur} ${delay} ${iter} forwards ease-in-out;
+      animation: ${animName} ${durationMs}ms ${delay} 1 forwards ease-in-out;
     }
   `;
 
