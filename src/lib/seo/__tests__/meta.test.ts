@@ -4,9 +4,12 @@ import {
   absoluteUrl,
   hreflangLinks,
   buildContentHead,
+  buildRootHead,
   buildArticleJsonLd,
   imagePreloadLink,
   SITE_NAME,
+  SITE_DEFAULT_TITLE,
+  SITE_DEFAULT_DESCRIPTION,
 } from "@/lib/seo/meta";
 
 const find = (meta: Array<Record<string, string>>, key: string, val: string) =>
@@ -92,6 +95,47 @@ describe("buildContentHead", () => {
   it("omits article meta for website type", () => {
     const { meta } = buildContentHead({ ...base, type: "website" });
     expect(find(meta, "property", "article:published_time")).toBeUndefined();
+  });
+});
+
+describe("buildRootHead", () => {
+  it("brands the document defaults to New European Strategies, not the generator", () => {
+    for (const lang of ["pl", "en"] as const) {
+      const meta = buildRootHead(lang);
+      const serialized = JSON.stringify(meta);
+      expect(serialized).not.toMatch(/lovable/i);
+      expect(find(meta, "name", "author")?.content).toBe(SITE_NAME);
+      expect(find(meta, "property", "og:site_name")?.content).toBe(SITE_NAME);
+    }
+  });
+
+  it("emits the localized brand title + description for each language", () => {
+    const pl = buildRootHead("pl");
+    expect(find(pl, "title", SITE_DEFAULT_TITLE.pl)?.title).toBe(SITE_DEFAULT_TITLE.pl);
+    expect(find(pl, "name", "description")?.content).toBe(SITE_DEFAULT_DESCRIPTION.pl);
+    expect(find(pl, "property", "og:title")?.content).toBe(SITE_DEFAULT_TITLE.pl);
+    expect(find(pl, "property", "og:description")?.content).toBe(SITE_DEFAULT_DESCRIPTION.pl);
+
+    const en = buildRootHead("en");
+    expect(find(en, "title", SITE_DEFAULT_TITLE.en)?.title).toBe(SITE_DEFAULT_TITLE.en);
+    expect(find(en, "name", "description")?.content).toBe(SITE_DEFAULT_DESCRIPTION.en);
+  });
+
+  it("keeps the document essentials and a language-correct og:locale", () => {
+    const en = buildRootHead("en");
+    expect(en.find((m) => m.charSet === "utf-8")).toBeDefined();
+    expect(find(en, "name", "viewport")?.content).toBe("width=device-width, initial-scale=1");
+    expect(find(en, "property", "og:type")?.content).toBe("website");
+    expect(find(en, "property", "og:locale")?.content).toBe("en_US");
+    expect(find(buildRootHead("pl"), "property", "og:locale")?.content).toBe("pl_PL");
+  });
+
+  it("mirrors og into the Twitter card without a stale @handle", () => {
+    const en = buildRootHead("en");
+    expect(find(en, "name", "twitter:card")?.content).toBe("summary");
+    expect(find(en, "name", "twitter:title")?.content).toBe(SITE_DEFAULT_TITLE.en);
+    expect(find(en, "name", "twitter:description")?.content).toBe(SITE_DEFAULT_DESCRIPTION.en);
+    expect(en.find((m) => m.name === "twitter:site")).toBeUndefined();
   });
 });
 
