@@ -46,33 +46,15 @@ export interface ContentCachePolicy {
 }
 
 /**
- * Whether a content render's LANGUAGE makes it unsafe to share-cache.
- *
- * The CDN keys on URL only, so a render whose language was chosen by a cookie
- * (no `?lang=` in the URL, cookie ≠ default) would be stored under the bare URL
- * and then served to every other visitor — classic language cache-poisoning.
- *
- * Shareable cases (return false):
- *  - `?lang=` present  → language is in the URL, so the CDN keys it correctly.
- *  - no lang cookie, or cookie === default → the render equals the default and
- *    is identical to what every anonymous visitor gets.
- *
- * Non-shareable (return true): no `?lang=` and a cookie that overrides default.
- */
-export function langOverridesSharedCache(
-  urlLang: "pl" | "en" | null,
-  cookieLang: "pl" | "en" | null,
-  defaultLang: "pl" | "en" = "pl",
-): boolean {
-  if (urlLang) return false;
-  return cookieLang != null && cookieLang !== defaultLang;
-}
-
-/**
  * Cache-Control for a public content document (home, post, page). The public
  * SSR output is the anonymous shell (session-specific UI hydrates on the
  * client and gated bodies are fetched client-side), so it is safe to share-
  * cache. Personalized or preview renders opt out entirely.
+ *
+ * Language is no longer a cacheability concern: it now lives in the URL path
+ * (PL at the bare path, EN under `/en`), so the CDN keys each language as its
+ * own entry. A content render is fully determined by its URL — there is no
+ * cookie-driven, no-store path and no language cache-poisoning.
  */
 export function contentCacheControl(policy: ContentCachePolicy = {}): string {
   if (policy.personalized || policy.preview) return cacheControlHeader({ cacheable: false });

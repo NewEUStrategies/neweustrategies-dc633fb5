@@ -4,7 +4,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { SUPPORTED_LANGS } from "@/lib/seo/meta";
+import {
+  DEFAULT_LANG,
+  SUPPORTED_LANGS,
+  localizedPath,
+  stripLangPrefix,
+} from "@/lib/i18n/localePath";
 
 interface SitemapEntry {
   loc: string;
@@ -21,15 +26,29 @@ export function xmlEscape(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-// hreflang alternates per URL (x-default + one self-addressable ?lang= per
-// language). Mirrors the in-page <link rel="alternate"> cluster so crawlers get
-// the language graph from both the sitemap and the rendered head.
+// hreflang alternates per URL (x-default + one self-addressable URL per
+// language). Each variant uses the language PATH prefix the site serves (PL at
+// the bare path, EN under "/en"), mirroring the in-page <link rel="alternate">
+// cluster so crawlers get the same language graph from sitemap and head. `loc`
+// is the canonical (default-language) absolute URL.
 export function alternateLinks(loc: string): string[] {
+  let origin = "";
+  let path = loc;
+  try {
+    const u = new URL(loc);
+    origin = u.origin;
+    path = u.pathname;
+  } catch {
+    /* relative loc - localize the raw string */
+  }
+  const canonical = stripLangPrefix(path).pathname;
+  const href = (lang: (typeof SUPPORTED_LANGS)[number]) =>
+    xmlEscape(`${origin}${localizedPath(canonical, lang)}`);
   const lines = [
-    `    <xhtml:link rel="alternate" hreflang="x-default" href="${xmlEscape(loc)}"/>`,
+    `    <xhtml:link rel="alternate" hreflang="x-default" href="${href(DEFAULT_LANG)}"/>`,
   ];
   for (const l of SUPPORTED_LANGS) {
-    lines.push(`    <xhtml:link rel="alternate" hreflang="${l}" href="${xmlEscape(`${loc}?lang=${l}`)}"/>`);
+    lines.push(`    <xhtml:link rel="alternate" hreflang="${l}" href="${href(l)}"/>`);
   }
   return lines;
 }

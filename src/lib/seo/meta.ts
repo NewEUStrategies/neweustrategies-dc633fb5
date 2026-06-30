@@ -2,11 +2,21 @@
 // resolved content, they produce the meta/link descriptors for TanStack head()
 // and the JSON-LD graph. Kept side-effect free so they are fully unit-testable
 // without SSR or a DOM.
+import {
+  DEFAULT_LANG,
+  SUPPORTED_LANGS,
+  localizedPath,
+  stripLangPrefix,
+  type AppLang,
+} from "@/lib/i18n/localePath";
 
-export type Lang = "pl" | "en";
+// The language type and the supported list live in the locale-path core (the
+// single source of truth for the language <-> URL mapping); re-exported here so
+// existing SEO imports keep working.
+export type Lang = AppLang;
+export { SUPPORTED_LANGS };
 
 export const SITE_NAME = "New European Strategies";
-export const SUPPORTED_LANGS: readonly Lang[] = ["pl", "en"];
 export const OG_LOCALE: Record<Lang, string> = { pl: "pl_PL", en: "en_US" };
 
 /** Split a (possibly empty) absolute URL into origin + pathname, dropping the
@@ -28,19 +38,26 @@ export function absoluteUrl(origin: string, path: string): string {
   return origin ? `${origin}${p}` : p;
 }
 
-/** hreflang cluster: x-default + one self-addressable URL per language. The
- * `?lang=` variants are honoured by i18n so each genuinely serves its language. */
+/** hreflang cluster: x-default + one self-addressable URL per language. Each
+ * URL uses the language PATH prefix the router and CDN actually serve (PL at
+ * the bare path, EN under "/en"), so the alternates point at real, shareable
+ * renders. `path` may already be prefixed (it comes from the raw request URL),
+ * so it is normalized to the canonical path first. */
 export function hreflangLinks(
   origin: string,
   path: string,
 ): Array<{ rel: string; hrefLang: string; href: string }> {
-  const base = absoluteUrl(origin, path);
+  const canonical = stripLangPrefix(path).pathname;
   return [
-    { rel: "alternate", hrefLang: "x-default", href: base },
+    {
+      rel: "alternate",
+      hrefLang: "x-default",
+      href: absoluteUrl(origin, localizedPath(canonical, DEFAULT_LANG)),
+    },
     ...SUPPORTED_LANGS.map((l) => ({
       rel: "alternate",
       hrefLang: l,
-      href: `${base}?lang=${l}`,
+      href: absoluteUrl(origin, localizedPath(canonical, l)),
     })),
   ];
 }

@@ -27,6 +27,7 @@ import { ContentAreaStyle } from "../components/ContentAreaStyle";
 import { ThemeOptionsStyle } from "../components/ThemeOptionsStyle";
 import { ThemeDesignStyle } from "../components/theme/ThemeDesignStyle";
 import { ConsentBanner } from "../components/ConsentBanner";
+import { LocalePreferenceRedirect } from "../components/LocalePreferenceRedirect";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
 import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
@@ -199,6 +200,7 @@ function RootComponent() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <LocalePreferenceRedirect />
         <IconPackSync />
         <WidgetLiveSync />
         <SiteSettingsLiveSync />
