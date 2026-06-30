@@ -241,87 +241,91 @@ export type TimelineEvent = {
   meta: Record<string, unknown> | null;
 };
 
+async function buildLeadTimeline(context: { supabase: unknown }, leadId: string): Promise<{ lead: Record<string, unknown>; events: TimelineEvent[] }> {
+  const { data: lead, error } = await tbl(context, "crm_leads")
+    .select("*").eq("id", leadId).maybeSingle();
+  if (error || !lead) throw new Error(error?.message ?? "Lead not found");
+  const L = lead as { id: string; tenant_id: string; email: string };
+
+  const fetchAll = async <T>(p: Promise<{ data: unknown }>): Promise<T> =>
+    ((await p).data ?? []) as T;
+
+  const [messages, subs, consents, notes, audits] = await Promise.all([
+    fetchAll<Array<{ id: string; form_name: string | null; form_type: string | null; subject: string | null; message: string; created_at: string; page_url: string | null; lang: string }>>(
+      tbl(context, "contact_messages")
+        .select("id, form_name, form_type, subject, message, page_url, lang, created_at")
+        .ilike("email", L.email).eq("tenant_id", L.tenant_id)
+        .order("created_at", { ascending: false }).limit(200) as unknown as Promise<{ data: unknown }>),
+    fetchAll<Array<{ id: string; status: string; source_form_name: string | null; confirmed_at: string | null; created_at: string }>>(
+      tbl(context, "newsletter_subscribers")
+        .select("id, status, source_form_name, confirmed_at, created_at")
+        .ilike("email", L.email).eq("tenant_id", L.tenant_id)
+        .order("created_at", { ascending: false }).limit(50) as unknown as Promise<{ data: unknown }>),
+    fetchAll<Array<{ id: string; consent_key: string; granted: boolean; version: string | null; form_name: string | null; text_excerpt: string | null; created_at: string }>>(
+      tbl(context, "crm_consent_log")
+        .select("id, consent_key, granted, version, form_name, text_excerpt, created_at")
+        .ilike("email", L.email).eq("tenant_id", L.tenant_id)
+        .order("created_at", { ascending: false }).limit(500) as unknown as Promise<{ data: unknown }>),
+    fetchAll<Array<{ id: string; body: string; author_id: string | null; created_at: string }>>(
+      tbl(context, "crm_lead_notes")
+        .select("id, body, author_id, created_at").eq("lead_id", L.id)
+        .order("created_at", { ascending: false }) as unknown as Promise<{ data: unknown }>),
+    fetchAll<Array<{ id: string; action: string; actor_id: string | null; metadata: Record<string, unknown> | null; created_at: string }>>(
+      tbl(context, "audit_log")
+        .select("id, action, actor_id, metadata, created_at")
+        .eq("entity_type", "crm_lead").eq("entity_id", L.id)
+        .order("created_at", { ascending: false }).limit(500) as unknown as Promise<{ data: unknown }>),
+  ]);
+
+  const ev: TimelineEvent[] = [];
+  for (const m of messages) ev.push({
+    id: `msg:${m.id}`, type: "submit", at: m.created_at,
+    title: m.form_name ?? m.form_type ?? "contact form",
+    detail: (m.subject ? `${m.subject} - ` : "") + m.message.slice(0, 280),
+    meta: { lang: m.lang, page_url: m.page_url ?? null },
+  });
+  for (const s of subs) {
+    ev.push({ id: `sub:${s.id}`, type: "newsletter", at: s.created_at,
+      title: `Newsletter: ${s.status}`, detail: s.source_form_name ?? null, meta: { status: s.status } });
+    if (s.confirmed_at) ev.push({
+      id: `sub-doi:${s.id}`, type: "newsletter", at: s.confirmed_at,
+      title: "Newsletter: confirmed (DOI)", detail: s.source_form_name ?? null, meta: { status: "confirmed" },
+    });
+  }
+  for (const c of consents) ev.push({
+    id: `cns:${c.id}`, type: "consent", at: c.created_at,
+    title: `${c.consent_key}: ${c.granted ? "granted" : "revoked"}`,
+    detail: c.text_excerpt ?? null,
+    meta: { form: c.form_name, version: c.version, granted: c.granted },
+  });
+  for (const n of notes) ev.push({
+    id: `nt:${n.id}`, type: "note", at: n.created_at,
+    title: "Note", detail: n.body, meta: { author_id: n.author_id },
+  });
+  for (const a of audits) {
+    const t: TimelineEvent["type"] = a.action.includes("webhook") ? "webhook" : "stage_change";
+    ev.push({
+      id: `au:${a.id}`, type: t, at: a.created_at,
+      title: a.action, detail: null, meta: a.metadata ?? null,
+    });
+  }
+  ev.sort((a, b) => (a.at < b.at ? 1 : -1));
+  return { lead: lead as Record<string, unknown>, events: ev };
+}
+
 export const getCrmLeadTimeline = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: lead, error } = await tbl(context, "crm_leads")
-      .select("*").eq("id", data.id).maybeSingle();
-    if (error || !lead) throw new Error(error?.message ?? "Lead not found");
-    const L = lead as { id: string; tenant_id: string; email: string };
-
-    const fetchAll = async <T>(p: Promise<{ data: unknown }>): Promise<T> =>
-      ((await p).data ?? []) as T;
-
-    const [messages, subs, consents, notes, audits] = await Promise.all([
-      fetchAll<Array<{ id: string; form_name: string | null; form_type: string | null; subject: string | null; message: string; created_at: string; page_url: string | null; lang: string }>>(
-        tbl(context, "contact_messages")
-          .select("id, form_name, form_type, subject, message, page_url, lang, created_at")
-          .ilike("email", L.email).eq("tenant_id", L.tenant_id)
-          .order("created_at", { ascending: false }).limit(200) as unknown as Promise<{ data: unknown }>),
-      fetchAll<Array<{ id: string; status: string; source_form_name: string | null; confirmed_at: string | null; created_at: string }>>(
-        tbl(context, "newsletter_subscribers")
-          .select("id, status, source_form_name, confirmed_at, created_at")
-          .ilike("email", L.email).eq("tenant_id", L.tenant_id)
-          .order("created_at", { ascending: false }).limit(50) as unknown as Promise<{ data: unknown }>),
-      fetchAll<Array<{ id: string; consent_key: string; granted: boolean; version: string | null; form_name: string | null; text_excerpt: string | null; created_at: string }>>(
-        tbl(context, "crm_consent_log")
-          .select("id, consent_key, granted, version, form_name, text_excerpt, created_at")
-          .ilike("email", L.email).eq("tenant_id", L.tenant_id)
-          .order("created_at", { ascending: false }).limit(500) as unknown as Promise<{ data: unknown }>),
-      fetchAll<Array<{ id: string; body: string; author_id: string | null; created_at: string }>>(
-        tbl(context, "crm_lead_notes")
-          .select("id, body, author_id, created_at").eq("lead_id", L.id)
-          .order("created_at", { ascending: false }) as unknown as Promise<{ data: unknown }>),
-      fetchAll<Array<{ id: string; action: string; actor_id: string | null; metadata: Record<string, unknown> | null; created_at: string }>>(
-        tbl(context, "audit_log")
-          .select("id, action, actor_id, metadata, created_at")
-          .eq("entity_type", "crm_lead").eq("entity_id", L.id)
-          .order("created_at", { ascending: false }).limit(500) as unknown as Promise<{ data: unknown }>),
-    ]);
-
-    const ev: TimelineEvent[] = [];
-    for (const m of messages) ev.push({
-      id: `msg:${m.id}`, type: "submit", at: m.created_at,
-      title: m.form_name ?? m.form_type ?? "contact form",
-      detail: (m.subject ? `${m.subject} - ` : "") + m.message.slice(0, 280),
-      meta: { lang: m.lang, page_url: m.page_url ?? null },
-    });
-    for (const s of subs) {
-      ev.push({ id: `sub:${s.id}`, type: "newsletter", at: s.created_at,
-        title: `Newsletter: ${s.status}`, detail: s.source_form_name ?? null, meta: { status: s.status } });
-      if (s.confirmed_at) ev.push({
-        id: `sub-doi:${s.id}`, type: "newsletter", at: s.confirmed_at,
-        title: "Newsletter: confirmed (DOI)", detail: s.source_form_name ?? null, meta: { status: "confirmed" },
-      });
-    }
-    for (const c of consents) ev.push({
-      id: `cns:${c.id}`, type: "consent", at: c.created_at,
-      title: `${c.consent_key}: ${c.granted ? "granted" : "revoked"}`,
-      detail: c.text_excerpt ?? null,
-      meta: { form: c.form_name, version: c.version, granted: c.granted },
-    });
-    for (const n of notes) ev.push({
-      id: `nt:${n.id}`, type: "note", at: n.created_at,
-      title: "Note", detail: n.body, meta: { author_id: n.author_id },
-    });
-    for (const a of audits) {
-      const t: TimelineEvent["type"] = a.action.includes("webhook") ? "webhook" : "stage_change";
-      ev.push({
-        id: `au:${a.id}`, type: t, at: a.created_at,
-        title: a.action, detail: null, meta: a.metadata ?? null,
-      });
-    }
-    ev.sort((a, b) => (a.at < b.at ? 1 : -1));
-    return { json: j({ lead, events: ev }) };
+    const r = await buildLeadTimeline(context, data.id);
+    return { json: j(r) };
   });
 
 export const exportCrmLeadTimelineCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const r = await getCrmLeadTimeline._handler!({ data: { id: data.id }, context } as never) as unknown as { json: string };
-    const parsed = JSON.parse(r.json) as { lead: { email: string }; events: TimelineEvent[] };
+    const { lead, events } = await buildLeadTimeline(context, data.id);
     const esc = (v: unknown): string => {
       if (v == null) return "";
       const s = typeof v === "object" ? JSON.stringify(v) : String(v);
@@ -329,10 +333,10 @@ export const exportCrmLeadTimelineCsv = createServerFn({ method: "POST" })
     };
     const cols = ["at", "type", "title", "detail", "meta"];
     const lines = [cols.join(",")];
-    for (const e of parsed.events) {
+    for (const e of events) {
       lines.push([e.at, e.type, e.title, e.detail ?? "", e.meta ?? ""].map(esc).join(","));
     }
-    return { csv: lines.join("\n"), email: parsed.lead.email, count: parsed.events.length };
+    return { csv: lines.join("\n"), email: (lead as { email: string }).email, count: events.length };
   });
 
 export type LeadRow = {
