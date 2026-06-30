@@ -283,7 +283,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
     </div>
   );
 
-  function lang() { return "pl"; }
+  
 }
 
 function StageBadge({ stage, L }: { stage: Stage; L: typeof PL }) {
