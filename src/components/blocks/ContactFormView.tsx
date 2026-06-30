@@ -29,7 +29,8 @@ function num(data: Cfg, key: string, fallback: number): number {
 
 const T = {
   pl: {
-    name: "Imię i nazwisko", email: "E-mail", phone: "Telefon", company: "Firma",
+    firstName: "Imię", lastName: "Nazwisko",
+    email: "E-mail", phone: "Telefon", company: "Firma",
     subject: "Temat", message: "Wiadomość",
     consent: "Wyrażam zgodę na przetwarzanie danych w celu odpowiedzi na zapytanie.",
     newsletter: "Zapisz mnie do newslettera",
@@ -37,7 +38,8 @@ const T = {
     sending: "Wysyłanie...", error: "Wystąpił błąd. Spróbuj ponownie.",
   },
   en: {
-    name: "Full name", email: "Email", phone: "Phone", company: "Company",
+    firstName: "First name", lastName: "Last name",
+    email: "Email", phone: "Phone", company: "Company",
     subject: "Subject", message: "Message",
     consent: "I agree to processing of my data to receive a reply.",
     newsletter: "Subscribe me to the newsletter",
@@ -45,6 +47,49 @@ const T = {
     sending: "Sending...", error: "Something went wrong. Please try again.",
   },
 } as const;
+
+/**
+ * Render consent text with inline markdown links: [label](https://url).
+ * Only http(s), mailto: and same-site "/..." URLs are allowed; everything
+ * else is stripped down to plain text. Returns a JSX fragment.
+ */
+function renderConsentText(text: string): ReactNode {
+  if (!text) return null;
+  const re = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const out: ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let i = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const label = m[1];
+    const raw = m[2].trim();
+    const safe =
+      /^https?:\/\//i.test(raw) || /^mailto:/i.test(raw) || raw.startsWith("/")
+        ? raw
+        : "";
+    if (safe) {
+      const external = /^https?:\/\//i.test(safe);
+      out.push(
+        <a
+          key={`l-${i++}`}
+          href={safe}
+          className="underline underline-offset-2 hover:opacity-80"
+          target={external ? "_blank" : undefined}
+          rel={external ? "noopener noreferrer" : undefined}
+        >
+          {label}
+        </a>,
+      );
+    } else {
+      out.push(label);
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return <>{out}</>;
+}
+
 
 export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const t = T[lang];
