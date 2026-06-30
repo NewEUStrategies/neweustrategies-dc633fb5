@@ -60,6 +60,14 @@ export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] =
   { value: "hover-line-6",      label: "Hover: dwa segmenty" },
   { value: "hover-line-7",      label: "Hover: sprężyna" },
   { value: "hover-line-8",      label: "Hover: snap środek" },
+  { value: "hover-allsides-1",  label: "Allsides: rogi po przekątnej" },
+  { value: "hover-allsides-2",  label: "Allsides: z dwóch rogów" },
+  { value: "hover-allsides-3",  label: "Allsides: ze środka boków" },
+  { value: "hover-allsides-4",  label: "Allsides: spiralnie" },
+  { value: "hover-allsides-5",  label: "Allsides: skręt naprzemienny" },
+  { value: "hover-allsides-6",  label: "Allsides: 4 rogi (krótkie)" },
+  { value: "hover-allsides-7",  label: "Allsides: dół + prawo" },
+  { value: "hover-allsides-8",  label: "Allsides: rogi-segmenty" },
 ];
 
 export const HOVER_LINE_CSS = `
