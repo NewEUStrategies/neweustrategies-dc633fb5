@@ -8,7 +8,7 @@ import { homePageQueryOptions } from "@/lib/queries/public";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead, SITE_DEFAULT_TITLE, SITE_DEFAULT_DESCRIPTION } from "@/lib/seo/meta";
-import { prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
+import { prefetchAboveFoldQueries, prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 
