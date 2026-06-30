@@ -19,13 +19,18 @@ export const Route = createFileRoute("/")({
     // is its own cache entry - no cookie-driven personalization, no poisoning.
     setCacheControlHeader(contentCacheControl());
     await context.queryClient.ensureQueryData(homePageQueryOptions());
-    // NOTE: above-the-fold widget prefetch is intentionally handled by the
-    // client `useSectionPreload` path. Eagerly priming widget queries from the
-    // SSR loader triggers a known interaction with the router/query bridge
-    // where freshly-added queries don't dehydrate cleanly, producing a
-    // server-vs-client hydration mismatch (server has data, client renders
-    // the skeleton) and, in dev, a 500 from the bridge subscriber. Leaving the
-    // critical homePage doc primed is enough for a fast first paint.
+    // NOTE: do NOT prefetch the above-the-fold widget queries from this loader.
+    // Eagerly priming widget queries here triggers a known interaction with the
+    // router/query bridge where freshly-added queries don't dehydrate cleanly,
+    // producing a server-vs-client hydration mismatch (server has data, client
+    // renders the skeleton) and, in dev, a 500 from the bridge subscriber.
+    // Instead, every data-bound section - including above the fold - is
+    // server-rendered through the Suspense streaming gate: the homepage's
+    // <BuilderRenderer> sets aboveFoldCount={0}, so ServerSectionGate warms
+    // those queries during render (the dehydration-safe path) and their data
+    // ships as complete HTML inside the streamed, CDN-cached response instead
+    // of flashing a skeleton and popping in after client hydration. Priming the
+    // homePage doc here is enough for a fast shell flush; sections stream in.
     return null;
   },
 
@@ -59,7 +64,16 @@ function Index() {
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <main className="flex-1 w-full">
         {doc && doc.sections.length > 0 ? (
-          <BuilderRenderer doc={doc} lang={lang} stream />
+          // aboveFoldCount={0}: unlike $.tsx (which prefetches its first
+          // sections in the loader), the homepage cannot safely prefetch
+          // above-the-fold widget data server-side (see the loader note above),
+          // so every data-bound section is server-rendered through the
+          // ServerSectionGate streaming path instead. Static sections (no data
+          // queries) still render eagerly into the shell - the hero is
+          // unaffected - while data-bound top widgets (post-list/slider/
+          // carousel) now arrive as complete server HTML baked into the
+          // CDN-cached response rather than as a client-side skeleton flash.
+          <BuilderRenderer doc={doc} lang={lang} stream aboveFoldCount={0} />
         ) : (
           <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-24 text-center text-muted-foreground">
             <p className="text-sm">
