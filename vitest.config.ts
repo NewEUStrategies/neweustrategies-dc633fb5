@@ -41,6 +41,10 @@ export default defineConfig({
         // back the admin performance dashboard.
         "src/lib/observability/aggregate.ts",
         "src/lib/observability/vitalsThresholds.ts",
+        // Billing critical path: the Stripe webhook reconciliation handler and
+        // the single entitlement-grant point (what turns payment into access).
+        "src/routes/api/public/webhooks.stripe.ts",
+        "src/lib/billing/grant.server.ts",
       ],
       exclude: [
         "**/__tests__/**",
@@ -64,25 +68,76 @@ export default defineConfig({
         // Per-file bars for the newly-guarded public-pipeline modules. Floored a
         // touch below the achieved coverage to catch regressions without being
         // brittle.
-        "src/lib/content/contentEngine.ts": { statements: 100, functions: 100, lines: 100, branches: 100 },
-        "src/lib/http/cachePolicy.ts": { statements: 100, functions: 100, lines: 100, branches: 95 },
+        "src/lib/content/contentEngine.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/http/cachePolicy.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
         "src/lib/builder/schema.ts": { statements: 98, functions: 100, lines: 100, branches: 95 },
         // report.ts line 14 is the defensive `catch` around import.meta.env,
         // which cannot be exercised from a test - hence < 100 here.
-        "src/lib/observability/report.ts": { statements: 94, functions: 100, lines: 93, branches: 90 },
+        "src/lib/observability/report.ts": {
+          statements: 94,
+          functions: 100,
+          lines: 93,
+          branches: 90,
+        },
         // meta.ts: statements/lines/functions are fully covered; the optional
         // OpenGraph/article/paywall arms keep branch coverage lower.
         "src/lib/seo/meta.ts": { statements: 100, functions: 100, lines: 100, branches: 70 },
         "src/lib/access/gating.ts": { statements: 95, functions: 100, lines: 100, branches: 95 },
         // publicSegments: two pure helpers, fully exercised.
-        "src/lib/routing/publicSegments.ts": { statements: 100, functions: 100, lines: 100, branches: 100 },
+        "src/lib/routing/publicSegments.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
         // PostLayoutRenderer: every statement/line/function hit; the remaining
         // branch arms are unreachable `hasSidebar`/center fallbacks on presets
         // that never take them (floored just below the achieved ~91%).
-        "src/components/PostLayoutRenderer.tsx": { statements: 100, functions: 100, lines: 100, branches: 90 },
+        "src/components/PostLayoutRenderer.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 90,
+        },
         // RUM aggregator + thresholds: pure, fully exercised.
-        "src/lib/observability/aggregate.ts": { statements: 100, functions: 100, lines: 100, branches: 100 },
-        "src/lib/observability/vitalsThresholds.ts": { statements: 100, functions: 100, lines: 100, branches: 100 },
+        "src/lib/observability/aggregate.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/observability/vitalsThresholds.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Billing critical path (payment -> access). Floored just below the
+        // achieved coverage. webhooks.stripe: the un-hit arms are the framework
+        // POST route-arrow (handle() is tested directly) and the catch-all 500,
+        // which is why functions/branches sit below 100.
+        "src/routes/api/public/webhooks.stripe.ts": {
+          statements: 90,
+          functions: 85,
+          lines: 90,
+          branches: 75,
+        },
+        "src/lib/billing/grant.server.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
       },
     },
   },
