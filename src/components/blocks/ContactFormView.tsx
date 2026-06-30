@@ -349,7 +349,7 @@ function Field({ label, error, className, children }: {
 }) {
   return (
     <label className={`block space-y-1 ${className ?? ""}`}>
-      <span className="text-xs font-medium opacity-80">{label}</span>
+      <span className="text-xs font-semibold tracking-wide opacity-95">{label}</span>
       {children}
       {error && <span className="block text-[11px] text-destructive">{error}</span>}
     </label>
