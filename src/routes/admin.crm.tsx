@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   listCrmLeads, getCrmLead, updateCrmLead, addCrmNote, deleteCrmNote,
   exportCrmLeadsCsv, getCrmIntegrations, upsertCrmIntegrations, pushLeadToMerydian,
+  getCrmLeadTimeline, exportCrmLeadTimelineCsv,
 } from "@/lib/crm.functions";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ import {
   Users, Download, Send, Search, FileText, ShieldCheck,
   Mail, Trash2, Plus,
 } from "@/lib/lucide-shim";
-import { RefreshCw, Tag as TagIcon } from "lucide-react";
+import { RefreshCw, Tag as TagIcon, Clock, FileDown, Printer } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/crm")({
@@ -92,6 +93,7 @@ const PL = {
   } as Record<Stage,string>,
   detail: {
     title: "Karta leada", overview: "Profil", consents: "Zgody", history: "Historia formularzy", notes: "Notatki", integ: "Integracje",
+    timeline: "Oś czasu",
     firstName: "Imię", lastName: "Nazwisko", phone: "Telefon", company: "Firma", tags: "Tagi (oddziel przecinkiem)",
     save: "Zapisz", stage: "Etap pipeline",
     nlStatus: "Status newslettera", marketing: "Zgoda marketingowa", lastActivity: "Ostatnia aktywność", sources: "Liczba interakcji",
@@ -101,6 +103,9 @@ const PL = {
     noteAdd: "Dodaj notatkę", notePlaceholder: "Notatka widoczna tylko dla zespołu…",
     noteSave: "Dodaj", noteEmpty: "Brak notatek.", noteDelete: "Usuń",
     push: "Wyślij do Merydian",
+    tlEmpty: "Brak zdarzeń na osi czasu.",
+    tlExportCsv: "Eksport CSV", tlExportPdf: "Eksport PDF",
+    tlTypes: { submit: "Zgłoszenie", consent: "Zgoda", note: "Notatka", stage_change: "Zmiana etapu", webhook: "Webhook", newsletter: "Newsletter" } as Record<string, string>,
   },
   integ: {
     title: "Integracja Merydian", enabled: "Włącz integrację",
@@ -140,6 +145,7 @@ const EN = {
   } as Record<Stage,string>,
   detail: {
     title: "Lead card", overview: "Profile", consents: "Consents", history: "Form history", notes: "Notes", integ: "Integrations",
+    timeline: "Timeline",
     firstName: "First name", lastName: "Last name", phone: "Phone", company: "Company", tags: "Tags (comma separated)",
     save: "Save", stage: "Pipeline stage",
     nlStatus: "Newsletter status", marketing: "Marketing consent", lastActivity: "Last activity", sources: "Interactions",
@@ -149,6 +155,9 @@ const EN = {
     noteAdd: "Add note", notePlaceholder: "Note visible to the team only…",
     noteSave: "Add", noteEmpty: "No notes.", noteDelete: "Delete",
     push: "Push to Merydian",
+    tlEmpty: "No timeline events yet.",
+    tlExportCsv: "Export CSV", tlExportPdf: "Export PDF",
+    tlTypes: { submit: "Submission", consent: "Consent", note: "Note", stage_change: "Stage change", webhook: "Webhook", newsletter: "Newsletter" } as Record<string, string>,
   },
   integ: {
     title: "Merydian integration", enabled: "Enable integration",
@@ -385,6 +394,9 @@ function LeadDrawer({ leadId, onClose, L }: { leadId: string | null; onClose: ()
           <Tabs defaultValue="overview" className="mt-3">
             <TabsList className="flex flex-wrap">
               <TabsTrigger value="overview" className="text-[12px]">{L.detail.overview}</TabsTrigger>
+              <TabsTrigger value="timeline" className="text-[12px]">
+                <Clock className="w-3 h-3 mr-1" />{L.detail.timeline}
+              </TabsTrigger>
               <TabsTrigger value="consents" className="text-[12px]">
                 <ShieldCheck className="w-3 h-3 mr-1" />{L.detail.consents}
               </TabsTrigger>
@@ -392,6 +404,9 @@ function LeadDrawer({ leadId, onClose, L }: { leadId: string | null; onClose: ()
               <TabsTrigger value="notes" className="text-[12px]">{L.detail.notes}</TabsTrigger>
               <TabsTrigger value="integ" className="text-[12px]">{L.detail.integ}</TabsTrigger>
             </TabsList>
+            <TabsContent value="timeline" className="pt-3">
+              <LeadTimeline leadId={leadId!} L={L} />
+            </TabsContent>
 
             <TabsContent value="overview" className="space-y-3 pt-3">
               <OverviewForm lead={lead} L={L} onSave={(p) => updateMut.mutate(p)} saving={updateMut.isPending} />
@@ -485,6 +500,97 @@ function LeadDrawer({ leadId, onClose, L }: { leadId: string | null; onClose: ()
       </SheetContent>
     </Sheet>
   );
+}
+
+type TimelineEv = {
+  id: string;
+  type: "submit" | "consent" | "note" | "stage_change" | "webhook" | "newsletter";
+  at: string; title: string; detail: string | null; meta: Record<string, unknown> | null;
+};
+
+function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
+  const q = useQuery({
+    queryKey: ["crm-lead-timeline", leadId],
+    queryFn: async () => {
+      const r = await getCrmLeadTimeline({ data: { id: leadId } });
+      return JSON.parse((r as { json: string }).json) as { lead: { email: string; first_name: string | null; last_name: string | null }; events: TimelineEv[] };
+    },
+  });
+
+  const downloadCsv = async () => {
+    try {
+      const r = await exportCrmLeadTimelineCsv({ data: { id: leadId } });
+      const x = r as { csv: string; email: string };
+      const blob = new Blob(["\uFEFF" + x.csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `crm-timeline-${x.email.replace(/[^a-z0-9._-]/gi, "_")}-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) { toast.error((e as Error).message); }
+  };
+
+  const printPdf = () => {
+    if (!q.data) return;
+    const { lead, events } = q.data;
+    const name = [lead.first_name, lead.last_name].filter(Boolean).join(" ") || lead.email;
+    const css = `body{font:13px/1.45 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;color:#111;padding:24px;max-width:780px;margin:0 auto}h1{font-size:18px;margin:0 0 4px}h2{font-size:12px;color:#666;font-weight:500;margin:0 0 18px}.ev{border-left:2px solid #e5e7eb;padding:6px 0 14px 14px;margin-left:6px;position:relative}.ev:before{content:"";position:absolute;left:-5px;top:9px;width:8px;height:8px;border-radius:50%;background:#FA9346}.t{font-weight:600;font-size:13px}.tm{font-size:11px;color:#666;margin-bottom:4px}.tg{display:inline-block;font-size:10px;background:#f3f4f6;border-radius:3px;padding:1px 6px;margin-right:6px;text-transform:uppercase;letter-spacing:.03em}.d{white-space:pre-wrap;color:#333;margin-top:2px}.m{font-size:11px;color:#666;font-family:ui-monospace,Menlo,monospace;margin-top:2px}@media print{body{padding:0}}`;
+    const html = `<!doctype html><meta charset="utf-8"><title>${name} - timeline</title><style>${css}</style>
+<h1>${name}</h1><h2>${lead.email} - ${new Date().toLocaleString()}</h2>
+${events.map((e) => `<div class="ev"><div class="tm">${new Date(e.at).toLocaleString()}</div><div><span class="tg">${L.detail.tlTypes[e.type] ?? e.type}</span><span class="t">${escapeHtml(e.title)}</span></div>${e.detail ? `<div class="d">${escapeHtml(e.detail)}</div>` : ""}${e.meta ? `<div class="m">${escapeHtml(JSON.stringify(e.meta))}</div>` : ""}</div>`).join("")}
+<script>window.onload=()=>setTimeout(()=>window.print(),250);<\/script>`;
+    const w = window.open("", "_blank", "width=900,height=900");
+    if (!w) { toast.error("Popup blocked"); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  };
+
+  const ICONS: Record<TimelineEv["type"], string> = {
+    submit: "bg-blue-500/15 text-blue-600 dark:text-blue-300",
+    consent: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+    note: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+    stage_change: "bg-violet-500/15 text-violet-600 dark:text-violet-300",
+    webhook: "bg-orange-500/15 text-orange-600 dark:text-orange-300",
+    newsletter: "bg-sky-500/15 text-sky-600 dark:text-sky-300",
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2 flex-wrap">
+        <Button size="sm" variant="outline" onClick={downloadCsv} disabled={!q.data || q.data.events.length === 0}>
+          <FileDown className="w-3.5 h-3.5 mr-1" />{L.detail.tlExportCsv}
+        </Button>
+        <Button size="sm" variant="outline" onClick={printPdf} disabled={!q.data || q.data.events.length === 0}>
+          <Printer className="w-3.5 h-3.5 mr-1" />{L.detail.tlExportPdf}
+        </Button>
+      </div>
+      {!q.data ? (
+        <p className="text-[12px] text-muted-foreground">…</p>
+      ) : q.data.events.length === 0 ? (
+        <p className="text-[12px] text-muted-foreground italic">{L.detail.tlEmpty}</p>
+      ) : (
+        <ol className="relative border-l border-border ml-2 space-y-3 pt-1">
+          {q.data.events.map((e) => (
+            <li key={e.id} className="ml-3">
+              <span className={`absolute -left-[6px] mt-1.5 w-3 h-3 rounded-full ring-2 ring-background ${ICONS[e.type].split(" ")[0]}`} />
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className={`text-[10px] ${ICONS[e.type]}`}>{L.detail.tlTypes[e.type] ?? e.type}</Badge>
+                <span className="text-[12px] font-medium break-all">{e.title}</span>
+                <time className="ml-auto text-[10px] text-muted-foreground">{new Date(e.at).toLocaleString()}</time>
+              </div>
+              {e.detail && <p className="mt-1 text-[12px] text-muted-foreground whitespace-pre-wrap leading-snug">{e.detail}</p>}
+              {e.meta && Object.keys(e.meta).length > 0 && (
+                <pre className="mt-1 text-[10px] text-muted-foreground bg-muted/40 rounded p-1.5 overflow-x-auto">{JSON.stringify(e.meta)}</pre>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c));
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
