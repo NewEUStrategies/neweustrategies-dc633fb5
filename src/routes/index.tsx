@@ -8,7 +8,6 @@ import { homePageQueryOptions } from "@/lib/queries/public";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead, SITE_DEFAULT_TITLE, SITE_DEFAULT_DESCRIPTION } from "@/lib/seo/meta";
-import { prefetchAboveFoldQueries, prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 
@@ -19,21 +18,17 @@ export const Route = createFileRoute("/")({
     // language lives in the URL path (PL at "/", EN at "/en"), so each variant
     // is its own cache entry - no cookie-driven personalization, no poisoning.
     setCacheControlHeader(contentCacheControl());
-    const homePage = await context.queryClient.ensureQueryData(homePageQueryOptions());
-    const doc = homePage?.editor === "builder" ? parseBuilderDoc(homePage.builder_data) : null;
-    if (doc?.sections.length) {
-      const lang = activeLang(getRequestUrl() || "/") === "en" ? "en" : "pl";
-      // The homepage is edge-cached. We block the SSR response only on the
-      // above-the-fold sections; below-the-fold sections Suspense-stream as their
-      // data settles (BuilderRenderer `stream`). A cold (cache-miss) render's TTFB
-      // tracks the hero rather than the whole document, yet the streamed body is
-      // still complete server HTML - below-the-fold content never pops in on the
-      // client after a hard refresh. Bounded by a budget, so a slow above-the-fold
-      // query degrades to the client `useSectionPreload` path, never a hang.
-      await prefetchAboveFoldQueries(context.queryClient, doc, lang);
-    }
+    await context.queryClient.ensureQueryData(homePageQueryOptions());
+    // NOTE: above-the-fold widget prefetch is intentionally handled by the
+    // client `useSectionPreload` path. Eagerly priming widget queries from the
+    // SSR loader triggers a known interaction with the router/query bridge
+    // where freshly-added queries don't dehydrate cleanly, producing a
+    // server-vs-client hydration mismatch (server has data, client renders
+    // the skeleton) and, in dev, a 500 from the bridge subscriber. Leaving the
+    // critical homePage doc primed is enough for a fast first paint.
     return null;
   },
+
   head: () => {
     const url = getRequestUrl() || "/";
     const lang = activeLang(url);
