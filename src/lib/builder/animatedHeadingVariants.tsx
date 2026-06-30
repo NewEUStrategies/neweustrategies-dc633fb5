@@ -7,7 +7,7 @@
 // `accentColor` (animated text + the shape stroke - duo tone).
 import { useEffect, useState, type CSSProperties } from "react";
 
-export type AnimatedHeadingMode = "highlight" | "rotate" | "hover-underline";
+export type AnimatedHeadingMode = "highlight" | "rotate" | "hover-underline" | "hover-allsides";
 
 export type AnimatedHeadingShape =
   | "none"
