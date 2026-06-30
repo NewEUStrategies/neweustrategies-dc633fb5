@@ -14,7 +14,6 @@ export type AnimatedHeadingShape =
   | "underline"
   | "double-underline"
   | "scribble"
-  | "brush"
   | "curly"
   | "zigzag"
   | "circle"
@@ -26,7 +25,6 @@ export type AnimatedHeadingShape =
 
 export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] = [
   { value: "none",              label: "Brak" },
-  { value: "brush",             label: "Flamaster (marker)" },
   { value: "underline",         label: "Podkreślenie" },
   { value: "double-underline",  label: "Podwójne podkreślenie" },
   { value: "scribble",          label: "Odręczne podkreślenie" },
@@ -71,7 +69,6 @@ const shapeStroke: Record<AnimatedHeadingShape, number> = {
   underline: 3,
   "double-underline": 4,
   scribble: 4,
-  brush: 8,
   curly: 1.75,
   zigzag: 1.75,
   circle: 3,
@@ -89,7 +86,6 @@ const shapePathLen: Record<AnimatedHeadingShape, number> = {
   underline: 220,
   "double-underline": 460,
   scribble: 240,
-  brush: 240,
   curly: 440,
   zigzag: 320,
   circle: 520,
@@ -111,56 +107,6 @@ function ShapeSvg({
   animKey: string | number;
 }) {
   if (shape === "none") return null;
-
-  // Special case: marker (felt-tip) - a single horizontal stroke drawn
-  // left-to-right, then right-to-left, alternating like someone scribbling
-  // a highlight back and forth across a word.
-  if (shape === "brush") {
-    const iter = loop ? "infinite" : "1";
-    // One full "pass" is L→R or R→L. Two passes per cycle.
-    const passDur = Math.max(260, Math.round(durationMs * 0.55));
-    const totalDur = passDur * 2;
-    const len = 210;
-    const animName = `aHead-marker-${animKey}`;
-    // L→R: dashoffset len → 0. R→L: dashoffset 0 → -len (same path appears
-    // to redraw from the opposite end). Loop alternates seamlessly.
-    const cssMarker = `
-      @keyframes ${animName} {
-        0%   { stroke-dashoffset: ${len}; }
-        50%  { stroke-dashoffset: 0; }
-        100% { stroke-dashoffset: ${-len}; }
-      }
-      .ahead-marker-${animKey} {
-        stroke-dasharray: ${len};
-        stroke-dashoffset: ${len};
-        animation: ${animName} ${totalDur}ms ${delayMs}ms ${iter} ${loop ? "" : "forwards"} cubic-bezier(.55,.1,.45,.9);
-      }
-    `;
-    const positionMarker: CSSProperties = {
-      position: "absolute", left: 0, right: 0, top: "100%",
-      width: "100%", height: "0.55em", marginTop: "-0.14em",
-      pointerEvents: "none", zIndex: 0, overflow: "visible",
-    };
-    return (
-      <>
-        <style>{cssMarker}</style>
-        <svg viewBox="0 0 200 14" preserveAspectRatio="none" style={positionMarker}>
-          <path
-            className={`ahead-marker-${animKey}`}
-            d="M3 7 Q 100 4 197 8"
-            fill="none"
-            stroke={color}
-            strokeWidth={6}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
-            opacity={0.92}
-          />
-        </svg>
-      </>
-    );
-  }
-
 
   // Special case: hand-drawn scribble - two slightly curvy underlines drawn
   // sequentially (second shorter, slightly offset), mimicking a marker.
