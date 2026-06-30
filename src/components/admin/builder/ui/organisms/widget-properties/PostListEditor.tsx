@@ -21,10 +21,14 @@ interface Props {
 }
 
 const VARIANTS = [
-  { v: "card", l: "Karty" },
+  { v: "card", l: "Karty (grid)" },
+  { v: "boxed-grid", l: "Karty boxed (tło)" },
   { v: "minimal", l: "Minimalny" },
+  { v: "classic", l: "Classic (duża okładka, kolumna)" },
+  { v: "flex-grid", l: "Flex grid (lead + lista)" },
   { v: "overlay", l: "Overlay na okładce" },
   { v: "list", l: "Lista" },
+  { v: "boxed-list", l: "Lista boxed" },
   { v: "numbered", l: "Numerowana (01, 02)" },
   { v: "ranked", l: "Ranking (numer + autor, bez obrazka)" },
 ] as const;
