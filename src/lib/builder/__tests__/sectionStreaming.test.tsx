@@ -9,6 +9,7 @@ import {
   ServerSectionGate,
   SectionStreamSkeleton,
   StreamingSection,
+  shouldStreamSection,
 } from "@/lib/builder/sectionStreaming";
 import { sectionQueryOptionsList } from "@/lib/builder/prefetch";
 
@@ -109,6 +110,39 @@ describe("ServerSectionGate", () => {
     });
     expect(screen.getByText("CONTENT")).toBeTruthy();
     expect(screen.queryByText("FALLBACK")).toBeNull();
+  });
+});
+
+describe("shouldStreamSection (eager-vs-stream decision)", () => {
+  const dataSection = withWidgets([makeWidget("post-list")]);
+  const staticSection = withWidgets([makeWidget("heading")]);
+
+  it("does not stream when streaming is disabled", () => {
+    expect(shouldStreamSection(dataSection, "pl", 9, 3, false)).toBe(false);
+  });
+
+  it("renders above-the-fold data sections eagerly (index < aboveFoldCount)", () => {
+    // $.tsx-style: leading sections are prefetched in the loader, so they stay
+    // eager to land the hero's data in the shell.
+    expect(shouldStreamSection(dataSection, "pl", 1, 3, true)).toBe(false);
+  });
+
+  it("streams below-the-fold data sections", () => {
+    expect(shouldStreamSection(dataSection, "pl", 9, 3, true)).toBe(true);
+  });
+
+  it("never streams a section without data-bound queries (static hero stays eager)", () => {
+    // Even at index 0 with aboveFoldCount 0, a query-less section is eager, so
+    // the homepage hero is never delayed by streaming.
+    expect(shouldStreamSection(staticSection, "pl", 0, 0, true)).toBe(false);
+  });
+
+  it("streams every data-bound section when aboveFoldCount is 0 (homepage)", () => {
+    // The homepage cannot prefetch above the fold in its loader, so it passes
+    // aboveFoldCount={0}: the very first data-bound section must stream through
+    // the server gate (server-rendered data in the CDN-cached HTML) rather than
+    // render eagerly and flash a client-fetched skeleton.
+    expect(shouldStreamSection(dataSection, "pl", 0, 0, true)).toBe(true);
   });
 });
 

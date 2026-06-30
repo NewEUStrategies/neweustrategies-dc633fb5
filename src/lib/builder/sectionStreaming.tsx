@@ -118,13 +118,38 @@ interface StreamingSectionProps {
 }
 
 /**
- * Decide, per section, whether to render eagerly or stream:
- *  - streaming disabled, OR above the fold        -> eager (in the SSR shell)
- *  - below the fold, but no data-bound queries    -> eager (nothing to await)
- *  - below the fold with data                     -> Suspense-streamed
+ * Whether a section is Suspense-streamed (server gate) rather than rendered
+ * eagerly into the SSR shell. A section streams only when all three hold:
+ *  - streaming is enabled,
+ *  - it sits at or below the eager above-the-fold window (`index >= aboveFoldCount`), and
+ *  - it has at least one data-bound query to await.
  *
- * The `<Suspense>` boundary is rendered on both server and client so hydration
- * aligns; only the server includes the suspending gate.
+ * So `aboveFoldCount` is the eager-render budget: callers that prefetch their
+ * leading sections in the loader (e.g. `$.tsx`) keep a non-zero count to land
+ * the hero's data in the shell, while a route that cannot safely prefetch in
+ * the loader (the homepage) passes `0` to stream every data-bound section
+ * through the dehydration-safe gate instead - static sections (no queries)
+ * stay eager regardless, so the hero shell is never delayed.
+ *
+ * Pure + side-effect free so the eager/stream decision is unit-testable without
+ * rendering or an SSR environment.
+ */
+export function shouldStreamSection(
+  section: SectionNode,
+  lang: Lang,
+  index: number,
+  aboveFoldCount: number,
+  enabled: boolean,
+): boolean {
+  if (!enabled || index < aboveFoldCount) return false;
+  return sectionQueryOptionsList(section, lang).length > 0;
+}
+
+/**
+ * Render a builder section, choosing eager vs Suspense-streamed via
+ * {@link shouldStreamSection}. The `<Suspense>` boundary is rendered on both
+ * server and client so hydration aligns; only the server mounts the suspending
+ * gate (the client tree-shakes it out via `import.meta.env.SSR`).
  */
 export function StreamingSection({
   section,
@@ -134,8 +159,9 @@ export function StreamingSection({
   enabled,
   children,
 }: StreamingSectionProps): ReactElement {
-  if (!enabled || index < aboveFoldCount) return <>{children}</>;
-  if (sectionQueryOptionsList(section, lang).length === 0) return <>{children}</>;
+  if (!shouldStreamSection(section, lang, index, aboveFoldCount, enabled)) {
+    return <>{children}</>;
+  }
 
   return (
     <Suspense fallback={<SectionStreamSkeleton />}>
