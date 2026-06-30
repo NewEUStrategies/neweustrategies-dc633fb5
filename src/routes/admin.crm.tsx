@@ -158,7 +158,18 @@ const EN = {
     forwardStages: "Auto-forward stages",
     lastSync: "Last sync", save: "Save configuration",
     docs: "Webhook receives POST JSON with X-Signature (HMAC) header. API uses Bearer auth.",
+    mapping: "Consent mapping → Merydian",
+    mappingHint: "Map form consent keys to Merydian fields/categories. Every forwarded lead includes a `consents` array with granted/required/merydian_field/merydian_category.",
+    mappingAdd: "Add mapping",
+    mappingEmpty: "No mappings yet. Add one so consents land in specific Merydian fields.",
+    mappingSourceKey: "Consent key (e.g. newsletter_opt_in, gdpr_processing)",
+    mappingSourceLabel: "Label (PL/EN)",
+    mappingField: "Merydian field",
+    mappingCategory: "Merydian category",
+    mappingRequired: "Required",
+    mappingRemove: "Remove",
   },
+
 };
 
 function AdminCrmPage() {
