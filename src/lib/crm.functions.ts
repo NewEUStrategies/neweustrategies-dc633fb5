@@ -1,5 +1,6 @@
-// CRM server functions: list/get/update leads, notes, consents, CSV export,
-// Merydian integration push (webhook + API), and integration settings CRUD.
+// CRM server functions. To avoid TanStack Start's strict structural serializer
+// rejecting Supabase `unknown` (inet/jsonb) columns, deep results are returned
+// as a JSON string in `json` and parsed on the client (see lib/crm.client.ts).
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
@@ -7,10 +8,6 @@ import { createHmac } from "crypto";
 
 const STAGE_ENUM = z.enum(["new","contacted","qualified","proposal","won","lost","archived"]);
 type Stage = z.infer<typeof STAGE_ENUM>;
-
-// JSON-safe sanitizer (Supabase returns inet/jsonb as `unknown`, which breaks
-// the TanStack Start serializer). Round-tripping coerces everything to JSON.
-const safe = <T,>(v: T): T => JSON.parse(JSON.stringify(v ?? null)) as T;
 
 const ListInput = z.object({
   search: z.string().trim().max(200).optional(),
@@ -35,6 +32,8 @@ type AnyQuery = {
 const tbl = (ctx: { supabase: unknown }, name: string): AnyQuery =>
   (ctx.supabase as { from: (t: string) => AnyQuery }).from(name);
 
+const j = (v: unknown): string => JSON.stringify(v ?? null);
+
 export const listCrmLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => ListInput.parse(d))
@@ -48,7 +47,7 @@ export const listCrmLeads = createServerFn({ method: "POST" })
     }
     const { data: leads, error } = await (q as unknown as Promise<{ data: unknown[]; error: { message: string } | null }>);
     if (error) throw new Error(error.message);
-    return { leads: safe((leads ?? []) as Record<string, unknown>[]) };
+    return { json: j(leads ?? []) };
   });
 
 const IdInput = z.object({ id: z.string().uuid() });
@@ -63,24 +62,27 @@ export const getCrmLead = createServerFn({ method: "POST" })
     if (!lead) throw new Error("Lead not found");
     const L = lead as { email: string; tenant_id: string; id: string };
 
+    const fetchAll = async <T>(p: Promise<{ data: unknown }>): Promise<T> =>
+      ((await p).data ?? []) as T;
+
     const [messages, subs, consents, notes] = await Promise.all([
-      (tbl(context, "contact_messages")
+      fetchAll(tbl(context, "contact_messages")
         .select("id, form_type, form_name, subject, message, lang, source, page_url, referer, ip, consents, newsletter_opt_in, consent, created_at")
         .ilike("email", L.email).eq("tenant_id", L.tenant_id)
-        .order("created_at", { ascending: false }).limit(100) as unknown as Promise<{ data: unknown[] }>).then((r) => r.data ?? []),
-      (tbl(context, "newsletter_subscribers")
+        .order("created_at", { ascending: false }).limit(100) as unknown as Promise<{ data: unknown }>),
+      fetchAll(tbl(context, "newsletter_subscribers")
         .select("id, status, source, source_form_id, source_form_name, language, ip, consents, confirmed_at, created_at, updated_at")
         .ilike("email", L.email).eq("tenant_id", L.tenant_id)
-        .order("created_at", { ascending: false }).limit(50) as unknown as Promise<{ data: unknown[] }>).then((r) => r.data ?? []),
-      (tbl(context, "crm_consent_log").select("*")
+        .order("created_at", { ascending: false }).limit(50) as unknown as Promise<{ data: unknown }>),
+      fetchAll(tbl(context, "crm_consent_log").select("*")
         .ilike("email", L.email).eq("tenant_id", L.tenant_id)
-        .order("created_at", { ascending: false }).limit(200) as unknown as Promise<{ data: unknown[] }>).then((r) => r.data ?? []),
-      (tbl(context, "crm_lead_notes")
+        .order("created_at", { ascending: false }).limit(200) as unknown as Promise<{ data: unknown }>),
+      fetchAll(tbl(context, "crm_lead_notes")
         .select("id, body, author_id, created_at").eq("lead_id", L.id)
-        .order("created_at", { ascending: false }) as unknown as Promise<{ data: unknown[] }>).then((r) => r.data ?? []),
+        .order("created_at", { ascending: false }) as unknown as Promise<{ data: unknown }>),
     ]);
 
-    return safe({ lead: lead as Record<string, unknown>, messages, subscriptions: subs, consents, notes });
+    return { json: j({ lead, messages, subscriptions: subs, consents, notes }) };
   });
 
 const UpdateInput = z.object({
@@ -166,7 +168,7 @@ export const getCrmIntegrations = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await tbl(context, "crm_integrations").select("*").maybeSingle();
     if (error) throw new Error(error.message);
-    return { settings: safe(data as Record<string, unknown> | null) };
+    return { json: j(data) };
   });
 
 export const upsertCrmIntegrations = createServerFn({ method: "POST" })
@@ -174,7 +176,7 @@ export const upsertCrmIntegrations = createServerFn({ method: "POST" })
   .inputValidator((d) => IntegrationsInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
-    const supabase = (context as { supabase: { rpc: (n: string, a: Record<string, unknown>) => Promise<{ data: boolean | null }> } }).supabase;
+    const supabase = (context as unknown as { supabase: { rpc: (n: string, a: Record<string, unknown>) => Promise<{ data: boolean | null }> } }).supabase;
     const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
     if (!isAdmin) throw new Error("Forbidden");
     const { data: existing } = await tbl(context, "crm_integrations").select("id").maybeSingle();
