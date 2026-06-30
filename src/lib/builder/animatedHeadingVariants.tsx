@@ -112,62 +112,50 @@ function ShapeSvg({
 }) {
   if (shape === "none") return null;
 
-  // Special case: marker / brush stroke - thick tapered swoosh drawn left to
-  // right, followed by a thinner return sweep, mimicking a highlighter pen.
+  // Special case: marker (felt-tip) - a single horizontal stroke drawn
+  // left-to-right, then right-to-left, alternating like someone scribbling
+  // a highlight back and forth across a word.
   if (shape === "brush") {
     const iter = loop ? "infinite" : "1";
-    const halfDur = Math.max(220, Math.round(durationMs * 0.6));
-    const totalDur = halfDur * 2;
-    const len1 = 230;
-    const len2 = 170;
-    const animA = `aHead-brushA-${animKey}`;
-    const animB = `aHead-brushB-${animKey}`;
-    const splitPct = Math.round((halfDur / totalDur) * 100);
-    const cssBrush = `
-      @keyframes ${animA} {
-        0%   { stroke-dashoffset: ${len1}; }
-        ${splitPct}% { stroke-dashoffset: 0; }
-        100% { stroke-dashoffset: 0; }
+    // One full "pass" is L→R or R→L. Two passes per cycle.
+    const passDur = Math.max(260, Math.round(durationMs * 0.55));
+    const totalDur = passDur * 2;
+    const len = 210;
+    const animName = `aHead-marker-${animKey}`;
+    // L→R: dashoffset len → 0. R→L: dashoffset 0 → -len (same path appears
+    // to redraw from the opposite end). Loop alternates seamlessly.
+    const cssMarker = `
+      @keyframes ${animName} {
+        0%   { stroke-dashoffset: ${len}; }
+        50%  { stroke-dashoffset: 0; }
+        100% { stroke-dashoffset: ${-len}; }
       }
-      @keyframes ${animB} {
-        0%   { stroke-dashoffset: ${len2}; }
-        ${splitPct}% { stroke-dashoffset: ${len2}; }
-        100% { stroke-dashoffset: 0; }
-      }
-      .ahead-brushA-${animKey} {
-        stroke-dasharray: ${len1};
-        stroke-dashoffset: ${len1};
-        animation: ${animA} ${totalDur}ms ${delayMs}ms ${iter} forwards cubic-bezier(.45,.05,.25,1);
-      }
-      .ahead-brushB-${animKey} {
-        stroke-dasharray: ${len2};
-        stroke-dashoffset: ${len2};
-        animation: ${animB} ${totalDur}ms ${delayMs}ms ${iter} forwards cubic-bezier(.45,.05,.25,1);
+      .ahead-marker-${animKey} {
+        stroke-dasharray: ${len};
+        stroke-dashoffset: ${len};
+        animation: ${animName} ${totalDur}ms ${delayMs}ms ${iter} ${loop ? "" : "forwards"} cubic-bezier(.55,.1,.45,.9);
       }
     `;
-    const positionBrush: CSSProperties = {
+    const positionMarker: CSSProperties = {
       position: "absolute", left: 0, right: 0, top: "100%",
-      width: "100%", height: "0.75em", marginTop: "-0.18em",
+      width: "100%", height: "0.55em", marginTop: "-0.14em",
       pointerEvents: "none", zIndex: 0, overflow: "visible",
     };
     return (
       <>
-        <style>{cssBrush}</style>
-        <svg viewBox="0 0 200 24" preserveAspectRatio="none" style={positionBrush}>
-          <g fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
-            <path
-              className={`ahead-brushA-${animKey}`}
-              d="M4 9 Q 60 3 110 7 T 196 8"
-              strokeWidth={9}
-              opacity={0.95}
-            />
-            <path
-              className={`ahead-brushB-${animKey}`}
-              d="M14 18 Q 70 14 130 17 T 188 17"
-              strokeWidth={4.5}
-              opacity={0.85}
-            />
-          </g>
+        <style>{cssMarker}</style>
+        <svg viewBox="0 0 200 14" preserveAspectRatio="none" style={positionMarker}>
+          <path
+            className={`ahead-marker-${animKey}`}
+            d="M3 7 Q 100 4 197 8"
+            fill="none"
+            stroke={color}
+            strokeWidth={6}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity={0.92}
+          />
         </svg>
       </>
     );
