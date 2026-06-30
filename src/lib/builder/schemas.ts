@@ -654,7 +654,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "subtitle", type: "i18nText", label: "Podtytuł" },
     { key: "iconUrl", type: "image", label: "Ikona nagłówka", hint: "Rekomendowane 128x128 px (PNG/SVG, kwadrat)" },
     // ----- Pola formularza -----
-    { key: "showName", type: "select", label: "Pole: Imię i nazwisko",
+    { key: "showFirstName", type: "select", label: "Pole: Imię",
+      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
+    { key: "showLastName", type: "select", label: "Pole: Nazwisko",
       options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
     { key: "showEmail", type: "select", label: "Pole: E-mail",
       options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
@@ -668,8 +670,11 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
     { key: "requireConsent", type: "select", label: "Wymagaj zgody (RODO)",
       options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
+    { key: "consentText", type: "i18nText", label: "Treść zgody (RODO)",
+      hint: "Możesz użyć składni [tekst linku](https://adres.pl) aby wstawić inline hiperłącze." },
     { key: "showNewsletterOptIn", type: "select", label: "Pole: Zapis do newslettera",
       options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
+
     { key: "newsletterLabel", type: "i18nText", label: "Etykieta zapisu do newslettera" },
     // ----- Layout & przycisk -----
     { key: "columns", type: "select", label: "Kolumny",
