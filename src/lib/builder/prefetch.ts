@@ -1,4 +1,4 @@
-import type { QueryClient, QueryKey } from "@tanstack/react-query";
+import type { FetchQueryOptions, QueryClient, QueryKey } from "@tanstack/react-query";
 import type {
   BuilderDocument,
   SectionChild,
@@ -60,6 +60,86 @@ function contentItems(c: WidgetContent): Record<string, unknown>[] {
 }
 
 /**
+ * Every concrete query-options shape a data-bound builder widget can produce.
+ * The union is precise (no `any`) so a value carries a strongly-typed
+ * `queryKey`, which is what the Suspense-streaming gate inspects via
+ * `getQueryState` to observe the EXACT cache entries the widgets read - the key
+ * to streamed sections never re-fetching after hydration.
+ */
+export type BuilderSectionQuery =
+  | ReturnType<typeof postListQueryOptions>
+  | ReturnType<typeof postRefQueryOptions>
+  | ReturnType<typeof sliderFallbackImagesQueryOptions>;
+
+/**
+ * Warm one builder query. BuilderSectionQuery is a union of three differently
+ * parameterized option objects, so `prefetchQuery` cannot infer a single generic
+ * instantiation across the union. Widening to the base FetchQueryOptions shape
+ * is sound here: every builder query function takes no arguments, so the cache
+ * payload type is irrelevant to prefetching - only the (runtime-intact)
+ * queryKey/queryFn/staleTime drive the fetch. Centralizing the widening in one
+ * helper keeps the cast out of every call site.
+ */
+export function prefetchBuilderSectionQuery(
+  queryClient: QueryClient,
+  options: BuilderSectionQuery,
+): Promise<void> {
+  return queryClient.prefetchQuery(options as FetchQueryOptions);
+}
+
+/**
+ * The data-bound query options a single widget feeds (post-list / carousel ->
+ * one list query; slider -> one ref per referenced post + one fallback-images
+ * query). Single source of truth shared by prefetch and the streaming gate, so
+ * the two can never drift apart on which queries back a widget.
+ */
+export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderSectionQuery[] {
+  const out: BuilderSectionQuery[] = [];
+  if (widget.type === "post-list" || widget.type === "carousel") {
+    out.push(postListQueryOptions(widget.content, lang));
+  }
+  if (widget.type === "slider") {
+    const items = contentItems(widget.content);
+    const postIds = Array.from(
+      new Set(
+        items
+          .map((item) => item.postId)
+          .filter((id): id is string => typeof id === "string" && id.length > 0),
+      ),
+    );
+    postIds.forEach((id) => out.push(postRefQueryOptions(id, lang)));
+    out.push(sliderFallbackImagesQueryOptions(Math.max(3, items.length || 3)));
+  }
+  return out;
+}
+
+/** Flatten every data-bound query a section's widgets feed into one list. */
+export function sectionQueryOptionsList(section: SectionNode, lang: Lang): BuilderSectionQuery[] {
+  return collectSectionWidgets(section).flatMap((widget) => widgetQueryOptionsList(widget, lang));
+}
+
+/**
+ * The subset of a section's data queries that have NOT yet settled - i.e. there
+ * is no cache entry, or the entry is still in its initial `pending` fetch. A
+ * query that resolved OR errored counts as settled: the widget renders its own
+ * data / empty / error state from there, so the streaming gate only ever waits
+ * on genuinely-unresolved data and never blocks a section on a failed query.
+ *
+ * Pure (no React, no side effects) so the streaming gate's suspend decision is
+ * unit-testable without rendering.
+ */
+export function pendingSectionQueries(
+  queryClient: QueryClient,
+  section: SectionNode,
+  lang: Lang,
+): BuilderSectionQuery[] {
+  return sectionQueryOptionsList(section, lang).filter((options) => {
+    const status = queryClient.getQueryState(options.queryKey)?.status;
+    return status !== "success" && status !== "error";
+  });
+}
+
+/**
  * Prefetch all data-bound queries for a set of widgets.
  * Reused by both whole-document prefetch (SSR/loader) and per-section
  * lazy prefetch driven by IntersectionObserver.
@@ -69,29 +149,9 @@ export async function prefetchWidgets(
   widgets: WidgetNode[],
   lang: Lang,
 ): Promise<void> {
-  const tasks: Promise<unknown>[] = [];
-
-  for (const widget of widgets) {
-    if (widget.type === "post-list" || widget.type === "carousel") {
-      tasks.push(queryClient.prefetchQuery(postListQueryOptions(widget.content, lang)));
-    }
-
-    if (widget.type === "slider") {
-      const items = contentItems(widget.content);
-      const postIds = Array.from(
-        new Set(
-          items
-            .map((item) => item.postId)
-            .filter((id): id is string => typeof id === "string" && id.length > 0),
-        ),
-      );
-      postIds.forEach((id) => tasks.push(queryClient.prefetchQuery(postRefQueryOptions(id, lang))));
-      tasks.push(
-        queryClient.prefetchQuery(sliderFallbackImagesQueryOptions(Math.max(3, items.length || 3))),
-      );
-    }
-  }
-
+  const tasks = widgets
+    .flatMap((widget) => widgetQueryOptionsList(widget, lang))
+    .map((options) => prefetchBuilderSectionQuery(queryClient, options));
   await Promise.allSettled(tasks);
 }
 

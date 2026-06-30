@@ -17,6 +17,8 @@ import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
 import { useBuilderDebug, toggleBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
+import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
+import { StreamingSection } from "@/lib/builder/sectionStreaming";
 
 // SSR has no viewport, so the first render is "desktop". On a phone the client
 // must correct to "mobile" - running that correction in a *layout* effect lands
@@ -37,6 +39,15 @@ interface Props {
   doc: BuilderDocument;
   lang: "pl" | "en";
   device?: Device;
+  /**
+   * Suspense-stream below-the-fold sections instead of rendering the whole
+   * document into the SSR shell. Off by default (chrome / admin previews render
+   * eagerly); the public content + homepage routes opt in to keep cold-render
+   * TTFB flat as documents grow. See lib/builder/sectionStreaming.
+   */
+  stream?: boolean;
+  /** Leading sections rendered eagerly above the fold when `stream` is on. */
+  aboveFoldCount?: number;
 }
 
 const MOBILE_BREAKPOINT = 768;
@@ -67,7 +78,13 @@ const DEBUG_OVERLAY_CSS = `
 [data-builder-renderer][data-debug="1"] [data-widget-id]::after{content:attr(data-debug-type) " · " attr(data-debug-h) "px";position:absolute;bottom:0;left:0;background:rgba(234,179,8,.95);color:#111;font:600 10px/1.4 ui-monospace,monospace;padding:1px 5px;z-index:9999;pointer-events:none;}
 `;
 
-export function BuilderRenderer({ doc, lang, device }: Props) {
+export function BuilderRenderer({
+  doc,
+  lang,
+  device,
+  stream = false,
+  aboveFoldCount = ABOVE_FOLD_SECTION_COUNT,
+}: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? detectViewportDevice());
   const safeDoc = safeParseBuilderDoc(doc);
@@ -105,7 +122,13 @@ export function BuilderRenderer({ doc, lang, device }: Props) {
   return (
     <UsedPostIdsProvider>
       <div ref={rootRef} data-builder-renderer data-debug={debug ? "1" : "0"} data-device={effectiveDevice}>
-        <SectionsList sections={safeDoc.sections} lang={lang} device={effectiveDevice} />
+        <SectionsList
+          sections={safeDoc.sections}
+          lang={lang}
+          device={effectiveDevice}
+          stream={stream}
+          aboveFoldCount={aboveFoldCount}
+        />
       </div>
       {isPrimary && <BuilderDebugOverlay debug={debug} doc={safeDoc} />}
     </UsedPostIdsProvider>
@@ -153,17 +176,27 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
   );
 }
 
-const SectionsList = memo(function SectionsList({ sections, lang, device }: { sections: SectionNode[]; lang: "pl"|"en"; device: Device }) {
+const SectionsList = memo(function SectionsList({ sections, lang, device, stream, aboveFoldCount }: { sections: SectionNode[]; lang: "pl"|"en"; device: Device; stream: boolean; aboveFoldCount: number }) {
   const accessCtx = useAccessContext();
+  const visible = (Array.isArray(sections) ? sections : []).filter(
+    (s): s is SectionNode => !!s && evaluateAccess(s.advanced?.access, accessCtx),
+  );
   return (
     <>
-      {(Array.isArray(sections) ? sections : [])
-        .filter((s): s is SectionNode => !!s && evaluateAccess(s.advanced?.access, accessCtx))
-        .map((s) => (
-          <RenderErrorBoundary key={s.id} label={`section:${s.id}`}>
+      {visible.map((s, index) => (
+        <StreamingSection
+          key={s.id}
+          section={s}
+          lang={lang}
+          index={index}
+          aboveFoldCount={aboveFoldCount}
+          enabled={stream}
+        >
+          <RenderErrorBoundary label={`section:${s.id}`}>
             <RenderSection section={s} lang={lang} device={device} />
           </RenderErrorBoundary>
-        ))}
+        </StreamingSection>
+      ))}
     </>
   );
 });
