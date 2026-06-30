@@ -97,7 +97,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
           Kształt animacji
         </div>
         <div className="grid grid-cols-3 gap-2">
-          {ANIMATED_SHAPES.map((s) => {
+          {visibleShapes.map((s) => {
             const isActive = shape === s.value;
             return (
               <button
