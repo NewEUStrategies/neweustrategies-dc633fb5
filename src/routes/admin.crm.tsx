@@ -110,7 +110,18 @@ const PL = {
     forwardStages: "Etapy do automatycznej wysyłki",
     lastSync: "Ostatnia synchronizacja", save: "Zapisz konfigurację",
     docs: "Webhook odbiera POST JSON z nagłówkiem X-Signature (HMAC). API używa Bearer.",
+    mapping: "Mapowanie zgód → Merydian",
+    mappingHint: "Przypisz klucze zgód z formularzy do pól/kategorii w Merydian. Każdy wysłany lead zawiera tablicę `consents` z polami granted/required/merydian_field/merydian_category.",
+    mappingAdd: "Dodaj mapowanie",
+    mappingEmpty: "Brak mapowań. Dodaj pierwsze, aby zgody trafiały do konkretnych pól w Merydian.",
+    mappingSourceKey: "Klucz zgody (np. newsletter_opt_in, gdpr_processing)",
+    mappingSourceLabel: "Etykieta (PL/EN)",
+    mappingField: "Pole w Merydian",
+    mappingCategory: "Kategoria w Merydian",
+    mappingRequired: "Wymagana",
+    mappingRemove: "Usuń",
   },
+
 };
 
 const EN = {
