@@ -597,6 +597,7 @@ function IntegrationsTab({ L }: { L: typeof PL }) {
         merydian_api_key: q.data.merydian_api_key ?? "",
         merydian_workspace_id: q.data.merydian_workspace_id ?? "",
         forward_stages: q.data.forward_stages ?? ["new"],
+        consent_mapping: (q.data as { consent_mapping?: ConsentMapItem[] }).consent_mapping ?? [],
         last_sync_at: q.data.last_sync_at, last_sync_status: q.data.last_sync_status, last_sync_error: q.data.last_sync_error,
       });
     } else if (!q.data && !s && !q.isLoading) {
@@ -604,7 +605,8 @@ function IntegrationsTab({ L }: { L: typeof PL }) {
         merydian_enabled: false, merydian_mode: "webhook",
         merydian_webhook_url: "", merydian_webhook_secret: "",
         merydian_api_base: "", merydian_api_key: "", merydian_workspace_id: "",
-        forward_stages: ["new"], last_sync_at: null, last_sync_status: null, last_sync_error: null,
+        forward_stages: ["new"], consent_mapping: [],
+        last_sync_at: null, last_sync_status: null, last_sync_error: null,
       });
     }
   }, [q.data, q.isLoading, s]);
@@ -619,7 +621,9 @@ function IntegrationsTab({ L }: { L: typeof PL }) {
       merydian_api_key: s!.merydian_api_key || null,
       merydian_workspace_id: s!.merydian_workspace_id || null,
       forward_stages: s!.forward_stages,
+      consent_mapping: s!.consent_mapping,
     }}),
+
     onSuccess: () => { toast.success("✓"); qc.invalidateQueries({ queryKey: ["crm-integrations"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
