@@ -25,16 +25,26 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
   const shape = (typeof c.shape === "string" ? c.shape : "underline") as AnimatedHeadingShape;
   const tag = (typeof c.tag === "string" ? c.tag : "h2") as "h1"|"h2"|"h3"|"h4"|"h5"|"h6";
 
-  const isHoverMode = mode === "hover-underline";
-  const visibleShapes = isHoverMode
-    ? ANIMATED_SHAPES.filter((s) => s.value.startsWith("hover-line-"))
-    : ANIMATED_SHAPES.filter((s) => !s.value.startsWith("hover-line-"));
+  const visibleShapes =
+    mode === "hover-underline"
+      ? ANIMATED_SHAPES.filter((s) => s.value.startsWith("hover-line-"))
+      : mode === "hover-allsides"
+        ? ANIMATED_SHAPES.filter((s) => s.value.startsWith("hover-allsides-"))
+        : ANIMATED_SHAPES.filter(
+            (s) => !s.value.startsWith("hover-line-") && !s.value.startsWith("hover-allsides-"),
+          );
 
   const handleModeChange = (v: string) => {
     setContent("mode", v);
     if (v === "hover-underline" && !shape.startsWith("hover-line-")) {
       setContent("shape", "hover-line-1");
-    } else if (v !== "hover-underline" && shape.startsWith("hover-line-")) {
+    } else if (v === "hover-allsides" && !shape.startsWith("hover-allsides-")) {
+      setContent("shape", "hover-allsides-1");
+    } else if (
+      v !== "hover-underline" &&
+      v !== "hover-allsides" &&
+      (shape.startsWith("hover-line-") || shape.startsWith("hover-allsides-"))
+    ) {
       setContent("shape", "underline");
     }
   };
