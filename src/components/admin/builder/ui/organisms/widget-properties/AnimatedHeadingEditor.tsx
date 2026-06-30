@@ -90,24 +90,28 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
                 key={s.value}
                 type="button"
                 onClick={() => setContent("shape", s.value)}
-                className={`relative rounded-md border p-2 transition text-center ${
-                  isActive ? "ring-2 ring-brand border-brand" : "border-border hover:border-brand/50"
+                className={`relative rounded-md border p-2 transition text-center overflow-hidden ${
+                  isActive
+                    ? "ring-2 ring-brand border-brand bg-brand/5"
+                    : "border-border hover:border-brand/50 bg-background"
                 }`}
                 title={s.label}
               >
-                <div className="pointer-events-none flex items-center justify-center min-h-[36px]">
-                  <AnimatedHeadingRender
-                    config={{
-                      mode: "highlight",
-                      shape: s.value,
-                      tag: "h6",
-                      highlight: "Abc",
-                      accentColor,
-                      durationMs: 1200,
-                      loop: false,
-                    }}
-                    preview
-                  />
+                <div className="pointer-events-none flex items-center justify-center h-[44px]">
+                  <div style={{ transform: "scale(0.42)", transformOrigin: "center", lineHeight: 1 }}>
+                    <AnimatedHeadingRender
+                      config={{
+                        mode: "highlight",
+                        shape: s.value,
+                        tag: "h6",
+                        highlight: "Abc",
+                        accentColor: accentColor || "hsl(var(--foreground))",
+                        durationMs: 1200,
+                        loop: false,
+                      }}
+                      preview
+                    />
+                  </div>
                 </div>
                 <div className="mt-1 text-[10px] text-muted-foreground truncate">{s.label}</div>
                 {isActive && (
