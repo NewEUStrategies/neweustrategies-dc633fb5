@@ -113,6 +113,8 @@ const shapeStroke: Record<AnimatedHeadingShape, number> = {
   "double-strike": 2.5,
   x: 3,
   framed: 3,
+  "hover-line-1": 0, "hover-line-2": 0, "hover-line-3": 0, "hover-line-4": 0,
+  "hover-line-5": 0, "hover-line-6": 0, "hover-line-7": 0, "hover-line-8": 0,
 };
 
 // Rough path lengths (user-units) used to drive stroke-dashoffset animation.
