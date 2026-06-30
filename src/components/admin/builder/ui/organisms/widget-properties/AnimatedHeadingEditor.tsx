@@ -71,7 +71,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2">
         <PropField label="Tryb animacji">
-          <Select value={mode} onValueChange={(v) => setContent("mode", v)}>
+          <Select value={mode} onValueChange={handleModeChange}>
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               {ANIMATED_MODES.map((m) => (
