@@ -124,6 +124,13 @@ export const en = {
           tags: "Tags",
         },
       },
+      ads: {
+        label: "Advertisement",
+        loading: "Loading ad…",
+        consentBlocked: "Advertising content blocked - marketing consent required.",
+        slideupLabel: "Advertisement",
+        dismiss: "Close ad",
+      },
       admin: {
 
         nav: {

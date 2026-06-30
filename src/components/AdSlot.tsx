@@ -1,12 +1,23 @@
 // Renderer pojedynczego slotu reklamowego.
 // Obsługuje 3 typy: html (raw HTML), script (np. AdSense), image (grafika + link).
-// Respektuje flagę requires_consent - bez zgody marketingowej slot nie ładuje się.
+//
+// Core Web Vitals:
+//  - CLS: <AdContainer> rezerwuje wymiary slotu od pierwszego paintu (przez
+//    reserveStyle), więc kreacja ląduje w już istniejącą przestrzeń.
+//  - LCP/INP: payload (obraz / HTML / <script>) montuje się dopiero gdy
+//    useDeferredAd otworzy bramki (idle po pierwszym paincie + bliskość
+//    viewportu) - reklama nigdy nie konkuruje z elementem LCP.
+//
+// Respektuje flagę requires_consent - bez zgody marketingowej slot pokazuje
+// tylko placeholder (również z zarezerwowaną przestrzenią).
 
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { useMarketingConsent } from "@/lib/ads/consent";
-import type { AdPlacementWithSlot } from "@/lib/ads/types";
 import { useAdPlacements } from "@/lib/ads/queries";
-import type { AdPageType, AdPosition } from "@/lib/ads/types";
+import { useDeferredAd } from "@/lib/ads/useDeferredAd";
+import { AdContainer } from "@/components/ads/atoms/AdContainer";
+import type { AdPageType, AdPlacementWithSlot, AdPosition } from "@/lib/ads/types";
 
 interface SingleProps {
   placement: AdPlacementWithSlot;
@@ -14,15 +25,19 @@ interface SingleProps {
 }
 
 export const AdSlotView = memo(function AdSlotView({ placement, className }: SingleProps) {
+  const { t } = useTranslation();
   const { granted } = useMarketingConsent();
   const slot = placement.slot;
+  const blocked = slot.requires_consent && !granted;
+
+  const { containerRef, shouldRender } = useDeferredAd<HTMLDivElement>({ disabled: blocked });
   const scriptHostRef = useRef<HTMLDivElement | null>(null);
 
-  // Lazy-execute skryptu (np. <script src="..."> z AdSense). innerHTML nie wykona <script>,
-  // więc parsujemy i re-tworzymy elementy.
+  // Lazy-execute skryptu (np. <script src="..."> z AdSense). innerHTML nie wykona
+  // <script>, więc parsujemy i re-tworzymy elementy - dopiero po otwarciu bramek.
   useEffect(() => {
+    if (!shouldRender) return;
     if (slot.kind !== "script" || !scriptHostRef.current || !slot.script) return;
-    if (slot.requires_consent && !granted) return;
     const host = scriptHostRef.current;
     host.innerHTML = "";
     const tpl = document.createElement("template");
@@ -38,73 +53,72 @@ export const AdSlotView = memo(function AdSlotView({ placement, className }: Sin
         host.appendChild(node.cloneNode(true));
       }
     });
-  }, [slot, granted]);
+  }, [shouldRender, slot]);
 
-  if (slot.requires_consent && !granted) {
+  const dimensions = { width: slot.width, height: slot.height };
+  const label = t("ads.label", { defaultValue: "Reklama" });
+
+  if (blocked) {
     return (
-      <div
-        className={`text-center text-xs text-muted-foreground p-3 border border-dashed border-border rounded-md bg-muted/30 ${className ?? ""}`}
-        role="complementary"
-        aria-label="Miejsce reklamowe"
+      <AdContainer
+        ref={containerRef}
+        dimensions={dimensions}
+        position={placement.position}
+        kind={slot.kind}
+        slotId={slot.id}
+        state="blocked"
+        label={label}
+        className={className}
       >
-        Treść reklamowa zablokowana - wymaga zgody marketingowej.
-      </div>
+        {t("ads.consentBlocked", {
+          defaultValue: "Treść reklamowa zablokowana - wymaga zgody marketingowej.",
+        })}
+      </AdContainer>
     );
   }
 
-  const wrapStyle: React.CSSProperties = {
-    width: slot.width ?? undefined,
-    height: slot.height ?? undefined,
-  };
-
-  if (slot.kind === "image" && slot.image_url) {
-    const img = (
-      <img
-        src={slot.image_url}
-        alt={slot.image_alt ?? slot.name}
-        width={slot.width ?? undefined}
-        height={slot.height ?? undefined}
-        loading="lazy"
-        decoding="async"
-        style={{ maxWidth: "100%", height: "auto" }}
-      />
-    );
-    return (
-      <div className={`ad-slot ad-slot--image mx-auto ${className ?? ""}`} style={wrapStyle} data-ad-slot={slot.id}>
-        {slot.image_link ? (
-          <a href={slot.image_link} target="_blank" rel="sponsored noopener noreferrer">
-            {img}
-          </a>
-        ) : (
-          img
-        )}
-      </div>
-    );
+  let payload: ReactNode = null;
+  if (shouldRender) {
+    if (slot.kind === "image" && slot.image_url) {
+      const img = (
+        <img
+          src={slot.image_url}
+          alt={slot.image_alt ?? slot.name}
+          width={slot.width ?? undefined}
+          height={slot.height ?? undefined}
+          loading="lazy"
+          decoding="async"
+          style={{ maxWidth: "100%", height: "auto" }}
+        />
+      );
+      payload = slot.image_link ? (
+        <a href={slot.image_link} target="_blank" rel="sponsored noopener noreferrer">
+          {img}
+        </a>
+      ) : (
+        img
+      );
+    } else if (slot.kind === "html" && slot.html) {
+      payload = <div className="h-full w-full" dangerouslySetInnerHTML={{ __html: slot.html }} />;
+    } else if (slot.kind === "script") {
+      payload = <div className="h-full w-full" ref={scriptHostRef} />;
+    }
   }
 
-  if (slot.kind === "html" && slot.html) {
-    return (
-      <div
-        className={`ad-slot ad-slot--html mx-auto ${className ?? ""}`}
-        style={wrapStyle}
-        data-ad-slot={slot.id}
-        dangerouslySetInnerHTML={{ __html: slot.html }}
-      />
-    );
-  }
-
-  if (slot.kind === "script") {
-    return (
-      <div
-        className={`ad-slot ad-slot--script mx-auto ${className ?? ""}`}
-        style={wrapStyle}
-        data-ad-slot={slot.id}
-        ref={scriptHostRef}
-      />
-    );
-  }
-
-  return null;
+  return (
+    <AdContainer
+      ref={containerRef}
+      dimensions={dimensions}
+      position={placement.position}
+      kind={slot.kind}
+      slotId={slot.id}
+      state={shouldRender ? "ready" : "loading"}
+      label={label}
+      className={className}
+    >
+      {payload}
+    </AdContainer>
+  );
 });
 
 interface ZoneProps {
