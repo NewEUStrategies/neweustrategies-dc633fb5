@@ -111,33 +111,68 @@ function ShapeSvg({
   // Special case: hand-drawn scribble - two slightly curvy underlines drawn
   // sequentially (second shorter, slightly offset), mimicking a marker.
   if (shape === "scribble") {
-    const iter = loop ? "infinite" : "1";
     const halfDur = Math.max(200, Math.round(durationMs * 0.55));
-    const totalDur = halfDur * 2;
+    const drawDur = halfDur * 2;
+    const holdMs = 1400;
+    const fadeMs = 600;
+    const pauseMs = 800;
+    const totalDur = loop ? drawDur + holdMs + fadeMs + pauseMs : drawDur;
     const len1 = 210;
     const len2 = 150;
     const animA = `aHead-scribbleA-${animKey}`;
     const animB = `aHead-scribbleB-${animKey}`;
-    const css2 = `
+    const aHalf = (halfDur / totalDur) * 100;
+    const aDrawEnd = (drawDur / totalDur) * 100;
+    const aHoldEnd = ((drawDur + holdMs) / totalDur) * 100;
+    const aFadeEnd = ((drawDur + holdMs + fadeMs) / totalDur) * 100;
+    const css2 = loop
+      ? `
+      @keyframes ${animA} {
+        0%   { stroke-dashoffset: ${len1}; opacity: 1; }
+        ${aHalf.toFixed(2)}% { stroke-dashoffset: 0; opacity: 1; }
+        ${aHoldEnd.toFixed(2)}% { stroke-dashoffset: 0; opacity: 1; }
+        ${aFadeEnd.toFixed(2)}% { stroke-dashoffset: 0; opacity: 0; }
+        100% { stroke-dashoffset: ${len1}; opacity: 0; }
+      }
+      @keyframes ${animB} {
+        0%   { stroke-dashoffset: ${len2}; opacity: 1; }
+        ${aHalf.toFixed(2)}% { stroke-dashoffset: ${len2}; opacity: 1; }
+        ${aDrawEnd.toFixed(2)}% { stroke-dashoffset: 0; opacity: 1; }
+        ${aHoldEnd.toFixed(2)}% { stroke-dashoffset: 0; opacity: 1; }
+        ${aFadeEnd.toFixed(2)}% { stroke-dashoffset: 0; opacity: 0; }
+        100% { stroke-dashoffset: ${len2}; opacity: 0; }
+      }
+      .ahead-scribbleA-${animKey} {
+        stroke-dasharray: ${len1};
+        stroke-dashoffset: ${len1};
+        animation: ${animA} ${totalDur}ms ${delayMs}ms infinite ease-out;
+      }
+      .ahead-scribbleB-${animKey} {
+        stroke-dasharray: ${len2};
+        stroke-dashoffset: ${len2};
+        animation: ${animB} ${totalDur}ms ${delayMs}ms infinite ease-out;
+      }
+    `
+      : `
       @keyframes ${animA} {
         0%   { stroke-dashoffset: ${len1}; }
-        ${Math.round((halfDur / totalDur) * 100)}% { stroke-dashoffset: 0; }
+        ${aHalf.toFixed(2)}% { stroke-dashoffset: 0; }
         100% { stroke-dashoffset: 0; }
       }
       @keyframes ${animB} {
         0%   { stroke-dashoffset: ${len2}; }
-        ${Math.round((halfDur / totalDur) * 100)}% { stroke-dashoffset: ${len2}; }
+        ${aHalf.toFixed(2)}% { stroke-dashoffset: ${len2}; }
         100% { stroke-dashoffset: 0; }
       }
       .ahead-scribbleA-${animKey} {
         stroke-dasharray: ${len1};
         stroke-dashoffset: ${len1};
-        animation: ${animA} ${totalDur}ms ${delayMs}ms ${iter} forwards ease-out;
+        animation: ${animA} ${totalDur}ms ${delayMs}ms 1 forwards ease-out;
       }
       .ahead-scribbleB-${animKey} {
         stroke-dasharray: ${len2};
         stroke-dashoffset: ${len2};
-        animation: ${animB} ${totalDur}ms ${delayMs}ms ${iter} forwards ease-out;
+        animation: ${animB} ${totalDur}ms ${delayMs}ms 1 forwards ease-out;
       }
     `;
     const positionScribble: CSSProperties = {
