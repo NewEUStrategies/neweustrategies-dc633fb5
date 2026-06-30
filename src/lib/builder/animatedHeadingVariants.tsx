@@ -111,33 +111,68 @@ function ShapeSvg({
   // Special case: hand-drawn scribble - two slightly curvy underlines drawn
   // sequentially (second shorter, slightly offset), mimicking a marker.
   if (shape === "scribble") {
-    const iter = loop ? "infinite" : "1";
     const halfDur = Math.max(200, Math.round(durationMs * 0.55));
-    const totalDur = halfDur * 2;
+    const drawDur = halfDur * 2;
+    const holdMs = 1400;
+    const fadeMs = 600;
+    const pauseMs = 800;
+    const totalDur = loop ? drawDur + holdMs + fadeMs + pauseMs : drawDur;
     const len1 = 210;
     const len2 = 150;
     const animA = `aHead-scribbleA-${animKey}`;
     const animB = `aHead-scribbleB-${animKey}`;
-    const css2 = `
+    const aHalf = (halfDur / totalDur) * 100;
+    const aDrawEnd = (drawDur / totalDur) * 100;
+    const aHoldEnd = ((drawDur + holdMs) / totalDur) * 100;
+    const aFadeEnd = ((drawDur + holdMs + fadeMs) / totalDur) * 100;
+    const css2 = loop
+      ? `
+      @keyframes ${animA} {
+        0%   { stroke-dashoffset: ${len1}; opacity: 1; }
+        ${aHalf.toFixed(2)}% { stroke-dashoffset: 0; opacity: 1; }
+        ${aHoldEnd.toFixed(2)}% { stroke-dashoffset: 0; opacity: 1; }
+        ${aFadeEnd.toFixed(2)}% { stroke-dashoffset: 0; opacity: 0; }
+        100% { stroke-dashoffset: ${len1}; opacity: 0; }
+      }
+      @keyframes ${animB} {
+        0%   { stroke-dashoffset: ${len2}; opacity: 1; }
+        ${aHalf.toFixed(2)}% { stroke-dashoffset: ${len2}; opacity: 1; }
+        ${aDrawEnd.toFixed(2)}% { stroke-dashoffset: 0; opacity: 1; }
+        ${aHoldEnd.toFixed(2)}% { stroke-dashoffset: 0; opacity: 1; }
+        ${aFadeEnd.toFixed(2)}% { stroke-dashoffset: 0; opacity: 0; }
+        100% { stroke-dashoffset: ${len2}; opacity: 0; }
+      }
+      .ahead-scribbleA-${animKey} {
+        stroke-dasharray: ${len1};
+        stroke-dashoffset: ${len1};
+        animation: ${animA} ${totalDur}ms ${delayMs}ms infinite ease-out;
+      }
+      .ahead-scribbleB-${animKey} {
+        stroke-dasharray: ${len2};
+        stroke-dashoffset: ${len2};
+        animation: ${animB} ${totalDur}ms ${delayMs}ms infinite ease-out;
+      }
+    `
+      : `
       @keyframes ${animA} {
         0%   { stroke-dashoffset: ${len1}; }
-        ${Math.round((halfDur / totalDur) * 100)}% { stroke-dashoffset: 0; }
+        ${aHalf.toFixed(2)}% { stroke-dashoffset: 0; }
         100% { stroke-dashoffset: 0; }
       }
       @keyframes ${animB} {
         0%   { stroke-dashoffset: ${len2}; }
-        ${Math.round((halfDur / totalDur) * 100)}% { stroke-dashoffset: ${len2}; }
+        ${aHalf.toFixed(2)}% { stroke-dashoffset: ${len2}; }
         100% { stroke-dashoffset: 0; }
       }
       .ahead-scribbleA-${animKey} {
         stroke-dasharray: ${len1};
         stroke-dashoffset: ${len1};
-        animation: ${animA} ${totalDur}ms ${delayMs}ms ${iter} forwards ease-out;
+        animation: ${animA} ${totalDur}ms ${delayMs}ms 1 forwards ease-out;
       }
       .ahead-scribbleB-${animKey} {
         stroke-dasharray: ${len2};
         stroke-dashoffset: ${len2};
-        animation: ${animB} ${totalDur}ms ${delayMs}ms ${iter} forwards ease-out;
+        animation: ${animB} ${totalDur}ms ${delayMs}ms 1 forwards ease-out;
       }
     `;
     const positionScribble: CSSProperties = {
@@ -160,12 +195,35 @@ function ShapeSvg({
 
   const stroke = shapeStroke[shape];
   const len = shapePathLen[shape];
-  const dur = `${durationMs}ms`;
   const delay = `${delayMs}ms`;
-  const iter = loop ? "infinite" : "1";
   const animName = `aHead-draw-${animKey}`;
 
-  const css = `
+  // Cycle: draw → hold → fade-out → pause → repeat (when loop is true).
+  // Single-shot: draw and stay (forwards).
+  const holdMs = 1400;
+  const fadeMs = 600;
+  const pauseMs = 800;
+  const cycleMs = durationMs + holdMs + fadeMs + pauseMs;
+  const drawEnd = (durationMs / cycleMs) * 100;
+  const holdEnd = ((durationMs + holdMs) / cycleMs) * 100;
+  const fadeEnd = ((durationMs + holdMs + fadeMs) / cycleMs) * 100;
+
+  const css = loop
+    ? `
+    @keyframes ${animName} {
+      0%                       { stroke-dashoffset: ${len}; opacity: 1; }
+      ${drawEnd.toFixed(2)}%   { stroke-dashoffset: 0;     opacity: 1; }
+      ${holdEnd.toFixed(2)}%   { stroke-dashoffset: 0;     opacity: 1; }
+      ${fadeEnd.toFixed(2)}%   { stroke-dashoffset: 0;     opacity: 0; }
+      100%                     { stroke-dashoffset: ${len}; opacity: 0; }
+    }
+    .ahead-path-${animKey} {
+      stroke-dasharray: ${len};
+      stroke-dashoffset: ${len};
+      animation: ${animName} ${cycleMs}ms ${delay} infinite ease-in-out;
+    }
+  `
+    : `
     @keyframes ${animName} {
       from { stroke-dashoffset: ${len}; }
       to   { stroke-dashoffset: 0; }
@@ -173,7 +231,7 @@ function ShapeSvg({
     .ahead-path-${animKey} {
       stroke-dasharray: ${len};
       stroke-dashoffset: ${len};
-      animation: ${animName} ${dur} ${delay} ${iter} forwards ease-in-out;
+      animation: ${animName} ${durationMs}ms ${delay} 1 forwards ease-in-out;
     }
   `;
 
