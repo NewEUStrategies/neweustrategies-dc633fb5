@@ -20,7 +20,10 @@ export interface WidgetDef {
   category: "basic" | "media" | "dynamic" | "form" | "navigation" | "blocks";
   icon: LucideIcon;
   defaults: () => WidgetNode["content"];
+  /** Hide from the "Add widget" palette; the type stays valid for already-saved nodes. */
+  hiddenInPalette?: boolean;
 }
+
 
 export const WIDGETS: WidgetDef[] = [
   // Basic
