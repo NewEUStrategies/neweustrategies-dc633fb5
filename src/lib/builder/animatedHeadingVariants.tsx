@@ -26,7 +26,7 @@ export type AnimatedHeadingShape =
 
 export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] = [
   { value: "none",              label: "Brak" },
-  { value: "brush",             label: "Pędzel (marker)" },
+  { value: "brush",             label: "Flamaster (marker)" },
   { value: "underline",         label: "Podkreślenie" },
   { value: "double-underline",  label: "Podwójne podkreślenie" },
   { value: "scribble",          label: "Odręczne podkreślenie" },
