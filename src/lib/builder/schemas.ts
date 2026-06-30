@@ -726,3 +726,8 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
 
 
 
+
+// Alias legacy "contact" widget schema to the new "contact-form" schema so any
+// page still referencing the old type gets the full property panel.
+(WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField> | undefined>).contact =
+  WIDGET_SCHEMAS["contact-form"];
