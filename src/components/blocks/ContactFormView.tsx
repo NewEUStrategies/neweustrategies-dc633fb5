@@ -106,7 +106,10 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const iconUrl = s(data, "iconUrl");
   const newsletterLabel = s(data, `newsletterLabel_${lang}`, t.newsletter);
 
-  const showName = bool(data, "showName", true);
+  // Backward compat: legacy `showName` toggled both name parts together.
+  const legacyShowName = data.showName === undefined ? null : bool(data, "showName", true);
+  const showFirstName = bool(data, "showFirstName", legacyShowName ?? true);
+  const showLastName = bool(data, "showLastName", legacyShowName ?? true);
   const showEmail = bool(data, "showEmail", true);
   const showPhone = bool(data, "showPhone");
   const showCompany = bool(data, "showCompany");
@@ -114,6 +117,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const showMessage = bool(data, "showMessage", true);
   const requireConsent = bool(data, "requireConsent", true);
   const showNewsletter = bool(data, "showNewsletterOptIn");
+  const consentTextRaw = s(data, `consentText_${lang}`, t.consent);
+
 
   const columns = Math.max(1, Math.min(3, num(data, "columns", 2)));
   const buttonAlign = s(data, "buttonAlign", "left") as "left" | "center" | "right" | "full";
