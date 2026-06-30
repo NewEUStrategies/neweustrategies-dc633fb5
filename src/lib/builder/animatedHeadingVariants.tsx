@@ -452,7 +452,12 @@ export function AnimatedHeadingRender({
     shape === "underline" || shape === "double-underline" || shape === "curly" || shape === "zigzag";
   const needsFrame = shape === "circle" || shape === "framed" || shape === "x";
   const isHoverLine = shape.startsWith("hover-line-");
-  const hoverClass = isHoverLine ? `ah-hu ah-hu-${shape.slice("hover-line-".length)}` : "";
+  const isHoverAllsides = shape.startsWith("hover-allsides-");
+  const hoverClass = isHoverLine
+    ? `ah-hu ah-hu-${shape.slice("hover-line-".length)}`
+    : isHoverAllsides
+      ? `ah-as ah-as-${shape.slice("hover-allsides-".length)}`
+      : "";
 
   return (
     <Tag
