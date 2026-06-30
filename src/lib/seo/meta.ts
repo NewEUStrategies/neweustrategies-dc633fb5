@@ -9,6 +9,22 @@ export const SITE_NAME = "New European Strategies";
 export const SUPPORTED_LANGS: readonly Lang[] = ["pl", "en"];
 export const OG_LOCALE: Record<Lang, string> = { pl: "pl_PL", en: "en_US" };
 
+/**
+ * Brand-default page title per language. Single source of truth shared by the
+ * global <head> fallback (buildRootHead) and the homepage's own head(), so the
+ * front page and any route without its own head() stay byte-identical.
+ */
+export const SITE_DEFAULT_TITLE: Record<Lang, string> = {
+  pl: "New European Strategies - Strategiczne myślenie, nowe perspektywy",
+  en: "New European Strategies - Strategic thinking, new perspectives",
+};
+
+/** Brand-default meta description per language (see SITE_DEFAULT_TITLE). */
+export const SITE_DEFAULT_DESCRIPTION: Record<Lang, string> = {
+  pl: "Think-tank o europejskim bezpieczeństwie, geopolityce i grze mocarstw. Analizy, raporty, wywiady i policy papers.",
+  en: "A think-tank on European security, geopolitics and great-power rivalry. Analyses, reports, interviews and policy papers.",
+};
+
 /** Split a (possibly empty) absolute URL into origin + pathname, dropping the
  * `lang` query param so canonical/hreflang are built from a clean base. */
 export function splitUrl(url: string): { origin: string; path: string } {
@@ -106,6 +122,38 @@ export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
   for (const alt of hreflangLinks(origin, path)) links.push(alt);
 
   return { meta, links };
+}
+
+/**
+ * Default document <head> meta for the app root - the brand fallback rendered
+ * by any route that does not supply its own head() (error pages, parts of the
+ * admin, fallbacks) and in the first social-share preview before a content
+ * head() resolves. Language-aware (PL/EN) and branded to New European
+ * Strategies; pure so it is unit-testable without SSR or a DOM.
+ *
+ * Returns only the meta descriptors - the root route owns its links (stylesheet
+ * + Vite-fingerprinted font preloads), which cannot live in this asset-free
+ * module. Emits no `twitter:site` handle on purpose: the organization has no
+ * canonical @handle, and a stale one is worse for the brand than none.
+ */
+export function buildRootHead(lang: Lang): Array<Record<string, string>> {
+  const title = SITE_DEFAULT_TITLE[lang];
+  const description = SITE_DEFAULT_DESCRIPTION[lang];
+  return [
+    { charSet: "utf-8" },
+    { name: "viewport", content: "width=device-width, initial-scale=1" },
+    { title },
+    { name: "description", content: description },
+    { name: "author", content: SITE_NAME },
+    { property: "og:title", content: title },
+    { property: "og:description", content: description },
+    { property: "og:type", content: "website" },
+    { property: "og:site_name", content: SITE_NAME },
+    { property: "og:locale", content: OG_LOCALE[lang] },
+    { name: "twitter:card", content: "summary" },
+    { name: "twitter:title", content: title },
+    { name: "twitter:description", content: description },
+  ];
 }
 
 export interface ImagePreloadInput {
