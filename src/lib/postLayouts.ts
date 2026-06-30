@@ -60,6 +60,26 @@ export function findLayout(format: PostFormat, id: string): LayoutPreset {
   return set.find((l) => l.id === id) ?? set[0];
 }
 
+/**
+ * Single source of truth for the responsive `sizes` of a post's featured/cover
+ * image, derived from the layout preset. Consumed by both the renderer
+ * (`PostLayoutRenderer` <img sizes>) and the route loader (the
+ * `<link rel="preload" as="image" imagesizes>`), so the preloaded candidate is
+ * byte-identical to the painted one - never drift, never a double download.
+ *
+ * Mirrors the render branches:
+ *  - overlay header  -> full-bleed hero        => 100vw
+ *  - side-by-side    -> half-width split image  => (max-width: 1024px) 100vw, 50vw
+ *  - boxed cover     -> max-w-2xl (672px) box   => (max-width: 768px) 100vw, 672px
+ *  - everything else -> wide / ratio / default  => 100vw
+ */
+export function coverImageSizes(preset: LayoutPreset): string {
+  if (preset.header === "overlay") return "100vw";
+  if (preset.header === "side-by-side") return "(max-width: 1024px) 100vw, 50vw";
+  if (preset.cover === "boxed") return "(max-width: 768px) 100vw, 672px";
+  return "100vw";
+}
+
 export interface PostLayoutSettings {
   tenant_id: string;
   standard_layout: string;

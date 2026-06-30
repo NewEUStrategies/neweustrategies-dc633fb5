@@ -36,7 +36,8 @@ import { buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
 import { useUnlockedContent } from "@/hooks/useUnlockedContent";
 import { isGatedMode, hasRenderableBody, shouldShowPaywall, pickBody, type BodyParts } from "@/lib/access/gating";
 import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead, buildArticleJsonLd } from "@/lib/seo/meta";
+import { buildContentHead, buildArticleJsonLd, imagePreloadLink } from "@/lib/seo/meta";
+import { buildImageSrcSet } from "@/lib/cropSizes";
 import { activeLang } from "@/lib/seo/head";
 import { Paywall } from "@/components/Paywall";
 import { PostLayoutRenderer } from "@/components/PostLayoutRenderer";
@@ -46,7 +47,7 @@ import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
 
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
-import { mergeOverrides, pickLayoutId, type LayoutOverrides, type PostFormat } from "@/lib/postLayouts";
+import { mergeOverrides, pickLayoutId, findLayout, coverImageSizes, defaultPostLayoutSettings, type LayoutOverrides, type PostFormat, type PostLayoutSettings } from "@/lib/postLayouts";
 import { resolvedContentQueryOptions, type PostData, type PageData } from "@/lib/queries/public";
 import { AdZone } from "@/components/AdSlot";
 import { MidPostAds } from "@/components/ads/MidPostAds";
@@ -59,6 +60,34 @@ import { contentCacheControl } from "@/lib/http/cachePolicy";
 import { requestLangOverridesCache } from "@/lib/i18n";
 import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
 
+
+interface CoverPreload {
+  href: string;
+  imageSrcSet: string;
+  imageSizes: string;
+}
+
+/**
+ * LCP cover-image preload descriptor for a post, mirroring exactly what
+ * `PostLayoutRenderer` paints - same responsive candidates (`buildImageSrcSet`)
+ * and the same `sizes` (`coverImageSizes`) - so the preloaded candidate is the
+ * one the browser renders, never a second download. Returns null when the
+ * active layout shows no cover (`cover: "none"`, e.g. layout-9) or the post has
+ * no cover image. Pages are excluded: their hero lives in the builder document.
+ */
+function buildCoverPreload(item: PostData, settings: PostLayoutSettings): CoverPreload | null {
+  const cover = item.cover_image_url;
+  if (!cover) return null;
+  const format: PostFormat = item.layout_overrides?.format ?? item.post_format ?? "standard";
+  const layoutId = pickLayoutId(settings, format, item.layout_overrides?.layout);
+  const preset = findLayout(format, layoutId);
+  if (preset.cover === "none") return null;
+  return {
+    href: cover,
+    imageSrcSet: buildImageSrcSet(cover),
+    imageSizes: coverImageSizes(preset),
+  };
+}
 
 export const Route = createFileRoute("/$")({
   // Chrome (Header/Footer) is centralized in SiteChrome at the root - never
@@ -90,6 +119,16 @@ export const Route = createFileRoute("/$")({
         : Promise.resolve(),
       context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions()),
     ]);
+    // Posts: attach the LCP cover preload so head() can emit it. The layout
+    // settings were just warmed above, so this reads from cache (no extra
+    // round-trip) and falls back to defaults if that prefetch was rejected.
+    if (data.kind === "post") {
+      const settings =
+        context.queryClient.getQueryData<PostLayoutSettings>(
+          postLayoutSettingsQueryOptions().queryKey,
+        ) ?? defaultPostLayoutSettings();
+      return { ...data, coverPreload: buildCoverPreload(data.item, settings) };
+    }
     return data;
   },
   head: ({ loaderData, params }) => {
@@ -128,8 +167,16 @@ export const Route = createFileRoute("/$")({
       modifiedAt: it.updated_at,
       gated: isGatedMode(loaderData.access?.mode),
     });
+    // Preload the LCP cover image (posts only) so its fetch starts from <head>,
+    // before the <img> is parsed in the body. The descriptor matches the
+    // rendered <img> srcSet/sizes 1:1, so no candidate is fetched twice.
+    const links =
+      loaderData.kind === "post" && loaderData.coverPreload
+        ? [...head.links, imagePreloadLink(loaderData.coverPreload)]
+        : head.links;
     return {
       ...head,
+      links,
       scripts: [{ type: "application/ld+json", children: JSON.stringify(jsonLd) }],
     };
   },

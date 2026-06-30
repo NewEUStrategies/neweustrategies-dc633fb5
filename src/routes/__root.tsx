@@ -10,6 +10,11 @@ import {
 import { lazy, Suspense, useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+// Fingerprinted by Vite to the SAME emitted file the @font-face in styles.css
+// references, so the preload is reused (not a second download). See styles.css.
+import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url";
+import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
+import { fontPreloadLinks } from "../lib/seo/fontPreload";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import i18n, { syncI18nToRequest } from "../lib/i18n";
 import "../lib/i18n-profile";
@@ -141,6 +146,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // render-blocking third-party request, and no visitor IPs sent to Google.
     links: [
       { rel: "stylesheet", href: appCss },
+      // Preload the critical font subset(s) so heading text (a frequent LCP
+      // element) swaps in without waiting for the CSS to parse first. Latin
+      // backs both languages; Latin-ext (Polish diacritics) only for PL.
+      ...fontPreloadLinks(i18n.language === "en" ? "en" : "pl", {
+        latin: redHatDisplayLatin,
+        latinExt: redHatDisplayLatinExt,
+      }),
       { rel: "dns-prefetch", href: "https://unnltowbgszpdzwpawdu.supabase.co" },
       { rel: "preconnect", href: "https://unnltowbgszpdzwpawdu.supabase.co", crossOrigin: "anonymous" },
     ],
