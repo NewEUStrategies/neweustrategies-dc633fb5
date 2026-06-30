@@ -27,7 +27,7 @@ import {
   Users, Download, Send, Search, FileText, ShieldCheck,
   Mail, Trash2, Plus,
 } from "@/lib/lucide-shim";
-import { RefreshCw, Tag as TagIcon } from "lucide-react";
+import { RefreshCw, Tag as TagIcon, Clock, FileDown, Printer } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/crm")({
