@@ -1,42 +1,54 @@
 // CRM server functions: list/get/update leads, notes, consents, CSV export,
 // Merydian integration push (webhook + API), and integration settings CRUD.
-// All write paths require staff (admin/editor) or super_admin; super_admin sees
-// cross-tenant data via the crm_leads_all view.
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { createHmac } from "crypto";
 
-type Stage = "new" | "contacted" | "qualified" | "proposal" | "won" | "lost" | "archived";
-const STAGES: Stage[] = ["new", "contacted", "qualified", "proposal", "won", "lost", "archived"];
+const STAGE_ENUM = z.enum(["new","contacted","qualified","proposal","won","lost","archived"]);
+type Stage = z.infer<typeof STAGE_ENUM>;
+
+// JSON-safe sanitizer (Supabase returns inet/jsonb as `unknown`, which breaks
+// the TanStack Start serializer). Round-tripping coerces everything to JSON.
+const safe = <T,>(v: T): T => JSON.parse(JSON.stringify(v ?? null)) as T;
 
 const ListInput = z.object({
   search: z.string().trim().max(200).optional(),
-  stage: z.enum(["new","contacted","qualified","proposal","won","lost","archived"]).optional(),
+  stage: STAGE_ENUM.optional(),
   scope: z.enum(["tenant","all"]).default("tenant"),
   limit: z.number().int().min(1).max(500).default(200),
 });
+
+type AnyQuery = {
+  select: (s: string) => AnyQuery;
+  order: (c: string, o: { ascending: boolean }) => AnyQuery;
+  limit: (n: number) => AnyQuery;
+  eq: (c: string, v: unknown) => AnyQuery;
+  or: (f: string) => AnyQuery;
+  ilike: (c: string, v: string) => AnyQuery;
+  maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }>;
+  insert: (v: unknown) => Promise<{ error: { message: string } | null }>;
+  update: (v: unknown) => AnyQuery;
+  delete: () => AnyQuery;
+  then: <R>(fn: (r: { data: unknown; error: { message: string } | null }) => R) => Promise<R>;
+};
+const tbl = (ctx: { supabase: unknown }, name: string): AnyQuery =>
+  (ctx.supabase as { from: (t: string) => AnyQuery }).from(name);
 
 export const listCrmLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
-    const supa = context.supabase as unknown as {
-      from: (t: string) => {
-        select: (s: string) => { order: (c: string, o: { ascending: boolean }) => unknown };
-      };
-    };
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
-    // deno-lint-ignore no-explicit-any
-    let q: any = supa.from(view).select("*").order("last_activity_at", { ascending: false }).limit(data.limit);
+    let q = tbl(context, view).select("*").order("last_activity_at", { ascending: false }).limit(data.limit);
     if (data.stage) q = q.eq("stage", data.stage);
     if (data.search) {
       const s = `%${data.search.toLowerCase()}%`;
       q = q.or(`email.ilike.${s},first_name.ilike.${s},last_name.ilike.${s},company.ilike.${s}`);
     }
-    const { data: leads, error } = await q;
+    const { data: leads, error } = await (q as unknown as Promise<{ data: unknown[]; error: { message: string } | null }>);
     if (error) throw new Error(error.message);
-    return { leads: (leads ?? []) as Record<string, unknown>[] };
+    return { leads: safe((leads ?? []) as Record<string, unknown>[]) };
   });
 
 const IdInput = z.object({ id: z.string().uuid() });
@@ -45,37 +57,35 @@ export const getCrmLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { data: lead, error } = await supabase
-      .from("crm_leads").select("*").eq("id", data.id).maybeSingle();
+    const { data: lead, error } = await tbl(context, "crm_leads")
+      .select("*").eq("id", data.id).maybeSingle();
     if (error) throw new Error(error.message);
     if (!lead) throw new Error("Lead not found");
+    const L = lead as { email: string; tenant_id: string; id: string };
 
-    const [{ data: messages }, { data: subs }, { data: consents }, { data: notes }] = await Promise.all([
-      supabase.from("contact_messages")
+    const [messages, subs, consents, notes] = await Promise.all([
+      (tbl(context, "contact_messages")
         .select("id, form_type, form_name, subject, message, lang, source, page_url, referer, ip, consents, newsletter_opt_in, consent, created_at")
-        .ilike("email", lead.email)
-        .eq("tenant_id", lead.tenant_id)
-        .order("created_at", { ascending: false }).limit(100),
-      supabase.from("newsletter_subscribers")
+        .ilike("email", L.email).eq("tenant_id", L.tenant_id)
+        .order("created_at", { ascending: false }).limit(100) as unknown as Promise<{ data: unknown[] }>).then((r) => r.data ?? []),
+      (tbl(context, "newsletter_subscribers")
         .select("id, status, source, source_form_id, source_form_name, language, ip, consents, confirmed_at, created_at, updated_at")
-        .ilike("email", lead.email)
-        .eq("tenant_id", lead.tenant_id)
-        .order("created_at", { ascending: false }).limit(50),
-      supabase.from("crm_consent_log")
-        .select("*").ilike("email", lead.email).eq("tenant_id", lead.tenant_id)
-        .order("created_at", { ascending: false }).limit(200),
-      supabase.from("crm_lead_notes")
-        .select("id, body, author_id, created_at").eq("lead_id", lead.id)
-        .order("created_at", { ascending: false }),
+        .ilike("email", L.email).eq("tenant_id", L.tenant_id)
+        .order("created_at", { ascending: false }).limit(50) as unknown as Promise<{ data: unknown[] }>).then((r) => r.data ?? []),
+      (tbl(context, "crm_consent_log").select("*")
+        .ilike("email", L.email).eq("tenant_id", L.tenant_id)
+        .order("created_at", { ascending: false }).limit(200) as unknown as Promise<{ data: unknown[] }>).then((r) => r.data ?? []),
+      (tbl(context, "crm_lead_notes")
+        .select("id, body, author_id, created_at").eq("lead_id", L.id)
+        .order("created_at", { ascending: false }) as unknown as Promise<{ data: unknown[] }>).then((r) => r.data ?? []),
     ]);
 
-    return { lead, messages: messages ?? [], subscriptions: subs ?? [], consents: consents ?? [], notes: notes ?? [] };
+    return safe({ lead: lead as Record<string, unknown>, messages, subscriptions: subs, consents, notes });
   });
 
 const UpdateInput = z.object({
   id: z.string().uuid(),
-  stage: z.enum(["new","contacted","qualified","proposal","won","lost","archived"]).optional(),
+  stage: STAGE_ENUM.optional(),
   owner_id: z.string().uuid().nullable().optional(),
   tags: z.array(z.string().max(40)).max(40).optional(),
   follow_up_at: z.string().datetime().nullable().optional(),
@@ -90,8 +100,8 @@ export const updateCrmLead = createServerFn({ method: "POST" })
   .inputValidator((d) => UpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...patch } = data;
-    const { error } = await context.supabase.from("crm_leads").update(patch).eq("id", id);
-    if (error) throw new Error(error.message);
+    const res = await (tbl(context, "crm_leads").update(patch).eq("id", id) as unknown as Promise<{ error: { message: string } | null }>);
+    if (res.error) throw new Error(res.error.message);
     return { ok: true };
   });
 
@@ -101,8 +111,9 @@ export const addCrmNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => NoteInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("crm_lead_notes").insert({
-      lead_id: data.lead_id, body: data.body, author_id: context.userId,
+    const userId = (context as { userId: string }).userId;
+    const { error } = await tbl(context, "crm_lead_notes").insert({
+      lead_id: data.lead_id, body: data.body, author_id: userId,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -112,8 +123,8 @@ export const deleteCrmNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("crm_lead_notes").delete().eq("id", data.id);
-    if (error) throw new Error(error.message);
+    const res = await (tbl(context, "crm_lead_notes").delete().eq("id", data.id) as unknown as Promise<{ error: { message: string } | null }>);
+    if (res.error) throw new Error(res.error.message);
     return { ok: true };
   });
 
@@ -122,11 +133,10 @@ export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
   .inputValidator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
-    let q = context.supabase.from(view).select("*").order("last_activity_at", { ascending: false }).limit(5000);
+    let q = tbl(context, view).select("*").order("last_activity_at", { ascending: false }).limit(5000);
     if (data.stage) q = q.eq("stage", data.stage);
-    const { data: rows, error } = await q;
+    const { data: rows, error } = await (q as unknown as Promise<{ data: Record<string, unknown>[]; error: { message: string } | null }>);
     if (error) throw new Error(error.message);
-
     const cols = ["email","first_name","last_name","phone","company","stage","tags","newsletter_status","marketing_consent","source_count","follow_up_at","last_activity_at","created_at"];
     const esc = (v: unknown): string => {
       if (v == null) return "";
@@ -134,10 +144,7 @@ export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [cols.join(",")];
-    for (const r of rows ?? []) {
-      const row = r as Record<string, unknown>;
-      lines.push(cols.map((c) => esc(row[c])).join(","));
-    }
+    for (const r of rows ?? []) lines.push(cols.map((c) => esc(r[c])).join(","));
     return { csv: lines.join("\n"), count: rows?.length ?? 0 };
   });
 
@@ -151,33 +158,31 @@ const IntegrationsInput = z.object({
   merydian_api_base: z.string().url().nullable().optional(),
   merydian_api_key: z.string().max(500).nullable().optional(),
   merydian_workspace_id: z.string().max(120).nullable().optional(),
-  forward_stages: z.array(z.enum(["new","contacted","qualified","proposal","won","lost","archived"])).default(["new"]),
+  forward_stages: z.array(STAGE_ENUM).default(["new"]),
 });
 
 export const getCrmIntegrations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .from("crm_integrations").select("*").maybeSingle();
+    const { data, error } = await tbl(context, "crm_integrations").select("*").maybeSingle();
     if (error) throw new Error(error.message);
-    return { settings: data };
+    return { settings: safe(data as Record<string, unknown> | null) };
   });
 
 export const upsertCrmIntegrations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => IntegrationsInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" });
+    const userId = (context as { userId: string }).userId;
+    const supabase = (context as { supabase: { rpc: (n: string, a: Record<string, unknown>) => Promise<{ data: boolean | null }> } }).supabase;
+    const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
     if (!isAdmin) throw new Error("Forbidden");
-
-    const { data: existing } = await context.supabase
-      .from("crm_integrations").select("id").maybeSingle();
-
-    const payload = { ...data };
-    const { error } = existing
-      ? await context.supabase.from("crm_integrations").update(payload).eq("id", existing.id)
-      : await context.supabase.from("crm_integrations").insert(payload);
-    if (error) throw new Error(error.message);
+    const { data: existing } = await tbl(context, "crm_integrations").select("id").maybeSingle();
+    const E = existing as { id: string } | null;
+    const res = E
+      ? await (tbl(context, "crm_integrations").update(data).eq("id", E.id) as unknown as Promise<{ error: { message: string } | null }>)
+      : await tbl(context, "crm_integrations").insert(data);
+    if (res.error) throw new Error(res.error.message);
     return { ok: true };
   });
 
@@ -187,27 +192,21 @@ export const pushLeadToMerydian = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => PushInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: lead, error } = await context.supabase
-      .from("crm_leads").select("*").eq("id", data.lead_id).maybeSingle();
+    const { data: lead, error } = await tbl(context, "crm_leads").select("*").eq("id", data.lead_id).maybeSingle();
     if (error || !lead) throw new Error(error?.message ?? "Lead not found");
-
-    const { data: cfg } = await supabaseAdmin
-      .from("crm_integrations").select("*").eq("tenant_id", lead.tenant_id).maybeSingle();
-    if (!cfg || !cfg.merydian_enabled) throw new Error("Merydian integration is disabled");
-
-    const result = await dispatchMerydian(lead, cfg as Record<string, unknown>);
-
-    await supabaseAdmin.from("crm_integrations").update({
+    const L = lead as LeadRow;
+    const { data: cfg } = await tbl(context, "crm_integrations").select("*").eq("tenant_id", L.tenant_id).maybeSingle();
+    if (!cfg || !(cfg as { merydian_enabled: boolean }).merydian_enabled) throw new Error("Merydian integration is disabled");
+    const result = await dispatchMerydian(L, cfg as Record<string, unknown>);
+    await (tbl(context, "crm_integrations").update({
       last_sync_at: new Date().toISOString(),
       last_sync_status: result.ok ? "ok" : "error",
       last_sync_error: result.ok ? null : (result.error ?? "unknown"),
-    }).eq("tenant_id", lead.tenant_id);
-
+    }).eq("tenant_id", L.tenant_id) as unknown as Promise<unknown>);
     return result;
   });
 
-type LeadRow = {
+export type LeadRow = {
   id: string; tenant_id: string; email: string; first_name: string | null; last_name: string | null;
   phone: string | null; company: string | null; stage: Stage; tags: string[] | null;
   marketing_consent: boolean; newsletter_status: string | null; created_at: string; last_activity_at: string;
@@ -222,22 +221,16 @@ export async function dispatchMerydian(
   if (!stages.includes(lead.stage)) return { ok: true, via: "skipped_stage" };
 
   const payload = {
-    id: lead.id,
-    email: lead.email,
-    first_name: lead.first_name,
-    last_name: lead.last_name,
-    phone: lead.phone,
-    company: lead.company,
-    stage: lead.stage,
-    tags: lead.tags ?? [],
+    id: lead.id, email: lead.email,
+    first_name: lead.first_name, last_name: lead.last_name,
+    phone: lead.phone, company: lead.company,
+    stage: lead.stage, tags: lead.tags ?? [],
     marketing_consent: lead.marketing_consent,
     newsletter_status: lead.newsletter_status,
     workspace_id: cfg.merydian_workspace_id ?? null,
-    created_at: lead.created_at,
-    last_activity_at: lead.last_activity_at,
+    created_at: lead.created_at, last_activity_at: lead.last_activity_at,
   };
   const body = JSON.stringify(payload);
-
   const out: { webhook?: { ok: boolean; status?: number; error?: string }; api?: { ok: boolean; status?: number; error?: string } } = {};
 
   if (mode === "webhook" || mode === "both") {
@@ -250,9 +243,7 @@ export async function dispatchMerydian(
       try {
         const r = await fetch(url, { method: "POST", headers, body });
         out.webhook = { ok: r.ok, status: r.status, error: r.ok ? undefined : await r.text().then((t) => t.slice(0, 200)).catch(() => "") };
-      } catch (e) {
-        out.webhook = { ok: false, error: String(e).slice(0, 200) };
-      }
+      } catch (e) { out.webhook = { ok: false, error: String(e).slice(0, 200) }; }
     }
   }
 
@@ -264,17 +255,11 @@ export async function dispatchMerydian(
       try {
         const r = await fetch(`${base.replace(/\/$/, "")}/leads`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`,
-            "User-Agent": "NES-CRM/1.0",
-          },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}`, "User-Agent": "NES-CRM/1.0" },
           body,
         });
         out.api = { ok: r.ok, status: r.status, error: r.ok ? undefined : await r.text().then((t) => t.slice(0, 200)).catch(() => "") };
-      } catch (e) {
-        out.api = { ok: false, error: String(e).slice(0, 200) };
-      }
+      } catch (e) { out.api = { ok: false, error: String(e).slice(0, 200) }; }
     }
   }
 
