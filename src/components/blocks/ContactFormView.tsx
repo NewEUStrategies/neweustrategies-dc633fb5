@@ -154,8 +154,12 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     if ((fd.get("website") as string)?.length) return; // honeypot
+    const firstName = String(fd.get("firstName") ?? "").trim();
+    const lastName = String(fd.get("lastName") ?? "").trim();
     const payload = {
-      name: String(fd.get("name") ?? "").trim(),
+      name: [firstName, lastName].filter(Boolean).join(" "),
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
       email: String(fd.get("email") ?? "").trim(),
       phone: String(fd.get("phone") ?? "").trim() || undefined,
       company: String(fd.get("company") ?? "").trim() || undefined,
@@ -168,11 +172,13 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       source: typeof window !== "undefined" ? window.location.pathname : undefined,
     };
     const errs: Record<string, string> = {};
-    if (showName && !payload.name) errs.name = t.required;
+    if (showFirstName && !firstName) errs.firstName = t.required;
+    if (showLastName && !lastName) errs.lastName = t.required;
     if (showEmail && !payload.email) errs.email = t.required;
     else if (showEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) errs.email = t.invalidEmail;
     if (showMessage && !payload.message) errs.message = t.required;
     if (requireConsent && !payload.consent) errs.consent = t.required;
+
     setErrors(errs);
     if (Object.keys(errs).length) return;
     setStatus("sending");
