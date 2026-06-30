@@ -202,3 +202,24 @@ bun run lint             # non-blocking (Prettier backlog)
 ```
 
 A change is "green" only when the first four pass - the same bar CI enforces.
+
+### Bundle budget: public vs overall
+
+`check:bundle` (`scripts/check-bundle-size.ts`) splits the gzipped client JS into
+three budgets rather than one blunt total, because "total app JS" conflates two
+different costs:
+
+- **PUBLIC** (≤ 1000 KB; ~930 KB today) - every chunk a public visitor can ever
+  download (first load + in-session navigation). This is the perf-meaningful
+  budget: what real readers pay for.
+- **OVERALL** (≤ 1300 KB; ~1200 KB today) - every chunk, *including* admin/editor
+  -only code (visual builder, block editor, theme panes, `/admin` routes, builder
+  drag-and-drop). A coarser backstop so the CMS surface can't balloon unnoticed,
+  even though it is code-split behind the auth-gated `/admin` routes and is never
+  reachable from a public URL.
+- **CHUNK** (≤ 250 KB; ~181 KB today, the client entry) - largest single chunk,
+  to catch a lost code-split or a giant dependency in one file.
+
+Admin-only chunks are identified by emitted basename (`admin.*`, `Builder-`,
+`PostBlockEditor`, `ThemeOptionsPane`, `AdminShell`, `sidebar`, `vendor-dnd`) and
+billed to OVERALL only - keep that list in sync with `vite.config.ts` manualChunks.
