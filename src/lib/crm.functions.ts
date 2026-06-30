@@ -21,9 +21,14 @@ export const listCrmLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const supa = context.supabase as unknown as {
+      from: (t: string) => {
+        select: (s: string) => { order: (c: string, o: { ascending: boolean }) => unknown };
+      };
+    };
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
-    let q = supabase.from(view).select("*").order("last_activity_at", { ascending: false }).limit(data.limit);
+    // deno-lint-ignore no-explicit-any
+    let q: any = supa.from(view).select("*").order("last_activity_at", { ascending: false }).limit(data.limit);
     if (data.stage) q = q.eq("stage", data.stage);
     if (data.search) {
       const s = `%${data.search.toLowerCase()}%`;
@@ -31,7 +36,7 @@ export const listCrmLeads = createServerFn({ method: "POST" })
     }
     const { data: leads, error } = await q;
     if (error) throw new Error(error.message);
-    return { leads: leads ?? [] };
+    return { leads: (leads ?? []) as Record<string, unknown>[] };
   });
 
 const IdInput = z.object({ id: z.string().uuid() });
