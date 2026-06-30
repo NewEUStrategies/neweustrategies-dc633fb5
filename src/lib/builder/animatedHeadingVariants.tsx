@@ -29,7 +29,15 @@ export type AnimatedHeadingShape =
   | "hover-line-5"
   | "hover-line-6"
   | "hover-line-7"
-  | "hover-line-8";
+  | "hover-line-8"
+  | "hover-allsides-1"
+  | "hover-allsides-2"
+  | "hover-allsides-3"
+  | "hover-allsides-4"
+  | "hover-allsides-5"
+  | "hover-allsides-6"
+  | "hover-allsides-7"
+  | "hover-allsides-8";
 
 export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] = [
   { value: "none",              label: "Brak" },
