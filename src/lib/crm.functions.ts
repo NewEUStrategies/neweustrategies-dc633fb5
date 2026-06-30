@@ -246,7 +246,7 @@ export async function dispatchMerydian(
     else {
       const headers: Record<string, string> = { "Content-Type": "application/json", "User-Agent": "NES-CRM/1.0" };
       const secret = (cfg.merydian_webhook_secret as string | null) ?? "";
-      if (secret) headers["X-Signature"] = createHmac("sha256", secret).update(body).digest("hex");
+      if (secret) headers["X-Signature"] = await hmacSha256Hex(secret, body);
       try {
         const r = await fetch(url, { method: "POST", headers, body });
         out.webhook = { ok: r.ok, status: r.status, error: r.ok ? undefined : await r.text().then((t) => t.slice(0, 200)).catch(() => "") };
