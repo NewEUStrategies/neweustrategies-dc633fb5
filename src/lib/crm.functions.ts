@@ -4,7 +4,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { createHmac } from "crypto";
+async function hmacSha256Hex(secret: string, body: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(body));
+  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 const STAGE_ENUM = z.enum(["new","contacted","qualified","proposal","won","lost","archived"]);
 type Stage = z.infer<typeof STAGE_ENUM>;
@@ -241,7 +246,7 @@ export async function dispatchMerydian(
     else {
       const headers: Record<string, string> = { "Content-Type": "application/json", "User-Agent": "NES-CRM/1.0" };
       const secret = (cfg.merydian_webhook_secret as string | null) ?? "";
-      if (secret) headers["X-Signature"] = createHmac("sha256", secret).update(body).digest("hex");
+      if (secret) headers["X-Signature"] = await hmacSha256Hex(secret, body);
       try {
         const r = await fetch(url, { method: "POST", headers, body });
         out.webhook = { ok: r.ok, status: r.status, error: r.ok ? undefined : await r.text().then((t) => t.slice(0, 200)).catch(() => "") };
