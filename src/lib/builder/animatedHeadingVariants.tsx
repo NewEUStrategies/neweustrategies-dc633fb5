@@ -471,6 +471,7 @@ export function AnimatedHeadingRender({
       }}
     >
       {isHoverLine ? <style>{HOVER_LINE_CSS}</style> : null}
+      {isHoverAllsides ? <style>{HOVER_ALLSIDES_CSS}</style> : null}
       {config.textBefore ? <span>{config.textBefore}{config.textBefore.endsWith(" ") ? "" : " "}</span> : null}
       <span
         key={animKey}
