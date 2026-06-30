@@ -11,15 +11,14 @@ import { buildContentHead, SITE_DEFAULT_TITLE, SITE_DEFAULT_DESCRIPTION } from "
 import { prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
-import { requestLangOverridesCache } from "@/lib/i18n";
 
 export const Route = createFileRoute("/")({
   loader: async ({ context }) => {
     // ISR-like edge caching: the homepage SSR is the anonymous shell, so it is
-    // safe to share-cache and serve stale-while-revalidate from the CDN. EXCEPT
-    // when the language was chosen by a cookie (no ?lang=, cookie ≠ default):
-    // the CDN keys on URL only, so that render must not be shared-cached.
-    setCacheControlHeader(contentCacheControl({ personalized: requestLangOverridesCache() }));
+    // safe to share-cache and serve stale-while-revalidate from the CDN. The
+    // language lives in the URL path (PL at "/", EN at "/en"), so each variant
+    // is its own cache entry - no cookie-driven personalization, no poisoning.
+    setCacheControlHeader(contentCacheControl());
     const homePage = await context.queryClient.ensureQueryData(homePageQueryOptions());
     const doc = homePage?.editor === "builder" ? parseBuilderDoc(homePage.builder_data) : null;
     if (doc?.sections.length) {

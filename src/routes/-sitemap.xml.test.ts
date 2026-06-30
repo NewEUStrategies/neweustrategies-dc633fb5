@@ -13,18 +13,28 @@ describe("sitemap xmlEscape", () => {
 });
 
 describe("sitemap alternateLinks", () => {
-  it("emits x-default plus one alternate per supported language", () => {
+  it("emits x-default plus one path-prefixed alternate per supported language", () => {
     const links = alternateLinks("https://example.com/post");
     expect(links).toHaveLength(SUPPORTED_LANGS.length + 1);
+    // x-default + PL (default) resolve to the bare, unprefixed URL.
     expect(links[0]).toContain('hreflang="x-default"');
-    for (const lang of SUPPORTED_LANGS) {
-      expect(links.some((l) => l.includes(`hreflang="${lang}"`) && l.includes(`?lang=${lang}`))).toBe(true);
-    }
+    expect(links[0]).toContain('href="https://example.com/post"');
+    expect(
+      links.some(
+        (l) => l.includes('hreflang="pl"') && l.includes('href="https://example.com/post"'),
+      ),
+    ).toBe(true);
+    // EN is addressed under the "/en" path prefix.
+    expect(
+      links.some(
+        (l) => l.includes('hreflang="en"') && l.includes('href="https://example.com/en/post"'),
+      ),
+    ).toBe(true);
   });
 
   it("XML-escapes the loc in every alternate", () => {
-    const links = alternateLinks("https://example.com/a?x=1&y=2");
+    const links = alternateLinks("https://example.com/a&b");
     expect(links.every((l) => l.includes("&amp;"))).toBe(true);
-    expect(links.some((l) => l.includes("&y=2"))).toBe(false);
+    expect(links.some((l) => l.includes('/a&b"'))).toBe(false);
   });
 });

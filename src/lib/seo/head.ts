@@ -3,18 +3,20 @@
 // one place ensures every route emits consistent canonical / og / hreflang.
 import i18n from "@/lib/i18n";
 import { getRequestUrl } from "@/lib/seo/request";
+import { stripLangPrefix } from "@/lib/i18n/localePath";
 import type { Lang } from "@/lib/seo/meta";
 
 /**
- * Active language for head()/JSON-LD. An explicit `?lang=` (honoured by i18n and
- * by the hreflang alternates) wins; otherwise the i18n singleton (pl on the
- * server, the user's choice on the client).
+ * Active language for head()/JSON-LD. The URL PATH prefix ("/en/...") is
+ * authoritative; an unprefixed path is the default-language canonical, so it
+ * falls back to the i18n runtime (pl on the server for content, the user's
+ * choice on the client).
  */
 export function activeLang(url?: string): Lang {
   const u = url ?? getRequestUrl();
   try {
-    const l = new URL(u, "http://x").searchParams.get("lang");
-    if (l === "en" || l === "pl") return l;
+    const { lang } = stripLangPrefix(new URL(u, "http://x").pathname);
+    if (lang) return lang;
   } catch {
     /* ignore */
   }
