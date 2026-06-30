@@ -183,3 +183,7 @@ async function handle(request: Request): Promise<Response> {
 }
 
 export { verifySignature as __verifySignatureForTests };
+// The full request handler, exported for tests so the reconciliation logic
+// (order -> paid -> entitlement, idempotent replays, expiry/failure, invoice
+// renewal, subscription cancel) is exercised, not just signature verification.
+export { handle as __handleForTests };
