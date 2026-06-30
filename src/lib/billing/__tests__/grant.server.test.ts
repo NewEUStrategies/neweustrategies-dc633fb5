@@ -140,6 +140,26 @@ describe("grantEntitlement", () => {
     expect(upsert!.args[1]).toEqual({ onConflict: "user_id,entity_type,entity_id" });
   });
 
+  it("defaults to a one-month window when the plan row is missing", async () => {
+    // plan lookup returns no row -> periodEndFor(null) -> one month from now.
+    h.state.maybeSingleQueue = [
+      { data: null, error: null },
+      { data: null, error: null },
+    ];
+    await grantEntitlement(subOrder, "sub_777");
+    const row = find("insert")!.args[0] as Record<string, unknown>;
+    const days = (new Date(row.current_period_end as string).getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(27);
+    expect(days).toBeLessThan(33);
+  });
+
+  it("falls back to amount 0 / PLN when the purchase order carries no amount", async () => {
+    await grantEntitlement({ ...oneTimeOrder, amount_cents: null, currency: null }, "ord_3");
+    const row = find("upsert")!.args[0] as Record<string, unknown>;
+    expect(row.amount_cents).toBe(0);
+    expect(row.currency).toBe("PLN");
+  });
+
   it("grants nothing for an incomplete order (no plan and no entity)", async () => {
     const incomplete: GrantableOrder = { ...subOrder, plan_id: null };
     await grantEntitlement(incomplete, "x");
