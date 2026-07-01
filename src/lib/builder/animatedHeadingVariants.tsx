@@ -92,22 +92,98 @@ export const HOVER_LINE_CSS = `
 
 export const HOVER_ALLSIDES_CSS = `
 .ah-as { display: inline-block; padding: 8px; cursor: pointer; }
-.ah-as-1 { background: linear-gradient(currentColor 0 0) 100% 0, linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 100% 100%; background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
-.ah-as-1:hover { --d: 100%; }
-.ah-as-2 { background: linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 100% 100%, linear-gradient(currentColor 0 0) 100% 100%; background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
-.ah-as-2:hover { --d: 100%; }
-.ah-as-3 { background: linear-gradient(currentColor 0 0) top, linear-gradient(currentColor 0 0) left, linear-gradient(currentColor 0 0) bottom, linear-gradient(currentColor 0 0) right; background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
-.ah-as-3:hover { --d: 100%; }
-.ah-as-4 { background: linear-gradient(currentColor 0 0) var(--p,100%) 0, linear-gradient(currentColor 0 0) 0 var(--d,0), linear-gradient(currentColor 0 0) var(--d,0) 100%, linear-gradient(currentColor 0 0) 100% var(--p,100%); background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s, background-position 0s .5s; }
-.ah-as-4:hover { --d: 100%; --p: 0%; }
-.ah-as-5 { background: linear-gradient(currentColor 0 0) var(--d,0) 0, linear-gradient(currentColor 0 0) 0 var(--d,0), linear-gradient(currentColor 0 0) var(--p,100%) 100%, linear-gradient(currentColor 0 0) 100% var(--p,100%); background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s, background-position 0s .5s; }
-.ah-as-5:hover { --d: 100%; --p: 0%; }
-.ah-as-6 { background: linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 0 0, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 100% 0, linear-gradient(currentColor 0 0) 100% 0, linear-gradient(currentColor 0 0) 100% 100%, linear-gradient(currentColor 0 0) 100% 100%; background-size: var(--d,0) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
-.ah-as-6:hover { --d: 20px; }
-.ah-as-7 { background: linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 100% 100%, linear-gradient(currentColor 0 0) 100% 100%; background-size: var(--p,50%) 3px, 3px var(--d,0); background-repeat: no-repeat; transition: .5s; }
-.ah-as-7:hover { --d: 100%; --p: 0%; }
-.ah-as-8 { background: linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 0 100%, linear-gradient(currentColor 0 0) 100% 0, linear-gradient(currentColor 0 0) 100% 0; background-size: 20px 3px, 3px 20px; background-repeat: no-repeat; transition: .5s; }
-.ah-as-8:hover { background-position: 100% 100%, 0 0, 0 0, 100% 100%; }
+.allsides-1 {
+  background:
+    linear-gradient(currentColor 0 0) 100% 0,
+    linear-gradient(currentColor 0 0) 0 0,
+    linear-gradient(currentColor 0 0) 0 100%,
+    linear-gradient(currentColor 0 0) 100% 100%;
+  background-size: var(--d, 0) 3px, 3px var(--d, 0);
+  background-repeat: no-repeat;
+  transition: 0.5s;
+}
+.allsides-1:hover { --d: 100%; }
+.allsides-2 {
+  background:
+    linear-gradient(currentColor 0 0) 0 0,
+    linear-gradient(currentColor 0 0) 0 0,
+    linear-gradient(currentColor 0 0) 100% 100%,
+    linear-gradient(currentColor 0 0) 100% 100%;
+  background-size: var(--d, 0) 3px, 3px var(--d, 0);
+  background-repeat: no-repeat;
+  transition: 0.5s;
+}
+.allsides-2:hover { --d: 100%; }
+.allsides-3 {
+  background:
+    linear-gradient(currentColor 0 0) top,
+    linear-gradient(currentColor 0 0) left,
+    linear-gradient(currentColor 0 0) bottom,
+    linear-gradient(currentColor 0 0) right;
+  background-size: var(--d, 0) 3px, 3px var(--d, 0);
+  background-repeat: no-repeat;
+  transition: 0.5s;
+}
+.allsides-3:hover { --d: 100%; }
+.allsides-4 {
+  background:
+    linear-gradient(currentColor 0 0) var(--p, 100%) 0,
+    linear-gradient(currentColor 0 0) 0 var(--d, 0),
+    linear-gradient(currentColor 0 0) var(--d, 0) 100%,
+    linear-gradient(currentColor 0 0) 100% var(--p, 100%);
+  background-size: var(--d, 0) 3px, 3px var(--d, 0);
+  background-repeat: no-repeat;
+  transition: 0.5s, background-position 0s 0.5s;
+}
+.allsides-4:hover { --d: 100%; --p: 0%; }
+.allsides-5 {
+  background:
+    linear-gradient(currentColor 0 0) var(--d, 0) 0,
+    linear-gradient(currentColor 0 0) 0 var(--d, 0),
+    linear-gradient(currentColor 0 0) var(--p, 100%) 100%,
+    linear-gradient(currentColor 0 0) 100% var(--p, 100%);
+  background-size: var(--d, 0) 3px, 3px var(--d, 0);
+  background-repeat: no-repeat;
+  transition: 0.5s, background-position 0s 0.5s;
+}
+.allsides-5:hover { --d: 100%; --p: 0%; }
+.allsides-6 {
+  background:
+    linear-gradient(currentColor 0 0) 0 0,
+    linear-gradient(currentColor 0 0) 0 0,
+    linear-gradient(currentColor 0 0) 0 100%,
+    linear-gradient(currentColor 0 0) 0 100%,
+    linear-gradient(currentColor 0 0) 100% 0,
+    linear-gradient(currentColor 0 0) 100% 0,
+    linear-gradient(currentColor 0 0) 100% 100%,
+    linear-gradient(currentColor 0 0) 100% 100%;
+  background-size: var(--d, 0) 3px, 3px var(--d, 0);
+  background-repeat: no-repeat;
+  transition: 0.5s;
+}
+.allsides-6:hover { --d: 20px; }
+.allsides-7 {
+  background:
+    linear-gradient(currentColor 0 0) 0 100%,
+    linear-gradient(currentColor 0 0) 0 100%,
+    linear-gradient(currentColor 0 0) 100% 100%,
+    linear-gradient(currentColor 0 0) 100% 100%;
+  background-size: var(--p, 50%) 3px, 3px var(--d, 0);
+  background-repeat: no-repeat;
+  transition: 0.5s;
+}
+.allsides-7:hover { --d: 100%; --p: 0%; }
+.allsides-8 {
+  background:
+    linear-gradient(currentColor 0 0) 0 100%,
+    linear-gradient(currentColor 0 0) 0 100%,
+    linear-gradient(currentColor 0 0) 100% 0,
+    linear-gradient(currentColor 0 0) 100% 0;
+  background-size: 20px 3px, 3px 20px;
+  background-repeat: no-repeat;
+  transition: 0.5s;
+}
+.allsides-8:hover { background-position: 100% 100%, 0 0, 0 0, 100% 100%; }
 `;
 
 export const ANIMATED_MODES: { value: AnimatedHeadingMode; label: string }[] = [
@@ -456,7 +532,7 @@ export function AnimatedHeadingRender({
   const hoverClass = isHoverLine
     ? `ah-hu ah-hu-${shape.slice("hover-line-".length)}`
     : isHoverAllsides
-      ? `ah-as ah-as-${shape.slice("hover-allsides-".length)}`
+      ? `ah-as allsides-${shape.slice("hover-allsides-".length)}`
       : "";
 
   // Inject hover CSS once to document head (avoids invalid <style> inside <h*> which breaks hydration).
