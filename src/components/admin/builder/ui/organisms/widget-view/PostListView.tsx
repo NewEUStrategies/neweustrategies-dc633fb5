@@ -500,11 +500,22 @@ function PostCard({
 
   if (variant === "overlay" && p.cover_image_url) {
     return (
-      <AppLink href={`/post/${p.slug}`} className={`relative block rounded-md overflow-hidden ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
-        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={overlayFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 p-3 text-white">
-          <h4 className="cms-post-title leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
+      <AppLink
+        href={`/post/${p.slug}`}
+        className={`group relative block overflow-hidden rounded-md ring-1 ring-black/5 shadow-[0_4px_18px_-8px_rgba(0,0,0,0.35)] hover:shadow-[0_10px_28px_-10px_rgba(0,0,0,0.55)] transition-shadow min-h-[220px] ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}
+      >
+        <WidgetMediaImage
+          src={p.cover_image_url}
+          alt=""
+          frameClassName={overlayFrame(aspect)}
+          sizes={GRID_COVER_SIZES}
+          foregroundClassName={`${COVER_IMG_CLASS} transition-transform duration-700 group-hover:scale-[1.06]`}
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/5" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+        <div className="absolute inset-x-0 bottom-0 p-3.5 sm:p-4 text-white">
+          <span className="inline-block h-[3px] w-8 bg-brand mb-2 rounded-full transition-all duration-300 group-hover:w-12" />
+          <h4 className="cms-post-title leading-tight line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]" style={titleStyle}>{title}</h4>
         </div>
       </AppLink>
     );
