@@ -88,9 +88,13 @@ const TitleBlock = {
   title_en: z.string().max(300).default(""),
 };
 
+// Recursive JSON value tolerated by the builder payload. `undefined` is not
+// valid JSON but UI state frequently leaves keys with `undefined` values
+// (e.g. `typography.descriptionFontSize: undefined` from cleared controls).
+// We accept it here; JSON.stringify drops such keys at the wire boundary.
 const BuilderJsonValue: z.ZodType<unknown> = z.lazy(() =>
   z.union([
-    z.string(), z.number(), z.boolean(), z.null(),
+    z.string(), z.number(), z.boolean(), z.null(), z.undefined(),
     z.array(BuilderJsonValue),
     z.record(z.string(), BuilderJsonValue),
   ]),
