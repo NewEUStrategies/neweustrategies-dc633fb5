@@ -279,10 +279,8 @@ function ProfileInline() {
           </div>
         </nav>
 
-        {/* MAIN GRID */}
-        <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-          {/* LEFT: tab content */}
-          <div className="space-y-4 min-w-0">
+        {/* MAIN */}
+        <div className="space-y-4 min-w-0">
             {tab === "about" && (
               <>
                 <Card
