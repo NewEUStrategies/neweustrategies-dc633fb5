@@ -442,10 +442,14 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
         />,
       );
     }
-    case "post-list":
-      return wrap(<PostListView c={c} lang={lang} />);
-    case "carousel":
-      return wrap(<PostListView c={c} lang={lang} carousel />);
+    case "post-list": {
+      const activeTypography = liveTypography ?? pickMode(node.style?.typography, "light") ?? pickMode(node.style?.typography, "dark");
+      return wrap(<PostListView c={c} lang={lang} typography={activeTypography ?? undefined} />);
+    }
+    case "carousel": {
+      const activeTypography = liveTypography ?? pickMode(node.style?.typography, "light") ?? pickMode(node.style?.typography, "dark");
+      return wrap(<PostListView c={c} lang={lang} carousel typography={activeTypography ?? undefined} />);
+    }
     case "news-ticker":
       return wrap(<NewsTickerView c={c} lang={lang} />);
     case "podcast-latest":

@@ -36,20 +36,22 @@ const listFrame = (a: ImageAspect) => `relative block ${ASPECT_CLASS[a]} w-[112p
 
 type Variant = "card" | "minimal" | "overlay" | "list" | "numbered" | "ranked" | "classic" | "flex-grid" | "boxed-grid" | "boxed-list";
 
-export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; lang: Lang; carousel?: boolean }) {
+export function PostListView({ c, lang, carousel = false, typography }: { c: WidgetContent; lang: Lang; carousel?: boolean; typography?: import("@/lib/builder/types").WidgetTypography }) {
   const { t } = useTranslation();
   const byLabel = t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
-  // Per-widget title/excerpt sizes are intentionally NOT applied as inline overrides:
-  // typography is unified across every post widget via the global `.cms-post-title`
-  // / `.cms-post-excerpt` tokens defined in Theme Design. Only weight remains
-  // configurable per widget.
   const titleWeight = getStr(c, "titleWeight");
   const excerptWeight = getStr(c, "excerptWeight");
+  const titleSize = typography?.fontSize?.desktop;
+  const descSize = typography?.descriptionFontSize?.desktop;
+  const gapPx = typeof typography?.titleDescriptionGapPx === "number" ? typography.titleDescriptionGapPx : undefined;
   const titleStyle: React.CSSProperties = {
     ...(titleWeight ? { fontWeight: titleWeight as React.CSSProperties["fontWeight"] } : {}),
+    ...(titleSize ? { fontSize: titleSize } : {}),
   };
   const excerptStyle: React.CSSProperties = {
     ...(excerptWeight ? { fontWeight: excerptWeight as React.CSSProperties["fontWeight"] } : {}),
+    ...(descSize ? { fontSize: descSize } : {}),
+    ...(typeof gapPx === "number" ? { marginTop: `${gapPx}px` } : {}),
   };
   const tStyle = Object.keys(titleStyle).length ? titleStyle : undefined;
   const eStyle = Object.keys(excerptStyle).length ? excerptStyle : undefined;
@@ -528,7 +530,7 @@ function PostCard({
           <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-sm mb-3`} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
         )}
         <h4 className="cms-post-title leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
-        {excerpt && <p className="text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug" style={excerptStyle}>{excerpt}</p>}
+        {excerpt && <p className="cms-post-excerpt text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug" style={excerptStyle}>{excerpt}</p>}
       </AppLink>
     );
   }
@@ -541,7 +543,7 @@ function PostCard({
       )}
       <div className="p-3">
         <h4 className="cms-post-title leading-snug mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>
-        {excerpt && <p className="text-[13px] text-muted-foreground leading-snug line-clamp-2" style={excerptStyle}>{excerpt}</p>}
+        {excerpt && <p className="cms-post-excerpt text-[13px] text-muted-foreground leading-snug line-clamp-2" style={excerptStyle}>{excerpt}</p>}
       </div>
     </AppLink>
   );
