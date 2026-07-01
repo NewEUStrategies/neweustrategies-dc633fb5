@@ -39,79 +39,80 @@ export function normalize(input: string): string {
 // `{name}` placeholder = vocative form (or plain name if not found).
 const PL: Record<TimeBucket, string[]> = {
   night: [
-    "Nie śpisz, {name}?", "Witaj nocnym markiem, {name}!", "Cisza nocna, {name}",
-    "Dobrej nocy, {name}", "Pracujesz po godzinach, {name}?", "Spokojnej nocy, {name}",
-    "Witaj w nocnej zmianie, {name}",
+    "Dobry wieczór, {name}", "Miło Cię widzieć, {name}", "Witaj, {name}",
+    "Cieszymy się, że jesteś, {name}", "Dobrego wieczoru, {name}",
+    "Powodzenia, {name}", "Witaj ponownie, {name}",
   ],
   earlyMorning: [
-    "Dzień dobry, {name}!", "Witaj wcześnie rano, {name}", "Pierwszy dzwonek, {name}",
-    "Cześć, {name} - wcześnie wstajesz!", "Dobrego początku dnia, {name}",
-    "Witaj o świcie, {name}", "Miłego poranka, {name}",
+    "Dzień dobry, {name}!", "Miłego poranka, {name}", "Dobrego dnia, {name}",
+    "Witaj, {name}", "Powodzenia dziś, {name}", "Miło Cię widzieć, {name}",
+    "Udanego dnia, {name}",
   ],
   morning: [
-    "Dzień dobry, {name}!", "Cześć, {name} - miłego poranka!", "Witaj, {name}",
-    "Dobrego dnia, {name}", "Powodzenia dziś, {name}", "Hej, {name}!",
-    "Witaj ponownie, {name}", "Miło Cię widzieć, {name}",
+    "Dzień dobry, {name}!", "Miłego poranka, {name}", "Witaj, {name}",
+    "Dobrego dnia, {name}", "Powodzenia dziś, {name}", "Miło Cię widzieć, {name}",
+    "Witaj ponownie, {name}", "Udanego dnia, {name}",
   ],
   noon: [
-    "Cześć, {name}!", "Smacznego, {name}", "Witaj w południe, {name}",
-    "Dobrej przerwy, {name}", "Miłego dnia, {name}", "Hej, {name}",
+    "Dzień dobry, {name}!", "Miłego dnia, {name}", "Witaj, {name}",
+    "Dobrej przerwy, {name}", "Powodzenia, {name}", "Miło Cię widzieć, {name}",
     "Witaj ponownie, {name}",
   ],
   afternoon: [
-    "Cześć, {name}!", "Miłego popołudnia, {name}", "Witaj, {name}",
-    "Dobrego dnia, {name}", "Jak tam, {name}?", "Hej, {name}",
-    "Witaj ponownie, {name}", "Drugiej połowy dnia, {name}",
+    "Dzień dobry, {name}!", "Miłego popołudnia, {name}", "Witaj, {name}",
+    "Dobrego dnia, {name}", "Powodzenia, {name}", "Miło Cię widzieć, {name}",
+    "Witaj ponownie, {name}", "Udanej drugiej połowy dnia, {name}",
   ],
   evening: [
-    "Dobry wieczór, {name}!", "Witaj wieczorem, {name}", "Miłego wieczoru, {name}",
-    "Cześć, {name}", "Hej, {name}", "Spokojnego wieczoru, {name}",
-    "Witaj ponownie, {name}",
+    "Dobry wieczór, {name}!", "Miłego wieczoru, {name}", "Witaj, {name}",
+    "Miło Cię widzieć, {name}", "Dobrego wieczoru, {name}",
+    "Witaj ponownie, {name}", "Udanego wieczoru, {name}",
   ],
   lateEvening: [
-    "Dobry wieczór, {name}", "Pora odpoczynku, {name}", "Spokojnej nocy, {name}",
-    "Witaj, {name} - późna pora", "Miłego wieczoru, {name}",
-    "Cisza wieczorna, {name}",
+    "Dobry wieczór, {name}", "Miłego wieczoru, {name}", "Witaj, {name}",
+    "Miło Cię widzieć, {name}", "Dobrego wieczoru, {name}",
+    "Witaj ponownie, {name}",
   ],
 };
 
 const EN: Record<TimeBucket, string[]> = {
   night: [
-    "Still up, {name}?", "Welcome, night owl {name}", "Quiet night, {name}",
-    "Good night, {name}", "Working late, {name}?", "Late shift, {name}?",
-    "Hello night-shift {name}",
+    "Good evening, {name}", "Great to see you, {name}", "Welcome, {name}",
+    "Glad you're here, {name}", "Have a good evening, {name}",
+    "All the best, {name}", "Welcome back, {name}",
   ],
   earlyMorning: [
-    "Good morning, {name}!", "Early start, {name}", "Rise and shine, {name}",
-    "Hi {name} - early bird!", "Have a great day, {name}",
-    "Welcome at dawn, {name}", "Top of the morning, {name}",
+    "Good morning, {name}!", "Have a great morning, {name}", "Have a good day, {name}",
+    "Welcome, {name}", "Good luck today, {name}", "Great to see you, {name}",
+    "Wishing you a great day, {name}",
   ],
   morning: [
-    "Good morning, {name}!", "Hi {name} - have a great morning", "Welcome, {name}",
-    "Have a great day, {name}", "Good luck today, {name}", "Hey {name}!",
-    "Welcome back, {name}", "Great to see you, {name}",
+    "Good morning, {name}!", "Have a great morning, {name}", "Welcome, {name}",
+    "Have a good day, {name}", "Good luck today, {name}", "Great to see you, {name}",
+    "Welcome back, {name}", "Wishing you a great day, {name}",
   ],
   noon: [
-    "Hi {name}!", "Enjoy your lunch, {name}", "Welcome at noon, {name}",
-    "Have a nice break, {name}", "Have a great day, {name}", "Hey {name}",
+    "Good day, {name}!", "Have a nice day, {name}", "Welcome, {name}",
+    "Enjoy your break, {name}", "All the best, {name}", "Great to see you, {name}",
     "Welcome back, {name}",
   ],
   afternoon: [
-    "Hi {name}!", "Good afternoon, {name}", "Welcome, {name}",
-    "Have a great day, {name}", "How's it going, {name}?", "Hey {name}",
-    "Welcome back, {name}", "Second half of the day, {name}",
+    "Good afternoon, {name}!", "Have a great afternoon, {name}", "Welcome, {name}",
+    "Have a good day, {name}", "All the best, {name}", "Great to see you, {name}",
+    "Welcome back, {name}", "Wishing you a great afternoon, {name}",
   ],
   evening: [
-    "Good evening, {name}!", "Welcome this evening, {name}", "Have a nice evening, {name}",
-    "Hi {name}", "Hey {name}", "Have a calm evening, {name}",
-    "Welcome back, {name}",
+    "Good evening, {name}!", "Have a great evening, {name}", "Welcome, {name}",
+    "Great to see you, {name}", "Have a good evening, {name}",
+    "Welcome back, {name}", "Wishing you a great evening, {name}",
   ],
   lateEvening: [
-    "Good evening, {name}", "Time to relax, {name}", "Good night, {name}",
-    "Hello {name} - late hour", "Have a nice evening, {name}",
-    "Quiet evening, {name}",
+    "Good evening, {name}", "Have a nice evening, {name}", "Welcome, {name}",
+    "Great to see you, {name}", "Have a good evening, {name}",
+    "Welcome back, {name}",
   ],
 };
+
 
 const GREETINGS: Record<Lang, Record<TimeBucket, string[]>> = { pl: PL, en: EN };
 
