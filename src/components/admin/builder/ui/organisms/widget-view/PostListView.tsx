@@ -543,7 +543,7 @@ function PostCard({
       )}
       <div className="p-3">
         <h4 className="cms-post-title leading-snug mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>
-        {excerpt && <p className="text-[13px] text-muted-foreground leading-snug line-clamp-2" style={excerptStyle}>{excerpt}</p>}
+        {excerpt && <p className="cms-post-excerpt text-[13px] text-muted-foreground leading-snug line-clamp-2" style={excerptStyle}>{excerpt}</p>}
       </div>
     </AppLink>
   );
