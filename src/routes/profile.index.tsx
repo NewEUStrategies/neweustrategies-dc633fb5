@@ -279,10 +279,8 @@ function ProfileInline() {
           </div>
         </nav>
 
-        {/* MAIN GRID */}
-        <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-          {/* LEFT: tab content */}
-          <div className="space-y-4 min-w-0">
+        {/* MAIN */}
+        <div className="space-y-4 min-w-0">
             {tab === "about" && (
               <>
                 <Card
@@ -490,29 +488,6 @@ function ProfileInline() {
             )}
           </div>
 
-          {/* RIGHT: sticky sidebar */}
-          <aside className="space-y-3 lg:sticky lg:top-14 lg:self-start">
-            <Card icon={<UserIcon className="h-3.5 w-3.5" />} title={t("profile.sidebar.personalData")}>
-              <dl className="grid gap-1.5 text-xs">
-                <MiniRow icon={<Cake className="h-3 w-3" />} label={t("profile.sidebar.birthDate")} value="-" />
-                <MiniRow icon={<UserIcon className="h-3 w-3" />} label={t("profile.account.gender")} value={data.gender ? t(`profile.account.gender${cap(data.gender)}`) : "-"} />
-                <MiniRow icon={<MapPin className="h-3 w-3" />} label={t("profile.account.location")} value={data.location || "-"} />
-                <MiniRow icon={<Phone className="h-3 w-3" />} label={t("profile.account.phone")} value={data.phone || "-"} />
-              </dl>
-            </Card>
-            {user?.id ? <PersonalityCard userId={user.id} editable={editable} /> : null}
-            <Card icon={<Heart className="h-3.5 w-3.5" />} title={t("profile.nav.interests")} action={
-              <Link to="/profile/interests" className="text-[11px] text-primary hover:underline">
-                {t("profile.actions.manage")}
-              </Link>
-            }>
-              <p className="text-xs text-muted-foreground">{t("profile.inline.interestsHint")}</p>
-            </Card>
-            {user?.id && data.tenant_id ? (
-              <HobbiesCard userId={user.id} tenantId={data.tenant_id} editable={editable} />
-            ) : null}
-          </aside>
-        </div>
       </div>
     </TooltipProvider>
   );
