@@ -459,6 +459,23 @@ export function AnimatedHeadingRender({
       ? `ah-as ah-as-${shape.slice("hover-allsides-".length)}`
       : "";
 
+  // Inject hover CSS once to document head (avoids invalid <style> inside <h*> which breaks hydration).
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (isHoverLine && !document.getElementById("ah-hu-css")) {
+      const el = document.createElement("style");
+      el.id = "ah-hu-css";
+      el.textContent = HOVER_LINE_CSS;
+      document.head.appendChild(el);
+    }
+    if (isHoverAllsides && !document.getElementById("ah-as-css")) {
+      const el = document.createElement("style");
+      el.id = "ah-as-css";
+      el.textContent = HOVER_ALLSIDES_CSS;
+      document.head.appendChild(el);
+    }
+  }, [isHoverLine, isHoverAllsides]);
+
   return (
     <Tag
       className="font-display text-3xl md:text-4xl leading-tight"
@@ -470,8 +487,6 @@ export function AnimatedHeadingRender({
         paddingTop: needsFrame ? "0.15em" : undefined,
       }}
     >
-      {isHoverLine ? <style>{HOVER_LINE_CSS}</style> : null}
-      {isHoverAllsides ? <style>{HOVER_ALLSIDES_CSS}</style> : null}
       {config.textBefore ? <span>{config.textBefore}{config.textBefore.endsWith(" ") ? "" : " "}</span> : null}
       <span
         key={animKey}
