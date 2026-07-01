@@ -353,7 +353,6 @@ function GreetingsAdmin() {
   );
 }
 
-}
 
 const BUCKET_LABEL: Record<Lang, Record<TimeBucket, string>> = {
   pl: {
