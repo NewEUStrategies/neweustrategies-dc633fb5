@@ -349,9 +349,10 @@ function GreetingsAdmin() {
             ))}
           </ul>
         </div>
-      </div>
-    </AdminShell>
+    </div>
   );
+}
+
 }
 
 const BUCKET_LABEL: Record<Lang, Record<TimeBucket, string>> = {
