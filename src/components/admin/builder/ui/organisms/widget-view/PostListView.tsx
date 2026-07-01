@@ -402,14 +402,14 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
     // 1 large lead (asymmetric ~1.35fr) + remaining as compact side rows.
     const [lead, ...rest] = rows;
     return (
-      <div className="w-full grid gap-5 md:gap-8 grid-cols-1 md:grid-cols-[1.35fr_minmax(0,1fr)]">
+        <div className="w-full grid gap-5 md:gap-8 grid-cols-1 md:grid-cols-[1.35fr_minmax(0,1fr)]">
         <AppLink href={`/post/${lead.slug}`} className="group block">
           {lead.cover_image_url && (
-            <div className="relative mb-4 overflow-hidden rounded-md">
+            <div className="relative mb-3 sm:mb-4 overflow-hidden rounded-md">
               <WidgetMediaImage
                 src={lead.cover_image_url}
                 alt=""
-                frameClassName={`relative block aspect-[16/10] w-full shrink-0 overflow-hidden bg-muted`}
+                frameClassName={`relative block aspect-[16/9] md:aspect-[16/10] w-full shrink-0 overflow-hidden bg-muted`}
                 sizes="(max-width: 768px) 100vw, 58vw"
                 foregroundClassName={`${COVER_IMG_CLASS} transition-transform duration-500 group-hover:scale-[1.03]`}
               />
@@ -423,7 +423,7 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
             <li key={p.id} className="border-b border-border/60 last:border-0">
               <AppLink
                 href={`/post/${p.slug}`}
-                className={`grid ${p.cover_image_url ? "grid-cols-[88px_minmax(0,1fr)] sm:grid-cols-[104px_minmax(0,1fr)]" : "grid-cols-[28px_minmax(0,1fr)]"} items-start gap-3 py-3.5 first:pt-0 group`}
+                className={`grid ${p.cover_image_url ? "grid-cols-[96px_minmax(0,1fr)] sm:grid-cols-[104px_minmax(0,1fr)]" : "grid-cols-[28px_minmax(0,1fr)]"} items-start gap-2.5 sm:gap-3 py-3 sm:py-3.5 first:pt-0 group`}
               >
                 {p.cover_image_url ? (
                   <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`relative block aspect-[4/3] w-full shrink-0 overflow-hidden rounded-sm bg-muted`} sizes="104px" foregroundClassName={COVER_IMG_CLASS} />
@@ -441,12 +441,12 @@ export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; 
 
   if (variant === "boxed-list") {
     return (
-      <div className={`w-full grid gap-4 ${mobileHScroll ? "cms-mobile-hscroll" : ""}`} style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}>
+      <div data-widget-grid className={`w-full grid gap-3 sm:gap-4 ${mobileHScroll ? "cms-mobile-hscroll" : ""}`} style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}>
         {rows.map((p) => (
           <AppLink
             key={p.id}
             href={`/post/${p.slug}`}
-            className={`group grid ${p.cover_image_url ? "grid-cols-[128px_minmax(0,1fr)] sm:grid-cols-[144px_minmax(0,1fr)]" : "grid-cols-1"} items-stretch gap-4 p-3.5 rounded-lg bg-card border border-border/70 hover:border-brand/60 hover:shadow-[0_6px_20px_-8px_rgba(0,0,0,0.18)] transition-all`}
+            className={`group grid ${p.cover_image_url ? "grid-cols-[96px_minmax(0,1fr)] sm:grid-cols-[128px_minmax(0,1fr)] lg:grid-cols-[144px_minmax(0,1fr)]" : "grid-cols-1"} items-stretch gap-3 sm:gap-4 p-2.5 sm:p-3.5 rounded-lg bg-card border border-border/70 hover:border-brand/60 hover:shadow-[0_6px_20px_-8px_rgba(0,0,0,0.18)] transition-all`}
           >
             {p.cover_image_url && (
               <div className="overflow-hidden rounded-md">
@@ -502,7 +502,7 @@ function PostCard({
     return (
       <AppLink
         href={`/post/${p.slug}`}
-        className={`group relative block overflow-hidden rounded-md ring-1 ring-black/5 shadow-[0_4px_18px_-8px_rgba(0,0,0,0.35)] hover:shadow-[0_10px_28px_-10px_rgba(0,0,0,0.55)] transition-shadow min-h-[220px] ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}
+        className={`group relative block overflow-hidden rounded-md ring-1 ring-black/5 shadow-[0_4px_18px_-8px_rgba(0,0,0,0.35)] hover:shadow-[0_10px_28px_-10px_rgba(0,0,0,0.55)] transition-shadow min-h-[180px] sm:min-h-[220px] ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}
       >
         <WidgetMediaImage
           src={p.cover_image_url}
@@ -511,11 +511,11 @@ function PostCard({
           sizes={GRID_COVER_SIZES}
           foregroundClassName={`${COVER_IMG_CLASS} transition-transform duration-700 group-hover:scale-[1.06]`}
         />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/5" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/5 sm:from-black/90 sm:via-black/45" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-        <div className="absolute inset-x-0 bottom-0 p-3.5 sm:p-4 text-white">
+        <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 text-white">
           <span className="inline-block h-[3px] w-8 bg-brand mb-2 rounded-full transition-all duration-300 group-hover:w-12" />
-          <h4 className="cms-post-title leading-tight line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]" style={titleStyle}>{title}</h4>
+          <h4 className="cms-post-title text-sm sm:text-base leading-tight line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]" style={titleStyle}>{title}</h4>
         </div>
       </AppLink>
     );
