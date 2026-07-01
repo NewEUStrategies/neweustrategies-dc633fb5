@@ -44,11 +44,30 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
   const titleSize = typography?.fontSize?.desktop;
   const descSize = typography?.descriptionFontSize?.desktop;
   const gapPx = typeof typography?.titleDescriptionGapPx === "number" ? typography.titleDescriptionGapPx : undefined;
+  // Shared typography (font family, alignment, transform, decoration, line-height,
+  // letter-spacing, italic/normal) is applied to BOTH title and excerpt so the
+  // Typography tab produces real-time visual changes in every variant.
+  const sharedTypo: React.CSSProperties = {
+    ...(typography?.fontFamily ? { fontFamily: typography.fontFamily } : {}),
+    ...(typography?.fontStyle ? { fontStyle: typography.fontStyle } : {}),
+    ...(typography?.textAlign ? { textAlign: typography.textAlign as React.CSSProperties["textAlign"] } : {}),
+    ...(typography?.textTransform ? { textTransform: typography.textTransform as React.CSSProperties["textTransform"] } : {}),
+    ...(typography?.textDecoration ? { textDecoration: typography.textDecoration } : {}),
+    ...(typography?.lineHeight ? { lineHeight: typography.lineHeight } : {}),
+    ...(typography?.letterSpacing ? { letterSpacing: typography.letterSpacing } : {}),
+  };
+  // Widget-content weight (titleWeight/excerptWeight) wins over the shared
+  // typography.fontWeight so per-part overrides keep working.
+  const typoWeight = typography?.fontWeight;
   const titleStyle: React.CSSProperties = {
+    ...sharedTypo,
+    ...(typoWeight ? { fontWeight: typoWeight as React.CSSProperties["fontWeight"] } : {}),
     ...(titleWeight ? { fontWeight: titleWeight as React.CSSProperties["fontWeight"] } : {}),
     ...(titleSize ? { fontSize: titleSize } : {}),
   };
   const excerptStyle: React.CSSProperties = {
+    ...sharedTypo,
+    ...(typoWeight ? { fontWeight: typoWeight as React.CSSProperties["fontWeight"] } : {}),
     ...(excerptWeight ? { fontWeight: excerptWeight as React.CSSProperties["fontWeight"] } : {}),
     ...(descSize ? { fontSize: descSize } : {}),
     ...(typeof gapPx === "number" ? { marginTop: `${gapPx}px` } : {}),
