@@ -156,6 +156,8 @@ export interface GreetingArgs {
   seed?: string | number;
   /** Now (overridable for testing). */
   now?: Date;
+  /** Optional custom greeting pool overrides (from CMS site_settings). */
+  overrides?: Partial<GreetingsDictionary> | null;
 }
 
 function hashSeed(seed: string | number): number {
