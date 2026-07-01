@@ -2,7 +2,7 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Star, Mail, Bookmark, ChevronRight, Lock, Palette, LayoutGrid, Shapes, PanelsTopLeft, Newspaper, Megaphone, Mic, Film, Brush, Wand2, Share2, Gauge } from "@/lib/lucide-shim";
-import { Inbox, Sparkles } from "lucide-react";
+import { Inbox, MessageCircle } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
@@ -103,7 +103,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
         { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
         { to: "/admin/icons", icon: Shapes, label: t("admin.nav.icons") },
         ...(isSuperAdmin ? [{ to: "/admin/names", icon: Users, label: t("admin.nav.names") }] : []),
-        ...(isAdmin ? [{ to: "/admin/greetings", icon: Sparkles, label: t("admin.nav.greetings", { defaultValue: lang === "pl" ? "Powitania" : "Greetings" }) }] : []),
+        ...(isAdmin ? [{ to: "/admin/greetings", icon: MessageCircle, label: t("admin.nav.greetings", { defaultValue: lang === "pl" ? "Powitania" : "Greetings" }) }] : []),
       ],
     },
     ...(isAdmin
