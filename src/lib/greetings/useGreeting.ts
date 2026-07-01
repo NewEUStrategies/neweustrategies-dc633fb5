@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { normalize, pickGreeting, type Lang, type NameEntry } from "./greetings";
+import { useSiteSetting } from "@/lib/useSiteSetting";
+import { normalize, pickGreeting, DEFAULT_GREETINGS, type Lang, type NameEntry, type GreetingsDictionary } from "./greetings";
 
 interface ProfileLite {
   first_name: string | null;
