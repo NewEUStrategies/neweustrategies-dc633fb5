@@ -36,20 +36,22 @@ const listFrame = (a: ImageAspect) => `relative block ${ASPECT_CLASS[a]} w-[112p
 
 type Variant = "card" | "minimal" | "overlay" | "list" | "numbered" | "ranked" | "classic" | "flex-grid" | "boxed-grid" | "boxed-list";
 
-export function PostListView({ c, lang, carousel = false }: { c: WidgetContent; lang: Lang; carousel?: boolean }) {
+export function PostListView({ c, lang, carousel = false, typography }: { c: WidgetContent; lang: Lang; carousel?: boolean; typography?: import("@/lib/builder/types").WidgetTypography }) {
   const { t } = useTranslation();
   const byLabel = t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
-  // Per-widget title/excerpt sizes are intentionally NOT applied as inline overrides:
-  // typography is unified across every post widget via the global `.cms-post-title`
-  // / `.cms-post-excerpt` tokens defined in Theme Design. Only weight remains
-  // configurable per widget.
   const titleWeight = getStr(c, "titleWeight");
   const excerptWeight = getStr(c, "excerptWeight");
+  const titleSize = typography?.fontSize?.desktop;
+  const descSize = typography?.descriptionFontSize?.desktop;
+  const gapPx = typeof typography?.titleDescriptionGapPx === "number" ? typography.titleDescriptionGapPx : undefined;
   const titleStyle: React.CSSProperties = {
     ...(titleWeight ? { fontWeight: titleWeight as React.CSSProperties["fontWeight"] } : {}),
+    ...(titleSize ? { fontSize: titleSize } : {}),
   };
   const excerptStyle: React.CSSProperties = {
     ...(excerptWeight ? { fontWeight: excerptWeight as React.CSSProperties["fontWeight"] } : {}),
+    ...(descSize ? { fontSize: descSize } : {}),
+    ...(typeof gapPx === "number" ? { marginTop: `${gapPx}px` } : {}),
   };
   const tStyle = Object.keys(titleStyle).length ? titleStyle : undefined;
   const eStyle = Object.keys(excerptStyle).length ? excerptStyle : undefined;
