@@ -127,7 +127,7 @@ function ProfileInline() {
           <div className="mt-1.5 flex flex-wrap items-center justify-center sm:justify-start gap-x-2 gap-y-1 text-[13px] leading-[1.2]">
             {data.current_company ? (
               <span className="inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-foreground align-middle">
-                <CompanyLogoIcon className="h-9 w-9 shrink-0 self-center object-contain" />
+                <CompanyLogoIcon className="h-11 w-20 shrink-0 self-center object-contain" />
                 <span className="min-w-0 leading-[1.2]">{data.current_company}</span>
               </span>
             ) : editable ? (
@@ -139,7 +139,7 @@ function ProfileInline() {
                 }}
                 className="inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-muted-foreground italic align-middle transition-colors hover:text-foreground"
               >
-                <CompanyLogoIcon className="h-9 w-9 shrink-0 self-center object-contain opacity-60" />
+                <CompanyLogoIcon className="h-11 w-20 shrink-0 self-center object-contain opacity-60" />
                 <span className="min-w-0 leading-[1.2]">{t("profile.inline.addCompany")}</span>
               </button>
             ) : null}
@@ -740,7 +740,7 @@ function CompanyLogoIcon({ className = "h-3 w-3" }: { className?: string }) {
       src={src}
       alt=""
       aria-hidden="true"
-      className={cn("object-contain", className)}
+      className={cn("mx-auto object-contain", className)}
       loading="lazy"
       decoding="async"
       draggable={false}
