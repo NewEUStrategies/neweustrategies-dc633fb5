@@ -149,6 +149,7 @@ export const en = {
           postLayouts: "Post layouts",
           icons: "Icons",
           names: "Name dictionary",
+          greetings: "Greetings",
           relatedPosts: "Related posts",
           contentArea: "Content Area",
           newsletter: "Newsletter",

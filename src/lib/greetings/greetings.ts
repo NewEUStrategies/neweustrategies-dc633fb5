@@ -114,7 +114,12 @@ const EN: Record<TimeBucket, string[]> = {
 };
 
 
-const GREETINGS: Record<Lang, Record<TimeBucket, string[]>> = { pl: PL, en: EN };
+export type GreetingsDictionary = Record<Lang, Record<TimeBucket, string[]>>;
+
+export const DEFAULT_GREETINGS: GreetingsDictionary = { pl: PL, en: EN };
+
+const GREETINGS: GreetingsDictionary = DEFAULT_GREETINGS;
+
 
 // ----------- VOCATIVE FALLBACKS (PL) -----------
 // Used when the name is not in the dictionary. Heuristics by last letter / gender.
@@ -151,6 +156,8 @@ export interface GreetingArgs {
   seed?: string | number;
   /** Now (overridable for testing). */
   now?: Date;
+  /** Optional custom greeting pool overrides (from CMS site_settings). */
+  overrides?: Partial<GreetingsDictionary> | null;
 }
 
 function hashSeed(seed: string | number): number {
@@ -163,9 +170,10 @@ function hashSeed(seed: string | number): number {
   return h >>> 0;
 }
 
-export function pickGreeting({ lang, firstName, entry, seed, now }: GreetingArgs): string {
+export function pickGreeting({ lang, firstName, entry, seed, now, overrides }: GreetingArgs): string {
   const bucket = timeBucket(now);
-  const pool = GREETINGS[lang][bucket];
+  const custom = overrides?.[lang]?.[bucket];
+  const pool = (custom && custom.length > 0) ? custom : GREETINGS[lang][bucket];
   // Stable variant within a 30-min window per user (or random if no seed).
   const halfHour = Math.floor((now ?? new Date()).getTime() / (30 * 60 * 1000));
   const idx = seed !== undefined
