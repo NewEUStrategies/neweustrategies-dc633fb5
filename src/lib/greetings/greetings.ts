@@ -114,7 +114,12 @@ const EN: Record<TimeBucket, string[]> = {
 };
 
 
-const GREETINGS: Record<Lang, Record<TimeBucket, string[]>> = { pl: PL, en: EN };
+export type GreetingsDictionary = Record<Lang, Record<TimeBucket, string[]>>;
+
+export const DEFAULT_GREETINGS: GreetingsDictionary = { pl: PL, en: EN };
+
+const GREETINGS: GreetingsDictionary = DEFAULT_GREETINGS;
+
 
 // ----------- VOCATIVE FALLBACKS (PL) -----------
 // Used when the name is not in the dictionary. Heuristics by last letter / gender.
