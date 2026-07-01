@@ -211,13 +211,22 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
       rules.push(`${sel} a:has(> :is(h1,h2,h3,h4,h5,h6)) + :is(p,blockquote,small){margin-top:${gap} !important;}`);
     }
 
-    if (typography.fontWeight) rules.push(`${descendants}{font-weight:${typography.fontWeight} !important;}`);
-    if (typography.fontStyle) rules.push(`${descendants}{font-style:${typography.fontStyle} !important;}`);
-    if (typography.lineHeight) rules.push(`${descendants}{line-height:${typography.lineHeight} !important;}`);
-    if (typography.letterSpacing) rules.push(`${descendants}{letter-spacing:${typography.letterSpacing} !important;}`);
-    if (typography.textTransform) rules.push(`${descendants}{text-transform:${typography.textTransform} !important;}`);
-    if (typography.textDecoration) rules.push(`${descendants}{text-decoration:${typography.textDecoration} !important;}`);
-    if (typography.textAlign) rules.push(`${descendants}{text-align:${typography.textAlign} !important;}`);
+    // Broader selector that INCLUDES post-list title/excerpt classes so weight,
+    // style, alignment, line-height, letter-spacing, transform and decoration
+    // reach the same elements that font-size already targets — otherwise those
+    // controls looked inert on post-list / slider / podcast widgets.
+    const allText = `${descendants}, ${titleClassSel}, ${excerptClassSel}`;
+    if (typography.fontWeight) rules.push(`${allText}{font-weight:${typography.fontWeight} !important;}`);
+    if (typography.fontStyle) rules.push(`${allText}{font-style:${typography.fontStyle} !important;}`);
+    if (typography.lineHeight) rules.push(`${allText}{line-height:${typography.lineHeight} !important;}`);
+    if (typography.letterSpacing) rules.push(`${allText}{letter-spacing:${typography.letterSpacing} !important;}`);
+    if (typography.textTransform) rules.push(`${allText}{text-transform:${typography.textTransform} !important;}`);
+    if (typography.textDecoration) rules.push(`${allText}{text-decoration:${typography.textDecoration} !important;}`);
+    if (typography.textAlign) rules.push(`${allText}{text-align:${typography.textAlign} !important;}`);
+    if (typography.fontFamily) {
+      // Also force family onto post-list classes (they're excluded from descendants).
+      rules.push(`${titleClassSel}, ${excerptClassSel}{font-family:${typography.fontFamily} !important;}`);
+    }
 
     return rules.join("\n");
   }, [device, effectiveMode, liveTypography, node.id, node.style?.typography]);
