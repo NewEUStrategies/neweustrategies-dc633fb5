@@ -28,7 +28,7 @@ function ProfileLayout() {
           <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
             <aside className="hidden lg:block">
               <div className="sticky top-4">
-                <h2 className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <h2 className="mb-4 rounded-md bg-primary/10 px-3 py-2 text-sm font-bold uppercase tracking-wide text-primary">
                   {t("profile.title")}
                 </h2>
                 <ProfileNav />
