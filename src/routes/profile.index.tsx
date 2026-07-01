@@ -126,8 +126,8 @@ function ProfileInline() {
           {/* Company + Job */}
           <div className="mt-1.5 flex flex-wrap items-center justify-center sm:justify-start gap-x-2 gap-y-1 text-[13px] leading-[1.2]">
             {data.current_company ? (
-              <span className="inline-flex min-h-[24px] max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-foreground align-middle">
-                <CompanyLogoIcon className="h-5 w-5 shrink-0 self-center object-contain" />
+              <span className="inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-foreground align-middle">
+                <CompanyLogoIcon className="h-9 w-9 shrink-0 self-center object-contain" />
                 <span className="min-w-0 leading-[1.2]">{data.current_company}</span>
               </span>
             ) : editable ? (
@@ -137,16 +137,16 @@ function ProfileInline() {
                   const v = window.prompt(t("profile.account.currentCompany"));
                   if (v != null) void saveField("current_company", v.trim() || null);
                 }}
-                className="inline-flex min-h-[24px] max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-muted-foreground italic align-middle transition-colors hover:text-foreground"
+                className="inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium leading-[1.2] text-muted-foreground italic align-middle transition-colors hover:text-foreground"
               >
-                <CompanyLogoIcon className="h-5 w-5 shrink-0 self-center object-contain opacity-60" />
+                <CompanyLogoIcon className="h-9 w-9 shrink-0 self-center object-contain opacity-60" />
                 <span className="min-w-0 leading-[1.2]">{t("profile.inline.addCompany")}</span>
               </button>
             ) : null}
 
             {data.job_title ? (
               <>
-                <span className="inline-flex h-[24px] items-center text-[13px] leading-none text-muted-foreground/60">•</span>
+                <span className="inline-flex items-center text-[13px] leading-none text-muted-foreground/60">•</span>
                 {editable ? (
                   <InlineText
                     value={data.job_title}
@@ -156,11 +156,11 @@ function ProfileInline() {
                     emptyLabel={t("profile.inline.addJobTitle")}
                     variant="subtitle"
                     maxLength={120}
-                    className="!inline-flex h-[24px] items-center !py-0 leading-[1.2]"
-                    inputClassName="h-[24px] py-0 leading-[1.2]"
+                    className="!inline-flex items-center !py-0 leading-[1.2]"
+                    inputClassName="py-0 leading-[1.2]"
                   />
                 ) : (
-                  <span className="inline-flex h-[24px] items-center text-[13px] font-medium leading-[1.2] text-foreground">{data.job_title}</span>
+                  <span className="inline-flex items-center text-[13px] font-medium leading-[1.2] text-foreground">{data.job_title}</span>
                 )}
               </>
             ) : editable ? (
@@ -172,8 +172,8 @@ function ProfileInline() {
                 emptyLabel={t("profile.inline.addJobTitle")}
                 variant="subtitle"
                 maxLength={120}
-                className="!inline-flex h-[24px] items-center !py-0 leading-[1.2]"
-                inputClassName="h-[24px] py-0 leading-[1.2]"
+                className="!inline-flex items-center !py-0 leading-[1.2]"
+                inputClassName="py-0 leading-[1.2]"
               />
             ) : null}
           </div>
