@@ -71,7 +71,7 @@ export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] =
 ];
 
 export const HOVER_LINE_CSS = `
-.ah-hu { display: inline-block; padding-bottom: 5px; cursor: pointer; }
+.ah-hu { display: inline-block; padding-bottom: 1px; cursor: pointer; }
 .ah-hu-1 { background: linear-gradient(currentColor 0 0) var(--p,50%) 100%/var(--d,10%) 3px no-repeat; transition: .3s, background-position .3s .3s; }
 .ah-hu-1:hover { --d:100%; --p:0%; transition: .3s, background-size .3s .3s; }
 .ah-hu-2 { background: linear-gradient(currentColor 0 0) left var(--p,50%) bottom 0/var(--d,10%) 3px no-repeat, linear-gradient(currentColor 0 0) right var(--p,50%) bottom 0/var(--d,10%) 3px no-repeat; transition: .3s, background-position .3s .3s; }
