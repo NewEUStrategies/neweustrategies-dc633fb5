@@ -530,7 +530,7 @@ function PostCard({
           <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-sm mb-3`} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
         )}
         <h4 className="cms-post-title leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
-        {excerpt && <p className="text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug" style={excerptStyle}>{excerpt}</p>}
+        {excerpt && <p className="cms-post-excerpt text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug" style={excerptStyle}>{excerpt}</p>}
       </AppLink>
     );
   }
