@@ -149,6 +149,7 @@ export const pl = {
           postLayouts: "Layouty wpisów",
           icons: "Ikony",
           names: "Słownik imion",
+          greetings: "Powitania",
           relatedPosts: "Powiązane wpisy",
           contentArea: "Content Area",
           newsletter: "Newsletter",
