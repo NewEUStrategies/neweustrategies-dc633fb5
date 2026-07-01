@@ -159,7 +159,7 @@ function GreetingsAdmin() {
   }, [dict, lang, isPL]);
 
   if (!loaded) {
-    return <AdminShell><p className="p-6 text-sm text-muted-foreground">{t("admin.loading", { defaultValue: "Loading…" })}</p></AdminShell>;
+    return <p className="p-6 text-sm text-muted-foreground">{t("admin.loading", { defaultValue: "Loading…" })}</p>;
   }
 
   const title = isPL ? "Powitania" : "Greetings";
@@ -172,8 +172,8 @@ function GreetingsAdmin() {
   for (const i of issues) if (i.reason === "empty") emptyPerLang[i.lang]++;
 
   return (
-    <AdminShell>
-      <div className="p-4 md:p-6 space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-5xl">
+
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="font-display text-2xl flex items-center gap-2">
@@ -349,10 +349,10 @@ function GreetingsAdmin() {
             ))}
           </ul>
         </div>
-      </div>
-    </AdminShell>
+    </div>
   );
 }
+
 
 const BUCKET_LABEL: Record<Lang, Record<TimeBucket, string>> = {
   pl: {
