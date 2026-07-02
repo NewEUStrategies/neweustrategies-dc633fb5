@@ -71,22 +71,34 @@ export function SeoPanel(props: SeoPanelProps) {
   const [tab, setTab] = useState<"pl" | "en">(i18n.language === "en" ? "en" : "pl");
   const [generating, setGenerating] = useState(false);
 
+  const fallbackTitlePl = props.fallbackTitle.pl;
+  const fallbackTitleEn = props.fallbackTitle.en;
+  const fallbackDescPl = props.fallbackDescription.pl;
+  const fallbackDescEn = props.fallbackDescription.en;
   const issues = useMemo(
     () =>
       validateSeoPanel({
         value,
-        fallbackTitle: props.fallbackTitle,
-        fallbackDescription: props.fallbackDescription,
+        fallbackTitle: { pl: fallbackTitlePl, en: fallbackTitleEn },
+        fallbackDescription: { pl: fallbackDescPl, en: fallbackDescEn },
         slug,
         titleCharLimit: TITLE_MAX,
         descriptionCharLimit: DESCRIPTION_MAX,
       }),
-    [value, props.fallbackTitle, props.fallbackDescription, slug],
+    [value, fallbackTitlePl, fallbackTitleEn, fallbackDescPl, fallbackDescEn, slug],
   );
 
+  const issuesKey = useMemo(
+    () =>
+      issues
+        .map((i) => `${i.lang}:${i.kind}:${i.severity}:${i.chars}:${i.px}`)
+        .join("|"),
+    [issues],
+  );
   useEffect(() => {
     onIssuesChange?.(issues);
-  }, [issues, onIssuesChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [issuesKey, onIssuesChange]);
   const seoSettings: SeoSettings = useSiteSetting(
     SEO_SETTINGS_KEY,
     DEFAULT_SEO_SETTINGS,
