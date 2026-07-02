@@ -7,7 +7,8 @@ import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { useResolvedPostRefs } from "./contentRefs";
 import { supabase } from "@/integrations/supabase/client";
-import { AppLink } from "@/components/atoms/AppLink";
+import { AppLink, toClientHref } from "@/components/atoms/AppLink";
+import { useRouter } from "@tanstack/react-router";
 import type { WidgetTypography } from "./types";
 
 export type SliderVariant =
