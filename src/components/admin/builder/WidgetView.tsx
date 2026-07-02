@@ -264,7 +264,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       };
       const finalStyle = Object.keys(headStyle).length ? headStyle : undefined;
       // eslint-disable-next-line no-console
-      console.log("DBG heading", { sizePx, sizePresetRaw, usePx, useGlobalTitle, headStyle });
+      console.log("DBG heading", { canEdit, editable, finalStyle, headStyleKeys: Object.keys(headStyle) });
       const finalCls = headCls;
       const reg: Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined>;
