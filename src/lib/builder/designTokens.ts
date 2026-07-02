@@ -51,28 +51,31 @@ export const EMPTY_TOKENS: DesignTokens = {
 
 const QUERY_KEY = ["site_design_tokens"] as const;
 
+export const designTokensQueryOptions = queryOptions({
+  queryKey: QUERY_KEY,
+  queryFn: async (): Promise<DesignTokens> => {
+    const { data, error } = await supabase
+      .from("site_design_tokens")
+      .select("colors, fonts, scale")
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return EMPTY_TOKENS;
+    return {
+      colors: Array.isArray(data.colors)
+        ? (data.colors as unknown as BrandColor[]).filter(
+            (c) => c && typeof c.name === "string" && typeof c.value === "string",
+          )
+        : [],
+      fonts: (data.fonts as unknown as BrandFonts) ?? {},
+      scale: (data.scale as unknown as BrandScale) ?? {},
+    };
+  },
+  staleTime: 5 * 60_000,
+});
+
 /** Read the current tenant's design tokens. Returns EMPTY_TOKENS when no row exists. */
 export function useDesignTokens() {
-  return useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: async (): Promise<DesignTokens> => {
-      const { data, error } = await supabase
-        .from("site_design_tokens")
-        .select("colors, fonts, scale")
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) return EMPTY_TOKENS;
-      return {
-        colors: Array.isArray(data.colors)
-          ? (data.colors as unknown as BrandColor[]).filter(
-              (c) => c && typeof c.name === "string" && typeof c.value === "string",
-            )
-          : [],
-        fonts: (data.fonts as unknown as BrandFonts) ?? {},
-        scale: (data.scale as unknown as BrandScale) ?? {},
-      };
-    },
-  });
+  return useQuery(designTokensQueryOptions);
 }
 
 /** Upsert the current tenant's design tokens (RLS scopes to the caller's tenant). */
