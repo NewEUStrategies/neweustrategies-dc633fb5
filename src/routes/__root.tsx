@@ -36,6 +36,9 @@ import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
 import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
 import { resolveSetting, siteSettingsQueryOptions } from "../lib/useSiteSetting";
 import { headerTickerQueryOptions } from "../lib/views/headerTickerQuery";
+import { designTokensQueryOptions } from "../lib/builder/designTokens";
+import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
+import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
 import type { HeaderSettings } from "../components/Header";
 import { SiteChrome } from "../components/SiteChrome";
 
@@ -180,7 +183,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   // in lockstep with the route body instead of popping in after hydration.
   loader: async ({ context, location }) => {
     await syncI18nToRequest();
-    const settings = await context.queryClient.ensureQueryData(siteSettingsQueryOptions);
+    // Warm design tokens / global colors / post-layout in parallel with
+    // site_settings so <DesignTokensStyle />, <ContentAreaStyle /> and
+    // friends render their `<style>` server-side. Without this the first
+    // paint uses raw styles.css defaults (dark navy fallback) and only
+    // switches to the tenant palette after client-side hydration - a jarring
+    // flash of unstyled theme.
+    const [settings] = await Promise.all([
+      context.queryClient.ensureQueryData(siteSettingsQueryOptions),
+      context.queryClient.ensureQueryData(designTokensQueryOptions),
+      context.queryClient.ensureQueryData(globalColorsQueryOptions),
+      context.queryClient.ensureQueryData(postLayoutSettingsQueryOptions()),
+    ]);
     // Warm the header "Na czasie" ticker for every route that shows the site
     // chrome, so the bar is part of the SSR HTML instead of appearing seconds
     // after hydration and pushing the whole page down (the worst CLS on the
