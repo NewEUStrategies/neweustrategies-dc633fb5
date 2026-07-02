@@ -186,6 +186,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     <div
       id={htmlId}
       data-w-id={node.id}
+      data-typography-gap-active={typeof activeTypography?.titleDescriptionGapPx === "number" ? "1" : undefined}
       ref={motion ? motionRef : undefined}
       className={`text-foreground ${cls}`.trim()}
       style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: isCompactWidget ? "center" : "flex-start", width: "100%", minWidth: 0, height: isMedia ? "auto" : "100%", maxWidth: isImage ? "none" : "100%", boxSizing: "border-box", overflow: isImage ? "visible" : (isMedia ? "visible" : "hidden"), ...baseStyle, marginTop: 0, marginBottom: 0, ...motionStyle }}

@@ -132,21 +132,17 @@ export function TypographyControl({ value, onChange }: Props) {
       </div>
 
       <PropField label="Odstęp tytuł ↔ opis (px)">
-        <Input
-          type="number"
-          min={0}
-          max={200}
-          inputMode="numeric"
-          placeholder="np. 16"
-          value={typeof v.titleDescriptionGapPx === "number" ? v.titleDescriptionGapPx : ""}
-          onChange={(e) => {
-            const raw = e.target.value;
-            if (raw === "") { set({ titleDescriptionGapPx: undefined }); return; }
-            const n = Math.max(0, Math.min(200, Number(raw) || 0));
-            set({ titleDescriptionGapPx: n });
-          }}
-          className="h-8 text-xs"
-        />
+        {renderSizeInput(
+          typeof v.titleDescriptionGapPx === "number" ? String(v.titleDescriptionGapPx) : "",
+          (raw) => {
+            const digits = raw.replace(/[^0-9]/g, "");
+            if (!digits) { set({ titleDescriptionGapPx: undefined }); return; }
+            set({ titleDescriptionGapPx: Math.max(0, Math.min(200, Number(digits) || 0)) });
+          },
+          "Odstęp tytuł opis",
+          "16",
+          "px",
+        )}
       </PropField>
 
 

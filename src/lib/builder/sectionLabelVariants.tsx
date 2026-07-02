@@ -159,7 +159,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
             <span data-title-root className={`${isSm ? "text-[10px]" : "font-display text-sm sm:text-lg"} font-semibold tracking-tight max-w-[70%]`} style={labelStyle}>{label}</span>
             <span className="flex-1 h-px bg-border min-w-[12px]" />
           </div>
-          {ActionEl && <div className="mt-1">{ActionEl}</div>}
+          {ActionEl && <div data-typography-gap-target className="mt-1">{ActionEl}</div>}
         </div>
       );
     case "centered-short-rule":
@@ -170,7 +170,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
             <span data-title-root className={`${isSm ? "text-[10px]" : "font-display text-sm sm:text-lg"} font-semibold tracking-tight max-w-[70%]`} style={labelStyle}>{label}</span>
             <span className={`${isSm ? "inline-block h-[2px] w-4" : "inline-block h-[2px] w-6 sm:w-10"} shrink-0`} style={{ background: accent }} />
           </div>
-          {ActionEl && <div data-description-root className={`${isSm ? "mt-0.5 text-[8px]" : "mt-1 text-xs"} text-muted-foreground`} style={actionStyle}>{action}</div>}
+          {ActionEl && <div data-description-root data-typography-gap-target className={`${isSm ? "mt-0.5 text-[8px]" : "mt-1 text-xs"} text-muted-foreground`} style={actionStyle}>{ActionEl}</div>}
         </div>
       );
     case "filled-bar": {
@@ -197,7 +197,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
       return (
         <div className={`${wrapperBase} ${padY} text-center border-b border-border w-full min-w-0`}>
           <span data-title-root className={`${isSm ? "text-[10px]" : "font-display text-sm sm:text-lg"} font-semibold tracking-tight inline-block max-w-full`} style={labelStyle}>{label}</span>
-          {ActionEl && <div className={`${isSm ? "mt-0.5" : "mt-1"}`}>{ActionEl}</div>}
+          {ActionEl && <div data-typography-gap-target className={`${isSm ? "mt-0.5" : "mt-1"}`}>{ActionEl}</div>}
         </div>
       );
     case "slanted-ribbon-rule": {
@@ -259,7 +259,7 @@ export function SectionLabelRender({ label, action, href, accent, variant, size 
           <span aria-hidden className="block w-full" style={{ height: 1, background: accent, opacity: 0.85 }} />
           <div className={`${padBlock} px-2`}>
             <span data-title-root className={titleCls} style={labelStyle}>{label}</span>
-            {ActionEl && <div className={`${isSm ? "mt-0.5" : "mt-1"}`}>{ActionEl}</div>}
+            {ActionEl && <div data-typography-gap-target className={`${isSm ? "mt-0.5" : "mt-1"}`}>{ActionEl}</div>}
           </div>
           <span aria-hidden className="block w-full" style={{ height: 1, background: accent, opacity: 0.85 }} />
         </div>

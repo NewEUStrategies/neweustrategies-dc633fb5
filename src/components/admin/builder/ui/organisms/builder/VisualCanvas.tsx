@@ -201,6 +201,40 @@ export function VisualCanvas({
     [data-visual-canvas] [data-widget-id]{position:relative;cursor:grab;outline:1px dashed transparent;outline-offset:2px;border-radius:4px;transition:outline-color .15s}
     [data-visual-canvas] [data-widget-id]:hover{outline-color:color-mix(in oklab, var(--brand) 50%, transparent)}
     [data-visual-canvas] [data-widget-id].is-selected{outline:2px solid var(--brand)}
+    [data-visual-canvas] [data-widget-id].is-selected [data-w-id][data-typography-gap-active="1"] :is([data-typography-gap-target],.cms-post-excerpt,[data-description-root]){
+      position:relative;
+    }
+    [data-visual-canvas] [data-widget-id].is-selected [data-w-id][data-typography-gap-active="1"] :is([data-typography-gap-target],.cms-post-excerpt,[data-description-root])::before{
+      content:"";
+      position:absolute;
+      left:8%;right:8%;
+      top:calc(-1 * var(--cms-title-description-gap, 0px));
+      height:var(--cms-title-description-gap, 0px);
+      min-height:0;
+      pointer-events:none;
+      z-index:25;
+      border-left:1px dashed var(--brand);
+      border-right:1px dashed var(--brand);
+      background:linear-gradient(to bottom, transparent calc(50% - 1px), color-mix(in oklab, var(--brand) 72%, transparent) calc(50% - 1px), color-mix(in oklab, var(--brand) 72%, transparent) calc(50% + 1px), transparent calc(50% + 1px));
+      opacity:.95;
+    }
+    [data-visual-canvas] [data-widget-id].is-selected [data-w-id][data-typography-gap-active="1"] :is([data-typography-gap-target],.cms-post-excerpt,[data-description-root])::after{
+      content:"odstęp";
+      position:absolute;
+      top:calc(-1 * var(--cms-title-description-gap, 0px) - 7px);
+      left:50%;
+      transform:translateX(-50%);
+      z-index:26;
+      padding:1px 5px;
+      border-radius:999px;
+      background:var(--brand);
+      color:var(--brand-foreground);
+      font-size:9px;
+      line-height:1.25;
+      font-weight:700;
+      letter-spacing:.02em;
+      pointer-events:none;
+    }
     [data-visual-canvas] [data-widget-id]:active{cursor:grabbing}
     [data-visual-canvas] [data-sec-id]{outline:1px dashed transparent;outline-offset:-2px;transition:outline-color .15s}
     [data-visual-canvas] [data-sec-id]:hover{outline-color:color-mix(in oklab, var(--brand) 35%, transparent)}
