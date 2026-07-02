@@ -200,7 +200,7 @@ export function PostExcerptWidget({ node, lang }: { node: WidgetNode; lang: Lang
   const raw = pickLocalized(ctx, lang, "excerpt");
   if (!raw) return null;
   const text = max > 0 && raw.length > max ? raw.slice(0, max).trimEnd() + "…" : raw;
-  return <p className="cms-post-excerpt text-base text-muted-foreground leading-relaxed">{text}</p>;
+  return <p className="cms-post-excerpt text-muted-foreground">{text}</p>;
 }
 
 export function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
@@ -222,7 +222,7 @@ export function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lan
   return (
     <header className="space-y-2">
       <div className="text-xs uppercase tracking-wider text-brand font-bold">{lang === "en" ? kind.en : kind.pl}</div>
-      <h1 className="cms-post-title leading-tight">{a.label}</h1>
+      <h1 className="cms-post-title">{a.label}</h1>
       {getBool(c, "showDescription", true) && a.description && <p className="text-muted-foreground max-w-2xl">{a.description}</p>}
       {getBool(c, "showCount", true) && typeof a.count === "number" && (
         <div className="text-sm text-muted-foreground">{a.count} {lang === "en" ? "posts" : "wpisów"}</div>
