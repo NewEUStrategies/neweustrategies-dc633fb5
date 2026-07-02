@@ -17,10 +17,10 @@ import {
 import { useInView } from "@/hooks/use-in-view";
 import { hoverCss } from "@/lib/builder/hoverCss";
 import { subscribeWidgetTypography } from "@/lib/builder/liveTypography";
+import { buildWidgetTypographyCss, resolveWidgetTypography } from "@/lib/builder/typographyCss";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 import { useTheme } from "@/components/ThemeProvider";
 import { useBuilderMode } from "@/lib/builder/modeContext";
-import { pickMode } from "@/lib/builder/themed";
 // Heavy, non-critical widgets are code-split via lazyWidgets so they never
 // weigh down the shared Header/Footer bundle on pages that don't render them.
 // SSR streaming still renders them server-side, so the HTML is unchanged.
@@ -92,14 +92,6 @@ interface ViewProps {
   editable?: boolean;
   /** Commit a single content field. Called on blur / Enter / resize end. */
   onContentChange?: (key: string, value: string | number) => void;
-}
-
-function pickResponsiveValue<T>(
-  value: { desktop?: T; tablet?: T; mobile?: T } | undefined,
-  device: Device,
-): T | undefined {
-  if (!value) return undefined;
-  return value[device] ?? value.desktop ?? value.tablet ?? value.mobile;
 }
 
 export const WidgetView = memo(function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
@@ -175,83 +167,8 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     return rules.join("\n");
   })();
   const typographyCss = useMemo(() => {
-    // Typography metrics (size, weight, family, spacing, etc.) must stay
-    // identical across light/dark - only color is mode-specific. Resolve a
-    // single shared value (light wins, dark fills in) regardless of mode.
-    const typography = liveTypography ??
-      pickMode(node.style?.typography, "light") ??
-      pickMode(node.style?.typography, "dark");
-    if (!typography) return "";
-
-    const sel = `[data-w-id="${node.id}"]`;
-    const descendants = `${sel}, ${sel} :is(p,span,a,strong,em,small,li,dt,dd,blockquote,cite,label,button,input,textarea,select,option,figcaption,legend,time,h1,h2,h3,h4,h5,h6,.prose,.prose *):not(.cms-post-title):not(.cms-post-excerpt):not(.post-list-numbered-index):not(.rl-num)`;
-    const headingSel = `${sel} :is(h1,h2,h3,h4,h5,h6):not(.cms-post-title):not(.post-list-numbered-index):not(.rl-num), ${sel}[data-title-root]`;
-    const descriptionSel = `${sel} :is(p,.prose p,li,dd,blockquote,figcaption,small)`;
-    const rules: string[] = [];
-
-    if (typography.fontFamily) {
-      rules.push(`${descendants}{font-family:${typography.fontFamily} !important;}`);
-      rules.push(`${sel} input::placeholder, ${sel} textarea::placeholder{font-family:${typography.fontFamily} !important;}`);
-    }
-
-    const fontSize = pickResponsiveValue(typography.fontSize, device);
-    const descriptionFontSize = pickResponsiveValue(typography.descriptionFontSize, device);
-    // Post widgets render titles/excerpts with `.cms-post-title` / `.cms-post-excerpt`,
-    // which are intentionally excluded from the generic descendant selectors (they
-    // own their global Theme Design size). When the user explicitly sets a size
-    // on a widget, we MUST also override those classes – otherwise the input
-    // appears to do nothing on post-list / slider / podcast widgets.
-    // Duplicate the widget attribute in the selector to beat older/global
-    // `h2`/`h3` responsive rules that also use `!important` in the builder
-    // canvas. Without this, changing title/description sizes in the Style tab
-    // could look like it only changed padding or spacing.
-    const strongSel = `${sel}[data-w-id]`;
-    const titleClassSel = `${strongSel} .cms-post-title`;
-    const excerptClassSel = `${strongSel} .cms-post-excerpt`;
-    if (fontSize) {
-      if (descriptionFontSize) {
-        // When both are set, scope title size to headings only so opis może mieć inny rozmiar.
-        rules.push(`${headingSel}{font-size:${fontSize} !important;}`);
-        rules.push(`${titleClassSel}{font-size:${fontSize} !important;}`);
-      } else {
-        rules.push(`${descendants}{font-size:${fontSize} !important;}`);
-        rules.push(`${titleClassSel}{font-size:${fontSize} !important;}`);
-        rules.push(`${sel} input::placeholder, ${sel} textarea::placeholder{font-size:${fontSize} !important;}`);
-      }
-    }
-    if (descriptionFontSize) {
-      rules.push(`${descriptionSel}{font-size:${descriptionFontSize} !important;}`);
-      rules.push(`${excerptClassSel}{font-size:${descriptionFontSize} !important;}`);
-    }
-    if (typeof typography.titleDescriptionGapPx === "number" && typography.titleDescriptionGapPx >= 0) {
-      const gap = `${typography.titleDescriptionGapPx}px`;
-      // Każdy paragraf/lista/blockquote/figcaption/small, ktry występuje
-      // po nagłówku, dostaje wymuszony margin-top = gap. Pierwsze dziecko
-      // (gdy nie ma nad nim nagłówka) zostaje bez wymuszenia.
-      rules.push(`${sel} :is(h1,h2,h3,h4,h5,h6) + :is(p,.prose p,ul,ol,blockquote,figcaption,small){margin-top:${gap} !important;}`);
-      // Dla widgetów, które renderują tytuł w linku (np. slider: <a><h3/></a><p/>),
-      // celujemy też w paragraf następujący po wrapperze z nagłówkiem.
-      rules.push(`${sel} a:has(> :is(h1,h2,h3,h4,h5,h6)) + :is(p,blockquote,small){margin-top:${gap} !important;}`);
-    }
-
-    // Broader selector that INCLUDES post-list title/excerpt classes so weight,
-    // style, alignment, line-height, letter-spacing, transform and decoration
-    // reach the same elements that font-size already targets — otherwise those
-    // controls looked inert on post-list / slider / podcast widgets.
-    const allText = `${descendants}, ${titleClassSel}, ${excerptClassSel}`;
-    if (typography.fontWeight) rules.push(`${allText}{font-weight:${typography.fontWeight} !important;}`);
-    if (typography.fontStyle) rules.push(`${allText}{font-style:${typography.fontStyle} !important;}`);
-    if (typography.lineHeight) rules.push(`${allText}{line-height:${typography.lineHeight} !important;}`);
-    if (typography.letterSpacing) rules.push(`${allText}{letter-spacing:${typography.letterSpacing} !important;}`);
-    if (typography.textTransform) rules.push(`${allText}{text-transform:${typography.textTransform} !important;}`);
-    if (typography.textDecoration) rules.push(`${allText}{text-decoration:${typography.textDecoration} !important;}`);
-    if (typography.textAlign) rules.push(`${allText}{text-align:${typography.textAlign} !important;}`);
-    if (typography.fontFamily) {
-      // Also force family onto post-list classes (they're excluded from descendants).
-      rules.push(`${titleClassSel}, ${excerptClassSel}{font-family:${typography.fontFamily} !important;}`);
-    }
-
-    return rules.join("\n");
+    const typography = resolveWidgetTypography(node.style?.typography, effectiveMode, liveTypography);
+    return buildWidgetTypographyCss(node.id, typography, device, { specificity: 3 });
   }, [device, effectiveMode, liveTypography, node.id, node.style?.typography]);
 
   const isImage = node.type === "image";
@@ -475,11 +392,11 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       );
     }
     case "post-list": {
-      const activeTypography = liveTypography ?? pickMode(node.style?.typography, "light") ?? pickMode(node.style?.typography, "dark");
+      const activeTypography = resolveWidgetTypography(node.style?.typography, effectiveMode, liveTypography);
       return wrap(<PostListView c={c} lang={lang} typography={activeTypography ?? undefined} />);
     }
     case "carousel": {
-      const activeTypography = liveTypography ?? pickMode(node.style?.typography, "light") ?? pickMode(node.style?.typography, "dark");
+      const activeTypography = resolveWidgetTypography(node.style?.typography, effectiveMode, liveTypography);
       return wrap(<PostListView c={c} lang={lang} carousel typography={activeTypography ?? undefined} />);
     }
     case "news-ticker":
