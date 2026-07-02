@@ -69,6 +69,12 @@ export interface CommonStyle {
   borderColor?: string;
   boxShadow?: string;     // raw css value
   opacity?: number;       // 0..1
+  // Icon colors (SVG / .cms-icon) - per-state, per-mode (Themed<string>).
+  // default = spoczynkowy, hover = po najechaniu, active = po kliknięciu /
+  // gdy ikona reprezentuje bieżącą stronę (aria-current="page" lub .is-active).
+  iconColor?: string;
+  iconHoverColor?: string;
+  iconActiveColor?: string;
 }
 
 
