@@ -15,6 +15,8 @@ import {
   SliderRender,
   type SliderVariant,
   type SliderItem,
+  type NavBgStyle,
+  type NavPosition,
 } from "@/lib/builder/sliderVariants";
 
 interface Props {
@@ -45,6 +47,14 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const subtitleWeight = typeof c.subtitleWeight === "number" ? c.subtitleWeight : 400;
   const columnsRaw = typeof c.columns === "number" ? c.columns : 3;
   const columns = (Math.max(1, Math.min(4, columnsRaw)) as 1 | 2 | 3 | 4);
+
+  // Navigation buttons style
+  const navSizePx = typeof c.navSizePx === "number" ? c.navSizePx : 52;
+  const navRoundedPx = typeof c.navRoundedPx === "number" ? c.navRoundedPx : 999;
+  const navBgColor = typeof c.navBgColor === "string" ? c.navBgColor : "#ffffff";
+  const navArrowColor = typeof c.navArrowColor === "string" ? c.navArrowColor : "#ffffff";
+  const navBgStyle = (typeof c.navBgStyle === "string" ? c.navBgStyle : "glass") as NavBgStyle;
+  const navPosition = (typeof c.navPosition === "string" ? c.navPosition : "mid") as NavPosition;
 
 
   const rawItems = Array.isArray(c.items) ? (c.items as unknown[]) : [];
@@ -116,6 +126,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     titleWeight,
     subtitleSizePx: subtitleSizePx > 0 ? subtitleSizePx : undefined,
     subtitleWeight,
+    navSizePx, navRoundedPx, navBgColor, navArrowColor, navBgStyle, navPosition,
     items: hasRealItems ? items : demoItems,
   };
 
@@ -321,7 +332,85 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         </PropField>
       </div>
 
+      {/* Nav buttons styling */}
+      <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Przyciski nawigacji (strzałki)
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <PropField label={`Rozmiar (${navSizePx}px)`}>
+            <Input
+              type="range" min={28} max={96} step={2} value={navSizePx}
+              onChange={(e) => setContent("navSizePx", Math.max(28, Math.min(96, Number(e.target.value) || 52)))}
+              className="h-8"
+            />
+          </PropField>
+          <PropField label={`Zaokrąglenie (${navRoundedPx >= 999 ? "pełne" : `${navRoundedPx}px`})`}>
+            <Input
+              type="range" min={0} max={64} step={1}
+              value={navRoundedPx >= 999 ? 64 : navRoundedPx}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setContent("navRoundedPx", v >= 64 ? 999 : Math.max(0, v));
+              }}
+              className="h-8"
+            />
+          </PropField>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <PropField label="Kolor tła">
+            <div className="flex items-center gap-1.5">
+              <input type="color" value={navBgColor}
+                onChange={(e) => setContent("navBgColor", e.target.value)}
+                className="h-8 w-12 p-0.5 rounded border border-border bg-background cursor-pointer" />
+              <Input value={navBgColor}
+                onChange={(e) => setContent("navBgColor", e.target.value)}
+                className="h-8 text-xs font-mono" placeholder="#ffffff" />
+            </div>
+          </PropField>
+          <PropField label="Kolor strzałki">
+            <div className="flex items-center gap-1.5">
+              <input type="color" value={navArrowColor}
+                onChange={(e) => setContent("navArrowColor", e.target.value)}
+                className="h-8 w-12 p-0.5 rounded border border-border bg-background cursor-pointer" />
+              <Input value={navArrowColor}
+                onChange={(e) => setContent("navArrowColor", e.target.value)}
+                className="h-8 text-xs font-mono" placeholder="#ffffff" />
+            </div>
+          </PropField>
+        </div>
+        <PropField label="Styl tła przycisku">
+          <Select value={navBgStyle} onValueChange={(v) => setContent("navBgStyle", v)}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="glass">Glass (szkło, półprzezroczyste)</SelectItem>
+              <SelectItem value="solid">Solid (jednolity)</SelectItem>
+              <SelectItem value="outline">Outline (obrys)</SelectItem>
+              <SelectItem value="soft">Soft (miękki, delikatny blur)</SelectItem>
+              <SelectItem value="gradient">Gradient (kierunkowy)</SelectItem>
+              <SelectItem value="shadow">Shadow (unoszący cień)</SelectItem>
+            </SelectContent>
+          </Select>
+        </PropField>
+        <PropField label="Pozycja">
+          <Select value={navPosition} onValueChange={(v) => setContent("navPosition", v)}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="mid">Środek boków (wewnątrz)</SelectItem>
+              <SelectItem value="mid-outside">Środek boków (na zewnątrz)</SelectItem>
+              <SelectItem value="bottom">Prawy dolny róg</SelectItem>
+              <SelectItem value="top">Prawy górny róg</SelectItem>
+            </SelectContent>
+          </Select>
+        </PropField>
+        <div className="text-[10px] text-muted-foreground/80 leading-snug">
+          Wskazówka: dla stylu „Outline" ustaw kolor tła = kolor obrysu; dla „Glass" najlepiej sprawdzają się jasne kolory na ciemnych obrazach.
+        </div>
+      </div>
+
       {/* Typografia: edytuj w zakładce „Styl" → Typografia (tytuł / opis) */}
+
+
 
 
 

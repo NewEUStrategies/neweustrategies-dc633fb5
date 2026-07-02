@@ -189,6 +189,14 @@ export function PostsSliderWidget({ c, lang, typography }: { c: WidgetNode["cont
     titleWeight: typeof c.titleWeight === "number" ? c.titleWeight : undefined,
     subtitleSizePx: typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : undefined,
     subtitleWeight: typeof c.subtitleWeight === "number" ? c.subtitleWeight : undefined,
+    navSizePx: typeof c.navSizePx === "number" ? c.navSizePx : undefined,
+    navRoundedPx: typeof c.navRoundedPx === "number" ? c.navRoundedPx : undefined,
+    navBgColor: typeof c.navBgColor === "string" ? c.navBgColor : undefined,
+    navArrowColor: typeof c.navArrowColor === "string" ? c.navArrowColor : undefined,
+    navBgStyle: (typeof c.navBgStyle === "string" ? c.navBgStyle : undefined) as
+      | "glass" | "solid" | "outline" | "soft" | "gradient" | "shadow" | undefined,
+    navPosition: (typeof c.navPosition === "string" ? c.navPosition : undefined) as
+      | "mid" | "mid-outside" | "bottom" | "top" | undefined,
     typography,
     items: items
       .filter((p) => p.cover_image_url)
