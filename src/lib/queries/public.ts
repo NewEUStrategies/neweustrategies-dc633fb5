@@ -3,6 +3,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { SEO_FIELDS_SELECT } from "@/lib/seo/fields";
+import type { PageTreeRow } from "@/lib/seo/pageTree";
 import { fetchPageBreadcrumbs, type BreadcrumbRow } from "@/lib/breadcrumbs";
 import { EMPTY_BODY, type BodyParts } from "@/lib/access/gating";
 import type { ContentAccessRule } from "@/hooks/useContentAccess";
@@ -75,6 +76,10 @@ export interface PageData {
   title_en: string;
   content_pl: string | null;
   content_en: string | null;
+  // Pages carry excerpts too - the pages editor writes them as the meta
+  // description (SeoDescriptionField), so the public head() must receive them.
+  excerpt_pl: string | null;
+  excerpt_en: string | null;
   editor: "blocks" | "richtext" | "markdown" | "builder";
   blocks_data?: unknown;
   builder_data: unknown;
@@ -95,8 +100,6 @@ export interface PageData {
 }
 
 export interface PostData extends PageData {
-  excerpt_pl: string | null;
-  excerpt_en: string | null;
   read_minutes: number | null;
   post_format: PostFormat;
   layout_overrides: LayoutOverrides | null;
@@ -148,8 +151,10 @@ export const homePageQueryOptions = () =>
           homepage_page_slug?: string;
         };
 
-        const cols =
-          "id, slug, title_pl, title_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at";
+        // Includes excerpts + SEO overrides: the homepage head() (src/routes/
+        // index.tsx) resolves the static home page's own SEO fields, so a
+        // builder-built homepage is a first-class SEO citizen like any page.
+        const cols = `id, slug, title_pl, title_en, content_pl, content_en, excerpt_pl, excerpt_en, editor, builder_data, cover_image_url, published_at, updated_at, ${SEO_FIELDS_SELECT}`;
 
         if (reading.homepage_mode === "static_page") {
           if (reading.homepage_page_id) {
@@ -227,6 +232,41 @@ export const blogListQueryOptions = () =>
     staleTime: 2 * 60_000,
   });
 
+// Published, indexable pages for the public HTML site map (/sitemap). The
+// noindex exclusion mirrors sitemap.xml: a URL hidden from crawlers must not
+// be advertised by the visible site map either.
+export const publicPagesTreeQueryOptions = () =>
+  queryOptions({
+    queryKey: ["public", "pages-tree"] as const,
+    queryFn: async (): Promise<PageTreeRow[]> => {
+      const { data, error } = await supabase
+        .from("pages")
+        .select("id, slug, title_pl, title_en, parent_id, menu_order")
+        .eq("status", "published")
+        .eq("seo_noindex", false)
+        .is("deleted_at", null)
+        .limit(500);
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 5 * 60_000,
+  });
+
+// Public category list (site map + navigation surfaces).
+export const publicCategoriesQueryOptions = () =>
+  queryOptions({
+    queryKey: ["public", "categories"] as const,
+    queryFn: async (): Promise<Array<{ slug: string; name_pl: string; name_en: string }>> => {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("slug, name_pl, name_en")
+        .order("name_pl");
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 5 * 60_000,
+  });
+
 export const resolvedContentQueryOptions = (segments: string[]) =>
   queryOptions({
     queryKey: ["public", "resolved", segments] as const,
@@ -278,7 +318,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
         supabase
           .from("pages")
           .select(
-            `id, slug, title_pl, title_en, editor, cover_image_url, published_at, updated_at, template_type, header_override, ${SEO_FIELDS_SELECT}`,
+            `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, template_type, header_override, ${SEO_FIELDS_SELECT}`,
           )
           .eq("id", hit.page_id)
           .maybeSingle(),

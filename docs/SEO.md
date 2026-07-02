@@ -34,6 +34,7 @@ thin layers that never re-implement logic:
 | URL | Notes |
 | --- | --- |
 | `/sitemap.xml` | Published pages + posts, hreflang alternates, excludes `seo_noindex` |
+| `/sitemap`, `/en/sitemap` | HTML site map: page tree (`buildPageTree`), categories, latest posts |
 | `/news-sitemap.xml` | Google News: last 48h only, per-language entries |
 | `/rss.xml`, `/en/rss.xml` | Language-addressed feeds (excerpt-only - paywall-safe); `/feed` 301s for WP readers |
 | `/llms.txt` | Site guide for AI assistants (GEO / zero-click citations) |
@@ -61,6 +62,18 @@ live Google preview, pixel meters and the OG-card generator (canvas-rendered in
 the admin browser, uploaded to the `media` bucket - zero server runtime
 dependencies, deliberately not a server endpoint because the deploy target is a
 Cloudflare worker without native image rasterization).
+
+The fields apply to EVERY content engine (builder / blocks / richtext /
+markdown) - they live on the `posts`/`pages` rows, and the universal resolver's
+head() consumes them regardless of how the body renders. The static homepage
+(a builder page selected in reading settings) resolves its own SEO fields in
+`src/routes/index.tsx` head(); pages additionally feed their excerpts (the
+pages editor's "meta description" field) into the emitted description.
+
+**Content overview** - `/admin/seo` lists every post and page (tenant-scoped)
+with per-language description sources, social-image source, overrides, noindex
+and a transparent 0-100 completeness score (pure rules in
+`src/lib/seo/contentStatus.ts`); the summary tiles double as filters.
 
 ## Redirect manager
 

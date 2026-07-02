@@ -70,6 +70,7 @@ export function buildLlmsTxt(input: LlmsTxtInput): string {
     "## Zasoby maszynowe / Machine-readable resources",
     "",
     `- Sitemap: ${input.origin}/sitemap.xml`,
+    `- Mapa strony HTML / HTML site map: ${input.origin}/sitemap`,
     `- Google News sitemap: ${input.origin}/news-sitemap.xml`,
     `- RSS (PL): ${input.origin}/rss.xml`,
     `- RSS (EN): ${input.origin}/en/rss.xml`,

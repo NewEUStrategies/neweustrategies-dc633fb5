@@ -1,12 +1,51 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Star, Mail, Bookmark, ChevronRight, Lock, Palette, LayoutGrid, Shapes, PanelsTopLeft, Newspaper, Megaphone, Mic, Film, Brush, Wand2, Share2, Gauge, MousePointerClick, FlaskConical, Link as LinkIcon } from "@/lib/lucide-shim";
+import {
+  LayoutDashboard,
+  FileText,
+  File,
+  FolderTree,
+  Tags,
+  Users,
+  Image as ImageIcon,
+  LogOut,
+  Home,
+  Moon,
+  Sun,
+  Globe,
+  Settings,
+  PanelLeft,
+  Star,
+  Mail,
+  Bookmark,
+  ChevronRight,
+  Lock,
+  Palette,
+  LayoutGrid,
+  Shapes,
+  PanelsTopLeft,
+  Newspaper,
+  Megaphone,
+  Mic,
+  Film,
+  Brush,
+  Wand2,
+  Share2,
+  Gauge,
+  MousePointerClick,
+  FlaskConical,
+  Link as LinkIcon,
+  Search,
+} from "@/lib/lucide-shim";
 import { Inbox, MessageCircle } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { useState, type ReactNode } from "react";
-import { AdminSidebarExtrasProvider, useAdminSidebarExtrasSlot } from "@/components/admin/AdminSidebarExtras";
+import {
+  AdminSidebarExtrasProvider,
+  useAdminSidebarExtrasSlot,
+} from "@/components/admin/AdminSidebarExtras";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { cn } from "@/lib/utils";
 
@@ -14,19 +53,34 @@ import type { SidebarStyle } from "@/lib/builder/sidebarStyles";
 
 type SidebarLogoCfg = {
   logo: {
-    sidebar_icon: string; sidebar_icon_dark: string;
-    sidebar_expanded: string; sidebar_expanded_dark: string;
-    main: string; main_dark: string;
+    sidebar_icon: string;
+    sidebar_icon_dark: string;
+    sidebar_expanded: string;
+    sidebar_expanded_dark: string;
+    main: string;
+    main_dark: string;
   };
   sidebars?: { style?: SidebarStyle };
 };
 const SIDEBAR_LOGO_DEFAULTS: SidebarLogoCfg = {
-  logo: { sidebar_icon: "", sidebar_icon_dark: "", sidebar_expanded: "", sidebar_expanded_dark: "", main: "", main_dark: "" },
+  logo: {
+    sidebar_icon: "",
+    sidebar_icon_dark: "",
+    sidebar_expanded: "",
+    sidebar_expanded_dark: "",
+    main: "",
+    main_dark: "",
+  },
   sidebars: { style: "style-1" },
 };
 
-
-export function AdminShell({ children, hideSidebar }: { children: ReactNode; hideSidebar?: boolean }) {
+export function AdminShell({
+  children,
+  hideSidebar,
+}: {
+  children: ReactNode;
+  hideSidebar?: boolean;
+}) {
   return (
     <AdminSidebarExtrasProvider>
       <AdminShellInner hideSidebar={hideSidebar}>{children}</AdminShellInner>
@@ -34,8 +88,13 @@ export function AdminShell({ children, hideSidebar }: { children: ReactNode; hid
   );
 }
 
-function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideSidebar?: boolean }) {
-
+function AdminShellInner({
+  children,
+  hideSidebar,
+}: {
+  children: ReactNode;
+  hideSidebar?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const { signOut, user, isAdmin, isSuperAdmin } = useAuth();
   const { theme, toggle } = useTheme();
@@ -46,12 +105,11 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
   const themeOpts = useSiteSetting<SidebarLogoCfg>("theme_options", SIDEBAR_LOGO_DEFAULTS);
   const sidebarStyle = themeOpts.sidebars?.style ?? "style-1";
 
-
-  const isEditRoute = /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
+  const isEditRoute =
+    /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
   const isThemeOptions = path.startsWith("/admin/theme-options");
   const [forceCompact, setForceCompact] = useState(false);
   const compact = ((isEditRoute || forceCompact) && !extras) || sidebarStyle === "style-4";
-
 
   type NavItem = { to: string; icon: typeof LayoutDashboard; label: string };
   type NavGroup = { id: string; label?: string; items: NavItem[] };
@@ -86,14 +144,34 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
       label: t("admin.navGroups.engagement"),
       items: [
         { to: "/admin/newsletter", icon: Mail, label: t("admin.nav.newsletter") },
-        { to: "/admin/popups", icon: MousePointerClick, label: t("admin.nav.popups", { defaultValue: lang === "pl" ? "Popupy" : "Popups" }) },
-        { to: "/admin/experiments", icon: FlaskConical, label: t("admin.nav.experiments", { defaultValue: lang === "pl" ? "Testy A/B" : "A/B tests" }) },
-        { to: "/admin/contact", icon: Inbox, label: t("admin.nav.contact", { defaultValue: lang === "pl" ? "Centrum kontaktu" : "Contact center" }) },
+        {
+          to: "/admin/popups",
+          icon: MousePointerClick,
+          label: t("admin.nav.popups", { defaultValue: lang === "pl" ? "Popupy" : "Popups" }),
+        },
+        {
+          to: "/admin/experiments",
+          icon: FlaskConical,
+          label: t("admin.nav.experiments", {
+            defaultValue: lang === "pl" ? "Testy A/B" : "A/B tests",
+          }),
+        },
+        {
+          to: "/admin/contact",
+          icon: Inbox,
+          label: t("admin.nav.contact", {
+            defaultValue: lang === "pl" ? "Centrum kontaktu" : "Contact center",
+          }),
+        },
         { to: "/admin/podcasts", icon: Mic, label: t("admin.nav.podcasts") },
         { to: "/admin/web-stories", icon: Film, label: t("admin.nav.webStories") },
         { to: "/admin/personalized", icon: Wand2, label: t("admin.nav.personalized") },
         { to: "/admin/related-posts", icon: Share2, label: t("admin.nav.relatedPosts") },
-        { to: "/admin/crm", icon: Users, label: t("admin.nav.crm", { defaultValue: lang === "pl" ? "CRM" : "CRM" }) },
+        {
+          to: "/admin/crm",
+          icon: Users,
+          label: t("admin.nav.crm", { defaultValue: lang === "pl" ? "CRM" : "CRM" }),
+        },
       ],
     },
     {
@@ -105,28 +183,48 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
         { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
         { to: "/admin/icons", icon: Shapes, label: t("admin.nav.icons") },
         ...(isSuperAdmin ? [{ to: "/admin/names", icon: Users, label: t("admin.nav.names") }] : []),
-        ...(isAdmin ? [{ to: "/admin/greetings", icon: MessageCircle, label: t("admin.nav.greetings", { defaultValue: lang === "pl" ? "Powitania" : "Greetings" }) }] : []),
+        ...(isAdmin
+          ? [
+              {
+                to: "/admin/greetings",
+                icon: MessageCircle,
+                label: t("admin.nav.greetings", {
+                  defaultValue: lang === "pl" ? "Powitania" : "Greetings",
+                }),
+              },
+            ]
+          : []),
       ],
     },
     ...(isAdmin
-      ? [{
-          id: "system",
-          label: t("admin.navGroups.system"),
-          items: [
-            { to: "/admin/performance", icon: Gauge, label: t("admin.nav.performance") },
-            {
-              to: "/admin/redirects",
-              icon: LinkIcon,
-              label: t("admin.nav.redirects", { defaultValue: lang === "pl" ? "Przekierowania" : "Redirects" }),
-            },
-            { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
-            { to: "/admin/settings", icon: Settings, label: t("admin.nav.settings") },
-          ],
-        }]
+      ? [
+          {
+            id: "system",
+            label: t("admin.navGroups.system"),
+            items: [
+              { to: "/admin/performance", icon: Gauge, label: t("admin.nav.performance") },
+              {
+                to: "/admin/seo",
+                icon: Search,
+                label: t("admin.nav.seo", { defaultValue: "SEO" }),
+              },
+              {
+                to: "/admin/redirects",
+                icon: LinkIcon,
+                label: t("admin.nav.redirects", {
+                  defaultValue: lang === "pl" ? "Przekierowania" : "Redirects",
+                }),
+              },
+              { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
+              { to: "/admin/settings", icon: Settings, label: t("admin.nav.settings") },
+            ],
+          },
+        ]
       : []),
   ];
-  void Star; void Bookmark; void Brush;
-
+  void Star;
+  void Bookmark;
+  void Brush;
 
   const handleSignOut = async () => {
     await signOut();
@@ -135,7 +233,6 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
 
   return (
     <div className={`admin-compact min-h-screen bg-muted/30 ${hideSidebar ? "" : "flex"}`}>
-
       {hideSidebar && <AdminLangBar />}
       {!hideSidebar && (
         <aside
@@ -147,7 +244,6 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
             "bg-card border-r border-border flex flex-col transition-all duration-200 sticky top-0 self-start h-screen max-h-screen sidebar-shell",
           )}
         >
-
           <div className="p-3 border-b border-border">
             <div className={`flex items-center ${compact ? "justify-center" : "gap-2"}`}>
               <Link
@@ -186,7 +282,7 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
               <div key={group.id} className={idx > 0 ? "pt-2 border-t border-border/60" : ""}>
                 {group.label && !compact && (
                   <div
-data-sidebar="group-label"
+                    data-sidebar="group-label"
                     className="px-2 pt-1 pb-0 text-[9px] uppercase tracking-wider text-muted-foreground font-semibold"
                   >
                     {group.label}
@@ -203,7 +299,9 @@ data-sidebar="group-label"
                         data-sidebar="menu-button"
                         data-active={active ? "true" : "false"}
                         className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] leading-tight transition ${
-                          active ? "bg-brand text-brand-foreground" : "text-foreground hover:bg-muted"
+                          active
+                            ? "bg-brand text-brand-foreground"
+                            : "text-foreground hover:bg-muted"
                         }`}
                       >
                         <Icon className="w-3 h-3 shrink-0" />
@@ -218,7 +316,10 @@ data-sidebar="group-label"
             {extras && !compact && (
               <div className="mt-4 pt-3 border-t border-border space-y-0.5">
                 {extras.title && (
-                  <div data-sidebar="group-label" className="px-2 pb-1 text-[8px] uppercase tracking-wider text-muted-foreground font-medium">
+                  <div
+                    data-sidebar="group-label"
+                    className="px-2 pb-1 text-[8px] uppercase tracking-wider text-muted-foreground font-medium"
+                  >
                     {extras.title}
                   </div>
                 )}
@@ -263,7 +364,11 @@ data-sidebar="group-label"
               data-sidebar="menu-button"
               className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] text-muted-foreground hover:bg-muted"
             >
-              {theme === "dark" ? <Sun className="w-3 h-3 shrink-0" /> : <Moon className="w-3 h-3 shrink-0" />}
+              {theme === "dark" ? (
+                <Sun className="w-3 h-3 shrink-0" />
+              ) : (
+                <Moon className="w-3 h-3 shrink-0" />
+              )}
               <span className={compact ? "hidden" : ""}>{t("admin.theme")}</span>
             </button>
             <button
@@ -291,9 +396,18 @@ data-sidebar="group-label"
         className={`${isEditRoute ? "min-w-0" : "overflow-x-auto"} ${hideSidebar ? "w-full" : "flex-1"}`}
         style={{ viewTransitionName: "admin-main" }}
       >
-        <div className={isEditRoute ? "p-2" : isThemeOptions ? "max-w-6xl mr-auto ml-0 py-4 lg:py-6 pl-3 lg:pl-4 pr-4 lg:pr-6" : "max-w-6xl mx-auto p-4 lg:p-6"}>{children}</div>
+        <div
+          className={
+            isEditRoute
+              ? "p-2"
+              : isThemeOptions
+                ? "max-w-6xl mr-auto ml-0 py-4 lg:py-6 pl-3 lg:pl-4 pr-4 lg:pr-6"
+                : "max-w-6xl mx-auto p-4 lg:p-6"
+          }
+        >
+          {children}
+        </div>
       </main>
-
     </div>
   );
 }
@@ -303,15 +417,29 @@ function SidebarBrand({ compact }: { compact: boolean }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const logo = cfg.logo ?? SIDEBAR_LOGO_DEFAULTS.logo;
-  const iconSrc = (isDark ? logo.sidebar_icon_dark : logo.sidebar_icon) || logo.sidebar_icon || logo.sidebar_icon_dark;
-  const expandedSrc = (isDark ? logo.sidebar_expanded_dark : logo.sidebar_expanded) || logo.sidebar_expanded || logo.sidebar_expanded_dark || (isDark ? logo.main_dark : logo.main) || logo.main;
+  const iconSrc =
+    (isDark ? logo.sidebar_icon_dark : logo.sidebar_icon) ||
+    logo.sidebar_icon ||
+    logo.sidebar_icon_dark;
+  const expandedSrc =
+    (isDark ? logo.sidebar_expanded_dark : logo.sidebar_expanded) ||
+    logo.sidebar_expanded ||
+    logo.sidebar_expanded_dark ||
+    (isDark ? logo.main_dark : logo.main) ||
+    logo.main;
 
   if (compact) {
-    return iconSrc
-      ? <img src={iconSrc} alt="Logo" className="w-8 h-8 object-contain" />
-      : <span className="text-base">NES</span>;
+    return iconSrc ? (
+      <img src={iconSrc} alt="Logo" className="w-8 h-8 object-contain" />
+    ) : (
+      <span className="text-base">NES</span>
+    );
   }
-  return expandedSrc
-    ? <img src={expandedSrc} alt="Logo" className="max-h-9 max-w-full object-contain" />
-    : <span>NES <span className="text-brand">Admin</span></span>;
+  return expandedSrc ? (
+    <img src={expandedSrc} alt="Logo" className="max-h-9 max-w-full object-contain" />
+  ) : (
+    <span>
+      NES <span className="text-brand">Admin</span>
+    </span>
+  );
 }

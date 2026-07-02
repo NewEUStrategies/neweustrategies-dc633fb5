@@ -15,6 +15,13 @@ import {
   SITE_DEFAULT_DESCRIPTION,
 } from "@/lib/seo/meta";
 import { organizationJsonLd, webSiteJsonLd } from "@/lib/seo/jsonld";
+import {
+  resolveRobotsMeta,
+  resolveSeoText,
+  resolveSocialImage,
+  seoCanonicalOverride,
+} from "@/lib/seo/fields";
+import { metaDescription } from "@/lib/routing/publicSegments";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
@@ -50,21 +57,40 @@ export const Route = createFileRoute("/")({
     // SEO settings (Organization sameAs / logo) for the homepage JSON-LD; the
     // bulk site_settings query is already warmed by the root loader.
     const settingsMap = await context.queryClient.ensureQueryData(siteSettingsQueryOptions);
-    return { seoSettings: parseSeoSettings(settingsMap["seo"]) };
+    return { seoSettings: parseSeoSettings(settingsMap["seo"]), homePage };
   },
 
   head: ({ loaderData }) => {
     const url = getRequestUrl() || "/";
     const lang = activeLang(url);
-    // The homepage is the brand's front page, so its title/description ARE the
-    // site defaults - reuse the shared constants (kept in sync with the root
-    // <head> fallback) instead of duplicating the localized copy here.
+    // The homepage title/description default to the brand constants (kept in
+    // sync with the root <head> fallback), but a static home page built in the
+    // CMS builder is a first-class SEO citizen: its own SEO overrides, excerpt
+    // (meta description), social image, canonical and noindex win when set.
+    // No brand suffix here - the defaults already carry the brand.
+    const homePage = loaderData?.homePage ?? null;
+    const fallbackDescription =
+      (homePage &&
+        metaDescription(
+          lang === "en"
+            ? homePage.excerpt_en || homePage.excerpt_pl
+            : homePage.excerpt_pl || homePage.excerpt_en,
+          "",
+        )) ||
+      SITE_DEFAULT_DESCRIPTION[lang];
+    const seo = homePage
+      ? resolveSeoText(homePage, lang, SITE_DEFAULT_TITLE[lang], fallbackDescription)
+      : { title: SITE_DEFAULT_TITLE[lang], description: fallbackDescription };
+    const image = homePage ? resolveSocialImage(homePage, homePage.cover_image_url) : null;
     const head = buildContentHead({
       url,
       lang,
       type: "website",
-      title: SITE_DEFAULT_TITLE[lang],
-      description: SITE_DEFAULT_DESCRIPTION[lang],
+      title: seo.title,
+      description: seo.description,
+      image,
+      robots: homePage ? resolveRobotsMeta(homePage) : null,
+      canonicalOverride: homePage ? seoCanonicalOverride(homePage) : null,
     });
     const { origin } = splitUrl(url);
     if (!origin) return head;
