@@ -4,7 +4,7 @@
 // meters, canonical/noindex controls, a social-image override and the
 // generator of branded 1200x630 OG cards (canvas-rendered in the browser,
 // uploaded to the media bucket).
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -17,10 +17,12 @@ import { Switch } from "@/components/ui/switch";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { SerpPreview } from "@/components/admin/seo/SerpPreview";
 import { SeoTextField } from "@/components/admin/seo/SeoTextField";
+import { SeoValidationSummary } from "@/components/admin/seo/SeoValidationSummary";
 import { Loader2, Search, Sparkles } from "@/lib/lucide-shim";
 import { applyTitleSuffix, resolveSocialImage, type SeoFieldsRow } from "@/lib/seo/fields";
 import { SITE_NAME } from "@/lib/seo/meta";
 import { metaDescription } from "@/lib/routing/publicSegments";
+import { validateSeoPanel, type SeoIssue } from "@/lib/seo/validation";
 import {
   DEFAULT_SEO_SETTINGS,
   effectiveTitleSuffix,
@@ -56,16 +58,35 @@ interface SeoPanelProps {
   coverImageUrl: string | null;
   /** Kicker printed on the generated OG card (e.g. section name). */
   ogKicker?: string | null;
+  /** Emits the current validation snapshot so save handlers can preflight. */
+  onIssuesChange?: (issues: SeoIssue[]) => void;
 }
 
 const TITLE_MAX = 160;
 const DESCRIPTION_MAX = 320;
 
 export function SeoPanel(props: SeoPanelProps) {
-  const { value, onChange, entity, slug, pathSourcePageId } = props;
+  const { value, onChange, entity, slug, pathSourcePageId, onIssuesChange } = props;
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<"pl" | "en">(i18n.language === "en" ? "en" : "pl");
   const [generating, setGenerating] = useState(false);
+
+  const issues = useMemo(
+    () =>
+      validateSeoPanel({
+        value,
+        fallbackTitle: props.fallbackTitle,
+        fallbackDescription: props.fallbackDescription,
+        slug,
+        titleCharLimit: TITLE_MAX,
+        descriptionCharLimit: DESCRIPTION_MAX,
+      }),
+    [value, props.fallbackTitle, props.fallbackDescription, slug],
+  );
+
+  useEffect(() => {
+    onIssuesChange?.(issues);
+  }, [issues, onIssuesChange]);
   const seoSettings: SeoSettings = useSiteSetting(
     SEO_SETTINGS_KEY,
     DEFAULT_SEO_SETTINGS,
@@ -185,6 +206,8 @@ export function SeoPanel(props: SeoPanelProps) {
           })}
         </span>
       </div>
+
+      <SeoValidationSummary issues={issues} />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v === "en" ? "en" : "pl")}>
         <TabsList className="grid w-full max-w-[200px] grid-cols-2">

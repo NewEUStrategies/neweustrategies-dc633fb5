@@ -44,6 +44,7 @@ import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { toast } from "sonner";
 import { invalidateWidgetCaches, emitWidgetCacheInvalidate } from "@/lib/builder/widgetCacheInvalidation";
 import { invalidateSeoCaches } from "@/lib/seo/invalidate";
+import { hasBlockingSeoIssues, type SeoIssue } from "@/lib/seo/validation";
 
 export const Route = createFileRoute("/admin/posts/$slug")({
   component: EditPost,
@@ -168,6 +169,7 @@ function EditPost() {
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [seoIssues, setSeoIssues] = useState<SeoIssue[]>([]);
   // Two-step flow: "details" shows metadata + titles + descriptions in both
   // languages; "content" opens the actual editor (builder / rich text).
   const [step, setStep] = useState<"details" | "content">("details");
@@ -259,6 +261,23 @@ function EditPost() {
   const pickImage = async (): Promise<string | null> => window.prompt("URL obrazka") ?? null;
 
   const save = async () => {
+    if (hasBlockingSeoIssues(seoIssues)) {
+      toast.error(
+        t("admin.seo.validation.blockToast", {
+          defaultValue: "Zapis wstrzymany: pola SEO przekraczają twardy limit znaków.",
+        }),
+      );
+      return;
+    }
+    const pixelWarnings = seoIssues.filter((i) => i.severity === "warning");
+    if (pixelWarnings.length > 0) {
+      toast.warning(
+        t("admin.seo.validation.warnToast", {
+          defaultValue: "Zapisano, ale {{count}} pól SEO zostanie uciętych w Google.",
+          count: pixelWarnings.length,
+        }),
+      );
+    }
     setBusy(true);
     try {
       await autosave.flush();
@@ -715,6 +734,7 @@ function EditPost() {
                 ogKicker={
                   allCats?.find((c) => selectedCats.includes(c.id))?.name_pl ?? null
                 }
+                onIssuesChange={setSeoIssues}
               />
 
               <div className="flex justify-end pt-2 border-t border-border">

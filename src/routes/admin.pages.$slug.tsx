@@ -34,6 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { invalidateWidgetCaches, emitWidgetCacheInvalidate } from "@/lib/builder/widgetCacheInvalidation";
 import { invalidateSeoCaches } from "@/lib/seo/invalidate";
+import { hasBlockingSeoIssues, type SeoIssue } from "@/lib/seo/validation";
 import { PAGE_TEMPLATES, type PageTemplateType } from "@/lib/pageTemplates";
 
 export const Route = createFileRoute("/admin/pages/$slug")({
@@ -103,6 +104,7 @@ function EditPage() {
   const form = history.state;
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState<"details" | "content">("details");
+  const [seoIssues, setSeoIssues] = useState<SeoIssue[]>([]);
 
   useEffect(() => { if (page) history.reset(page); }, [page, history.reset]);
 
@@ -179,6 +181,23 @@ function EditPage() {
   const pickImage = async (): Promise<string | null> => window.prompt("URL obrazka") ?? null;
 
   const save = async () => {
+    if (hasBlockingSeoIssues(seoIssues)) {
+      toast.error(
+        t("admin.seo.validation.blockToast", {
+          defaultValue: "Zapis wstrzymany: pola SEO przekraczają twardy limit znaków.",
+        }),
+      );
+      return;
+    }
+    const pixelWarnings = seoIssues.filter((i) => i.severity === "warning");
+    if (pixelWarnings.length > 0) {
+      toast.warning(
+        t("admin.seo.validation.warnToast", {
+          defaultValue: "Zapisano, ale {{count}} pól SEO zostanie uciętych w Google.",
+          count: pixelWarnings.length,
+        }),
+      );
+    }
     setBusy(true);
     try {
       await autosave.flush();
@@ -427,6 +446,7 @@ function EditPage() {
                 fallbackTitle={{ pl: form.title_pl, en: form.title_en }}
                 fallbackDescription={{ pl: form.excerpt_pl, en: form.excerpt_en }}
                 coverImageUrl={form.cover_image_url}
+                onIssuesChange={setSeoIssues}
               />
 
               <div className="flex justify-end pt-2 border-t border-border">
