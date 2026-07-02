@@ -43,6 +43,9 @@ export const SLIDER_VARIANTS: { value: SliderVariant; label: string }[] = [
   { value: "minimal-strip", label: "Minimal + miniatury" },
 ];
 
+export type NavBgStyle = "glass" | "solid" | "outline" | "soft" | "gradient" | "shadow";
+export type NavPosition = "mid" | "mid-outside" | "bottom" | "top";
+
 export interface SliderConfig {
   variant?: SliderVariant;
   items: SliderItem[];
@@ -58,6 +61,36 @@ export interface SliderConfig {
   typography?: WidgetTypography;
   /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
   columns?: 1 | 2 | 3 | 4;
+  /** Navigation-button styling (side arrows). */
+  navSizePx?: number;      // 28..96, default 52 (desktop) / 44 (mobile)
+  navRoundedPx?: number;   // 0..64, default 999 (pill). 999+ = full pill
+  navBgColor?: string;     // any CSS color, default #ffffff
+  navArrowColor?: string;  // any CSS color, default #ffffff
+  navBgStyle?: NavBgStyle; // default "glass"
+  navPosition?: NavPosition; // default "mid"
+}
+
+export interface NavStyleResolved {
+  sizePx: number;
+  radiusCss: string;
+  bgColor: string;
+  arrowColor: string;
+  bgStyle: NavBgStyle;
+  position: NavPosition;
+}
+
+export function resolveNavStyle(cfg: SliderConfig): NavStyleResolved {
+  const sizePx = Math.max(28, Math.min(96, cfg.navSizePx ?? 52));
+  const radiusRaw = typeof cfg.navRoundedPx === "number" ? cfg.navRoundedPx : 999;
+  const radiusCss = radiusRaw >= 999 ? "9999px" : `${Math.max(0, radiusRaw)}px`;
+  return {
+    sizePx,
+    radiusCss,
+    bgColor: cfg.navBgColor ?? "#ffffff",
+    arrowColor: cfg.navArrowColor ?? "#ffffff",
+    bgStyle: cfg.navBgStyle ?? "glass",
+    position: cfg.navPosition ?? "mid",
+  };
 }
 
 const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
