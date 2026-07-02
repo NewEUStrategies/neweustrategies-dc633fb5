@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactEventHandler } from "react";
-import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { OptimizedImage, type HoverEffect } from "@/components/atoms/OptimizedImage";
 
 interface WidgetMediaImageProps {
   src: string | null | undefined;
@@ -13,6 +13,7 @@ interface WidgetMediaImageProps {
   foregroundClassName?: string;
   foregroundStyle?: CSSProperties;
   onError?: ReactEventHandler<HTMLImageElement>;
+  hoverEffect?: HoverEffect;
 }
 
 type WidgetMediaFrameStyle = CSSProperties & {
