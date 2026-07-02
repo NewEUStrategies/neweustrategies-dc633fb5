@@ -65,7 +65,7 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
   });
 
   // ---- Themed (light/dark) helpers for color-style fields ----
-  type ColorKey = "bgColor" | "textColor" | "borderColor";
+  type ColorKey = "bgColor" | "textColor" | "borderColor" | "iconColor" | "iconHoverColor" | "iconActiveColor";
   const getColor = (key: ColorKey): string | undefined =>
     pickMode<string>(widget.style?.[key] as Themed<string> | undefined, mode);
   const setColor = (key: ColorKey, v: string | undefined) => setStyle((s) => {
