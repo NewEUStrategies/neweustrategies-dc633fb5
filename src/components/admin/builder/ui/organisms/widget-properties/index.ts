@@ -12,5 +12,6 @@ export { PostListEditor } from "./PostListEditor";
 export { MegaMenuEditor } from "./MegaMenuEditor";
 export { RichTextEditor } from "./RichTextEditor";
 export { AccountLinkEditor } from "./AccountLinkEditor";
+export { HeadingFallbackPreview } from "./HeadingFallbackPreview";
 export { ListShell } from "./ListShell";
 export { itemsOf, type Item } from "./shared";
