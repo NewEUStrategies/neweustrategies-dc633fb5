@@ -104,6 +104,7 @@ function EditPage() {
   const form = history.state;
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState<"details" | "content">("details");
+  const [seoIssues, setSeoIssues] = useState<SeoIssue[]>([]);
 
   useEffect(() => { if (page) history.reset(page); }, [page, history.reset]);
 
