@@ -18,7 +18,7 @@ export function SeoValidationSummary({ issues }: { issues: SeoIssue[] }) {
         role="status"
         className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/5 px-3 py-2 text-[11px] text-emerald-700 dark:text-emerald-300"
       >
-        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+        <Check className="h-3.5 w-3.5" aria-hidden />
         <span>
           {t("admin.seo.validation.ok", {
             defaultValue: "Wszystkie pola mieszczą się w limitach Google.",
