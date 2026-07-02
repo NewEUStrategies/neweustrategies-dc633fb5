@@ -89,6 +89,7 @@ export const Route = createFileRoute("/sitemap.xml")({
         const entries: SitemapEntry[] = [
           { loc: `${origin}/`, changefreq: "daily", priority: "1.0" },
           { loc: `${origin}/blog`, changefreq: "daily", priority: "0.8" },
+          { loc: `${origin}/sitemap`, changefreq: "weekly", priority: "0.3" },
         ];
 
         // Crawler surfaces degrade, never 500: on a DB failure the sitemap
