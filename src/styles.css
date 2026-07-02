@@ -399,7 +399,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   transform: translate(-0.08em, -50%);
 }
 
-.dark .post-list-numbered-index {
+.dark .post-list-numbered-index.post-list-numbered-index.post-list-numbered-index {
   color: var(--pl-num-dark);
 }
 
