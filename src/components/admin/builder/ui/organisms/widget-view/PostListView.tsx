@@ -13,6 +13,7 @@ import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { readThumbnailOverrides } from "@/lib/builder/thumbnailOverrides";
 import { dedupeAndSlice, postListQueryOptions, type Lang, type PostRow } from "@/lib/builder/postListQuery";
+import { normalizeTypographyGapPx } from "@/lib/builder/typographyCss";
 
 // Cover renders across a 1-4 column responsive grid. Images are always painted
 // into a stable frame so mobile CSS cannot stretch/squash their crop.
@@ -43,7 +44,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
   const excerptWeight = getStr(c, "excerptWeight");
   const titleSize = typography?.fontSize?.desktop;
   const descSize = typography?.descriptionFontSize?.desktop;
-  const gapPx = typeof typography?.titleDescriptionGapPx === "number" ? typography.titleDescriptionGapPx : undefined;
+  const gapPx = normalizeTypographyGapPx(typography?.titleDescriptionGapPx);
   // Shared typography (font family, alignment, transform, decoration, line-height,
   // letter-spacing, italic/normal) is applied to BOTH title and excerpt so the
   // Typography tab produces real-time visual changes in every variant.
