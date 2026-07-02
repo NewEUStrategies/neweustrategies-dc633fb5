@@ -64,6 +64,7 @@ export function WidgetMediaImage({
         className={`${foregroundClassName} widget-media-fg`}
         style={foregroundStyle}
         onError={onError}
+        hoverEffect={hoverEffect}
       />
     </span>
   );
