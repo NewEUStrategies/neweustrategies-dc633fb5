@@ -32,22 +32,24 @@ type RatedItem = {
 export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; lang: Lang; mode?: "light" | "dark" }) {
   const source = getStr(c, "source") || "manual";
   const numFont = getStr(c, "numberFont") || "display";
-  const numWeight = getStr(c, "numberWeight") || "700";
+  // Weight: widget override wins; otherwise inherit Theme Design token.
+  const numWeight = getStr(c, "numberWeight") || "var(--td-li-weight, 700)";
   const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 52;
   // Number colors: mirror PostListView (numbered / ranked) so ranked-lists,
   // rated-lists AND all fallbacks share the SAME single source of truth -
   // Theme Design → "Numeracja list" (`--td-li-*`). Only when the user sets
   // an explicit widget-level override does it win over the global token.
+  // Fallback literals align with PostListView (rgb(35,31,32) / rgb(250,147,70)).
   const numColorRaw = getStr(c, "numberColor");
   const numColorDarkRaw = getStr(c, "numberColorDark");
-  const numColor = numColorRaw || "var(--td-li-light, #000000)";
+  const numColor = numColorRaw || "var(--td-li-light, rgb(35,31,32))";
   const numColorDark = numColorDarkRaw
     ? numColorDarkRaw
     : numColorRaw
       ? autoInvertColor(numColorRaw, "dark")
-      : "var(--td-li-dark, #f5f5f5)";
+      : "var(--td-li-dark, rgb(250,147,70))";
   const numOpacity: number | string =
-    typeof c.numberOpacity === "number" ? c.numberOpacity : "var(--td-li-opacity, 0.05)";
+    typeof c.numberOpacity === "number" ? c.numberOpacity : "var(--td-li-opacity, 0.18)";
   const numPos = getStr(c, "numberPosition") || "behind";
   const showRating = c.showRating !== false;
 
