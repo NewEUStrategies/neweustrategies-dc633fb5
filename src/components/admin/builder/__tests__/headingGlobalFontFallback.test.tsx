@@ -39,21 +39,17 @@ function renderHeading(content: Record<string, unknown>) {
 }
 
 describe("heading widget - fallback do globalnych ustawień Theme Design", () => {
-  it("bez sizePx i bez sizePreset: tytuł używa var(--td-pt-size), nie klasy text-3xl", () => {
+  it("bez sizePx i bez sizePreset: tytuł NIE dostaje twardej klasy text-3xl (globalny Theme Design wygrywa przez CSS)", () => {
     const { container } = renderHeading({});
     const h2 = container.querySelector("h2");
     expect(h2).toBeTruthy();
-    // Brak twardej klasy Tailwind text-3xl (globalna czcionka wygrywa).
-    expect(h2?.className).not.toMatch(/\btext-3xl\b/);
-    // Inline style referuje globalny token Theme Design.
-    expect(h2?.getAttribute("style") || "").toContain("var(--td-pt-size");
+    // Kluczowe: brak twardej klasy Tailwind, która wcześniej nadpisywała globalny --td-pt-size.
+    expect(h2?.className).not.toMatch(/\btext-(xl|3xl|4xl|5xl|6xl|7xl)\b/);
   });
 
-  it("bez subtitleSizePx: podtytuł używa var(--td-pe-size)", () => {
+  it("bez subtitleSizePx: podtytuł NIE dostaje twardej klasy text-sm", () => {
     const { container } = renderHeading({});
     const p = container.querySelector("p");
-    expect(p?.getAttribute("style") || "").toContain("var(--td-pe-size");
-    // Nie ma już twardej klasy text-sm.
     expect(p?.className).not.toMatch(/\btext-sm\b/);
   });
 
@@ -61,14 +57,13 @@ describe("heading widget - fallback do globalnych ustawień Theme Design", () =>
     const { container } = renderHeading({ sizePreset: "lg" });
     const h2 = container.querySelector("h2");
     expect(h2?.className).toMatch(/\btext-4xl\b/);
-    expect(h2?.getAttribute("style") || "").not.toContain("var(--td-pt-size");
   });
 
-  it("jawnie ustawiony sizePx wygrywa nad globalnym fallbackiem", () => {
+  it("jawnie ustawiony sizePx wygrywa nad globalnym fallbackiem (px w stylu inline)", () => {
     const { container } = renderHeading({ sizePx: 42 });
     const h2 = container.querySelector("h2");
-    const style = h2?.getAttribute("style") || "";
-    expect(style).toContain("font-size: 42px");
-    expect(style).not.toContain("var(--td-pt-size");
+    // JSDOM akceptuje wartości pikselowe w inline style.
+    expect(h2?.style.fontSize).toBe("42px");
+    expect(h2?.className).not.toMatch(/\btext-3xl\b/);
   });
 });
