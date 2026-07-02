@@ -66,10 +66,27 @@ const TITLE_MAX = 160;
 const DESCRIPTION_MAX = 320;
 
 export function SeoPanel(props: SeoPanelProps) {
-  const { value, onChange, entity, slug, pathSourcePageId } = props;
+  const { value, onChange, entity, slug, pathSourcePageId, onIssuesChange } = props;
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<"pl" | "en">(i18n.language === "en" ? "en" : "pl");
   const [generating, setGenerating] = useState(false);
+
+  const issues = useMemo(
+    () =>
+      validateSeoPanel({
+        value,
+        fallbackTitle: props.fallbackTitle,
+        fallbackDescription: props.fallbackDescription,
+        slug,
+        titleCharLimit: TITLE_MAX,
+        descriptionCharLimit: DESCRIPTION_MAX,
+      }),
+    [value, props.fallbackTitle, props.fallbackDescription, slug],
+  );
+
+  useEffect(() => {
+    onIssuesChange?.(issues);
+  }, [issues, onIssuesChange]);
   const seoSettings: SeoSettings = useSiteSetting(
     SEO_SETTINGS_KEY,
     DEFAULT_SEO_SETTINGS,
