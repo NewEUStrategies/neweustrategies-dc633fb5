@@ -13,10 +13,12 @@ import { TaxonomyPicker } from "./TaxonomyPicker";
 import {
   SLIDER_VARIANTS,
   SliderRender,
+  NAV_ARROW_VARIANTS,
   type SliderVariant,
   type SliderItem,
   type NavBgStyle,
   type NavPosition,
+  type NavArrowVariant,
 } from "@/lib/builder/sliderVariants";
 
 interface Props {
