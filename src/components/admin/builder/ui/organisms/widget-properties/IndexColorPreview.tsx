@@ -88,7 +88,7 @@ export function IndexColorPreview({
   const darkColor = indexColorDark || "var(--td-li-dark, rgb(250,147,70))";
   const opacity: string | number =
     indexOpacity < 0 ? "var(--td-li-opacity, 0.18)" : Math.max(0, Math.min(1, indexOpacity));
-  const weight = indexWeight || "800";
+  const weight = indexWeight || "var(--td-li-weight, 800)";
   const size = indexSizePx > 0 ? indexSizePx : 52;
 
   return (
