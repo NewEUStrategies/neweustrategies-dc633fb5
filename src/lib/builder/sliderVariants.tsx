@@ -699,7 +699,7 @@ function EditorialHeroVariant(p: VariantProps) {
         )}
       </div>
 
-      <DotsNav count={p.items.length} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav} />
+      <DotsNav count={p.items.length} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} />
     </>
   );
 }
@@ -782,7 +782,7 @@ function MultiCardVariant(p: VariantProps) {
           })}
         </div>
       </div>
-      <DotsNav count={Math.max(1, p.items.length - (p.columns - 1))} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav} />
+      <DotsNav count={Math.max(1, p.items.length - (p.columns - 1))} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} />
     </div>
   );
 }
@@ -956,7 +956,7 @@ function SplitFeatureVariant(p: VariantProps) {
             {cur.readTime && <span>⏱ {cur.readTime}</span>}
           </div>
         )}
-        <DotsNav count={p.items.length} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav} compact />
+        <DotsNav count={p.items.length} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} compact />
       </div>
     </div>
   );
