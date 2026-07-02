@@ -37,6 +37,7 @@ export function WidgetMediaImage({
   foregroundClassName = "absolute inset-0 block h-full w-full object-cover",
   foregroundStyle,
   onError,
+  hoverEffect = "none",
 }: WidgetMediaImageProps) {
   const frameStyle: WidgetMediaFrameStyle = {
     ...style,
