@@ -195,6 +195,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       context.queryClient.ensureQueryData(globalColorsQueryOptions),
       context.queryClient.ensureQueryData(postLayoutSettingsQueryOptions()),
     ]);
+    // Warm the header "Na czasie" ticker for every route that shows the site
     // chrome, so the bar is part of the SSR HTML instead of appearing seconds
     // after hydration and pushing the whole page down (the worst CLS on the
     // site). Both fetches sit behind per-isolate TTL caches (see ssrCache /
