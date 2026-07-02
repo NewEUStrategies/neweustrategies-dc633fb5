@@ -15,6 +15,8 @@ import {
   SliderRender,
   type SliderVariant,
   type SliderItem,
+  type NavBgStyle,
+  type NavPosition,
 } from "@/lib/builder/sliderVariants";
 
 interface Props {
