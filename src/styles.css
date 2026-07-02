@@ -449,6 +449,15 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   object-position: center !important;
   transform: none !important;
 }
+/* Dual-source logos (light/dark) — keep only the active variant visible even
+   inside builder/canvas, where the rule above would otherwise force both to
+   `display: block` and stack them. */
+:is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .gc-img-dark,
+:is([data-builder-renderer], [data-visual-canvas]) .gc-img-dark { display: none !important; }
+.dark :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .gc-img-light,
+.dark :is([data-builder-renderer], [data-visual-canvas]) .gc-img-light { display: none !important; }
+.dark :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .gc-img-dark,
+.dark :is([data-builder-renderer], [data-visual-canvas]) .gc-img-dark { display: block !important; }
 :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] :is(.oi-hover-zoom, .oi-hover-slide):hover .oi-img,
 :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] :is(img, .oi-img):hover {
   transform: none !important;
