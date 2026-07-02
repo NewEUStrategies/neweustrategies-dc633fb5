@@ -459,6 +459,12 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .widget-media-bg:hover {
   transform: none !important;
 }
+
+/* Preview / builder: allow the zoom hover effect to be visible while editing
+   so authors see the same animation that visitors see on the live site. */
+:is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .oi-hover-zoom:hover .oi-img {
+  transform: scale(1.06) !important;
+}
 :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .widget-media-scrim {
   display: none !important;
   z-index: 0;
