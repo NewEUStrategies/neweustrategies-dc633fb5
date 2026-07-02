@@ -734,6 +734,7 @@ function EditPost() {
                 ogKicker={
                   allCats?.find((c) => selectedCats.includes(c.id))?.name_pl ?? null
                 }
+                onIssuesChange={setSeoIssues}
               />
 
               <div className="flex justify-end pt-2 border-t border-border">
