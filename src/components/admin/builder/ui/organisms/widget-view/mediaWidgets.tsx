@@ -94,6 +94,7 @@ export function ImageWidget({ c, lang, theme, editable, onContentChange }: {
   const showResize = editable && !!onContentChange;
   const isFramed = !!ratioCss;
   const imgCls = isFramed ? `absolute inset-0 block h-full w-full ${variantCls}` : `block max-w-full h-auto ${variantCls}`;
+  const hoverEffect: import("@/components/atoms/OptimizedImage").HoverEffect = variant === "zoom-hover" ? "none" : "zoom";
   const applyLogoFallback = (event: SyntheticEvent<HTMLImageElement>) => {
     if (!wantsSiteLogo) return;
     const img = event.currentTarget;
