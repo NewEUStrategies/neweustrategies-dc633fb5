@@ -15,7 +15,8 @@ import appCss from "../styles.css?url";
 import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url";
 import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
 import { fontPreloadLinks } from "../lib/seo/fontPreload";
-import { buildRootHead } from "../lib/seo/meta";
+import { buildRootHead, feedDiscoveryLinks } from "../lib/seo/meta";
+import { getOrigin } from "../lib/seo/request";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { syncI18nToRequest } from "../lib/i18n";
 import { currentLang } from "../lib/i18n/localeRuntime";
@@ -167,6 +168,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           href: "https://unnltowbgszpdzwpawdu.supabase.co",
           crossOrigin: "anonymous",
         },
+        // RSS autodiscovery for both language feeds, on every page - feed
+        // readers and crawlers find the feeds regardless of the entry URL.
+        ...feedDiscoveryLinks(getOrigin()),
       ],
     };
   },

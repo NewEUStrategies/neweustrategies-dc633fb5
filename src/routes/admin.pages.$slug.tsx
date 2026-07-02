@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { AccessSettingsPane } from "@/components/admin/AccessSettingsPane";
 import { ImageSlot } from "@/components/admin/ImageSlot";
+import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { invalidateWidgetCaches, emitWidgetCacheInvalidate } from "@/lib/builder/widgetCacheInvalidation";
@@ -59,6 +60,14 @@ interface PageForm {
   menu_order: number;
   template_type: PageTemplateType;
   header_override: string | null;
+  seo_title_pl: string | null;
+  seo_title_en: string | null;
+  seo_description_pl: string | null;
+  seo_description_en: string | null;
+  seo_canonical_url: string | null;
+  seo_noindex: boolean;
+  seo_og_image_url: string | null;
+  og_image_generated_url: string | null;
 }
 
 
@@ -129,6 +138,14 @@ function EditPage() {
           menu_order: snapshot.menu_order,
           template_type: snapshot.template_type,
           header_override: snapshot.header_override,
+          seo_title_pl: snapshot.seo_title_pl,
+          seo_title_en: snapshot.seo_title_en,
+          seo_description_pl: snapshot.seo_description_pl,
+          seo_description_en: snapshot.seo_description_en,
+          seo_canonical_url: snapshot.seo_canonical_url,
+          seo_noindex: snapshot.seo_noindex ?? false,
+          seo_og_image_url: snapshot.seo_og_image_url,
+          og_image_generated_url: snapshot.og_image_generated_url,
         },
       },
     });
@@ -385,6 +402,28 @@ function EditPage() {
                 value={form.excerpt_en ?? ""}
                 onChange={(v) => set("excerpt_en", v || null)}
                 titleFallback={form.title_en}
+              />
+
+              <SeoPanel
+                value={{
+                  seo_title_pl: form.seo_title_pl,
+                  seo_title_en: form.seo_title_en,
+                  seo_description_pl: form.seo_description_pl,
+                  seo_description_en: form.seo_description_en,
+                  seo_canonical_url: form.seo_canonical_url,
+                  seo_noindex: form.seo_noindex ?? false,
+                  seo_og_image_url: form.seo_og_image_url,
+                  og_image_generated_url: form.og_image_generated_url,
+                }}
+                onChange={(patch) =>
+                  history.set((f) => (f ? { ...f, ...patch } : f), { coalesce: true })
+                }
+                entity={{ kind: "page", id }}
+                slug={form.slug}
+                pathSourcePageId={id}
+                fallbackTitle={{ pl: form.title_pl, en: form.title_en }}
+                fallbackDescription={{ pl: form.excerpt_pl, en: form.excerpt_en }}
+                coverImageUrl={form.cover_image_url}
               />
 
               <div className="flex justify-end pt-2 border-t border-border">

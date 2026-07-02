@@ -8,7 +8,15 @@ import { prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
 import { homePageQueryOptions } from "@/lib/queries/public";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
-import { buildContentHead, SITE_DEFAULT_TITLE, SITE_DEFAULT_DESCRIPTION } from "@/lib/seo/meta";
+import {
+  buildContentHead,
+  splitUrl,
+  SITE_DEFAULT_TITLE,
+  SITE_DEFAULT_DESCRIPTION,
+} from "@/lib/seo/meta";
+import { organizationJsonLd, webSiteJsonLd } from "@/lib/seo/jsonld";
+import { parseSeoSettings } from "@/lib/seo/settings";
+import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 
@@ -39,22 +47,44 @@ export const Route = createFileRoute("/")({
         await prefetchCachedRouteQueries(context.queryClient, doc, lang);
       }
     }
-    return null;
+    // SEO settings (Organization sameAs / logo) for the homepage JSON-LD; the
+    // bulk site_settings query is already warmed by the root loader.
+    const settingsMap = await context.queryClient.ensureQueryData(siteSettingsQueryOptions);
+    return { seoSettings: parseSeoSettings(settingsMap["seo"]) };
   },
 
-  head: () => {
+  head: ({ loaderData }) => {
     const url = getRequestUrl() || "/";
     const lang = activeLang(url);
     // The homepage is the brand's front page, so its title/description ARE the
     // site defaults - reuse the shared constants (kept in sync with the root
     // <head> fallback) instead of duplicating the localized copy here.
-    return buildContentHead({
+    const head = buildContentHead({
       url,
       lang,
       type: "website",
       title: SITE_DEFAULT_TITLE[lang],
       description: SITE_DEFAULT_DESCRIPTION[lang],
     });
+    const { origin } = splitUrl(url);
+    if (!origin) return head;
+    // Entity layer (GEO/AEO): Organization + WebSite with SearchAction. Per
+    // Google's guidance these live on the homepage only - one strong entity
+    // signal that knowledge graphs and AI assistants resolve the brand to.
+    const seoSettings = loaderData?.seoSettings ?? parseSeoSettings(null);
+    const organization = organizationJsonLd({
+      origin,
+      lang,
+      sameAs: seoSettings.organization_same_as,
+      logoUrl: seoSettings.publisher_logo_url.trim() || `${origin}/og-default.jpg`,
+    });
+    return {
+      ...head,
+      scripts: [
+        { type: "application/ld+json", children: JSON.stringify(organization) },
+        { type: "application/ld+json", children: JSON.stringify(webSiteJsonLd(origin, lang)) },
+      ],
+    };
   },
   component: Index,
 });
@@ -64,9 +94,8 @@ function Index() {
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const { data: homePage } = useSuspenseQuery(homePageQueryOptions());
 
-  const doc = homePage && homePage.editor === "builder"
-    ? parseBuilderDoc(homePage.builder_data)
-    : null;
+  const doc =
+    homePage && homePage.editor === "builder" ? parseBuilderDoc(homePage.builder_data) : null;
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -84,7 +113,10 @@ function Index() {
           <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-24 text-center text-muted-foreground">
             <p className="text-sm">
               Strona główna nie ma jeszcze treści. Zbuduj ją w{" "}
-              <a href="/admin/pages" className="text-brand hover:underline">panelu CMS</a>.
+              <a href="/admin/pages" className="text-brand hover:underline">
+                panelu CMS
+              </a>
+              .
             </p>
           </div>
         )}

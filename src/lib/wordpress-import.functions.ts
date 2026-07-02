@@ -29,6 +29,44 @@ import { localizedBlocksToBuilderDoc } from "@/lib/builder/migrate/blocksToBuild
 import type { LocalizedBlocks } from "@/lib/blocks/types";
 import { recordAudit } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
+import { normalizeSourcePath, normalizeTargetPath } from "./seo/redirects";
+
+/**
+ * Redirect capture for the WP migration: map the ORIGINAL WordPress permalink
+ * (wp.URL, e.g. "/2023/05/moj-wpis/") onto the new canonical path. Without
+ * this every imported post loses its inbound links and search equity the
+ * moment DNS flips. Upserts into the redirect manager; best-effort - an entry
+ * failure must never fail the import job.
+ */
+async function captureWpRedirect(
+  supabase: SupabaseClient,
+  userId: string,
+  wpUrl: string | undefined,
+  newPath: string,
+): Promise<boolean> {
+  try {
+    if (!wpUrl) return false;
+    const source = normalizeSourcePath(wpUrl);
+    const target = normalizeTargetPath(newPath);
+    if (!source || !target || source === target || source === "/") return false;
+    const { error } = await supabase.from("redirects").upsert(
+      {
+        source_path: source,
+        target_path: target,
+        status_code: 301,
+        source: "wp_import",
+        created_by: userId,
+        is_enabled: true,
+      },
+      { onConflict: "source_path" },
+    );
+    if (error) throw new Error(error.message);
+    return true;
+  } catch (e) {
+    console.warn("[wp-import] redirect capture failed:", e);
+    return false;
+  }
+}
 import type { Json } from "@/integrations/supabase/types";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/wordpress_com";
@@ -477,6 +515,12 @@ export const runWpImportJob = createServerFn({ method: "POST" })
 
     try {
       const parentPageId = await resolveBlogPage(supabase, tenantId, userId);
+      // Base path of imported posts (usually "blog") - the target side of the
+      // old-permalink -> new-URL redirects captured per post below.
+      const { data: parentPathRaw } = await supabase
+        .rpc("page_full_path", { _page_id: parentPageId });
+      const parentPath = typeof parentPathRaw === "string" && parentPathRaw ? parentPathRaw : null;
+      let redirects_created = 0;
 
       const site = encodeURIComponent(data.site);
       const qs = new URLSearchParams({
@@ -592,6 +636,12 @@ export const runWpImportJob = createServerFn({ method: "POST" })
                 wp.ID,
               );
             }
+            if (status === "published" && parentPath) {
+              const made = await captureWpRedirect(
+                supabase, userId, wp.URL, `/${parentPath}/${desiredSlug}`,
+              );
+              if (made) redirects_created += 1;
+            }
             await logger.push("info", `Updated: ${desiredSlug}`, wp.ID);
             await recordAudit(supabase, {
               tenantId, action: "post.update", entityType: "post",
@@ -617,6 +667,12 @@ export const runWpImportJob = createServerFn({ method: "POST" })
               .select("id, slug").single();
             if (error || !inserted) throw new Error(error?.message || "insert failed");
             imported += 1;
+            if (status === "published" && parentPath) {
+              const made = await captureWpRedirect(
+                supabase, userId, wp.URL, `/${parentPath}/${inserted.slug as string}`,
+              );
+              if (made) redirects_created += 1;
+            }
             await logger.push("info", `Imported: ${inserted.slug as string}`, wp.ID);
             await recordAudit(supabase, {
               tenantId, action: "post.create", entityType: "post",
@@ -639,7 +695,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
       await patchJob(supabase, data.jobId, {
         status: "completed", finished_at: new Date().toISOString(),
       });
-      await logger.push("info", `Done. imported=${imported}, updated=${updated_count}, skipped=${skipped}, failed=${failed}, media=${importer?.count ?? 0}`);
+      await logger.push("info", `Done. imported=${imported}, updated=${updated_count}, skipped=${skipped}, failed=${failed}, media=${importer?.count ?? 0}, redirects=${redirects_created}`);
 
       return {
         jobId: data.jobId, status: "completed" as const,

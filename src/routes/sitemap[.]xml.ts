@@ -60,21 +60,25 @@ function originFromRequest(): string {
   return host ? `${proto}://${host}` : "";
 }
 
-async function buildPagePaths(): Promise<Map<string, string>> {
+// Paths of ALL published pages (a noindex page still parents indexable posts,
+// so it stays in the path map) + the set of page ids excluded from their own
+// sitemap entry via the per-page `seo_noindex` flag.
+async function buildPagePaths(): Promise<{ paths: Map<string, string>; noindex: Set<string> }> {
   const { data } = await supabaseAdmin
     .from("pages")
-    .select("id")
+    .select("id, seo_noindex")
     .eq("status", "published")
     .is("deleted_at", null);
-  const ids = (data ?? []).map((r) => (r as { id: string }).id);
+  const rows = (data ?? []) as Array<{ id: string; seo_noindex: boolean }>;
+  const noindex = new Set(rows.filter((r) => r.seo_noindex).map((r) => r.id));
   const paths = new Map<string, string>();
   await Promise.all(
-    ids.map(async (id) => {
+    rows.map(async ({ id }) => {
       const { data: p } = await supabaseAdmin.rpc("page_full_path", { _page_id: id });
       if (typeof p === "string") paths.set(id, p);
     }),
   );
-  return paths;
+  return { paths, noindex };
 }
 
 export const Route = createFileRoute("/sitemap.xml")({
@@ -87,31 +91,41 @@ export const Route = createFileRoute("/sitemap.xml")({
           { loc: `${origin}/blog`, changefreq: "daily", priority: "0.8" },
         ];
 
-        const pagePaths = await buildPagePaths();
-        for (const [, path] of pagePaths) {
-          entries.push({ loc: `${origin}/${path}`, changefreq: "weekly", priority: "0.6" });
-        }
+        // Crawler surfaces degrade, never 500: on a DB failure the sitemap
+        // still serves the static entries instead of poisoning the crawl.
+        try {
+          const { paths: pagePaths, noindex: noindexPages } = await buildPagePaths();
+          for (const [id, path] of pagePaths) {
+            // Pages marked noindex are excluded - a sitemap must not advertise
+            // URLs the robots meta asks crawlers to skip.
+            if (noindexPages.has(id)) continue;
+            entries.push({ loc: `${origin}/${path}`, changefreq: "weekly", priority: "0.6" });
+          }
 
-        const { data: posts } = await supabaseAdmin
-          .from("posts")
-          .select("slug, parent_page_id, updated_at, published_at")
-          .eq("status", "published")
-          .is("deleted_at", null);
-        for (const row of posts ?? []) {
-          const p = row as {
-            slug: string;
-            parent_page_id: string;
-            updated_at: string | null;
-            published_at: string | null;
-          };
-          const path = pagePaths.get(p.parent_page_id);
-          if (!path) continue;
-          entries.push({
-            loc: `${origin}/${path}/${p.slug}`,
-            lastmod: (p.updated_at ?? p.published_at ?? "").slice(0, 10) || undefined,
-            changefreq: "monthly",
-            priority: "0.7",
-          });
+          const { data: posts } = await supabaseAdmin
+            .from("posts")
+            .select("slug, parent_page_id, updated_at, published_at")
+            .eq("status", "published")
+            .is("deleted_at", null)
+            .eq("seo_noindex", false);
+          for (const row of posts ?? []) {
+            const p = row as {
+              slug: string;
+              parent_page_id: string;
+              updated_at: string | null;
+              published_at: string | null;
+            };
+            const path = pagePaths.get(p.parent_page_id);
+            if (!path) continue;
+            entries.push({
+              loc: `${origin}/${path}/${p.slug}`,
+              lastmod: (p.updated_at ?? p.published_at ?? "").slice(0, 10) || undefined,
+              changefreq: "monthly",
+              priority: "0.7",
+            });
+          }
+        } catch (e) {
+          console.warn("[seo] sitemap content read failed:", e);
         }
 
         const xml = [

@@ -16,6 +16,7 @@ function SettingsLayout() {
     { to: "/admin/settings/discussion", label: t("admin.settingsNav.discussion") },
     { to: "/admin/settings/media", label: t("admin.settingsNav.media") },
     { to: "/admin/settings/permalinks", label: t("admin.settingsNav.permalinks") },
+    { to: "/admin/settings/seo", label: t("admin.settingsNav.seo", { defaultValue: "SEO" }) },
     { to: "/admin/settings/privacy", label: t("admin.settingsNav.privacy") },
   ];
   return (

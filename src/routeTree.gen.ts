@@ -11,11 +11,15 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as RssDotxmlRouteImport } from './routes/rss[.]xml'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ReadingListRouteImport } from './routes/reading-list'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as NewsSitemapDotxmlRouteImport } from './routes/news-sitemap[.]xml'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
+import { Route as FeedRouteImport } from './routes/feed'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
@@ -50,6 +54,7 @@ import { Route as AdminThemeDesignRouteImport } from './routes/admin.theme-desig
 import { Route as AdminTagsRouteImport } from './routes/admin.tags'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminRelatedPostsRouteImport } from './routes/admin.related-posts'
+import { Route as AdminRedirectsRouteImport } from './routes/admin.redirects'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
 import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layouts'
 import { Route as AdminPopupsRouteImport } from './routes/admin.popups'
@@ -78,6 +83,7 @@ import { Route as AdminAdsRouteImport } from './routes/admin.ads'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
+import { Route as AdminSettingsSeoRouteImport } from './routes/admin.settings.seo'
 import { Route as AdminSettingsReadingRouteImport } from './routes/admin.settings.reading'
 import { Route as AdminSettingsPrivacyRouteImport } from './routes/admin.settings.privacy'
 import { Route as AdminSettingsPermalinksRouteImport } from './routes/admin.settings.permalinks'
@@ -108,6 +114,11 @@ const SearchRoute = SearchRouteImport.update({
   path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RssDotxmlRoute = RssDotxmlRouteImport.update({
+  id: '/rss.xml',
+  path: '/rss.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
   id: '/robots.txt',
   path: '/robots.txt',
@@ -128,9 +139,24 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NewsSitemapDotxmlRoute = NewsSitemapDotxmlRouteImport.update({
+  id: '/news-sitemap.xml',
+  path: '/news-sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
+  id: '/llms.txt',
+  path: '/llms.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedRoute = FeedRouteImport.update({
+  id: '/feed',
+  path: '/feed',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -303,6 +329,11 @@ const AdminRelatedPostsRoute = AdminRelatedPostsRouteImport.update({
   path: '/related-posts',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminRedirectsRoute = AdminRedirectsRouteImport.update({
+  id: '/redirects',
+  path: '/redirects',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPostsRoute = AdminPostsRouteImport.update({
   id: '/posts',
   path: '/posts',
@@ -443,6 +474,11 @@ const ApiPublicClientErrorsRoute = ApiPublicClientErrorsRouteImport.update({
   path: '/api/public/client-errors',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSettingsSeoRoute = AdminSettingsSeoRouteImport.update({
+  id: '/seo',
+  path: '/seo',
+  getParentRoute: () => AdminSettingsRoute,
+} as any)
 const AdminSettingsReadingRoute = AdminSettingsReadingRouteImport.update({
   id: '/reading',
   path: '/reading',
@@ -546,11 +582,15 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
+  '/feed': typeof FeedRoute
+  '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
+  '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/rss.xml': typeof RssDotxmlRoute
   '/search': typeof SearchRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/ads': typeof AdminAdsRoute
@@ -578,6 +618,7 @@ export interface FileRoutesByFullPath {
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
@@ -626,6 +667,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
+  '/admin/settings/seo': typeof AdminSettingsSeoRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
@@ -635,10 +677,14 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/feed': typeof FeedRoute
+  '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
+  '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/pricing': typeof PricingRoute
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/rss.xml': typeof RssDotxmlRoute
   '/search': typeof SearchRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/ads': typeof AdminAdsRoute
@@ -666,6 +712,7 @@ export interface FileRoutesByTo {
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
@@ -713,6 +760,7 @@ export interface FileRoutesByTo {
   '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
+  '/admin/settings/seo': typeof AdminSettingsSeoRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
@@ -724,11 +772,15 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/admin': typeof AdminRouteWithChildren
+  '/feed': typeof FeedRoute
+  '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
+  '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
   '/reading-list': typeof ReadingListRoute
   '/robots.txt': typeof RobotsDottxtRoute
+  '/rss.xml': typeof RssDotxmlRoute
   '/search': typeof SearchRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/ads': typeof AdminAdsRoute
@@ -756,6 +808,7 @@ export interface FileRoutesById {
   '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
+  '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
@@ -804,6 +857,7 @@ export interface FileRoutesById {
   '/admin/settings/permalinks': typeof AdminSettingsPermalinksRoute
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
+  '/admin/settings/seo': typeof AdminSettingsSeoRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
@@ -816,11 +870,15 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/admin'
+    | '/feed'
+    | '/llms.txt'
     | '/login'
+    | '/news-sitemap.xml'
     | '/pricing'
     | '/profile'
     | '/reading-list'
     | '/robots.txt'
+    | '/rss.xml'
     | '/search'
     | '/sitemap.xml'
     | '/admin/ads'
@@ -848,6 +906,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/redirects'
     | '/admin/related-posts'
     | '/admin/settings'
     | '/admin/tags'
@@ -896,6 +955,7 @@ export interface FileRouteTypes {
     | '/admin/settings/permalinks'
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
+    | '/admin/settings/seo'
     | '/api/public/client-errors'
     | '/api/public/vitals'
     | '/admin/settings/'
@@ -905,10 +965,14 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$'
+    | '/feed'
+    | '/llms.txt'
     | '/login'
+    | '/news-sitemap.xml'
     | '/pricing'
     | '/reading-list'
     | '/robots.txt'
+    | '/rss.xml'
     | '/search'
     | '/sitemap.xml'
     | '/admin/ads'
@@ -936,6 +1000,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/redirects'
     | '/admin/related-posts'
     | '/admin/tags'
     | '/admin/theme-design'
@@ -983,6 +1048,7 @@ export interface FileRouteTypes {
     | '/admin/settings/permalinks'
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
+    | '/admin/settings/seo'
     | '/api/public/client-errors'
     | '/api/public/vitals'
     | '/admin/settings'
@@ -993,11 +1059,15 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/admin'
+    | '/feed'
+    | '/llms.txt'
     | '/login'
+    | '/news-sitemap.xml'
     | '/pricing'
     | '/profile'
     | '/reading-list'
     | '/robots.txt'
+    | '/rss.xml'
     | '/search'
     | '/sitemap.xml'
     | '/admin/ads'
@@ -1025,6 +1095,7 @@ export interface FileRouteTypes {
     | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
+    | '/admin/redirects'
     | '/admin/related-posts'
     | '/admin/settings'
     | '/admin/tags'
@@ -1073,6 +1144,7 @@ export interface FileRouteTypes {
     | '/admin/settings/permalinks'
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
+    | '/admin/settings/seo'
     | '/api/public/client-errors'
     | '/api/public/vitals'
     | '/admin/settings/'
@@ -1084,11 +1156,15 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRouteWithChildren
+  FeedRoute: typeof FeedRoute
+  LlmsDottxtRoute: typeof LlmsDottxtRoute
   LoginRoute: typeof LoginRoute
+  NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
   PricingRoute: typeof PricingRoute
   ProfileRoute: typeof ProfileRouteWithChildren
   ReadingListRoute: typeof ReadingListRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
+  RssDotxmlRoute: typeof RssDotxmlRoute
   SearchRoute: typeof SearchRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiTtsRoute: typeof ApiTtsRoute
@@ -1125,6 +1201,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rss.xml': {
+      id: '/rss.xml'
+      path: '/rss.xml'
+      fullPath: '/rss.xml'
+      preLoaderRoute: typeof RssDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/robots.txt': {
       id: '/robots.txt'
       path: '/robots.txt'
@@ -1153,11 +1236,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/news-sitemap.xml': {
+      id: '/news-sitemap.xml'
+      path: '/news-sitemap.xml'
+      fullPath: '/news-sitemap.xml'
+      preLoaderRoute: typeof NewsSitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/llms.txt': {
+      id: '/llms.txt'
+      path: '/llms.txt'
+      fullPath: '/llms.txt'
+      preLoaderRoute: typeof LlmsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feed': {
+      id: '/feed'
+      path: '/feed'
+      fullPath: '/feed'
+      preLoaderRoute: typeof FeedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -1398,6 +1502,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRelatedPostsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/redirects': {
+      id: '/admin/redirects'
+      path: '/redirects'
+      fullPath: '/admin/redirects'
+      preLoaderRoute: typeof AdminRedirectsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/posts': {
       id: '/admin/posts'
       path: '/posts'
@@ -1593,6 +1704,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/public/client-errors'
       preLoaderRoute: typeof ApiPublicClientErrorsRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/settings/seo': {
+      id: '/admin/settings/seo'
+      path: '/seo'
+      fullPath: '/admin/settings/seo'
+      preLoaderRoute: typeof AdminSettingsSeoRouteImport
+      parentRoute: typeof AdminSettingsRoute
     }
     '/admin/settings/reading': {
       id: '/admin/settings/reading'
@@ -1798,6 +1916,7 @@ interface AdminSettingsRouteChildren {
   AdminSettingsPermalinksRoute: typeof AdminSettingsPermalinksRoute
   AdminSettingsPrivacyRoute: typeof AdminSettingsPrivacyRoute
   AdminSettingsReadingRoute: typeof AdminSettingsReadingRoute
+  AdminSettingsSeoRoute: typeof AdminSettingsSeoRoute
   AdminSettingsIndexRoute: typeof AdminSettingsIndexRoute
 }
 
@@ -1809,6 +1928,7 @@ const AdminSettingsRouteChildren: AdminSettingsRouteChildren = {
   AdminSettingsPermalinksRoute: AdminSettingsPermalinksRoute,
   AdminSettingsPrivacyRoute: AdminSettingsPrivacyRoute,
   AdminSettingsReadingRoute: AdminSettingsReadingRoute,
+  AdminSettingsSeoRoute: AdminSettingsSeoRoute,
   AdminSettingsIndexRoute: AdminSettingsIndexRoute,
 }
 
@@ -1842,6 +1962,7 @@ interface AdminRouteChildren {
   AdminPopupsRoute: typeof AdminPopupsRouteWithChildren
   AdminPostLayoutsRoute: typeof AdminPostLayoutsRoute
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
+  AdminRedirectsRoute: typeof AdminRedirectsRoute
   AdminRelatedPostsRoute: typeof AdminRelatedPostsRoute
   AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
   AdminTagsRoute: typeof AdminTagsRoute
@@ -1878,6 +1999,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPopupsRoute: AdminPopupsRouteWithChildren,
   AdminPostLayoutsRoute: AdminPostLayoutsRoute,
   AdminPostsRoute: AdminPostsRouteWithChildren,
+  AdminRedirectsRoute: AdminRedirectsRoute,
   AdminRelatedPostsRoute: AdminRelatedPostsRoute,
   AdminSettingsRoute: AdminSettingsRouteWithChildren,
   AdminTagsRoute: AdminTagsRoute,
@@ -1925,11 +2047,15 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AdminRoute: AdminRouteWithChildren,
+  FeedRoute: FeedRoute,
+  LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
+  NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
   PricingRoute: PricingRoute,
   ProfileRoute: ProfileRouteWithChildren,
   ReadingListRoute: ReadingListRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
+  RssDotxmlRoute: RssDotxmlRoute,
   SearchRoute: SearchRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiTtsRoute: ApiTtsRoute,
@@ -1952,3 +2078,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
