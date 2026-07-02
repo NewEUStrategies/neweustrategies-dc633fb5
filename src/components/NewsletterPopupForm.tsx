@@ -2,10 +2,11 @@
 // Dodatkowe pola są zapisywane w `meta jsonb` w tabeli subscribers, więc
 // nie wymagamy migracji kolumn per field. Walidacja PL/EN, zgody RODO.
 import { useRef, useState, type FormEvent } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { Check, Mail } from "@/lib/lucide-shim";
 import type { NewsletterSettings } from "@/hooks/useNewsletterSettings";
+import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 
 interface Props {
   settings: NewsletterSettings;
@@ -38,6 +39,7 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
   const [err, setErr] = useState<string | null>(null);
   const [honey, setHoney] = useState("");
   const mountedAt = useRef<number>(Date.now());
+  const subscribe = useServerFn(subscribeToNewsletter);
 
   const isPl = lang === "pl";
   const ext = settings.popup_extended_fields;
@@ -103,14 +105,6 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
 
     setState("loading");
 
-    const { data: site } = await supabase
-      .from("newsletter_settings").select("tenant_id").maybeSingle();
-    if (!site?.tenant_id) {
-      setErr(t("Newsletter nie jest skonfigurowany.", "Newsletter is not configured."));
-      setState("err");
-      return;
-    }
-
     const displayName = [v.name.trim(), v.surname.trim()].filter(Boolean).join(" ");
     const meta: Record<string, string> = {};
     if (ext) {
@@ -123,36 +117,32 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
     }
     if (showLists && v.list) meta.mailing_list = v.list;
 
-    const token = settings.double_opt_in && typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, "")
-      : null;
-
-    const { error } = await supabase.from("newsletter_subscribers").insert({
-      tenant_id: site.tenant_id,
-      email,
-      display_name: displayName || null,
-      language: lang,
-      source,
-      status: settings.double_opt_in ? "pending" : "subscribed",
-      confirmed_at: settings.double_opt_in ? null : new Date().toISOString(),
-      confirmation_token: token,
-      confirmation_expires_at: settings.double_opt_in
-        ? new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString() : null,
-      meta: Object.keys(meta).length ? meta : null,
-    });
-
-    if (error) {
-      if (error.code === "23505") {
-        setErr(t("Ten adres jest już zapisany.", "This e-mail is already subscribed."));
-      } else {
-        setErr(error.message);
+    try {
+      const res = await subscribe({
+        data: {
+          email,
+          name: displayName || undefined,
+          language: lang,
+          source,
+          meta: Object.keys(meta).length ? meta : undefined,
+        },
+      });
+      if (!res.ok) {
+        setErr(
+          res.error === "not_configured" || res.error === "disabled"
+            ? t("Newsletter nie jest skonfigurowany.", "Newsletter is not configured.")
+            : res.error,
+        );
+        setState("err");
+        return;
       }
+      setState("ok");
+      setV(empty);
+      onSuccess?.();
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : String(error));
       setState("err");
-      return;
     }
-    setState("ok");
-    setV(empty);
-    onSuccess?.();
   };
 
   const upd = <K extends keyof ExtendedFields>(k: K, val: ExtendedFields[K]) =>
