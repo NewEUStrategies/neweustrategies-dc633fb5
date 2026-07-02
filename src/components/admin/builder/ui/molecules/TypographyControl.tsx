@@ -54,6 +54,7 @@ export function TypographyControl({ value, onChange }: Props) {
     ariaLabel: string,
     placeholder = "16",
     unitLabel = "px",
+    step = 1,
   ) => (
     <div className="relative">
       <Input
@@ -65,10 +66,10 @@ export function TypographyControl({ value, onChange }: Props) {
         onKeyDown={(e) => {
           if (e.key === "ArrowUp") {
             e.preventDefault();
-            setter(String((parseInt(current || "0", 10) || 0) + 1));
+            setter(String((parseInt(current || "0", 10) || 0) + step));
           } else if (e.key === "ArrowDown") {
             e.preventDefault();
-            const next = (parseInt(current || "0", 10) || 0) - 1;
+            const next = (parseInt(current || "0", 10) || 0) - step;
             setter(next >= 0 ? String(next) : "");
           }
         }}
@@ -80,7 +81,7 @@ export function TypographyControl({ value, onChange }: Props) {
           type="button"
           tabIndex={-1}
           aria-label="Zwiększ"
-          onClick={() => setter(String((parseInt(current || "0", 10) || 0) + 1))}
+          onClick={() => setter(String((parseInt(current || "0", 10) || 0) + step))}
           className="flex-1 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
         >
           <ChevronUp className="w-3 h-3" />
@@ -90,7 +91,7 @@ export function TypographyControl({ value, onChange }: Props) {
           tabIndex={-1}
           aria-label="Zmniejsz"
           onClick={() => {
-            const next = (parseInt(current || "0", 10) || 0) - 1;
+            const next = (parseInt(current || "0", 10) || 0) - step;
             setter(next >= 0 ? String(next) : "");
           }}
           className="flex-1 flex items-center justify-center border-t border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
@@ -142,6 +143,7 @@ export function TypographyControl({ value, onChange }: Props) {
           "Odstęp tytuł opis",
           "16",
           "px",
+          4,
         )}
       </PropField>
 
