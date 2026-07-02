@@ -183,6 +183,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
                 responsiveWidths={[128, 256, 384]}
                 sizes="(max-width: 640px) 112px, 128px"
                 foregroundClassName={COVER_IMG_CLASS}
+                hoverEffect="zoom"
               />
             )}
             <div className="min-w-0">
