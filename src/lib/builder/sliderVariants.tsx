@@ -542,12 +542,13 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     }
   };
 
+  const nav = resolveNavStyle(config);
   const sharedProps = {
     items, safeIdx, setIdx, go, lang, preview,
     titleStyle, subtitleStyle, rounded, ratio, aspectStyle,
     overlayOpacity, fallbackImages, markImageFailed,
     dragRef, dragDx, onPointerDown, onPointerMove, endDrag,
-    navigateTo, columns,
+    navigateTo, columns, nav,
   };
 
   return (
