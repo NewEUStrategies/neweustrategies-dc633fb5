@@ -48,6 +48,14 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const columnsRaw = typeof c.columns === "number" ? c.columns : 3;
   const columns = (Math.max(1, Math.min(4, columnsRaw)) as 1 | 2 | 3 | 4);
 
+  // Navigation buttons style
+  const navSizePx = typeof c.navSizePx === "number" ? c.navSizePx : 52;
+  const navRoundedPx = typeof c.navRoundedPx === "number" ? c.navRoundedPx : 999;
+  const navBgColor = typeof c.navBgColor === "string" ? c.navBgColor : "#ffffff";
+  const navArrowColor = typeof c.navArrowColor === "string" ? c.navArrowColor : "#ffffff";
+  const navBgStyle = (typeof c.navBgStyle === "string" ? c.navBgStyle : "glass") as NavBgStyle;
+  const navPosition = (typeof c.navPosition === "string" ? c.navPosition : "mid") as NavPosition;
+
 
   const rawItems = Array.isArray(c.items) ? (c.items as unknown[]) : [];
   const items: SliderItem[] = rawItems
