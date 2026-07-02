@@ -590,6 +590,7 @@ type VariantProps = {
   endDrag: (e: React.PointerEvent<HTMLDivElement>) => void;
   navigateTo: (href?: string) => void;
   columns: 1 | 2 | 3 | 4;
+  nav: NavStyleResolved;
 };
 
 function pickSlideStrings(it: SliderItem, lang: "pl" | "en") {
