@@ -7,7 +7,8 @@ import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { useResolvedPostRefs } from "./contentRefs";
 import { supabase } from "@/integrations/supabase/client";
-import { AppLink } from "@/components/atoms/AppLink";
+import { AppLink, toClientHref } from "@/components/atoms/AppLink";
+import { useRouter } from "@tanstack/react-router";
 import type { WidgetTypography } from "./types";
 
 export type SliderVariant =
@@ -666,10 +667,27 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   };
 
   // Build slide click navigation helper used across variants.
+  // Client-side (TanStack Router) for internal links -> no full reload, keeps
+  // header/menu mounted; window.open for external. Skipped in preview mode
+  // AND when rendered inside the CMS builder canvas ([data-builder-renderer]
+  // ancestor) so editing clicks don't leave the canvas.
+  const router = useRouter({ warn: false });
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const navigateTo = (href?: string) => {
     if (!href || preview) return;
+    if (rootRef.current?.closest("[data-builder-renderer], [data-visual-canvas]")) return;
     if (href.startsWith("http://") || href.startsWith("https://")) {
-      window.open(href, "_blank", "noopener,noreferrer");
+      const client = toClientHref(href);
+      if (client && router) {
+        void router.navigate({ href: client } as never);
+      } else {
+        window.open(href, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
+    const client = toClientHref(href) ?? href;
+    if (router) {
+      void router.navigate({ href: client } as never);
     } else {
       window.location.assign(href);
     }
@@ -685,7 +703,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   };
 
   return (
-    <div className="w-full eh-slider">
+    <div ref={rootRef} className="w-full eh-slider">
       <style>{SHARED_STYLES}</style>
       {variant === "multi-card" && <MultiCardVariant {...sharedProps} />}
       {variant === "cinematic-overlay" && <CinematicOverlayVariant {...sharedProps} />}
