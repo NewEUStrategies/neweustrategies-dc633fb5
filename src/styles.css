@@ -157,11 +157,14 @@
    specificity beats `.oi-wrap .oi-img { display: block }` defined below,
    otherwise both variants would render at the same time. */
 .gc-img-dark,
-.oi-wrap .gc-img-dark { display: none; }
+.oi-wrap img.gc-img-dark,
+.oi-wrap .gc-img-dark { display: none !important; }
 .dark .gc-img-light,
-.dark .oi-wrap .gc-img-light { display: none; }
+.dark .oi-wrap img.gc-img-light,
+.dark .oi-wrap .gc-img-light { display: none !important; }
 .dark .gc-img-dark,
-.dark .oi-wrap .gc-img-dark { display: block; }
+.dark .oi-wrap img.gc-img-dark,
+.dark .oi-wrap .gc-img-dark { display: block !important; }
 
 .section-rule {
   position: relative;
