@@ -104,14 +104,14 @@ export function ImageWidget({ c, lang, theme, editable, onContentChange }: {
   const fgImgStyle: CSSProperties = ratioCss ? { ...imgStyle, objectFit: fit } : imgStyle;
   const imgEl = hasBoth ? (
     <>
-      <OptimizedImage src={lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-light`} style={fgImgStyle} onError={applyLogoFallback} />
-      <OptimizedImage src={darkSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-dark`} style={fgImgStyle} onError={applyLogoFallback} />
+      <OptimizedImage src={lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-light`} style={fgImgStyle} onError={applyLogoFallback} hoverEffect={hoverEffect} />
+      <OptimizedImage src={darkSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-dark`} style={fgImgStyle} onError={applyLogoFallback} hoverEffect={hoverEffect} />
     </>
   ) : (
     isFramed ? (
-      <OptimizedImage src={theme === "dark" ? darkSrc : lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} widget-media-fg`} style={fgImgStyle} onError={applyLogoFallback} />
+      <OptimizedImage src={theme === "dark" ? darkSrc : lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={`${imgCls} widget-media-fg`} style={fgImgStyle} onError={applyLogoFallback} hoverEffect={hoverEffect} />
     ) : (
-      <OptimizedImage src={theme === "dark" ? darkSrc : lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={imgCls} style={imgStyle} onError={applyLogoFallback} />
+      <OptimizedImage src={theme === "dark" ? darkSrc : lightSrc} alt={alt} responsive sizes="(max-width: 767px) 100vw, 50vw" className={imgCls} style={imgStyle} onError={applyLogoFallback} hoverEffect={hoverEffect} />
     )
   );
   const framedImgEl = isFramed ? (
