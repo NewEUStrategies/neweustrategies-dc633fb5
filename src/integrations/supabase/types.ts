@@ -318,29 +318,29 @@ export type Database = {
       builder_experiment_events: {
         Row: {
           created_at: string
-          event: string
+          event: Database["public"]["Enums"]["builder_experiment_event"]
           experiment_id: string
           id: string
           path: string | null
-          variant: string
+          variant: Database["public"]["Enums"]["builder_ab_variant"]
           visitor_id: string
         }
         Insert: {
           created_at?: string
-          event: string
+          event: Database["public"]["Enums"]["builder_experiment_event"]
           experiment_id: string
           id?: string
           path?: string | null
-          variant: string
+          variant: Database["public"]["Enums"]["builder_ab_variant"]
           visitor_id: string
         }
         Update: {
           created_at?: string
-          event?: string
+          event?: Database["public"]["Enums"]["builder_experiment_event"]
           experiment_id?: string
           id?: string
           path?: string | null
-          variant?: string
+          variant?: Database["public"]["Enums"]["builder_ab_variant"]
           visitor_id?: string
         }
         Relationships: [
@@ -359,7 +359,7 @@ export type Database = {
           created_by: string | null
           id: string
           name: string
-          status: string
+          status: Database["public"]["Enums"]["builder_experiment_status"]
           tenant_id: string
           updated_at: string
         }
@@ -368,7 +368,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           name: string
-          status?: string
+          status?: Database["public"]["Enums"]["builder_experiment_status"]
           tenant_id?: string
           updated_at?: string
         }
@@ -377,11 +377,19 @@ export type Database = {
           created_by?: string | null
           id?: string
           name?: string
-          status?: string
+          status?: Database["public"]["Enums"]["builder_experiment_status"]
           tenant_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "builder_experiments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       builder_global_widgets: {
         Row: {
@@ -396,7 +404,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
-          data: Json
+          data?: Json
           id?: string
           name: string
           tenant_id?: string
@@ -411,7 +419,15 @@ export type Database = {
           tenant_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "builder_global_widgets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       builder_popups: {
         Row: {
@@ -421,7 +437,7 @@ export type Database = {
           id: string
           name: string
           settings: Json
-          status: string
+          status: Database["public"]["Enums"]["builder_popup_status"]
           tenant_id: string
           updated_at: string
         }
@@ -432,7 +448,7 @@ export type Database = {
           id?: string
           name: string
           settings?: Json
-          status?: string
+          status?: Database["public"]["Enums"]["builder_popup_status"]
           tenant_id?: string
           updated_at?: string
         }
@@ -443,11 +459,19 @@ export type Database = {
           id?: string
           name?: string
           settings?: Json
-          status?: string
+          status?: Database["public"]["Enums"]["builder_popup_status"]
           tenant_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "builder_popups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       builder_template_revisions: {
         Row: {
@@ -3607,6 +3631,10 @@ export type Database = {
       ad_slot_kind: "html" | "script" | "image"
       ad_slot_status: "active" | "paused"
       app_role: "admin" | "editor" | "author" | "user" | "super_admin"
+      builder_ab_variant: "a" | "b"
+      builder_experiment_event: "exposure" | "conversion"
+      builder_experiment_status: "running" | "paused" | "completed"
+      builder_popup_status: "draft" | "active" | "archived"
       crm_source_type:
         | "contact_form"
         | "newsletter"
@@ -3791,6 +3819,10 @@ export const Constants = {
       ad_slot_kind: ["html", "script", "image"],
       ad_slot_status: ["active", "paused"],
       app_role: ["admin", "editor", "author", "user", "super_admin"],
+      builder_ab_variant: ["a", "b"],
+      builder_experiment_event: ["exposure", "conversion"],
+      builder_experiment_status: ["running", "paused", "completed"],
+      builder_popup_status: ["draft", "active", "archived"],
       crm_source_type: [
         "contact_form",
         "newsletter",
