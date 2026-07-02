@@ -57,7 +57,14 @@ const NON_LOCALIZED_PREFIXES: readonly string[] = [
   "/reading-list",
   "/newsletter",
 ];
-const NON_LOCALIZED_EXACT: ReadonlySet<string> = new Set(["/sitemap.xml", "/robots.txt"]);
+// Note: /rss.xml is deliberately NOT here - the feed is language-addressed
+// like content ("/rss.xml" = PL, "/en/rss.xml" = EN).
+const NON_LOCALIZED_EXACT: ReadonlySet<string> = new Set([
+  "/sitemap.xml",
+  "/robots.txt",
+  "/news-sitemap.xml",
+  "/llms.txt",
+]);
 
 function ensureLeadingSlash(pathname: string): string {
   if (!pathname) return "/";

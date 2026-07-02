@@ -15,6 +15,7 @@ import type { Database, Json } from "@/integrations/supabase/types";
 import { recordAudit, type AuditAction } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
 import { POST_STATUSES, evaluateTransition } from "./content/workflow";
+import { normalizeSourcePath, normalizeTargetPath } from "./seo/redirects";
 import {
   REVISION_KEEP_LIMIT,
   pickRevisionSnapshot,
@@ -82,6 +83,52 @@ async function audit(
 type PostUpdateRow = Database["public"]["Tables"]["posts"]["Update"];
 type PageUpdateRow = Database["public"]["Tables"]["pages"]["Update"];
 
+// ---------- SEO: automatic redirects on permalink changes ----------
+
+async function pageFullPath(supabase: SupabaseClient, pageId: string): Promise<string | null> {
+  const { data } = await supabase.rpc("page_full_path", { _page_id: pageId });
+  return typeof data === "string" && data ? data : null;
+}
+
+/**
+ * When a PUBLISHED entity changes its URL (slug or parent), persist a 301 so
+ * the old permalink keeps resolving - the WP-migration safety net. Also keeps
+ * the rule set chain-free: rules that pointed at the old URL are retargeted,
+ * and a stale rule shadowing the new (now live) URL is removed. `wildcard`
+ * additionally maps the whole old subtree (moved page: children + posts).
+ * Best-effort by design - a redirect bookkeeping failure must never fail the
+ * content save itself.
+ */
+async function captureAutoRedirect(
+  supabase: SupabaseClient,
+  userId: string,
+  input: { oldPath: string | null; newPath: string | null; wildcard?: boolean },
+): Promise<void> {
+  try {
+    const source = input.oldPath ? normalizeSourcePath(input.oldPath) : null;
+    const target = input.newPath ? normalizeTargetPath(input.newPath) : null;
+    if (!source || !target || source === target) return;
+    const base = { status_code: 301, source: "slug_change", created_by: userId, is_enabled: true };
+    const rows = [
+      { ...base, source_path: source, target_path: target },
+      ...(input.wildcard
+        ? [{ ...base, source_path: `${source}/*`, target_path: `${target}/*` }]
+        : []),
+    ];
+    // A stale rule whose source equals the NEW path would hijack the live URL.
+    await supabase.from("redirects").delete().in("source_path", rows.map((r) => r.target_path));
+    const { error } = await supabase
+      .from("redirects")
+      .upsert(rows, { onConflict: "source_path" });
+    if (error) throw new Error(error.message);
+    // Chain-flattening: anything that redirected TO the old URL now goes
+    // straight to the new one (one visible hop for visitors and crawlers).
+    await supabase.from("redirects").update({ target_path: target }).eq("target_path", source);
+  } catch (e) {
+    console.warn("[redirects] auto-capture failed:", e);
+  }
+}
+
 // ---------- shared schemas ----------
 
 const UUID = z.string().uuid();
@@ -97,6 +144,20 @@ const SlugInput = z.string().min(1).max(120).regex(SLUG_RE).optional();
 const TitleBlock = {
   title_pl: z.string().max(300).default(""),
   title_en: z.string().max(300).default(""),
+};
+
+// Yoast-class per-entity SEO fields, shared by posts and pages. Every field is
+// optional - the public head() falls back to title/excerpt/site defaults, so
+// editors only fill these when they want to override the derived meta.
+const SeoBlock = {
+  seo_title_pl: NullableStr(160),
+  seo_title_en: NullableStr(160),
+  seo_description_pl: NullableStr(320),
+  seo_description_en: NullableStr(320),
+  seo_canonical_url: z.string().url().max(2048).nullable().optional(),
+  seo_noindex: z.boolean().optional(),
+  seo_og_image_url: z.string().url().max(2048).nullable().optional(),
+  og_image_generated_url: z.string().url().max(2048).nullable().optional(),
 };
 
 // Recursive JSON value tolerated by the builder payload. `undefined` is not
@@ -136,7 +197,7 @@ const PostCore = z.object({
   takeaways_en: z.array(z.string().max(500)).max(6).optional(),
   custom_meta: z.record(z.string().max(64), z.string().max(200)).nullable().optional(),
   related_override: z.record(z.string().max(64), z.unknown()).nullable().optional(),
-
+  ...SeoBlock,
 });
 
 async function resolveDefaultBlogPage(
@@ -322,6 +383,23 @@ export const updatePost = createServerFn({ method: "POST" })
         if (error) throw new Error(error.message);
       }
 
+      // A published post whose slug or parent changed leaves its old permalink
+      // behind - capture it as a 301 (see captureAutoRedirect).
+      const slugChanged = typeof updates.slug === "string" && updates.slug !== existing.slug;
+      const parentChanged =
+        typeof updates.parent_page_id === "string" &&
+        updates.parent_page_id !== existing.parent_page_id;
+      if ((slugChanged || parentChanged) && existing.status === "published") {
+        const oldBase = await pageFullPath(supabase, existing.parent_page_id);
+        const newParentId = updates.parent_page_id ?? existing.parent_page_id;
+        const newBase = parentChanged ? await pageFullPath(supabase, newParentId) : oldBase;
+        const newSlug = updates.slug ?? existing.slug;
+        await captureAutoRedirect(supabase, userId, {
+          oldPath: oldBase ? `/${oldBase}/${existing.slug}` : null,
+          newPath: newBase ? `/${newBase}/${newSlug}` : null,
+        });
+      }
+
       if (data.categories) {
         await supabase.from("post_categories").delete().eq("post_id", data.id);
         if (data.categories.length) {
@@ -464,6 +542,7 @@ const PageCore = z.object({
   menu_order: z.number().int().min(0).max(99999).optional(),
   template_type: z.enum(["default", "full_width", "landing", "archive_listing", "contact"]).optional(),
   header_override: z.string().max(64).nullable().optional(),
+  ...SeoBlock,
 });
 
 export const createPage = createServerFn({ method: "POST" })
@@ -507,7 +586,7 @@ export const updatePage = createServerFn({ method: "POST" })
       const tenantId = await resolveTenant(supabase, userId);
 
       const { data: existing, error: exErr } = await supabase
-        .from("pages").select("id, status").eq("id", data.id).maybeSingle();
+        .from("pages").select("id, status, slug, parent_id").eq("id", data.id).maybeSingle();
       if (exErr) throw new Error(exErr.message);
       if (!existing) throw new Error("Page not found or access denied");
 
@@ -519,9 +598,28 @@ export const updatePage = createServerFn({ method: "POST" })
         updates.published_at = new Date().toISOString();
       }
 
+      // Permalink move detection needs the pre-update path (page_full_path
+      // resolves the CURRENT hierarchy, so read it before writing).
+      const slugChanged = typeof updates.slug === "string" && updates.slug !== existing.slug;
+      const parentChanged =
+        updates.parent_id !== undefined && updates.parent_id !== existing.parent_id;
+      const willMove = (slugChanged || parentChanged) && existing.status === "published";
+      const oldPath = willMove ? await pageFullPath(supabase, data.id) : null;
+
       if (Object.keys(updates).length) {
         const { error } = await supabase.from("pages").update(updates).eq("id", data.id);
         if (error) throw new Error(error.message);
+      }
+
+      if (willMove && oldPath) {
+        const newPath = await pageFullPath(supabase, data.id);
+        // Wildcard covers the whole moved subtree: child pages and posts under
+        // this page redirect via "/old-base/* -> /new-base/*".
+        await captureAutoRedirect(supabase, userId, {
+          oldPath: `/${oldPath}`,
+          newPath: newPath ? `/${newPath}` : null,
+          wildcard: true,
+        });
       }
 
       const publish = updates.status === "published" && existing.status !== "published";

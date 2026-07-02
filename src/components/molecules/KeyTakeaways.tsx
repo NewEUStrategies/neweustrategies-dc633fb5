@@ -20,7 +20,9 @@ export function KeyTakeaways({ items, className }: KeyTakeawaysProps) {
   return (
     <aside
       aria-label={t("post.takeaways.title")}
-      className={`my-8 rounded-xl border border-border bg-card/60 backdrop-blur-sm p-5 lg:p-6 shadow-sm ${className ?? ""}`}
+      // "key-takeaways" is a stable hook referenced by the SpeakableSpecification
+      // cssSelector in the article JSON-LD (src/lib/seo/meta.ts) - do not rename.
+      className={`key-takeaways my-8 rounded-xl border border-border bg-card/60 backdrop-blur-sm p-5 lg:p-6 shadow-sm ${className ?? ""}`}
     >
       <h2 className="font-display text-lg lg:text-xl font-semibold mb-4 text-foreground">
         {t("post.takeaways.title")}

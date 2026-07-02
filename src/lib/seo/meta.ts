@@ -100,6 +100,21 @@ export interface ContentHeadInput {
   section?: string | null;
   tags?: readonly string[];
   noindex?: boolean;
+  /** Full <title> text (e.g. with the brand suffix). Falls back to `title`;
+   *  og:title / twitter:title always use the clean `title` headline. */
+  documentTitle?: string;
+  /** Explicit robots meta content; wins over the legacy `noindex` flag. */
+  robots?: string | null;
+  /** Canonical override (absolute URL). When set, the hreflang cluster is
+   *  suppressed - a page pointing its canonical elsewhere must not claim
+   *  language alternates of itself. */
+  canonicalOverride?: string | null;
+  /** og:image dimensions/alt - emitted only when known (generated cards). */
+  imageWidth?: number;
+  imageHeight?: number;
+  imageAlt?: string | null;
+  /** Optional "@site" handle for twitter:site. */
+  twitterSite?: string | null;
 }
 
 export interface HeadDescriptor {
@@ -110,7 +125,7 @@ export interface HeadDescriptor {
 /** Build the <head> meta + links for a content page (article or listing). */
 export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
   const { origin, path } = splitUrl(input.url);
-  const canonical = absoluteUrl(origin, path);
+  const canonical = input.canonicalOverride || absoluteUrl(origin, path);
   const altLang: Lang = input.lang === "pl" ? "en" : "pl";
   // Always emit a social image: the page's own cover when present, else the
   // brand default (resolved to an absolute URL via the request origin). This is
@@ -119,7 +134,7 @@ export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
   const image = input.image || absoluteUrl(origin, SITE_DEFAULT_OG_IMAGE);
 
   const meta: Array<Record<string, string>> = [
-    { title: input.title },
+    { title: input.documentTitle || input.title },
     { name: "description", content: input.description },
     { property: "og:title", content: input.title },
     { property: "og:description", content: input.description },
@@ -133,10 +148,22 @@ export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
     { httpEquiv: "content-language", content: input.lang },
   ];
 
+  if (input.twitterSite?.trim()) {
+    meta.push({ name: "twitter:site", content: input.twitterSite.trim() });
+  }
   if (canonical) meta.push({ property: "og:url", content: canonical });
   meta.push({ property: "og:image", content: image });
+  if (input.imageWidth)
+    meta.push({ property: "og:image:width", content: String(input.imageWidth) });
+  if (input.imageHeight)
+    meta.push({ property: "og:image:height", content: String(input.imageHeight) });
+  if (input.imageAlt?.trim())
+    meta.push({ property: "og:image:alt", content: input.imageAlt.trim() });
   meta.push({ name: "twitter:image", content: image });
-  if (input.noindex) meta.push({ name: "robots", content: "noindex, nofollow" });
+  // Explicit robots content (index directives with snippet/preview hints for
+  // zero-click surfaces) wins; the legacy boolean stays for older callers.
+  if (input.robots?.trim()) meta.push({ name: "robots", content: input.robots.trim() });
+  else if (input.noindex) meta.push({ name: "robots", content: "noindex, nofollow" });
 
   if (input.type === "article") {
     if (input.publishedAt)
@@ -149,9 +176,27 @@ export function buildContentHead(input: ContentHeadInput): HeadDescriptor {
 
   const links: Array<Record<string, string>> = [];
   if (canonical) links.push({ rel: "canonical", href: canonical });
-  for (const alt of hreflangLinks(origin, path)) links.push(alt);
+  // A canonical pointing elsewhere must not also claim hreflang alternates of
+  // this URL - crawlers treat that as a contradictory language cluster.
+  if (!input.canonicalOverride) {
+    for (const alt of hreflangLinks(origin, path)) links.push(alt);
+  }
 
   return { meta, links };
+}
+
+/**
+ * `<link rel="alternate" type="application/rss+xml">` feed-discovery links for
+ * the root head. Both language feeds are advertised on every page so readers
+ * and crawlers find them regardless of entry URL.
+ */
+export function feedDiscoveryLinks(origin: string): Array<Record<string, string>> {
+  return SUPPORTED_LANGS.map((l) => ({
+    rel: "alternate",
+    type: "application/rss+xml",
+    title: l === "pl" ? `${SITE_NAME} - RSS` : `${SITE_NAME} - RSS (English)`,
+    href: absoluteUrl(origin, localizedPath("/rss.xml", l)),
+  }));
 }
 
 /**
@@ -238,11 +283,22 @@ export interface ArticleJsonLdInput {
   gated?: boolean;
   /** CSS selector of the gated body region (for the paywall hasPart node). */
   paywallSelector?: string;
+  /** Primary category name (articleSection). */
+  section?: string | null;
+  /** Tag names (keywords). */
+  tags?: readonly string[];
+  /** Key takeaways - mapped to schema.org `abstract` (answer-engine summary). */
+  takeaways?: readonly string[];
+  /** Publisher logo URL (required for Google News rich results). */
+  publisherLogoUrl?: string | null;
+  /** Emit SpeakableSpecification (voice assistants / AI answer engines). */
+  speakable?: boolean;
 }
 
 /** Build the JSON-LD graph for an article/page. Emits NewsArticle for posts
- * (with publisher, author, dates, language, mainEntityOfPage) and the
- * Google-recommended paywall markup for gated content. */
+ * (with publisher, author, dates, language, mainEntityOfPage), the
+ * Google-recommended paywall markup for gated content, and the AEO layer:
+ * articleSection, keywords, abstract (key takeaways) and speakable regions. */
 export function buildArticleJsonLd(input: ArticleJsonLdInput): Record<string, unknown> {
   const { origin, path } = splitUrl(input.url);
   const canonical = absoluteUrl(origin, path);
@@ -250,6 +306,9 @@ export function buildArticleJsonLd(input: ArticleJsonLdInput): Record<string, un
     "@type": "Organization",
     name: SITE_NAME,
     ...(origin ? { url: origin } : {}),
+    ...(input.publisherLogoUrl
+      ? { logo: { "@type": "ImageObject", url: input.publisherLogoUrl } }
+      : {}),
   };
 
   const graph: Record<string, unknown> = {
@@ -270,6 +329,20 @@ export function buildArticleJsonLd(input: ArticleJsonLdInput): Record<string, un
 
   if (input.isArticle) {
     graph.author = input.authorName ? { "@type": "Person", name: input.authorName } : publisher;
+    if (input.section) graph.articleSection = input.section;
+    if (input.tags?.length) graph.keywords = input.tags.join(", ");
+  }
+
+  // Key takeaways double as the machine-readable abstract - the exact shape
+  // answer engines lift into AI overviews and zero-click answer boxes.
+  const abstract = (input.takeaways ?? []).map((t) => t.trim()).filter(Boolean);
+  if (abstract.length) graph.abstract = abstract.join(" ");
+
+  if (input.speakable) {
+    graph.speakable = {
+      "@type": "SpeakableSpecification",
+      cssSelector: ["h1", ".key-takeaways", ".article-body > p:first-of-type"],
+    };
   }
 
   if (input.gated) {

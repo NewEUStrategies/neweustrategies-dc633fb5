@@ -40,15 +40,5 @@ export function buildBreadcrumbs(
   return items;
 }
 
-export function breadcrumbJsonLd(items: BreadcrumbItem[], origin: string): string {
-  return JSON.stringify({
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: items.map((it, i) => ({
-      "@type": "ListItem",
-      position: i + 1,
-      name: it.label,
-      item: it.href ? `${origin}${it.href}` : undefined,
-    })),
-  });
-}
+// BreadcrumbList JSON-LD lives in @/lib/seo/jsonld (breadcrumbListJsonLd) and
+// is emitted from the route head() during SSR with absolute, localized URLs.

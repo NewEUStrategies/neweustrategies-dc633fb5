@@ -36,7 +36,19 @@ import { buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
 import { useUnlockedContent } from "@/hooks/useUnlockedContent";
 import { isGatedMode, hasRenderableBody, shouldShowPaywall, pickBody, type BodyParts } from "@/lib/access/gating";
 import { getRequestUrl } from "@/lib/seo/request";
-import { buildContentHead, buildArticleJsonLd, imagePreloadLink } from "@/lib/seo/meta";
+import { buildContentHead, buildArticleJsonLd, imagePreloadLink, splitUrl } from "@/lib/seo/meta";
+import {
+  applyTitleSuffix,
+  resolveRobotsMeta,
+  resolveSeoText,
+  resolveSocialImage,
+  seoCanonicalOverride,
+  socialImageIsGeneratedCard,
+  type SeoFieldsRow,
+} from "@/lib/seo/fields";
+import { breadcrumbListJsonLd } from "@/lib/seo/jsonld";
+import { effectiveTitleSuffix, parseSeoSettings } from "@/lib/seo/settings";
+import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { activeLang } from "@/lib/seo/head";
 import { Paywall } from "@/components/Paywall";
@@ -120,6 +132,11 @@ export const Route = createFileRoute("/$")({
         : Promise.resolve(),
       context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions()),
     ]);
+    // Site-wide SEO settings for head() (title suffix, twitter:site, publisher
+    // logo). The root loader warms the same bulk query, so this resolves from
+    // cache; head() is synchronous and cannot fetch on its own.
+    const settingsMap = await context.queryClient.ensureQueryData(siteSettingsQueryOptions);
+    const seoSettings = parseSeoSettings(settingsMap["seo"]);
     // Posts: attach the LCP cover preload so head() can emit it. The layout
     // settings were just warmed above, so this reads from cache (no extra
     // round-trip) and falls back to defaults if that prefetch was rejected.
@@ -128,9 +145,9 @@ export const Route = createFileRoute("/$")({
         context.queryClient.getQueryData<PostLayoutSettings>(
           postLayoutSettingsQueryOptions().queryKey,
         ) ?? defaultPostLayoutSettings();
-      return { ...data, coverPreload: buildCoverPreload(data.item, settings) };
+      return { ...data, seoSettings, coverPreload: buildCoverPreload(data.item, settings) };
     }
-    return data;
+    return { ...data, seoSettings };
   },
   head: ({ loaderData, params }) => {
     const it = loaderData?.item;
@@ -139,35 +156,80 @@ export const Route = createFileRoute("/$")({
     const url = getRequestUrl() || `/${splat}`;
     const lang = activeLang(url);
     const isPost = loaderData.kind === "post";
-    const title = (lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en) || "Strona";
+    const seoSettings = loaderData.seoSettings ?? parseSeoSettings(null);
+    const seoRow = it as SeoFieldsRow;
+
+    // Derived values first, then the per-entity SEO overrides on top - the
+    // exact chain the admin SERP preview simulates.
+    const fallbackTitle =
+      (lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en) || "Strona";
     const excerpt =
       "excerpt_pl" in it ? (lang === "en" ? it.excerpt_en || it.excerpt_pl : it.excerpt_pl || it.excerpt_en) : null;
     const tags = "tags" in loaderData ? (loaderData.tags ?? []).map((t) => t.name) : [];
-    const description = metaDescription(excerpt, title);
+    const { title, description, titleIsOverride } = resolveSeoText(
+      seoRow,
+      lang,
+      fallbackTitle,
+      metaDescription(excerpt, fallbackTitle),
+    );
+    const documentTitle = applyTitleSuffix(title, effectiveTitleSuffix(seoSettings), titleIsOverride);
+    const image = resolveSocialImage(seoRow, it.cover_image_url);
+    const imageIsCard = socialImageIsGeneratedCard(seoRow, image);
     const head = buildContentHead({
       url,
       lang,
       type: isPost ? "article" : "website",
       title,
+      documentTitle,
       description,
-      image: it.cover_image_url,
+      image,
       publishedAt: it.published_at,
       modifiedAt: it.updated_at,
       tags,
+      robots: resolveRobotsMeta(seoRow),
+      canonicalOverride: seoCanonicalOverride(seoRow),
+      imageWidth: imageIsCard ? 1200 : undefined,
+      imageHeight: imageIsCard ? 630 : undefined,
+      imageAlt: image ? title : undefined,
+      twitterSite: seoSettings.twitter_site || null,
     });
-    // Emit the article/page JSON-LD in <head> (not the body) so crawlers parse
-    // the structured-data graph early, before the full document streams.
+    const { origin } = splitUrl(url);
+    // Emit the JSON-LD graph in <head> (not the body) so crawlers parse the
+    // structured data early, before the full document streams. The article
+    // node carries the AEO layer (section, keywords, abstract, speakable);
+    // BreadcrumbList is SSR-emitted here because the body breadcrumbs only
+    // exist after hydration.
+    const takeaways = isPost
+      ? ((lang === "en"
+          ? (it as PostData).takeaways_en
+          : (it as PostData).takeaways_pl) ?? [])
+      : [];
+    const parentCrumbs = [...(loaderData.crumbs ?? [])].sort((a, b) => a.depth - b.depth);
+    const sectionCrumb = isPost ? parentCrumbs[parentCrumbs.length - 1] : parentCrumbs[parentCrumbs.length - 2];
     const jsonLd = buildArticleJsonLd({
       url,
       lang,
       isArticle: isPost,
       title,
       description,
-      image: it.cover_image_url,
+      image,
       publishedAt: it.published_at,
       modifiedAt: it.updated_at,
       gated: isGatedMode(loaderData.access?.mode),
+      section: sectionCrumb
+        ? (lang === "en" ? sectionCrumb.title_en || sectionCrumb.title_pl : sectionCrumb.title_pl || sectionCrumb.title_en)
+        : null,
+      tags,
+      takeaways,
+      publisherLogoUrl:
+        seoSettings.publisher_logo_url.trim() || (origin ? `${origin}/og-default.jpg` : null),
+      speakable: isPost,
     });
+    const breadcrumbLd = breadcrumbListJsonLd(
+      buildBreadcrumbs(loaderData.crumbs ?? [], lang === "en" ? "en" : "pl", isPost ? title : undefined),
+      origin,
+      lang,
+    );
     // Preload the LCP cover image (posts only) so its fetch starts from <head>,
     // before the <img> is parsed in the body. The descriptor matches the
     // rendered <img> srcSet/sizes 1:1, so no candidate is fetched twice.
@@ -178,7 +240,10 @@ export const Route = createFileRoute("/$")({
     return {
       ...head,
       links,
-      scripts: [{ type: "application/ld+json", children: JSON.stringify(jsonLd) }],
+      scripts: [
+        { type: "application/ld+json", children: JSON.stringify(jsonLd) },
+        { type: "application/ld+json", children: JSON.stringify(breadcrumbLd) },
+      ],
     };
   },
 

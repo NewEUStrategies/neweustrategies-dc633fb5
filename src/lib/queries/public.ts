@@ -2,6 +2,7 @@
 // identical keys/fetchers (single source of truth for cache invalidation).
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { SEO_FIELDS_SELECT } from "@/lib/seo/fields";
 import { fetchPageBreadcrumbs, type BreadcrumbRow } from "@/lib/breadcrumbs";
 import { EMPTY_BODY, type BodyParts } from "@/lib/access/gating";
 import type { ContentAccessRule } from "@/hooks/useContentAccess";
@@ -82,6 +83,15 @@ export interface PageData {
   updated_at: string | null;
   template_type?: string | null;
   header_override?: string | null;
+  // Per-entity SEO overrides (see @/lib/seo/fields).
+  seo_title_pl: string | null;
+  seo_title_en: string | null;
+  seo_description_pl: string | null;
+  seo_description_en: string | null;
+  seo_canonical_url: string | null;
+  seo_noindex: boolean;
+  seo_og_image_url: string | null;
+  og_image_generated_url: string | null;
 }
 
 export interface PostData extends PageData {
@@ -95,7 +105,6 @@ export interface PostData extends PageData {
   custom_meta: Record<string, string> | null;
   related_override: Record<string, unknown> | null;
 }
-
 
 export type ResolvedContent =
   | {
@@ -127,57 +136,60 @@ export const homePageQueryOptions = () =>
     queryKey: ["public", "home-page"] as const,
     queryFn: async (): Promise<PageData | null> => {
       return edgeTtlCache("public:home-page", 60_000, async () => {
-      // 1. Read reading-settings to find the designated homepage.
-      const { data: setting } = await supabase
-        .from("site_settings")
-        .select("value")
-        .eq("key", "reading")
-        .maybeSingle();
-      const reading = (setting?.value ?? {}) as {
-        homepage_mode?: string;
-        homepage_page_id?: string;
-        homepage_page_slug?: string;
-      };
+        // 1. Read reading-settings to find the designated homepage.
+        const { data: setting } = await supabase
+          .from("site_settings")
+          .select("value")
+          .eq("key", "reading")
+          .maybeSingle();
+        const reading = (setting?.value ?? {}) as {
+          homepage_mode?: string;
+          homepage_page_id?: string;
+          homepage_page_slug?: string;
+        };
 
-      const cols = "id, slug, title_pl, title_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at";
+        const cols =
+          "id, slug, title_pl, title_en, content_pl, content_en, editor, builder_data, cover_image_url, published_at";
 
-      if (reading.homepage_mode === "static_page") {
-        if (reading.homepage_page_id) {
-          const { data } = await supabase
-            .from("pages").select(cols)
-            .eq("id", reading.homepage_page_id)
-            .is("deleted_at", null)
-            .eq("status", "published")
-            .maybeSingle();
-          if (data) return data as PageData;
+        if (reading.homepage_mode === "static_page") {
+          if (reading.homepage_page_id) {
+            const { data } = await supabase
+              .from("pages")
+              .select(cols)
+              .eq("id", reading.homepage_page_id)
+              .is("deleted_at", null)
+              .eq("status", "published")
+              .maybeSingle();
+            if (data) return data as PageData;
+          }
+          if (reading.homepage_page_slug) {
+            const { data } = await supabase
+              .from("pages")
+              .select(cols)
+              .eq("slug", reading.homepage_page_slug)
+              .is("parent_id", null)
+              .is("deleted_at", null)
+              .eq("status", "published")
+              .maybeSingle();
+            if (data) return data as PageData;
+          }
         }
-        if (reading.homepage_page_slug) {
-          const { data } = await supabase
-            .from("pages").select(cols)
-            .eq("slug", reading.homepage_page_slug)
-            .is("parent_id", null)
-            .is("deleted_at", null)
-            .eq("status", "published")
-            .maybeSingle();
-          if (data) return data as PageData;
-        }
-      }
 
-      // 2. Fallback: conventional slug = "home".
-      const { data, error } = await supabase
-        .from("pages").select(cols)
-        .eq("slug", "home")
-        .is("parent_id", null)
-        .is("deleted_at", null)
-        .eq("status", "published")
-        .maybeSingle();
-      if (error) throw error;
-      return (data as PageData | null) ?? null;
+        // 2. Fallback: conventional slug = "home".
+        const { data, error } = await supabase
+          .from("pages")
+          .select(cols)
+          .eq("slug", "home")
+          .is("parent_id", null)
+          .is("deleted_at", null)
+          .eq("status", "published")
+          .maybeSingle();
+        if (error) throw error;
+        return (data as PageData | null) ?? null;
       });
     },
     staleTime: PAGE_PATH_TTL,
   });
-
 
 export const blogListQueryOptions = () =>
   queryOptions({
@@ -238,7 +250,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
           supabase
             .from("posts")
             .select(
-              "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, custom_meta, related_override",
+              `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, custom_meta, related_override, ${SEO_FIELDS_SELECT}`,
             )
             .eq("id", hit.post_id)
             .maybeSingle(),
@@ -266,7 +278,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
         supabase
           .from("pages")
           .select(
-            "id, slug, title_pl, title_en, editor, cover_image_url, published_at, updated_at, template_type, header_override",
+            `id, slug, title_pl, title_en, editor, cover_image_url, published_at, updated_at, template_type, header_override, ${SEO_FIELDS_SELECT}`,
           )
           .eq("id", hit.page_id)
           .maybeSingle(),
