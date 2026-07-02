@@ -273,7 +273,9 @@ function ResilientSliderImage({
       style={{
         opacity: visible ? 1 : 0,
         transition: "opacity 700ms cubic-bezier(.22,.61,.36,1)",
+        ...(style ?? {}),
       }}
+
       onError={(e) => {
         onBrokenSource(originalSrc);
         const nextSrc = displaySrc !== fallback ? fallback : placeholderSrc;
