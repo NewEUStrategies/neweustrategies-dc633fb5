@@ -2125,7 +2125,6 @@ export type Database = {
           layout_overrides: Json | null
           parent_page_id: string
           post_format: string
-          publish_at: string | null
           published_at: string | null
           read_minutes: number | null
           related_override: Json | null
@@ -2158,7 +2157,6 @@ export type Database = {
           layout_overrides?: Json | null
           parent_page_id: string
           post_format?: string
-          publish_at?: string | null
           published_at?: string | null
           read_minutes?: number | null
           related_override?: Json | null
@@ -2191,7 +2189,6 @@ export type Database = {
           layout_overrides?: Json | null
           parent_page_id?: string
           post_format?: string
-          publish_at?: string | null
           published_at?: string | null
           read_minutes?: number | null
           related_override?: Json | null
@@ -3287,7 +3284,6 @@ export type Database = {
       }
     }
     Functions: {
-      can_publish_content: { Args: { _user_id?: string }; Returns: boolean }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }
       crm_upsert_lead: {
         Args: {
@@ -3380,7 +3376,6 @@ export type Database = {
       page_full_path: { Args: { _page_id: string }; Returns: string }
       profile_is_public: { Args: { _user_id: string }; Returns: boolean }
       public_tenant_id: { Args: never; Returns: string }
-      publish_due_posts: { Args: never; Returns: number }
       record_post_view: {
         Args: { _post_id: string; _viewer_hash: string }
         Returns: undefined
@@ -3499,12 +3494,7 @@ export type Database = {
         | "refunded"
         | "canceled"
       plan_interval: "month" | "year" | "one_time"
-      post_status:
-        | "draft"
-        | "pending_review"
-        | "scheduled"
-        | "published"
-        | "archived"
+      post_status: "draft" | "published" | "archived"
       purchase_status: "pending" | "active" | "refunded" | "canceled"
     }
     CompositeTypes: {
@@ -3686,13 +3676,7 @@ export const Constants = {
         "canceled",
       ],
       plan_interval: ["month", "year", "one_time"],
-      post_status: [
-        "draft",
-        "pending_review",
-        "scheduled",
-        "published",
-        "archived",
-      ],
+      post_status: ["draft", "published", "archived"],
       purchase_status: ["pending", "active", "refunded", "canceled"],
     },
   },
