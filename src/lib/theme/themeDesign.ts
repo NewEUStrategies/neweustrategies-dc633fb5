@@ -165,7 +165,6 @@ function normalizeColor(c: string): string {
 /** Serializes the design tokens to CSS variables under `:root`. */
 export function themeDesignToCss(t: ThemeDesign): string {
   const v: string[] = [];
-  const c = (x: string) => normalizeColor(x);
   // Block heading
   v.push(`--td-bh-size:${t.blockHeading.fontSize};`);
   v.push(`--td-bh-weight:${t.blockHeading.fontWeight};`);
