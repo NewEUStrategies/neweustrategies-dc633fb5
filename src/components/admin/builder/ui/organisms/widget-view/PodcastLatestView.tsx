@@ -45,7 +45,7 @@ export function PodcastLatestView({ c, lang }: Props) {
           <Link to="/podcast/$slug" params={{ slug: p.slug }} className="cms-post-title">
             {podcastTitle(p, lang)}
           </Link>
-          <p className="cms-post-excerpt text-sm text-muted-foreground line-clamp-3">
+          <p className="cms-post-excerpt text-muted-foreground line-clamp-3">
             {lang === "en" ? p.excerpt_en || p.excerpt_pl : p.excerpt_pl || p.excerpt_en}
           </p>
           {showPlayer && (
@@ -69,7 +69,7 @@ export function PodcastLatestView({ c, lang }: Props) {
               <Link to="/podcast/$slug" params={{ slug: p.slug }} className="cms-post-title truncate block">
                 {podcastTitle(p, lang)}
               </Link>
-              <div className="cms-post-excerpt text-xs text-muted-foreground">{formatDuration(p.duration_seconds)}</div>
+              <div className="cms-post-excerpt text-muted-foreground">{formatDuration(p.duration_seconds)}</div>
             </div>
           </li>
         ))}
@@ -93,7 +93,7 @@ export function PodcastLatestView({ c, lang }: Props) {
             <Link to="/podcast/$slug" params={{ slug: p.slug }} className="cms-post-title line-clamp-2 block">
               {podcastTitle(p, lang)}
             </Link>
-            <div className="cms-post-excerpt text-xs text-muted-foreground">{formatDuration(p.duration_seconds)}</div>
+            <div className="cms-post-excerpt text-muted-foreground">{formatDuration(p.duration_seconds)}</div>
             {showPlayer && (
               <PodcastPlayer src={p.audio_url} initialDuration={p.duration_seconds} variant="mini" lang={lang} />
             )}

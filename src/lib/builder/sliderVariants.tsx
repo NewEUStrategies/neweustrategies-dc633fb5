@@ -825,19 +825,19 @@ function EditorialHeroVariant(p: VariantProps) {
         {href ? (
           <AppLink href={href} className="inline-block w-full">
             <div className="eh-title-clamp">
-              <h3 className="cms-post-title text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground" style={p.titleStyle}>
+              <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
                 {title || "\u00A0"}
               </h3>
             </div>
           </AppLink>
         ) : (
           <div className="eh-title-clamp">
-            <h3 className="cms-post-title text-xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground" style={p.titleStyle}>
+            <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
               {title || "\u00A0"}
             </h3>
           </div>
         )}
-        <p className="cms-post-excerpt eh-clamp-3 mt-4 text-sm md:text-base text-muted-foreground max-w-3xl mx-auto leading-relaxed"
+        <p className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
           style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}>
           {sub || "\u00A0"}
         </p>
@@ -908,17 +908,17 @@ function MultiCardVariant(p: VariantProps) {
                 <div className="pt-3 pb-1 px-1">
                   {href ? (
                     <AppLink href={href} className="block">
-                      <h3 className="cms-post-title text-base md:text-lg font-bold leading-snug text-foreground line-clamp-2" style={p.titleStyle}>
+                      <h3 className="cms-post-title text-foreground line-clamp-2" style={p.titleStyle}>
                         {title || "\u00A0"}
                       </h3>
                     </AppLink>
                   ) : (
-                    <h3 className="cms-post-title text-base md:text-lg font-bold leading-snug text-foreground line-clamp-2" style={p.titleStyle}>
+                    <h3 className="cms-post-title text-foreground line-clamp-2" style={p.titleStyle}>
                       {title || "\u00A0"}
                     </h3>
                   )}
                   {sub && (
-                    <p className="cms-post-excerpt eh-clamp-2 mt-1.5 text-xs md:text-sm text-muted-foreground leading-relaxed" style={p.subtitleStyle}>
+                    <p className="cms-post-excerpt eh-clamp-2 mt-1.5 text-muted-foreground" style={p.subtitleStyle}>
                       {sub}
                     </p>
                   )}
@@ -993,11 +993,11 @@ function CinematicOverlayVariant(p: VariantProps) {
                 {cat}
               </span>
             )}
-            <h3 className="cms-post-title text-2xl md:text-4xl lg:text-5xl font-bold leading-tight drop-shadow" style={p.titleStyle}>
+            <h3 className="cms-post-title drop-shadow" style={p.titleStyle}>
               {title || "\u00A0"}
             </h3>
             {sub && (
-              <p className="cms-post-excerpt eh-clamp-2 mt-3 text-sm md:text-base text-white/85 leading-relaxed max-w-2xl" style={p.subtitleStyle}>
+              <p className="cms-post-excerpt eh-clamp-2 mt-3 text-white/85 max-w-2xl" style={p.subtitleStyle}>
                 {sub}
               </p>
             )}
@@ -1088,17 +1088,17 @@ function SplitFeatureVariant(p: VariantProps) {
         )}
         {href ? (
           <AppLink href={href} className="block">
-            <h3 className="cms-post-title text-2xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground" style={p.titleStyle}>
+            <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
               {title || "\u00A0"}
             </h3>
           </AppLink>
         ) : (
-          <h3 className="cms-post-title text-2xl md:text-3xl lg:text-4xl font-bold leading-tight text-foreground" style={p.titleStyle}>
+          <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
             {title || "\u00A0"}
           </h3>
         )}
         {sub && (
-          <p className="cms-post-excerpt eh-clamp-3 mt-3 text-sm md:text-base text-muted-foreground leading-relaxed" style={p.subtitleStyle}>
+          <p className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground" style={p.subtitleStyle}>
             {sub}
           </p>
         )}
@@ -1166,11 +1166,11 @@ function MinimalStripVariant(p: VariantProps) {
             <span className="inline-block mb-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
               style={{ background: catColor, borderRadius: 2 }}>{cat}</span>
           )}
-          <h3 className="cms-post-title text-base md:text-xl font-bold leading-snug line-clamp-2" style={p.titleStyle}>
+          <h3 className="cms-post-title line-clamp-2" style={p.titleStyle}>
             {title || "\u00A0"}
           </h3>
           {sub && (
-            <p className="cms-post-excerpt mt-1 text-xs md:text-sm text-white/85 line-clamp-1" style={p.subtitleStyle}>
+            <p className="cms-post-excerpt mt-1 text-white/85 line-clamp-1" style={p.subtitleStyle}>
               {sub}
             </p>
           )}
