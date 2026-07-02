@@ -201,8 +201,30 @@ export function VisualCanvas({
     [data-visual-canvas] [data-widget-id]{position:relative;cursor:grab;outline:1px dashed transparent;outline-offset:2px;border-radius:4px;transition:outline-color .15s}
     [data-visual-canvas] [data-widget-id]:hover{outline-color:color-mix(in oklab, var(--brand) 50%, transparent)}
     [data-visual-canvas] [data-widget-id].is-selected{outline:2px solid var(--brand)}
+    [data-visual-canvas] [data-widget-id].is-selected [data-w-id][data-typography-gap-active="1"]{
+      position:relative;
+      overflow:visible !important;
+    }
+    [data-visual-canvas] [data-widget-id].is-selected [data-w-id][data-typography-gap-active="1"]::after{
+      content:"odstęp: " var(--cms-title-description-gap, "0px");
+      position:absolute;
+      top:4px;
+      right:4px;
+      z-index:40;
+      padding:2px 6px;
+      border-radius:999px;
+      background:color-mix(in oklab, var(--brand) 92%, black 8%);
+      color:var(--brand-foreground);
+      font-size:9px;
+      line-height:1.2;
+      font-weight:800;
+      letter-spacing:.02em;
+      box-shadow:0 6px 16px rgba(0,0,0,.18);
+      pointer-events:none;
+    }
     [data-visual-canvas] [data-widget-id].is-selected [data-w-id][data-typography-gap-active="1"] :is([data-typography-gap-target],.cms-post-excerpt,[data-description-root]){
       position:relative;
+      overflow:visible !important;
     }
     [data-visual-canvas] [data-widget-id].is-selected [data-w-id][data-typography-gap-active="1"] :is([data-typography-gap-target],.cms-post-excerpt,[data-description-root])::before{
       content:"";
