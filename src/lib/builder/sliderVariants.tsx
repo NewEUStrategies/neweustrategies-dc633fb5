@@ -402,10 +402,10 @@ const SHARED_STYLES = `
 .eh-slider .eh-drag-surface.is-dragging { cursor: grabbing; }
 .eh-slider .eh-drag-surface.is-dragging img { pointer-events: none; }
 
-/* Smooth slow hover zoom inside every slider image container. */
+/* Smooth hover zoom inside every slider image container. */
 .eh-slider [data-fill-image] {
   --eh-scale: 1;
-  --eh-transition-duration: 1100ms;
+  --eh-transition-duration: 450ms;
   scale: var(--eh-scale);
   transition: opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration) ease-in-out;
   transform-origin: center center;
