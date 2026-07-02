@@ -53,6 +53,7 @@ vi.mock("@tanstack/react-router", async (orig) => {
 });
 
 import { PostListView } from "../PostListView";
+import { RatedListView } from "../RatedListView";
 
 function wrap(ui: ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -145,5 +146,49 @@ describe("styles.css - dark mode index color rule has adequate specificity", () 
   it("still exposes the base light-mode rule using --pl-num-light", () => {
     const baseRule = /\.post-list-numbered-index\.post-list-numbered-index\.post-list-numbered-index\s*\{[^}]*color\s*:\s*var\(--pl-num-light\)/;
     expect(baseRule.test(css)).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// (3) RatedListView shares the SAME Theme Design fallback (`--td-li-*`)
+// ─────────────────────────────────────────────────────────────────────────────
+describe("RatedListView index color - fallback synced with PostListView", () => {
+  it("emits a `color: var(--td-li-light, ...)` rule when no widget-level color is set", () => {
+    const { container } = wrap(
+      <RatedListView
+        c={{
+          source: "manual",
+          items: [{ title_pl: "X", author: "A", rating: 5 }],
+        }}
+        lang="pl"
+      />,
+    );
+    const css = Array.from(container.querySelectorAll("style"))
+      .map((s) => s.textContent ?? "")
+      .join("\n");
+    // Both light + dark rules must reference the shared Theme Design tokens,
+    // otherwise "Numeracja list" in Theme Design silently stops governing
+    // rated / ranked widgets and users have to touch every widget by hand.
+    expect(css).toMatch(/\.rl-wrap \.rl-num\s*\{\s*color\s*:\s*var\(--td-li-light/);
+    expect(css).toMatch(/\.dark \.rl-wrap \.rl-num\s*\{\s*color\s*:\s*var\(--td-li-dark/);
+  });
+
+  it("still honors explicit widget overrides (`numberColor` / `numberColorDark`)", () => {
+    const { container } = wrap(
+      <RatedListView
+        c={{
+          source: "manual",
+          items: [{ title_pl: "X", author: "A", rating: 5 }],
+          numberColor: "#123456",
+          numberColorDark: "#abcdef",
+        }}
+        lang="pl"
+      />,
+    );
+    const css = Array.from(container.querySelectorAll("style"))
+      .map((s) => s.textContent ?? "")
+      .join("\n");
+    expect(css).toContain(".rl-wrap .rl-num{color:#123456;}");
+    expect(css).toContain(".dark .rl-wrap .rl-num{color:#abcdef;}");
   });
 });
