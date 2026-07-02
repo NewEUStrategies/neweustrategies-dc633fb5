@@ -58,6 +58,8 @@ interface SeoPanelProps {
   coverImageUrl: string | null;
   /** Kicker printed on the generated OG card (e.g. section name). */
   ogKicker?: string | null;
+  /** Emits the current validation snapshot so save handlers can preflight. */
+  onIssuesChange?: (issues: SeoIssue[]) => void;
 }
 
 const TITLE_MAX = 160;
