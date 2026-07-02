@@ -17,10 +17,12 @@ import { Switch } from "@/components/ui/switch";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { SerpPreview } from "@/components/admin/seo/SerpPreview";
 import { SeoTextField } from "@/components/admin/seo/SeoTextField";
+import { SeoValidationSummary } from "@/components/admin/seo/SeoValidationSummary";
 import { Loader2, Search, Sparkles } from "@/lib/lucide-shim";
 import { applyTitleSuffix, resolveSocialImage, type SeoFieldsRow } from "@/lib/seo/fields";
 import { SITE_NAME } from "@/lib/seo/meta";
 import { metaDescription } from "@/lib/routing/publicSegments";
+import { validateSeoPanel, type SeoIssue } from "@/lib/seo/validation";
 import {
   DEFAULT_SEO_SETTINGS,
   effectiveTitleSuffix,
