@@ -292,6 +292,9 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
             onReset={() => resetColor("iconActiveColor")}
             placeholderHint={lang === "en" ? "inherits from hover" : "dziedziczy z hover"}
           />
+        </section>
+
+
 
         {widget.type === "dark-featured-card" && (
           <section className="space-y-2 pt-2 border-t border-border">
