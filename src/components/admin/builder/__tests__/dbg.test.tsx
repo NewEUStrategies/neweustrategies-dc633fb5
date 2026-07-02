@@ -17,6 +17,8 @@ describe("d", () => {
     const node: WidgetNode = { id:"h", kind:"widget", type:"heading", content:{ text_pl:"T", subtitle_pl:"S" } };
     const qc = new QueryClient({ defaultOptions:{ queries:{ retry:false }}});
     const { container } = render(<QueryClientProvider client={qc}><WidgetView node={node} lang="pl" device="desktop" /></QueryClientProvider>);
-    console.log("HTML:", container.innerHTML);
+    const h2 = container.querySelector("h2");
+    console.log("H2 outer:", h2?.outerHTML);
+    console.log("H2 style attr:", h2?.getAttribute("style"));
   });
 });
