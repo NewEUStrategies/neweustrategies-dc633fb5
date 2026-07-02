@@ -48,7 +48,7 @@ function PostsList() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language ?? "pl";
   const qc = useQueryClient();
-  const { tenantId } = useAuth();
+  const { tenantId, isAdmin } = useAuth();
   const del$ = useServerFn(deletePost);
   const bulkDel$ = useServerFn(bulkDeletePosts);
   const bulkUpd$ = useServerFn(bulkUpdatePosts);
@@ -77,10 +77,16 @@ function PostsList() {
     enabled: !!tenantId,
     queryKey: ["admin-posts", tenantId, view],
     queryFn: async () => {
+      // Opportunistic tick: flip due scheduled posts to published even when
+      // pg_cron is unavailable (local/dev). Harmless no-op otherwise.
+      await supabase.rpc("publish_due_posts").then(
+        () => undefined,
+        () => undefined,
+      );
       let q = supabase
         .from("posts")
         .select(
-          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, status, published_at, updated_at, author_id, deleted_at",
+          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, status, published_at, publish_at, updated_at, author_id, deleted_at",
         )
         .eq("tenant_id", tenantId!)
         .order(view === "trash" ? "deleted_at" : "updated_at", { ascending: false });
@@ -382,6 +388,13 @@ function PostsList() {
             onApplyStatus={onBulkStatus}
             onDelete={onBulkDelete}
             onMigrateToBlocks={onBulkMigrate}
+            statuses={
+              // Editorial workflow: everyone submits for review; publishing in
+              // bulk stays an admin capability (enforced server-side too).
+              isAdmin
+                ? ["draft", "pending_review", "published", "archived"]
+                : ["draft", "pending_review", "archived"]
+            }
           />
         )}
         {isLoading ? (
@@ -456,8 +469,23 @@ function PostsList() {
                         {authorLabel(author)}
                       </td>
                       <td className="p-2">
-                        <StatusBadge status={p.status} label={t(`admin.status.${p.status}`)} />
-
+                        <StatusBadge
+                          status={p.status}
+                          label={t(`admin.status.${p.status}`)}
+                          title={
+                            p.status === "scheduled" && p.publish_at
+                              ? t("admin.workflow.scheduledFor", {
+                                  defaultValue: "Publikacja: {{date}}",
+                                  date: new Date(p.publish_at).toLocaleString(lang),
+                                })
+                              : undefined
+                          }
+                        />
+                        {p.status === "scheduled" && p.publish_at ? (
+                          <div className="mt-0.5 text-[10px] text-muted-foreground tabular-nums">
+                            {new Date(p.publish_at).toLocaleString(lang)}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="p-2 hidden md:table-cell text-muted-foreground text-[11px] tabular-nums">
                         {new Date((isTrash && p.deleted_at) ? p.deleted_at : p.updated_at).toLocaleString(lang)}

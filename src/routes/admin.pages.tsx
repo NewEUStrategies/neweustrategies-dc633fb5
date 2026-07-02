@@ -235,6 +235,8 @@ function PagesList() {
   };
 
   const onBulkStatus = async (status: BulkStatus) => {
+    // Pages keep the simple lifecycle - the review status applies to posts only.
+    if (status === "pending_review") return;
     try {
       const ids = [...selected];
       await bulkUpd$({ data: { ids, status } });
