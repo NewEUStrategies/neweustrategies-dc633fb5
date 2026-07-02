@@ -18,7 +18,6 @@ describe("d", () => {
     const qc = new QueryClient({ defaultOptions:{ queries:{ retry:false }}});
     const { container } = render(<QueryClientProvider client={qc}><WidgetView node={node} lang="pl" device="desktop" /></QueryClientProvider>);
     const h2 = container.querySelector("h2");
-    console.log("H2 outer:", h2?.outerHTML);
-    console.log("H2 style attr:", h2?.getAttribute("style"));
+    console.log("ALL:", container.innerHTML);
   });
 });
