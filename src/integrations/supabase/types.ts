@@ -3494,7 +3494,12 @@ export type Database = {
         | "refunded"
         | "canceled"
       plan_interval: "month" | "year" | "one_time"
-      post_status: "draft" | "published" | "archived"
+      post_status:
+        | "draft"
+        | "published"
+        | "archived"
+        | "pending_review"
+        | "scheduled"
       purchase_status: "pending" | "active" | "refunded" | "canceled"
     }
     CompositeTypes: {
@@ -3676,7 +3681,13 @@ export const Constants = {
         "canceled",
       ],
       plan_interval: ["month", "year", "one_time"],
-      post_status: ["draft", "published", "archived"],
+      post_status: [
+        "draft",
+        "published",
+        "archived",
+        "pending_review",
+        "scheduled",
+      ],
       purchase_status: ["pending", "active", "refunded", "canceled"],
     },
   },
