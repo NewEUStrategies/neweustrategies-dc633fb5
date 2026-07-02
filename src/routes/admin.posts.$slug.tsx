@@ -43,6 +43,7 @@ import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor"
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { toast } from "sonner";
 import { invalidateWidgetCaches, emitWidgetCacheInvalidate } from "@/lib/builder/widgetCacheInvalidation";
+import { invalidateSeoCaches } from "@/lib/seo/invalidate";
 
 export const Route = createFileRoute("/admin/posts/$slug")({
   component: EditPost,
@@ -234,6 +235,9 @@ function EditPost() {
     // Refresh every widget cache that references posts (live sync across the site).
     invalidateWidgetCaches(qc);
     emitWidgetCacheInvalidate();
+    // Odswiez publiczne surface'y SEO (mapa strony HTML, dashboard /admin/seo);
+    // sitemap.xml + llms.txt są serwerowe i mają wlasny SWR.
+    invalidateSeoCaches(qc);
     if (snapshot.slug !== routeSlug) {
       navigate({ to: "/admin/posts/$slug", params: { slug: snapshot.slug }, replace: true });
     }

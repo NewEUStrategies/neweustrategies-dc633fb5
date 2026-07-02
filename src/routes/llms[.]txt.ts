@@ -72,7 +72,9 @@ export const Route = createFileRoute("/llms.txt")({
         return new Response(body, {
           headers: {
             "Content-Type": "text/plain; charset=utf-8",
-            "Cache-Control": "public, max-age=600, s-maxage=3600, stale-while-revalidate=86400",
+            // Rewalidacja per-request u klienta, CDN cache 60s + SWR - llms.txt
+            // odzwierciedla najnowsze wpisy/ustawienia bez ręcznego czyszczenia.
+            "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=1800, must-revalidate",
           },
         });
       },

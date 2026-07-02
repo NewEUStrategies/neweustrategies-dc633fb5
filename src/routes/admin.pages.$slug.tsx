@@ -33,6 +33,7 @@ import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { invalidateWidgetCaches, emitWidgetCacheInvalidate } from "@/lib/builder/widgetCacheInvalidation";
+import { invalidateSeoCaches } from "@/lib/seo/invalidate";
 import { PAGE_TEMPLATES, type PageTemplateType } from "@/lib/pageTemplates";
 
 export const Route = createFileRoute("/admin/pages/$slug")({
@@ -158,6 +159,8 @@ function EditPage() {
     qc.invalidateQueries({ queryKey: ["admin-pages"] });
     invalidateWidgetCaches(qc);
     emitWidgetCacheInvalidate();
+    // Odswiez publiczne surface'y SEO (mapa strony HTML, /admin/seo).
+    invalidateSeoCaches(qc);
     if (canonical && canonical !== routeSlug) {
       qc.setQueryData(["page-by-slug", tenantId, canonical], { ...snapshot, slug: canonical });
       navigate({ to: "/admin/pages/$slug", params: { slug: canonical }, replace: true });
