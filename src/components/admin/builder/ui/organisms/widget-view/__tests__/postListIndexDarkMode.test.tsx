@@ -192,19 +192,20 @@ describe("RatedListView index color - fallback synced with PostListView", () => 
     expect(css).toContain(".dark .rl-wrap .rl-num{color:#abcdef;}");
   });
 
-  it("inherits `--td-li-weight` when no widget-level numberWeight is set", () => {
-    const { container } = wrap(
-      <RatedListView
-        c={{ source: "manual", items: [{ title_pl: "X", author: "A", rating: 5 }] }}
-        lang="pl"
-      />,
+  it("inherits `--td-li-weight` when no widget-level numberWeight is set", async () => {
+    // SSR the component so JSDOM's CSSOM (which strips `var(...)` / `clamp()`
+    // from inline `style`) can't hide the token from the assertion. Same
+    // technique as the heading font-fallback suite.
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={qc}>
+        <RatedListView
+          c={{ source: "manual", items: [{ title_pl: "X", author: "A", rating: 5 }] }}
+          lang="pl"
+        />
+      </QueryClientProvider>,
     );
-    // Weight lives on the inline style of the .rl-num span, not in the
-    // scoped <style> block. Guarding both keeps the token contract honest.
-    const numEl = container.querySelector(".rl-num") as HTMLElement | null;
-    expect(numEl).not.toBeNull();
-    // JSDOM strips `var(...)` from CSSOM's fontWeight — inspect the raw
-    // React style attribute via outerHTML instead of getAttribute.
-    expect(numEl!.outerHTML).toMatch(/var\(--td-li-weight/);
+    expect(html).toMatch(/font-weight\s*:\s*var\(--td-li-weight/);
   });
 });
