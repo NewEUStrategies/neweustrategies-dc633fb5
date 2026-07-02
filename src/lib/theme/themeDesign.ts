@@ -240,7 +240,7 @@ export function themeDesignToCss(t: ThemeDesign): string {
   v.push(`--td-pe-lh:${t.postExcerpt.lineHeight};`);
   v.push(`--td-pe-color:${t.postExcerpt.color};`);
   v.push(`--td-pe-mt:${t.postExcerpt.marginTop};`);
-  return `:root{${v.join("")}}`;
+  return normalizeColor(`:root{${v.join("")}}`);
 }
 
 function shadow(level: "none" | "sm" | "md" | "lg"): string {
