@@ -4,7 +4,7 @@
 // meters, canonical/noindex controls, a social-image override and the
 // generator of branded 1200x630 OG cards (canvas-rendered in the browser,
 // uploaded to the media bucket).
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
