@@ -22,7 +22,7 @@ import {
   faLock, faPalette, faTableCells, faWandMagicSparkles, faWindowMaximize, faCreditCard,
   faPlay, faPause, faBell, faCircleInfo,
   faMicrophone, faFilm, faPaintbrush, faRss, faShieldHalved, faGears, faWandSparkles, faShareNodes,
-  faPrint, faDownload,
+  faPrint, faDownload, faLinkSlash, faFlask,
 } from "@fortawesome/free-solid-svg-icons";
 import {
   faFacebook, faInstagram, faLinkedin, faXTwitter, faYoutube,
@@ -52,7 +52,7 @@ const FA_MAP: Record<string, IconDefinition> = {
   CreditCard: faCreditCard, Play: faPlay, Pause: faPause, Bell: faBell, Info: faCircleInfo,
   Mic: faMicrophone, Film: faFilm, Brush: faPaintbrush, Rss: faRss, ShieldCheck: faShieldHalved,
   Cog: faGears, Wand2: faWandSparkles, Share2: faShareNodes, Gauge: faGauge,
-  Printer: faPrint, Download: faDownload,
+  Printer: faPrint, Download: faDownload, Link2Off: faLinkSlash, FlaskConical: faFlask,
   Facebook: faFacebook, Instagram: faInstagram, Linkedin: faLinkedin, Twitter: faXTwitter,
   Youtube: faYoutube,
 };

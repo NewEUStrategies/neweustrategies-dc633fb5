@@ -35,6 +35,7 @@ import {
   Bell as LBell, Info as LInfo,
   Mic as LMic, Film as LFilm, Brush as LBrush, Rss as LRss, ShieldCheck as LShieldCheck,
   Cog as LCog, Wand2 as LWand2, Share2 as LShare2, Gauge as LGauge,
+  Link2Off as LLink2Off, FlaskConical as LFlaskConical,
   Printer as LPrinter, Download as LDownload, RotateCcw as LRotateCcw,
   Facebook as LFacebook, Instagram as LInstagram, Linkedin as LLinkedin,
   Twitter as LTwitter, Youtube as LYoutube,
@@ -121,6 +122,8 @@ export const Italic = makeIcon("Italic", LItalic);
 export const Layers = makeIcon("Layers", LLayers);
 export const LayoutDashboard = makeIcon("LayoutDashboard", LLayoutDashboard);
 export const Link = makeIcon("Link", LLink);
+export const Link2Off = makeIcon("Link2Off", LLink2Off);
+export const FlaskConical = makeIcon("FlaskConical", LFlaskConical);
 export const List = makeIcon("List", LList);
 export const ListOrdered = makeIcon("ListOrdered", LListOrdered);
 export const LogIn = makeIcon("LogIn", LLogIn);

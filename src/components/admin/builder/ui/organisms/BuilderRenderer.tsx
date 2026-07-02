@@ -19,6 +19,10 @@ import { useBuilderDebug, toggleBuilderDebug } from "@/lib/builder/builderDebug"
 import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
 import { StreamingSection } from "@/lib/builder/sectionStreaming";
+import {
+  isSectionVisibleForAssignments, recordExperimentEvent, useExperimentAssignments,
+  type AbVariant,
+} from "@/lib/builder/experiments";
 
 // SSR has no viewport, so the first render is "desktop". On a phone the client
 // must correct to "mobile" - running that correction in a *layout* effect lands
@@ -48,6 +52,11 @@ interface Props {
   stream?: boolean;
   /** Leading sections rendered eagerly above the fold when `stream` is on. */
   aboveFoldCount?: number;
+  /**
+   * Builder-canvas mode: show every A/B variant side by side (with badges)
+   * instead of bucketing the viewer, and never record experiment events.
+   */
+  editorPreview?: boolean;
 }
 
 const MOBILE_BREAKPOINT = 768;
@@ -84,6 +93,7 @@ export function BuilderRenderer({
   device,
   stream = false,
   aboveFoldCount = ABOVE_FOLD_SECTION_COUNT,
+  editorPreview = false,
 }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? detectViewportDevice());
@@ -128,6 +138,7 @@ export function BuilderRenderer({
           device={effectiveDevice}
           stream={stream}
           aboveFoldCount={aboveFoldCount}
+          editorPreview={editorPreview}
         />
       </div>
       {isPrimary && <BuilderDebugOverlay debug={debug} doc={safeDoc} />}
@@ -176,32 +187,73 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
   );
 }
 
-const SectionsList = memo(function SectionsList({ sections, lang, device, stream, aboveFoldCount }: { sections: SectionNode[]; lang: "pl"|"en"; device: Device; stream: boolean; aboveFoldCount: number }) {
+const SectionsList = memo(function SectionsList({ sections, lang, device, stream, aboveFoldCount, editorPreview }: { sections: SectionNode[]; lang: "pl"|"en"; device: Device; stream: boolean; aboveFoldCount: number; editorPreview: boolean }) {
   const accessCtx = useAccessContext();
-  const visible = (Array.isArray(sections) ? sections : []).filter(
-    (s): s is SectionNode => !!s && evaluateAccess(s.advanced?.access, accessCtx),
+  const safeSections = Array.isArray(sections) ? sections : [];
+  // A/B: bucket the visitor deterministically per experiment (client-side, so
+  // SSR + first client render always show variant A - no hydration mismatch).
+  // The builder canvas keeps every variant visible instead.
+  const assignments = useExperimentAssignments(safeSections, !editorPreview);
+  const visible = safeSections.filter(
+    (s): s is SectionNode =>
+      !!s &&
+      evaluateAccess(s.advanced?.access, accessCtx) &&
+      (editorPreview || isSectionVisibleForAssignments(s, assignments)),
   );
   return (
     <>
-      {visible.map((s, index) => (
-        <StreamingSection
-          key={s.id}
-          section={s}
-          lang={lang}
-          index={index}
-          aboveFoldCount={aboveFoldCount}
-          enabled={stream}
-        >
+      {visible.map((s, index) => {
+        const abTag = s.advanced?.abTest;
+        const rendered = (
           <RenderErrorBoundary label={`section:${s.id}`}>
             <RenderSection section={s} lang={lang} device={device} />
           </RenderErrorBoundary>
-        </StreamingSection>
-      ))}
+        );
+        return (
+          <StreamingSection
+            key={s.id}
+            section={s}
+            lang={lang}
+            index={index}
+            aboveFoldCount={aboveFoldCount}
+            enabled={stream}
+          >
+            {abTag && !editorPreview && assignments ? (
+              <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
+                {rendered}
+              </ExperimentSection>
+            ) : rendered}
+          </StreamingSection>
+        );
+      })}
     </>
   );
 });
 
 SectionsList.displayName = "SectionsList";
+
+/**
+ * Tracking envelope for the A/B variant actually shown to this visitor:
+ * exposure once per session on mount, conversion once per session on any
+ * click inside the variant. `display: contents` keeps it out of layout.
+ */
+function ExperimentSection({ experimentId, variant, children }: {
+  experimentId: string;
+  variant: AbVariant;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    recordExperimentEvent(experimentId, variant, "exposure");
+  }, [experimentId, variant]);
+  return (
+    <div
+      style={{ display: "contents" }}
+      onClickCapture={() => recordExperimentEvent(experimentId, variant, "conversion")}
+    >
+      {children}
+    </div>
+  );
+}
 
 const RenderSection = memo(function RenderSection({ section, lang, device }: { section: SectionNode; lang: "pl"|"en"; device: Device }) {
   const accessCtx = useAccessContext();
@@ -224,6 +276,8 @@ const RenderSection = memo(function RenderSection({ section, lang, device }: { s
       ref={preloadRef as React.Ref<HTMLElement>}
       id={sanitizeHtmlId(section.advanced?.htmlId)}
       data-sec-id={section.id}
+      data-ab-experiment={section.advanced?.abTest?.experimentId}
+      data-ab-variant={section.advanced?.abTest?.variant}
       className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(section.advanced?.cssClass) ?? ""}`.trim()}
       style={wrapStyle}
     >
@@ -329,6 +383,7 @@ const RenderColumn = memo(function RenderColumn({ column, lang, device }: { colu
               key={w.id}
               data-widget-id={w.id}
               data-widget-layout={inRow ? "inline" : "block"}
+              data-widget-global={w.globalId ? "1" : undefined}
               data-debug-type={w.type}
               className={itemClass}
               style={{

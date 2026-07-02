@@ -166,4 +166,8 @@ export const WIDGET_LIVE_QUERY_PREFIXES: ReadonlySet<string> = new Set([
   "rated-list",
   "categories-widget",
   "tags-widget",
+  "global-widget",
+  "global-widgets",
+  "global-widget-meta",
+  "builder-popups-active",
 ]);

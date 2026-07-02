@@ -47,6 +47,16 @@ export function WidgetLiveSync() {
         { event: "*", schema: "public", table: "tags" },
         () => invalidateWidgetCaches(queryClient),
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "builder_global_widgets" },
+        () => invalidateWidgetCaches(queryClient),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "builder_popups" },
+        () => invalidateWidgetCaches(queryClient),
+      )
       .subscribe();
 
     const onLocal = () => invalidateWidgetCaches(queryClient);

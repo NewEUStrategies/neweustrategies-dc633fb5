@@ -46,6 +46,9 @@ const NewsletterPopup = lazy(() =>
 const CommandPalette = lazy(() =>
   import("../components/search/CommandPalette").then((m) => ({ default: m.CommandPalette })),
 );
+const PopupHost = lazy(() =>
+  import("../components/popups/PopupHost").then((m) => ({ default: m.PopupHost })),
+);
 
 
 function NotFoundComponent() {
@@ -226,6 +229,7 @@ function RootComponent() {
         <Suspense fallback={null}>
           <LoginPopup />
           <NewsletterPopup />
+          <PopupHost />
           <CommandPalette />
         </Suspense>
         <Toaster />

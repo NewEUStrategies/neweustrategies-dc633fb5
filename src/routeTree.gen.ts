@@ -52,6 +52,7 @@ import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminRelatedPostsRouteImport } from './routes/admin.related-posts'
 import { Route as AdminPostsRouteImport } from './routes/admin.posts'
 import { Route as AdminPostLayoutsRouteImport } from './routes/admin.post-layouts'
+import { Route as AdminPopupsRouteImport } from './routes/admin.popups'
 import { Route as AdminPodcastsRouteImport } from './routes/admin.podcasts'
 import { Route as AdminPersonalizedRouteImport } from './routes/admin.personalized'
 import { Route as AdminPerformanceRouteImport } from './routes/admin.performance'
@@ -65,6 +66,7 @@ import { Route as AdminLiveBlogRouteImport } from './routes/admin.live-blog'
 import { Route as AdminImportWordpressRouteImport } from './routes/admin.import-wordpress'
 import { Route as AdminIconsRouteImport } from './routes/admin.icons'
 import { Route as AdminGreetingsRouteImport } from './routes/admin.greetings'
+import { Route as AdminExperimentsRouteImport } from './routes/admin.experiments'
 import { Route as AdminCustomMetaRouteImport } from './routes/admin.custom-meta'
 import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
 import { Route as AdminCrmRouteImport } from './routes/admin.crm'
@@ -85,6 +87,7 @@ import { Route as AdminSettingsDiscussionRouteImport } from './routes/admin.sett
 import { Route as AdminSettingsDesignRouteImport } from './routes/admin.settings.design'
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
 import { Route as AdminPostsSlugRouteImport } from './routes/admin.posts.$slug'
+import { Route as AdminPopupsIdRouteImport } from './routes/admin.popups.$id'
 import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
 import { Route as AdminPagesSlugRouteImport } from './routes/admin.pages.$slug'
 import { Route as AdminAppearancePostSidebarRouteImport } from './routes/admin.appearance.post-sidebar'
@@ -310,6 +313,11 @@ const AdminPostLayoutsRoute = AdminPostLayoutsRouteImport.update({
   path: '/post-layouts',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminPopupsRoute = AdminPopupsRouteImport.update({
+  id: '/popups',
+  path: '/popups',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPodcastsRoute = AdminPodcastsRouteImport.update({
   id: '/podcasts',
   path: '/podcasts',
@@ -373,6 +381,11 @@ const AdminIconsRoute = AdminIconsRouteImport.update({
 const AdminGreetingsRoute = AdminGreetingsRouteImport.update({
   id: '/greetings',
   path: '/greetings',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminExperimentsRoute = AdminExperimentsRouteImport.update({
+  id: '/experiments',
+  path: '/experiments',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminCustomMetaRoute = AdminCustomMetaRouteImport.update({
@@ -475,6 +488,11 @@ const AdminPostsSlugRoute = AdminPostsSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => AdminPostsRoute,
 } as any)
+const AdminPopupsIdRoute = AdminPopupsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AdminPopupsRoute,
+} as any)
 const AdminPagesNewRoute = AdminPagesNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -543,6 +561,7 @@ export interface FileRoutesByFullPath {
   '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
+  '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
@@ -556,6 +575,7 @@ export interface FileRoutesByFullPath {
   '/admin/performance': typeof AdminPerformanceRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
+  '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -596,6 +616,7 @@ export interface FileRoutesByFullPath {
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
+  '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
@@ -628,6 +649,7 @@ export interface FileRoutesByTo {
   '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
+  '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
@@ -641,6 +663,7 @@ export interface FileRoutesByTo {
   '/admin/performance': typeof AdminPerformanceRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
+  '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -680,6 +703,7 @@ export interface FileRoutesByTo {
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
+  '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
@@ -715,6 +739,7 @@ export interface FileRoutesById {
   '/admin/crm': typeof AdminCrmRoute
   '/admin/crop-sizes': typeof AdminCropSizesRoute
   '/admin/custom-meta': typeof AdminCustomMetaRoute
+  '/admin/experiments': typeof AdminExperimentsRoute
   '/admin/greetings': typeof AdminGreetingsRoute
   '/admin/icons': typeof AdminIconsRoute
   '/admin/import-wordpress': typeof AdminImportWordpressRoute
@@ -728,6 +753,7 @@ export interface FileRoutesById {
   '/admin/performance': typeof AdminPerformanceRoute
   '/admin/personalized': typeof AdminPersonalizedRoute
   '/admin/podcasts': typeof AdminPodcastsRoute
+  '/admin/popups': typeof AdminPopupsRouteWithChildren
   '/admin/post-layouts': typeof AdminPostLayoutsRoute
   '/admin/posts': typeof AdminPostsRouteWithChildren
   '/admin/related-posts': typeof AdminRelatedPostsRoute
@@ -768,6 +794,7 @@ export interface FileRoutesById {
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
+  '/admin/popups/$id': typeof AdminPopupsIdRoute
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
   '/admin/settings/design': typeof AdminSettingsDesignRoute
@@ -804,6 +831,7 @@ export interface FileRouteTypes {
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
+    | '/admin/experiments'
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
@@ -817,6 +845,7 @@ export interface FileRouteTypes {
     | '/admin/performance'
     | '/admin/personalized'
     | '/admin/podcasts'
+    | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/related-posts'
@@ -857,6 +886,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/post-sidebar'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
+    | '/admin/popups/$id'
     | '/admin/posts/$slug'
     | '/admin/posts/new'
     | '/admin/settings/design'
@@ -889,6 +919,7 @@ export interface FileRouteTypes {
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
+    | '/admin/experiments'
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
@@ -902,6 +933,7 @@ export interface FileRouteTypes {
     | '/admin/performance'
     | '/admin/personalized'
     | '/admin/podcasts'
+    | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/related-posts'
@@ -941,6 +973,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/post-sidebar'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
+    | '/admin/popups/$id'
     | '/admin/posts/$slug'
     | '/admin/posts/new'
     | '/admin/settings/design'
@@ -975,6 +1008,7 @@ export interface FileRouteTypes {
     | '/admin/crm'
     | '/admin/crop-sizes'
     | '/admin/custom-meta'
+    | '/admin/experiments'
     | '/admin/greetings'
     | '/admin/icons'
     | '/admin/import-wordpress'
@@ -988,6 +1022,7 @@ export interface FileRouteTypes {
     | '/admin/performance'
     | '/admin/personalized'
     | '/admin/podcasts'
+    | '/admin/popups'
     | '/admin/post-layouts'
     | '/admin/posts'
     | '/admin/related-posts'
@@ -1028,6 +1063,7 @@ export interface FileRouteTypes {
     | '/admin/appearance/post-sidebar'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
+    | '/admin/popups/$id'
     | '/admin/posts/$slug'
     | '/admin/posts/new'
     | '/admin/settings/design'
@@ -1376,6 +1412,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPostLayoutsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/popups': {
+      id: '/admin/popups'
+      path: '/popups'
+      fullPath: '/admin/popups'
+      preLoaderRoute: typeof AdminPopupsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/podcasts': {
       id: '/admin/podcasts'
       path: '/podcasts'
@@ -1465,6 +1508,13 @@ declare module '@tanstack/react-router' {
       path: '/greetings'
       fullPath: '/admin/greetings'
       preLoaderRoute: typeof AdminGreetingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/experiments': {
+      id: '/admin/experiments'
+      path: '/experiments'
+      fullPath: '/admin/experiments'
+      preLoaderRoute: typeof AdminExperimentsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/custom-meta': {
@@ -1607,6 +1657,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPostsSlugRouteImport
       parentRoute: typeof AdminPostsRoute
     }
+    '/admin/popups/$id': {
+      id: '/admin/popups/$id'
+      path: '/$id'
+      fullPath: '/admin/popups/$id'
+      preLoaderRoute: typeof AdminPopupsIdRouteImport
+      parentRoute: typeof AdminPopupsRoute
+    }
     '/admin/pages/new': {
       id: '/admin/pages/new'
       path: '/new'
@@ -1707,6 +1764,18 @@ const AdminPagesRouteWithChildren = AdminPagesRoute._addFileChildren(
   AdminPagesRouteChildren,
 )
 
+interface AdminPopupsRouteChildren {
+  AdminPopupsIdRoute: typeof AdminPopupsIdRoute
+}
+
+const AdminPopupsRouteChildren: AdminPopupsRouteChildren = {
+  AdminPopupsIdRoute: AdminPopupsIdRoute,
+}
+
+const AdminPopupsRouteWithChildren = AdminPopupsRoute._addFileChildren(
+  AdminPopupsRouteChildren,
+)
+
 interface AdminPostsRouteChildren {
   AdminPostsSlugRoute: typeof AdminPostsSlugRoute
   AdminPostsNewRoute: typeof AdminPostsNewRoute
@@ -1756,6 +1825,7 @@ interface AdminRouteChildren {
   AdminCrmRoute: typeof AdminCrmRoute
   AdminCropSizesRoute: typeof AdminCropSizesRoute
   AdminCustomMetaRoute: typeof AdminCustomMetaRoute
+  AdminExperimentsRoute: typeof AdminExperimentsRoute
   AdminGreetingsRoute: typeof AdminGreetingsRoute
   AdminIconsRoute: typeof AdminIconsRoute
   AdminImportWordpressRoute: typeof AdminImportWordpressRoute
@@ -1769,6 +1839,7 @@ interface AdminRouteChildren {
   AdminPerformanceRoute: typeof AdminPerformanceRoute
   AdminPersonalizedRoute: typeof AdminPersonalizedRoute
   AdminPodcastsRoute: typeof AdminPodcastsRoute
+  AdminPopupsRoute: typeof AdminPopupsRouteWithChildren
   AdminPostLayoutsRoute: typeof AdminPostLayoutsRoute
   AdminPostsRoute: typeof AdminPostsRouteWithChildren
   AdminRelatedPostsRoute: typeof AdminRelatedPostsRoute
@@ -1790,6 +1861,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCrmRoute: AdminCrmRoute,
   AdminCropSizesRoute: AdminCropSizesRoute,
   AdminCustomMetaRoute: AdminCustomMetaRoute,
+  AdminExperimentsRoute: AdminExperimentsRoute,
   AdminGreetingsRoute: AdminGreetingsRoute,
   AdminIconsRoute: AdminIconsRoute,
   AdminImportWordpressRoute: AdminImportWordpressRoute,
@@ -1803,6 +1875,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPerformanceRoute: AdminPerformanceRoute,
   AdminPersonalizedRoute: AdminPersonalizedRoute,
   AdminPodcastsRoute: AdminPodcastsRoute,
+  AdminPopupsRoute: AdminPopupsRouteWithChildren,
   AdminPostLayoutsRoute: AdminPostLayoutsRoute,
   AdminPostsRoute: AdminPostsRouteWithChildren,
   AdminRelatedPostsRoute: AdminRelatedPostsRoute,
@@ -1879,3 +1952,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

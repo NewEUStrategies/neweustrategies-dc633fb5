@@ -13,7 +13,8 @@ import type {
 import { WIDGETS } from "@/lib/builder/registry";
 import { pickMode, setMode as setThemedMode, isModeOverridden, isThemedValue } from "@/lib/builder/themed";
 import { broadcastWidgetTypography } from "@/lib/builder/liveTypography";
-import { Sun, Moon, Undo as RotateCcw } from "@/lib/lucide-shim";
+import { Sun, Moon, Undo as RotateCcw, Globe, Link2Off } from "@/lib/lucide-shim";
+import { useGlobalWidgetMeta } from "@/lib/builder/globalWidgets";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -172,6 +173,12 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
         <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Widget</div>
         <div className="text-[12px] font-medium truncate">{widgetLabel}</div>
       </div>
+      {widget.globalId && (
+        <GlobalWidgetBanner
+          globalId={widget.globalId}
+          onUnlink={() => onChange((w) => { delete w.globalId; })}
+        />
+      )}
       <div className="mb-2 px-0.5">
         <div className="text-[9px] uppercase tracking-wide text-muted-foreground mb-1">Pozycja</div>
         <div className="flex gap-1">
@@ -692,3 +699,30 @@ function AdSlotEditor({ c, setContent }: { c: Record<string, Json>; setContent: 
   );
 }
 
+
+/**
+ * Banner shown for global-widget instances: every edit below synchronizes to
+ * all pages referencing the global; "Odłącz" turns the instance into a local
+ * copy (the snapshot stays, the reference is removed).
+ */
+function GlobalWidgetBanner({ globalId, onUnlink }: { globalId: string; onUnlink: () => void }) {
+  const meta = useGlobalWidgetMeta(globalId);
+  return (
+    <div className="mb-2 px-2 py-1.5 rounded border border-amber-500/50 bg-amber-500/10 space-y-1">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+        <Globe className="w-3.5 h-3.5 shrink-0" />
+        <span className="truncate">{meta?.name ?? "Widget globalny"}</span>
+      </div>
+      <p className="text-[10px] leading-snug text-muted-foreground">
+        Widget globalny - zmiany synchronizują się na wszystkich stronach, które go używają.
+      </p>
+      <button
+        type="button"
+        onClick={onUnlink}
+        className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 dark:text-amber-400 hover:underline"
+      >
+        <Link2Off className="w-3 h-3" /> Odłącz (kopia lokalna)
+      </button>
+    </div>
+  );
+}

@@ -40,6 +40,7 @@ import {
 import { useBuilderOperations } from "./ui/hooks/useBuilderOperations";
 import { useBuilderClipboard } from "./ui/hooks/useBuilderClipboard";
 import { useBuilderShortcuts } from "./ui/hooks/useBuilderShortcuts";
+import { useGlobalWidgetSync } from "./ui/hooks/useGlobalWidgetSync";
 import { ConfirmDeleteDialog } from "./ui/molecules/ConfirmDeleteDialog";
 import { BuilderContextMenu, type CtxTarget } from "./ui/molecules/BuilderContextMenu";
 import { readClipboard } from "@/lib/builder/clipboard";
@@ -54,7 +55,7 @@ interface Props {
   /** Hide the surrounding site Header/Footer preview chrome. */
   hideChrome?: boolean;
   /** Editor scope - controls empty-state copy and drop-zone labels. */
-  scope?: "page" | "header" | "footer" | "menu";
+  scope?: "page" | "header" | "footer" | "menu" | "popup";
 }
 
 const SCOPE_COPY = {
@@ -62,6 +63,7 @@ const SCOPE_COPY = {
   header: { title: "Zbuduj nagłówek",        hint: "Dodaj pierwszą sekcję nagłówka (logo, menu, wyszukiwarka).",                first: "Wstaw sekcję nagłówka",      last: "Dodaj sekcję na końcu nagłówka" },
   footer: { title: "Zbuduj stopkę",          hint: "Dodaj pierwszą sekcję stopki (kolumny linków, kontakt, copyright).",       first: "Wstaw sekcję stopki",        last: "Dodaj sekcję na końcu stopki" },
   menu:   { title: "Zbuduj menu",            hint: "Dodaj sekcję z linkami menu - użyj widgetu Link nawigacji.",               first: "Wstaw sekcję menu",          last: "Dodaj sekcję na końcu menu" },
+  popup:  { title: "Zbuduj popup",           hint: "Dodaj pierwszą sekcję popupu (nagłówek, tekst, przycisk lub newsletter).", first: "Wstaw sekcję popupu",        last: "Dodaj sekcję na końcu popupu" },
 } as const;
 
 export function Builder({ value, onChange, lang, onLangChange, hideChrome = false, scope = "page" }: Props) {
@@ -93,9 +95,15 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
     addInnerSection, addColumn, removeColumn, duplicateColumn,
     removeWidget, duplicateWidget, updateWidget, updateSection, updateColumn,
     addWidgetToFocused, addWidgetToColumn, insertWidgetNear, appendWidgetToSection,
+    addGlobalWidgetToFocused, saveWidgetAsGlobal, unlinkGlobalWidget,
+    startAbTest, endAbTest,
     moveWidgetTo, moveWidgetToColumn, moveWidgetToSection, moveSectionTo,
     toggleHidden,
   } = useBuilderOperations({ history, doc, selection, setSelection, device });
+
+  // Push edited global-widget instances back to their shared records
+  // (optimistic cache write + debounced upsert -> synchronized across pages).
+  useGlobalWidgetSync(doc);
 
   // ---------- clipboard ----------
   const { copySelection, pasteFromClipboard } = useBuilderClipboard({
@@ -174,6 +182,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
       const idx = doc.sections.findIndex((s) => s.id === id);
       const target = doc.sections[idx];
       const hidden = !!target?.advanced?.hideOn?.[device];
+      const abTest = target?.advanced?.abTest;
       return {
         openProperties: () => setSelection({ kind: "section", id }),
         duplicate: () => duplicateSection(id),
@@ -188,6 +197,14 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
         addColumn: () => addColumn(id),
         addInnerSection: () => addInnerSection(id),
         saveAsTemplate: () => saveSectionAsTemplate(id),
+        ...(abTest
+          ? {
+              abVariant: abTest.variant,
+              endAbTestKeepA: () => endAbTest(abTest.experimentId, "a"),
+              endAbTestKeepB: () => endAbTest(abTest.experimentId, "b"),
+              endAbTestKeepBoth: () => endAbTest(abTest.experimentId, "both"),
+            }
+          : { startAbTest: () => void startAbTest(id) }),
         toggleHidden: () => toggleHidden(id, "section"),
         hiddenOnDevice: hidden,
         remove: () => askRemoveSection(id),
@@ -226,6 +243,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
       const id = ctx.id;
       const f = findWidget(doc, id);
       const hidden = !!f?.widget.advanced?.hideOn?.[device];
+      const isGlobal = !!f?.widget.globalId;
       return {
         openProperties: () => setSelection({ kind: "widget", id }),
         duplicate: () => duplicateWidget(id),
@@ -235,6 +253,9 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
         hasClipboard,
         toggleHidden: () => toggleHidden(id, "widget"),
         hiddenOnDevice: hidden,
+        ...(isGlobal
+          ? { unlinkGlobal: () => unlinkGlobalWidget(id) }
+          : { saveAsGlobal: () => void saveWidgetAsGlobal(id) }),
         remove: () => askRemoveWidget(id),
       };
     }
@@ -244,6 +265,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
     addSection, duplicateSection, moveSection, addColumn, addInnerSection,
     saveSectionAsTemplate, askRemoveSection, askRemoveColumn, askRemoveWidget,
     duplicateColumn, duplicateWidget, copySelection, cutSelection, pasteFromClipboard,
+    saveWidgetAsGlobal, unlinkGlobalWidget, startAbTest, endAbTest,
     toggleHidden,
   ]);
 
@@ -310,7 +332,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto min-h-0">
-                  <WidgetLibrary onPickWidget={addWidgetToFocused} onPickStructure={addSection} onPickTemplate={insertTemplateSection} />
+                  <WidgetLibrary onPickWidget={addWidgetToFocused} onPickStructure={addSection} onPickTemplate={insertTemplateSection} onPickGlobal={addGlobalWidgetToFocused} />
                 </div>
               </>
             )}
@@ -362,7 +384,7 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
 
             {scope !== "page" && (
               <div className="px-3 py-1.5 border-b border-border bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
-                Edytujesz: {scope === "header" ? "Nagłówek" : scope === "footer" ? "Stopkę" : "Menu"}
+                Edytujesz: {scope === "header" ? "Nagłówek" : scope === "footer" ? "Stopkę" : scope === "popup" ? "Popup" : "Menu"}
               </div>
             )}
 

@@ -1,11 +1,14 @@
 // Left-panel widget library: searchable grid of widgets grouped by category,
-// plus a structure picker to add a new section, plus a saved-section template list.
+// plus a structure picker to add a new section, a saved-section template list
+// and the tenant's global widgets (synchronized across pages).
 import { useState } from "react";
-import { Search, Layers, Trash2, Save, Clock, ChevronDown, ChevronRight } from "@/lib/lucide-shim";
-import { WIDGETS } from "@/lib/builder/registry";
+import { Search, Layers, Trash2, Save, Clock, ChevronDown, ChevronRight, Globe } from "@/lib/lucide-shim";
+import { WIDGETS, WIDGET_MAP } from "@/lib/builder/registry";
 import type { WidgetType } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { useSectionTemplates, type SectionTemplate, type TemplateRevision } from "@/lib/builder/templates";
+import { useGlobalWidgets, type GlobalWidget } from "@/lib/builder/globalWidgets";
+import { GLOBAL_WIDGET_MIME } from "./builder/VisualCanvas";
 import { TemplateHistoryDialog } from "./TemplateHistoryDialog";
 import { StructurePicker } from "./StructurePicker";
 
@@ -13,9 +16,10 @@ interface Props {
   onPickWidget: (t: WidgetType) => void;
   onPickStructure: (spans: number[]) => void;
   onPickTemplate: (tpl: SectionTemplate) => void;
+  onPickGlobal?: (g: GlobalWidget) => void;
 }
 
-export function WidgetLibrary({ onPickStructure, onPickTemplate }: Props) {
+export function WidgetLibrary({ onPickStructure, onPickTemplate, onPickGlobal }: Props) {
   const [search, setSearch] = useState("");
   const [historyOf, setHistoryOf] = useState<SectionTemplate | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
@@ -34,6 +38,10 @@ export function WidgetLibrary({ onPickStructure, onPickTemplate }: Props) {
     form: "Formularze", navigation: "Nawigacja", blocks: "Bloki",
   };
   const tpl = useSectionTemplates();
+  const globals = useGlobalWidgets();
+  const filteredGlobals = globals.items.filter(
+    (g) => g.name.toLowerCase().includes(search.toLowerCase()),
+  );
 
   const restoreToTemplate = async (rev: TemplateRevision) => {
     await tpl.update(rev.template_id, { section: rev.data, name: rev.name });
@@ -106,6 +114,51 @@ export function WidgetLibrary({ onPickStructure, onPickTemplate }: Props) {
                   </button>
                 </li>
               ))}
+            </ul>
+          ))}
+        </section>
+
+        <section>
+          <button type="button" onClick={() => toggle("__global")}
+            className="w-full text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider inline-flex items-center gap-1.5 hover:text-foreground">
+            {collapsed.__global ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            <Globe className="w-3.5 h-3.5" /> Widgety globalne
+            {globals.loading && <span className="text-[10px] normal-case">…</span>}
+          </button>
+          {!collapsed.__global && (filteredGlobals.length === 0 ? (
+            <div className="text-[10px] text-muted-foreground px-2 py-3 border border-dashed border-border rounded">
+              Brak widgetów globalnych. Kliknij widget prawym przyciskiem i wybierz „Zapisz jako widget globalny” - zmiany będą synchronizowane na wszystkich stronach.
+            </div>
+          ) : (
+            <ul className="space-y-1">
+              {filteredGlobals.map((g) => {
+                const def = WIDGET_MAP[g.data.type];
+                const Icon = def?.icon ?? Globe;
+                return (
+                  <li key={g.id} className="flex items-center gap-1 group/gw">
+                    <button
+                      type="button"
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData(GLOBAL_WIDGET_MIME, JSON.stringify({ id: g.id, data: g.data }));
+                        e.dataTransfer.setData("application/x-widget-type", g.data.type);
+                        e.dataTransfer.effectAllowed = "copy";
+                      }}
+                      onClick={() => onPickGlobal?.(g)}
+                      title={`Wstaw widget globalny: ${g.name} (${def?.label ?? g.data.type})`}
+                      className="flex-1 min-w-0 text-left text-xs px-2 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 rounded inline-flex items-center gap-1.5 cursor-grab active:cursor-grabbing"
+                    >
+                      <Icon className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                      <span className="truncate">{g.name}</span>
+                    </button>
+                    <button type="button" title="Usuń widget globalny"
+                      onClick={() => { if (confirm(`Usunąć widget globalny "${g.name}"? Istniejące kopie na stronach pozostaną jako lokalne.`)) void globals.remove(g.id); }}
+                      className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover/gw:opacity-100 transition">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           ))}
         </section>

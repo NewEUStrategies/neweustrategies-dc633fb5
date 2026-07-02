@@ -1,7 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
-import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Star, Mail, Bookmark, ChevronRight, Lock, Palette, LayoutGrid, Shapes, PanelsTopLeft, Newspaper, Megaphone, Mic, Film, Brush, Wand2, Share2, Gauge } from "@/lib/lucide-shim";
+import { LayoutDashboard, FileText, File, FolderTree, Tags, Users, Image as ImageIcon, LogOut, Home, Moon, Sun, Globe, Settings, PanelLeft, Star, Mail, Bookmark, ChevronRight, Lock, Palette, LayoutGrid, Shapes, PanelsTopLeft, Newspaper, Megaphone, Mic, Film, Brush, Wand2, Share2, Gauge, MousePointerClick, FlaskConical } from "@/lib/lucide-shim";
 import { Inbox, MessageCircle } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
@@ -86,6 +86,8 @@ function AdminShellInner({ children, hideSidebar }: { children: ReactNode; hideS
       label: t("admin.navGroups.engagement"),
       items: [
         { to: "/admin/newsletter", icon: Mail, label: t("admin.nav.newsletter") },
+        { to: "/admin/popups", icon: MousePointerClick, label: t("admin.nav.popups", { defaultValue: lang === "pl" ? "Popupy" : "Popups" }) },
+        { to: "/admin/experiments", icon: FlaskConical, label: t("admin.nav.experiments", { defaultValue: lang === "pl" ? "Testy A/B" : "A/B tests" }) },
         { to: "/admin/contact", icon: Inbox, label: t("admin.nav.contact", { defaultValue: lang === "pl" ? "Centrum kontaktu" : "Contact center" }) },
         { to: "/admin/podcasts", icon: Mic, label: t("admin.nav.podcasts") },
         { to: "/admin/web-stories", icon: Film, label: t("admin.nav.webStories") },
