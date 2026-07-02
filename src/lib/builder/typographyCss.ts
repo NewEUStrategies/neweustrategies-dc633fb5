@@ -30,6 +30,15 @@ function hasKeys(value: WidgetTypography | undefined): value is WidgetTypography
   return !!value && Object.values(value).some((v) => v !== undefined && v !== "");
 }
 
+export function normalizeTypographyGapPx(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.min(200, value));
+  if (typeof value === "string") {
+    const n = Number(value.replace(/[^0-9.]/g, ""));
+    if (Number.isFinite(n)) return Math.max(0, Math.min(200, n));
+  }
+  return undefined;
+}
+
 export function resolveWidgetTypography(
   stored: Themed<WidgetTypography> | undefined,
   mode: Mode,
@@ -133,10 +142,11 @@ export function buildWidgetTypographyRules(
     if (descriptionFallbackSel) rules.push(`${descriptionFallbackSel}{font-size:${descriptionFontSize} !important;}`);
   }
 
-  if (typeof typography.titleDescriptionGapPx === "number" && typography.titleDescriptionGapPx >= 0) {
-    const gap = `${Math.max(0, typography.titleDescriptionGapPx)}px`;
+  const gapPx = normalizeTypographyGapPx(typography.titleDescriptionGapPx);
+  if (typeof gapPx === "number") {
+    const gap = `${gapPx}px`;
     rules.push(`${sel}{--cms-title-description-gap:${gap};}`);
-    rules.push(`${sel} .cms-post-title + .cms-post-excerpt, ${sel} [data-title-root] + [data-description-root], ${sel} [data-typography-gap-target]{margin-top:${gap} !important;}`);
+    rules.push(`${sel} .cms-post-title + .cms-post-excerpt, ${sel} .cms-post-title ~ .cms-post-excerpt, ${sel} [data-title-root] + [data-description-root], ${sel} [data-title-root] ~ [data-description-root], ${sel} [data-typography-gap-target]{margin-top:${gap} !important;}`);
     rules.push(`${sel} a:has(> .cms-post-title) + .cms-post-excerpt{margin-top:${gap} !important;}`);
   }
 
