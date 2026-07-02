@@ -401,7 +401,7 @@ const SHARED_STYLES = `
 .eh-slider .eh-drag-surface.is-dragging { cursor: grabbing; }
 .eh-slider .eh-drag-surface.is-dragging img { pointer-events: none; }
 
-/* Smooth hover zoom for card images (uses CSS `scale` for GPU-cheap animation) */
+/* Smooth hover zoom for card images (uses CSS scale for GPU-cheap animation) */
 .eh-slider .eh-hover-zoom { --eh-zoom: 1; scale: var(--eh-zoom); transition: scale 600ms ease-in-out; transform-origin: center center; backface-visibility: hidden; will-change: scale; }
 .eh-slider .eh-card:hover .eh-hover-zoom,
 .eh-slider .eh-card:focus-within .eh-hover-zoom { --eh-zoom: 1.06; }
