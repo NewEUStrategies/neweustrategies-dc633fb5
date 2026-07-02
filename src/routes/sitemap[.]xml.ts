@@ -151,7 +151,11 @@ export const Route = createFileRoute("/sitemap.xml")({
         return new Response(xml, {
           headers: {
             "Content-Type": "application/xml; charset=utf-8",
-            "Cache-Control": "public, max-age=600, s-maxage=3600",
+            // Zawsze rewaliduj u klienta; CDN trzyma świeżą kopię przez 60s,
+            // stare zwracane jako fallback do 30 min - dzięki temu zmiany SEO
+            // (nowy wpis, seo_noindex, redirect) propagują się bez ręcznego
+            // odswieżania cache.
+            "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=1800, must-revalidate",
           },
         });
       },
