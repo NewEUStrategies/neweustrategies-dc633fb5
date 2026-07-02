@@ -47,7 +47,7 @@ export function PostListCard({
   titleClassName = "text-xl",
   priority = false,
   link = "router",
-  imageZoom = false,
+  imageZoom = true,
 }: PostListCardProps) {
   const title = lang === "en" ? post.title_en || post.title_pl : post.title_pl || post.title_en;
   const excerpt = lang === "en" ? post.excerpt_en : post.excerpt_pl;
