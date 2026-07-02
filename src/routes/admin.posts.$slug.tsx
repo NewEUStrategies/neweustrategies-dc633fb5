@@ -234,6 +234,9 @@ function EditPost() {
     // Refresh every widget cache that references posts (live sync across the site).
     invalidateWidgetCaches(qc);
     emitWidgetCacheInvalidate();
+    // Odswiez publiczne surface'y SEO (mapa strony HTML, dashboard /admin/seo);
+    // sitemap.xml + llms.txt są serwerowe i mają wlasny SWR.
+    invalidateSeoCaches(qc);
     if (snapshot.slug !== routeSlug) {
       navigate({ to: "/admin/posts/$slug", params: { slug: snapshot.slug }, replace: true });
     }
