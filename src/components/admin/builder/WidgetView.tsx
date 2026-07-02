@@ -263,8 +263,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         ...(titleWeight ? { fontWeight: titleWeight as React.CSSProperties["fontWeight"] } : {}),
       };
       const finalStyle = Object.keys(headStyle).length ? headStyle : undefined;
-      // eslint-disable-next-line no-console
-      console.log("DBG heading", { canEdit, editable, finalStyle, headStyleKeys: Object.keys(headStyle) });
       const finalCls = headCls;
       const reg: Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined>;
