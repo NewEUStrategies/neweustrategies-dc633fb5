@@ -139,6 +139,9 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
   // a color on a widget, force descendants to inherit it.
   const widgetTextColor = resolveColorForMode(node.style?.textColor, effectiveMode);
   const widgetBgColor = resolveColorForMode(node.style?.bgColor, effectiveMode);
+  const iconDefault = resolveColorForMode(node.style?.iconColor, effectiveMode);
+  const iconHover = resolveColorForMode(node.style?.iconHoverColor, effectiveMode);
+  const iconActive = resolveColorForMode(node.style?.iconActiveColor, effectiveMode);
   const overrideCss = (() => {
     const sel = `[data-w-id="${node.id}"]`;
     const rules: string[] = [];
@@ -148,6 +151,26 @@ export const WidgetView = memo(function WidgetView({ node, lang, device, editabl
     }
     if (widgetBgColor) {
       rules.push(`${sel} { background: ${widgetBgColor} !important; }`);
+    }
+    // Icon states: SVG + .cms-icon nodes. Force color + fill via currentColor
+    // so stroked and filled glyphs both react.
+    const iconSel = `${sel} :is(svg,.cms-icon):not([data-keep-color])`;
+    if (iconDefault) {
+      rules.push(`${iconSel}{color:${iconDefault} !important;}`);
+      rules.push(`${iconSel} *{fill:currentColor;stroke:currentColor;}`);
+    }
+    if (iconHover) {
+      // Trigger on the closest interactive ancestor (a, button, [role=button])
+      // or directly on the icon container.
+      rules.push(`${sel} :is(a,button,[role="button"]):hover :is(svg,.cms-icon):not([data-keep-color]){color:${iconHover} !important;}`);
+      rules.push(`${sel} :is(svg,.cms-icon):not([data-keep-color]):hover{color:${iconHover} !important;}`);
+    }
+    if (iconActive) {
+      // Current page / active state - honour aria-current, .is-active, [data-active].
+      rules.push(`${sel} :is(a,button)[aria-current="page"] :is(svg,.cms-icon):not([data-keep-color]),
+${sel} :is(a,button).is-active :is(svg,.cms-icon):not([data-keep-color]),
+${sel} :is(a,button)[data-active="true"] :is(svg,.cms-icon):not([data-keep-color]),
+${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${iconActive} !important;}`);
     }
     return rules.join("\n");
   })();
