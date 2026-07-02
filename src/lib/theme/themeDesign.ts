@@ -20,7 +20,7 @@ export const ThemeDesignSchema = z.object({
   blockHeading: z.object({
     fontSize: PX.default("18px"),
     fontWeight: z.number().min(100).max(900).default(700),
-    color: COLOR.default("hsl(var(--foreground))"),
+    color: COLOR.default("var(--foreground)"),
     textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]).default("none"),
     letterSpacing: PX.default("0px"),
     marginBottom: PX.default("16px"),
@@ -34,8 +34,8 @@ export const ThemeDesignSchema = z.object({
   }).default({}),
   readMoreButton: z.object({
     bgColor: COLOR.default("transparent"),
-    color: COLOR.default("hsl(var(--brand))"),
-    borderColor: COLOR.default("hsl(var(--brand))"),
+    color: COLOR.default("var(--brand)"),
+    borderColor: COLOR.default("var(--brand)"),
     radius: PX.default("9999px"),
     paddingX: PX.default("16px"),
     paddingY: PX.default("8px"),
@@ -45,16 +45,16 @@ export const ThemeDesignSchema = z.object({
   }).default({}),
   metaInfo: z.object({
     fontSize: PX.default("13px"),
-    color: COLOR.default("hsl(var(--muted-foreground))"),
+    color: COLOR.default("var(--muted-foreground)"),
     uppercase: z.boolean().default(false),
     gap: PX.default("12px"),
     separator: z.enum(["dot", "slash", "pipe", "none"]).default("dot"),
   }).default({}),
   toolbarButton: z.object({
-    bgColor: COLOR.default("hsl(var(--muted))"),
-    color: COLOR.default("hsl(var(--foreground))"),
-    hoverBgColor: COLOR.default("hsl(var(--muted) / 0.7)"),
-    hoverColor: COLOR.default("hsl(var(--foreground))"),
+    bgColor: COLOR.default("var(--muted)"),
+    color: COLOR.default("var(--foreground)"),
+    hoverBgColor: COLOR.default("color-mix(in oklab, var(--muted) 70%, transparent)"),
+    hoverColor: COLOR.default("var(--foreground)"),
     activeBgColor: COLOR.default("#fa9346"),
     activeColor: COLOR.default("#ffffff"),
     radius: PX.default("6px"),
@@ -63,16 +63,16 @@ export const ThemeDesignSchema = z.object({
     size: PX.default("16px"),
   }).default({}),
   modeSwitcher: z.object({
-    trackBg: COLOR.default("hsl(var(--muted))"),
-    trackBorder: COLOR.default("hsl(var(--border))"),
-    inactiveColor: COLOR.default("hsl(var(--muted-foreground))"),
-    activeBg: COLOR.default("hsl(var(--background))"),
-    activeColor: COLOR.default("hsl(var(--foreground))"),
+    trackBg: COLOR.default("var(--muted)"),
+    trackBorder: COLOR.default("var(--border)"),
+    inactiveColor: COLOR.default("var(--muted-foreground)"),
+    activeBg: COLOR.default("var(--background)"),
+    activeColor: COLOR.default("var(--foreground)"),
     radius: PX.default("6px"),
     showLabel: z.boolean().default(true),
   }).default({}),
   socialIcons: z.object({
-    color: COLOR.default("hsl(var(--foreground))"),
+    color: COLOR.default("var(--foreground)"),
     hoverColor: COLOR.default("#fa9346"),
     bgColor: COLOR.default("transparent"),
     hoverBgColor: COLOR.default("transparent"),
@@ -97,8 +97,8 @@ export const ThemeDesignSchema = z.object({
     fontSizeSm: PX.default("14px"),
     fontWeight: z.number().min(100).max(900).default(600),
     lineHeight: z.union([z.number(), z.string()]).default(1.3),
-    color: COLOR.default("hsl(var(--foreground))"),
-    hoverColor: COLOR.default("hsl(var(--brand))"),
+    color: COLOR.default("var(--foreground)"),
+    hoverColor: COLOR.default("var(--brand)"),
     textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]).default("none"),
     letterSpacing: PX.default("0px"),
   }).default({}),
@@ -107,7 +107,7 @@ export const ThemeDesignSchema = z.object({
     fontSize: PX.default("13px"),
     fontWeight: z.number().min(100).max(900).default(400),
     lineHeight: z.union([z.number(), z.string()]).default(1.5),
-    color: COLOR.default("hsl(var(--muted-foreground))"),
+    color: COLOR.default("var(--muted-foreground)"),
     marginTop: PX.default("6px"),
   }).default({}),
 }).default({});
@@ -151,6 +151,15 @@ export function useSaveThemeDesign() {
     },
     onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
   });
+}
+
+/** Normalizes legacy shadcn-style `hsl(var(--x))` / `hsl(var(--x) / .5)` wrappers
+ *  to bare `var(--x)` — our design tokens now hold ready-to-use color values
+ *  (hex, oklch, color-mix), not raw HSL triplets, so wrapping them in `hsl()`
+ *  produces invalid CSS ("hsl(#F8F6F4)") that browsers silently drop, leaving
+ *  text unreadable in dark mode. Older DB rows still contain the wrapped form. */
+function normalizeColor(c: string): string {
+  return c.replace(/hsl\(\s*var\((--[a-z0-9-]+)\)(?:\s*\/\s*[^)]+)?\s*\)/gi, "var($1)");
 }
 
 /** Serializes the design tokens to CSS variables under `:root`. */
@@ -231,7 +240,7 @@ export function themeDesignToCss(t: ThemeDesign): string {
   v.push(`--td-pe-lh:${t.postExcerpt.lineHeight};`);
   v.push(`--td-pe-color:${t.postExcerpt.color};`);
   v.push(`--td-pe-mt:${t.postExcerpt.marginTop};`);
-  return `:root{${v.join("")}}`;
+  return normalizeColor(`:root{${v.join("")}}`);
 }
 
 function shadow(level: "none" | "sm" | "md" | "lg"): string {
