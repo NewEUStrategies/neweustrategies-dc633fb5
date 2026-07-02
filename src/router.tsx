@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
-import { routerWithQueryClient } from "@tanstack/react-router-with-query";
+import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 
 import { routeTree } from "./routeTree.gen";
 import { addLangPrefix, stripLangPrefix } from "./lib/i18n/localePath";
@@ -69,6 +69,30 @@ export const getRouter = () => {
     },
   });
 
-  return routerWithQueryClient(router, queryClient);
+  // Official router <-> query SSR integration (replaces the deprecated
+  // @tanstack/react-router-with-query, whose last release trailed the router by
+  // ~40 versions): dehydrates the query cache with the router payload, streams
+  // render-phase queries, and provides QueryClientProvider.
+  setupRouterSsrQueryIntegration({ router, queryClient });
+
+  if (!router.isServer) {
+    // The integration hydrates the INITIAL dehydrated batch synchronously, but
+    // pumps the render-phase query STREAM through an async reader chain. React
+    // hydration otherwise starts before those buffered chunks land in the
+    // cache; widgets then render their pending/skeleton state against server
+    // HTML that has real data, and React 19 treats that as a hydration
+    // mismatch and rebuilds the whole tree client-side - the page visibly
+    // blanks and every query refetches. Yielding one macrotask after the
+    // integration's hydrate lets every already-delivered stream chunk settle
+    // into the cache first; router-core awaits options.hydrate before React
+    // hydration begins, so this delays first paint by at most one tick.
+    const integrationHydrate = router.options.hydrate;
+    router.options.hydrate = async (dehydrated) => {
+      await integrationHydrate?.(dehydrated);
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    };
+  }
+
+  return router;
 };
 

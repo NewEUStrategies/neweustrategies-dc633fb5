@@ -11,6 +11,11 @@ import { postListQueryOptions } from "@/lib/builder/postListQuery";
 import { newsTickerQueryOptions } from "@/lib/builder/newsTickerQuery";
 import { postRefQueryOptions } from "@/lib/builder/contentRefs";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderVariants";
+import {
+  sliderPostsLimit,
+  sliderPostsQueryOptions,
+  sliderUsesPostsSource,
+} from "@/lib/builder/sliderPostsQuery";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 
 /** A single cache target for a widget: its query key + matching stale-time. */
@@ -71,7 +76,8 @@ export type BuilderSectionQuery =
   | ReturnType<typeof postListQueryOptions>
   | ReturnType<typeof newsTickerQueryOptions>
   | ReturnType<typeof postRefQueryOptions>
-  | ReturnType<typeof sliderFallbackImagesQueryOptions>;
+  | ReturnType<typeof sliderFallbackImagesQueryOptions>
+  | ReturnType<typeof sliderPostsQueryOptions>;
 
 /**
  * Warm one builder query. BuilderSectionQuery is a union of three differently
@@ -105,15 +111,23 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   }
   if (widget.type === "slider") {
     const items = contentItems(widget.content);
-    const postIds = Array.from(
-      new Set(
-        items
-          .map((item) => item.postId)
-          .filter((id): id is string => typeof id === "string" && id.length > 0),
-      ),
-    );
-    postIds.forEach((id) => out.push(postRefQueryOptions(id, lang)));
-    out.push(sliderFallbackImagesQueryOptions(Math.max(3, items.length || 3)));
+    if (sliderUsesPostsSource(widget.content)) {
+      // Posts-sourced slider (the homepage hero): one list query feeds the
+      // slides; the fallback-images count mirrors SliderRender's
+      // `Math.max(3, items.length)` for a full result.
+      out.push(sliderPostsQueryOptions(widget.content, lang));
+      out.push(sliderFallbackImagesQueryOptions(Math.max(3, sliderPostsLimit(widget.content))));
+    } else {
+      const postIds = Array.from(
+        new Set(
+          items
+            .map((item) => item.postId)
+            .filter((id): id is string => typeof id === "string" && id.length > 0),
+        ),
+      );
+      postIds.forEach((id) => out.push(postRefQueryOptions(id, lang)));
+      out.push(sliderFallbackImagesQueryOptions(Math.max(3, items.length || 3)));
+    }
   }
   return out;
 }
@@ -189,6 +203,15 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
   }
   if (widget.type === "slider") {
     const items = contentItems(widget.content);
+    if (sliderUsesPostsSource(widget.content)) {
+      const postsOpts = sliderPostsQueryOptions(widget.content, lang);
+      out.push({ key: postsOpts.queryKey, staleTime: coerceStaleTime(postsOpts.staleTime) });
+      const fallbackOpts = sliderFallbackImagesQueryOptions(
+        Math.max(3, sliderPostsLimit(widget.content)),
+      );
+      out.push({ key: fallbackOpts.queryKey, staleTime: coerceStaleTime(fallbackOpts.staleTime) });
+      return out;
+    }
     const postIds = Array.from(
       new Set(
         items

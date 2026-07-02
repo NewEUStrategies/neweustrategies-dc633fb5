@@ -17,7 +17,51 @@ const section = (children: ColumnNode[], opts: Partial<SectionNode> = {}): Secti
   id: newId(), kind: "section", children, ...opts,
 });
 
-export const defaultHeaderDoc = (): BuilderDocument => ({
+/**
+ * Rewrite every node id to a stable, position-derived value. These documents
+ * are rendered as the LIVE fallback whenever the corresponding chrome setting
+ * is missing, so they are built independently on the server and in the
+ * browser. With random `newId()` ids the two renders disagree on every
+ * `data-*-id` attribute, React 19 declares a hydration mismatch and rebuilds
+ * the entire tree client-side (blank flash + every query refetching).
+ * Position-based ids make both sides agree; per-scope prefixes keep them
+ * unique when several fallback docs render on one page.
+ */
+function withStableIds(doc: BuilderDocument, prefix: string): BuilderDocument {
+  return {
+    ...doc,
+    sections: doc.sections.map((s, si) => ({
+      ...s,
+      id: `${prefix}-s${si}`,
+      children: (s.children ?? []).map((child, ci) => {
+        if (child.kind === "inner-section") {
+          return {
+            ...child,
+            id: `${prefix}-s${si}-i${ci}`,
+            columns: (child.columns ?? []).map((c, cci) => ({
+              ...c,
+              id: `${prefix}-s${si}-i${ci}-c${cci}`,
+              children: (c.children ?? []).map((w, wi) => ({
+                ...w,
+                id: `${prefix}-s${si}-i${ci}-c${cci}-w${wi}`,
+              })),
+            })),
+          };
+        }
+        return {
+          ...child,
+          id: `${prefix}-s${si}-c${ci}`,
+          children: (child.children ?? []).map((w, wi) => ({
+            ...w,
+            id: `${prefix}-s${si}-c${ci}-w${wi}`,
+          })),
+        };
+      }),
+    })),
+  };
+}
+
+export const defaultHeaderDoc = (): BuilderDocument => withStableIds({
   version: 1,
   sections: [
     // Row 1 - utility bar: newsletter + socials | logo (center) | language switcher
@@ -114,9 +158,9 @@ export const defaultHeaderDoc = (): BuilderDocument => ({
       },
     ),
   ],
-});
+}, "hdr-default");
 
-export const defaultFooterDoc = (): BuilderDocument => ({
+export const defaultFooterDoc = (): BuilderDocument => withStableIds({
   version: 1,
   sections: [
     section(
@@ -155,9 +199,9 @@ export const defaultFooterDoc = (): BuilderDocument => ({
       { layout: { contentWidth: "full", htmlTag: "div" } },
     ),
   ],
-});
+}, "ftr-default");
 
-export const defaultMenuDoc = (): BuilderDocument => ({
+export const defaultMenuDoc = (): BuilderDocument => withStableIds({
   version: 1,
   sections: [
     section(
@@ -172,7 +216,7 @@ export const defaultMenuDoc = (): BuilderDocument => ({
       { layout: { contentWidth: "boxed", width: 1400, htmlTag: "nav" } },
     ),
   ],
-});
+}, "menu-default");
 
 export const defaultDocFor = (scope: "header" | "footer" | "menu"): BuilderDocument =>
   scope === "header" ? defaultHeaderDoc()

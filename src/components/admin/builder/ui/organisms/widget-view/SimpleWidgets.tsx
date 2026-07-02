@@ -8,6 +8,7 @@ import {
   SectionLabelRender, resolveAccentColor, type SectionLabelVariant,
 } from "@/lib/builder/sectionLabelVariants";
 import { SliderRender, type SliderVariant } from "@/lib/builder/sliderVariants";
+import { sliderUsesPostsSource } from "@/lib/builder/sliderPostsQuery";
 import {
   AnimatedHeadingRender, type AnimatedHeadingConfig,
   type AnimatedHeadingMode, type AnimatedHeadingShape,
@@ -430,15 +431,16 @@ export function renderSimpleWidget(
       );
     }
     case "slider": {
-      const rawItems = Array.isArray(c.items) ? (c.items as unknown[]).filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null) : [];
-      const hasBoundItems = rawItems.some((it) => (typeof it.image === "string" && it.image) || (typeof it.postId === "string" && it.postId));
       // Auto-route to posts source when explicitly set OR when all manual
       // items are placeholders (no image, no post binding) so legacy
-      // "Pierwszy/Drugi slajd" defaults render real published posts.
-      if (getStr(c, "source") === "posts" || (!hasBoundItems && rawItems.length > 0) || rawItems.length === 0) {
+      // "Pierwszy/Drugi slajd" defaults render real published posts. The
+      // predicate is shared with the SSR prefetch registry so the server
+      // warms exactly the query this branch will read.
+      if (sliderUsesPostsSource(c)) {
         return <PostsSliderWidget c={c} lang={lang} />;
       }
 
+      const rawItems = Array.isArray(c.items) ? (c.items as unknown[]).filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null) : [];
       const hasRealItems = rawItems.length > 0;
       // In the builder canvas, fall back to demo slides so changing the
       // variant on the left is immediately reflected on the right preview

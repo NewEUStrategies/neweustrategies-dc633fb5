@@ -75,6 +75,30 @@ describe("safeParseBuilderDoc — sections", () => {
     expect(doc.sections[0].id.length).toBeGreaterThan(0);
   });
 
+  it("synthesizes DETERMINISTIC ids - two parses of the same doc agree", () => {
+    // Parsing runs independently on the server and in the browser; a random
+    // fallback id would put a different data-*-id in the SSR HTML than in the
+    // client's hydration render, and React 19 answers a mismatch by rebuilding
+    // the entire tree client-side. Position-derived ids keep both sides equal.
+    const raw = {
+      version: 1,
+      sections: [
+        {
+          kind: "section",
+          children: [
+            { kind: "column", children: [{ type: "heading", content: {} }] },
+          ],
+        },
+      ],
+    };
+    const a = safeParseBuilderDoc(raw);
+    const b = safeParseBuilderDoc(raw);
+    expect(a).toEqual(b);
+    const col = a.sections[0].children[0];
+    expect(a.sections[0].id).toBe(b.sections[0].id);
+    expect(col.id).toBe(b.sections[0].children[0].id);
+  });
+
   it("preserves cosmetic fields untouched", () => {
     const background = { type: "classic", imageUrl: "https://x/y.jpg" };
     const style = { bgColor: "#fff" };

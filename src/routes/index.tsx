@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { parseBuilderDoc } from "@/lib/builder/parse";
+import { prefetchCachedRouteQueries } from "@/lib/builder/prefetch";
 import { homePageQueryOptions } from "@/lib/queries/public";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -18,19 +19,26 @@ export const Route = createFileRoute("/")({
     // language lives in the URL path (PL at "/", EN at "/en"), so each variant
     // is its own cache entry - no cookie-driven personalization, no poisoning.
     setCacheControlHeader(contentCacheControl());
-    await context.queryClient.ensureQueryData(homePageQueryOptions());
-    // NOTE: do NOT prefetch the above-the-fold widget queries from this loader.
-    // Eagerly priming widget queries here triggers a known interaction with the
-    // router/query bridge where freshly-added queries don't dehydrate cleanly,
-    // producing a server-vs-client hydration mismatch (server has data, client
-    // renders the skeleton) and, in dev, a 500 from the bridge subscriber.
-    // Instead, every data-bound section - including above the fold - is
-    // server-rendered through the Suspense streaming gate: the homepage's
-    // <BuilderRenderer> sets aboveFoldCount={0}, so ServerSectionGate warms
-    // those queries during render (the dehydration-safe path) and their data
-    // ships as complete HTML inside the streamed, CDN-cached response instead
-    // of flashing a skeleton and popping in after client hydration. Priming the
-    // homePage doc here is enough for a fast shell flush; sections stream in.
+    const homePage = await context.queryClient.ensureQueryData(homePageQueryOptions());
+    // Settle every data-bound widget query BEFORE the router dehydrates - the
+    // same model as $.tsx. Settled queries ship as plain data in the initial
+    // dehydrated payload and hydrate synchronously, so client hydration sees
+    // exactly what the server rendered. A query still pending at dehydration
+    // time travels over the async query STREAM instead; a widget reading it
+    // hydrates against its skeleton while the server HTML has real content -
+    // a mismatch React 19 answers by rebuilding the whole page client-side
+    // (visible blank + full refetch; the old router-with-query bridge made
+    // this the norm here). The prefetch runs in parallel with a hard budget
+    // (see prefetchCachedRouteQueries) - and the homepage is edge-cached, so
+    // the cost is paid once per revalidation, not per visitor. Anything past
+    // the budget still streams via the ServerSectionGate as before.
+    if (homePage && homePage.editor === "builder") {
+      const doc = parseBuilderDoc(homePage.builder_data);
+      if (doc.sections.length > 0) {
+        const lang = activeLang(getRequestUrl() || "/") === "en" ? "en" : "pl";
+        await prefetchCachedRouteQueries(context.queryClient, doc, lang);
+      }
+    }
     return null;
   },
 
@@ -64,15 +72,13 @@ function Index() {
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <main className="flex-1 w-full">
         {doc && doc.sections.length > 0 ? (
-          // aboveFoldCount={0}: unlike $.tsx (which prefetches its first
-          // sections in the loader), the homepage cannot safely prefetch
-          // above-the-fold widget data server-side (see the loader note above),
-          // so every data-bound section is server-rendered through the
-          // ServerSectionGate streaming path instead. Static sections (no data
-          // queries) still render eagerly into the shell - the hero is
-          // unaffected - while data-bound top widgets (post-list/slider/
-          // carousel) now arrive as complete server HTML baked into the
-          // CDN-cached response rather than as a client-side skeleton flash.
+          // The loader settles the whole document's widget queries before the
+          // router dehydrates (see loader note), so sections normally render
+          // eagerly with data into the SSR shell. `stream` +
+          // aboveFoldCount={0} stay on purely as the budget-overrun safety
+          // valve: a query that outruns the loader's prefetch budget streams
+          // through the ServerSectionGate instead of blocking or blanking the
+          // response.
           <BuilderRenderer doc={doc} lang={lang} stream aboveFoldCount={0} />
         ) : (
           <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-24 text-center text-muted-foreground">

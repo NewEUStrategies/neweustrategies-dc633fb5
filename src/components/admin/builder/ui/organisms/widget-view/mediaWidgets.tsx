@@ -6,9 +6,9 @@ import { safeImageUrl } from "@/lib/sanitize";
 import { getStr, getNum, type Lang } from "./frame";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { SliderRender, type SliderVariant } from "@/lib/builder/sliderVariants";
+import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
-import { supabase } from "@/integrations/supabase/client";
 import { ResizableImageWrap } from "./resizeWrappers";
 
 type SiteLogoVariant = "main" | "mobile" | "transparent";
@@ -150,12 +150,6 @@ export function ImageWidget({ c, lang, theme, editable, onContentChange }: {
 }
 
 export function PostsSliderWidget({ c, lang }: { c: WidgetNode["content"]; lang: Lang }) {
-  const limit = Math.max(1, Math.min(20, getNum(c, "limit", 5)));
-  const categoryId = getStr(c, "categoryId") || "";
-  const categorySlugsRaw = getStr(c, "categorySlugs") || "";
-  const tagSlugsRaw = getStr(c, "tagSlugs") || "";
-  const excludeRaw = getStr(c, "excludeIds") || "";
-  const orderBy = getStr(c, "orderBy") || "newest";
   const variant = (getStr(c, "variant") || "hero-overlay") as SliderVariant;
   const ratio = (getStr(c, "ratio") || "16/9") as "16/9" | "4/3" | "1/1" | "21/9" | "3/2";
   const autoplay = c.autoplay !== false;
@@ -165,52 +159,30 @@ export function PostsSliderWidget({ c, lang }: { c: WidgetNode["content"]; lang:
   const showExcerpt = c.showExcerpt !== false;
   const ctaLabel = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || "";
 
-  const categorySlugs = categorySlugsRaw.split(",").map((s) => s.trim()).filter(Boolean);
-  const tagSlugs = tagSlugsRaw.split(",").map((s) => s.trim()).filter(Boolean);
-  const excludeIds = excludeRaw.split(",").map((s) => s.trim()).filter(Boolean);
-
-  const { data: items = [] } = useQuery({
-    queryKey: ["builder-slider-posts", { limit, categoryId, categorySlugs, tagSlugs, excludeIds, orderBy }],
-    queryFn: async () => {
-      let allowedIds: string[] | null = null;
-      if (categoryId) {
-        const { data } = await supabase.from("post_categories").select("post_id").eq("category_id", categoryId);
-        allowedIds = (data ?? []).map((r) => r.post_id);
-      }
-      if (categorySlugs.length) {
-        const { data } = await supabase.from("post_categories").select("post_id, categories!inner(slug)").in("categories.slug", categorySlugs);
-        const ids = (data ?? []).map((r: { post_id: string }) => r.post_id);
-        allowedIds = allowedIds ? allowedIds.filter((id) => ids.includes(id)) : ids;
-      }
-      if (tagSlugs.length) {
-        const { data: tagRows } = await supabase.from("tags").select("id").in("slug", tagSlugs);
-        const tagIds = (tagRows ?? []).map((r) => r.id);
-        if (tagIds.length) {
-          const { data: ptRows } = await supabase.from("post_tags").select("post_id").in("tag_id", tagIds);
-          const ids = (ptRows ?? []).map((r) => r.post_id);
-          allowedIds = allowedIds ? allowedIds.filter((id) => ids.includes(id)) : ids;
-        } else {
-          allowedIds = [];
-        }
-      }
-      if (allowedIds && allowedIds.length === 0) return [];
-      let q = supabase
-        .from("posts")
-        .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at")
-        .eq("status", "published");
-      if (allowedIds) q = q.in("id", allowedIds);
-      if (excludeIds.length) q = q.not("id", "in", `(${excludeIds.join(",")})`);
-      const ascending = orderBy === "oldest";
-      const orderCol = orderBy === "title" ? (lang === "en" ? "title_en" : "title_pl") : "published_at";
-      q = q.order(orderCol, { ascending });
-      q = q.limit(limit);
-      const { data } = await q;
-      return data ?? [];
-    },
-  });
+  // Shared with the SSR prefetch registry (lib/builder/prefetch), so the
+  // streaming gate warms this exact cache entry and the slider ships as
+  // complete server HTML instead of an empty state that pops in later.
+  const { data: items = [], isPending } = useQuery(sliderPostsQueryOptions(c, lang));
 
   const columnsRaw = getNum(c, "columns", 3);
   const columns = (Math.max(1, Math.min(4, columnsRaw)) as 1 | 2 | 3 | 4);
+
+  // While the initial fetch is in flight, hold layout with a quiet shimmer
+  // instead of flashing the "Dodaj obrazki do slidera" empty state - that
+  // message is only true once the query has settled with no posts.
+  if (isPending) {
+    return (
+      <div
+        aria-busy="true"
+        className="w-full skeleton-shimmer"
+        style={{
+          aspectRatio: ratio.replace("/", " / "),
+          borderRadius: { none: "0px", sm: "4px", md: "8px", lg: "16px", xl: "24px", full: "9999px" }[rounded],
+        }}
+      />
+    );
+  }
+
   const cfg = {
     variant, ratio, autoplay, intervalMs, rounded, overlayOpacity, columns,
     titleSizePx: typeof c.titleSizePx === "number" ? c.titleSizePx : undefined,
