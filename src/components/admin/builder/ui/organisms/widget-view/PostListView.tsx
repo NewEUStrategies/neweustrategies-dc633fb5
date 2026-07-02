@@ -543,7 +543,7 @@ function PostCard({
   return (
     <AppLink href={`/post/${p.slug}`} className={base}>
       {p.cover_image_url && (
-        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={tileFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
+        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={tileFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
       )}
       <div className="p-3">
         <h4 className="cms-post-title leading-snug mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>
