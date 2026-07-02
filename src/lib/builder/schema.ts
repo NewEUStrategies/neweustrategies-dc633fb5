@@ -22,7 +22,7 @@ import type {
   WidgetType,
   ResponsiveValue,
 } from "./types";
-import { emptyDocument, newId } from "./types";
+import { emptyDocument } from "./types";
 
 // Canonical, ordered list of every widget type the renderer understands. Kept
 // in lockstep with the `WidgetType` union (compile-time assertions below) and
@@ -90,8 +90,15 @@ function asArray(x: unknown): unknown[] {
   return Array.isArray(x) ? x : [];
 }
 
-function takeId(raw: Record<string, unknown>): string {
-  return typeof raw.id === "string" && raw.id.length > 0 ? raw.id : newId();
+/**
+ * Node id, or a synthesized fallback for legacy/imported nodes saved without
+ * one. The fallback is derived from the node's POSITION in the document (not
+ * `newId()`): parsing runs independently on the server and in the browser, and
+ * a random id would make the SSR HTML disagree with the client render - React
+ * then throws the whole hydrated tree away and re-renders from scratch.
+ */
+function takeId(raw: Record<string, unknown>, path: string): string {
+  return typeof raw.id === "string" && raw.id.length > 0 ? raw.id : `auto-${path}`;
 }
 
 /** ResponsiveValue<number> guard: keep only the numeric breakpoint keys. */
@@ -104,47 +111,47 @@ function coerceSpan(raw: unknown): ResponsiveValue<number> {
   return out;
 }
 
-function coerceWidget(raw: unknown): WidgetNode | null {
+function coerceWidget(raw: unknown, path: string): WidgetNode | null {
   if (!isObject(raw)) return null;
   // Unknown widget types are dropped: the renderer would render nothing for
   // them anyway, and shipping them risks a future eager switch arm crashing on
   // unexpected content.
   if (!isKnownWidgetType(raw.type)) return null;
   const content: WidgetContent = isObject(raw.content) ? (raw.content as WidgetContent) : {};
-  return { ...raw, id: takeId(raw), kind: "widget", type: raw.type, content } as WidgetNode;
+  return { ...raw, id: takeId(raw, path), kind: "widget", type: raw.type, content } as WidgetNode;
 }
 
-function coerceColumn(raw: unknown): ColumnNode | null {
+function coerceColumn(raw: unknown, path: string): ColumnNode | null {
   if (!isObject(raw)) return null;
   const children = asArray(raw.children)
-    .map(coerceWidget)
+    .map((child, i) => coerceWidget(child, `${path}.w${i}`))
     .filter((w): w is WidgetNode => w !== null);
-  return { ...raw, id: takeId(raw), kind: "column", span: coerceSpan(raw.span), children } as ColumnNode;
+  return { ...raw, id: takeId(raw, path), kind: "column", span: coerceSpan(raw.span), children } as ColumnNode;
 }
 
-function coerceInnerSection(raw: Record<string, unknown>): InnerSectionNode {
+function coerceInnerSection(raw: Record<string, unknown>, path: string): InnerSectionNode {
   const columns = asArray(raw.columns)
-    .map(coerceColumn)
+    .map((col, i) => coerceColumn(col, `${path}.c${i}`))
     .filter((c): c is ColumnNode => c !== null);
-  return { ...raw, id: takeId(raw), kind: "inner-section", columns } as InnerSectionNode;
+  return { ...raw, id: takeId(raw, path), kind: "inner-section", columns } as InnerSectionNode;
 }
 
-function coerceSectionChild(raw: unknown): ColumnNode | InnerSectionNode | null {
+function coerceSectionChild(raw: unknown, path: string): ColumnNode | InnerSectionNode | null {
   if (!isObject(raw)) return null;
   // Distinguish inner-sections from columns by their discriminator or shape:
   // an inner-section nests `columns`; a column nests widget `children`.
   if (raw.kind === "inner-section" || (Array.isArray(raw.columns) && !Array.isArray(raw.children))) {
-    return coerceInnerSection(raw);
+    return coerceInnerSection(raw, path);
   }
-  return coerceColumn(raw);
+  return coerceColumn(raw, path);
 }
 
-function coerceSection(raw: unknown): SectionNode | null {
+function coerceSection(raw: unknown, path: string): SectionNode | null {
   if (!isObject(raw)) return null;
   const children = asArray(raw.children)
-    .map(coerceSectionChild)
+    .map((child, i) => coerceSectionChild(child, `${path}.c${i}`))
     .filter((c): c is ColumnNode | InnerSectionNode => c !== null);
-  return { ...raw, id: takeId(raw), kind: "section", children } as SectionNode;
+  return { ...raw, id: takeId(raw, path), kind: "section", children } as SectionNode;
 }
 
 /**
@@ -157,7 +164,7 @@ export function safeParseBuilderDoc(raw: unknown): BuilderDocument {
   if (!isObject(raw)) return emptyDocument();
   if (raw.version !== 1 || !Array.isArray(raw.sections)) return emptyDocument();
   const sections = raw.sections
-    .map(coerceSection)
+    .map((section, i) => coerceSection(section, `s${i}`))
     .filter((s): s is SectionNode => s !== null);
   return { version: 1, sections };
 }

@@ -266,6 +266,32 @@ describe("widgetQueryOptionsList", () => {
     expect(widgetQueryOptionsList(makeWidget("text"), "pl")).toHaveLength(0);
   });
 
+  it("maps a posts-sourced slider to the slider-posts list query plus fallback images", () => {
+    // Explicit posts source - the homepage hero configuration.
+    const explicit = makeWidget("slider", {
+      content: { source: "posts", limit: 5 },
+    } as Partial<WidgetNode>);
+    const keys = widgetQueryOptionsList(explicit, "pl").map((o) => o.queryKey[0]);
+    expect(keys).toContain("builder-slider-posts");
+    expect(keys).toContain("builder-slider-fallback-images");
+    expect(keys).not.toContain("post-ref");
+  });
+
+  it("routes an items-less slider to posts mode, mirroring the renderer's auto-routing", () => {
+    const bare = makeWidget("slider", { content: {} } as Partial<WidgetNode>);
+    const keys = widgetQueryOptionsList(bare, "pl").map((o) => o.queryKey[0]);
+    expect(keys).toContain("builder-slider-posts");
+  });
+
+  it("keeps per-item post refs for sliders with manually bound items", () => {
+    const manual = makeWidget("slider", {
+      content: { items: [{ postId: "p1" }, { image: "https://x/y.jpg" }] },
+    } as Partial<WidgetNode>);
+    const keys = widgetQueryOptionsList(manual, "pl").map((o) => o.queryKey[0]);
+    expect(keys).not.toContain("builder-slider-posts");
+    expect(keys.filter((k) => k === "post-ref")).toHaveLength(1);
+  });
+
   it("is the single source of truth behind prefetchWidgets' fan-out count", async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const spy = vi.spyOn(qc, "prefetchQuery").mockResolvedValue(undefined);

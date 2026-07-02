@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 type Theme = "light" | "dark";
 const STORAGE_KEY = "theme";
@@ -22,9 +22,29 @@ function apply(theme: Theme) {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => readStored());
+  // Start as "light" on BOTH server and client. The server cannot know the
+  // visitor's stored preference, so reading localStorage in the state
+  // initializer made the first client render disagree with the SSR HTML for
+  // dark-mode visitors - React 19 then rebuilds the entire hydrated tree
+  // (blank flash, every query refetches). The inline script in __root.tsx
+  // already applies the stored class before first paint, so starting "light"
+  // causes no visual flash; state adopts the stored value right after
+  // hydration in the effect below.
+  const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
+    setThemeState(readStored());
+  }, []);
+
+  // Skip the first run: until state has adopted the stored preference, the
+  // pre-hydration script owns the <html> class - applying the transient
+  // "light" default here would flash a dark-mode visitor to light.
+  const appliedOnce = useRef(false);
+  useEffect(() => {
+    if (!appliedOnce.current) {
+      appliedOnce.current = true;
+      return;
+    }
     apply(theme);
   }, [theme]);
 

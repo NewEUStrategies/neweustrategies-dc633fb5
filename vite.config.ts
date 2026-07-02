@@ -42,6 +42,23 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    // These are only reached through TanStack Start's dev-time SSR/client
+    // bridge, so Vite's initial crawl misses them and discovers them during the
+    // FIRST page load - "new dependencies optimized: ... reloading" then forces
+    // a full page reload mid-session (the page visibly loads twice after every
+    // dev-server restart). Pre-bundling them up front removes that reload.
+    // (Deliberately NOT @tanstack/react-start itself - see the wrapper's note:
+    // its node:async_hooks server entry must stay out of the client bundle.)
+    optimizeDeps: {
+      include: [
+        "@tanstack/history",
+        "@tanstack/router-core",
+        "@tanstack/router-core/ssr/client",
+        "@tanstack/router-core/ssr/server",
+        "h3-v2",
+        "seroval",
+      ],
+    },
     build: {
       rollupOptions: {
         output: { manualChunks },
