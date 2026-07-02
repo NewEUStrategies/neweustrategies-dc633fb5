@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSiteSetting } from "@/lib/useSiteSetting";
+import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { normalize, pickGreeting, DEFAULT_GREETINGS, type Lang, type NameEntry, type GreetingsDictionary } from "./greetings";
 
 interface ProfileLite {
@@ -32,51 +33,50 @@ function deriveFirstName(p: ProfileLite | null, meta: Record<string, unknown> | 
 
 /**
  * Resolves a personalized, time-of-day greeting for the current user.
- * Returns a synchronous fallback immediately, then upgrades to a vocative-aware
- * variant once the name dictionary entry is resolved.
+ *
+ * No request waterfall: a greeting is returned synchronously as soon as the
+ * session is known (name derived from auth metadata / email), while the
+ * profile row (shared with the account menu via useHeaderProfile - one fetch
+ * for the whole header) and the vocative dictionary entry resolve in parallel
+ * and upgrade the text in place. Previously this awaited profile -> then
+ * dictionary sequentially before showing anything.
  */
 export function useGreeting(): string | null {
   const { user } = useAuth();
   const { i18n } = useTranslation();
   const lang: Lang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const overrides = useSiteSetting<GreetingsDictionary>("greetings", DEFAULT_GREETINGS);
-  const [greeting, setGreeting] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user?.id) { setGreeting(null); return; }
-    let cancelled = false;
+  const { data: profile } = useHeaderProfile(user?.id);
 
-    void (async () => {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("first_name, last_name, display_name")
-        .eq("id", user.id)
-        .maybeSingle<ProfileLite>();
+  const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
+  const first = user ? deriveFirstName(profile ?? null, meta, user.email ?? null) : "";
+  const normalized = first ? normalize(first) : "";
 
-      const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
-      const first = deriveFirstName(profile ?? null, meta, user.email ?? null);
+  // Vocative / gender entry, cached per normalized name (names repeat across
+  // users and sessions; the dictionary is effectively immutable content).
+  const { data: entry } = useQuery({
+    queryKey: ["name-dictionary", normalized],
+    enabled: !!normalized,
+    staleTime: 24 * 60 * 60_000,
+    gcTime: 60 * 60_000,
+    queryFn: async (): Promise<NameEntry | null> => {
+      const { data } = await supabase
+        .from("name_dictionary")
+        .select("name, name_normalized, gender, vocative_pl, vocative_en")
+        .eq("name_normalized", normalized)
+        .limit(1)
+        .maybeSingle<NameEntry>();
+      return data ?? null;
+    },
+  });
 
-      // Sync fallback right away (plain name, no vocative yet).
-      if (!cancelled) {
-        setGreeting(pickGreeting({ lang, firstName: first || null, entry: null, seed: user.id, overrides }));
-      }
-
-      // Upgrade with dictionary entry (vocative_pl / vocative_en, gender).
-      if (first) {
-        const { data } = await supabase
-          .from("name_dictionary")
-          .select("name, name_normalized, gender, vocative_pl, vocative_en")
-          .eq("name_normalized", normalize(first))
-          .limit(1)
-          .maybeSingle<NameEntry>();
-        if (!cancelled) {
-          setGreeting(pickGreeting({ lang, firstName: first, entry: data ?? null, seed: user.id, overrides }));
-        }
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [user?.id, user?.email, lang, overrides]);
-
-  return greeting;
+  if (!user?.id) return null;
+  return pickGreeting({
+    lang,
+    firstName: first || null,
+    entry: entry ?? null,
+    seed: user.id,
+    overrides,
+  });
 }

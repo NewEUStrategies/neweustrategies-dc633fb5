@@ -15,6 +15,10 @@ export interface PostRow {
   published_at: string | null;
   post_format: string | null;
   author_id: string | null;
+  /** Resolved inside the query for variants that render a byline (ranked /
+   *  numbered), so author names ship with the SSR prefetch instead of popping
+   *  in via a separate client-side query after hydration. */
+  author_display_name?: string | null;
 }
 
 interface PostListInput {
@@ -289,7 +293,40 @@ async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
   if (effectiveOrderBy === "popular" && popularIds) {
     rows = rankAndSlicePopular(rows, popularIds, input.offset, input.limit);
   }
-  return rows;
+  return attachAuthorNames(rows, input.variant);
+}
+
+/** Variants that render a "By <author>" byline and therefore need names. */
+const BYLINE_VARIANTS = new Set(["ranked", "numbered"]);
+
+/**
+ * Resolve author display names as part of the SAME query that fetches the
+ * rows. posts.author_id references auth.users (not profiles), so PostgREST
+ * cannot embed the profile in one select - but doing the lookup here means the
+ * server-side widget prefetch covers bylines too: they render in the SSR HTML
+ * instead of appearing after hydration (which read as "the page keeps
+ * loading"). Only byline variants pay the extra round-trip.
+ */
+async function attachAuthorNames(rows: PostRow[], variant: string): Promise<PostRow[]> {
+  if (!BYLINE_VARIANTS.has(variant) || rows.length === 0) return rows;
+  const authorIds = Array.from(
+    new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x)),
+  );
+  if (authorIds.length === 0) return rows;
+  const { data: profs } = await supabase
+    .from("profiles")
+    .select("id, display_name")
+    .in("id", authorIds);
+  const names = new Map(
+    ((profs ?? []) as Array<{ id: string; display_name: string | null }>).map((p) => [
+      p.id,
+      p.display_name,
+    ]),
+  );
+  return rows.map((r) => ({
+    ...r,
+    author_display_name: r.author_id ? (names.get(r.author_id) ?? null) : null,
+  }));
 }
 
 export const postListQueryOptions = (c: WidgetContent, lang: Lang) => {

@@ -7,6 +7,7 @@
 // Atomic design: AccountMenu = molecule (Popover + lista). i18n: PL/EN.
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useGreeting } from "@/lib/greetings/useGreeting";
+import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as LucideIcons from "lucide-react";
@@ -140,18 +141,8 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const hasPageItems = items.some((i) => i.kind === "page");
   const { data: pages } = usePagesIndex(hasPageItems, lang);
 
-  const { data: profile } = useQuery({
-    queryKey: ["header-profile", user?.id],
-    enabled: !!user?.id,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("first_name, display_name, avatar_url")
-        .eq("id", user!.id)
-        .maybeSingle();
-      return data;
-    },
-  });
+  // Shared with useGreeting - one profile round-trip for the whole header.
+  const { data: profile } = useHeaderProfile(user?.id);
 
   const firstName = profile?.first_name ?? "";
   const displayName = profile?.display_name ?? user?.email ?? "";

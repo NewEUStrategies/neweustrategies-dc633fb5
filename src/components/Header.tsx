@@ -4,25 +4,16 @@ import { memo, Suspense } from "react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
+import type { TickerConfig } from "@/lib/views/headerTickerQuery";
 import { AlertBar } from "@/components/AlertBar";
 import { AdZone } from "@/components/AdSlot";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 
-type TrendingCfg = {
-  enabled?: boolean;
-  source?: "trending" | "latest" | "pinned";
-  mode?: "scroll" | "rotate";
-  days?: number;
-  limit?: number;
-  intervalSec?: number;
-  pinnedPostId?: string;
-  pinnedUntil?: string | null;
-  fullWidth?: boolean;
-};
-type HeaderSettings = {
+// Shared with the root loader (SSR prefetch of the ticker) - keep in sync.
+export type HeaderSettings = {
   builder_data?: BuilderDocument | null;
-  trending?: TrendingCfg;
+  trending?: TickerConfig;
 };
 
 function HeaderInner() {
