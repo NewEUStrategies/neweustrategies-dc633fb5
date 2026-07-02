@@ -183,6 +183,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
                 responsiveWidths={[128, 256, 384]}
                 sizes="(max-width: 640px) 112px, 128px"
                 foregroundClassName={COVER_IMG_CLASS}
+                hoverEffect="zoom"
               />
             )}
             <div className="min-w-0">
@@ -376,6 +377,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
                 responsiveWidths={[120, 160, 240, 320]}
                 sizes="(max-width: 640px) 96px, (max-width: 1024px) 140px, 180px"
                 foregroundClassName={COVER_IMG_CLASS}
+                hoverEffect="zoom"
               />
             )}
 
@@ -392,7 +394,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
         {rows.map((p) => (
           <AppLink key={p.id} href={`/post/${p.slug}`} className="block group">
             {p.cover_image_url && (
-              <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-md mb-4`} sizes="(max-width: 1024px) 100vw, 900px" foregroundClassName={COVER_IMG_CLASS} />
+              <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-md mb-4`} sizes="(max-width: 1024px) 100vw, 900px" foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
             )}
             <h3 className="cms-post-title leading-tight line-clamp-3" style={tStyle}>{title(p)}</h3>
             {excerpt(p) && <p className="cms-post-excerpt mt-2 line-clamp-3" style={eStyle}>{excerpt(p)}</p>}
@@ -430,7 +432,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
                 className={`grid ${p.cover_image_url ? "grid-cols-[96px_minmax(0,1fr)] sm:grid-cols-[104px_minmax(0,1fr)]" : "grid-cols-[28px_minmax(0,1fr)]"} items-start gap-2.5 sm:gap-3 py-3 sm:py-3.5 first:pt-0 group`}
               >
                 {p.cover_image_url ? (
-                  <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`relative block aspect-[4/3] w-full shrink-0 overflow-hidden rounded-sm bg-muted`} sizes="104px" foregroundClassName={COVER_IMG_CLASS} />
+                  <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`relative block aspect-[4/3] w-full shrink-0 overflow-hidden rounded-sm bg-muted`} sizes="104px" foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
                 ) : (
                   <span className="font-serif text-lg tabular-nums text-brand/80 leading-none pt-0.5">{String(i + 1).padStart(2, "0")}</span>
                 )}
@@ -529,7 +531,7 @@ function PostCard({
     return (
       <AppLink href={`/post/${p.slug}`} className={`block group ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
         {p.cover_image_url && (
-          <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-sm mb-3`} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
+          <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-sm mb-3`} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
         )}
         <h4 className="cms-post-title leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
         {excerpt && <p className="cms-post-excerpt text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug" style={excerptStyle}>{excerpt}</p>}
@@ -541,7 +543,7 @@ function PostCard({
   return (
     <AppLink href={`/post/${p.slug}`} className={base}>
       {p.cover_image_url && (
-        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={tileFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} />
+        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={tileFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
       )}
       <div className="p-3">
         <h4 className="cms-post-title leading-snug mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>

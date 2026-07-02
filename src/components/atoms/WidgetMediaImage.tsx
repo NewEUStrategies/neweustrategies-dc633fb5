@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactEventHandler } from "react";
-import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { OptimizedImage, type HoverEffect } from "@/components/atoms/OptimizedImage";
 
 interface WidgetMediaImageProps {
   src: string | null | undefined;
@@ -13,6 +13,7 @@ interface WidgetMediaImageProps {
   foregroundClassName?: string;
   foregroundStyle?: CSSProperties;
   onError?: ReactEventHandler<HTMLImageElement>;
+  hoverEffect?: HoverEffect;
 }
 
 type WidgetMediaFrameStyle = CSSProperties & {
@@ -36,6 +37,7 @@ export function WidgetMediaImage({
   foregroundClassName = "absolute inset-0 block h-full w-full object-cover",
   foregroundStyle,
   onError,
+  hoverEffect = "none",
 }: WidgetMediaImageProps) {
   const frameStyle: WidgetMediaFrameStyle = {
     ...style,
@@ -62,6 +64,7 @@ export function WidgetMediaImage({
         className={`${foregroundClassName} widget-media-fg`}
         style={foregroundStyle}
         onError={onError}
+        hoverEffect={hoverEffect}
       />
     </span>
   );
