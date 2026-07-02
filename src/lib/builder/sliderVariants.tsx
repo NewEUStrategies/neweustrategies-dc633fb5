@@ -223,8 +223,11 @@ interface ResilientSliderImageProps {
   priority?: boolean;
   /** Override layout className (default: absolute fill cover). */
   className?: string;
+  /** Optional inline style overrides merged after fade transition. */
+  style?: CSSProperties;
   /** Force visibility (skip the fade-via-opacity behaviour). */
   alwaysVisible?: boolean;
+
 }
 
 function ResilientSliderImage({
