@@ -410,7 +410,7 @@ export function PostListEditor({ c, lang, setContent }: Props) {
           </div>
 
 
-          <div className="grid grid-cols-2 gap-2 mt-2">
+          <div className="grid grid-cols-1 gap-3 mt-3 p-2.5 rounded-md border border-border/60 bg-muted/30">
             <PropField label="Kolor (light)">
               <ColorField value={str(c, "indexColor", "")} onChange={(v) => setContent("indexColor", v ?? "")} />
             </PropField>
