@@ -554,6 +554,8 @@ export function AnimatedHeadingRender({
 
   return (
     <Tag
+      data-title-root
+      data-typography-role="title"
       className="font-display text-3xl md:text-4xl leading-tight"
       style={{
         color,

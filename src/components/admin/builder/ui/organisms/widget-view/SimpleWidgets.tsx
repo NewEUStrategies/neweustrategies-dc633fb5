@@ -1,7 +1,7 @@
 // Read-only widget renderers (no inline editing). Returns null when the
 // widget type isn't handled here - caller falls through to the main switch.
 import { type CSSProperties, type ReactElement, type ReactNode } from "react";
-import type { WidgetNode } from "@/lib/builder/types";
+import type { WidgetNode, WidgetTypography } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { sanitizeHtml, safeUrl, safeImageUrl } from "@/lib/sanitize";
 import {
@@ -49,6 +49,7 @@ export function renderSimpleWidget(
   theme: string | undefined,
   editable: boolean = false,
   onContentChange?: (key: string, value: string | number) => void,
+  typography?: WidgetTypography,
 ): ReactNode | undefined {
   const c = node.content;
 
@@ -437,7 +438,7 @@ export function renderSimpleWidget(
       // predicate is shared with the SSR prefetch registry so the server
       // warms exactly the query this branch will read.
       if (sliderUsesPostsSource(c)) {
-        return <PostsSliderWidget c={c} lang={lang} />;
+        return <PostsSliderWidget c={c} lang={lang} typography={typography} />;
       }
 
       const rawItems = Array.isArray(c.items) ? (c.items as unknown[]).filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null) : [];
@@ -478,14 +479,14 @@ export function renderSimpleWidget(
       if (!hasRealItems && editable) {
         return (
           <div className="relative w-full">
-            <SliderRender config={cfg} lang={lang} />
+            <SliderRender config={{ ...cfg, typography }} lang={lang} />
             <div className="pointer-events-none absolute top-2 left-2 z-10 rounded-md bg-background/85 backdrop-blur px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground border border-border">
               Podgląd · dodaj slajdy w panelu
             </div>
           </div>
         );
       }
-      return <SliderRender config={cfg} lang={lang} />;
+      return <SliderRender config={{ ...cfg, typography }} lang={lang} />;
     }
     case "animated-heading": {
       const rotateRaw = c[`rotateWords_${lang}`] ?? c.rotateWords_pl;

@@ -16,7 +16,13 @@ interface Props {
 
 export function TypographyControl({ value, onChange }: Props) {
   const v = value ?? {};
-  const set = (patch: Partial<WidgetTypography>) => onChange({ ...v, ...patch });
+  const set = (patch: Partial<WidgetTypography>) => {
+    const next = { ...v, ...patch } as WidgetTypography;
+    for (const key of Object.keys(next) as Array<keyof WidgetTypography>) {
+      if (next[key] === undefined || next[key] === "") delete next[key];
+    }
+    onChange(next);
+  };
 
   const rawUnified = v.fontSize?.desktop ?? v.fontSize?.tablet ?? v.fontSize?.mobile ?? "";
   const unifiedPx = String(rawUnified).replace(/[^0-9]/g, "");
