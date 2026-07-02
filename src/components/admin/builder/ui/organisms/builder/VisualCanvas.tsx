@@ -56,20 +56,49 @@ export function VisualCanvas({
   const autoScrollRafRef = useRef<number | null>(null);
   const dragGhostRef = useRef<HTMLElement | null>(null);
 
-  const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  // Selection runs in React's capture phase so it fires BEFORE the native
+  // capture listener below stops the event. That listener kills navigation
+  // (native <a href>, TanStack Link, programmatic navigate() in onClick) so
+  // clicking a widget in the builder edits it instead of jumping to the
+  // target page.
+  const onClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = e.target as HTMLElement;
     const w = el.closest("[data-widget-id]") as HTMLElement | null;
-    if (w?.dataset.widgetId) { e.stopPropagation(); setSelection({ kind: "widget", id: w.dataset.widgetId }); return; }
+    if (w?.dataset.widgetId) { setSelection({ kind: "widget", id: w.dataset.widgetId }); return; }
     const c = el.closest("[data-col-id]") as HTMLElement | null;
-    if (c?.dataset.colId) { e.stopPropagation(); setSelection({ kind: "column", id: c.dataset.colId }); return; }
+    if (c?.dataset.colId) { setSelection({ kind: "column", id: c.dataset.colId }); return; }
     const s = el.closest("[data-sec-id]") as HTMLElement | null;
-    if (s?.dataset.secId) { e.stopPropagation(); setSelection({ kind: "section", id: s.dataset.secId }); return; }
+    if (s?.dataset.secId) { setSelection({ kind: "section", id: s.dataset.secId }); return; }
     setSelection({ kind: null, id: null });
   };
+
+  // Kill navigation inside the builder canvas: preventDefault stops native
+  // <a href> + TanStack Link (respects defaultPrevented); stopPropagation
+  // stops widget-installed onClick handlers that call navigate() imperatively.
+  // Runs on native capture on rootRef so React onClickCapture (attached at
+  // React root, higher in the tree) can still update selection first.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const kill = (e: MouseEvent) => {
+      // Allow clicks on builder chrome (section inserters, drop zones, toolbars).
+      const t = e.target as HTMLElement | null;
+      if (t?.closest("[data-section-inserter]") || t?.closest("[data-builder-chrome]")) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    root.addEventListener("click", kill, { capture: true });
+    root.addEventListener("auxclick", kill, { capture: true });
+    return () => {
+      root.removeEventListener("click", kill, { capture: true });
+      root.removeEventListener("auxclick", kill, { capture: true });
+    };
+  }, []);
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+
 
     const widgets: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-widget-id]"));
     const sections: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-sec-id]"));
@@ -509,7 +538,7 @@ export function VisualCanvas({
     : { width: "100%", maxWidth: "100%", overflowX: "clip", boxSizing: "border-box" };
 
   return (
-    <div data-visual-canvas data-device={device} onClick={onClick} ref={rootRef} style={{ width: "100%", overflowX: "clip" }}>
+    <div data-visual-canvas data-device={device} onClickCapture={onClickCapture} ref={rootRef} style={{ width: "100%", overflowX: "clip" }}>
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
       <div style={frameStyle}>
         <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} />
