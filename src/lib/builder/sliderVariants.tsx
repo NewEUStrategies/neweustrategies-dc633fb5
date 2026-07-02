@@ -428,7 +428,7 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
         className={`${cls} eh-prev`}
         style={cssVars}
       >
-        <ChevronLeft style={{ width: iconPx, height: iconPx }} strokeWidth={2.5} />
+        <NavArrowGlyph variant={nav.arrowVariant} direction="left" sizePx={iconPx} color={nav.arrowColor} stroke={nav.arrowStroke} />
       </button>
       <button
         type="button" aria-label={nextLabel}
@@ -438,7 +438,7 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
         className={`${cls} eh-next`}
         style={cssVars}
       >
-        <ChevronRight style={{ width: iconPx, height: iconPx }} strokeWidth={2.5} />
+        <NavArrowGlyph variant={nav.arrowVariant} direction="right" sizePx={iconPx} color={nav.arrowColor} stroke={nav.arrowStroke} />
       </button>
     </>
   );
