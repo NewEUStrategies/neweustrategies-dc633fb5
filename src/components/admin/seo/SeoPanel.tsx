@@ -207,6 +207,8 @@ export function SeoPanel(props: SeoPanelProps) {
         </span>
       </div>
 
+      <SeoValidationSummary issues={issues} />
+
       <Tabs value={tab} onValueChange={(v) => setTab(v === "en" ? "en" : "pl")}>
         <TabsList className="grid w-full max-w-[200px] grid-cols-2">
           <TabsTrigger value="pl">PL</TabsTrigger>
