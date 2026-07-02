@@ -844,8 +844,10 @@ function MultiCardVariant(p: VariantProps) {
                     placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
                     active alwaysVisible
                     onBrokenSource={p.markImageFailed}
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                    className="absolute inset-0 w-full h-full object-cover will-change-transform group-hover:scale-[1.03]"
+                    style={{ transition: "transform 900ms cubic-bezier(.22,.61,.36,1)", transformOrigin: "center center", backfaceVisibility: "hidden" }}
                   />
+
                   {cat && (
                     <span className="absolute left-3 top-3 inline-block px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow"
                       style={{ background: catColor, borderRadius: 2 }}>
