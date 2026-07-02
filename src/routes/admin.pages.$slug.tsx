@@ -446,6 +446,7 @@ function EditPage() {
                 fallbackTitle={{ pl: form.title_pl, en: form.title_en }}
                 fallbackDescription={{ pl: form.excerpt_pl, en: form.excerpt_en }}
                 coverImageUrl={form.cover_image_url}
+                onIssuesChange={setSeoIssues}
               />
 
               <div className="flex justify-end pt-2 border-t border-border">
