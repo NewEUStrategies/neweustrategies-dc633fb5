@@ -44,6 +44,7 @@ import {
   MegaMenuEditor,
   RichTextEditor,
   AccountLinkEditor,
+  HeadingFallbackPreview,
 } from "./ui/organisms/widget-properties";
 import { ShadowEditor } from "./ui/molecules/ShadowEditor";
 
