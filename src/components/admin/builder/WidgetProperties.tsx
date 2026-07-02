@@ -44,6 +44,7 @@ import {
   MegaMenuEditor,
   RichTextEditor,
   AccountLinkEditor,
+  HeadingFallbackPreview,
 } from "./ui/organisms/widget-properties";
 import { ShadowEditor } from "./ui/molecules/ShadowEditor";
 
@@ -664,6 +665,25 @@ function ContentFields({ widget, lang, setContent }: {
       {schema.map((f) => (
         <SchemaFieldControl key={f.key} field={f} lang={lang} content={c} setContent={setContent} />
       ))}
+      {widget.type === "heading" ? (
+        <HeadingFallbackPreview
+          titleWeight={typeof c.titleWeight === "string" ? c.titleWeight : ""}
+          subtitleWeight={typeof c.subtitleWeight === "string" ? c.subtitleWeight : ""}
+          sizePx={typeof c.sizePx === "number" ? c.sizePx : 0}
+          subtitleSizePx={typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : 0}
+          sizePreset={typeof c.sizePreset === "string" ? c.sizePreset : ""}
+          titleSample={
+            (typeof c[`text_${lang}`] === "string" && c[`text_${lang}`]) as string
+            || (typeof c.text_pl === "string" ? (c.text_pl as string) : "")
+            || "Przykładowy nagłówek"
+          }
+          subtitleSample={
+            (typeof c[`subtitle_${lang}`] === "string" && c[`subtitle_${lang}`]) as string
+            || (typeof c.subtitle_pl === "string" ? (c.subtitle_pl as string) : "")
+            || "Przykładowy podtytuł"
+          }
+        />
+      ) : null}
     </>
   );
 }
