@@ -394,7 +394,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
         {rows.map((p) => (
           <AppLink key={p.id} href={`/post/${p.slug}`} className="block group">
             {p.cover_image_url && (
-              <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-md mb-4`} sizes="(max-width: 1024px) 100vw, 900px" foregroundClassName={COVER_IMG_CLASS} />
+              <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-md mb-4`} sizes="(max-width: 1024px) 100vw, 900px" foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
             )}
             <h3 className="cms-post-title leading-tight line-clamp-3" style={tStyle}>{title(p)}</h3>
             {excerpt(p) && <p className="cms-post-excerpt mt-2 line-clamp-3" style={eStyle}>{excerpt(p)}</p>}
