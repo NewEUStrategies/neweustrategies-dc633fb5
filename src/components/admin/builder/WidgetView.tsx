@@ -223,7 +223,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const subtitle = getStr(c, `subtitle_${lang}`) || getStr(c, "subtitle_pl");
       const tag = (getStr(c, "tag") || "h2") as "h1"|"h2"|"h3"|"h4"|"h5"|"h6";
       const variant = getStr(c, "variant") || "default";
-      const sizePreset = getStr(c, "sizePreset") || "md";
+      // Rozróżniamy "user nic nie ustawił" od "user wybrał md" - fallback do
+      // globalnych ustawień Theme Design (superadmin) tylko gdy pole jest puste.
+      const sizePresetRaw = getStr(c, "sizePreset");
+      const sizePreset = sizePresetRaw || "md";
       const sizePx = getNum(c, "sizePx", 0);
       const titleWeight = getStr(c, "titleWeight");
       const subtitleSizePx = getNum(c, "subtitleSizePx", 0);
@@ -233,7 +236,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const iconName = getStr(c, "iconName");
       const iconPos = getStr(c, "iconPosition") || "left";
       const usePx = sizePx > 0;
-      const sizeCls = usePx
+      // Jeśli widget nie ma własnego sizePx ANI preset nie jest wybrany
+      // ręcznie, dziedziczymy globalny "Post title" z Theme Design.
+      const useGlobalTitle = !usePx && !sizePresetRaw;
+      const sizeCls = usePx || useGlobalTitle
         ? ""
         : sizePreset === "sm" ? "text-xl"
         : sizePreset === "lg" ? "text-4xl"
@@ -249,7 +255,11 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         : "";
       const headCls = `font-display ${sizeCls} ${variantCls}`.trim();
       const headStyle: React.CSSProperties = {
-        ...(usePx ? { fontSize: `${sizePx}px`, lineHeight: 1.1 } : {}),
+        ...(usePx
+          ? { fontSize: `${sizePx}px`, lineHeight: 1.1 }
+          : useGlobalTitle
+            ? { fontSize: "var(--td-pt-size, 15px)", lineHeight: "var(--td-pt-lh, 1.3)" }
+            : {}),
         ...(titleWeight ? { fontWeight: titleWeight as React.CSSProperties["fontWeight"] } : {}),
       };
       const finalStyle = Object.keys(headStyle).length ? headStyle : undefined;
@@ -266,8 +276,12 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           <span className="contents">{inner}</span>
         </span>
       );
+      // Puste subtitleSizePx -> globalny "Post excerpt" z Theme Design.
+      const useGlobalSubtitle = subtitleSizePx <= 0;
       const subtitleStyle: React.CSSProperties = {
-        ...(subtitleSizePx > 0 ? { fontSize: `${subtitleSizePx}px`, lineHeight: 1.35 } : {}),
+        ...(useGlobalSubtitle
+          ? { fontSize: "var(--td-pe-size, 13px)", lineHeight: "var(--td-pe-lh, 1.5)" }
+          : { fontSize: `${subtitleSizePx}px`, lineHeight: 1.35 }),
         ...(subtitleWeight ? { fontWeight: subtitleWeight as React.CSSProperties["fontWeight"] } : {}),
       };
       const block = (
@@ -275,8 +289,8 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           {href ? <AppLink href={href} target={target} rel={target === "_blank" ? "noopener noreferrer" : undefined} className="hover:opacity-80 transition">{titleRow}</AppLink> : titleRow}
           {subtitle && (
             <p
-              className={`text-sm text-muted-foreground${subtitleSizePx > 0 ? "" : ""}`}
-              style={Object.keys(subtitleStyle).length ? subtitleStyle : undefined}
+              className="text-muted-foreground"
+              style={subtitleStyle}
             >
               {subtitle}
             </p>
