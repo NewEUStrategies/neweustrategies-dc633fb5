@@ -1,7 +1,12 @@
-import { Check, Pencil, Lock, Circle } from "@/lib/lucide-shim";
+import { Check, Pencil, Lock, Circle, Clock, Send } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
 
-export type ContentStatus = "published" | "draft" | "archived";
+export type ContentStatus =
+  | "published"
+  | "draft"
+  | "archived"
+  | "pending_review"
+  | "scheduled";
 
 interface StatusBadgeProps {
   status: ContentStatus | string;
@@ -48,6 +53,18 @@ function getTone(status: string): {
         classes:
           "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-400",
         icon: Pencil,
+      };
+    case "pending_review":
+      return {
+        classes:
+          "border-sky-500/40 bg-sky-500/15 text-sky-700 dark:text-sky-400",
+        icon: Send,
+      };
+    case "scheduled":
+      return {
+        classes:
+          "border-violet-500/40 bg-violet-500/15 text-violet-700 dark:text-violet-400",
+        icon: Clock,
       };
     case "archived":
       return {

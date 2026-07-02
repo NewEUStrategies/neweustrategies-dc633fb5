@@ -4,8 +4,16 @@ import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { useRequiredTenant } from "@/hooks/useAuth";
+import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
 import { updatePost, deletePost } from "@/lib/content.functions";
+import {
+  isoToLocalInput,
+  localInputToIso,
+  statusOptionsFor,
+  type PostWorkflowStatus,
+} from "@/lib/content/workflow";
+import { RevisionsCard } from "@/components/admin/molecules/RevisionsCard";
+import { EditPresenceBanner } from "@/components/admin/molecules/EditPresenceBanner";
 import { migratePostToBlocks } from "@/lib/posts-migrate.functions";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import { useAutosave } from "@/hooks/useAutosave";
@@ -39,7 +47,6 @@ export const Route = createFileRoute("/admin/posts/$slug")({
   component: EditPost,
 });
 
-type PostStatus = "draft" | "published" | "archived";
 type EditorType = "blocks" | "richtext" | "markdown" | "builder";
 
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
@@ -47,7 +54,7 @@ import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 interface PostForm {
   id: string;
   slug: string;
-  status: PostStatus;
+  status: PostWorkflowStatus;
   editor: EditorType;
   title_pl: string;
   title_en: string;
@@ -58,6 +65,7 @@ interface PostForm {
   cover_image_url: string | null;
   read_minutes: number | null;
   published_at: string | null;
+  publish_at: string | null;
   builder_data: BuilderDocument | null;
   blocks_data: LocalizedBlocks | null;
   parent_page_id: string;
@@ -95,10 +103,14 @@ function SidebarSection({ title, icon: Icon, children, defaultOpen = true }: { t
 
 function EditPost() {
   const { slug: routeSlug } = Route.useParams();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const uiLang = i18n.language ?? "pl";
   const navigate = useNavigate();
   const qc = useQueryClient();
   const tenantId = useRequiredTenant();
+  // Editorial workflow: only admin / super_admin publish or schedule directly;
+  // authors and editors submit for review (mirrored server-side + DB trigger).
+  const { isAdmin: canPublish } = useAuth();
   const update$ = useServerFn(updatePost);
   const delete$ = useServerFn(deletePost);
   const migrate$ = useServerFn(migratePostToBlocks);
@@ -175,6 +187,7 @@ function EditPost() {
         fields: {
           slug: snapshot.slug,
           status: snapshot.status,
+          publish_at: snapshot.publish_at,
           editor: snapshot.editor,
           title_pl: snapshot.title_pl,
           title_en: snapshot.title_en,
@@ -247,19 +260,124 @@ function EditPost() {
     }
   };
 
-  const metaCard = (
-    <SidebarSection title="Ustawienia wpisu" icon={SettingsIcon}>
+  // Save with an explicit status transition (submit / approve / reject) in a
+  // single snapshot, so autosave races cannot split the change in two.
+  const applyStatus = async (status: PostWorkflowStatus) => {
+    const next: PostForm = { ...form, status };
+    history.set(() => next);
+    setBusy(true);
+    try {
+      await saveFn(next);
+      toast.success(t("admin.saved"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRevisionRestored = () => {
+    void qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, routeSlug] });
+    invalidateWidgetCaches(qc);
+    emitWidgetCacheInvalidate();
+  };
+
+  const statusOptions = statusOptionsFor({ canPublish });
+  const scheduledInPast =
+    form.status === "scheduled" && !!form.publish_at &&
+    new Date(form.publish_at).getTime() <= Date.now();
+
+  const workflowSection = (
+    <div className="space-y-2">
       <div>
         <Label>{t("admin.posts.status")}</Label>
-        <Select value={form.status} onValueChange={(v) => set("status", v as PostStatus)}>
+        <Select value={form.status} onValueChange={(v) => set("status", v as PostWorkflowStatus)}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="draft">{t("admin.status.draft")}</SelectItem>
-            <SelectItem value="published">{t("admin.status.published")}</SelectItem>
-            <SelectItem value="archived">{t("admin.status.archived")}</SelectItem>
+            {statusOptions.map((o) => (
+              <SelectItem key={o.value} value={o.value} disabled={o.publisherOnly}>
+                {t(`admin.status.${o.value}`)}
+                {o.publisherOnly
+                  ? ` - ${t("admin.workflow.adminOnly", { defaultValue: "tylko administrator" })}`
+                  : ""}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
+        {!canPublish && (
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {t("admin.workflow.writerHint", {
+              defaultValue: "Publikuje administrator - wyślij wpis do recenzji, a redakcja go zatwierdzi.",
+            })}
+          </p>
+        )}
       </div>
+
+      {form.status === "scheduled" && (
+        <div>
+          <Label>{t("admin.workflow.publishAt", { defaultValue: "Data publikacji" })}</Label>
+          <Input
+            type="datetime-local"
+            value={isoToLocalInput(form.publish_at)}
+            onChange={(e) => set("publish_at", localInputToIso(e.target.value))}
+          />
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {!form.publish_at
+              ? t("admin.workflow.publishAtRequired", {
+                  defaultValue: "Zaplanowany wpis wymaga daty publikacji.",
+                })
+              : scheduledInPast
+                ? t("admin.workflow.publishAtPast", {
+                    defaultValue: "Data jest w przeszłości - wpis zostanie opublikowany natychmiast.",
+                  })
+                : t("admin.workflow.publishAtHint", {
+                    defaultValue: "Wpis opublikuje się automatycznie o wskazanej godzinie.",
+                  })}
+          </p>
+        </div>
+      )}
+
+      {form.status === "published" && form.published_at && (
+        <p className="text-[11px] text-muted-foreground">
+          {t("admin.workflow.publishedAt", {
+            defaultValue: "Opublikowano: {{date}}",
+            date: new Date(form.published_at).toLocaleString(uiLang),
+          })}
+        </p>
+      )}
+
+      {!canPublish && form.status === "draft" && (
+        <Button type="button" size="sm" className="w-full" disabled={busy}
+          onClick={() => applyStatus("pending_review")}>
+          {t("admin.workflow.submitReview", { defaultValue: "Wyślij do recenzji" })}
+        </Button>
+      )}
+      {form.status === "pending_review" && (
+        canPublish ? (
+          <div className="flex gap-2">
+            <Button type="button" size="sm" className="flex-1" disabled={busy}
+              onClick={() => applyStatus("published")}>
+              {t("admin.workflow.approvePublish", { defaultValue: "Zatwierdź i opublikuj" })}
+            </Button>
+            <Button type="button" size="sm" variant="outline" className="flex-1" disabled={busy}
+              onClick={() => applyStatus("draft")}>
+              {t("admin.workflow.rejectToDraft", { defaultValue: "Odrzuć do szkicu" })}
+            </Button>
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">
+            {t("admin.workflow.awaitingReview", {
+              defaultValue: "Wpis czeka na recenzję administratora.",
+            })}
+          </p>
+        )
+      )}
+    </div>
+  );
+
+  const metaCard = (
+    <SidebarSection title={t("admin.posts.settingsCard", { defaultValue: "Ustawienia wpisu" })} icon={SettingsIcon}>
+      {workflowSection}
       <div>
         <Label>{t("admin.posts.editor")}</Label>
         <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
@@ -492,6 +610,8 @@ function EditPost() {
         </div>
       </div>
 
+      <EditPresenceBanner entityType="post" entityId={id} />
+
       {step === "details" ? (
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-5">
@@ -564,6 +684,7 @@ function EditPost() {
             {catsCard}
             {tagsCard}
             <AccessSettingsPane entityType="post" entityId={id} />
+            <RevisionsCard entityType="post" entityId={id} onRestored={onRevisionRestored} />
           </aside>
         </div>
       ) : (
@@ -621,6 +742,7 @@ function EditPost() {
                   {catsCard}
                   {tagsCard}
                   <AccessSettingsPane entityType="post" entityId={id} />
+                  <RevisionsCard entityType="post" entityId={id} onRestored={onRevisionRestored} />
                 </div>
               )}
             />

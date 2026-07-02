@@ -14,6 +14,13 @@ import { requireStaff } from "@/integrations/supabase/require-staff";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { recordAudit, type AuditAction } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
+import { POST_STATUSES, evaluateTransition } from "./content/workflow";
+import {
+  REVISION_KEEP_LIMIT,
+  pickRevisionSnapshot,
+  revisionTouches,
+  shouldSnapshot,
+} from "./content/revisions";
 
 // ---------- shared helpers ----------
 
@@ -78,7 +85,11 @@ type PageUpdateRow = Database["public"]["Tables"]["pages"]["Update"];
 // ---------- shared schemas ----------
 
 const UUID = z.string().uuid();
-const Status = z.enum(["draft", "published", "archived"]);
+// Posts carry the full editorial workflow; pages keep the simple lifecycle.
+const PostStatus = z.enum(POST_STATUSES);
+const PageStatus = z.enum(["draft", "published", "archived"]);
+// Bulk actions exclude `scheduled` - scheduling needs a per-post publish_at.
+const BulkPostStatus = z.enum(["draft", "pending_review", "published", "archived"]);
 const Editor = z.enum(["blocks", "richtext", "markdown", "builder"]);
 const NullableStr = (max: number) => z.string().max(max).nullable().optional();
 const SlugInput = z.string().min(1).max(120).regex(SLUG_RE).optional();
@@ -104,7 +115,8 @@ const BuilderJsonValue: z.ZodType<unknown> = z.lazy(() =>
 
 const PostCore = z.object({
   slug: SlugInput,
-  status: Status.default("draft"),
+  status: PostStatus.default("draft"),
+  publish_at: z.string().datetime({ offset: true }).nullable().optional(),
   // Hybrid model: posts default to blocks (Gutenberg); pages default to builder.
   editor: Editor.default("blocks"),
   ...TitleBlock,
@@ -184,6 +196,72 @@ export const createPost = createServerFn({ method: "POST" })
     });
   });
 
+async function resolveCanPublish(supabase: SupabaseClient<Database>): Promise<boolean> {
+  const { data, error } = await supabase.rpc("can_publish_content");
+  if (error) throw new Error("Could not verify publishing permissions");
+  return data === true;
+}
+
+/**
+ * Best-effort revision snapshot of the pre-update row. Autosaves are
+ * throttled (one snapshot per REVISION_MIN_INTERVAL_MS); status transitions
+ * and restores always snapshot. History is pruned to REVISION_KEEP_LIMIT for
+ * publishers (RLS blocks delete for authors - acceptable, prune catches up).
+ */
+async function writeRevisionSnapshot(
+  supabase: SupabaseClient<Database>,
+  params: {
+    tenantId: string;
+    userId: string;
+    entityType: "post" | "page";
+    entityId: string;
+    row: Record<string, unknown>;
+    note: "autosave" | "pre_restore";
+    force?: boolean;
+  },
+): Promise<void> {
+  try {
+    const { data: last } = await supabase
+      .from("content_revisions")
+      .select("created_at")
+      .eq("tenant_id", params.tenantId)
+      .eq("entity_type", params.entityType)
+      .eq("entity_id", params.entityId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!shouldSnapshot(last?.created_at ?? null, Date.now(), params.force)) return;
+
+    const { error } = await supabase.from("content_revisions").insert({
+      tenant_id: params.tenantId,
+      entity_type: params.entityType,
+      entity_id: params.entityId,
+      author_id: params.userId,
+      snapshot: pickRevisionSnapshot(params.row) as Json,
+      note: params.note,
+    });
+    if (error) {
+      console.warn("[revisions] snapshot failed:", error.message);
+      return;
+    }
+
+    const { data: overflow } = await supabase
+      .from("content_revisions")
+      .select("id")
+      .eq("tenant_id", params.tenantId)
+      .eq("entity_type", params.entityType)
+      .eq("entity_id", params.entityId)
+      .order("created_at", { ascending: false })
+      .range(REVISION_KEEP_LIMIT, REVISION_KEEP_LIMIT + 49);
+    if (overflow?.length) {
+      await supabase.from("content_revisions").delete()
+        .in("id", overflow.map((r) => r.id));
+    }
+  } catch (e) {
+    console.warn("[revisions] snapshot threw:", e);
+  }
+}
+
 export const updatePost = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({
@@ -198,7 +276,7 @@ export const updatePost = createServerFn({ method: "POST" })
 
       // Ensure ownership (RLS would also block, but explicit check gives clearer error)
       const { data: existing, error: exErr } = await supabase
-        .from("posts").select("id, status, slug").eq("id", data.id).maybeSingle();
+        .from("posts").select("*").eq("id", data.id).maybeSingle();
       if (exErr) throw new Error(exErr.message);
       if (!existing) throw new Error("Post not found or access denied");
 
@@ -206,8 +284,37 @@ export const updatePost = createServerFn({ method: "POST" })
       if (typeof updates.slug === "string") {
         updates.slug = await uniqueSlug(supabase, "posts", tenantId, updates.slug, data.id);
       }
+
+      // Editorial workflow gate (mirrors the enforce_post_workflow trigger,
+      // but fails with a friendly message before touching the row).
+      const nextStatus = updates.status ?? existing.status;
+      const statusChanges = nextStatus !== existing.status;
+      const nextPublishAt =
+        updates.publish_at !== undefined ? updates.publish_at : existing.publish_at;
+      if (statusChanges) {
+        const actor = { canPublish: await resolveCanPublish(supabase) };
+        const verdict = evaluateTransition(actor, existing.status, nextStatus, nextPublishAt);
+        if (!verdict.ok) {
+          throw new Error(
+            verdict.reason === "requires_publisher"
+              ? "Workflow: only an administrator can publish or schedule - submit for review instead"
+              : "Workflow: a scheduled post needs a publish date",
+          );
+        }
+      }
       if (updates.status === "published" && !updates.published_at) {
         updates.published_at = new Date().toISOString();
+      }
+      // Leaving `scheduled` (or publishing directly) clears the pending schedule.
+      if (statusChanges && nextStatus !== "scheduled" && existing.publish_at) {
+        updates.publish_at = null;
+      }
+
+      if (revisionTouches(data.fields)) {
+        await writeRevisionSnapshot(supabase, {
+          tenantId, userId, entityType: "post", entityId: data.id,
+          row: existing, note: "autosave", force: statusChanges,
+        });
       }
 
       if (Object.keys(updates).length) {
@@ -232,11 +339,20 @@ export const updatePost = createServerFn({ method: "POST" })
         }
       }
 
-      const publish = updates.status === "published" && existing.status !== "published";
-      await audit(
-        supabase, tenantId, publish ? "post.publish" : "post.update",
-        "post", data.id, { fields: Object.keys(updates) },
-      );
+      const action: AuditAction = !statusChanges
+        ? "post.update"
+        : nextStatus === "published"
+          ? "post.publish"
+          : nextStatus === "scheduled"
+            ? "post.schedule"
+            : nextStatus === "pending_review"
+              ? "post.review.submit"
+              : "post.update";
+      await audit(supabase, tenantId, action, "post", data.id, {
+        fields: Object.keys(updates),
+        ...(statusChanges ? { from: existing.status, to: nextStatus } : {}),
+        ...(nextStatus === "scheduled" && nextPublishAt ? { publish_at: nextPublishAt } : {}),
+      });
       return { ok: true as const };
     });
   });
@@ -306,12 +422,17 @@ export const bulkUpdatePosts = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({
     ids: z.array(UUID).min(1).max(200),
-    status: Status,
+    status: BulkPostStatus,
   }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("post.bulkUpdate", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
+      if (data.status === "published" && !(await resolveCanPublish(supabase))) {
+        throw new Error(
+          "Workflow: only an administrator can publish - submit for review instead",
+        );
+      }
       const updates: PostUpdateRow = { status: data.status };
       if (data.status === "published") updates.published_at = new Date().toISOString();
       const { error } = await supabase.from("posts").update(updates).in("id", data.ids);
@@ -329,7 +450,7 @@ export const bulkUpdatePosts = createServerFn({ method: "POST" })
 
 const PageCore = z.object({
   slug: SlugInput,
-  status: Status.default("draft"),
+  status: PageStatus.default("draft"),
   editor: Editor.default("builder"),
   ...TitleBlock,
   excerpt_pl: NullableStr(1000),
@@ -477,7 +598,7 @@ export const bulkUpdatePages = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({
     ids: z.array(UUID).min(1).max(200),
-    status: Status,
+    status: PageStatus,
   }).parse(i))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;

@@ -11,7 +11,13 @@ import {
 import { Search, X } from "@/lib/lucide-shim";
 import type { TenantAuthor } from "@/components/admin/hooks/useTenantAuthors";
 
-export type StatusFilter = "all" | "published" | "draft" | "archived";
+export type StatusFilter =
+  | "all"
+  | "published"
+  | "draft"
+  | "pending_review"
+  | "scheduled"
+  | "archived";
 export type LangFilter = "all" | "pl_only" | "en_only" | "missing_any" | "complete";
 
 export interface AdminListToolbarProps {
@@ -95,6 +101,8 @@ export function AdminListToolbar({
             <SelectItem value="all">{t("admin.list.status.all", { defaultValue: "Wszystkie statusy" })}</SelectItem>
             <SelectItem value="published">{t("admin.status.published")}</SelectItem>
             <SelectItem value="draft">{t("admin.status.draft")}</SelectItem>
+            <SelectItem value="pending_review">{t("admin.status.pending_review")}</SelectItem>
+            <SelectItem value="scheduled">{t("admin.status.scheduled")}</SelectItem>
             <SelectItem value="archived">{t("admin.status.archived")}</SelectItem>
           </SelectContent>
         </Select>

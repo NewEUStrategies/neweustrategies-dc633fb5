@@ -7,7 +7,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type AuditAction =
   | "media.upload" | "media.delete"
   | "post.create" | "post.update" | "post.delete" | "post.publish"
+  | "post.schedule" | "post.review.submit"
   | "page.create" | "page.update" | "page.delete" | "page.publish"
+  | "revision.restore"
   | "category.create" | "category.update" | "category.delete"
   | "tag.create" | "tag.delete"
   | "role.grant" | "role.revoke"

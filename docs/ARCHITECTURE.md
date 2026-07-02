@@ -163,7 +163,34 @@ Stage 2 (bulk `blocks` → `builder` migration) was never run as a fleet-wide st
 its tooling survives as the optional converter in §2.4. No content was lost in
 either direction — every converter preserves the source columns.
 
-### 2.6 Guardrails
+### 2.6 Editorial workflow (posts)
+
+Posts carry the full editorial lifecycle; pages keep the simple
+draft/published/archived one.
+
+- **Statuses:** `draft -> pending_review -> published`, plus `scheduled`
+  (auto-publish at `posts.publish_at`) and `archived`.
+- **Roles:** authors and editors write and submit for review; only
+  **admin / super_admin** (`can_publish_content()`) may set `published` or
+  `scheduled`. Enforced in three layers: the editor UI (disabled options +
+  review buttons), `updatePost`/`bulkUpdatePosts` (friendly errors, shared
+  rules from `src/lib/content/workflow.ts`), and the `posts_workflow_guard`
+  DB trigger (covers direct PostgREST writes).
+- **Scheduling:** `publish_due_posts()` flips due rows to `published`
+  (backdating `published_at` to the planned moment). Primary tick: pg_cron
+  every minute; fallback: an opportunistic RPC call when the admin posts list
+  loads. Public visibility keys off `status = 'published'` everywhere, so no
+  public query changed.
+- **Revisions:** `updatePost` snapshots the pre-update row into
+  `content_revisions` (throttled to one per 5 min for autosaves; always on
+  status transitions). `src/lib/revisions.functions.ts` lists lightweight
+  projections and restores non-destructively - the live state is snapshotted
+  first and the workflow status is never changed by a restore. History is
+  pruned to 50 entries per entity.
+- **Presence:** `useEditPresence` + `EditPresenceBanner` (Supabase Realtime
+  presence) warn when two people edit the same post - a soft lock, not CRDT.
+
+### 2.7 Guardrails
 
 - `contentEngine` stays the **only** place that decides a render strategy. Never
   branch on `editor` inside a component — call `resolveContentEngine`.
