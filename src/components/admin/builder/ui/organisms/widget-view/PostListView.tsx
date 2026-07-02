@@ -188,7 +188,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
             )}
             <div className="min-w-0">
               <h4
-                className="cms-post-title leading-snug line-clamp-2"
+                className="cms-post-title line-clamp-2"
                 style={tStyle}
               >
                 {title(p)}
@@ -266,7 +266,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
               </span>
               <div className="relative z-10">
                 <h4
-                  className="cms-post-title leading-snug line-clamp-3"
+                  className="cms-post-title line-clamp-3"
                   style={tStyle}
                 >
                   {title(p)}
@@ -354,7 +354,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
               <div className={`relative z-10 ${idxSide === "left" ? "pl-1 pr-1" : "pr-1 pl-1"}`}>
 
                 <h4
-                  className="cms-post-title leading-snug line-clamp-3"
+                  className="cms-post-title line-clamp-3"
                   style={tStyle}
                 >
                   {title(p)}
@@ -396,7 +396,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
             {p.cover_image_url && (
               <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-md mb-4`} sizes="(max-width: 1024px) 100vw, 900px" foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
             )}
-            <h3 className="cms-post-title leading-tight line-clamp-3" style={tStyle}>{title(p)}</h3>
+            <h3 className="cms-post-title line-clamp-3" style={tStyle}>{title(p)}</h3>
             {excerpt(p) && <p className="cms-post-excerpt mt-2 line-clamp-3" style={eStyle}>{excerpt(p)}</p>}
           </AppLink>
         ))}
@@ -421,7 +421,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
               />
             </div>
           )}
-          <h3 className="cms-post-title text-[1.35em] leading-tight line-clamp-3 transition-colors group-hover:text-brand" style={tStyle}>{title(lead)}</h3>
+          <h3 className="cms-post-title text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand" style={tStyle}>{title(lead)}</h3>
           {excerpt(lead) && <p className="cms-post-excerpt mt-2 line-clamp-3 text-muted-foreground" style={eStyle}>{excerpt(lead)}</p>}
         </AppLink>
         <ol className="flex flex-col">
@@ -436,7 +436,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
                 ) : (
                   <span className="font-serif text-lg tabular-nums text-brand/80 leading-none pt-0.5">{String(i + 1).padStart(2, "0")}</span>
                 )}
-                <h4 className="cms-post-title leading-snug line-clamp-3 transition-colors group-hover:text-brand" style={tStyle}>{title(p)}</h4>
+                <h4 className="cms-post-title line-clamp-3 transition-colors group-hover:text-brand" style={tStyle}>{title(p)}</h4>
               </AppLink>
             </li>
           ))}
@@ -466,7 +466,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
               </div>
             )}
             <div className="min-w-0 flex flex-col justify-center py-0.5">
-              <h4 className="cms-post-title leading-snug line-clamp-2 transition-colors group-hover:text-brand" style={tStyle}>{title(p)}</h4>
+              <h4 className="cms-post-title line-clamp-2 transition-colors group-hover:text-brand" style={tStyle}>{title(p)}</h4>
               {excerpt(p) && <p className="cms-post-excerpt mt-1.5 line-clamp-2 text-muted-foreground" style={eStyle}>{excerpt(p)}</p>}
             </div>
           </AppLink>
@@ -521,7 +521,7 @@ function PostCard({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
         <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 text-white">
           <span className="inline-block h-[3px] w-8 bg-brand mb-2 rounded-full transition-all duration-300 group-hover:w-12" />
-          <h4 className="cms-post-title text-sm sm:text-base leading-tight line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]" style={titleStyle}>{title}</h4>
+          <h4 className="cms-post-title line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]" style={titleStyle}>{title}</h4>
         </div>
       </AppLink>
     );
@@ -533,8 +533,8 @@ function PostCard({
         {p.cover_image_url && (
           <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-sm mb-3`} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
         )}
-        <h4 className="cms-post-title leading-snug line-clamp-2" style={titleStyle}>{title}</h4>
-        {excerpt && <p className="cms-post-excerpt text-[13px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug" style={excerptStyle}>{excerpt}</p>}
+        <h4 className="cms-post-title line-clamp-2" style={titleStyle}>{title}</h4>
+        {excerpt && <p className="cms-post-excerpt text-muted-foreground line-clamp-2 mt-1.5" style={excerptStyle}>{excerpt}</p>}
       </AppLink>
     );
   }
@@ -546,8 +546,8 @@ function PostCard({
         <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={tileFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
       )}
       <div className="p-3">
-        <h4 className="cms-post-title leading-snug mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>
-        {excerpt && <p className="cms-post-excerpt text-[13px] text-muted-foreground leading-snug line-clamp-2" style={excerptStyle}>{excerpt}</p>}
+        <h4 className="cms-post-title mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>
+        {excerpt && <p className="cms-post-excerpt text-muted-foreground line-clamp-2" style={excerptStyle}>{excerpt}</p>}
       </div>
     </AppLink>
   );
