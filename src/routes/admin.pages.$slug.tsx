@@ -33,6 +33,7 @@ import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { invalidateWidgetCaches, emitWidgetCacheInvalidate } from "@/lib/builder/widgetCacheInvalidation";
+import { invalidateSeoCaches } from "@/lib/seo/invalidate";
 import { PAGE_TEMPLATES, type PageTemplateType } from "@/lib/pageTemplates";
 
 export const Route = createFileRoute("/admin/pages/$slug")({
