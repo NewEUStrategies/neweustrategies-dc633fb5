@@ -57,6 +57,9 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const navArrowColor = typeof c.navArrowColor === "string" ? c.navArrowColor : "#ffffff";
   const navBgStyle = (typeof c.navBgStyle === "string" ? c.navBgStyle : "glass") as NavBgStyle;
   const navPosition = (typeof c.navPosition === "string" ? c.navPosition : "mid") as NavPosition;
+  const navArrowVariant = (typeof c.navArrowVariant === "string" ? c.navArrowVariant : "chevron") as NavArrowVariant;
+  const navArrowStroke = typeof c.navArrowStroke === "number" ? c.navArrowStroke : 2.25;
+
 
 
   const rawItems = Array.isArray(c.items) ? (c.items as unknown[]) : [];
