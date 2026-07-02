@@ -273,7 +273,7 @@ function ResilientSliderImage({
       style={{
         opacity: visible ? 1 : 0,
         transition:
-          "opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration, 1100ms) ease-in-out",
+          "opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration, 1100ms) var(--eh-scale-easing, ease-in-out)",
         ...(style ?? {}),
       }}
 
