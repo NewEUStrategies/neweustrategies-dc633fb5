@@ -238,9 +238,11 @@ function ResilientSliderImage({
   onBrokenSource,
   priority = false,
   className,
+  style,
   alwaysVisible = false,
 }: ResilientSliderImageProps) {
   const imgRef = useRef<HTMLImageElement | null>(null);
+
   const originalSrc = safeImageUrl(src) || src;
   const fallback = fallbackSrc && fallbackSrc !== originalSrc ? fallbackSrc : placeholderSrc;
   const [displaySrc, setDisplaySrc] = useState(originalSrc || fallback);
