@@ -217,23 +217,77 @@ const SHARED_STYLES = `
 .eh-slider .eh-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .eh-slider .eh-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* Side arrow buttons (glassmorphism) */
+/* Side arrow buttons - base (position + transitions). Visual style comes from
+   .eh-nav-<variant> modifier + inline CSS vars (--nav-bg / --nav-arrow / --nav-size / --nav-radius). */
 .eh-slider .eh-side-nav {
-  position: absolute; top: 50%; transform: translateY(-50%); z-index: 5;
+  position: absolute; z-index: 5;
   display: inline-flex; align-items: center; justify-content: center;
-  width: 52px; height: 52px; border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.12); color: #fff;
-  backdrop-filter: blur(16px) saturate(140%);
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 8px 32px -6px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  opacity: 1; cursor: pointer;
-  transition: opacity 220ms ease, background 180ms ease, transform 180ms ease, border-color 180ms ease;
+  width: var(--nav-size, 52px); height: var(--nav-size, 52px);
+  border-radius: var(--nav-radius, 9999px);
+  color: var(--nav-arrow, #fff);
+  border: 1.5px solid transparent;
+  cursor: pointer; opacity: 1;
+  transition: background 180ms ease, transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, filter 180ms ease;
 }
-@media (max-width: 768px) { .eh-slider .eh-side-nav { width: 44px; height: 44px; } }
-.eh-slider .eh-side-nav:hover { background: rgba(255, 255, 255, 0.28); border-color: rgba(255, 255, 255, 0.55); transform: translateY(-50%) scale(1.08); }
-.eh-slider .eh-side-nav:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-.eh-slider .eh-side-nav.eh-prev { left: 16px; }
-.eh-slider .eh-side-nav.eh-next { right: 16px; }
+@media (max-width: 768px) { .eh-slider .eh-side-nav { width: calc(var(--nav-size, 52px) - 8px); height: calc(var(--nav-size, 52px) - 8px); } }
+.eh-slider .eh-side-nav:focus-visible { outline: 2px solid var(--nav-arrow, #fff); outline-offset: 2px; }
+
+/* Positioning presets (transform is set inline so hover can compose scale) */
+.eh-slider .eh-side-nav[data-pos="mid"].eh-prev,
+.eh-slider .eh-side-nav[data-pos="mid-outside"].eh-prev { top: 50%; }
+.eh-slider .eh-side-nav[data-pos="mid"].eh-next,
+.eh-slider .eh-side-nav[data-pos="mid-outside"].eh-next { top: 50%; }
+.eh-slider .eh-side-nav[data-pos="mid"].eh-prev { left: 16px; right: auto; }
+.eh-slider .eh-side-nav[data-pos="mid"].eh-next { right: 16px; left: auto; }
+.eh-slider .eh-side-nav[data-pos="mid-outside"].eh-prev { left: -28px; right: auto; }
+.eh-slider .eh-side-nav[data-pos="mid-outside"].eh-next { right: -28px; left: auto; }
+@media (max-width: 768px) {
+  .eh-slider .eh-side-nav[data-pos="mid-outside"].eh-prev { left: 8px; }
+  .eh-slider .eh-side-nav[data-pos="mid-outside"].eh-next { right: 8px; }
+}
+.eh-slider .eh-side-nav[data-pos="bottom"] { top: auto; bottom: 16px; transform: none; }
+.eh-slider .eh-side-nav[data-pos="bottom"].eh-prev { left: auto; right: calc(24px + var(--nav-size, 52px)); }
+.eh-slider .eh-side-nav[data-pos="bottom"].eh-next { right: 16px; left: auto; }
+.eh-slider .eh-side-nav[data-pos="top"] { top: 16px; bottom: auto; transform: none; }
+.eh-slider .eh-side-nav[data-pos="top"].eh-prev { left: auto; right: calc(24px + var(--nav-size, 52px)); }
+.eh-slider .eh-side-nav[data-pos="top"].eh-next { right: 16px; left: auto; }
+
+/* Style variants */
+.eh-slider .eh-side-nav.eh-nav-glass {
+  background: color-mix(in oklab, var(--nav-bg, #ffffff) 18%, transparent);
+  border-color: color-mix(in oklab, var(--nav-bg, #ffffff) 40%, transparent);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: 0 8px 32px -6px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.eh-slider .eh-side-nav.eh-nav-glass:hover { background: color-mix(in oklab, var(--nav-bg, #ffffff) 32%, transparent); border-color: color-mix(in oklab, var(--nav-bg, #ffffff) 60%, transparent); }
+.eh-slider .eh-side-nav.eh-nav-solid { background: var(--nav-bg, #111827); }
+.eh-slider .eh-side-nav.eh-nav-solid:hover { background: color-mix(in oklab, var(--nav-bg, #111827) 85%, #fff 15%); }
+.eh-slider .eh-side-nav.eh-nav-outline { background: transparent; border: 2px solid var(--nav-bg, #ffffff); }
+.eh-slider .eh-side-nav.eh-nav-outline:hover { background: color-mix(in oklab, var(--nav-bg, #ffffff) 15%, transparent); }
+.eh-slider .eh-side-nav.eh-nav-soft {
+  background: color-mix(in oklab, var(--nav-bg, #ffffff) 22%, transparent);
+  border-color: color-mix(in oklab, var(--nav-bg, #ffffff) 35%, transparent);
+  backdrop-filter: blur(6px);
+}
+.eh-slider .eh-side-nav.eh-nav-soft:hover { background: color-mix(in oklab, var(--nav-bg, #ffffff) 38%, transparent); }
+.eh-slider .eh-side-nav.eh-nav-gradient {
+  background: linear-gradient(135deg, var(--nav-bg, #111827), color-mix(in oklab, var(--nav-bg, #111827) 55%, #000 45%));
+}
+.eh-slider .eh-side-nav.eh-nav-gradient:hover { filter: brightness(1.12); }
+.eh-slider .eh-side-nav.eh-nav-shadow {
+  background: var(--nav-bg, #ffffff);
+  box-shadow: 0 16px 40px -10px rgba(0,0,0,0.55), 0 6px 14px -4px rgba(0,0,0,0.35);
+}
+.eh-slider .eh-side-nav.eh-nav-shadow:hover { box-shadow: 0 22px 50px -8px rgba(0,0,0,0.6), 0 8px 18px -4px rgba(0,0,0,0.4); }
+
+/* Hover scale composes with position transform via .eh-hover-scale wrapper trick: apply via inline style */
+.eh-slider .eh-side-nav[data-pos="mid"]:hover,
+.eh-slider .eh-side-nav[data-pos="mid-outside"]:hover { transform: translateY(-50%) scale(1.08); }
+.eh-slider .eh-side-nav[data-pos="bottom"]:hover,
+.eh-slider .eh-side-nav[data-pos="top"]:hover { transform: scale(1.08); }
+.eh-slider .eh-side-nav[data-pos="mid"],
+.eh-slider .eh-side-nav[data-pos="mid-outside"] { transform: translateY(-50%); }
 
 .eh-slider .eh-drag-surface { cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 .eh-slider .eh-drag-surface.is-dragging { cursor: grabbing; }
@@ -252,15 +306,38 @@ interface NavArrowsProps {
   nextLabel: string;
   onPrev: () => void;
   onNext: () => void;
+  nav: NavStyleResolved;
 }
-function NavArrows({ prevLabel, nextLabel, onPrev, onNext }: NavArrowsProps) {
+function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps) {
+  const iconPx = Math.max(14, Math.round(nav.sizePx * 0.42));
+  const cssVars: CSSProperties = {
+    ["--nav-bg" as string]: nav.bgColor,
+    ["--nav-arrow" as string]: nav.arrowColor,
+    ["--nav-size" as string]: `${nav.sizePx}px`,
+    ["--nav-radius" as string]: nav.radiusCss,
+  };
+  const cls = `eh-side-nav eh-nav-${nav.bgStyle}`;
   return (
     <>
-      <button type="button" aria-label={prevLabel} onClick={(e) => { e.stopPropagation(); onPrev(); }} onPointerDown={(e) => e.stopPropagation()} className="eh-side-nav eh-prev">
-        <ChevronLeft className="w-7 h-7" strokeWidth={2.5} />
+      <button
+        type="button" aria-label={prevLabel}
+        data-pos={nav.position}
+        onClick={(e) => { e.stopPropagation(); onPrev(); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        className={`${cls} eh-prev`}
+        style={cssVars}
+      >
+        <ChevronLeft style={{ width: iconPx, height: iconPx }} strokeWidth={2.5} />
       </button>
-      <button type="button" aria-label={nextLabel} onClick={(e) => { e.stopPropagation(); onNext(); }} onPointerDown={(e) => e.stopPropagation()} className="eh-side-nav eh-next">
-        <ChevronRight className="w-7 h-7" strokeWidth={2.5} />
+      <button
+        type="button" aria-label={nextLabel}
+        data-pos={nav.position}
+        onClick={(e) => { e.stopPropagation(); onNext(); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        className={`${cls} eh-next`}
+        style={cssVars}
+      >
+        <ChevronRight style={{ width: iconPx, height: iconPx }} strokeWidth={2.5} />
       </button>
     </>
   );
