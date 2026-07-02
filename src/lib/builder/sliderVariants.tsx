@@ -667,10 +667,24 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   };
 
   // Build slide click navigation helper used across variants.
+  // Client-side (TanStack Router) for internal links -> no full reload, keeps
+  // header/menu mounted; window.open for external. Skipped in preview mode
+  // (CMS builder) so editing clicks don't leave the canvas.
+  const router = useRouter({ warn: false });
   const navigateTo = (href?: string) => {
     if (!href || preview) return;
     if (href.startsWith("http://") || href.startsWith("https://")) {
-      window.open(href, "_blank", "noopener,noreferrer");
+      const client = toClientHref(href);
+      if (client && router) {
+        void router.navigate({ href: client } as never);
+      } else {
+        window.open(href, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
+    const client = toClientHref(href) ?? href;
+    if (router) {
+      void router.navigate({ href: client } as never);
     } else {
       window.location.assign(href);
     }
