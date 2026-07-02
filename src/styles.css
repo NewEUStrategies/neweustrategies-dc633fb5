@@ -152,10 +152,16 @@
   -webkit-appearance: none;
 }
 
-/* Dual-source images (light/dark variants) — toggled via .dark on <html> */
-.gc-img-dark { display: none; }
-.dark .gc-img-light { display: none; }
-.dark .gc-img-dark { display: block; }
+/* Dual-source images (light/dark variants) - toggled via .dark on <html>.
+   Selectors are chained through the OptimizedImage wrapper (.oi-wrap) so
+   specificity beats `.oi-wrap .oi-img { display: block }` defined below,
+   otherwise both variants would render at the same time. */
+.gc-img-dark,
+.oi-wrap .gc-img-dark { display: none; }
+.dark .gc-img-light,
+.dark .oi-wrap .gc-img-light { display: none; }
+.dark .gc-img-dark,
+.dark .oi-wrap .gc-img-dark { display: block; }
 
 .section-rule {
   position: relative;
