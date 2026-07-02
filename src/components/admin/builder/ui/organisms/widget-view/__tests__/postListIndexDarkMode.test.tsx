@@ -191,4 +191,21 @@ describe("RatedListView index color - fallback synced with PostListView", () => 
     expect(css).toContain(".rl-wrap .rl-num{color:#123456;}");
     expect(css).toContain(".dark .rl-wrap .rl-num{color:#abcdef;}");
   });
+
+  it("inherits `--td-li-weight` when no widget-level numberWeight is set", async () => {
+    // SSR the component so JSDOM's CSSOM (which strips `var(...)` / `clamp()`
+    // from inline `style`) can't hide the token from the assertion. Same
+    // technique as the heading font-fallback suite.
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={qc}>
+        <RatedListView
+          c={{ source: "manual", items: [{ title_pl: "X", author: "A", rating: 5 }] }}
+          lang="pl"
+        />
+      </QueryClientProvider>,
+    );
+    expect(html).toMatch(/font-weight\s*:\s*var\(--td-li-weight/);
+  });
 });
