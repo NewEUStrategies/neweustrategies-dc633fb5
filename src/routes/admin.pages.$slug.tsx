@@ -181,6 +181,23 @@ function EditPage() {
   const pickImage = async (): Promise<string | null> => window.prompt("URL obrazka") ?? null;
 
   const save = async () => {
+    if (hasBlockingSeoIssues(seoIssues)) {
+      toast.error(
+        t("admin.seo.validation.blockToast", {
+          defaultValue: "Zapis wstrzymany: pola SEO przekraczają twardy limit znaków.",
+        }),
+      );
+      return;
+    }
+    const pixelWarnings = seoIssues.filter((i) => i.severity === "warning");
+    if (pixelWarnings.length > 0) {
+      toast.warning(
+        t("admin.seo.validation.warnToast", {
+          defaultValue: "Zapisano, ale {{count}} pól SEO zostanie uciętych w Google.",
+          count: pixelWarnings.length,
+        }),
+      );
+    }
     setBusy(true);
     try {
       await autosave.flush();
