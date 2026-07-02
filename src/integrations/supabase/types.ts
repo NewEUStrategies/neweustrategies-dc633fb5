@@ -1598,17 +1598,9 @@ export type Database = {
           id: string
           layout_overrides: Json | null
           menu_order: number
-          og_image_generated_url: string | null
           parent_id: string | null
           published_at: string | null
           search_vector: unknown
-          seo_canonical_url: string | null
-          seo_description_en: string | null
-          seo_description_pl: string | null
-          seo_noindex: boolean
-          seo_og_image_url: string | null
-          seo_title_en: string | null
-          seo_title_pl: string | null
           slug: string
           status: Database["public"]["Enums"]["post_status"]
           template_id: string | null
@@ -1633,17 +1625,9 @@ export type Database = {
           id?: string
           layout_overrides?: Json | null
           menu_order?: number
-          og_image_generated_url?: string | null
           parent_id?: string | null
           published_at?: string | null
           search_vector?: unknown
-          seo_canonical_url?: string | null
-          seo_description_en?: string | null
-          seo_description_pl?: string | null
-          seo_noindex?: boolean
-          seo_og_image_url?: string | null
-          seo_title_en?: string | null
-          seo_title_pl?: string | null
           slug: string
           status?: Database["public"]["Enums"]["post_status"]
           template_id?: string | null
@@ -1668,17 +1652,9 @@ export type Database = {
           id?: string
           layout_overrides?: Json | null
           menu_order?: number
-          og_image_generated_url?: string | null
           parent_id?: string | null
           published_at?: string | null
           search_vector?: unknown
-          seo_canonical_url?: string | null
-          seo_description_en?: string | null
-          seo_description_pl?: string | null
-          seo_noindex?: boolean
-          seo_og_image_url?: string | null
-          seo_title_en?: string | null
-          seo_title_pl?: string | null
           slug?: string
           status?: Database["public"]["Enums"]["post_status"]
           template_id?: string | null
@@ -2305,7 +2281,6 @@ export type Database = {
           excerpt_pl: string | null
           id: string
           layout_overrides: Json | null
-          og_image_generated_url: string | null
           parent_page_id: string
           post_format: string
           publish_at: string | null
@@ -2313,13 +2288,6 @@ export type Database = {
           read_minutes: number | null
           related_override: Json | null
           search_vector: unknown
-          seo_canonical_url: string | null
-          seo_description_en: string | null
-          seo_description_pl: string | null
-          seo_noindex: boolean
-          seo_og_image_url: string | null
-          seo_title_en: string | null
-          seo_title_pl: string | null
           sidebar_layout_id: string | null
           slug: string
           status: Database["public"]["Enums"]["post_status"]
@@ -2346,7 +2314,6 @@ export type Database = {
           excerpt_pl?: string | null
           id?: string
           layout_overrides?: Json | null
-          og_image_generated_url?: string | null
           parent_page_id: string
           post_format?: string
           publish_at?: string | null
@@ -2354,13 +2321,6 @@ export type Database = {
           read_minutes?: number | null
           related_override?: Json | null
           search_vector?: unknown
-          seo_canonical_url?: string | null
-          seo_description_en?: string | null
-          seo_description_pl?: string | null
-          seo_noindex?: boolean
-          seo_og_image_url?: string | null
-          seo_title_en?: string | null
-          seo_title_pl?: string | null
           sidebar_layout_id?: string | null
           slug: string
           status?: Database["public"]["Enums"]["post_status"]
@@ -2387,7 +2347,6 @@ export type Database = {
           excerpt_pl?: string | null
           id?: string
           layout_overrides?: Json | null
-          og_image_generated_url?: string | null
           parent_page_id?: string
           post_format?: string
           publish_at?: string | null
@@ -2395,13 +2354,6 @@ export type Database = {
           read_minutes?: number | null
           related_override?: Json | null
           search_vector?: unknown
-          seo_canonical_url?: string | null
-          seo_description_en?: string | null
-          seo_description_pl?: string | null
-          seo_noindex?: boolean
-          seo_og_image_url?: string | null
-          seo_title_en?: string | null
-          seo_title_pl?: string | null
           sidebar_layout_id?: string | null
           slug?: string
           status?: Database["public"]["Enums"]["post_status"]
@@ -2878,51 +2830,6 @@ export type Database = {
         }
         Relationships: []
       }
-      redirects: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          hit_count: number
-          id: string
-          is_enabled: boolean
-          last_hit_at: string | null
-          note: string | null
-          source: string
-          source_path: string
-          status_code: number
-          target_path: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          hit_count?: number
-          id?: string
-          is_enabled?: boolean
-          last_hit_at?: string | null
-          note?: string | null
-          source?: string
-          source_path: string
-          status_code?: number
-          target_path: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          hit_count?: number
-          id?: string
-          is_enabled?: boolean
-          last_hit_at?: string | null
-          note?: string | null
-          source?: string
-          source_path?: string
-          status_code?: number
-          target_path?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       related_posts_config: {
         Row: {
           after_paragraph: number
@@ -2993,30 +2900,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      seo_404_hits: {
-        Row: {
-          first_seen: string
-          hits: number
-          last_referrer: string | null
-          last_seen: string
-          path: string
-        }
-        Insert: {
-          first_seen?: string
-          hits?: number
-          last_referrer?: string | null
-          last_seen?: string
-          path: string
-        }
-        Update: {
-          first_seen?: string
-          hits?: number
-          last_referrer?: string | null
-          last_seen?: string
-          path?: string
-        }
-        Relationships: []
       }
       site_design_tokens: {
         Row: {
@@ -3658,14 +3541,6 @@ export type Database = {
       publish_due_posts: { Args: never; Returns: number }
       record_post_view: {
         Args: { _post_id: string; _viewer_hash: string }
-        Returns: undefined
-      }
-      record_redirect_hit: {
-        Args: { _id: string }
-        Returns: undefined
-      }
-      record_seo_404: {
-        Args: { _path: string; _referrer?: string }
         Returns: undefined
       }
       resolve_path: {
