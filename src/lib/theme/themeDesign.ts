@@ -153,9 +153,19 @@ export function useSaveThemeDesign() {
   });
 }
 
+/** Normalizes legacy shadcn-style `hsl(var(--x))` / `hsl(var(--x) / .5)` wrappers
+ *  to bare `var(--x)` — our design tokens now hold ready-to-use color values
+ *  (hex, oklch, color-mix), not raw HSL triplets, so wrapping them in `hsl()`
+ *  produces invalid CSS ("hsl(#F8F6F4)") that browsers silently drop, leaving
+ *  text unreadable in dark mode. Older DB rows still contain the wrapped form. */
+function normalizeColor(c: string): string {
+  return c.replace(/hsl\(\s*var\((--[a-z0-9-]+)\)(?:\s*\/\s*[^)]+)?\s*\)/gi, "var($1)");
+}
+
 /** Serializes the design tokens to CSS variables under `:root`. */
 export function themeDesignToCss(t: ThemeDesign): string {
   const v: string[] = [];
+  const c = (x: string) => normalizeColor(x);
   // Block heading
   v.push(`--td-bh-size:${t.blockHeading.fontSize};`);
   v.push(`--td-bh-weight:${t.blockHeading.fontWeight};`);
