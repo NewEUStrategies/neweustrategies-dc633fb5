@@ -10,6 +10,16 @@ import { migratePostContent } from "@/lib/blocks/migrate";
 
 const UUID = z.string().uuid();
 
+async function resolveTenant(
+  supabase: import("@supabase/supabase-js").SupabaseClient,
+  userId: string,
+): Promise<string> {
+  const { data, error } = await supabase
+    .from("profiles").select("tenant_id").eq("id", userId).maybeSingle();
+  if (error || !data?.tenant_id) throw new Error("No tenant for current user");
+  return data.tenant_id as string;
+}
+
 interface LegacyRow {
   id: string;
   editor: string;
@@ -43,11 +53,16 @@ export const migratePostToBlocks = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .inputValidator((i: unknown) => z.object({ id: UUID }).parse(i))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { data: row, error } = await supabase
+    const { supabase, userId } = context;
+    // Legacy body columns are revoked from the authenticated role, so read them
+    // via service_role scoped by tenant; the write stays under the caller's RLS.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const tenantId = await resolveTenant(supabaseAdmin, userId);
+    const { data: row, error } = await supabaseAdmin
       .from("posts")
       .select("id, editor, content_pl, content_en, builder_data")
       .eq("id", data.id)
+      .eq("tenant_id", tenantId)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) throw new Error("Post not found or access denied");
@@ -60,10 +75,15 @@ export const bulkMigratePostsToBlocks = createServerFn({ method: "POST" })
     ids: z.array(UUID).max(500).optional(),
   }).parse(i ?? {}))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    let query = supabase
+    const { supabase, userId } = context;
+    // Legacy body columns are revoked from the authenticated role, so read them
+    // via service_role scoped by tenant; writes stay under the caller's RLS.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const tenantId = await resolveTenant(supabaseAdmin, userId);
+    let query = supabaseAdmin
       .from("posts")
       .select("id, editor, content_pl, content_en, builder_data")
+      .eq("tenant_id", tenantId)
       .neq("editor", "blocks")
       .is("deleted_at", null)
       .limit(500);

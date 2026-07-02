@@ -335,9 +335,14 @@ export const updatePost = createServerFn({ method: "POST" })
     return guard("post.update", userId, 120, async () => {
       const tenantId = await resolveTenant(supabase, userId);
 
-      // Ensure ownership (RLS would also block, but explicit check gives clearer error)
-      const { data: existing, error: exErr } = await supabase
-        .from("posts").select("*").eq("id", data.id).maybeSingle();
+      // Ownership is still enforced on the UPDATE below by RLS; this pre-read
+      // exists for the workflow gate + revision snapshot. It must read the body
+      // columns (for the snapshot), which are no longer SELECT-able by the
+      // authenticated role, so it goes through service_role - scoped by tenant
+      // to preserve cross-tenant isolation.
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: existing, error: exErr } = await supabaseAdmin
+        .from("posts").select("*").eq("id", data.id).eq("tenant_id", tenantId).maybeSingle();
       if (exErr) throw new Error(exErr.message);
       if (!existing) throw new Error("Post not found or access denied");
 

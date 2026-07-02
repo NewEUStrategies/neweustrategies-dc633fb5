@@ -3590,6 +3590,14 @@ export type Database = {
           content_pl: string
         }[]
       }
+      get_page_for_edit: {
+        Args: { _slug: string }
+        Returns: Database["public"]["Tables"]["pages"]["Row"][]
+      }
+      get_post_for_edit: {
+        Args: { _slug: string }
+        Returns: Database["public"]["Tables"]["posts"]["Row"][]
+      }
       guess_gender_from_name: {
         Args: { _name: string }
         Returns: Database["public"]["Enums"]["name_gender"]
