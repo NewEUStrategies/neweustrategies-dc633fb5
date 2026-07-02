@@ -62,12 +62,43 @@ export function buildWidgetTypographyRules(
   const repeat = "[data-w-id]".repeat(Math.max(0, specificity - 1));
   const sel = `${ancestor}[data-w-id="${id}"]${repeat}`;
   const notCounters = ":not(.post-list-numbered-index):not(.rl-num)";
-  const titleCore = `:is(.cms-post-title,[data-title-root],[data-typography-role="title"],h1,h2,h3,h4,h5,h6)${notCounters}`;
-  const descCore = `:is(.cms-post-excerpt,[data-description-root],[data-typography-role="description"],p,.prose p,li,dd,blockquote,figcaption,small)`;
-  const titleSel = `${sel} ${titleCore}, ${sel}[data-title-root], ${sel}[data-typography-role="title"]`;
-  const descriptionSel = `${sel} ${descCore}, ${sel}[data-description-root], ${sel}[data-typography-role="description"]`;
-  const allText = `${sel}, ${sel} :is(p,span,a,strong,em,small,li,dt,dd,blockquote,cite,label,button,input,textarea,select,option,figcaption,legend,time,h1,h2,h3,h4,h5,h6,.prose,.prose *,.cms-post-title,.cms-post-excerpt,[data-title-root],[data-description-root],[data-typography-role="title"],[data-typography-role="description"])${notCounters}`;
-  const genericNoPost = `${sel}, ${sel} :is(p,span,a,strong,em,small,li,dt,dd,blockquote,cite,label,button,input,textarea,select,option,figcaption,legend,time,h1,h2,h3,h4,h5,h6,.prose,.prose *):not(.cms-post-title):not(.cms-post-excerpt)${notCounters}`;
+  // Keep these selectors intentionally boring. The previous compact `:is()`
+  // groups were valid in modern browsers, but one invalid/unsupported selector
+  // in an embedded preview stylesheet made everything except the dedicated
+  // title-size rule look "dead". Generating explicit selectors gives every
+  // control the same cascade path and is easier to verify in DevTools.
+  const titleTargets = [
+    `${sel} .cms-post-title`,
+    `${sel} [data-title-root]`,
+    `${sel}[data-title-root]`,
+    `${sel} [data-typography-role="title"]`,
+    `${sel}[data-typography-role="title"]`,
+    ...["h1", "h2", "h3", "h4", "h5", "h6"].map((tag) => `${sel} ${tag}${notCounters}`),
+  ];
+  const descriptionTargets = [
+    `${sel} .cms-post-excerpt`,
+    `${sel} [data-description-root]`,
+    `${sel}[data-description-root]`,
+    `${sel} [data-typography-role="description"]`,
+    `${sel}[data-typography-role="description"]`,
+    ...["p", "li", "dd", "blockquote", "figcaption", "small"].map((tag) => `${sel} ${tag}:not(.cms-post-title)${notCounters}`),
+    `${sel} .prose p`,
+  ];
+  const genericTextTags = [
+    "p", "span", "a", "strong", "em", "small", "li", "dt", "dd", "blockquote",
+    "cite", "label", "button", "input", "textarea", "select", "option", "figcaption",
+    "legend", "time", "h1", "h2", "h3", "h4", "h5", "h6",
+  ];
+  const genericTextTargets = [
+    sel,
+    ...genericTextTags.map((tag) => `${sel} ${tag}:not(.cms-post-title):not(.cms-post-excerpt)${notCounters}`),
+    `${sel} .prose`,
+    `${sel} .prose *:not(.cms-post-title):not(.cms-post-excerpt)${notCounters}`,
+  ];
+  const allText = [...genericTextTargets, ...titleTargets, ...descriptionTargets].join(", ");
+  const genericNoPost = genericTextTargets.join(", ");
+  const titleSel = titleTargets.join(", ");
+  const descriptionSel = descriptionTargets.join(", ");
   const rules: string[] = [];
 
   const fontFamily = cleanCssValue(typography.fontFamily);
@@ -97,8 +128,8 @@ export function buildWidgetTypographyRules(
 
   if (typeof typography.titleDescriptionGapPx === "number" && typography.titleDescriptionGapPx >= 0) {
     const gap = `${Math.max(0, typography.titleDescriptionGapPx)}px`;
-    rules.push(`${sel} ${titleCore} + ${descCore}{margin-top:${gap} !important;}`);
-    rules.push(`${sel} a:has(> ${titleCore}) + ${descCore}{margin-top:${gap} !important;}`);
+    rules.push(`${sel} .cms-post-title + .cms-post-excerpt, ${sel} [data-title-root] + [data-description-root]{margin-top:${gap} !important;}`);
+    rules.push(`${sel} a:has(> .cms-post-title) + .cms-post-excerpt{margin-top:${gap} !important;}`);
     rules.push(`${sel} [data-title-root] + [data-description-root]{margin-top:${gap} !important;}`);
   }
 
