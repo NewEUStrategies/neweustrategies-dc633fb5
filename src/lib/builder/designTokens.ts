@@ -9,7 +9,7 @@
 // custom CSS / inline style values (e.g. `var(--brand-primary)`) work in the
 // builder canvas, the published site, and the public renderer alike.
 import { toJson } from "@/lib/builder/types";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { customFontsCss, type CustomFont } from "@/lib/theme/customFonts";
