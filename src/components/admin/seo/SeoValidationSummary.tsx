@@ -4,7 +4,7 @@
 // snippets before they ship. Blocking rows (hard character caps) are styled
 // as errors; pixel-budget overflows render as warnings.
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, CheckCircle2 } from "@/lib/lucide-shim";
+import { AlertTriangle, Check } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
 import type { SeoIssue } from "@/lib/seo/validation";
 
