@@ -45,7 +45,7 @@ jobs:
       # ---- MODE A: real deployed URL configured -> blocking gate ----
       - name: Lighthouse against deployed URL (blocking)
         if: ${{ vars.LHCI_URL != '' }}
-        run: bunx @lhci/cli@0.16.x autorun --config=lighthouserc.deployed.json --collect.url="${{ vars.LHCI_URL }}"
+        run: bunx @lhci/cli@0.15.x autorun --config=lighthouserc.deployed.json --collect.url="${{ vars.LHCI_URL }}"
 
       # ---- MODE B: no deployed URL -> non-blocking local-preview smoke ----
       # See ci.yml: the committed bun.lock pins tarballs to Lovable's private GAR
@@ -71,7 +71,7 @@ jobs:
       # representative blocking gate for perf/a11y/SEO.
       - name: Lighthouse smoke on dev server (scores advisory; the run must succeed)
         if: ${{ vars.LHCI_URL == '' }}
-        run: bunx @lhci/cli@0.16.x autorun --config=lighthouserc.json
+        run: bunx @lhci/cli@0.15.x autorun --config=lighthouserc.json
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
