@@ -432,7 +432,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
                 className={`grid ${p.cover_image_url ? "grid-cols-[96px_minmax(0,1fr)] sm:grid-cols-[104px_minmax(0,1fr)]" : "grid-cols-[28px_minmax(0,1fr)]"} items-start gap-2.5 sm:gap-3 py-3 sm:py-3.5 first:pt-0 group`}
               >
                 {p.cover_image_url ? (
-                  <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`relative block aspect-[4/3] w-full shrink-0 overflow-hidden rounded-sm bg-muted`} sizes="104px" foregroundClassName={COVER_IMG_CLASS} />
+                  <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`relative block aspect-[4/3] w-full shrink-0 overflow-hidden rounded-sm bg-muted`} sizes="104px" foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
                 ) : (
                   <span className="font-serif text-lg tabular-nums text-brand/80 leading-none pt-0.5">{String(i + 1).padStart(2, "0")}</span>
                 )}
