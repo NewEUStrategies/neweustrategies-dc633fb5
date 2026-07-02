@@ -514,7 +514,7 @@ export function VisualCanvas({
     : { width: "100%", maxWidth: "100%", overflowX: "clip", boxSizing: "border-box" };
 
   return (
-    <div data-visual-canvas data-device={device} onClick={onClick} ref={rootRef} style={{ width: "100%", overflowX: "clip" }}>
+    <div data-visual-canvas data-device={device} onClickCapture={onClickCapture} ref={rootRef} style={{ width: "100%", overflowX: "clip" }}>
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
       <div style={frameStyle}>
         <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} />
