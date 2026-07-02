@@ -33,7 +33,9 @@ import { LocalePreferenceRedirect } from "../components/LocalePreferenceRedirect
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
 import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
-import { siteSettingsQueryOptions } from "../lib/useSiteSetting";
+import { resolveSetting, siteSettingsQueryOptions } from "../lib/useSiteSetting";
+import { headerTickerQueryOptions } from "../lib/views/headerTickerQuery";
+import type { HeaderSettings } from "../components/Header";
 import { SiteChrome } from "../components/SiteChrome";
 
 // Non-critical overlays: not visible at first paint (they open on trigger/delay),
@@ -172,9 +174,29 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   // backs Header, Footer, navigation menus, AlertBar and CopyrightBar - one
   // round-trip on the edge hydrates every layout chunk so chrome renders
   // in lockstep with the route body instead of popping in after hydration.
-  loader: async ({ context }) => {
+  loader: async ({ context, location }) => {
     await syncI18nToRequest();
-    return context.queryClient.ensureQueryData(siteSettingsQueryOptions);
+    const settings = await context.queryClient.ensureQueryData(siteSettingsQueryOptions);
+    // Warm the header "Na czasie" ticker for every route that shows the site
+    // chrome, so the bar is part of the SSR HTML instead of appearing seconds
+    // after hydration and pushing the whole page down (the worst CLS on the
+    // site). Both fetches sit behind per-isolate TTL caches (see ssrCache /
+    // postViews.functions), so in steady state this adds no extra round-trips.
+    const path = location.pathname;
+    const showsChrome =
+      path !== "/admin" && !path.startsWith("/admin/") &&
+      path !== "/login" && !path.startsWith("/login/");
+    if (showsChrome) {
+      const header = resolveSetting<HeaderSettings>(settings, "header", {});
+      const trending = header.trending ?? {};
+      const headerVisible = !!header.builder_data?.sections?.length;
+      if (headerVisible && trending.enabled !== false) {
+        await context.queryClient.ensureQueryData(headerTickerQueryOptions(trending));
+      }
+    }
+    // Nothing reads the root loader's data - return null so the settings map is
+    // not serialized a second time into the dehydrated payload.
+    return null;
   },
   shellComponent: RootShell,
   component: RootComponent,

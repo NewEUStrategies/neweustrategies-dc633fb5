@@ -1,16 +1,18 @@
 // Header "Na czasie / Trending" - compact bar of posts.
 // Supports three sources (trending | latest | pinned) and two display modes
 // (scroll: marquee-like horizontal list; rotate: single post, swapped every N s).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { Flame } from "lucide-react";
-import { getTrendingPosts, getTickerPosts, type TrendingPost } from "@/lib/views/postViews.functions";
+import {
+  headerTickerQueryOptions,
+  type TickerMode,
+  type TickerSource,
+} from "@/lib/views/headerTickerQuery";
 import { AppLink } from "@/components/atoms/AppLink";
 
-export type TickerSource = "trending" | "latest" | "pinned";
-export type TickerMode = "scroll" | "rotate";
+export type { TickerMode, TickerSource };
 
 export interface TickerProps {
   source?: TickerSource;
@@ -37,26 +39,14 @@ export function TrendingTicker({
 }: TickerProps) {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
-  const trendingFetcher = useServerFn(getTrendingPosts);
-  const tickerFetcher = useServerFn(getTickerPosts);
 
-  // Honor "pinned until" - fall back to latest once it expires.
-  const effectiveSource: TickerSource = useMemo(() => {
-    if (source !== "pinned") return source;
-    if (!pinnedPostId) return "latest";
-    if (pinnedUntil && new Date(pinnedUntil).getTime() < Date.now()) return "latest";
-    return "pinned";
-  }, [source, pinnedPostId, pinnedUntil]);
-
-  const { data, isLoading } = useQuery<TrendingPost[]>({
-    queryKey: ["header_ticker", effectiveSource, days, limit, pinnedPostId ?? null] as const,
-    queryFn: () => {
-      if (effectiveSource === "trending") return trendingFetcher({ data: { days, limit } });
-      return tickerFetcher({ data: { source: effectiveSource, limit, pinnedPostId } });
-    },
-    staleTime: 5 * 60_000,
-    gcTime: 30 * 60_000,
-  });
+  // Shared with the root-route loader's SSR prefetch (same key + fn), so in
+  // steady state this resolves synchronously from the hydrated cache - the
+  // ticker is already part of the server HTML instead of appearing after
+  // hydration and shifting the layout.
+  const { data, isLoading } = useQuery(
+    headerTickerQueryOptions({ source, days, limit, pinnedPostId, pinnedUntil }),
+  );
 
   const [idx, setIdx] = useState(0);
   useEffect(() => {
