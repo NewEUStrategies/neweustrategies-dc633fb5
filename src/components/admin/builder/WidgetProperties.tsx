@@ -259,6 +259,40 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
           />
         </section>
 
+        <section className="space-y-2 pt-2 border-t border-border">
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            {lang === "en" ? "Icons" : "Ikony"} ({mode === "dark" ? "ciemny" : "jasny"})
+          </h4>
+          <p className="text-[10px] text-muted-foreground -mt-1">
+            {lang === "en"
+              ? "Colors for SVG icons: default, hover, and active (current page)."
+              : "Kolory ikon SVG: domyślny, po najechaniu i aktywny (bieżąca strona)."}
+          </p>
+          <ThemedColorField
+            label={lang === "en" ? "Default" : "Domyślny"}
+            value={getColor("iconColor")}
+            onChange={(v) => setColor("iconColor", v)}
+            overridden={isOverridden("iconColor")}
+            onReset={() => resetColor("iconColor")}
+            placeholderHint={lang === "en" ? "inherits from text color" : "dziedziczy z koloru tekstu"}
+          />
+          <ThemedColorField
+            label={lang === "en" ? "Hover" : "Po najechaniu"}
+            value={getColor("iconHoverColor")}
+            onChange={(v) => setColor("iconHoverColor", v)}
+            overridden={isOverridden("iconHoverColor")}
+            onReset={() => resetColor("iconHoverColor")}
+            placeholderHint={lang === "en" ? "inherits from default" : "dziedziczy z domyślnego"}
+          />
+          <ThemedColorField
+            label={lang === "en" ? "Active (current page)" : "Aktywny (bieżąca strona)"}
+            value={getColor("iconActiveColor")}
+            onChange={(v) => setColor("iconActiveColor", v)}
+            overridden={isOverridden("iconActiveColor")}
+            onReset={() => resetColor("iconActiveColor")}
+            placeholderHint={lang === "en" ? "inherits from hover" : "dziedziczy z hover"}
+          />
+
         {widget.type === "dark-featured-card" && (
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Etykieta (badge)</h4>
