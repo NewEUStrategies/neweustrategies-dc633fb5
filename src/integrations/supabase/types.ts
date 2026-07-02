@@ -3660,10 +3660,7 @@ export type Database = {
         Args: { _post_id: string; _viewer_hash: string }
         Returns: undefined
       }
-      record_redirect_hit: {
-        Args: { _id: string }
-        Returns: undefined
-      }
+      record_redirect_hit: { Args: { _id: string }; Returns: undefined }
       record_seo_404: {
         Args: { _path: string; _referrer?: string }
         Returns: undefined
