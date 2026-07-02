@@ -108,6 +108,17 @@ export interface AccessControlSettings {
   rolesMode?: AccessRolesMode;
 }
 
+/**
+ * Section-level A/B test tag. Two sibling sections tagged with the same
+ * `experimentId` (variants "a" and "b") form one experiment: the public
+ * renderer deterministically shows exactly one of them per visitor and logs
+ * exposure/conversion events; the builder canvas shows both with badges.
+ */
+export interface AbTestTag {
+  experimentId: string;
+  variant: "a" | "b";
+}
+
 export interface AdvancedSettings {
   cssClass?: string;
   customCss?: string;
@@ -131,6 +142,8 @@ export interface AdvancedSettings {
   // Legacy projects may still use a flat number - read with `pickWidgetSize`.
   width?: ResponsiveValue<WidgetSize> | number;
   height?: ResponsiveValue<WidgetSize> | number;
+  /** Section-only: marks this section as a variant of an A/B experiment. */
+  abTest?: AbTestTag;
 }
 
 // ---------- Section-specific settings (Elementor-style) ----------
@@ -303,6 +316,14 @@ export interface WidgetNode {
   content: WidgetContent;
   style?: CommonStyle;
   advanced?: AdvancedSettings;
+  /**
+   * When set, this widget is an INSTANCE of a global widget
+   * (builder_global_widgets row). The node keeps a full local snapshot of
+   * type/content/style/advanced as an SSR/offline fallback, but renderers
+   * overlay the live global record, so editing the global updates every
+   * page that references it. Delete the key to detach the instance.
+   */
+  globalId?: string;
 }
 
 export interface ColumnNode {

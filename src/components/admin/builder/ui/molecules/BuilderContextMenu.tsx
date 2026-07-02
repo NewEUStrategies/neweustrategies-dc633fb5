@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { createPortal } from "react-dom";
 import {
   Copy, Trash2, Plus, ChevronUp, ChevronDown, Eye, Save, Columns2, Settings, X,
+  Globe, Link2Off, FlaskConical,
 } from "@/lib/lucide-shim";
 
 export type CtxKind = "section" | "inner-section" | "column" | "widget" | "empty";
@@ -34,6 +35,17 @@ export interface BuilderContextMenuActions {
   addInnerSection?: () => void;
   addSection?: () => void;
   saveAsTemplate?: () => void;
+  /** Widget: promote to a global widget synchronized across pages. */
+  saveAsGlobal?: () => void;
+  /** Widget: detach a global instance into a local copy. */
+  unlinkGlobal?: () => void;
+  /** Section: create an A/B test (duplicates the section as variant B). */
+  startAbTest?: () => void;
+  /** Section: this section's variant when it is part of an A/B test. */
+  abVariant?: "a" | "b";
+  endAbTestKeepA?: () => void;
+  endAbTestKeepB?: () => void;
+  endAbTestKeepBoth?: () => void;
   remove?: () => void;
 }
 
@@ -196,6 +208,31 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
 
       {actions.saveAsTemplate && (
         <Item icon={<Save className="w-3.5 h-3.5" />} label="Zapisz jako szablon" onClick={actions.saveAsTemplate} />
+      )}
+
+      {actions.saveAsGlobal && (
+        <Item icon={<Globe className="w-3.5 h-3.5" />} label="Zapisz jako widget globalny" onClick={actions.saveAsGlobal} />
+      )}
+      {actions.unlinkGlobal && (
+        <Item icon={<Link2Off className="w-3.5 h-3.5" />} label="Odłącz od widgetu globalnego" onClick={actions.unlinkGlobal} />
+      )}
+
+      {actions.startAbTest && (
+        <>
+          <Sep />
+          <Item icon={<FlaskConical className="w-3.5 h-3.5" />} label="Utwórz test A/B" onClick={actions.startAbTest} />
+        </>
+      )}
+      {actions.abVariant && (
+        <>
+          <Sep />
+          <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+            Test A/B - wariant {actions.abVariant.toUpperCase()}
+          </div>
+          <Item icon={<FlaskConical className="w-3.5 h-3.5" />} label="Zakończ test - zostaw wariant A" onClick={actions.endAbTestKeepA} />
+          <Item icon={<FlaskConical className="w-3.5 h-3.5" />} label="Zakończ test - zostaw wariant B" onClick={actions.endAbTestKeepB} />
+          <Item icon={<FlaskConical className="w-3.5 h-3.5" />} label="Zakończ test - zostaw oba" onClick={actions.endAbTestKeepBoth} />
+        </>
       )}
 
       {actions.remove && (

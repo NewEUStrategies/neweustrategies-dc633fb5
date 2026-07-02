@@ -19,6 +19,7 @@ import { hoverCss } from "@/lib/builder/hoverCss";
 import { subscribeWidgetTypography } from "@/lib/builder/liveTypography";
 import { buildWidgetTypographyCss, normalizeTypographyGapPx, resolveWidgetTypography } from "@/lib/builder/typographyCss";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
+import { mergeGlobalIntoInstance, useGlobalWidgetNode } from "@/lib/builder/globalWidgets";
 import { useTheme } from "@/components/ThemeProvider";
 import { useBuilderMode } from "@/lib/builder/modeContext";
 // Heavy, non-critical widgets are code-split via lazyWidgets so they never
@@ -94,7 +95,14 @@ interface ViewProps {
   onContentChange?: (key: string, value: string | number) => void;
 }
 
-export const WidgetView = memo(function WidgetView({ node, lang, device, editable = false, onContentChange }: ViewProps) {
+export const WidgetView = memo(function WidgetView({ node: instanceNode, lang, device, editable = false, onContentChange }: ViewProps) {
+  // Global-widget instances render the LIVE record (synchronized across pages);
+  // the embedded snapshot is only the SSR / first-paint fallback. The hook is a
+  // no-op (disabled query) for regular widgets, so hook order stays stable.
+  const globalData = useGlobalWidgetNode(instanceNode.globalId);
+  const node = instanceNode.globalId && globalData
+    ? mergeGlobalIntoInstance(instanceNode, globalData)
+    : instanceNode;
   const { theme } = useTheme();
   const builderMode = useBuilderMode();
   const effectiveMode = builderMode ?? theme;

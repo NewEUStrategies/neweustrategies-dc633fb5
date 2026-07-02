@@ -479,6 +479,42 @@ export function moveWidgetToSection(d: BuilderDocument, srcId: string, targetSec
   targetColumn.children.push(src);
 }
 
+/** Detach a global-widget instance: the local snapshot becomes a plain widget. */
+export function unlinkGlobalWidget(d: BuilderDocument, wid: string): void {
+  const f = findWidget(d, wid);
+  if (f?.widget.globalId) delete f.widget.globalId;
+}
+
+/**
+ * Start a section A/B test: duplicate the section right below the original and
+ * tag both with the experiment id (original = variant A, copy = variant B).
+ */
+export function startAbTest(d: BuilderDocument, sectionId: string, experimentId: string): void {
+  const i = d.sections.findIndex((s) => s?.id === sectionId);
+  if (i < 0) return;
+  const original = d.sections[i];
+  const copy = cloneSection(original);
+  original.advanced = { ...(original.advanced ?? {}), abTest: { experimentId, variant: "a" } };
+  copy.advanced = { ...(copy.advanced ?? {}), abTest: { experimentId, variant: "b" } };
+  d.sections.splice(i + 1, 0, copy);
+}
+
+/**
+ * End a section A/B test. `keep` decides which variant survives:
+ * "both" only removes the tags (sections stay as regular siblings), "a"/"b"
+ * additionally deletes the losing variant.
+ */
+export function endAbTest(d: BuilderDocument, experimentId: string, keep: "a" | "b" | "both"): void {
+  if (keep !== "both") {
+    d.sections = d.sections.filter(
+      (s) => !(s?.advanced?.abTest?.experimentId === experimentId && s.advanced.abTest.variant !== keep),
+    );
+  }
+  for (const s of d.sections) {
+    if (s?.advanced?.abTest?.experimentId === experimentId) delete s.advanced.abTest;
+  }
+}
+
 /** Toggle a node's per-device visibility flag. */
 export function toggleHidden(d: BuilderDocument, id: string, kind: NodeKind, device: Device): void {
   const target =

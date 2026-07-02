@@ -3,6 +3,7 @@
 // history `update` cycle and owns the side effects that touch React state
 // (selection after insert, section-template prompt, focused-column memo).
 import { useCallback, useMemo, useRef } from "react";
+import { toast } from "sonner";
 import { makeWidget } from "@/lib/builder/registry";
 import type {
   BuilderDocument, ColumnNode, SectionNode, WidgetNode, WidgetType, Device,
@@ -11,7 +12,10 @@ import type { History } from "@/lib/builder/useHistory";
 import * as ops from "@/lib/builder/operations";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
+import { useGlobalWidgets, makeGlobalInstance, type GlobalWidget } from "@/lib/builder/globalWidgets";
+import { useExperimentsAdmin } from "@/lib/builder/experiments";
 import { buildHomepageDocument } from "@/lib/builder/homepageTemplate";
+import type { GlobalDragPayload } from "../organisms/builder/VisualCanvas";
 import type { Selection, SelectionKind } from "../organisms/builder/types";
 
 interface Args {
@@ -24,6 +28,8 @@ interface Args {
 
 export function useBuilderOperations({ history, doc, selection, setSelection, device }: Args) {
   const templates = useSectionTemplates();
+  const globals = useGlobalWidgets();
+  const experiments = useExperimentsAdmin();
 
   const docRef = useRef(doc);
   docRef.current = doc;
@@ -82,26 +88,73 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     if (c) mut(c);
   });
 
+  // New widget nodes: either a fresh widget of `type`, or an instance of a
+  // dragged global widget (snapshot + globalId reference).
+  const makeNode = (type: WidgetType, global?: GlobalDragPayload): WidgetNode =>
+    global ? makeGlobalInstance(global) : makeWidget(type);
+
   const addWidgetToFocused = (type: WidgetType) => {
     const w = makeWidget(type);
     if (!focusedColumn) update((d) => ops.addWidgetToNewSection(d, w));
     else update((d) => ops.addWidgetToColumn(d, focusedColumn.id, w));
     setSelection({ kind: "widget", id: w.id });
   };
-  const addWidgetToColumn = (colId: string, type: WidgetType) => {
-    const w = makeWidget(type);
+  const addGlobalWidgetToFocused = (g: Pick<GlobalWidget, "id" | "data">) => {
+    const w = makeGlobalInstance(g);
+    if (!focusedColumn) update((d) => ops.addWidgetToNewSection(d, w));
+    else update((d) => ops.addWidgetToColumn(d, focusedColumn.id, w));
+    setSelection({ kind: "widget", id: w.id });
+  };
+  const addWidgetToColumn = (colId: string, type: WidgetType, global?: GlobalDragPayload) => {
+    const w = makeNode(type, global);
     update((d) => ops.addWidgetToColumn(d, colId, w));
     setSelection({ kind: "widget", id: w.id });
   };
-  const insertWidgetNear = (targetWidgetId: string, pos: "before" | "after", type: WidgetType) => {
-    const w = makeWidget(type);
+  const insertWidgetNear = (targetWidgetId: string, pos: "before" | "after", type: WidgetType, global?: GlobalDragPayload) => {
+    const w = makeNode(type, global);
     update((d) => ops.insertWidgetNear(d, targetWidgetId, pos, w));
     setSelection({ kind: "widget", id: w.id });
   };
-  const appendWidgetToSection = (sectionId: string, type: WidgetType) => {
-    const w = makeWidget(type);
+  const appendWidgetToSection = (sectionId: string, type: WidgetType, global?: GlobalDragPayload) => {
+    const w = makeNode(type, global);
     update((d) => ops.appendWidgetToSection(d, sectionId, w));
     setSelection({ kind: "widget", id: w.id });
+  };
+
+  // ---------- global widgets ----------
+  const saveWidgetAsGlobal = async (wid: string) => {
+    const f = ops.findWidget(doc, wid);
+    if (!f) return;
+    const name = window.prompt("Nazwa widgetu globalnego:");
+    if (!name?.trim()) return;
+    const id = await globals.save(name.trim(), f.widget);
+    if (!id) { toast.error("Nie udało się zapisać widgetu globalnego"); return; }
+    update((d) => {
+      const found = ops.findWidget(d, wid);
+      if (found) found.widget.globalId = id;
+    });
+    toast.success("Zapisano widget globalny - zmiany będą synchronizowane między stronami");
+  };
+  const unlinkGlobalWidget = (wid: string) => {
+    update((d) => ops.unlinkGlobalWidget(d, wid));
+    toast.info("Odłączono od widgetu globalnego - kopia jest teraz lokalna");
+  };
+
+  // ---------- A/B tests ----------
+  const startAbTest = async (sectionId: string) => {
+    const s = ops.findSection(doc, sectionId);
+    if (!s) return;
+    const name = window.prompt("Nazwa testu A/B:");
+    if (!name?.trim()) return;
+    const experimentId = await experiments.create(name.trim());
+    if (!experimentId) { toast.error("Nie udało się utworzyć testu A/B"); return; }
+    update((d) => ops.startAbTest(d, sectionId, experimentId));
+    toast.success("Utworzono test A/B - edytuj wariant B poniżej oryginału");
+  };
+  const endAbTest = (experimentId: string, keep: "a" | "b" | "both") => {
+    update((d) => ops.endAbTest(d, experimentId, keep));
+    void experiments.setStatus(experimentId, "completed");
+    toast.success("Zakończono test A/B");
   };
 
   const moveWidgetTo = (srcId: string, targetId: string, pos: "before" | "after") =>
@@ -123,6 +176,8 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     addInnerSection, addColumn, removeColumn, duplicateColumn,
     removeWidget, duplicateWidget, updateWidget, updateSection, updateColumn,
     addWidgetToFocused, addWidgetToColumn, insertWidgetNear, appendWidgetToSection,
+    addGlobalWidgetToFocused, saveWidgetAsGlobal, unlinkGlobalWidget,
+    startAbTest, endAbTest,
     moveWidgetTo, moveWidgetToColumn, moveWidgetToSection, moveSectionTo,
     toggleHidden,
   };
