@@ -30,6 +30,15 @@ function hasKeys(value: WidgetTypography | undefined): value is WidgetTypography
   return !!value && Object.values(value).some((v) => v !== undefined && v !== "");
 }
 
+export function normalizeTypographyGapPx(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.min(200, value));
+  if (typeof value === "string") {
+    const n = Number(value.replace(/[^0-9.]/g, ""));
+    if (Number.isFinite(n)) return Math.max(0, Math.min(200, n));
+  }
+  return undefined;
+}
+
 export function resolveWidgetTypography(
   stored: Themed<WidgetTypography> | undefined,
   mode: Mode,
@@ -97,6 +106,10 @@ export function buildWidgetTypographyRules(
   ];
   const allText = [...genericTextTargets, ...titleTargets, ...descriptionTargets].join(", ");
   const genericNoPost = genericTextTargets.join(", ");
+  const titleClassSel = titleTargets[0];
+  const titleFallbackSel = titleTargets.slice(1).join(", ");
+  const descriptionClassSel = descriptionTargets[0];
+  const descriptionFallbackSel = descriptionTargets.slice(1).join(", ");
   const titleSel = titleTargets.join(", ");
   const descriptionSel = descriptionTargets.join(", ");
   const rules: string[] = [];
@@ -115,22 +128,26 @@ export function buildWidgetTypographyRules(
 
   if (fontSize) {
     if (descriptionFontSize) {
-      rules.push(`${titleSel}{font-size:${fontSize} !important;}`);
+      rules.push(`${titleClassSel}{font-size:${fontSize} !important;}`);
+      if (titleFallbackSel) rules.push(`${titleFallbackSel}{font-size:${fontSize} !important;}`);
     } else {
       rules.push(`${genericNoPost}{font-size:${fontSize} !important;}`);
-      rules.push(`${titleSel}{font-size:${fontSize} !important;}`);
+      rules.push(`${titleClassSel}{font-size:${fontSize} !important;}`);
+      if (titleFallbackSel) rules.push(`${titleFallbackSel}{font-size:${fontSize} !important;}`);
       rules.push(`${sel} input::placeholder, ${sel} textarea::placeholder{font-size:${fontSize} !important;}`);
     }
   }
   if (descriptionFontSize) {
-    rules.push(`${descriptionSel}{font-size:${descriptionFontSize} !important;}`);
+    rules.push(`${descriptionClassSel}{font-size:${descriptionFontSize} !important;}`);
+    if (descriptionFallbackSel) rules.push(`${descriptionFallbackSel}{font-size:${descriptionFontSize} !important;}`);
   }
 
-  if (typeof typography.titleDescriptionGapPx === "number" && typography.titleDescriptionGapPx >= 0) {
-    const gap = `${Math.max(0, typography.titleDescriptionGapPx)}px`;
-    rules.push(`${sel} .cms-post-title + .cms-post-excerpt, ${sel} [data-title-root] + [data-description-root]{margin-top:${gap} !important;}`);
+  const gapPx = normalizeTypographyGapPx(typography.titleDescriptionGapPx);
+  if (typeof gapPx === "number") {
+    const gap = `${gapPx}px`;
+    rules.push(`${sel}{--cms-title-description-gap:${gap};}`);
+    rules.push(`${sel} .cms-post-title + .cms-post-excerpt, ${sel} .cms-post-title ~ .cms-post-excerpt, ${sel} [data-title-root] + [data-description-root], ${sel} [data-title-root] ~ [data-description-root], ${sel} [data-typography-gap-target]{margin-top:${gap} !important;}`);
     rules.push(`${sel} a:has(> .cms-post-title) + .cms-post-excerpt{margin-top:${gap} !important;}`);
-    rules.push(`${sel} [data-title-root] + [data-description-root]{margin-top:${gap} !important;}`);
   }
 
   if (fontWeight) rules.push(`${allText}{font-weight:${fontWeight} !important;}`);

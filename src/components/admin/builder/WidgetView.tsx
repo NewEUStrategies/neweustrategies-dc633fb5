@@ -17,7 +17,7 @@ import {
 import { useInView } from "@/hooks/use-in-view";
 import { hoverCss } from "@/lib/builder/hoverCss";
 import { subscribeWidgetTypography } from "@/lib/builder/liveTypography";
-import { buildWidgetTypographyCss, resolveWidgetTypography } from "@/lib/builder/typographyCss";
+import { buildWidgetTypographyCss, normalizeTypographyGapPx, resolveWidgetTypography } from "@/lib/builder/typographyCss";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 import { useTheme } from "@/components/ThemeProvider";
 import { useBuilderMode } from "@/lib/builder/modeContext";
@@ -170,6 +170,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     () => resolveWidgetTypography(node.style?.typography, effectiveMode, liveTypography),
     [effectiveMode, liveTypography, node.style?.typography],
   );
+  const activeGapPx = normalizeTypographyGapPx(activeTypography?.titleDescriptionGapPx);
   const typographyCss = useMemo(() => {
     return buildWidgetTypographyCss(node.id, activeTypography, device, { specificity: 3 });
   }, [activeTypography, device, node.id]);
@@ -186,9 +187,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     <div
       id={htmlId}
       data-w-id={node.id}
+      data-typography-gap-active={typeof activeGapPx === "number" ? "1" : undefined}
       ref={motion ? motionRef : undefined}
       className={`text-foreground ${cls}`.trim()}
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: isCompactWidget ? "center" : "flex-start", width: "100%", minWidth: 0, height: isMedia ? "auto" : "100%", maxWidth: isImage ? "none" : "100%", boxSizing: "border-box", overflow: isImage ? "visible" : (isMedia ? "visible" : "hidden"), ...baseStyle, marginTop: 0, marginBottom: 0, ...motionStyle }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: isCompactWidget ? "center" : "flex-start", width: "100%", minWidth: 0, height: isMedia ? "auto" : "100%", maxWidth: isImage ? "none" : "100%", boxSizing: "border-box", overflow: isImage ? "visible" : (isMedia ? "visible" : "hidden"), ...(typeof activeGapPx === "number" ? { "--cms-title-description-gap": `${activeGapPx}px` } as CSSProperties : {}), ...baseStyle, marginTop: 0, marginBottom: 0, ...motionStyle }}
     >
       {children}
       {widgetCss && <style dangerouslySetInnerHTML={{ __html: widgetCss }} />}
