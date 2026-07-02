@@ -13,10 +13,12 @@ import { TaxonomyPicker } from "./TaxonomyPicker";
 import {
   SLIDER_VARIANTS,
   SliderRender,
+  NAV_ARROW_VARIANTS,
   type SliderVariant,
   type SliderItem,
   type NavBgStyle,
   type NavPosition,
+  type NavArrowVariant,
 } from "@/lib/builder/sliderVariants";
 
 interface Props {
@@ -55,6 +57,9 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const navArrowColor = typeof c.navArrowColor === "string" ? c.navArrowColor : "#ffffff";
   const navBgStyle = (typeof c.navBgStyle === "string" ? c.navBgStyle : "glass") as NavBgStyle;
   const navPosition = (typeof c.navPosition === "string" ? c.navPosition : "mid") as NavPosition;
+  const navArrowVariant = (typeof c.navArrowVariant === "string" ? c.navArrowVariant : "chevron") as NavArrowVariant;
+  const navArrowStroke = typeof c.navArrowStroke === "number" ? c.navArrowStroke : 2.25;
+
 
 
   const rawItems = Array.isArray(c.items) ? (c.items as unknown[]) : [];
@@ -126,7 +131,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     titleWeight,
     subtitleSizePx: subtitleSizePx > 0 ? subtitleSizePx : undefined,
     subtitleWeight,
-    navSizePx, navRoundedPx, navBgColor, navArrowColor, navBgStyle, navPosition,
+    navSizePx, navRoundedPx, navBgColor, navArrowColor, navBgStyle, navPosition, navArrowVariant, navArrowStroke,
     items: hasRealItems ? items : demoItems,
   };
 
@@ -403,8 +408,25 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             </SelectContent>
           </Select>
         </PropField>
+        <PropField label="Kształt strzałki">
+          <Select value={navArrowVariant} onValueChange={(v) => setContent("navArrowVariant", v)}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {NAV_ARROW_VARIANTS.map((v) => (
+                <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </PropField>
+        <PropField label={`Grubość linii strzałki (${navArrowStroke.toFixed(2)})`}>
+          <Input
+            type="range" min={0.5} max={4} step={0.25} value={navArrowStroke}
+            onChange={(e) => setContent("navArrowStroke", Math.max(0.5, Math.min(4, Number(e.target.value) || 2.25)))}
+            className="h-8"
+          />
+        </PropField>
         <div className="text-[10px] text-muted-foreground/80 leading-snug">
-          Wskazówka: dla stylu „Outline" ustaw kolor tła = kolor obrysu; dla „Glass" najlepiej sprawdzają się jasne kolory na ciemnych obrazach.
+          Wskazówka: dla stylu „Outline" ustaw kolor tła = kolor obrysu; dla „Glass" najlepiej sprawdzają się jasne kolory na ciemnych obrazach. Wariant „Caret" jest wypełniony - grubość linii nie ma wpływu.
         </div>
       </div>
 

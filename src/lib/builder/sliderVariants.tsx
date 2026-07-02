@@ -3,7 +3,7 @@
 // autoplay, drag), and each variant renders the slides differently.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from "@/lib/lucide-shim";
+import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { useResolvedPostRefs } from "./contentRefs";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,6 +45,15 @@ export const SLIDER_VARIANTS: { value: SliderVariant; label: string }[] = [
 
 export type NavBgStyle = "glass" | "solid" | "outline" | "soft" | "gradient" | "shadow";
 export type NavPosition = "mid" | "mid-outside" | "bottom" | "top";
+export type NavArrowVariant =
+  | "chevron"        // sharp V (default)
+  | "chevron-bold"   // heavier V
+  | "arrow"          // arrow with shaft
+  | "arrow-long"     // long shaft, sharp head
+  | "caret"          // filled triangle
+  | "angle"          // thin single line
+  | "double-chevron" // >>
+  | "arrow-tail";    // arrow with feather tail
 
 export interface SliderConfig {
   variant?: SliderVariant;
@@ -62,12 +71,15 @@ export interface SliderConfig {
   /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
   columns?: 1 | 2 | 3 | 4;
   /** Navigation-button styling (side arrows). */
-  navSizePx?: number;      // 28..96, default 52 (desktop) / 44 (mobile)
-  navRoundedPx?: number;   // 0..64, default 999 (pill). 999+ = full pill
-  navBgColor?: string;     // any CSS color, default #ffffff
-  navArrowColor?: string;  // any CSS color, default #ffffff
-  navBgStyle?: NavBgStyle; // default "glass"
-  navPosition?: NavPosition; // default "mid"
+  navSizePx?: number;
+  navRoundedPx?: number;
+  navBgColor?: string;
+  navArrowColor?: string;
+  navBgStyle?: NavBgStyle;
+  navPosition?: NavPosition;
+  navArrowVariant?: NavArrowVariant;
+  /** Arrow stroke thickness override (0.5..4). Ignored for filled variants (caret). */
+  navArrowStroke?: number;
 }
 
 export interface NavStyleResolved {
@@ -77,12 +89,15 @@ export interface NavStyleResolved {
   arrowColor: string;
   bgStyle: NavBgStyle;
   position: NavPosition;
+  arrowVariant: NavArrowVariant;
+  arrowStroke: number;
 }
 
 export function resolveNavStyle(cfg: SliderConfig): NavStyleResolved {
   const sizePx = Math.max(28, Math.min(96, cfg.navSizePx ?? 52));
   const radiusRaw = typeof cfg.navRoundedPx === "number" ? cfg.navRoundedPx : 999;
   const radiusCss = radiusRaw >= 999 ? "9999px" : `${Math.max(0, radiusRaw)}px`;
+  const arrowStroke = Math.max(0.5, Math.min(4, cfg.navArrowStroke ?? 2.25));
   return {
     sizePx,
     radiusCss,
@@ -90,8 +105,94 @@ export function resolveNavStyle(cfg: SliderConfig): NavStyleResolved {
     arrowColor: cfg.navArrowColor ?? "#ffffff",
     bgStyle: cfg.navBgStyle ?? "glass",
     position: cfg.navPosition ?? "mid",
+    arrowVariant: cfg.navArrowVariant ?? "chevron",
+    arrowStroke,
   };
 }
+
+/** Inline SVG arrow renderer. Same viewBox 24x24, rendered stable regardless
+ *  of icon-font fallback / lucide async load. Direction flips via CSS
+ *  transform so the geometry stays identical between prev & next. */
+function NavArrowGlyph({
+  variant, direction, sizePx, color, stroke,
+}: {
+  variant: NavArrowVariant;
+  direction: "left" | "right";
+  sizePx: number;
+  color: string;
+  stroke: number;
+}) {
+  const flip = direction === "left" ? "scaleX(-1)" : "none";
+  const common = {
+    width: sizePx,
+    height: sizePx,
+    display: "block",
+    transform: flip,
+    color,
+  } as CSSProperties;
+  const strokeProps = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: stroke,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+  switch (variant) {
+    case "chevron":
+      return <svg viewBox="0 0 24 24" style={common} aria-hidden><path d="M9 6l6 6-6 6" {...strokeProps} /></svg>;
+    case "chevron-bold":
+      return <svg viewBox="0 0 24 24" style={common} aria-hidden><path d="M9 5l7 7-7 7" {...strokeProps} strokeWidth={Math.max(stroke, 3)} /></svg>;
+    case "arrow":
+      return (
+        <svg viewBox="0 0 24 24" style={common} aria-hidden>
+          <path d="M5 12h14M13 6l6 6-6 6" {...strokeProps} />
+        </svg>
+      );
+    case "arrow-long":
+      return (
+        <svg viewBox="0 0 24 24" style={common} aria-hidden>
+          <path d="M3 12h17M14 6l6 6-6 6" {...strokeProps} />
+        </svg>
+      );
+    case "caret":
+      return (
+        <svg viewBox="0 0 24 24" style={common} aria-hidden>
+          <path d="M9 5l8 7-8 7z" fill="currentColor" stroke="currentColor" strokeWidth={0.5} strokeLinejoin="round" />
+        </svg>
+      );
+    case "angle":
+      return (
+        <svg viewBox="0 0 24 24" style={common} aria-hidden>
+          <path d="M10 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth={Math.max(1, stroke - 0.5)} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case "double-chevron":
+      return (
+        <svg viewBox="0 0 24 24" style={common} aria-hidden>
+          <path d="M6 6l6 6-6 6M12 6l6 6-6 6" {...strokeProps} />
+        </svg>
+      );
+    case "arrow-tail":
+      return (
+        <svg viewBox="0 0 24 24" style={common} aria-hidden>
+          <path d="M4 12h15M13 6l6 6-6 6M5 9l3 3-3 3" {...strokeProps} />
+        </svg>
+      );
+    default:
+      return <svg viewBox="0 0 24 24" style={common} aria-hidden><path d="M9 6l6 6-6 6" {...strokeProps} /></svg>;
+  }
+}
+
+export const NAV_ARROW_VARIANTS: { value: NavArrowVariant; label: string }[] = [
+  { value: "chevron", label: "Chevron (klasyczny V)" },
+  { value: "chevron-bold", label: "Chevron pogrubiony" },
+  { value: "arrow", label: "Strzałka (z trzonem)" },
+  { value: "arrow-long", label: "Strzałka długa" },
+  { value: "caret", label: "Caret (trójkąt wypełniony)" },
+  { value: "angle", label: "Angle (cienki kąt)" },
+  { value: "double-chevron", label: "Podwójny chevron »" },
+  { value: "arrow-tail", label: "Strzałka z ogonem" },
+];
 
 const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
   none: "0px", sm: "4px", md: "8px", lg: "16px", xl: "24px", full: "9999px",
@@ -327,7 +428,7 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
         className={`${cls} eh-prev`}
         style={cssVars}
       >
-        <ChevronLeft style={{ width: iconPx, height: iconPx }} strokeWidth={2.5} />
+        <NavArrowGlyph variant={nav.arrowVariant} direction="left" sizePx={iconPx} color={nav.arrowColor} stroke={nav.arrowStroke} />
       </button>
       <button
         type="button" aria-label={nextLabel}
@@ -337,7 +438,7 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
         className={`${cls} eh-next`}
         style={cssVars}
       >
-        <ChevronRight style={{ width: iconPx, height: iconPx }} strokeWidth={2.5} />
+        <NavArrowGlyph variant={nav.arrowVariant} direction="right" sizePx={iconPx} color={nav.arrowColor} stroke={nav.arrowStroke} />
       </button>
     </>
   );

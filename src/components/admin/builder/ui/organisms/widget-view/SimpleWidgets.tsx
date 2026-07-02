@@ -483,6 +483,9 @@ export function renderSimpleWidget(
           | "glass" | "solid" | "outline" | "soft" | "gradient" | "shadow" | undefined,
         navPosition: (typeof c.navPosition === "string" ? c.navPosition : undefined) as
           | "mid" | "mid-outside" | "bottom" | "top" | undefined,
+        navArrowVariant: (typeof c.navArrowVariant === "string" ? c.navArrowVariant : undefined) as
+          | "chevron" | "chevron-bold" | "arrow" | "arrow-long" | "caret" | "angle" | "double-chevron" | "arrow-tail" | undefined,
+        navArrowStroke: typeof c.navArrowStroke === "number" ? c.navArrowStroke : undefined,
         items: sampleItems,
       };
       if (!hasRealItems && editable) {
