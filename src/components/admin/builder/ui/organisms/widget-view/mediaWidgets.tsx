@@ -1,7 +1,7 @@
 // Image + posts-slider widgets and the site-logo hook, extracted from SimpleWidgets.
 import { type CSSProperties, type SyntheticEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { WidgetNode } from "@/lib/builder/types";
+import type { WidgetNode, WidgetTypography } from "@/lib/builder/types";
 import { safeImageUrl } from "@/lib/sanitize";
 import { getStr, getNum, type Lang } from "./frame";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
@@ -149,7 +149,7 @@ export function ImageWidget({ c, lang, theme, editable, onContentChange }: {
   );
 }
 
-export function PostsSliderWidget({ c, lang }: { c: WidgetNode["content"]; lang: Lang }) {
+export function PostsSliderWidget({ c, lang, typography }: { c: WidgetNode["content"]; lang: Lang; typography?: WidgetTypography }) {
   const variant = (getStr(c, "variant") || "hero-overlay") as SliderVariant;
   const ratio = (getStr(c, "ratio") || "16/9") as "16/9" | "4/3" | "1/1" | "21/9" | "3/2";
   const autoplay = c.autoplay !== false;
@@ -189,6 +189,7 @@ export function PostsSliderWidget({ c, lang }: { c: WidgetNode["content"]; lang:
     titleWeight: typeof c.titleWeight === "number" ? c.titleWeight : undefined,
     subtitleSizePx: typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : undefined,
     subtitleWeight: typeof c.subtitleWeight === "number" ? c.subtitleWeight : undefined,
+    typography,
     items: items
       .filter((p) => p.cover_image_url)
       .map((p) => ({
