@@ -203,6 +203,8 @@ describe("RatedListView index color - fallback synced with PostListView", () => 
     // scoped <style> block. Guarding both keeps the token contract honest.
     const numEl = container.querySelector(".rl-num") as HTMLElement | null;
     expect(numEl).not.toBeNull();
-    expect(numEl!.getAttribute("style") ?? "").toMatch(/var\(--td-li-weight/);
+    // JSDOM strips `var(...)` from CSSOM's fontWeight — inspect the raw
+    // React style attribute via outerHTML instead of getAttribute.
+    expect(numEl!.outerHTML).toMatch(/var\(--td-li-weight/);
   });
 });
