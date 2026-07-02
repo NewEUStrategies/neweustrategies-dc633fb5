@@ -8,6 +8,7 @@ import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { useResolvedPostRefs } from "./contentRefs";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLink } from "@/components/atoms/AppLink";
+import type { WidgetTypography } from "./types";
 
 export type SliderVariant =
   | "editorial-hero"
@@ -54,6 +55,7 @@ export interface SliderConfig {
   titleWeight?: number;
   subtitleSizePx?: number;
   subtitleWeight?: number;
+  typography?: WidgetTypography;
   /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */
   columns?: 1 | 2 | 3 | 4;
 }
@@ -333,15 +335,30 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const intervalMs = Math.max(1500, config.intervalMs ?? 4500);
   const rounded = radiusMap[config.rounded ?? "md"];
   const overlayOpacity = typeof config.overlayOpacity === "number" ? config.overlayOpacity : 0.45;
+  const titleSize = config.typography?.fontSize?.desktop;
+  const descSize = config.typography?.descriptionFontSize?.desktop;
+  const sharedTypography: CSSProperties = {
+    ...(config.typography?.fontFamily ? { fontFamily: config.typography.fontFamily } : {}),
+    ...(config.typography?.fontStyle ? { fontStyle: config.typography.fontStyle } : {}),
+    ...(config.typography?.fontWeight ? { fontWeight: config.typography.fontWeight as CSSProperties["fontWeight"] } : {}),
+    ...(config.typography?.lineHeight ? { lineHeight: config.typography.lineHeight } : {}),
+    ...(config.typography?.letterSpacing ? { letterSpacing: config.typography.letterSpacing } : {}),
+    ...(config.typography?.textAlign ? { textAlign: config.typography.textAlign as CSSProperties["textAlign"] } : {}),
+    ...(config.typography?.textTransform ? { textTransform: config.typography.textTransform } : {}),
+    ...(config.typography?.textDecoration ? { textDecoration: config.typography.textDecoration } : {}),
+  };
   const titleStyle: CSSProperties = {
-    ...(typeof config.titleSizePx === "number" && config.titleSizePx > 0
+    ...sharedTypography,
+    ...(titleSize ? { fontSize: titleSize } : typeof config.titleSizePx === "number" && config.titleSizePx > 0
       ? { fontSize: `${config.titleSizePx}px`, lineHeight: 1.15 } : {}),
-    ...(typeof config.titleWeight === "number" ? { fontWeight: config.titleWeight } : {}),
+    ...(!config.typography?.fontWeight && typeof config.titleWeight === "number" ? { fontWeight: config.titleWeight } : {}),
   };
   const subtitleStyle: CSSProperties = {
-    ...(typeof config.subtitleSizePx === "number" && config.subtitleSizePx > 0
+    ...sharedTypography,
+    ...(descSize ? { fontSize: descSize } : typeof config.subtitleSizePx === "number" && config.subtitleSizePx > 0
       ? { fontSize: `${config.subtitleSizePx}px`, lineHeight: 1.5 } : {}),
-    ...(typeof config.subtitleWeight === "number" ? { fontWeight: config.subtitleWeight } : {}),
+    ...(!config.typography?.fontWeight && typeof config.subtitleWeight === "number" ? { fontWeight: config.subtitleWeight } : {}),
+    ...(typeof config.typography?.titleDescriptionGapPx === "number" ? { marginTop: `${config.typography.titleDescriptionGapPx}px` } : {}),
   };
 
   const [idx, setIdx] = useState(0);
