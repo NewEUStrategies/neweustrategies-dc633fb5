@@ -34,10 +34,20 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
   const numFont = getStr(c, "numberFont") || "display";
   const numWeight = getStr(c, "numberWeight") || "700";
   const numSize = typeof c.numberSizePx === "number" ? c.numberSizePx : 52;
-  const numColor = getStr(c, "numberColor") || "#000000";
+  // Number colors: mirror PostListView (numbered / ranked) so ranked-lists,
+  // rated-lists AND all fallbacks share the SAME single source of truth -
+  // Theme Design → "Numeracja list" (`--td-li-*`). Only when the user sets
+  // an explicit widget-level override does it win over the global token.
+  const numColorRaw = getStr(c, "numberColor");
   const numColorDarkRaw = getStr(c, "numberColorDark");
-  const numColorDark = numColorDarkRaw || autoInvertColor(numColor, "dark");
-  const numOpacity = typeof c.numberOpacity === "number" ? c.numberOpacity : 0.05;
+  const numColor = numColorRaw || "var(--td-li-light, #000000)";
+  const numColorDark = numColorDarkRaw
+    ? numColorDarkRaw
+    : numColorRaw
+      ? autoInvertColor(numColorRaw, "dark")
+      : "var(--td-li-dark, #f5f5f5)";
+  const numOpacity: number | string =
+    typeof c.numberOpacity === "number" ? c.numberOpacity : "var(--td-li-opacity, 0.05)";
   const numPos = getStr(c, "numberPosition") || "behind";
   const showRating = c.showRating !== false;
 
