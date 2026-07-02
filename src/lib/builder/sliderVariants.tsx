@@ -656,7 +656,7 @@ function EditorialHeroVariant(p: VariantProps) {
           <NavArrows
             prevLabel={p.lang === "en" ? "Previous slide" : "Poprzedni slajd"}
             nextLabel={p.lang === "en" ? "Next slide" : "Następny slajd"}
-            onPrev={() => p.go(-1)} onNext={() => p.go(1)}
+            onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav}
           />
         )}
         {cat && (
@@ -699,7 +699,7 @@ function EditorialHeroVariant(p: VariantProps) {
         )}
       </div>
 
-      <DotsNav count={p.items.length} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} />
+      <DotsNav count={p.items.length} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav} />
     </>
   );
 }
@@ -782,7 +782,7 @@ function MultiCardVariant(p: VariantProps) {
           })}
         </div>
       </div>
-      <DotsNav count={Math.max(1, p.items.length - (p.columns - 1))} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} />
+      <DotsNav count={Math.max(1, p.items.length - (p.columns - 1))} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav} />
     </div>
   );
 }
@@ -861,7 +861,7 @@ function CinematicOverlayVariant(p: VariantProps) {
           <NavArrows
             prevLabel={p.lang === "en" ? "Previous slide" : "Poprzedni slajd"}
             nextLabel={p.lang === "en" ? "Next slide" : "Następny slajd"}
-            onPrev={() => p.go(-1)} onNext={() => p.go(1)}
+            onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav}
           />
         )}
         {/* Dots inside */}
@@ -921,7 +921,7 @@ function SplitFeatureVariant(p: VariantProps) {
           <NavArrows
             prevLabel={p.lang === "en" ? "Previous slide" : "Poprzedni slajd"}
             nextLabel={p.lang === "en" ? "Next slide" : "Następny slajd"}
-            onPrev={() => p.go(-1)} onNext={() => p.go(1)}
+            onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav}
           />
         )}
       </div>
@@ -956,7 +956,7 @@ function SplitFeatureVariant(p: VariantProps) {
             {cur.readTime && <span>⏱ {cur.readTime}</span>}
           </div>
         )}
-        <DotsNav count={p.items.length} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} compact />
+        <DotsNav count={p.items.length} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav} compact />
       </div>
     </div>
   );
@@ -1004,7 +1004,7 @@ function MinimalStripVariant(p: VariantProps) {
           <NavArrows
             prevLabel={p.lang === "en" ? "Previous slide" : "Poprzedni slajd"}
             nextLabel={p.lang === "en" ? "Next slide" : "Następny slajd"}
-            onPrev={() => p.go(-1)} onNext={() => p.go(1)}
+            onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav}
           />
         )}
         {/* Bottom caption strip */}
