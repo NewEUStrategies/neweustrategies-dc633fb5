@@ -166,10 +166,13 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     }
     return rules.join("\n");
   })();
+  const activeTypography = useMemo(
+    () => resolveWidgetTypography(node.style?.typography, effectiveMode, liveTypography),
+    [effectiveMode, liveTypography, node.style?.typography],
+  );
   const typographyCss = useMemo(() => {
-    const typography = resolveWidgetTypography(node.style?.typography, effectiveMode, liveTypography);
-    return buildWidgetTypographyCss(node.id, typography, device, { specificity: 3 });
-  }, [device, effectiveMode, liveTypography, node.id, node.style?.typography]);
+    return buildWidgetTypographyCss(node.id, activeTypography, device, { specificity: 3 });
+  }, [activeTypography, device, node.id]);
 
   const isImage = node.type === "image";
   const isMedia = isImage || node.type === "slider" || node.type === "video" || node.type === "gallery" || node.type === "map";
@@ -200,7 +203,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
   };
 
   // Read-only widgets without inline editing - short-circuit via dispatcher.
-  const simple = renderSimpleWidget(node, lang, effectiveMode, editable, onContentChange);
+  const simple = renderSimpleWidget(node, lang, effectiveMode, editable, onContentChange, activeTypography);
   if (simple !== undefined) return wrap(simple);
 
   switch (node.type) {
@@ -392,11 +395,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       );
     }
     case "post-list": {
-      const activeTypography = resolveWidgetTypography(node.style?.typography, effectiveMode, liveTypography);
       return wrap(<PostListView c={c} lang={lang} typography={activeTypography ?? undefined} />);
     }
     case "carousel": {
-      const activeTypography = resolveWidgetTypography(node.style?.typography, effectiveMode, liveTypography);
       return wrap(<PostListView c={c} lang={lang} carousel typography={activeTypography ?? undefined} />);
     }
     case "news-ticker":
