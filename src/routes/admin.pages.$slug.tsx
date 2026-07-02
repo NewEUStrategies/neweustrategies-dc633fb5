@@ -159,6 +159,8 @@ function EditPage() {
     qc.invalidateQueries({ queryKey: ["admin-pages"] });
     invalidateWidgetCaches(qc);
     emitWidgetCacheInvalidate();
+    // Odswiez publiczne surface'y SEO (mapa strony HTML, /admin/seo).
+    invalidateSeoCaches(qc);
     if (canonical && canonical !== routeSlug) {
       qc.setQueryData(["page-by-slug", tenantId, canonical], { ...snapshot, slug: canonical });
       navigate({ to: "/admin/pages/$slug", params: { slug: canonical }, replace: true });
