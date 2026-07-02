@@ -703,7 +703,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   };
 
   return (
-    <div className="w-full eh-slider">
+    <div ref={rootRef} className="w-full eh-slider">
       <style>{SHARED_STYLES}</style>
       {variant === "multi-card" && <MultiCardVariant {...sharedProps} />}
       {variant === "cinematic-overlay" && <CinematicOverlayVariant {...sharedProps} />}
