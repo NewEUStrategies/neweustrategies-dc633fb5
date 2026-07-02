@@ -72,9 +72,33 @@ export function VisualCanvas({
     setSelection({ kind: null, id: null });
   };
 
+  // Kill navigation inside the builder canvas: preventDefault stops native
+  // <a href> + TanStack Link (respects defaultPrevented); stopPropagation
+  // stops widget-installed onClick handlers that call navigate() imperatively.
+  // Runs on native capture on rootRef so React onClickCapture (attached at
+  // React root, higher in the tree) can still update selection first.
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+    const kill = (e: MouseEvent) => {
+      // Allow clicks on builder chrome (section inserters, drop zones, toolbars).
+      const t = e.target as HTMLElement | null;
+      if (t?.closest("[data-section-inserter]") || t?.closest("[data-builder-chrome]")) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    root.addEventListener("click", kill, { capture: true });
+    root.addEventListener("auxclick", kill, { capture: true });
+    return () => {
+      root.removeEventListener("click", kill, { capture: true });
+      root.removeEventListener("auxclick", kill, { capture: true });
+    };
+  }, []);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
 
     const widgets: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-widget-id]"));
     const sections: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-sec-id]"));
