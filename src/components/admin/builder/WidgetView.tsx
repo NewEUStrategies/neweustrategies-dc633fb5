@@ -260,7 +260,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           : useGlobalTitle
             ? { fontSize: "var(--td-pt-size, 15px)", lineHeight: "var(--td-pt-lh, 1.3)" }
             : {}),
-        ...(titleWeight ? { fontWeight: titleWeight as React.CSSProperties["fontWeight"] } : {}),
+        // Waga: jawna wartość widgetu > globalna Theme Design (--td-pt-weight).
+        fontWeight: (titleWeight
+          ? titleWeight
+          : "var(--td-pt-weight, 600)") as React.CSSProperties["fontWeight"],
       };
       const finalStyle = Object.keys(headStyle).length ? headStyle : undefined;
       const finalCls = headCls;
@@ -282,7 +285,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         ...(useGlobalSubtitle
           ? { fontSize: "var(--td-pe-size, 13px)", lineHeight: "var(--td-pe-lh, 1.5)" }
           : { fontSize: `${subtitleSizePx}px`, lineHeight: 1.35 }),
-        ...(subtitleWeight ? { fontWeight: subtitleWeight as React.CSSProperties["fontWeight"] } : {}),
+        fontWeight: (subtitleWeight
+          ? subtitleWeight
+          : "var(--td-pe-weight, 400)") as React.CSSProperties["fontWeight"],
       };
       const block = (
         <div className="space-y-1">
