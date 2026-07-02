@@ -126,6 +126,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     titleWeight,
     subtitleSizePx: subtitleSizePx > 0 ? subtitleSizePx : undefined,
     subtitleWeight,
+    navSizePx, navRoundedPx, navBgColor, navArrowColor, navBgStyle, navPosition,
     items: hasRealItems ? items : demoItems,
   };
 
