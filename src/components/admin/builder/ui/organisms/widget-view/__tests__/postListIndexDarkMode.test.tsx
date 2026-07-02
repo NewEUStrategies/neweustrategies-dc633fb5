@@ -53,6 +53,7 @@ vi.mock("@tanstack/react-router", async (orig) => {
 });
 
 import { PostListView } from "../PostListView";
+import { RatedListView } from "../RatedListView";
 
 function wrap(ui: ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
