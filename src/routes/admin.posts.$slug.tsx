@@ -44,6 +44,7 @@ import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { toast } from "sonner";
 import { invalidateWidgetCaches, emitWidgetCacheInvalidate } from "@/lib/builder/widgetCacheInvalidation";
 import { invalidateSeoCaches } from "@/lib/seo/invalidate";
+import { hasBlockingSeoIssues, type SeoIssue } from "@/lib/seo/validation";
 
 export const Route = createFileRoute("/admin/posts/$slug")({
   component: EditPost,
