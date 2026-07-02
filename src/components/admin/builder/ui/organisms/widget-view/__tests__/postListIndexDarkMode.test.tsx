@@ -199,12 +199,10 @@ describe("RatedListView index color - fallback synced with PostListView", () => 
         lang="pl"
       />,
     );
-    const css = Array.from(container.querySelectorAll("style"))
-      .map((s) => s.textContent ?? "")
-      .join("\n");
-    // Weight must also flow through the Theme Design token, matching the
-    // color contract - otherwise "Numeracja list → Grubość" is a dead knob
-    // for ranked / rated widgets.
-    expect(css).toMatch(/font-weight\s*:\s*var\(--td-li-weight/);
+    // Weight lives on the inline style of the .rl-num span, not in the
+    // scoped <style> block. Guarding both keeps the token contract honest.
+    const numEl = container.querySelector(".rl-num") as HTMLElement | null;
+    expect(numEl).not.toBeNull();
+    expect(numEl!.getAttribute("style") ?? "").toMatch(/var\(--td-li-weight/);
   });
 });
