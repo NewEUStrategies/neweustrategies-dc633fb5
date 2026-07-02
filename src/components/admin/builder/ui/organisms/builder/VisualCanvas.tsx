@@ -56,14 +56,19 @@ export function VisualCanvas({
   const autoScrollRafRef = useRef<number | null>(null);
   const dragGhostRef = useRef<HTMLElement | null>(null);
 
-  const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  // Selection runs in React's capture phase so it fires BEFORE the native
+  // capture listener below stops the event. That listener kills navigation
+  // (native <a href>, TanStack Link, programmatic navigate() in onClick) so
+  // clicking a widget in the builder edits it instead of jumping to the
+  // target page.
+  const onClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = e.target as HTMLElement;
     const w = el.closest("[data-widget-id]") as HTMLElement | null;
-    if (w?.dataset.widgetId) { e.stopPropagation(); setSelection({ kind: "widget", id: w.dataset.widgetId }); return; }
+    if (w?.dataset.widgetId) { setSelection({ kind: "widget", id: w.dataset.widgetId }); return; }
     const c = el.closest("[data-col-id]") as HTMLElement | null;
-    if (c?.dataset.colId) { e.stopPropagation(); setSelection({ kind: "column", id: c.dataset.colId }); return; }
+    if (c?.dataset.colId) { setSelection({ kind: "column", id: c.dataset.colId }); return; }
     const s = el.closest("[data-sec-id]") as HTMLElement | null;
-    if (s?.dataset.secId) { e.stopPropagation(); setSelection({ kind: "section", id: s.dataset.secId }); return; }
+    if (s?.dataset.secId) { setSelection({ kind: "section", id: s.dataset.secId }); return; }
     setSelection({ kind: null, id: null });
   };
 
