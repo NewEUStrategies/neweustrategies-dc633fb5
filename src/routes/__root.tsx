@@ -36,6 +36,9 @@ import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
 import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
 import { resolveSetting, siteSettingsQueryOptions } from "../lib/useSiteSetting";
 import { headerTickerQueryOptions } from "../lib/views/headerTickerQuery";
+import { designTokensQueryOptions } from "../lib/builder/designTokens";
+import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
+import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
 import type { HeaderSettings } from "../components/Header";
 import { SiteChrome } from "../components/SiteChrome";
 
