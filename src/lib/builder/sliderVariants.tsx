@@ -3,7 +3,7 @@
 // autoplay, drag), and each variant renders the slides differently.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from "@/lib/lucide-shim";
+import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { useResolvedPostRefs } from "./contentRefs";
 import { supabase } from "@/integrations/supabase/client";
