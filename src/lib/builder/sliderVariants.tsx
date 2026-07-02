@@ -272,7 +272,8 @@ function ResilientSliderImage({
       className={className ?? "eh-img absolute inset-0 w-full h-full object-cover widget-media-fg"}
       style={{
         opacity: visible ? 1 : 0,
-        transition: "opacity 700ms cubic-bezier(.22,.61,.36,1)",
+        transition:
+          "opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration, 1100ms) ease-in-out",
         ...(style ?? {}),
       }}
 
@@ -401,20 +402,21 @@ const SHARED_STYLES = `
 .eh-slider .eh-drag-surface.is-dragging { cursor: grabbing; }
 .eh-slider .eh-drag-surface.is-dragging img { pointer-events: none; }
 
-/* Smooth hover zoom on every slider image container (CSS scale for GPU animation) */
+/* Smooth slow hover zoom inside every slider image container. */
 .eh-slider [data-fill-image] {
-  --eh-zoom: 1;
-  scale: var(--eh-zoom);
-  transition: scale 500ms ease-in-out;
+  --eh-scale: 1;
+  --eh-transition-duration: 1100ms;
+  scale: var(--eh-scale);
+  transition: opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration) ease-in-out;
   transform-origin: center center;
   backface-visibility: hidden;
   will-change: scale;
 }
 .eh-slider *:hover > [data-fill-image],
-.eh-slider *:focus-within > [data-fill-image] { --eh-zoom: 1.08; }
+.eh-slider *:focus-within > [data-fill-image] { --eh-scale: 1.1; }
 @media (prefers-reduced-motion: reduce) {
   .eh-slider [data-fill-image] { transition: none; }
-  .eh-slider *:hover > [data-fill-image] { --eh-zoom: 1; }
+  .eh-slider *:hover > [data-fill-image] { --eh-scale: 1; }
 }
 
 
