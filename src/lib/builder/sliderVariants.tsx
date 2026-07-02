@@ -406,14 +406,18 @@ const SHARED_STYLES = `
 .eh-slider [data-fill-image] {
   --eh-scale: 1;
   --eh-transition-duration: 450ms;
+  --eh-scale-easing: ease-in;
   scale: var(--eh-scale);
-  transition: opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration) ease-in-out;
+  transition: opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration) ease-in;
   transform-origin: center center;
   backface-visibility: hidden;
   will-change: scale;
 }
 .eh-slider *:hover > [data-fill-image],
-.eh-slider *:focus-within > [data-fill-image] { --eh-scale: 1.1; }
+.eh-slider *:focus-within > [data-fill-image] {
+  --eh-scale: 1.1;
+  --eh-scale-easing: ease-out;
+}
 @media (prefers-reduced-motion: reduce) {
   .eh-slider [data-fill-image] { transition: none; }
   .eh-slider *:hover > [data-fill-image] { --eh-scale: 1; }
