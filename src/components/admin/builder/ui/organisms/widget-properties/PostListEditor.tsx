@@ -9,6 +9,7 @@ import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { PropField, CollapsibleSection as Collapsible, ColorField } from "../../atoms";
+import { IndexColorPreview } from "./IndexColorPreview";
 import { TaxonomyPicker } from "./TaxonomyPicker";
 import { ImageSlot } from "./ImageSlot";
 import { readThumbnailOverrides, setThumbnailOverride } from "@/lib/builder/thumbnailOverrides";
@@ -429,6 +430,13 @@ export function PostListEditor({ c, lang, setContent }: Props) {
           <div className="mt-1 text-[10px] text-muted-foreground">
             Puste pole koloru = automatyczne dopasowanie do trybu jasnego/ciemnego z ustawioną przezroczystością.
           </div>
+          <IndexColorPreview
+            indexColor={str(c, "indexColor", "")}
+            indexColorDark={str(c, "indexColorDark", "")}
+            indexOpacity={num(c, "indexOpacity", -1)}
+            indexSizePx={num(c, "indexSizePx", 52)}
+            indexWeight={str(c, "indexWeight", "800")}
+          />
         </Collapsible>
       )}
     </div>
