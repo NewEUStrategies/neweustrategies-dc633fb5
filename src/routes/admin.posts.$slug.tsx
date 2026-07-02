@@ -169,6 +169,7 @@ function EditPost() {
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [seoIssues, setSeoIssues] = useState<SeoIssue[]>([]);
   // Two-step flow: "details" shows metadata + titles + descriptions in both
   // languages; "content" opens the actual editor (builder / rich text).
   const [step, setStep] = useState<"details" | "content">("details");
