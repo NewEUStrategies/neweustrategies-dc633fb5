@@ -24,10 +24,15 @@ const widget = (type: WidgetType, overrides: WidgetContent = {}): WidgetNode => 
   };
 };
 
-const column = (span: number, children: WidgetNode[] = []): ColumnNode => ({
+const column = (
+  span: number,
+  children: WidgetNode[] = [],
+  opts: Partial<Pick<ColumnNode, "order">> = {},
+): ColumnNode => ({
   id: newId(),
   kind: "column",
   span: { desktop: span },
+  ...opts,
   children,
 });
 
