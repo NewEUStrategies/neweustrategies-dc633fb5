@@ -171,7 +171,7 @@ function Users() {
               <tr
                 key={u.id}
                 className="border-t border-border hover:bg-muted/20 cursor-pointer"
-                onClick={() => setOpenId(u.id)}
+                onClick={() => navigate({ to: "/admin/users/$id", params: { id: u.id } })}
               >
                 <td className="p-3 font-medium">
                   <div className="flex items-center gap-2">
