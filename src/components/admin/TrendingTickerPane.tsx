@@ -183,9 +183,30 @@ export function TrendingTickerPane() {
 
   const previewKey = useMemo(
     () =>
-      `${cfg.source}-${cfg.mode}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}`,
+      `${cfg.source}-${cfg.mode}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}-${cfg.selectedPostIds.join(",")}`,
     [cfg],
   );
+
+  const toggleSelected = (id: string): void => {
+    setCfg((c) => {
+      const has = c.selectedPostIds.includes(id);
+      if (has) return { ...c, selectedPostIds: c.selectedPostIds.filter((x) => x !== id) };
+      if (c.selectedPostIds.length >= MAX_SELECTED) return c;
+      return { ...c, selectedPostIds: [...c.selectedPostIds, id] };
+    });
+  };
+  const moveSelected = (id: string, dir: -1 | 1): void => {
+    setCfg((c) => {
+      const arr = [...c.selectedPostIds];
+      const i = arr.indexOf(id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= arr.length) return c;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      return { ...c, selectedPostIds: arr };
+    });
+  };
+
+  const postTitle = (id: string): string => posts?.find((p) => p.id === id)?.title ?? id;
 
   return (
     <div className="space-y-5 max-w-3xl">
