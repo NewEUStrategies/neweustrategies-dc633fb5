@@ -76,13 +76,13 @@ export function PostLayoutRenderer({
             </div>
           )}
           <h1
-            className="font-display font-bold text-white text-xl md:text-2xl lg:text-4xl leading-[1.15] mb-2 md:mb-3"
+            className="overlay-meta-title font-display font-bold text-white text-xl md:text-2xl lg:text-4xl leading-[1.15] mb-2 md:mb-3"
             style={{ fontFamily: 'var(--font-display, "Red Hat Display")' }}
           >
             {title}
           </h1>
           {excerpt && (
-            <p className="text-xs md:text-sm lg:text-base text-white/85 mb-2 md:mb-3 max-w-3xl mx-auto leading-relaxed">
+            <p className="overlay-meta-description text-xs md:text-sm lg:text-base text-white/85 mb-2 md:mb-3 max-w-3xl mx-auto leading-relaxed">
               {excerpt}
             </p>
           )}

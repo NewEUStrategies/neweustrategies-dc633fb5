@@ -149,9 +149,30 @@
 }
 
 /* Overlay meta card: wyłączone efekty hover (brak zmiany koloru, opacity, underline). */
+.overlay-meta-card,
+.overlay-meta-card:hover,
+.overlay-meta-card:focus,
+.overlay-meta-card:focus-within,
+.overlay-meta-card .overlay-meta-title,
+.overlay-meta-card:hover .overlay-meta-title,
+.overlay-meta-card:focus-within .overlay-meta-title {
+  color: rgb(255 255 255) !important;
+  transition: none !important;
+}
+
+.overlay-meta-card .overlay-meta-description,
+.overlay-meta-card:hover .overlay-meta-description,
+.overlay-meta-card:focus-within .overlay-meta-description {
+  color: rgb(255 255 255 / 85%) !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
 .overlay-meta-card a,
 .overlay-meta-card a:hover,
-.overlay-meta-card a:focus {
+.overlay-meta-card a:focus,
+.overlay-meta-card a:focus-visible {
+  color: inherit !important;
   text-decoration: none !important;
   opacity: 1 !important;
   transition: none !important;
