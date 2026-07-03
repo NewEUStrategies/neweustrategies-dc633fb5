@@ -156,6 +156,7 @@ export function ImageWidget({
         style={fgImgStyle}
         onError={applyLogoFallback}
         hoverEffect={hoverEffect}
+        fadeIn={!isLogo}
       />
     </>
   ) : isFramed ? (
