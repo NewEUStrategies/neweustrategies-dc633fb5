@@ -144,12 +144,12 @@ export function PostLayoutRenderer({
             </div>
 
             {/* Meta-karta nachodzi na centralną-dolną część zdjęcia (zawężona szerokość). */}
-            <div className="relative -mt-40 lg:-mt-56 mx-4 lg:mx-auto lg:max-w-4xl px-2 lg:px-6">
+            <div className="relative -mt-28 lg:-mt-36 mx-4 lg:mx-auto lg:max-w-3xl px-2 lg:px-6">
               <div className={`relative bg-[#0b0b0d] text-white rounded-sm shadow-2xl ${center ? "text-center" : ""}`}>
-                <div className="px-6 lg:px-12 pt-8 pb-7 lg:pt-10 lg:pb-9">
+                <div className="px-5 lg:px-8 pt-5 pb-5">
                   {categoryBadges && (
                     <div
-                      className={`mb-5 flex flex-wrap gap-2 ${
+                      className={`mb-3 flex flex-wrap gap-2 ${
                         center ? "justify-center" : ""
                       }`}
                     >
@@ -157,19 +157,19 @@ export function PostLayoutRenderer({
                     </div>
                   )}
                   <h1
-                    className="font-display font-bold text-white text-3xl lg:text-[2.75rem] leading-[1.15] mb-4"
+                    className="font-display font-bold text-white text-2xl lg:text-4xl leading-[1.15] mb-3"
                     style={{ fontFamily: 'var(--font-display, "Red Hat Display")' }}
                   >
                     {title}
                   </h1>
                   {excerpt && (
-                    <p className="text-base lg:text-lg text-white/85 mb-5 max-w-3xl mx-auto leading-relaxed">
+                    <p className="text-sm lg:text-base text-white/85 mb-3 max-w-3xl mx-auto leading-relaxed">
                       {excerpt}
                     </p>
                   )}
                   {meta && (
                     <div
-                      className={`text-sm flex flex-wrap items-center gap-x-4 gap-y-1 text-white/70 pt-4 border-t border-white/10 ${
+                      className={`text-sm flex flex-wrap items-center gap-x-4 gap-y-1 text-white/70 pt-3 border-t border-white/10 ${
                         center ? "justify-center" : ""
                       }`}
                     >
