@@ -74,6 +74,16 @@ function resolveSpan(
   return span?.desktop ?? deskDefault;
 }
 
+function resolveOrder(
+  order: ResponsiveValue<number> | undefined,
+  device: Device,
+): number | undefined {
+  if (!order) return undefined;
+  if (device === "mobile") return order.mobile ?? undefined;
+  if (device === "tablet") return order.tablet ?? order.desktop ?? undefined;
+  return order.desktop ?? undefined;
+}
+
 interface Props {
   doc: BuilderDocument;
   lang: "pl" | "en";
@@ -400,12 +410,13 @@ const RenderSection = memo(function RenderSection({
           {visibleCols.map((c) => {
             const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
             const gridColumn = device === "mobile" ? "1 / -1" : `span ${span}`;
+            const order = c.kind === "column" ? resolveOrder(c.order, device) : undefined;
             return (
               <div
                 key={c.id}
                 data-column-slot
                 className="min-w-0 max-w-full overflow-hidden"
-                style={{ gridColumn }}
+                style={{ gridColumn, ...(order !== undefined ? { order } : {}) }}
               >
                 {c.kind === "inner-section" ? (
                   <RenderInner inner={c} lang={lang} device={device} />

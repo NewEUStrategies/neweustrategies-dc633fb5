@@ -24,6 +24,16 @@ function resolveSpan(
   return span?.desktop ?? deskDefault;
 }
 
+function resolveOrder(
+  order: ResponsiveValue<number> | undefined,
+  device: Device,
+): number | undefined {
+  if (!order) return undefined;
+  if (device === "mobile") return order.mobile ?? undefined;
+  if (device === "tablet") return order.tablet ?? order.desktop ?? undefined;
+  return order.desktop ?? undefined;
+}
+
 import {
   sectionWrapperStyle,
   sectionContainerStyle,
@@ -222,13 +232,14 @@ export function SectionView(p: SectionViewProps) {
           {children.map((child) => {
             const span = child.kind === "column" ? resolveSpan(child.span, p.device, 12) : 12;
             const gridColumn = p.device === "mobile" ? "1 / -1" : `span ${span}`;
+            const order = child.kind === "column" ? resolveOrder(child.order, p.device) : undefined;
             const sectionToolbar = isToolbarTag(p.section.layout?.htmlTag);
             if (child.kind === "inner-section") {
               return (
                 <div
                   key={child.id}
                   className="min-w-0 max-w-full overflow-hidden"
-                  style={{ gridColumn }}
+                  style={{ gridColumn, ...(order !== undefined ? { order } : {}) }}
                 >
                   <InnerSectionView
                     inner={child}
@@ -252,7 +263,7 @@ export function SectionView(p: SectionViewProps) {
               <div
                 key={child.id}
                 className="min-w-0 max-w-full overflow-hidden"
-                style={{ gridColumn }}
+                style={{ gridColumn, ...(order !== undefined ? { order } : {}) }}
               >
                 <ColumnView
                   column={child}
