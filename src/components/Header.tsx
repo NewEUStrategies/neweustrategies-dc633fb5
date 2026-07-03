@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { memo, Suspense, useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LogIn, UserPlus, User, LayoutDashboard, LogOut, Home, Newspaper, Tag, Mic, Mail, DollarSign } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
@@ -11,7 +11,9 @@ import { AdZone } from "@/components/AdSlot";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 import { AppLink } from "@/components/atoms/AppLink";
-import { useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { useAuth } from "@/hooks/useAuth";
+
 
 // Shared with the root loader (SSR prefetch of the ticker) - keep in sync.
 export type HeaderSettings = {
