@@ -70,8 +70,9 @@ export function AdminSelect({
   };
   // Radix Select nie akceptuje pustego stringa jako wartości — użyj sentinela.
   const EMPTY = "__admin_select_empty__";
-  const val = value === "" ? EMPTY : value;
-  const def = defaultValue === "" ? EMPTY : defaultValue;
+  const asStr = (v: string | number | undefined) => (v == null ? undefined : String(v));
+  const val = value === "" || value === undefined ? (value === "" ? EMPTY : undefined) : asStr(value);
+  const def = defaultValue === "" || defaultValue === undefined ? (defaultValue === "" ? EMPTY : undefined) : asStr(defaultValue);
 
   return (
     <Select
