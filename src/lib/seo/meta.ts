@@ -236,9 +236,12 @@ export function buildRootHead(lang: Lang): Array<Record<string, string>> {
     // fallback documents), so this stays a root-relative path; the content
     // surfaces that matter for sharing go through buildContentHead, which emits
     // an absolute URL.
-    { property: "og:image", content: SITE_DEFAULT_OG_IMAGE },
+    // Brand-default share image. buildRootHead is origin-less (it backs error /
+    // fallback documents), so we resolve the URL against the canonical brand
+    // origin - social scrapers ignore relative og:image paths.
+    { property: "og:image", content: `${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}` },
     { name: "twitter:card", content: "summary_large_image" },
-    { name: "twitter:image", content: SITE_DEFAULT_OG_IMAGE },
+    { name: "twitter:image", content: `${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}` },
     { name: "twitter:title", content: title },
     { name: "twitter:description", content: description },
   ];
