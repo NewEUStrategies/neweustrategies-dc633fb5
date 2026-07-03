@@ -396,7 +396,10 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   user-select: none;
   color: var(--pl-num-light);
   opacity: var(--pl-num-opacity, 0.18);
-  font-size: var(--pl-num-fs, 52px) !important;
+  /* Scale down proportionally on smaller viewports so the numeral never
+     dwarfs the title or overflows the row on mobile / tablet. Keeps the
+     authored --pl-num-fs as the desktop maximum. */
+  font-size: clamp(28px, calc(var(--pl-num-fs, 52px) * 0.55 + 1.6vw), var(--pl-num-fs, 52px)) !important;
   line-height: 0.82 !important;
   letter-spacing: 0;
   transform: translate(-0.08em, -50%);
