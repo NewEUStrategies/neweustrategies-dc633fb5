@@ -185,6 +185,26 @@ export const pl = {
       redirects: "Przekierowania",
       seo: "SEO",
       experiments: "Testy A/B",
+      categoryColors: "Kolory kategorii",
+    },
+    categoryColors: {
+      title: "Kolory pigułek kategorii",
+      subtitle:
+        "Przypisz kolor tła pigułki dla każdej głównej kategorii. Kolor jest używany w nagłówkach wpisów i w overlayach. Wybieraj barwy poza żółtym.",
+      column: {
+        preview: "Podgląd",
+        name: "Nazwa",
+        slug: "Slug",
+        color: "Kolor",
+      },
+      addMissing: "Dodaj brakujące główne obszary",
+      addedMissing: "Dodano brakujące kategorie",
+      save: "Zapisz kolory",
+      saved: "Kolory kategorii zapisane",
+      saveError: "Nie udało się zapisać kolorów",
+      reset: "Przywróć rekomendowany",
+      previewLabel: "Podgląd",
+      noColor: "brak",
     },
     popups: {
       title: "Popupy",
