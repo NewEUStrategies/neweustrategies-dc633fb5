@@ -123,24 +123,128 @@ export const getTrendingPosts = createServerFn({ method: "GET" })
       }),
   );
 
-// Latest / pinned posts for the header ticker. Reuses TrendingPost shape so
-// the UI can swap sources without per-mode branching.
+// Latest / pinned / selected / mixed posts for the header ticker. Reuses
+// TrendingPost shape so the UI can swap sources without per-mode branching.
 const tickerSchema = z.object({
-  source: z.enum(["latest", "pinned", "selected"]),
+  source: z.enum(["latest", "pinned", "selected", "mixed"]),
   limit: z.number().int().min(1).max(50).default(8),
+  days: z.number().int().min(1).max(90).optional(),
   pinnedPostId: z.string().uuid().optional(),
   selectedPostIds: z.array(z.string().uuid()).max(3).optional(),
+  mixedFill: z.enum(["trending", "latest"]).optional(),
 });
+
+type TickerRow = {
+  id: string;
+  slug: string;
+  title_pl: string | null;
+  title_en: string | null;
+  cover_image_url: string | null;
+  published_at: string | null;
+  parent_page_id: string;
+};
+
+async function toTrendingPosts(
+  sb: ReturnType<typeof client>,
+  rows: TickerRow[],
+): Promise<TrendingPost[]> {
+  const paths = await resolveParentPaths(sb, rows.map((r) => r.parent_page_id));
+  return rows.map((r) => ({
+    id: r.id,
+    slug: r.slug,
+    title_pl: r.title_pl ?? "",
+    title_en: r.title_en ?? "",
+    cover_image_url: r.cover_image_url,
+    published_at: r.published_at,
+    parent_page_id: r.parent_page_id,
+    views_count: 0,
+    href: postHref(paths, r.parent_page_id, r.slug),
+  }));
+}
 
 export const getTickerPosts = createServerFn({ method: "GET" })
   .inputValidator((d) => tickerSchema.parse(d))
   .handler(
     async ({ data }): Promise<TrendingPost[]> =>
       edgeTtlCache(
-        `ticker_posts:${data.source}:${data.limit}:${data.pinnedPostId ?? ""}:${(data.selectedPostIds ?? []).join(",")}`,
+        `ticker_posts:${data.source}:${data.limit}:${data.days ?? ""}:${data.pinnedPostId ?? ""}:${(data.selectedPostIds ?? []).join(",")}:${data.mixedFill ?? ""}`,
         TICKER_TTL_MS,
         async () => {
           const sb = client();
+
+          if (data.source === "mixed") {
+            const pinnedIds = [
+              ...(data.selectedPostIds ?? []),
+              ...(data.pinnedPostId ? [data.pinnedPostId] : []),
+            ].filter((v, i, a) => a.indexOf(v) === i);
+
+            let pinnedRows: TickerRow[] = [];
+            if (pinnedIds.length) {
+              const { data: rows, error } = await sb
+                .from("posts")
+                .select(
+                  "id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id",
+                )
+                .in("id", pinnedIds)
+                .eq("status", "published")
+                .is("deleted_at", null);
+              if (error) {
+                console.warn("getTickerPosts(mixed:pinned) failed:", error.message);
+              } else {
+                const order = new Map(pinnedIds.map((id, i) => [id, i]));
+                pinnedRows = (rows ?? []).sort(
+                  (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
+                );
+              }
+            }
+
+            const remaining = Math.max(0, data.limit - pinnedRows.length);
+            let fillRows: TickerRow[] = [];
+            if (remaining > 0) {
+              if ((data.mixedFill ?? "trending") === "trending") {
+                const { data: rows, error } = await sb.rpc("trending_posts", {
+                  _days: data.days ?? 7,
+                  _limit: remaining + pinnedRows.length,
+                });
+                if (error) {
+                  console.warn("getTickerPosts(mixed:trending) failed:", error.message);
+                } else {
+                  fillRows = (rows ?? [])
+                    .filter((r) => !pinnedRows.some((p) => p.id === r.id))
+                    .slice(0, remaining)
+                    .map((r) => ({
+                      id: r.id,
+                      slug: r.slug,
+                      title_pl: r.title_pl,
+                      title_en: r.title_en,
+                      cover_image_url: r.cover_image_url,
+                      published_at: r.published_at,
+                      parent_page_id: r.parent_page_id,
+                    }));
+                }
+              } else {
+                const { data: rows, error } = await sb
+                  .from("posts")
+                  .select(
+                    "id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id",
+                  )
+                  .eq("status", "published")
+                  .is("deleted_at", null)
+                  .order("published_at", { ascending: false })
+                  .limit(remaining + pinnedRows.length);
+                if (error) {
+                  console.warn("getTickerPosts(mixed:latest) failed:", error.message);
+                } else {
+                  fillRows = (rows ?? [])
+                    .filter((r) => !pinnedRows.some((p) => p.id === r.id))
+                    .slice(0, remaining);
+                }
+              }
+            }
+
+            return toTrendingPosts(sb, [...pinnedRows, ...fillRows]);
+          }
+
           let q = sb
             .from("posts")
             .select("id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id")
@@ -158,22 +262,7 @@ export const getTickerPosts = createServerFn({ method: "GET" })
             console.warn("getTickerPosts failed:", error.message);
             return [];
           }
-          const paths = await resolveParentPaths(
-            sb,
-            (rows ?? []).map((r) => r.parent_page_id),
-          );
-          const mapped = (rows ?? []).map((r) => ({
-            id: r.id,
-            slug: r.slug,
-            title_pl: r.title_pl ?? "",
-            title_en: r.title_en ?? "",
-            cover_image_url: r.cover_image_url,
-            published_at: r.published_at,
-            parent_page_id: r.parent_page_id,
-            views_count: 0,
-            href: postHref(paths, r.parent_page_id, r.slug),
-          }));
-          // Preserve author-chosen order for the "selected" source.
+          const mapped = await toTrendingPosts(sb, (rows ?? []) as TickerRow[]);
           if (data.source === "selected" && data.selectedPostIds?.length) {
             const order = new Map(data.selectedPostIds.map((id, i) => [id, i]));
             mapped.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
