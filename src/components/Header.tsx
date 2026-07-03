@@ -94,6 +94,7 @@ function HeaderInner() {
           mode={trending.mode ?? "scroll"}
           days={trending.days ?? 7}
           limit={trending.limit ?? 8}
+          visibleCount={trending.visibleCount ?? 1}
           intervalSec={trending.intervalSec ?? 6}
           pinnedPostId={trending.pinnedPostId}
           pinnedUntil={trending.pinnedUntil ?? null}
