@@ -168,7 +168,9 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       consent: fd.get("consent") === "on" || !requireConsent,
       newsletterOptIn: fd.get("newsletter_optin") === "on",
       lang,
-      recipient: recipient || undefined,
+      // `recipient` is intentionally omitted from the payload - see
+      // contact.functions.ts, the admin address is resolved server-side to
+      // prevent open email relay abuse.
       source: typeof window !== "undefined" ? window.location.pathname : undefined,
     };
     const errs: Record<string, string> = {};
