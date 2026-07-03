@@ -2,10 +2,10 @@
 // Uses the SAME SearchButtonWidget as the builder header so the input is
 // visually and behaviourally identical (live results, popover, clear button).
 // Layout: [search] [current article title] [theme | account/login | lang]
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { LogIn, LogOut, User } from "@/lib/lucide-shim";
+import { Bookmark, ChevronDown, LogIn, LogOut, Settings, User } from "@/lib/lucide-shim";
 import { ThemeToggle } from "@/components/atoms/ThemeToggle";
 import { LangSwitcherDropdown } from "@/components/admin/builder/ui/organisms/widget-view/chromeWidgets";
 import { SearchButtonWidget } from "@/components/admin/builder/ui/organisms/widget-view/SearchButtonWidget";
