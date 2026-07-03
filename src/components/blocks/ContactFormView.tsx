@@ -126,7 +126,10 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const buttonVariant = s(data, "buttonVariant", "solid") as "solid" | "outline" | "ghost" | "gradient";
   const buttonSize = s(data, "buttonSize", "md") as "sm" | "md" | "lg";
 
-  const recipient = s(data, "recipient");
+  // `recipient` (widget override) is intentionally ignored client-side; the
+  // server resolves the admin address from trusted contact_form_settings.
+  const _unusedRecipient = s(data, "recipient");
+  void _unusedRecipient;
   const bgLight = s(data, "bgLight");
   const bgDark = s(data, "bgDark");
   const textColor = s(data, "textColor");
