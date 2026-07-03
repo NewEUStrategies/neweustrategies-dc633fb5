@@ -2168,12 +2168,3 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   max-height: 48px !important;
   width: auto !important;
 }
-
-/* Mobile section reorder: interview slider above "Najnowszy raport" */
-@media (max-width: 767px) {
-  [data-builder-renderer] { display: flex; flex-direction: column; }
-  [data-builder-renderer] > section { order: 2; }
-  [data-builder-renderer] > section[data-sec-id="0e20db30-93b9-4a5a-907a-da4135ea2c7c"],
-  [data-builder-renderer] > section[data-sec-id="9ddd363a-f185-4df9-851f-a96870ce9e44"] { order: 0; }
-  [data-builder-renderer] > section[data-sec-id="eb03fabc-0ed7-4f22-8daf-60d57b24136f"] { order: 1; }
-}
