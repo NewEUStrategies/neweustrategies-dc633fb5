@@ -128,9 +128,9 @@ export function PostLayoutRenderer({
       <>
         <ReadingHeader title={title} />
         <div className={`relative ${preset.cover === "full-bleed" ? "-mx-4 lg:-mx-8" : ""}`}>
-          <div className="relative rounded-lg overflow-hidden mb-8">
+          <div className="relative mb-8">
             {/* Cover image */}
-            <div className="relative h-[52vh] min-h-[360px]">
+            <div className="relative h-[62vh] min-h-[420px] rounded-lg overflow-hidden">
               <OptimizedImage
                 src={coverImageUrl}
                 alt={title}
@@ -140,42 +140,42 @@ export function PostLayoutRenderer({
                 sizes={coverImageSizes(preset)}
               />
               {/* Delikatny gradient dla czytelności krawędzi obrazu */}
-              <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/70" />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/40" />
             </div>
 
-            {/* Solidne, ciemne tło pod meta-blokiem (jak w referencji Foxiz).
+            {/* Meta-blok nachodzący na centralną część zdjęcia (nie na pełną szerokość).
                 Kategorie "wystają" ponad krawędź, dając charakterystyczny akcent. */}
-            <div className={`relative bg-[#0b0b0d] text-white ${center ? "text-center" : ""}`}>
-              {categoryBadges && (
-                <div
-                  className={`absolute -top-4 left-0 right-0 px-6 lg:px-10 flex flex-wrap gap-2 ${
-                    center ? "justify-center" : ""
-                  }`}
-                >
-                  {categoryBadges}
-                </div>
-              )}
-              <div className="px-6 lg:px-10 pt-10 pb-8 lg:pt-12 lg:pb-10">
-                <h1 className="font-display text-3xl lg:text-5xl leading-tight mb-3">{title}</h1>
-                {excerpt && (
-                  <p className="text-base lg:text-lg text-white/85 mb-4 max-w-3xl mx-auto">
-                    {excerpt}
-                  </p>
-                )}
-                {meta && (
+            <div className="relative -mt-24 lg:-mt-32 mx-4 lg:mx-auto lg:max-w-3xl px-4">
+              <div className={`relative bg-[#0b0b0d] text-white rounded-lg shadow-2xl ${center ? "text-center" : ""}`}>
+                {categoryBadges && (
                   <div
-                    className={`text-sm flex flex-wrap items-center gap-x-4 gap-y-1 text-white/75 pt-4 border-t border-white/10 ${
+                    className={`absolute -top-4 left-0 right-0 px-6 lg:px-10 flex flex-wrap gap-2 ${
                       center ? "justify-center" : ""
                     }`}
                   >
-                    {meta}
+                    {categoryBadges}
                   </div>
                 )}
+                <div className="px-6 lg:px-10 pt-10 pb-8 lg:pt-12 lg:pb-10">
+                  <h1 className="font-display text-3xl lg:text-5xl leading-tight mb-3 text-white">{title}</h1>
+                  {excerpt && (
+                    <p className="text-base lg:text-lg text-white/85 mb-4 max-w-2xl mx-auto">
+                      {excerpt}
+                    </p>
+                  )}
+                  {meta && (
+                    <div
+                      className={`text-sm flex flex-wrap items-center gap-x-4 gap-y-1 text-white/75 pt-4 border-t border-white/10 ${
+                        center ? "justify-center" : ""
+                      }`}
+                    >
+                      {meta}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-
-
 
           <LayoutBody
             contentMaxW={contentMaxW}
@@ -187,6 +187,7 @@ export function PostLayoutRenderer({
       </>
     );
   }
+
 
   // Side-by-side (Layout 7)
   if (preset.header === "side-by-side" && coverImageUrl) {
