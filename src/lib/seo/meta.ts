@@ -219,6 +219,8 @@ export function buildRootHead(lang: Lang): Array<Record<string, string>> {
     { name: "viewport", content: "width=device-width, initial-scale=1" },
     { title },
     { name: "description", content: description },
+    { name: "google-site-verification", content: "F4uS74OW4AztK0xOVBDNbWSwkpo7fXJ6txlYBmK2Cug" },
+
     { name: "author", content: SITE_NAME },
     { property: "og:title", content: title },
     { property: "og:description", content: description },
