@@ -13,8 +13,10 @@ import { toast } from "sonner";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 
 type Json = Record<string, unknown>;
-type Source = "trending" | "latest" | "pinned";
+type Source = "trending" | "latest" | "pinned" | "selected";
 type Mode = "scroll" | "fade" | "slide" | "flip" | "typewriter";
+
+const MAX_SELECTED = 3;
 
 interface TrendingCfg {
   enabled: boolean;
@@ -26,6 +28,7 @@ interface TrendingCfg {
   intervalSec: number;
   pinnedPostId: string;
   pinnedUntil: string;
+  selectedPostIds: string[];
   fullWidth: boolean;
 }
 
@@ -39,6 +42,7 @@ const DEFAULTS: TrendingCfg = {
   intervalSec: 6,
   pinnedPostId: "",
   pinnedUntil: "",
+  selectedPostIds: [],
   fullWidth: true,
 };
 
@@ -51,6 +55,7 @@ const COPY = {
     source_trending: "Najczęściej czytane",
     source_latest: "Najnowsze",
     source_pinned: "Przypięty wpis",
+    source_selected: "Wybrane materiały",
     mode: "Tryb animacji",
     mode_scroll: "Przewijanie w pętli",
     mode_fade: "Przenikanie (fade)",
@@ -68,6 +73,11 @@ const COPY = {
     preview: "Podgląd na żywo",
     saved: "Zapisano",
     pickPost: "Wybierz wpis",
+    selectedTitle: "Załączone materiały (max 3)",
+    selectedHint: "Zaznacz do 3 wpisów - wyświetlą się w wybranej kolejności.",
+    selectedEmpty: "Nie wybrano żadnego wpisu.",
+    selectedRemove: "Usuń",
+    selectedAdd: "Dodaj wpis",
   },
   en: {
     title: "Trending widget",
@@ -77,6 +87,7 @@ const COPY = {
     source_trending: "Most read",
     source_latest: "Latest",
     source_pinned: "Pinned post",
+    source_selected: "Selected items",
     mode: "Animation mode",
     mode_scroll: "Loop scroll",
     mode_fade: "Cross-fade",
@@ -94,6 +105,11 @@ const COPY = {
     preview: "Live preview",
     saved: "Saved",
     pickPost: "Pick a post",
+    selectedTitle: "Attached items (max 3)",
+    selectedHint: "Pick up to 3 posts - they show in the chosen order.",
+    selectedEmpty: "No items selected.",
+    selectedRemove: "Remove",
+    selectedAdd: "Add item",
   },
 } as const;
 
@@ -167,9 +183,30 @@ export function TrendingTickerPane() {
 
   const previewKey = useMemo(
     () =>
-      `${cfg.source}-${cfg.mode}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}`,
+      `${cfg.source}-${cfg.mode}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}-${cfg.selectedPostIds.join(",")}`,
     [cfg],
   );
+
+  const toggleSelected = (id: string): void => {
+    setCfg((c) => {
+      const has = c.selectedPostIds.includes(id);
+      if (has) return { ...c, selectedPostIds: c.selectedPostIds.filter((x) => x !== id) };
+      if (c.selectedPostIds.length >= MAX_SELECTED) return c;
+      return { ...c, selectedPostIds: [...c.selectedPostIds, id] };
+    });
+  };
+  const moveSelected = (id: string, dir: -1 | 1): void => {
+    setCfg((c) => {
+      const arr = [...c.selectedPostIds];
+      const i = arr.indexOf(id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= arr.length) return c;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      return { ...c, selectedPostIds: arr };
+    });
+  };
+
+  const postTitle = (id: string): string => posts?.find((p) => p.id === id)?.title ?? id;
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -192,8 +229,8 @@ export function TrendingTickerPane() {
 
         <div className="space-y-1.5">
           <Label>{t.source}</Label>
-          <div className="grid grid-cols-3 gap-2">
-            {(["trending", "latest", "pinned"] as const).map((s) => (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {(["trending", "latest", "pinned", "selected"] as const).map((s) => (
               <button
                 key={s}
                 type="button"
@@ -244,7 +281,7 @@ export function TrendingTickerPane() {
               />
             </div>
           )}
-          {cfg.source !== "pinned" && (
+          {cfg.source !== "pinned" && cfg.source !== "selected" && (
             <div className="space-y-1.5">
               <Label htmlFor="tt-limit">{t.limit}</Label>
               <Input
@@ -284,7 +321,7 @@ export function TrendingTickerPane() {
                 />
               </div>
             </>
-          )}
+        )}
         </div>
 
 
@@ -327,6 +364,83 @@ export function TrendingTickerPane() {
           </div>
         )}
 
+        {cfg.source === "selected" && (
+          <div className="space-y-3 rounded-[5px] border border-dashed border-border p-3">
+            <div>
+              <p className="font-medium text-sm">{t.selectedTitle}</p>
+              <p className="text-xs text-muted-foreground">{t.selectedHint}</p>
+            </div>
+
+            {cfg.selectedPostIds.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic">{t.selectedEmpty}</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {cfg.selectedPostIds.map((id, i) => (
+                  <li
+                    key={id}
+                    className="flex items-center gap-2 rounded-[5px] border border-border bg-background px-2 py-1.5 text-sm"
+                  >
+                    <span className="tabular-nums text-xs text-muted-foreground w-5">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="flex-1 truncate">{postTitle(id)}</span>
+                    <button
+                      type="button"
+                      onClick={() => moveSelected(id, -1)}
+                      disabled={i === 0}
+                      className="px-1.5 py-0.5 rounded border border-border text-xs hover:bg-muted disabled:opacity-30"
+                      aria-label="Up"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveSelected(id, 1)}
+                      disabled={i === cfg.selectedPostIds.length - 1}
+                      className="px-1.5 py-0.5 rounded border border-border text-xs hover:bg-muted disabled:opacity-30"
+                      aria-label="Down"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleSelected(id)}
+                      className="px-2 py-0.5 rounded border border-destructive/40 text-destructive text-xs hover:bg-destructive/10"
+                    >
+                      {t.selectedRemove}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="tt-add">{t.selectedAdd}</Label>
+              <select
+                id="tt-add"
+                value=""
+                disabled={cfg.selectedPostIds.length >= MAX_SELECTED}
+                onChange={(e) => {
+                  if (e.target.value) toggleSelected(e.target.value);
+                }}
+                className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+              >
+                <option value="">
+                  {cfg.selectedPostIds.length >= MAX_SELECTED ? "-" : t.pickPost}
+                </option>
+                {posts
+                  ?.filter((p) => !cfg.selectedPostIds.includes(p.id))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+
         <div className="flex items-center justify-between pt-1">
           <Label htmlFor="tt-full" className="font-medium">
             {t.full}
@@ -353,6 +467,7 @@ export function TrendingTickerPane() {
               intervalSec={cfg.intervalSec}
               pinnedPostId={cfg.pinnedPostId || undefined}
               pinnedUntil={cfg.pinnedUntil || null}
+              selectedPostIds={cfg.selectedPostIds}
               fullWidth={cfg.fullWidth}
             />
           </div>

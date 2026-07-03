@@ -126,9 +126,10 @@ export const getTrendingPosts = createServerFn({ method: "GET" })
 // Latest / pinned posts for the header ticker. Reuses TrendingPost shape so
 // the UI can swap sources without per-mode branching.
 const tickerSchema = z.object({
-  source: z.enum(["latest", "pinned"]),
+  source: z.enum(["latest", "pinned", "selected"]),
   limit: z.number().int().min(1).max(50).default(8),
   pinnedPostId: z.string().uuid().optional(),
+  selectedPostIds: z.array(z.string().uuid()).max(3).optional(),
 });
 
 export const getTickerPosts = createServerFn({ method: "GET" })
@@ -136,7 +137,7 @@ export const getTickerPosts = createServerFn({ method: "GET" })
   .handler(
     async ({ data }): Promise<TrendingPost[]> =>
       edgeTtlCache(
-        `ticker_posts:${data.source}:${data.limit}:${data.pinnedPostId ?? ""}`,
+        `ticker_posts:${data.source}:${data.limit}:${data.pinnedPostId ?? ""}:${(data.selectedPostIds ?? []).join(",")}`,
         TICKER_TTL_MS,
         async () => {
           const sb = client();
@@ -147,6 +148,8 @@ export const getTickerPosts = createServerFn({ method: "GET" })
             .is("deleted_at", null);
           if (data.source === "pinned" && data.pinnedPostId) {
             q = q.eq("id", data.pinnedPostId).limit(1);
+          } else if (data.source === "selected" && data.selectedPostIds?.length) {
+            q = q.in("id", data.selectedPostIds).limit(data.selectedPostIds.length);
           } else {
             q = q.order("published_at", { ascending: false }).limit(data.limit);
           }
@@ -159,7 +162,7 @@ export const getTickerPosts = createServerFn({ method: "GET" })
             sb,
             (rows ?? []).map((r) => r.parent_page_id),
           );
-          return (rows ?? []).map((r) => ({
+          const mapped = (rows ?? []).map((r) => ({
             id: r.id,
             slug: r.slug,
             title_pl: r.title_pl ?? "",
@@ -170,6 +173,12 @@ export const getTickerPosts = createServerFn({ method: "GET" })
             views_count: 0,
             href: postHref(paths, r.parent_page_id, r.slug),
           }));
+          // Preserve author-chosen order for the "selected" source.
+          if (data.source === "selected" && data.selectedPostIds?.length) {
+            const order = new Map(data.selectedPostIds.map((id, i) => [id, i]));
+            mapped.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+          }
+          return mapped;
         },
       ),
   );

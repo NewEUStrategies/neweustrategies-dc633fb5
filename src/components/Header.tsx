@@ -98,6 +98,7 @@ function HeaderInner() {
           intervalSec={trending.intervalSec ?? 6}
           pinnedPostId={trending.pinnedPostId}
           pinnedUntil={trending.pinnedUntil ?? null}
+          selectedPostIds={trending.selectedPostIds}
           fullWidth={trending.fullWidth ?? true}
         />
       )}
