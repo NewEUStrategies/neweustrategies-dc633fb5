@@ -167,9 +167,10 @@ export function ImageWidget({
       sizes="(max-width: 767px) 100vw, 50vw"
       className={`${imgCls} widget-media-fg`}
       style={fgImgStyle}
-      onError={applyLogoFallback}
-      hoverEffect={hoverEffect}
-    />
+        onError={applyLogoFallback}
+        hoverEffect={hoverEffect}
+        fadeIn={!isLogo}
+      />
   ) : (
     <OptimizedImage
       src={theme === "dark" ? darkSrc : lightSrc}
