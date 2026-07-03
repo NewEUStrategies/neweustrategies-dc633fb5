@@ -112,24 +112,50 @@ async function applyBulkStatus(
   table: "posts" | "pages",
   ids: string[],
   status: ContentStatus,
-): Promise<void> {
+): Promise<string[]> {
   if (status !== "published") {
-    const { error } = await supabase.from(table).update({ status }).in("id", ids);
+    const { data, error } = await supabase
+      .from(table)
+      .update({ status })
+      .in("id", ids)
+      .select("id");
     if (error) throw new Error(error.message);
-    return;
+    return (data ?? []).map((r) => r.id);
   }
-  const { error: stampError } = await supabase
+  const { data: stamped, error: stampError } = await supabase
     .from(table)
     .update({ status, published_at: new Date().toISOString() })
     .in("id", ids)
-    .is("published_at", null);
+    .is("published_at", null)
+    .select("id");
   if (stampError) throw new Error(stampError.message);
-  const { error: keepError } = await supabase
+  const { data: kept, error: keepError } = await supabase
     .from(table)
     .update({ status })
     .in("id", ids)
-    .not("published_at", "is", null);
+    .not("published_at", "is", null)
+    .select("id");
   if (keepError) throw new Error(keepError.message);
+  return [...(stamped ?? []), ...(kept ?? [])].map((r) => r.id);
+}
+
+/**
+ * Uczciwy wynik mutacji masowej. PostgREST zwraca 0 wierszy z error=null, gdy
+ * RLS odfiltruje cel (cudzy wpis, inny tenant, wiersz już usunięty), więc sama
+ * nieobecność błędu nie oznacza sukcesu. Każda mutacja list/kosza raportuje
+ * realnie dotknięte wiersze (`count`) obok liczby żądanych (`requested`);
+ * klient pokazuje częściowe niepowodzenie zamiast fałszywego "zrobiono N".
+ */
+export interface BulkResult {
+  ok: true;
+  /** Liczba wierszy faktycznie zmienionych (po RLS). */
+  count: number;
+  /** Liczba wierszy, o które prosił klient. */
+  requested: number;
+}
+
+function bulkResult(affected: readonly string[], requested: readonly string[]): BulkResult {
+  return { ok: true, count: affected.length, requested: requested.length };
 }
 
 // ---------- SEO: automatic redirects on permalink changes ----------
@@ -563,7 +589,11 @@ export const updatePost = createServerFn({ method: "POST" })
         ...(statusChanges ? { from: existing.status, to: nextStatus } : {}),
         ...(nextStatus === "scheduled" && nextPublishAt ? { publish_at: nextPublishAt } : {}),
       });
-      return { ok: true as const };
+      // Kanoniczny slug wraca do klienta: uniqueSlug mógł dopisać sufiks
+      // (kolizja), a edytor musi nawigować na slug faktycznie zapisany,
+      // nie na ten wpisany w formularzu - inaczej ładuje CUDZY wpis o tym
+      // slugu i edycja wygląda na "podmienioną".
+      return { ok: true as const, slug: updates.slug ?? existing.slug };
     });
   });
 
@@ -574,11 +604,18 @@ export const deletePost = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);
-    const { error } = await supabase
+    // Ten sam guard co w updatePost: 0 wierszy z error=null oznacza, ze RLS
+    // odrzuciło operację - bez .select() klient widziałby "Usunięto" przy
+    // nietkniętym wierszu.
+    const { data: deleted, error } = await supabase
       .from("posts")
       .update({ deleted_at: new Date().toISOString() } as PostUpdateRow)
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .select("id");
     if (error) throw new Error(error.message);
+    if (!deleted?.length) {
+      throw new Error("Delete rejected - you do not have permission to delete this post");
+    }
     await audit(supabase, tenantId, "post.delete", "post", data.id, { soft: true });
     return { ok: true as const };
   });
@@ -590,17 +627,22 @@ export const bulkDeletePosts = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("post.bulkDelete", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const { error } = await supabase
+      const { data: deleted, error } = await supabase
         .from("posts")
         .update({ deleted_at: new Date().toISOString() } as PostUpdateRow)
-        .in("id", data.ids);
+        .in("id", data.ids)
+        .select("id");
       if (error) throw new Error(error.message);
-      await audit(supabase, tenantId, "post.delete", "post", null, {
-        ids: data.ids,
-        count: data.ids.length,
-        soft: true,
-      });
-      return { ok: true as const, count: data.ids.length };
+      const affected = (deleted ?? []).map((r) => r.id);
+      if (affected.length) {
+        await audit(supabase, tenantId, "post.delete", "post", null, {
+          ids: affected,
+          count: affected.length,
+          requested: data.ids.length,
+          soft: true,
+        });
+      }
+      return bulkResult(affected, data.ids);
     });
   });
 
@@ -611,16 +653,20 @@ export const restorePosts = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("post.restore", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const { error } = await supabase
+      const { data: restored, error } = await supabase
         .from("posts")
         .update({ deleted_at: null } as PostUpdateRow)
-        .in("id", data.ids);
+        .in("id", data.ids)
+        .select("id");
       if (error) throw new Error(error.message);
-      await audit(supabase, tenantId, "post.update", "post", null, {
-        ids: data.ids,
-        restored: true,
-      });
-      return { ok: true as const, count: data.ids.length };
+      const affected = (restored ?? []).map((r) => r.id);
+      if (affected.length) {
+        await audit(supabase, tenantId, "post.update", "post", null, {
+          ids: affected,
+          restored: true,
+        });
+      }
+      return bulkResult(affected, data.ids);
     });
   });
 
@@ -631,10 +677,20 @@ export const purgePosts = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("post.purge", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const { error } = await supabase.from("posts").delete().in("id", data.ids);
+      const { data: purged, error } = await supabase
+        .from("posts")
+        .delete()
+        .in("id", data.ids)
+        .select("id");
       if (error) throw new Error(error.message);
-      await audit(supabase, tenantId, "post.delete", "post", null, { ids: data.ids, purged: true });
-      return { ok: true as const, count: data.ids.length };
+      const affected = (purged ?? []).map((r) => r.id);
+      if (affected.length) {
+        await audit(supabase, tenantId, "post.delete", "post", null, {
+          ids: affected,
+          purged: true,
+        });
+      }
+      return bulkResult(affected, data.ids);
     });
   });
 
@@ -655,16 +711,18 @@ export const bulkUpdatePosts = createServerFn({ method: "POST" })
       if (data.status === "published" && !(await resolveCanPublish(supabase))) {
         throw new Error("Workflow: only an administrator can publish - submit for review instead");
       }
-      await applyBulkStatus(supabase, "posts", data.ids, data.status);
-      await audit(
-        supabase,
-        tenantId,
-        data.status === "published" ? "post.publish" : "post.update",
-        "post",
-        null,
-        { ids: data.ids, status: data.status },
-      );
-      return { ok: true as const, count: data.ids.length };
+      const affected = await applyBulkStatus(supabase, "posts", data.ids, data.status);
+      if (affected.length) {
+        await audit(
+          supabase,
+          tenantId,
+          data.status === "published" ? "post.publish" : "post.update",
+          "post",
+          null,
+          { ids: affected, status: data.status, requested: data.ids.length },
+        );
+      }
+      return bulkResult(affected, data.ids);
     });
   });
 
@@ -797,11 +855,13 @@ export const updatePage = createServerFn({ method: "POST" })
       }
 
       const publish = nextStatus === "published" && existing.status !== "published";
-      await audit(
-        supabase, tenantId, publish ? "page.publish" : "page.update",
-        "page", data.id, { fields: Object.keys(updates) },
-      );
-      return { ok: true as const };
+      await audit(supabase, tenantId, publish ? "page.publish" : "page.update", "page", data.id, {
+        fields: Object.keys(updates),
+      });
+      // Kanoniczny slug wraca do klienta: uniqueSlug mógł dopisać sufiks
+      // (kolizja), a edytor musi nawigować na slug faktycznie zapisany,
+      // nie na ten wpisany w formularzu.
+      return { ok: true as const, slug: updates.slug ?? existing.slug };
     });
   });
 
@@ -812,11 +872,18 @@ export const deletePage = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);
-    const { error } = await supabase
+    // Ten sam guard co w updatePage: 0 wierszy z error=null oznacza, ze RLS
+    // odrzuciło operację - bez .select() klient widziałby "Usunięto" przy
+    // nietkniętym wierszu.
+    const { data: deleted, error } = await supabase
       .from("pages")
       .update({ deleted_at: new Date().toISOString() } as PageUpdateRow)
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .select("id");
     if (error) throw new Error(error.message);
+    if (!deleted?.length) {
+      throw new Error("Delete rejected - you do not have permission to delete this page");
+    }
     await audit(supabase, tenantId, "page.delete", "page", data.id, { soft: true });
     return { ok: true as const };
   });
@@ -828,17 +895,22 @@ export const bulkDeletePages = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("page.bulkDelete", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const { error } = await supabase
+      const { data: deleted, error } = await supabase
         .from("pages")
         .update({ deleted_at: new Date().toISOString() } as PageUpdateRow)
-        .in("id", data.ids);
+        .in("id", data.ids)
+        .select("id");
       if (error) throw new Error(error.message);
-      await audit(supabase, tenantId, "page.delete", "page", null, {
-        ids: data.ids,
-        count: data.ids.length,
-        soft: true,
-      });
-      return { ok: true as const, count: data.ids.length };
+      const affected = (deleted ?? []).map((r) => r.id);
+      if (affected.length) {
+        await audit(supabase, tenantId, "page.delete", "page", null, {
+          ids: affected,
+          count: affected.length,
+          requested: data.ids.length,
+          soft: true,
+        });
+      }
+      return bulkResult(affected, data.ids);
     });
   });
 
@@ -849,16 +921,20 @@ export const restorePages = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("page.restore", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const { error } = await supabase
+      const { data: restored, error } = await supabase
         .from("pages")
         .update({ deleted_at: null } as PageUpdateRow)
-        .in("id", data.ids);
+        .in("id", data.ids)
+        .select("id");
       if (error) throw new Error(error.message);
-      await audit(supabase, tenantId, "page.update", "page", null, {
-        ids: data.ids,
-        restored: true,
-      });
-      return { ok: true as const, count: data.ids.length };
+      const affected = (restored ?? []).map((r) => r.id);
+      if (affected.length) {
+        await audit(supabase, tenantId, "page.update", "page", null, {
+          ids: affected,
+          restored: true,
+        });
+      }
+      return bulkResult(affected, data.ids);
     });
   });
 
@@ -869,10 +945,20 @@ export const purgePages = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("page.purge", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const { error } = await supabase.from("pages").delete().in("id", data.ids);
+      const { data: purged, error } = await supabase
+        .from("pages")
+        .delete()
+        .in("id", data.ids)
+        .select("id");
       if (error) throw new Error(error.message);
-      await audit(supabase, tenantId, "page.delete", "page", null, { ids: data.ids, purged: true });
-      return { ok: true as const, count: data.ids.length };
+      const affected = (purged ?? []).map((r) => r.id);
+      if (affected.length) {
+        await audit(supabase, tenantId, "page.delete", "page", null, {
+          ids: affected,
+          purged: true,
+        });
+      }
+      return bulkResult(affected, data.ids);
     });
   });
 
@@ -890,16 +976,18 @@ export const bulkUpdatePages = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("page.bulkUpdate", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      await applyBulkStatus(supabase, "pages", data.ids, data.status);
-      await audit(
-        supabase,
-        tenantId,
-        data.status === "published" ? "page.publish" : "page.update",
-        "page",
-        null,
-        { ids: data.ids, status: data.status },
-      );
-      return { ok: true as const, count: data.ids.length };
+      const affected = await applyBulkStatus(supabase, "pages", data.ids, data.status);
+      if (affected.length) {
+        await audit(
+          supabase,
+          tenantId,
+          data.status === "published" ? "page.publish" : "page.update",
+          "page",
+          null,
+          { ids: affected, status: data.status, requested: data.ids.length },
+        );
+      }
+      return bulkResult(affected, data.ids);
     });
   });
 

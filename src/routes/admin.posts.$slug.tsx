@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -152,6 +152,7 @@ function EditPost() {
   const { t, i18n } = useTranslation();
   const uiLang = i18n.language ?? "pl";
   const navigate = useNavigate();
+  const router = useRouter();
   const qc = useQueryClient();
   const tenantId = useRequiredTenant();
   // Editorial workflow: only admin / super_admin publish or schedule directly;
@@ -214,6 +215,9 @@ function EditPost() {
 
   const history = useUndoRedo<PostForm | null>(null);
   const form = history.state;
+  // Stabilna referencja do history.set dla saveFn (obiekt `history` zmienia
+  // tozsamość co render, sam setter jest useCallback-owo stały).
+  const setSlug = history.set;
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -253,7 +257,7 @@ function EditPost() {
   const saveFn = useCallback(
     async (snapshot: PostForm | null) => {
       if (!snapshot) return;
-      await update$({
+      const result = await update$({
         data: {
           id,
           fields: {
@@ -291,19 +295,48 @@ function EditPost() {
           tags: selectedTags,
         },
       });
+      // Serwer mógł znormalizować slug (uniqueSlug dopisuje sufiks przy
+      // kolizji). Nawigujemy WYŁĄCZNIE na slug faktycznie zapisany -
+      // przejście na slug wpisany w formularzu załadowałoby CUDZY wpis,
+      // który go posiada ("podmiana" edytowanego posta).
+      const canonicalSlug = result?.slug ?? snapshot.slug;
       qc.invalidateQueries({ queryKey: ["admin-posts"] });
-      qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, snapshot.slug] });
+      qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, routeSlug] });
+      qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, canonicalSlug] });
       // Refresh every widget cache that references posts (live sync across the site).
       invalidateWidgetCaches(qc);
       emitWidgetCacheInvalidate();
       // Odswiez publiczne surface'y SEO (mapa strony HTML, dashboard /admin/seo);
       // sitemap.xml + llms.txt są serwerowe i mają wlasny SWR.
-      invalidateSeoCaches(qc);
-      if (snapshot.slug !== routeSlug) {
-        navigate({ to: "/admin/posts/$slug", params: { slug: snapshot.slug }, replace: true });
+      invalidateSeoCaches(qc, router);
+      if (canonicalSlug !== snapshot.slug) {
+        // Kolizja nie może być cicha: pokaz stan błędu/ostrzeżenia i zsynchronizuj
+        // pole formularza z tym, co realnie trafiło do bazy.
+        toast.warning(
+          t("admin.slugTaken", {
+            defaultValue: 'Slug był zajęty - zapisano jako "{{slug}}"',
+            slug: canonicalSlug,
+          }),
+        );
+        setSlug((f) => (f && f.slug === snapshot.slug ? { ...f, slug: canonicalSlug } : f));
+      }
+      if (canonicalSlug !== routeSlug) {
+        navigate({ to: "/admin/posts/$slug", params: { slug: canonicalSlug }, replace: true });
       }
     },
-    [id, update$, selectedCats, selectedTags, qc, navigate, routeSlug, tenantId],
+    [
+      id,
+      update$,
+      selectedCats,
+      selectedTags,
+      qc,
+      navigate,
+      routeSlug,
+      tenantId,
+      router,
+      setSlug,
+      t,
+    ],
   );
 
   // Track tuple [form, cats, tags] for autosave so taxonomies persist too.
