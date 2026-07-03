@@ -123,6 +123,7 @@ export interface PostCategory {
   slug: string;
   name_pl: string;
   name_en: string;
+  color: string | null;
 }
 
 export type ResolvedContent =
