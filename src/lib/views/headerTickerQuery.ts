@@ -10,8 +10,13 @@ import {
   getTickerPosts,
   type TrendingPost,
 } from "@/lib/views/postViews.functions";
+import type {
+  IconAnimation,
+  MixedFill,
+  TickerColorScheme,
+} from "@/lib/views/tickerVariants";
 
-export type TickerSource = "trending" | "latest" | "pinned" | "selected";
+export type TickerSource = "trending" | "latest" | "pinned" | "selected" | "mixed";
 // `rotate` retained as legacy alias for `slide` (single, slides up).
 export type TickerMode = "scroll" | "rotate" | "fade" | "slide" | "flip" | "typewriter";
 
@@ -29,6 +34,15 @@ export interface TickerConfig {
   pinnedUntil?: string | null;
   /** Selected source: up to 3 hand-picked post IDs, order preserved. */
   selectedPostIds?: string[];
+  /** Mixed source: how to fill the remainder after pinned/selected. */
+  mixedFill?: MixedFill;
+  /** Custom label overrides ("Na czasie" / "Trending" when empty). */
+  labelPl?: string;
+  labelEn?: string;
+  /** Flame icon animation preset. */
+  iconAnimation?: IconAnimation;
+  /** Per-mode (light/dark) color palette. */
+  colors?: TickerColorScheme;
   fullWidth?: boolean;
 }
 
@@ -41,6 +55,7 @@ export function resolveTickerSource(
   if (source === "selected") {
     return (cfg.selectedPostIds?.filter(Boolean).length ?? 0) > 0 ? "selected" : "latest";
   }
+  if (source === "mixed") return "mixed";
   if (source !== "pinned") return source;
   if (!cfg.pinnedPostId) return "latest";
   if (cfg.pinnedUntil && new Date(cfg.pinnedUntil).getTime() < now) return "latest";
@@ -53,6 +68,7 @@ export function headerTickerQueryOptions(cfg: TickerConfig) {
   const limit = cfg.limit ?? 8;
   const pinnedPostId = cfg.pinnedPostId;
   const selectedIds = (cfg.selectedPostIds ?? []).filter(Boolean).slice(0, 3);
+  const mixedFill: MixedFill = cfg.mixedFill ?? "trending";
   return queryOptions<TrendingPost[]>({
     queryKey: [
       "header_ticker",
@@ -61,11 +77,25 @@ export function headerTickerQueryOptions(cfg: TickerConfig) {
       limit,
       pinnedPostId ?? null,
       selectedIds.join(","),
+      mixedFill,
     ] as const,
     queryFn: () => {
       if (source === "trending") return getTrendingPosts({ data: { days, limit } });
       if (source === "selected")
-        return getTickerPosts({ data: { source: "selected", limit, selectedPostIds: selectedIds } });
+        return getTickerPosts({
+          data: { source: "selected", limit, selectedPostIds: selectedIds },
+        });
+      if (source === "mixed")
+        return getTickerPosts({
+          data: {
+            source: "mixed",
+            limit,
+            days,
+            mixedFill,
+            pinnedPostId,
+            selectedPostIds: selectedIds,
+          },
+        });
       return getTickerPosts({ data: { source, limit, pinnedPostId } });
     },
     staleTime: 5 * 60_000,
