@@ -535,34 +535,30 @@ export function TrendingTickerPane() {
               />
             </div>
           )}
-          {currentMode !== "scroll" && (
-            <>
-              <div className="space-y-1.5">
-                <Label htmlFor="tt-visible">{t.visibleCount}</Label>
-                <Input
-                  id="tt-visible"
-                  type="number"
-                  min={1}
-                  max={5}
-                  value={cfg.visibleCount ?? 1}
-                  onChange={(e) =>
-                    set("visibleCount", Math.max(1, Math.min(5, Number(e.target.value) || 1)))
-                  }
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tt-int">{t.interval}</Label>
-                <Input
-                  id="tt-int"
-                  type="number"
-                  min={2}
-                  max={120}
-                  value={cfg.intervalSec ?? 6}
-                  onChange={(e) => set("intervalSec", Math.max(2, Number(e.target.value) || 2))}
-                />
-              </div>
-            </>
-          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="tt-visible">{t.visibleCount}</Label>
+            <Input
+              id="tt-visible"
+              type="number"
+              min={1}
+              max={5}
+              value={cfg.visibleCount ?? 1}
+              onChange={(e) =>
+                set("visibleCount", Math.max(1, Math.min(5, Number(e.target.value) || 1)))
+              }
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="tt-int">{t.interval}</Label>
+            <Input
+              id="tt-int"
+              type="number"
+              min={2}
+              max={120}
+              value={cfg.intervalSec ?? 6}
+              onChange={(e) => set("intervalSec", Math.max(2, Number(e.target.value) || 2))}
+            />
+          </div>
         </div>
 
         {/* Mixed fill */}
