@@ -7,6 +7,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
+// SECURITY: `recipient` is intentionally NOT part of the public input.
+// The admin notification address must come from the trusted server-side
+// contact_form_settings.default_recipient - never from user input - otherwise
+// this endpoint can be abused as an open email relay.
 const ContactInput = z.object({
   name: z.string().trim().min(1).max(200),
   firstName: z.string().trim().max(100).optional(),
@@ -19,7 +23,6 @@ const ContactInput = z.object({
   consent: z.boolean(),
   newsletterOptIn: z.boolean().optional(),
   lang: z.enum(["pl", "en"]),
-  recipient: z.string().trim().email().max(320).optional(),
   source: z.string().trim().max(500).optional(),
 });
 
@@ -68,13 +71,18 @@ function esc(v: string): string {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c] ?? c));
 }
 
+// SECURITY: ignore X-Forwarded-* headers - an attacker can set them on the
+// incoming request to make the confirmation link point at a phishing domain
+// and steal the DOI token. Prefer a hard-coded PUBLIC_SITE_URL env var; fall
+// back to the request URL's own origin (never the forwarded host).
 function originFromRequest(): string {
+  const envUrl = process.env.PUBLIC_SITE_URL
+    ?? process.env.SITE_URL
+    ?? process.env.URL;
+  if (envUrl) return envUrl.replace(/\/+$/, "");
   try {
     const req = getRequest();
-    const url = new URL(req.url);
-    const fwdHost = req.headers.get("x-forwarded-host");
-    const fwdProto = req.headers.get("x-forwarded-proto");
-    return `${fwdProto ?? url.protocol.replace(":", "")}://${fwdHost ?? url.host}`;
+    return new URL(req.url).origin;
   } catch {
     return "";
   }
@@ -179,7 +187,7 @@ export const submitContactMessage = createServerFn({ method: "POST" })
         message: data.message,
         consent: data.consent,
         lang: data.lang,
-        recipient: data.recipient ?? null,
+        recipient: null,
         newsletter_opt_in: data.newsletterOptIn ?? false,
         source: data.source ?? null,
         status: "new",
@@ -209,7 +217,7 @@ export const submitContactMessage = createServerFn({ method: "POST" })
     }
 
     // 2) Admin notification
-    const adminTo = (data.recipient || (settings?.default_recipient as string | null) || null);
+    const adminTo = ((settings?.default_recipient as string | null) || null);
     let adminResult: { ok: boolean; error?: string } = { ok: false, error: "no_recipient" };
     if (settings?.notify_admin_enabled !== false && adminTo) {
       const notice = buildAdminNotice(data);
