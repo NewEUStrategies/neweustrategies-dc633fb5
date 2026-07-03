@@ -355,6 +355,27 @@ function EditPost() {
   // Tab close / route change with unsaved edits -> confirmation prompt.
   useUnsavedChangesGuard(autosave.isDirty || autosave.status === "saving");
 
+  // Ciezkie inwalidacje (widget cache, SEO cache, router.invalidate) NIE
+  // odpalaja sie przy kazdym autozapisie (patrz saveFn) - to powodowaloby
+  // ciagle "auto-refresh" edytora. Zamiast tego uruchamiamy je raz przy
+  // opuszczeniu edytora, tak zeby publiczne widoki i dashboard SEO zaladowaly
+  // swiezy stan przy nastepnej wizycie uzytkownika.
+  const dirtyRef = useRef(false);
+  useEffect(() => {
+    if (autosave.status === "saved") dirtyRef.current = true;
+  }, [autosave.status]);
+  useEffect(() => {
+    return () => {
+      if (!dirtyRef.current) return;
+      void qc.invalidateQueries({ queryKey: ["admin-posts"] });
+      invalidateWidgetCaches(qc);
+      emitWidgetCacheInvalidate();
+      invalidateSeoCaches(qc, router);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
   if (isLoading || !form) return <div className="text-sm text-muted-foreground">...</div>;
 
   const set = <K extends keyof PostForm>(k: K, v: PostForm[K]) =>
