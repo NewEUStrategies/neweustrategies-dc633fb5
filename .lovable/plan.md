@@ -1,82 +1,95 @@
 ## Cel
 
-Rozszerzyć pasek "Na czasie / Trending" w headerze o kolory (dark/light), tryb mieszany źródeł, tłumaczenia labelu, wielowariantowość (max 5) oraz animowaną ikonę ognia.
+Dodać ikonę notyfikacji obok menu konta w headerze, z rozwijaną listą po kliknięciu i pełną skrzynką użytkownika pod `/profile/notifications`. Multi-tenant: każdy widzi wyłącznie własne notyfikacje (RLS na `auth.uid()` + `tenant_id`).
 
-## Zakres zmian
+## Zakres
 
-### 1. Model danych (`src/lib/views/headerTickerQuery.ts`)
+### 1. Baza danych (migracja)
 
-Rozszerzyć `TickerConfig`:
-- `labelPl?: string` / `labelEn?: string` — nadpisania domyślnego "Na czasie" / "Trending"
-- `colors?: { light: TickerColors; dark: TickerColors }` gdzie `TickerColors = { bg, border, label, item, itemHover, counter, divider }`
-- `iconAnimation?: "none" | "pulse" | "flicker" | "spin"` (domyślnie `flicker`)
-- Dodać `source: "mixed"` — pinned na początku + uzupełnienie do `limit` z `trending` lub `latest` (podkonfiguracja `mixedFill?: "trending" | "latest"`)
+Tabela `public.notifications`:
+- `id uuid PK`
+- `user_id uuid` - FK do `auth.users`, ON DELETE CASCADE
+- `tenant_id uuid NOT NULL` - izolacja tenantów
+- `kind text` - np. `system`, `comment`, `follow`, `subscription`, `content`
+- `title_pl text`, `title_en text`
+- `body_pl text`, `body_en text`
+- `href text` - link docelowy (np. `/posts/xyz`)
+- `icon text` - nazwa ikony Lucide (opcjonalnie)
+- `read_at timestamptz` - null = nieprzeczytana
+- `created_at timestamptz DEFAULT now()`
+- Indeks: `(user_id, tenant_id, created_at DESC)` i częściowy `WHERE read_at IS NULL`
 
-Nowy typ nadrzędny:
-```ts
-interface TickerVariant { id: string; name: string; config: TickerConfig }
-interface TickerSettings { activeVariantId: string; variants: TickerVariant[] } // max 5
+Grants + RLS:
 ```
+GRANT SELECT, UPDATE, DELETE ON public.notifications TO authenticated;
+GRANT ALL ON public.notifications TO service_role;
+```
+Polityki:
+- SELECT: `auth.uid() = user_id AND tenant_id = (SELECT tenant_id FROM profiles WHERE id = auth.uid())`
+- UPDATE (tylko `read_at`): `auth.uid() = user_id`
+- DELETE: `auth.uid() = user_id`
+- INSERT: tylko `service_role` (systemowe eventy) - brak polityki dla `authenticated`
 
-Zapis w `site_settings.header.trending` — migracja odczytu: jeśli stara struktura (płaskie pola), owinąć w pojedynczy wariant "Domyślny".
+Trigger walidacyjny: przy INSERT wymusza `tenant_id` zgodny z `profiles.tenant_id` odbiorcy.
 
-### 2. Server functions (`src/lib/views/postViews.functions.ts`)
+### 2. Komponenty frontendowe (atomic design)
 
-- `getTickerPosts`: nowe źródło `"mixed"` z parametrami `pinnedPostId`, `selectedPostIds`, `mixedFill`, `limit`, `days`. Logika: pobierz przypięte + posortowaną resztę (trending RPC lub latest), zdedupliku, obetnij do `limit`.
-- Rozszerzyć schemat Zod.
+`src/components/notifications/NotificationsBell.tsx` (molecule):
+- Przycisk z ikoną `Bell` (Lucide) + badge z liczbą nieprzeczytanych
+- Popover (Radix, ten sam wzorzec animacji co AccountMenu - fade+scale+slide 220ms, `sticky="always"`)
+- Lista ostatnich 10 - tytuł, opis, względny czas (`Intl.RelativeTimeFormat`), ikona kind
+- Akcje: "Oznacz wszystkie jako przeczytane", "Otwórz skrzynkę" -> `/profile/notifications`
+- Realtime: subskrypcja Supabase channel `notifications:user_id=eq.<uid>` -> refetch + odznaczenie badge z animacją pulse
 
-### 3. Komponent (`src/components/header/TrendingTicker.tsx`)
+`src/lib/notifications/useNotifications.ts` (hook):
+- TanStack Query: `list()`, `unreadCount()`, `markAllRead()`, `markRead(id)`, `remove(id)`
+- Realtime hook `useNotificationsRealtime()`
 
-- Przyjmuje pełny `TickerConfig` (rozpakowany z aktywnego wariantu w `Header.tsx`).
-- Renderuje CSS custom properties z `colors.light/dark` scoped do `.cms-trending` (`--tt-bg`, `--tt-label`, `--tt-item`, ...); dark mode przez `.dark .cms-trending { --tt-bg: ... }`.
-- Label: `labelPl`/`labelEn` z fallbackiem do "Na czasie" / "Trending".
-- Ikona `Flame`: klasa `tt-icon-<animation>` z keyframes (flicker: opacity+scale+skew; pulse: skala; spin: rotacja). Respekt `prefers-reduced-motion`.
+### 3. Strona skrzynki
 
-### 4. Admin UI (`src/components/admin/TrendingTickerPane.tsx`)
+`src/routes/_authenticated/profile/notifications.tsx`:
+- Pełna lista z filtrami: Wszystkie / Nieprzeczytane / wg kind
+- Zaznacz/odznacz, usuń, "oznacz wszystkie", stronicowanie
+- Empty state + i18n PL/EN
 
-Sekcje:
-- **Warianty**: lista chip'ów (max 5), przyciski „+ Dodaj", „Zmień nazwę", „Duplikuj", „Usuń", radio „Aktywny wariant".
-- **Źródło**: dodane `mixed` z wyborem `mixedFill` (najczęściej czytane / najnowsze).
-- **Etykieta**: dwa inputy `labelPl`, `labelEn` z placeholderami defaultów.
-- **Kolory**: dwie kolumny (Light / Dark), każdy z color pickerami dla `bg`, `border`, `label`, `item`, `itemHover`, `counter`, `divider`. Reset do defaultu.
-- **Ikona ognia**: select animacji (none/pulse/flicker/spin) + live podgląd.
-- Wszystkie zmiany działają na aktywnym wariancie; „Zapisz" pisze całą strukturę `TickerSettings`.
+### 4. Integracja w headerze
 
-### 5. Wiring (`src/components/Header.tsx`)
+W `AccountMenuWidget.tsx`:
+- Przed przyciskiem trigger, wewnątrz tego samego kontenera flex, renderowany `<NotificationsBell />` (tylko gdy `session`)
+- Dopasowanie do gap/height triggera, spójne z motywem (używa tokenów semantycznych)
 
-- Odczyt `settings.header.trending` — jeśli nowa struktura, wybierz `activeVariant.config`; jeśli stara, zaadaptuj.
-- Przekaż komplet propsów do `<TrendingTicker/>`.
+### 5. i18n
 
-### 6. i18n
+Klucze w `pl.json` i `en.json`:
+- `notifications.title`, `notifications.empty`, `notifications.markAllRead`, `notifications.openInbox`, `notifications.unread`, `notifications.filters.*`
 
-Klucze `header.trending.defaultLabel` (PL: „Na czasie", EN: „Trending") — używane tylko gdy edytor nie ustawił własnych `labelPl`/`labelEn`. Klucze admina w `admin.ticker.*`.
+### 6. Testy
 
-### 7. Testy
+- `NotificationsBell.test.tsx` - badge liczy poprawnie, popover otwiera/zamyka, mark-all-read wywołuje mutację
+- `useNotifications.test.ts` - filtrowanie po tenant i kind, sortowanie po `created_at`
 
-- Unit dla `resolveTickerSource` + nowego `"mixed"` scenariusza.
-- Test snap dla defaultowych kolorów CSS var output.
-- Rozszerzenie `lang-parity.test.ts` o obecność labelu w obu językach.
+## Zasady techniczne
 
-## Szczegóły techniczne
+- Zero `any` / `as any`, wszędzie typy z `Database` (`src/integrations/supabase/types.ts`)
+- Semantyczne tokeny motywu (`bg-popover`, `text-muted-foreground`, `--tt-*`), brak hardcoded kolorów
+- Dzwonek respektuje `prefers-reduced-motion`
+- Realtime subskrypcja czyszczona w `useEffect` cleanup
+- Server functions: `createServerFn` + `requireSupabaseAuth` dla `markAllRead` bulk (opcjonalnie); prosty CRUD jednostkowy przez klient Supabase w hooku
 
-- Domyślne kolory: `bg = hsl(var(--muted)/0.3)`, `label = hsl(var(--brand))`, `item = hsl(var(--foreground))`, `itemHover = hsl(var(--brand))`, `divider/border = hsl(var(--border))`, `counter = hsl(var(--muted-foreground))`. W dark to samo — semantyczne tokeny same się przełączają, ale edytor może nadpisać per-mode konkretnym `oklch()`/hex.
-- Klasa scope: `.cms-trending[data-variant-id="<id>"]` + `html.dark .cms-trending[data-variant-id="<id>"]` dla nadpisania w dark.
-- Migracja wstecz w runtime (bez SQL) — struktura settings jest JSON-em.
-- Zachować `TICKER_TTL_MS` cache; klucz cache uwzględni nowy `mixedFill` i `variantId`.
-- `visibleCount` badge nie wraca (usunięte wcześniej).
-- Brak `any`; wszędzie typy; PL/EN teksty w admin przez `useTranslation`.
+## Poza zakresem tej iteracji
 
-## Pliki
+- Wysyłka notyfikacji e-mail
+- Preferencje kanałów w profilu (kolejna iteracja - `notifications.settings`)
+- Panel admina do broadcastu (dołożymy po zatwierdzeniu MVP)
 
-Edycja:
-- `src/lib/views/headerTickerQuery.ts`
-- `src/lib/views/postViews.functions.ts`
-- `src/components/header/TrendingTicker.tsx`
-- `src/components/admin/TrendingTickerPane.tsx`
-- `src/components/Header.tsx`
-- `src/i18n/*` (PL/EN)
-- `src/__tests__/lang-parity.test.ts`
+## Diagram przepływu
 
-Nowe:
-- `src/lib/views/tickerVariants.ts` — typy `TickerVariant`, `TickerSettings`, `DEFAULT_TICKER_COLORS`, migrator `normalizeTickerSettings(raw)`.
-- `src/components/header/__tests__/tickerVariants.test.ts`
+```text
+[System event] --(service_role INSERT)--> notifications
+                                            |
+                       realtime channel <---+
+                                            |
+[Browser: useNotificationsRealtime] --refetch--> Bell badge + popover
+                                            |
+                            klik "Otwórz skrzynkę" --> /profile/notifications
+```

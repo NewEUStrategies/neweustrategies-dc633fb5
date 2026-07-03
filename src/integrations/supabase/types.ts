@@ -1626,6 +1626,59 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          body_en: string | null
+          body_pl: string | null
+          created_at: string
+          href: string | null
+          icon: string | null
+          id: string
+          kind: string
+          read_at: string | null
+          tenant_id: string
+          title_en: string | null
+          title_pl: string
+          user_id: string
+        }
+        Insert: {
+          body_en?: string | null
+          body_pl?: string | null
+          created_at?: string
+          href?: string | null
+          icon?: string | null
+          id?: string
+          kind?: string
+          read_at?: string | null
+          tenant_id: string
+          title_en?: string | null
+          title_pl: string
+          user_id: string
+        }
+        Update: {
+          body_en?: string | null
+          body_pl?: string | null
+          created_at?: string
+          href?: string | null
+          icon?: string | null
+          id?: string
+          kind?: string
+          read_at?: string | null
+          tenant_id?: string
+          title_en?: string | null
+          title_pl?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pages: {
         Row: {
           author_id: string | null

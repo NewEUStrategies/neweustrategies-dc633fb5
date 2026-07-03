@@ -1550,4 +1550,17 @@ export const en = {
       openInMap: "Open in map",
     },
   },
+  notifications: {
+    title: "Notifications",
+    empty: "No notifications",
+    markAllRead: "Mark all read",
+    markRead: "Mark as read",
+    openInbox: "Open inbox",
+    unread: "{{count}} unread",
+    inboxSubtitle: "Your private inbox - you only see your own notifications.",
+    filters: {
+      all: "All",
+      unread: "Unread",
+    },
+  },
 };

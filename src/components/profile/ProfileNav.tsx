@@ -14,6 +14,7 @@ const ITEMS: NavItem[] = [
   { to: "/profile/social", key: "social" },
   { to: "/profile/interests", key: "interests" },
   { to: "/profile/bookmarks", key: "bookmarks" },
+  { to: "/profile/notifications", key: "notifications" },
   { to: "/profile/follows", key: "follows" },
   { to: "/profile/billing", key: "billing" },
   { to: "/profile/subscription", key: "subscription" },
