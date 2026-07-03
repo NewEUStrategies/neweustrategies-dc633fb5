@@ -103,11 +103,12 @@ function HeaderInner() {
       <AdZone position="header_banner" pageType="all" className="py-2 text-center" />
 
       {/* Mobile compact bar: horizontal logo (super-admin -> Branding -> Logo -> Mobile) + hamburger. */}
-      <div className="lg:hidden sticky top-0 z-[9998] flex items-center justify-between gap-3 px-4 py-3 border-b border-border bg-background">
+      <div className="lg:hidden sticky top-0 z-[9998] grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-3 px-4 py-3 border-b border-border bg-background">
+        <div />
         <AppLink
           href="/"
           aria-label={siteName}
-          className="flex items-center min-w-0 text-foreground"
+          className="flex items-center justify-center min-w-0 text-foreground"
         >
           {mobileLogo ? (
             <img
