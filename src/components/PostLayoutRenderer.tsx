@@ -19,6 +19,7 @@ interface Props {
   excerpt?: string | null;
   coverImageUrl?: string | null;
   meta?: ReactNode; // data, autor, czas czytania
+  categoryBadges?: ReactNode; // pigułki kategorii nad tytułem
   content: ReactNode;
   sidebar?: ReactNode;
   footer?: ReactNode;
@@ -32,6 +33,7 @@ export function PostLayoutRenderer({
   excerpt,
   coverImageUrl,
   meta,
+  categoryBadges,
   content,
   sidebar,
   footer,
