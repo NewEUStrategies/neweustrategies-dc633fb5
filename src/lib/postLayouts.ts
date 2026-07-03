@@ -266,6 +266,7 @@ export function defaultPostLayoutSettings(): PostLayoutSettings {
     show_bottom_newsletter: true,
     show_floating_share_bar: true,
     auto_load_next_post: false,
+    layout_sidebar_overrides: {},
   };
 }
 
