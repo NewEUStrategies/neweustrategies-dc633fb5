@@ -467,6 +467,7 @@ export function TrendingTickerPane() {
               intervalSec={cfg.intervalSec}
               pinnedPostId={cfg.pinnedPostId || undefined}
               pinnedUntil={cfg.pinnedUntil || null}
+              selectedPostIds={cfg.selectedPostIds}
               fullWidth={cfg.fullWidth}
             />
           </div>
