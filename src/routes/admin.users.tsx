@@ -245,7 +245,11 @@ function Users() {
                       <UserCog className="w-4 h-4" />
                     </Button>
                   )}
-                  <Button size="sm" variant="ghost" onClick={() => setOpenId(u.id)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => navigate({ to: "/admin/users/$id", params: { id: u.id } })}
+                  >
                     <Eye className="w-4 h-4" />
                   </Button>
                 </td>
@@ -254,97 +258,6 @@ function Users() {
           </tbody>
         </table>
       </div>
-
-      <Dialog open={!!active} onOpenChange={(o) => !o && setOpenId(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          {active && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{active.display_name ?? active.email ?? active.id}</DialogTitle>
-              </DialogHeader>
-              {active.cover_url && (
-                <img
-                  src={active.cover_url}
-                  alt=""
-                  className="w-full h-40 object-cover rounded-md"
-                />
-              )}
-              <div className="flex items-center gap-4">
-                {active.avatar_url ? (
-                  <img
-                    src={active.avatar_url}
-                    alt=""
-                    className="w-20 h-20 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-20 h-20 rounded-full bg-muted" />
-                )}
-                <div className="space-y-1">
-                  <div className="text-lg font-semibold">{active.display_name ?? "-"}</div>
-                  <div className="text-sm text-muted-foreground">{active.email}</div>
-                  <div className="flex gap-1">
-                    {active.roles.map((r) => (
-                      <Badge key={r}>{r}</Badge>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <Field label="ID" value={active.id} mono />
-              <Field label="Slug" value={active.slug} />
-              <Field
-                label={t("admin.users.created")}
-                value={new Date(active.created_at).toLocaleString(locale)}
-              />
-              {active.updated_at && (
-                <Field label="Updated" value={new Date(active.updated_at).toLocaleString(locale)} />
-              )}
-              <Field label="Bio" value={active.bio} multiline />
-              <Field label="Bio (PL)" value={active.bio_pl} multiline />
-              <Field label="Bio (EN)" value={active.bio_en} multiline />
-              <Field label="Website" value={active.website_url} link />
-              <Field label="Twitter" value={active.twitter_url} link />
-              <Field label="LinkedIn" value={active.linkedin_url} link />
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  mono,
-  multiline,
-  link,
-}: {
-  label: string;
-  value: string | null;
-  mono?: boolean;
-  multiline?: boolean;
-  link?: boolean;
-}) {
-  if (!value) return null;
-  return (
-    <div className="border-t border-border pt-3">
-      <div className="text-xs uppercase text-muted-foreground mb-1">{label}</div>
-      {link ? (
-        <a
-          href={value}
-          target="_blank"
-          rel="noreferrer"
-          className="text-sm text-primary underline break-all"
-        >
-          {value}
-        </a>
-      ) : (
-        <div
-          className={`text-sm ${mono ? "font-mono text-xs" : ""} ${multiline ? "whitespace-pre-wrap" : ""} break-words`}
-        >
-          {value}
-        </div>
-      )}
     </div>
   );
 }
