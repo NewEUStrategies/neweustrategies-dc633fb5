@@ -2157,7 +2157,8 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 .mobile-drawer-builder [data-w-id="87fdbad2-bef8-4ad8-8763-a4f0161c446e"],
 .mobile-drawer-builder [data-w-id="0f0bdac6-d7a9-4ead-a252-d69c70e6ff76"],
 .mobile-drawer-builder [data-w-id="a61e3114-81b3-4a08-a338-e326dfc05189"],
-.mobile-drawer-builder [data-w-id="2c473e5e-3c01-4672-9937-af7ee0d990b7"] {
+.mobile-drawer-builder [data-w-id="2c473e5e-3c01-4672-9937-af7ee0d990b7"],
+.mobile-drawer-builder [data-w-id="987a5025-3476-4aeb-b002-339dccf14fc5"] {
   display: none !important;
 }
 
