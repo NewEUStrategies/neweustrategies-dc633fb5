@@ -78,7 +78,7 @@ export function FaqBlock({ block, onChange }: Props) {
       <button
         type="button"
         onClick={() => setItems([...items, { q: "", a: "" }])}
-        className="text-xs flex items-center gap-1 text-primary hover:underline"
+        className="text-xs flex items-center gap-1 text-foreground hover:underline"
       >
         <Plus className="w-3.5 h-3.5" /> Dodaj pytanie
       </button>

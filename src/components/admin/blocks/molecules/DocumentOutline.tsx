@@ -78,7 +78,7 @@ export function DocumentOutline({ doc, activeId, onSelect }: Props) {
                 onClick={() => handleSelect(h.id)}
                 className={`w-full text-left text-xs px-2 py-1 rounded truncate transition-colors ${
                   h.id === activeId
-                    ? "bg-primary/10 text-primary font-medium"
+                    ? "bg-foreground/10 text-foreground font-medium"
                     : "hover:bg-accent text-foreground/80"
                 }`}
                 style={{ paddingLeft: `${0.5 + Math.max(0, h.level - 2) * 0.75}rem` }}

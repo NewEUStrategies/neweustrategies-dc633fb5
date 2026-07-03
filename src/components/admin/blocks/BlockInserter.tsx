@@ -72,7 +72,7 @@ export function BlockInserter({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full rounded-lg border-2 border-dashed border-border py-8 text-muted-foreground hover:border-primary hover:text-primary transition flex items-center justify-center gap-2"
+        className="w-full rounded-lg border-2 border-dashed border-border py-8 text-muted-foreground hover:border-foreground hover:text-foreground transition flex items-center justify-center gap-2"
       >
         <Plus className="w-4 h-4" /> {t("blocks.firstBlock")}
       </button>
@@ -82,7 +82,7 @@ export function BlockInserter({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="rounded-full bg-primary text-primary-foreground w-5 h-5 flex items-center justify-center shadow"
+            className="rounded-full bg-foreground text-background w-5 h-5 flex items-center justify-center shadow"
             aria-label={t("blocks.addBlock")}
           >
             <Plus className="w-3 h-3" />
@@ -110,7 +110,7 @@ export function BlockInserter({
             }
           }}
           placeholder={t("blocks.search")}
-          className="flex-1 bg-background border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+          className="flex-1 bg-background border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-foreground"
         />
         <button
           type="button"
@@ -164,7 +164,7 @@ function renderItem(
       onClick={() => choose(spec)}
       disabled={!impl}
       title={spec.description}
-      className="flex flex-col items-center gap-1 p-2 rounded border border-border hover:border-primary hover:bg-accent text-center disabled:opacity-40 disabled:cursor-not-allowed"
+      className="flex flex-col items-center gap-1 p-2 rounded border border-border hover:border-foreground hover:bg-accent text-center disabled:opacity-40 disabled:cursor-not-allowed"
     >
       <Icon className="w-4 h-4" />
       <span className="text-[11px] leading-tight">{labelFor(spec.type)}</span>

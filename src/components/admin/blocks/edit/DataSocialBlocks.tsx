@@ -166,7 +166,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
           onClick={() =>
             update([...items, { name: "", role: "", bio: "", avatar: "", href: "", social: "" }])
           }
-          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-primary/50"
+          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
           <Plus className="w-3.5 h-3.5" /> Dodaj osobę
         </button>
@@ -286,7 +286,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
         <button
           type="button"
           onClick={() => update([...items, { url: "", alt: "", href: "" }])}
-          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-primary/50"
+          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
           <Plus className="w-3.5 h-3.5" /> Dodaj logotyp
         </button>
@@ -433,7 +433,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
         <button
           type="button"
           onClick={() => update([...items, { icon: "star", title: "", description: "", href: "" }])}
-          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-primary/50"
+          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
           <Plus className="w-3.5 h-3.5" /> Dodaj funkcję
         </button>

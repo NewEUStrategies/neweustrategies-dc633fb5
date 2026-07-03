@@ -291,7 +291,7 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
         <button
           type="button"
           onClick={() => update([...items, { url: "", alt: "", caption: "", href: "" }])}
-          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-primary/50"
+          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
           <Plus className="w-3.5 h-3.5" /> Dodaj slajd
         </button>

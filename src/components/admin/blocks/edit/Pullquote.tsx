@@ -11,7 +11,7 @@ export function PullquoteBlock({ block, onChange }: Props) {
   const text = String(block.data.text ?? "");
   const cite = String(block.data.cite ?? "");
   return (
-    <div className="border-y-4 border-primary py-6 my-4 text-center space-y-3">
+    <div className="border-y-4 border-foreground py-6 my-4 text-center space-y-3">
       <textarea
         value={text}
         placeholder={i18n.editor("pullquote", "textPh")}

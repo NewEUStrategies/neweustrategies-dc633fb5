@@ -15,7 +15,7 @@ export function PreformattedBlock({ block, onChange }: Props) {
       placeholder={i18n.editor("preformatted", "textPh")}
       rows={Math.max(3, text.split("\n").length)}
       onChange={(e) => onChange({ ...block, data: { ...block.data, text: e.target.value } })}
-      className="w-full bg-muted/40 rounded-md p-3 font-mono text-sm whitespace-pre border-none outline-none focus:ring-1 focus:ring-primary/40 resize-y"
+      className="w-full bg-muted/40 rounded-md p-3 font-mono text-sm whitespace-pre border-none outline-none focus:ring-1 focus:ring-foreground/40 resize-y"
     />
   );
 }

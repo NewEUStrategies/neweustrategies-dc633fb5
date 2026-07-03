@@ -10,10 +10,10 @@ export function ButtonBlock({ block, onChange }: Props) {
   const variant = String(block.data.variant ?? "default");
   const cls =
     variant === "outline"
-      ? "border border-primary text-primary hover:bg-primary/10"
+      ? "border border-foreground text-foreground hover:bg-foreground/10"
       : variant === "ghost"
-        ? "text-primary hover:bg-primary/10"
-        : "bg-primary text-primary-foreground hover:bg-primary/90";
+        ? "text-foreground hover:bg-foreground/10"
+        : "bg-foreground text-background hover:bg-foreground/90";
 
   return (
     <div className="flex items-center gap-2">
