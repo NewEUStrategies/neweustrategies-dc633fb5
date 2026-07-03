@@ -56,6 +56,23 @@ export function evaluateTransition(
   return { ok: true };
 }
 
+/**
+ * `published_at` is the immutable first-publication timestamp: every public
+ * list, RSS/news feed and sitemap orders by it (DESC), so re-stamping it on a
+ * routine re-save would silently bump an old article to the top and falsify
+ * its history. The editor always re-sends `status: "published"` for a live
+ * entity and never sends `published_at`, so the status value alone cannot
+ * distinguish "publish" from "save" - only the TRANSITION into `published`
+ * of a row that has never been published before stamps the date. Re-publishing
+ * after an unpublish keeps the original date for the same reason (WordPress
+ * parity). Plain string statuses so posts (full editorial workflow) and pages
+ * (simple lifecycle) share one rule; the bulk paths mirror it in SQL with a
+ * `published_at IS NULL` filter.
+ */
+export function isFirstPublish(from: string, to: string, publishedAt: string | null): boolean {
+  return to === "published" && from !== to && !publishedAt;
+}
+
 export interface StatusOption {
   value: PostWorkflowStatus;
   /** Selectable only by publishers; render disabled with a hint otherwise. */
