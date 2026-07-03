@@ -314,30 +314,50 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
         // gated RPC, never selected directly - the row select carries only the
         // non-sensitive display metadata. All four requests run in parallel so
         // gating adds no extra latency.
-        const [{ data, error }, body, { data: tagRows }, crumbs, access] = await Promise.all([
-          supabase
-            .from("posts")
-            .select(
-              `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, custom_meta, related_override, ${SEO_FIELDS_SELECT}`,
-            )
-            .eq("id", hit.post_id)
-            .maybeSingle(),
-          fetchGatedBody("post", hit.post_id),
-          supabase.from("post_tags").select("tags(slug, name)").eq("post_id", hit.post_id),
-          fetchPageBreadcrumbs(hit.page_id),
-          fetchAccessRule("post", hit.post_id),
-        ]);
+        const [{ data, error }, body, { data: tagRows }, { data: catRows }, crumbs, access] =
+          await Promise.all([
+            supabase
+              .from("posts")
+              .select(
+                `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, read_minutes, post_format, layout_overrides, takeaways_pl, takeaways_en, custom_meta, related_override, author_id, ${SEO_FIELDS_SELECT}`,
+              )
+              .eq("id", hit.post_id)
+              .maybeSingle(),
+            fetchGatedBody("post", hit.post_id),
+            supabase.from("post_tags").select("tags(slug, name)").eq("post_id", hit.post_id),
+            supabase
+              .from("post_categories")
+              .select("categories(slug, name_pl, name_en)")
+              .eq("post_id", hit.post_id),
+            fetchPageBreadcrumbs(hit.page_id),
+            fetchAccessRule("post", hit.post_id),
+          ]);
         if (error) throw error;
         if (!data) return null;
         const tags = (tagRows ?? [])
           .map((r) => (r as { tags: { slug: string; name: string } | null }).tags)
           .filter((t): t is { slug: string; name: string } => !!t);
+        const categories = (catRows ?? [])
+          .map((r) => (r as { categories: PostCategory | null }).categories)
+          .filter((c): c is PostCategory => !!c);
+        const post = { ...data, ...body } as PostData;
+        let author: PostAuthor | null = null;
+        if (post.author_id) {
+          const { data: authorRow } = await supabase
+            .from("profiles")
+            .select("id, slug, display_name, first_name, last_name, avatar_url")
+            .eq("id", post.author_id)
+            .maybeSingle();
+          author = (authorRow as PostAuthor | null) ?? null;
+        }
         return {
           kind: "post",
-          item: { ...data, ...body } as PostData,
+          item: post,
           crumbs,
           parentPageId: hit.page_id,
           tags,
+          categories,
+          author,
           access,
         };
       }
