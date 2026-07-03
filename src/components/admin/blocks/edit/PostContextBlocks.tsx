@@ -2,6 +2,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import { AdminSelect } from "../AdminSelect";
+import { AuthorBioView } from "@/components/blocks/PostContextViews";
 
 interface Props {
   block: Block;
@@ -67,6 +68,14 @@ export function AuthorBioBlock({ block, onChange }: Props) {
           checked={showPostsCount}
           onChange={(v) => set({ showPostsCount: v })}
           label="Licznik wpisów"
+        />
+      </div>
+      <div className="pt-2 border-t border-border/60">
+        <AuthorBioView
+          showAvatar={showAvatar}
+          showSocial={showSocial}
+          showPostsCount={showPostsCount}
+          variant={variant as "card" | "inline" | "minimal"}
         />
       </div>
     </Shell>
