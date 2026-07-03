@@ -1,5 +1,13 @@
 -- Builder enhancements: global widgets, popup documents, section A/B experiments.
 --
+-- NOTE (version dedup): this file originally shared version 20260702090000 with
+-- workflow_status_values.sql, which breaks `supabase db reset` / `db push` /
+-- `db test` on fresh environments (duplicate migration version). It was renamed
+-- to 20260702085900, preserving the effective apply order (it sorted before the
+-- workflow file alphabetically). Environments that already applied it under the
+-- shared version should reconcile history with:
+--   supabase migration repair --status applied 20260702085900
+--
 -- 1) builder_global_widgets - a widget saved once and referenced by many pages.
 --    Instances embed a snapshot (SSR fallback) + `globalId`; the live record is
 --    the source of truth and is overlaid client-side, so editing a global
