@@ -959,26 +959,17 @@ function ColorField({
   value: string;
   onChange: (v: string) => void;
 }) {
-  // If it's a valid hex, drive the native color input; otherwise, keep it as
-  // a token string and expose only the text input.
-  const isHex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value);
   return (
-    <div className="grid grid-cols-[1fr_auto_2.5rem] gap-2 items-center">
+    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-2 items-center">
       <Label htmlFor={id} className="text-xs">
         {label}
       </Label>
-      <Input
-        id={id}
+      <AdminColorPicker
+        ariaLabel={label}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-8 text-xs font-mono"
-      />
-      <input
-        type="color"
-        aria-label={label}
-        value={isHex ? value : "#000000"}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-8 w-full rounded border border-border cursor-pointer bg-transparent"
+        onChange={(v) => onChange(v ?? "")}
+        allowTransparent={false}
+        allowReset={false}
       />
     </div>
   );
