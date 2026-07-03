@@ -190,11 +190,11 @@ export function CountdownBlock({ block, onChange }: Props) {
   const expiredText = String(block.data.expiredText ?? "");
   return (
     <Shell label="Odliczanie">
-      <input
-        type="datetime-local"
-        className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
+      <AdminDateTimePicker
         value={targetAt}
-        onChange={(e) => onChange({ ...block, data: { ...block.data, targetAt: e.target.value } })}
+        onChange={(v) =>
+          onChange({ ...block, data: { ...block.data, targetAt: v ?? "" } })
+        }
       />
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
