@@ -1,70 +1,82 @@
-
 ## Cel
 
-1. W mobilnym drawerze (Header) na górę trafiają: **wyszukiwarka, przełącznik motywu, przełącznik języka**.
-2. Usuwamy zaszytą sekcję „Menu / Nawigacja" (Strona główna / Aktualności / Cennik) — nawigacja ma być w pełni sterowana konfiguracją.
-3. Powstaje nowa strona **`/admin/super/mobile-drawer`** (widoczna tylko dla `super_admin`), gdzie można poukładać kolejność bloków drawera oraz zdefiniować pozycje menu (label PL/EN, URL, ikona, aktywność).
+Rozszerzyć pasek "Na czasie / Trending" w headerze o kolory (dark/light), tryb mieszany źródeł, tłumaczenia labelu, wielowariantowość (max 5) oraz animowaną ikonę ognia.
 
-## Zakres UI drawera po zmianach
+## Zakres zmian
 
-Kolejność sekcji drawera (od góry):
+### 1. Model danych (`src/lib/views/headerTickerQuery.ts`)
 
-```text
-┌─ [X] MENU / [X]                        ← header drawera
-├─ TOP TOOLS  ← search + theme + language (poziomo)
-├─ MOJE KONTO ← Panel/Profil + Wyloguj (lub Zaloguj/Zarejestruj)
-├─ NAWIGACJA  ← pozycje z konfiguracji (dynamiczne)
-└─ BUILDER    ← reszta widgetów authored w header builder_data
+Rozszerzyć `TickerConfig`:
+- `labelPl?: string` / `labelEn?: string` — nadpisania domyślnego "Na czasie" / "Trending"
+- `colors?: { light: TickerColors; dark: TickerColors }` gdzie `TickerColors = { bg, border, label, item, itemHover, counter, divider }`
+- `iconAnimation?: "none" | "pulse" | "flicker" | "spin"` (domyślnie `flicker`)
+- Dodać `source: "mixed"` — pinned na początku + uzupełnienie do `limit` z `trending` lub `latest` (podkonfiguracja `mixedFill?: "trending" | "latest"`)
+
+Nowy typ nadrzędny:
+```ts
+interface TickerVariant { id: string; name: string; config: TickerConfig }
+interface TickerSettings { activeVariantId: string; variants: TickerVariant[] } // max 5
 ```
 
-Blok „TOP TOOLS", „MOJE KONTO", „NAWIGACJA", „BUILDER" jest przeciągalny w edytorze — kolejność zapisywana per tenant.
+Zapis w `site_settings.header.trending` — migracja odczytu: jeśli stara struktura (płaskie pola), owinąć w pojedynczy wariant "Domyślny".
 
-## Backend
+### 2. Server functions (`src/lib/views/postViews.functions.ts`)
 
-Nowa tabela `mobile_drawer_configs` (per tenant, dokładnie 1 rekord):
+- `getTickerPosts`: nowe źródło `"mixed"` z parametrami `pinnedPostId`, `selectedPostIds`, `mixedFill`, `limit`, `days`. Logika: pobierz przypięte + posortowaną resztę (trending RPC lub latest), zdedupliku, obetnij do `limit`.
+- Rozszerzyć schemat Zod.
 
-- `tenant_id uuid` (unikalne, FK do `tenants`)
-- `section_order text[]` — permutacja `['top_tools','account','nav','builder']`
-- `nav_items jsonb` — tablica `{ id, label_pl, label_en, href, icon, enabled }`
-- `top_tools jsonb` — `{ search: bool, theme: bool, language: bool }`
-- standardowo: `created_at`, `updated_at`, `created_by`
+### 3. Komponent (`src/components/header/TrendingTicker.tsx`)
 
-RLS + GRANT:
-- `SELECT` dla `anon` + `authenticated` (drawer ładuje anonimowo, filtr po `tenant_id = public_tenant_id()`).
-- `INSERT/UPDATE/DELETE` tylko `is_super_admin(auth.uid())` w kontekście tego tenanta.
-- `GRANT` zgodnie z regułą (`SELECT` anon+authenticated, pełne `service_role`).
+- Przyjmuje pełny `TickerConfig` (rozpakowany z aktywnego wariantu w `Header.tsx`).
+- Renderuje CSS custom properties z `colors.light/dark` scoped do `.cms-trending` (`--tt-bg`, `--tt-label`, `--tt-item`, ...); dark mode przez `.dark .cms-trending { --tt-bg: ... }`.
+- Label: `labelPl`/`labelEn` z fallbackiem do "Na czasie" / "Trending".
+- Ikona `Flame`: klasa `tt-icon-<animation>` z keyframes (flicker: opacity+scale+skew; pulse: skala; spin: rotacja). Respekt `prefers-reduced-motion`.
 
-Server function `getMobileDrawerConfig` (publiczny read, host-aware przez `public_tenant_id()`) + `upsertMobileDrawerConfig` (chroniony `requireSupabaseAuth` + guard `is_super_admin`).
+### 4. Admin UI (`src/components/admin/TrendingTickerPane.tsx`)
 
-## Frontend
+Sekcje:
+- **Warianty**: lista chip'ów (max 5), przyciski „+ Dodaj", „Zmień nazwę", „Duplikuj", „Usuń", radio „Aktywny wariant".
+- **Źródło**: dodane `mixed` z wyborem `mixedFill` (najczęściej czytane / najnowsze).
+- **Etykieta**: dwa inputy `labelPl`, `labelEn` z placeholderami defaultów.
+- **Kolory**: dwie kolumny (Light / Dark), każdy z color pickerami dla `bg`, `border`, `label`, `item`, `itemHover`, `counter`, `divider`. Reset do defaultu.
+- **Ikona ognia**: select animacji (none/pulse/flicker/spin) + live podgląd.
+- Wszystkie zmiany działają na aktywnym wariancie; „Zapisz" pisze całą strukturę `TickerSettings`.
 
-1. **`Header.tsx`** — usunięcie hardkodowanej listy `navItems` z `MobileAccountNav`. Drawer składany dynamicznie z `section_order`.
-2. **Nowe komponenty** (atomic):
-   - `src/components/header/mobile/TopTools.tsx` (search input + `ThemeToggle` + `LanguageSwitcher` — reużywamy istniejące).
-   - `src/components/header/mobile/AccountSection.tsx` (wydzielenie z obecnego kodu).
-   - `src/components/header/mobile/NavSection.tsx` (renderuje `nav_items`).
-3. **Nowa trasa** `src/routes/_authenticated/admin.super.mobile-drawer.tsx`:
-   - Gate: `is_super_admin` (redirect do `/admin` przy braku uprawnień).
-   - DnD kolejności sekcji (`@dnd-kit/core` — już w projekcie? sprawdzę; jeśli nie, użyję prostych strzałek ↑/↓, żeby nie dodawać zależności bez zgody).
-   - Edytor `nav_items` (add/remove/reorder, PL/EN, wybór ikony z `lucide-react`).
-   - Toggle `top_tools`.
-   - Podgląd na żywo (render drawera w iframe/wrapperze mobile).
-4. **i18n** — PL/EN dla nowej strony (klucze w `src/locales/*/admin.json`).
-5. **Testy** — vitest dla server functions (guard super-admin, walidacja `section_order`), oraz smoke test komponentu DrawerRenderer.
+### 5. Wiring (`src/components/Header.tsx`)
 
-## Bezpieczeństwo / multi-tenant
+- Odczyt `settings.header.trending` — jeśli nowa struktura, wybierz `activeVariant.config`; jeśli stara, zaadaptuj.
+- Przekaż komplet propsów do `<TrendingTicker/>`.
 
-- Zapis zawsze scoped do `current_tenant_id()` — nawet super-admin nie może przypadkiem edytować obcego tenanta.
-- Walidacja Zod po stronie server-fn (permutacja, dozwolone ikony, max 20 nav items, długości stringów).
-- Wpis w `audit_log` przy każdym `upsert`.
+### 6. i18n
 
-## Kolejność wdrożenia (jedna migracja + osobne PR-y kodu)
+Klucze `header.trending.defaultLabel` (PL: „Na czasie", EN: „Trending") — używane tylko gdy edytor nie ustawił własnych `labelPl`/`labelEn`. Klucze admina w `admin.ticker.*`.
 
-1. Migracja SQL (tabela + policies + grants + trigger `updated_at`).
-2. Server functions + query options + Zod.
-3. Refactor `Header.tsx` → nowe komponenty + dynamiczny rendering (z fallbackiem do sensownych defaultów gdy brak rekordu).
-4. Strona super-admin + i18n + testy.
+### 7. Testy
 
-## Pytanie do decyzji (jedno, wpływa na scope)
+- Unit dla `resolveTickerSource` + nowego `"mixed"` scenariusza.
+- Test snap dla defaultowych kolorów CSS var output.
+- Rozszerzenie `lang-parity.test.ts` o obecność labelu w obu językach.
 
-Czy w kroku 3 mam używać **`@dnd-kit`** (płynny drag&drop, +~15 KB gzip) czy prostych **przycisków ↑/↓** (0 zależności, mniej efektowne)? Domyślnie idę w `@dnd-kit`, bo to standard w projekcie super-admin.
+## Szczegóły techniczne
+
+- Domyślne kolory: `bg = hsl(var(--muted)/0.3)`, `label = hsl(var(--brand))`, `item = hsl(var(--foreground))`, `itemHover = hsl(var(--brand))`, `divider/border = hsl(var(--border))`, `counter = hsl(var(--muted-foreground))`. W dark to samo — semantyczne tokeny same się przełączają, ale edytor może nadpisać per-mode konkretnym `oklch()`/hex.
+- Klasa scope: `.cms-trending[data-variant-id="<id>"]` + `html.dark .cms-trending[data-variant-id="<id>"]` dla nadpisania w dark.
+- Migracja wstecz w runtime (bez SQL) — struktura settings jest JSON-em.
+- Zachować `TICKER_TTL_MS` cache; klucz cache uwzględni nowy `mixedFill` i `variantId`.
+- `visibleCount` badge nie wraca (usunięte wcześniej).
+- Brak `any`; wszędzie typy; PL/EN teksty w admin przez `useTranslation`.
+
+## Pliki
+
+Edycja:
+- `src/lib/views/headerTickerQuery.ts`
+- `src/lib/views/postViews.functions.ts`
+- `src/components/header/TrendingTicker.tsx`
+- `src/components/admin/TrendingTickerPane.tsx`
+- `src/components/Header.tsx`
+- `src/i18n/*` (PL/EN)
+- `src/__tests__/lang-parity.test.ts`
+
+Nowe:
+- `src/lib/views/tickerVariants.ts` — typy `TickerVariant`, `TickerSettings`, `DEFAULT_TICKER_COLORS`, migrator `normalizeTickerSettings(raw)`.
+- `src/components/header/__tests__/tickerVariants.test.ts`
