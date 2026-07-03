@@ -415,6 +415,7 @@ const RenderSection = memo(function RenderSection({
               <div
                 key={c.id}
                 data-column-slot
+                data-col-id={c.id}
                 className="min-w-0 max-w-full overflow-hidden"
                 style={{ gridColumn, ...(order !== undefined ? { order } : {}) }}
               >
@@ -428,6 +429,22 @@ const RenderSection = memo(function RenderSection({
           })}
         </div>
       </div>
+      {(() => {
+        const mobileOrderCss = visibleCols
+          .filter((c): c is ColumnNode => c.kind === "column" && typeof c.order?.mobile === "number")
+          .map(
+            (c) =>
+              `[data-sec-id="${section.id}"] [data-col-id="${c.id}"]{order:${c.order!.mobile};}`,
+          )
+          .join("");
+        return mobileOrderCss ? (
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `@media (max-width: 767px){${mobileOrderCss}}`,
+            }}
+          />
+        ) : null;
+      })()}
       {typoCss && <style dangerouslySetInnerHTML={{ __html: typoCss }} />}
     </Tag>
   );
