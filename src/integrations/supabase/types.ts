@@ -3675,6 +3675,39 @@ export type Database = {
       }
     }
     Functions: {
+      admin_get_user: {
+        Args: { _user_id: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          bio_en: string
+          bio_pl: string
+          contact_email: string
+          cover_url: string
+          created_at: string
+          current_company: string
+          display_name: string
+          email: string
+          facebook_url: string
+          first_name: string
+          gender: Database["public"]["Enums"]["name_gender"]
+          id: string
+          instagram_url: string
+          job_title: string
+          last_name: string
+          linkedin_url: string
+          location: string
+          phone: string
+          prefs: Json
+          roles: Database["public"]["Enums"]["app_role"][]
+          slug: string
+          specialization: string
+          spotify_url: string
+          twitter_url: string
+          updated_at: string
+          website_url: string
+        }[]
+      }
       admin_list_users: {
         Args: never
         Returns: {

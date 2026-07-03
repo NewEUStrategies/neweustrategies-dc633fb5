@@ -87,6 +87,7 @@ import { Route as AdminAdsRouteImport } from './routes/admin.ads'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
+import { Route as AdminUsersIdRouteImport } from './routes/admin.users.$id'
 import { Route as AdminSuperMobileDrawerRouteImport } from './routes/admin.super.mobile-drawer'
 import { Route as AdminSettingsSeoRouteImport } from './routes/admin.settings.seo'
 import { Route as AdminSettingsReadingRouteImport } from './routes/admin.settings.reading'
@@ -499,6 +500,11 @@ const ApiPublicClientErrorsRoute = ApiPublicClientErrorsRouteImport.update({
   path: '/api/public/client-errors',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminUsersIdRoute = AdminUsersIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AdminUsersRoute,
+} as any)
 const AdminSuperMobileDrawerRoute = AdminSuperMobileDrawerRouteImport.update({
   id: '/super/mobile-drawer',
   path: '/super/mobile-drawer',
@@ -658,7 +664,7 @@ export interface FileRoutesByFullPath {
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
-  '/admin/users': typeof AdminUsersRoute
+  '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
@@ -703,6 +709,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
+  '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
@@ -756,7 +763,7 @@ export interface FileRoutesByTo {
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
-  '/admin/users': typeof AdminUsersRoute
+  '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
@@ -801,6 +808,7 @@ export interface FileRoutesByTo {
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
+  '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
@@ -858,7 +866,7 @@ export interface FileRoutesById {
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
-  '/admin/users': typeof AdminUsersRoute
+  '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
@@ -903,6 +911,7 @@ export interface FileRoutesById {
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
   '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
+  '/admin/users/$id': typeof AdminUsersIdRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
@@ -1006,6 +1015,7 @@ export interface FileRouteTypes {
     | '/admin/settings/reading'
     | '/admin/settings/seo'
     | '/admin/super/mobile-drawer'
+    | '/admin/users/$id'
     | '/api/public/client-errors'
     | '/api/public/vitals'
     | '/admin/settings/'
@@ -1104,6 +1114,7 @@ export interface FileRouteTypes {
     | '/admin/settings/reading'
     | '/admin/settings/seo'
     | '/admin/super/mobile-drawer'
+    | '/admin/users/$id'
     | '/api/public/client-errors'
     | '/api/public/vitals'
     | '/admin/settings'
@@ -1205,6 +1216,7 @@ export interface FileRouteTypes {
     | '/admin/settings/reading'
     | '/admin/settings/seo'
     | '/admin/super/mobile-drawer'
+    | '/admin/users/$id'
     | '/api/public/client-errors'
     | '/api/public/vitals'
     | '/admin/settings/'
@@ -1794,6 +1806,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicClientErrorsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/users/$id': {
+      id: '/admin/users/$id'
+      path: '/$id'
+      fullPath: '/admin/users/$id'
+      preLoaderRoute: typeof AdminUsersIdRouteImport
+      parentRoute: typeof AdminUsersRoute
+    }
     '/admin/super/mobile-drawer': {
       id: '/admin/super/mobile-drawer'
       path: '/super/mobile-drawer'
@@ -2032,6 +2051,18 @@ const AdminSettingsRouteWithChildren = AdminSettingsRoute._addFileChildren(
   AdminSettingsRouteChildren,
 )
 
+interface AdminUsersRouteChildren {
+  AdminUsersIdRoute: typeof AdminUsersIdRoute
+}
+
+const AdminUsersRouteChildren: AdminUsersRouteChildren = {
+  AdminUsersIdRoute: AdminUsersIdRoute,
+}
+
+const AdminUsersRouteWithChildren = AdminUsersRoute._addFileChildren(
+  AdminUsersRouteChildren,
+)
+
 interface AdminRouteChildren {
   AdminAdsRoute: typeof AdminAdsRoute
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
@@ -2067,7 +2098,7 @@ interface AdminRouteChildren {
   AdminTagsRoute: typeof AdminTagsRoute
   AdminThemeDesignRoute: typeof AdminThemeDesignRoute
   AdminThemeOptionsRoute: typeof AdminThemeOptionsRoute
-  AdminUsersRoute: typeof AdminUsersRoute
+  AdminUsersRoute: typeof AdminUsersRouteWithChildren
   AdminWebStoriesRoute: typeof AdminWebStoriesRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminSuperMobileDrawerRoute: typeof AdminSuperMobileDrawerRoute
@@ -2108,7 +2139,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminTagsRoute: AdminTagsRoute,
   AdminThemeDesignRoute: AdminThemeDesignRoute,
   AdminThemeOptionsRoute: AdminThemeOptionsRoute,
-  AdminUsersRoute: AdminUsersRoute,
+  AdminUsersRoute: AdminUsersRouteWithChildren,
   AdminWebStoriesRoute: AdminWebStoriesRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminSuperMobileDrawerRoute: AdminSuperMobileDrawerRoute,
