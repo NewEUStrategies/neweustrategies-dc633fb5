@@ -281,7 +281,7 @@ export function TrendingTickerPane() {
               />
             </div>
           )}
-          {cfg.source !== "pinned" && (
+          {cfg.source !== "pinned" && cfg.source !== "selected" && (
             <div className="space-y-1.5">
               <Label htmlFor="tt-limit">{t.limit}</Label>
               <Input
