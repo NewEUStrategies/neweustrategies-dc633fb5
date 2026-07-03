@@ -1,5 +1,6 @@
 // Public blog list. URL: /blog
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
@@ -12,8 +13,7 @@ import { activeLang } from "@/lib/seo/head";
 import { buildContentHead } from "@/lib/seo/meta";
 
 export const Route = createFileRoute("/blog/")({
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(blogListQueryOptions()),
+  loader: ({ context }) => context.queryClient.ensureQueryData(blogListQueryOptions()),
 
   head: () => {
     const url = getRequestUrl() || "/blog";
@@ -30,22 +30,15 @@ export const Route = createFileRoute("/blog/")({
     });
   },
   component: BlogIndex,
-  errorComponent: ({ error, reset }) => {
-    const router = useRouter();
-    return (
-      <div className="min-h-screen flex flex-col">
-        <main className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
-          <h1 className="font-display text-2xl">Nie udało się załadować listy</h1>
-          <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
-          <button onClick={() => { router.invalidate(); reset(); }} className="mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Spróbuj ponownie</button>
-        </main>
-      </div>
-    );
-  },
+  errorComponent: (props) => (
+    <RouteErrorFallback {...props} title="Nie udało się załadować listy" />
+  ),
 });
 
 function BlogIndex() {
-  const { data: { posts } } = useSuspenseQuery(blogListQueryOptions());
+  const {
+    data: { posts },
+  } = useSuspenseQuery(blogListQueryOptions());
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const { data: feedAds } = useAdPlacements("in_feed", "home");
@@ -66,9 +59,18 @@ function BlogIndex() {
               });
               return (
                 <Fragment key={p.id}>
-                  <PostListCard post={p} href={p.href} lang={lang} titleClassName="text-base" priority={idx === 0} />
+                  <PostListCard
+                    post={p}
+                    href={p.href}
+                    lang={lang}
+                    titleClassName="text-base"
+                    priority={idx === 0}
+                  />
                   {adsAfter.map((ad) => (
-                    <div key={ad.id} className="md:col-span-2 lg:col-span-3 flex justify-center py-2">
+                    <div
+                      key={ad.id}
+                      className="md:col-span-2 lg:col-span-3 flex justify-center py-2"
+                    >
                       <AdSlotView placement={ad} />
                     </div>
                   ))}

@@ -47,14 +47,14 @@ export const SLIDER_VARIANTS: { value: SliderVariant; label: string }[] = [
 export type NavBgStyle = "glass" | "solid" | "outline" | "soft" | "gradient" | "shadow";
 export type NavPosition = "mid" | "mid-outside" | "bottom" | "top";
 export type NavArrowVariant =
-  | "chevron"        // sharp V (default)
-  | "chevron-bold"   // heavier V
-  | "arrow"          // arrow with shaft
-  | "arrow-long"     // long shaft, sharp head
-  | "caret"          // filled triangle
-  | "angle"          // thin single line
+  | "chevron" // sharp V (default)
+  | "chevron-bold" // heavier V
+  | "arrow" // arrow with shaft
+  | "arrow-long" // long shaft, sharp head
+  | "caret" // filled triangle
+  | "angle" // thin single line
   | "double-chevron" // >>
-  | "arrow-tail";    // arrow with feather tail
+  | "arrow-tail"; // arrow with feather tail
 
 export interface SliderConfig {
   variant?: SliderVariant;
@@ -115,7 +115,11 @@ export function resolveNavStyle(cfg: SliderConfig): NavStyleResolved {
  *  of icon-font fallback / lucide async load. Direction flips via CSS
  *  transform so the geometry stays identical between prev & next. */
 function NavArrowGlyph({
-  variant, direction, sizePx, color, stroke,
+  variant,
+  direction,
+  sizePx,
+  color,
+  stroke,
 }: {
   variant: NavArrowVariant;
   direction: "left" | "right";
@@ -140,9 +144,17 @@ function NavArrowGlyph({
   };
   switch (variant) {
     case "chevron":
-      return <svg viewBox="0 0 24 24" style={common} aria-hidden><path d="M9 6l6 6-6 6" {...strokeProps} /></svg>;
+      return (
+        <svg viewBox="0 0 24 24" style={common} aria-hidden>
+          <path d="M9 6l6 6-6 6" {...strokeProps} />
+        </svg>
+      );
     case "chevron-bold":
-      return <svg viewBox="0 0 24 24" style={common} aria-hidden><path d="M9 5l7 7-7 7" {...strokeProps} strokeWidth={Math.max(stroke, 3)} /></svg>;
+      return (
+        <svg viewBox="0 0 24 24" style={common} aria-hidden>
+          <path d="M9 5l7 7-7 7" {...strokeProps} strokeWidth={Math.max(stroke, 3)} />
+        </svg>
+      );
     case "arrow":
       return (
         <svg viewBox="0 0 24 24" style={common} aria-hidden>
@@ -158,13 +170,26 @@ function NavArrowGlyph({
     case "caret":
       return (
         <svg viewBox="0 0 24 24" style={common} aria-hidden>
-          <path d="M9 5l8 7-8 7z" fill="currentColor" stroke="currentColor" strokeWidth={0.5} strokeLinejoin="round" />
+          <path
+            d="M9 5l8 7-8 7z"
+            fill="currentColor"
+            stroke="currentColor"
+            strokeWidth={0.5}
+            strokeLinejoin="round"
+          />
         </svg>
       );
     case "angle":
       return (
         <svg viewBox="0 0 24 24" style={common} aria-hidden>
-          <path d="M10 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth={Math.max(1, stroke - 0.5)} strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M10 5l7 7-7 7"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={Math.max(1, stroke - 0.5)}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       );
     case "double-chevron":
@@ -180,7 +205,11 @@ function NavArrowGlyph({
         </svg>
       );
     default:
-      return <svg viewBox="0 0 24 24" style={common} aria-hidden><path d="M9 6l6 6-6 6" {...strokeProps} /></svg>;
+      return (
+        <svg viewBox="0 0 24 24" style={common} aria-hidden>
+          <path d="M9 6l6 6-6 6" {...strokeProps} />
+        </svg>
+      );
   }
 }
 
@@ -196,7 +225,12 @@ export const NAV_ARROW_VARIANTS: { value: NavArrowVariant; label: string }[] = [
 ];
 
 const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
-  none: "0px", sm: "4px", md: "8px", lg: "16px", xl: "24px", full: "9999px",
+  none: "0px",
+  sm: "4px",
+  md: "8px",
+  lg: "16px",
+  xl: "24px",
+  full: "9999px",
 };
 
 const SLIDER_IMAGE_PLACEHOLDER =
@@ -228,7 +262,6 @@ interface ResilientSliderImageProps {
   style?: CSSProperties;
   /** Force visibility (skip the fade-via-opacity behaviour). */
   alwaysVisible?: boolean;
-
 }
 
 function ResilientSliderImage({
@@ -248,7 +281,9 @@ function ResilientSliderImage({
   const fallback = fallbackSrc && fallbackSrc !== originalSrc ? fallbackSrc : placeholderSrc;
   const [displaySrc, setDisplaySrc] = useState(originalSrc || fallback);
 
-  useEffect(() => { setDisplaySrc(originalSrc || fallback); }, [fallback, originalSrc]);
+  useEffect(() => {
+    setDisplaySrc(originalSrc || fallback);
+  }, [fallback, originalSrc]);
 
   useEffect(() => {
     const img = imgRef.current;
@@ -277,7 +312,6 @@ function ResilientSliderImage({
           "opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration, 1100ms) var(--eh-scale-easing, ease-in-out)",
         ...(style ?? {}),
       }}
-
       onError={(e) => {
         onBrokenSource(originalSrc);
         const nextSrc = displaySrc !== fallback ? fallback : placeholderSrc;
@@ -454,24 +488,44 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
   return (
     <>
       <button
-        type="button" aria-label={prevLabel}
+        type="button"
+        aria-label={prevLabel}
         data-pos={nav.position}
-        onClick={(e) => { e.stopPropagation(); onPrev(); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onPrev();
+        }}
         onPointerDown={(e) => e.stopPropagation()}
         className={`${cls} eh-prev`}
         style={cssVars}
       >
-        <NavArrowGlyph variant={nav.arrowVariant} direction="left" sizePx={iconPx} color={nav.arrowColor} stroke={nav.arrowStroke} />
+        <NavArrowGlyph
+          variant={nav.arrowVariant}
+          direction="left"
+          sizePx={iconPx}
+          color={nav.arrowColor}
+          stroke={nav.arrowStroke}
+        />
       </button>
       <button
-        type="button" aria-label={nextLabel}
+        type="button"
+        aria-label={nextLabel}
         data-pos={nav.position}
-        onClick={(e) => { e.stopPropagation(); onNext(); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onNext();
+        }}
         onPointerDown={(e) => e.stopPropagation()}
         className={`${cls} eh-next`}
         style={cssVars}
       >
-        <NavArrowGlyph variant={nav.arrowVariant} direction="right" sizePx={iconPx} color={nav.arrowColor} stroke={nav.arrowStroke} />
+        <NavArrowGlyph
+          variant={nav.arrowVariant}
+          direction="right"
+          sizePx={iconPx}
+          color={nav.arrowColor}
+          stroke={nav.arrowStroke}
+        />
       </button>
     </>
   );
@@ -490,7 +544,12 @@ function DotsNav({ count, active, onSelect, onPrev, onNext, compact = false }: D
   return (
     <div className={`flex items-center justify-center gap-3 ${compact ? "mt-2" : "mt-3"}`}>
       {onPrev && (
-        <button type="button" aria-label="Poprzedni" onClick={onPrev} className="h-8 w-8 inline-flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition">
+        <button
+          type="button"
+          aria-label="Poprzedni"
+          onClick={onPrev}
+          className="h-8 w-8 inline-flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition"
+        >
           <ArrowLeft className="w-4 h-4" />
         </button>
       )}
@@ -506,7 +565,12 @@ function DotsNav({ count, active, onSelect, onPrev, onNext, compact = false }: D
         ))}
       </div>
       {onNext && (
-        <button type="button" aria-label="Następny" onClick={onNext} className="h-8 w-8 inline-flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition">
+        <button
+          type="button"
+          aria-label="Następny"
+          onClick={onNext}
+          className="h-8 w-8 inline-flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition"
+        >
           <ArrowRight className="w-4 h-4" />
         </button>
       )}
@@ -555,7 +619,9 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       if (!src) return;
       setFailedImages((prev) => {
         if (prev.has(src)) return prev;
-        const next = new Set(prev); next.add(src); return next;
+        const next = new Set(prev);
+        next.add(src);
+        return next;
       });
     },
     [],
@@ -566,9 +632,10 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       const safe = safeImageUrl(it.image);
       return {
         ...it,
-        image: !safe || failedImages.has(safe)
-          ? fallbackImages[i % Math.max(1, fallbackImages.length)] || SLIDER_IMAGE_PLACEHOLDER
-          : safe,
+        image:
+          !safe || failedImages.has(safe)
+            ? fallbackImages[i % Math.max(1, fallbackImages.length)] || SLIDER_IMAGE_PLACEHOLDER
+            : safe,
       };
     })
     .filter((it) => it.image);
@@ -584,46 +651,71 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const sharedTypography: CSSProperties = {
     ...(config.typography?.fontFamily ? { fontFamily: config.typography.fontFamily } : {}),
     ...(config.typography?.fontStyle ? { fontStyle: config.typography.fontStyle } : {}),
-    ...(config.typography?.fontWeight ? { fontWeight: config.typography.fontWeight as CSSProperties["fontWeight"] } : {}),
+    ...(config.typography?.fontWeight
+      ? { fontWeight: config.typography.fontWeight as CSSProperties["fontWeight"] }
+      : {}),
     ...(config.typography?.lineHeight ? { lineHeight: config.typography.lineHeight } : {}),
     ...(config.typography?.letterSpacing ? { letterSpacing: config.typography.letterSpacing } : {}),
-    ...(config.typography?.textAlign ? { textAlign: config.typography.textAlign as CSSProperties["textAlign"] } : {}),
+    ...(config.typography?.textAlign
+      ? { textAlign: config.typography.textAlign as CSSProperties["textAlign"] }
+      : {}),
     ...(config.typography?.textTransform ? { textTransform: config.typography.textTransform } : {}),
-    ...(config.typography?.textDecoration ? { textDecoration: config.typography.textDecoration } : {}),
+    ...(config.typography?.textDecoration
+      ? { textDecoration: config.typography.textDecoration }
+      : {}),
   };
   const titleStyle: CSSProperties = {
     ...sharedTypography,
-    ...(titleSize ? { fontSize: titleSize } : typeof config.titleSizePx === "number" && config.titleSizePx > 0
-      ? { fontSize: `${config.titleSizePx}px`, lineHeight: 1.15 } : {}),
-    ...(!config.typography?.fontWeight && typeof config.titleWeight === "number" ? { fontWeight: config.titleWeight } : {}),
+    ...(titleSize
+      ? { fontSize: titleSize }
+      : typeof config.titleSizePx === "number" && config.titleSizePx > 0
+        ? { fontSize: `${config.titleSizePx}px`, lineHeight: 1.15 }
+        : {}),
+    ...(!config.typography?.fontWeight && typeof config.titleWeight === "number"
+      ? { fontWeight: config.titleWeight }
+      : {}),
   };
   const subtitleStyle: CSSProperties = {
     ...sharedTypography,
-    ...(descSize ? { fontSize: descSize } : typeof config.subtitleSizePx === "number" && config.subtitleSizePx > 0
-      ? { fontSize: `${config.subtitleSizePx}px`, lineHeight: 1.5 } : {}),
-    ...(!config.typography?.fontWeight && typeof config.subtitleWeight === "number" ? { fontWeight: config.subtitleWeight } : {}),
-    ...(typeof config.typography?.titleDescriptionGapPx === "number" ? { marginTop: `${config.typography.titleDescriptionGapPx}px` } : {}),
+    ...(descSize
+      ? { fontSize: descSize }
+      : typeof config.subtitleSizePx === "number" && config.subtitleSizePx > 0
+        ? { fontSize: `${config.subtitleSizePx}px`, lineHeight: 1.5 }
+        : {}),
+    ...(!config.typography?.fontWeight && typeof config.subtitleWeight === "number"
+      ? { fontWeight: config.subtitleWeight }
+      : {}),
+    ...(typeof config.typography?.titleDescriptionGapPx === "number"
+      ? { marginTop: `${config.typography.titleDescriptionGapPx}px` }
+      : {}),
   };
 
   const [idx, setIdx] = useState(0);
-  useEffect(() => { setIdx(0); }, [items.length]);
+  useEffect(() => {
+    setIdx(0);
+  }, [items.length]);
   const columns = Math.max(1, Math.min(4, config.columns ?? 3)) as 1 | 2 | 3 | 4;
   const visibleCount = variant === "multi-card" ? columns : 1;
   const stepCount = Math.max(1, items.length - (variant === "multi-card" ? visibleCount - 1 : 0));
   useEffect(() => {
     if (preview || !autoplay || items.length < 2) return;
-    const t = window.setInterval(
-      () => setIdx((i) => (i + 1) % stepCount),
-      intervalMs,
-    );
+    const t = window.setInterval(() => setIdx((i) => (i + 1) % stepCount), intervalMs);
     return () => window.clearInterval(t);
   }, [autoplay, intervalMs, items.length, preview, stepCount]);
 
   const dragRef = useRef<{ startX: number; lastX: number; pointerId: number; active: boolean }>({
-    startX: 0, lastX: 0, pointerId: -1, active: false,
+    startX: 0,
+    lastX: 0,
+    pointerId: -1,
+    active: false,
   });
   const [dragDx, setDragDx] = useState(0);
   const [, force] = useState(0);
+
+  // Hooks nawigacji PRZED wczesnym returnem pustego slidera - React wymaga
+  // identycznej kolejności hooków w kazdym renderze (rules-of-hooks).
+  const router = useRouter({ warn: false });
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   if (items.length === 0) {
     return (
@@ -639,7 +731,11 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const safeIdx = Math.min(Math.max(0, idx), Math.max(0, stepCount - 1));
   const go = (delta: number) => setIdx((i) => (i + delta + stepCount) % stepCount);
 
-  const aspectStyle: CSSProperties = { aspectRatio: ratio.replace("/", " / "), width: "100%", minHeight: 0 };
+  const aspectStyle: CSSProperties = {
+    aspectRatio: ratio.replace("/", " / "),
+    width: "100%",
+    minHeight: 0,
+  };
   const SWIPE_THRESHOLD = 48;
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -647,7 +743,11 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     dragRef.current = { startX: e.clientX, lastX: e.clientX, pointerId: e.pointerId, active: true };
     force((n) => n + 1);
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* noop */ }
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
   };
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
@@ -662,7 +762,11 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     dragRef.current = { ...d, active: false };
     setDragDx(0);
     force((n) => n + 1);
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
     if (Math.abs(dx) >= SWIPE_THRESHOLD) go(dx < 0 ? 1 : -1);
   };
 
@@ -671,8 +775,6 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   // header/menu mounted; window.open for external. Skipped in preview mode
   // AND when rendered inside the CMS builder canvas ([data-builder-renderer]
   // ancestor) so editing clicks don't leave the canvas.
-  const router = useRouter({ warn: false });
-  const rootRef = useRef<HTMLDivElement | null>(null);
   const navigateTo = (href?: string) => {
     if (!href || preview) return;
     if (rootRef.current?.closest("[data-builder-renderer], [data-visual-canvas]")) return;
@@ -695,11 +797,28 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
 
   const nav = resolveNavStyle(config);
   const sharedProps = {
-    items, safeIdx, setIdx, go, lang, preview,
-    titleStyle, subtitleStyle, rounded, ratio, aspectStyle,
-    overlayOpacity, fallbackImages, markImageFailed,
-    dragRef, dragDx, onPointerDown, onPointerMove, endDrag,
-    navigateTo, columns, nav,
+    items,
+    safeIdx,
+    setIdx,
+    go,
+    lang,
+    preview,
+    titleStyle,
+    subtitleStyle,
+    rounded,
+    ratio,
+    aspectStyle,
+    overlayOpacity,
+    fallbackImages,
+    markImageFailed,
+    dragRef,
+    dragDx,
+    onPointerDown,
+    onPointerMove,
+    endDrag,
+    navigateTo,
+    columns,
+    nav,
   };
 
   return (
@@ -709,9 +828,10 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       {variant === "cinematic-overlay" && <CinematicOverlayVariant {...sharedProps} />}
       {variant === "split-feature" && <SplitFeatureVariant {...sharedProps} />}
       {variant === "minimal-strip" && <MinimalStripVariant {...sharedProps} />}
-      {(variant === "editorial-hero" || ![
-        "multi-card", "cinematic-overlay", "split-feature", "minimal-strip",
-      ].includes(variant)) && <EditorialHeroVariant {...sharedProps} />}
+      {(variant === "editorial-hero" ||
+        !["multi-card", "cinematic-overlay", "split-feature", "minimal-strip"].includes(
+          variant,
+        )) && <EditorialHeroVariant {...sharedProps} />}
     </div>
   );
 }
@@ -735,7 +855,12 @@ type VariantProps = {
   overlayOpacity: number;
   fallbackImages: string[];
   markImageFailed: (src: string) => void;
-  dragRef: React.MutableRefObject<{ startX: number; lastX: number; pointerId: number; active: boolean }>;
+  dragRef: React.MutableRefObject<{
+    startX: number;
+    lastX: number;
+    pointerId: number;
+    active: boolean;
+  }>;
   dragDx: number;
   onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
   onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
@@ -770,8 +895,10 @@ function EditorialHeroVariant(p: VariantProps) {
         aria-label={href ? title : undefined}
         className={`relative w-full overflow-hidden bg-muted/40 eh-drag-surface ${p.dragRef.current.active ? "is-dragging" : ""} ${href ? "cursor-pointer" : ""}`}
         style={{ ...p.aspectStyle, borderRadius: 4 }}
-        onPointerDown={p.onPointerDown} onPointerMove={p.onPointerMove}
-        onPointerUp={p.endDrag} onPointerCancel={p.endDrag}
+        onPointerDown={p.onPointerDown}
+        onPointerMove={p.onPointerMove}
+        onPointerUp={p.endDrag}
+        onPointerCancel={p.endDrag}
         onClick={(e) => {
           if (!href) return;
           const d = p.dragRef.current;
@@ -782,13 +909,19 @@ function EditorialHeroVariant(p: VariantProps) {
         }}
         onKeyDown={(e) => {
           if (!href || p.preview) return;
-          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); p.navigateTo(href); }
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            p.navigateTo(href);
+          }
         }}
       >
-        <div className="absolute inset-0"
+        <div
+          className="absolute inset-0"
           style={{
             transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
-            transition: p.dragRef.current.active ? "none" : "transform 320ms cubic-bezier(.22,.61,.36,1)",
+            transition: p.dragRef.current.active
+              ? "none"
+              : "transform 320ms cubic-bezier(.22,.61,.36,1)",
           }}
         >
           {p.items.map((it, i) => (
@@ -807,21 +940,28 @@ function EditorialHeroVariant(p: VariantProps) {
           <NavArrows
             prevLabel={p.lang === "en" ? "Previous slide" : "Poprzedni slajd"}
             nextLabel={p.lang === "en" ? "Next slide" : "Następny slajd"}
-            onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav}
+            onPrev={() => p.go(-1)}
+            onNext={() => p.go(1)}
+            nav={p.nav}
           />
         )}
         {cat && (
           <div className="absolute left-1/2 -translate-x-1/2 -bottom-3 z-10">
-            <span className="inline-block px-4 py-1.5 text-[11px] md:text-xs font-bold uppercase tracking-wider text-white shadow-md"
-              style={{ background: catColor, borderRadius: 2 }}>
+            <span
+              className="inline-block px-4 py-1.5 text-[11px] md:text-xs font-bold uppercase tracking-wider text-white shadow-md"
+              style={{ background: catColor, borderRadius: 2 }}
+            >
               {cat}
             </span>
           </div>
         )}
       </div>
 
-      <div key={p.safeIdx} className="px-4 pt-8 pb-2 text-center"
-        style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}>
+      <div
+        key={p.safeIdx}
+        className="px-4 pt-8 pb-2 text-center"
+        style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
+      >
         {href ? (
           <AppLink href={href} className="inline-block w-full">
             <div className="eh-title-clamp">
@@ -837,20 +977,34 @@ function EditorialHeroVariant(p: VariantProps) {
             </h3>
           </div>
         )}
-        <p className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
-          style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}>
+        <p
+          className="cms-post-excerpt eh-clamp-3 mt-4 text-muted-foreground max-w-3xl mx-auto"
+          style={{ minHeight: "calc(3 * 1.625em)", ...p.subtitleStyle }}
+        >
           {sub || "\u00A0"}
         </p>
         {(cur.author || cur.readTime) && (
           <div className="mt-4 flex items-center justify-center gap-2 text-xs md:text-sm text-muted-foreground">
-            {cur.author && <span>By <span className="font-medium text-foreground/80">{cur.author}</span></span>}
+            {cur.author && (
+              <span>
+                By <span className="font-medium text-foreground/80">{cur.author}</span>
+              </span>
+            )}
             {cur.author && cur.readTime && <span className="opacity-50">|</span>}
-            {cur.readTime && <span className="inline-flex items-center gap-1">⏱ {cur.readTime}</span>}
+            {cur.readTime && (
+              <span className="inline-flex items-center gap-1">⏱ {cur.readTime}</span>
+            )}
           </div>
         )}
       </div>
 
-      <DotsNav count={p.items.length} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} />
+      <DotsNav
+        count={p.items.length}
+        active={p.safeIdx}
+        onSelect={p.setIdx}
+        onPrev={() => p.go(-1)}
+        onNext={() => p.go(1)}
+      />
     </>
   );
 }
@@ -870,15 +1024,23 @@ function MultiCardVariant(p: VariantProps) {
     <div className="relative">
       <div
         className={`overflow-hidden eh-drag-surface ${dragging ? "is-dragging" : ""}`}
-        onPointerDown={p.onPointerDown} onPointerMove={p.onPointerMove}
-        onPointerUp={p.endDrag} onPointerCancel={p.endDrag}
+        onPointerDown={p.onPointerDown}
+        onPointerMove={p.onPointerMove}
+        onPointerUp={p.endDrag}
+        onPointerCancel={p.endDrag}
       >
-        <div className={`eh-track ${dragging ? "is-dragging" : ""}`} style={{ transform: trackTransform, gap: `${gapPx}px` }}>
+        <div
+          className={`eh-track ${dragging ? "is-dragging" : ""}`}
+          style={{ transform: trackTransform, gap: `${gapPx}px` }}
+        >
           {p.items.map((it, i) => {
             const { title, sub, cat, href, catColor } = pickSlideStrings(it, p.lang);
             return (
-              <article key={i} className="eh-card group" style={{ width: cardWidth, flex: "0 0 auto" }}>
-
+              <article
+                key={i}
+                className="eh-card group"
+                style={{ width: cardWidth, flex: "0 0 auto" }}
+              >
                 <div
                   className={`relative overflow-hidden bg-muted ${href ? "cursor-pointer" : ""}`}
                   style={{ aspectRatio: "4 / 3", borderRadius: p.rounded }}
@@ -892,15 +1054,17 @@ function MultiCardVariant(p: VariantProps) {
                     src={safeImageUrl(it.image) || it.image}
                     fallbackSrc={p.fallbackImages[i % Math.max(1, p.fallbackImages.length)]}
                     placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
-                    active alwaysVisible
+                    active
+                    alwaysVisible
                     onBrokenSource={p.markImageFailed}
                     className="eh-hover-zoom absolute inset-0 w-full h-full object-cover"
                   />
 
-
                   {cat && (
-                    <span className="absolute left-3 top-3 inline-block px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow"
-                      style={{ background: catColor, borderRadius: 2 }}>
+                    <span
+                      className="absolute left-3 top-3 inline-block px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow"
+                      style={{ background: catColor, borderRadius: 2 }}
+                    >
                       {cat}
                     </span>
                   )}
@@ -908,23 +1072,36 @@ function MultiCardVariant(p: VariantProps) {
                 <div className="pt-3 pb-1 px-1">
                   {href ? (
                     <AppLink href={href} className="block">
-                      <h3 className="cms-post-title text-foreground line-clamp-2" style={p.titleStyle}>
+                      <h3
+                        className="cms-post-title text-foreground line-clamp-2"
+                        style={p.titleStyle}
+                      >
                         {title || "\u00A0"}
                       </h3>
                     </AppLink>
                   ) : (
-                    <h3 className="cms-post-title text-foreground line-clamp-2" style={p.titleStyle}>
+                    <h3
+                      className="cms-post-title text-foreground line-clamp-2"
+                      style={p.titleStyle}
+                    >
                       {title || "\u00A0"}
                     </h3>
                   )}
                   {sub && (
-                    <p className="cms-post-excerpt eh-clamp-2 mt-1.5 text-muted-foreground" style={p.subtitleStyle}>
+                    <p
+                      className="cms-post-excerpt eh-clamp-2 mt-1.5 text-muted-foreground"
+                      style={p.subtitleStyle}
+                    >
                       {sub}
                     </p>
                   )}
                   {(it.author || it.readTime) && (
                     <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
-                      {it.author && <span>By <span className="font-medium text-foreground/80">{it.author}</span></span>}
+                      {it.author && (
+                        <span>
+                          By <span className="font-medium text-foreground/80">{it.author}</span>
+                        </span>
+                      )}
                       {it.author && it.readTime && <span className="opacity-50">·</span>}
                       {it.readTime && <span>⏱ {it.readTime}</span>}
                     </div>
@@ -935,7 +1112,13 @@ function MultiCardVariant(p: VariantProps) {
           })}
         </div>
       </div>
-      <DotsNav count={Math.max(1, p.items.length - (p.columns - 1))} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} />
+      <DotsNav
+        count={Math.max(1, p.items.length - (p.columns - 1))}
+        active={p.safeIdx}
+        onSelect={p.setIdx}
+        onPrev={() => p.go(-1)}
+        onNext={() => p.go(1)}
+      />
     </div>
   );
 }
@@ -953,8 +1136,10 @@ function CinematicOverlayVariant(p: VariantProps) {
         data-widget-media
         className={`relative w-full overflow-hidden bg-black eh-drag-surface ${p.dragRef.current.active ? "is-dragging" : ""} ${href ? "cursor-pointer" : ""}`}
         style={{ ...p.aspectStyle, borderRadius: p.rounded }}
-        onPointerDown={p.onPointerDown} onPointerMove={p.onPointerMove}
-        onPointerUp={p.endDrag} onPointerCancel={p.endDrag}
+        onPointerDown={p.onPointerDown}
+        onPointerMove={p.onPointerMove}
+        onPointerUp={p.endDrag}
+        onPointerCancel={p.endDrag}
         onClick={(e) => {
           const d = p.dragRef.current;
           if (Math.abs(d.lastX - d.startX) > 5) return;
@@ -963,10 +1148,15 @@ function CinematicOverlayVariant(p: VariantProps) {
           p.navigateTo(href);
         }}
       >
-        <div className="absolute inset-0" style={{
-          transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
-          transition: p.dragRef.current.active ? "none" : "transform 320ms cubic-bezier(.22,.61,.36,1)",
-        }}>
+        <div
+          className="absolute inset-0"
+          style={{
+            transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
+            transition: p.dragRef.current.active
+              ? "none"
+              : "transform 320ms cubic-bezier(.22,.61,.36,1)",
+          }}
+        >
           {p.items.map((it, i) => (
             <ResilientSliderImage
               key={i}
@@ -980,16 +1170,24 @@ function CinematicOverlayVariant(p: VariantProps) {
           ))}
         </div>
         {/* Gradient */}
-        <div className="absolute inset-0 pointer-events-none" style={{
-          background: `linear-gradient(180deg, rgba(0,0,0,${overlayTop(p.overlayOpacity)}) 0%, rgba(0,0,0,0) 35%, rgba(0,0,0,${overlayBottom(p.overlayOpacity)}) 100%)`,
-        }} />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `linear-gradient(180deg, rgba(0,0,0,${overlayTop(p.overlayOpacity)}) 0%, rgba(0,0,0,0) 35%, rgba(0,0,0,${overlayBottom(p.overlayOpacity)}) 100%)`,
+          }}
+        />
         {/* Text */}
-        <div key={p.safeIdx} className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white"
-          style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}>
+        <div
+          key={p.safeIdx}
+          className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white"
+          style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
+        >
           <div className="max-w-3xl">
             {cat && (
-              <span className="inline-block mb-3 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-wider shadow"
-                style={{ background: catColor, borderRadius: 2 }}>
+              <span
+                className="inline-block mb-3 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-wider shadow"
+                style={{ background: catColor, borderRadius: 2 }}
+              >
                 {cat}
               </span>
             )}
@@ -997,13 +1195,20 @@ function CinematicOverlayVariant(p: VariantProps) {
               {title || "\u00A0"}
             </h3>
             {sub && (
-              <p className="cms-post-excerpt eh-clamp-2 mt-3 text-white/85 max-w-2xl" style={p.subtitleStyle}>
+              <p
+                className="cms-post-excerpt eh-clamp-2 mt-3 text-white/85 max-w-2xl"
+                style={p.subtitleStyle}
+              >
                 {sub}
               </p>
             )}
             {(cur.author || cur.readTime) && (
               <div className="mt-3 flex items-center gap-2 text-xs text-white/75">
-                {cur.author && <span>By <span className="font-medium text-white">{cur.author}</span></span>}
+                {cur.author && (
+                  <span>
+                    By <span className="font-medium text-white">{cur.author}</span>
+                  </span>
+                )}
                 {cur.author && cur.readTime && <span className="opacity-60">·</span>}
                 {cur.readTime && <span>⏱ {cur.readTime}</span>}
               </div>
@@ -1014,15 +1219,25 @@ function CinematicOverlayVariant(p: VariantProps) {
           <NavArrows
             prevLabel={p.lang === "en" ? "Previous slide" : "Poprzedni slajd"}
             nextLabel={p.lang === "en" ? "Next slide" : "Następny slajd"}
-            onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav}
+            onPrev={() => p.go(-1)}
+            onNext={() => p.go(1)}
+            nav={p.nav}
           />
         )}
         {/* Dots inside */}
         {p.items.length > 1 && (
           <div className="absolute left-1/2 -translate-x-1/2 bottom-2 flex items-center gap-2">
             {p.items.map((_, i) => (
-              <button key={i} type="button" aria-label={`Slajd ${i + 1}`} onClick={(e) => { e.stopPropagation(); p.setIdx(i); }}
-                className={`rounded-full transition-all ${i === p.safeIdx ? "w-2.5 h-2.5 bg-white" : "w-2 h-2 bg-white/50 hover:bg-white/80"}`} />
+              <button
+                key={i}
+                type="button"
+                aria-label={`Slajd ${i + 1}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  p.setIdx(i);
+                }}
+                className={`rounded-full transition-all ${i === p.safeIdx ? "w-2.5 h-2.5 bg-white" : "w-2 h-2 bg-white/50 hover:bg-white/80"}`}
+              />
             ))}
           </div>
         )}
@@ -1031,8 +1246,12 @@ function CinematicOverlayVariant(p: VariantProps) {
   );
 }
 
-function overlayTop(base: number) { return Math.min(0.6, base * 0.5); }
-function overlayBottom(base: number) { return Math.min(0.95, base + 0.4); }
+function overlayTop(base: number) {
+  return Math.min(0.6, base * 0.5);
+}
+function overlayBottom(base: number) {
+  return Math.min(0.95, base + 0.4);
+}
 
 // ------------------------------------------------------------------
 // Variant: Split Feature (image left, content right)
@@ -1047,25 +1266,33 @@ function SplitFeatureVariant(p: VariantProps) {
         data-widget-media
         className={`relative w-full overflow-hidden bg-muted eh-drag-surface ${p.dragRef.current.active ? "is-dragging" : ""} ${href ? "cursor-pointer" : ""}`}
         style={{ ...p.aspectStyle, borderRadius: p.rounded }}
-        onPointerDown={p.onPointerDown} onPointerMove={p.onPointerMove}
-        onPointerUp={p.endDrag} onPointerCancel={p.endDrag}
+        onPointerDown={p.onPointerDown}
+        onPointerMove={p.onPointerMove}
+        onPointerUp={p.endDrag}
+        onPointerCancel={p.endDrag}
         onClick={() => {
           const d = p.dragRef.current;
           if (Math.abs(d.lastX - d.startX) > 5) return;
           p.navigateTo(href);
         }}
       >
-        <div className="absolute inset-0" style={{
-          transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
-          transition: p.dragRef.current.active ? "none" : "transform 320ms cubic-bezier(.22,.61,.36,1)",
-        }}>
+        <div
+          className="absolute inset-0"
+          style={{
+            transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
+            transition: p.dragRef.current.active
+              ? "none"
+              : "transform 320ms cubic-bezier(.22,.61,.36,1)",
+          }}
+        >
           {p.items.map((it, i) => (
             <ResilientSliderImage
               key={i}
               src={safeImageUrl(it.image) || it.image}
               fallbackSrc={p.fallbackImages[i % Math.max(1, p.fallbackImages.length)]}
               placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
-              active={i === p.safeIdx} priority={i === 0}
+              active={i === p.safeIdx}
+              priority={i === 0}
               onBrokenSource={p.markImageFailed}
             />
           ))}
@@ -1074,15 +1301,22 @@ function SplitFeatureVariant(p: VariantProps) {
           <NavArrows
             prevLabel={p.lang === "en" ? "Previous slide" : "Poprzedni slajd"}
             nextLabel={p.lang === "en" ? "Next slide" : "Następny slajd"}
-            onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav}
+            onPrev={() => p.go(-1)}
+            onNext={() => p.go(1)}
+            nav={p.nav}
           />
         )}
       </div>
-      <div key={p.safeIdx} className="px-1 md:px-2"
-        style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}>
+      <div
+        key={p.safeIdx}
+        className="px-1 md:px-2"
+        style={{ animation: "ehFadeUp 600ms cubic-bezier(.22,.61,.36,1) both" }}
+      >
         {cat && (
-          <span className="inline-block mb-3 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-wider text-white shadow"
-            style={{ background: catColor, borderRadius: 2 }}>
+          <span
+            className="inline-block mb-3 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-wider text-white shadow"
+            style={{ background: catColor, borderRadius: 2 }}
+          >
             {cat}
           </span>
         )}
@@ -1098,18 +1332,32 @@ function SplitFeatureVariant(p: VariantProps) {
           </h3>
         )}
         {sub && (
-          <p className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground" style={p.subtitleStyle}>
+          <p
+            className="cms-post-excerpt eh-clamp-3 mt-3 text-muted-foreground"
+            style={p.subtitleStyle}
+          >
             {sub}
           </p>
         )}
         {(cur.author || cur.readTime) && (
           <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-            {cur.author && <span>By <span className="font-medium text-foreground/80">{cur.author}</span></span>}
+            {cur.author && (
+              <span>
+                By <span className="font-medium text-foreground/80">{cur.author}</span>
+              </span>
+            )}
             {cur.author && cur.readTime && <span className="opacity-50">·</span>}
             {cur.readTime && <span>⏱ {cur.readTime}</span>}
           </div>
         )}
-        <DotsNav count={p.items.length} active={p.safeIdx} onSelect={p.setIdx} onPrev={() => p.go(-1)} onNext={() => p.go(1)} compact />
+        <DotsNav
+          count={p.items.length}
+          active={p.safeIdx}
+          onSelect={p.setIdx}
+          onPrev={() => p.go(-1)}
+          onNext={() => p.go(1)}
+          compact
+        />
       </div>
     </div>
   );
@@ -1128,8 +1376,10 @@ function MinimalStripVariant(p: VariantProps) {
         data-widget-media
         className={`relative w-full overflow-hidden bg-muted eh-drag-surface ${p.dragRef.current.active ? "is-dragging" : ""} ${href ? "cursor-pointer" : ""}`}
         style={{ ...p.aspectStyle, borderRadius: p.rounded }}
-        onPointerDown={p.onPointerDown} onPointerMove={p.onPointerMove}
-        onPointerUp={p.endDrag} onPointerCancel={p.endDrag}
+        onPointerDown={p.onPointerDown}
+        onPointerMove={p.onPointerMove}
+        onPointerUp={p.endDrag}
+        onPointerCancel={p.endDrag}
         onClick={(e) => {
           const d = p.dragRef.current;
           if (Math.abs(d.lastX - d.startX) > 5) return;
@@ -1138,17 +1388,23 @@ function MinimalStripVariant(p: VariantProps) {
           p.navigateTo(href);
         }}
       >
-        <div className="absolute inset-0" style={{
-          transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
-          transition: p.dragRef.current.active ? "none" : "transform 320ms cubic-bezier(.22,.61,.36,1)",
-        }}>
+        <div
+          className="absolute inset-0"
+          style={{
+            transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
+            transition: p.dragRef.current.active
+              ? "none"
+              : "transform 320ms cubic-bezier(.22,.61,.36,1)",
+          }}
+        >
           {p.items.map((it, i) => (
             <ResilientSliderImage
               key={i}
               src={safeImageUrl(it.image) || it.image}
               fallbackSrc={p.fallbackImages[i % Math.max(1, p.fallbackImages.length)]}
               placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
-              active={i === p.safeIdx} priority={i === 0}
+              active={i === p.safeIdx}
+              priority={i === 0}
               onBrokenSource={p.markImageFailed}
             />
           ))}
@@ -1157,14 +1413,20 @@ function MinimalStripVariant(p: VariantProps) {
           <NavArrows
             prevLabel={p.lang === "en" ? "Previous slide" : "Poprzedni slajd"}
             nextLabel={p.lang === "en" ? "Next slide" : "Następny slajd"}
-            onPrev={() => p.go(-1)} onNext={() => p.go(1)} nav={p.nav}
+            onPrev={() => p.go(-1)}
+            onNext={() => p.go(1)}
+            nav={p.nav}
           />
         )}
         {/* Bottom caption strip */}
         <div className="absolute inset-x-0 bottom-0 p-3 md:p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent text-white">
           {cat && (
-            <span className="inline-block mb-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-              style={{ background: catColor, borderRadius: 2 }}>{cat}</span>
+            <span
+              className="inline-block mb-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+              style={{ background: catColor, borderRadius: 2 }}
+            >
+              {cat}
+            </span>
           )}
           <h3 className="cms-post-title line-clamp-2" style={p.titleStyle}>
             {title || "\u00A0"}
@@ -1178,7 +1440,10 @@ function MinimalStripVariant(p: VariantProps) {
       </div>
       {/* Thumbnail strip */}
       {p.items.length > 1 && (
-        <div data-thumb-strip className="mt-3 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:bg-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+        <div
+          data-thumb-strip
+          className="mt-3 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:bg-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full"
+        >
           {p.items.map((it, i) => (
             <button
               key={i}
@@ -1188,7 +1453,11 @@ function MinimalStripVariant(p: VariantProps) {
               className={`relative shrink-0 overflow-hidden transition-all ${i === p.safeIdx ? "ring-2 ring-foreground" : "ring-1 ring-border opacity-70 hover:opacity-100"}`}
               style={{ width: 96, aspectRatio: "4 / 3", borderRadius: 4 }}
             >
-              <img src={safeImageUrl(it.image) || it.image} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <img
+                src={safeImageUrl(it.image) || it.image}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover"
+              />
             </button>
           ))}
         </div>

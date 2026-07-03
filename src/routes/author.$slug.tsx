@@ -1,6 +1,7 @@
 // Author profile + posts archive: /author/$slug
 // Slug param may also be the user UUID for back-compat.
-import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
+import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ExternalLink, Globe, Linkedin, Twitter } from "lucide-react";
@@ -22,32 +23,29 @@ export const Route = createFileRoute("/author/$slug")({
     const url = getRequestUrl() || `/author/${params.slug}`;
     const lang = activeLang(url);
     const name = author?.display_name ?? "Autor";
-    const bio = author ? (lang === "en" ? author.bio_en || author.bio_pl : author.bio_pl || author.bio_en) : null;
+    const bio = author
+      ? lang === "en"
+        ? author.bio_en || author.bio_pl
+        : author.bio_pl || author.bio_en
+      : null;
     return buildContentHead({
       url,
       lang,
       type: "website",
       title: lang === "en" ? `${name} - author` : `${name} - autor`,
       description:
-        (bio ?? "").replace(/<[^>]+>/g, " ").trim().slice(0, 160) ||
-        (lang === "en" ? `Articles by ${name}.` : `Wpisy autora ${name}.`),
+        (bio ?? "")
+          .replace(/<[^>]+>/g, " ")
+          .trim()
+          .slice(0, 160) || (lang === "en" ? `Articles by ${name}.` : `Wpisy autora ${name}.`),
       image: author?.avatar_url ?? null,
     });
   },
   component: AuthorArchivePage,
   notFoundComponent: AuthorNotFound,
-  errorComponent: ({ error, reset }) => {
-    const router = useRouter();
-    return (
-      <div className="min-h-screen flex flex-col">
-        <main className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
-          <h1 className="font-display text-2xl">Nie udało się załadować profilu</h1>
-          <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
-          <button onClick={() => { router.invalidate(); reset(); }} className="mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Spróbuj ponownie</button>
-        </main>
-      </div>
-    );
-  },
+  errorComponent: (props) => (
+    <RouteErrorFallback {...props} title="Nie udało się załadować profilu" />
+  ),
 });
 
 function AuthorArchivePage() {
@@ -58,7 +56,7 @@ function AuthorArchivePage() {
   if (!data) return <AuthorNotFound />;
   const { author, posts } = data;
   const name = author.display_name ?? "Autor";
-  const bio = lang === "en" ? author.bio_en ?? author.bio_pl : author.bio_pl ?? author.bio_en;
+  const bio = lang === "en" ? (author.bio_en ?? author.bio_pl) : (author.bio_pl ?? author.bio_en);
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -83,18 +81,46 @@ function AuthorArchivePage() {
                 {bio && <p className="text-muted-foreground max-w-2xl">{bio}</p>}
                 <div className="flex flex-wrap gap-3 pt-1 text-sm">
                   {author.website_url && (
-                    <a href={author.website_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-brand">
-                      <BrandIcon name="website" fallback={Globe} className="w-4 h-4" alt="WWW" />WWW
+                    <a
+                      href={author.website_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 hover:text-brand"
+                    >
+                      <BrandIcon name="website" fallback={Globe} className="w-4 h-4" alt="WWW" />
+                      WWW
                     </a>
                   )}
                   {author.twitter_url && (
-                    <a href={author.twitter_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-brand">
-                      <BrandIcon name="x" fallback={Twitter} className="w-4 h-4" alt="X / Twitter" />X / Twitter
+                    <a
+                      href={author.twitter_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 hover:text-brand"
+                    >
+                      <BrandIcon
+                        name="x"
+                        fallback={Twitter}
+                        className="w-4 h-4"
+                        alt="X / Twitter"
+                      />
+                      X / Twitter
                     </a>
                   )}
                   {author.linkedin_url && (
-                    <a href={author.linkedin_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-brand">
-                      <BrandIcon name="linkedin" fallback={Linkedin} className="w-4 h-4" alt="LinkedIn" />LinkedIn
+                    <a
+                      href={author.linkedin_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 hover:text-brand"
+                    >
+                      <BrandIcon
+                        name="linkedin"
+                        fallback={Linkedin}
+                        className="w-4 h-4"
+                        alt="LinkedIn"
+                      />
+                      LinkedIn
                     </a>
                   )}
                 </div>
@@ -117,8 +143,12 @@ function AuthorNotFound() {
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="text-center space-y-3">
           <h1 className="font-display text-3xl">Autor nie znaleziony</h1>
-          <a href="/blog" className="inline-flex items-center gap-1 text-brand hover:underline text-sm">
-            <ExternalLink className="w-3 h-3" />Wróć na blog
+          <a
+            href="/blog"
+            className="inline-flex items-center gap-1 text-brand hover:underline text-sm"
+          >
+            <ExternalLink className="w-3 h-3" />
+            Wróć na blog
           </a>
         </div>
       </main>

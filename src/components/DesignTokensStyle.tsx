@@ -7,10 +7,7 @@ import { useGlobalColors, globalColorsToCss } from "@/hooks/useGlobalColors";
 export function DesignTokensStyle() {
   const { data: tokens } = useDesignTokens();
   const { data: globals } = useGlobalColors();
-  const css =
-    (tokens ? tokensToCss(tokens) : "") +
-    (globals ? globalColorsToCss(globals) : "");
+  const css = (tokens ? tokensToCss(tokens) : "") + (globals ? globalColorsToCss(globals) : "");
   if (!css) return null;
-  // eslint-disable-next-line react/no-danger
   return <style data-brand-tokens dangerouslySetInnerHTML={{ __html: css }} />;
 }

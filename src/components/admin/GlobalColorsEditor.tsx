@@ -20,7 +20,12 @@ import {
 } from "@/lib/builder/globalColors";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
 import { useSettings } from "@/lib/admin/useSettings";
-import { SIDEBAR_ICON_FIELDS, SIDEBAR_STYLES, SidebarStylePreview, type SidebarStyle } from "@/lib/builder/sidebarStyles";
+import {
+  SIDEBAR_ICON_FIELDS,
+  SIDEBAR_STYLES,
+  SidebarStylePreview,
+  type SidebarStyle,
+} from "@/lib/builder/sidebarStyles";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 
 // Paleta marki - edytowalna przez użytkownika, trzymana w localStorage.
@@ -56,7 +61,11 @@ function useLocalStorageState<T>(key: string, initial: T): [T, (v: T | ((p: T) =
     }
   });
   useEffect(() => {
-    try { window.localStorage.setItem(key, JSON.stringify(state)); } catch { /* noop */ }
+    try {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    } catch {
+      /* noop */
+    }
   }, [key, state]);
   return [state, setState];
 }
@@ -65,20 +74,21 @@ function isHexColor(v: string): boolean {
   return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v.trim());
 }
 
-
 /**
  * Sidebar Style picker - renderowany na górze taba "Sidebar" w Global Colors.
  * Zapisuje wybór w site_settings.theme_options.sidebars.style.
  */
+// Wymagane pola na najwyzszym poziomie (defaults gwarantują ich obecność),
+// bo SettingsRecord nie dopuszcza undefined; zagniezdzone pola pozostają
+// opcjonalne (obiektowa gałąź Json na to pozwala). Zadnego any.
 type ThemeOptsLite = {
-  sidebars?: { style?: SidebarStyle };
-  logo?: {
+  sidebars: { style?: SidebarStyle };
+  logo: {
     sidebar_icon?: string;
     sidebar_icon_dark?: string;
     sidebar_expanded?: string;
     sidebar_expanded_dark?: string;
   };
-  [k: string]: any;
 };
 const THEME_OPTS_DEFAULTS: ThemeOptsLite = {
   sidebars: { style: "style-1" },
@@ -92,7 +102,8 @@ const THEME_OPTS_DEFAULTS: ThemeOptsLite = {
 
 function SidebarStylePicker() {
   const { query, save } = useSettings<ThemeOptsLite>("theme_options", THEME_OPTS_DEFAULTS);
-  const current: SidebarStyle = (query.data?.sidebars?.style as SidebarStyle | undefined) ?? "style-1";
+  const current: SidebarStyle =
+    (query.data?.sidebars?.style as SidebarStyle | undefined) ?? "style-1";
 
   const pick = (style: SidebarStyle) => {
     if (save.isPending || !query.data) return;
@@ -108,7 +119,8 @@ function SidebarStylePicker() {
         <div>
           <Label className="text-base font-bold">Sidebar Style</Label>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Wybierz styl wizualny sidebara. Ten sam styl jest stosowany do <strong>wewnętrznego (admin)</strong> i <strong>globalnego (Layout 6)</strong> sidebara.
+            Wybierz styl wizualny sidebara. Ten sam styl jest stosowany do{" "}
+            <strong>wewnętrznego (admin)</strong> i <strong>globalnego (Layout 6)</strong> sidebara.
           </p>
         </div>
         {save.isPending && <span className="text-[10px] text-muted-foreground">Zapisywanie…</span>}
@@ -127,7 +139,11 @@ function SidebarStylePicker() {
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="text-sm font-medium">{label}</div>
-                {isActive && <span className="text-[10px] uppercase tracking-wider font-bold text-brand">Aktywny</span>}
+                {isActive && (
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-brand">
+                    Aktywny
+                  </span>
+                )}
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5 mb-3">{hint}</div>
               <SidebarStylePreview style={id} />
@@ -137,7 +153,10 @@ function SidebarStylePicker() {
       </div>
       <div className="grid md:grid-cols-2 gap-4 pt-1">
         {SIDEBAR_ICON_FIELDS.map((field) => (
-          <div key={field.key} className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
+          <div
+            key={field.key}
+            className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3"
+          >
             <div>
               <Label className="text-sm font-semibold">{field.label}</Label>
               <p className="text-[11px] text-muted-foreground mt-0.5">{field.hint}</p>
@@ -185,7 +204,6 @@ function SidebarStylePicker() {
   );
 }
 
-
 export function GlobalColorsEditor() {
   const { data, isLoading } = useGlobalColors();
   const save = useSaveGlobalColors();
@@ -202,11 +220,16 @@ export function GlobalColorsEditor() {
     DEFAULT_BRAND_PALETTE,
   );
   const [recentColors, setRecentColors] = useLocalStorageState<string[]>(RECENT_STORAGE_KEY, []);
-  const trackRecent = useCallback((v: string) => {
-    if (!v || !isHexColor(v)) return;
-    const norm = v.toLowerCase();
-    setRecentColors((prev) => [norm, ...prev.filter((c) => c.toLowerCase() !== norm)].slice(0, RECENT_MAX));
-  }, [setRecentColors]);
+  const trackRecent = useCallback(
+    (v: string) => {
+      if (!v || !isHexColor(v)) return;
+      const norm = v.toLowerCase();
+      setRecentColors((prev) =>
+        [norm, ...prev.filter((c) => c.toLowerCase() !== norm)].slice(0, RECENT_MAX),
+      );
+    },
+    [setRecentColors],
+  );
 
   useEffect(() => {
     if (data && draft === null) setDraft({ ...EMPTY_GLOBAL_COLORS, ...data });
@@ -256,7 +279,10 @@ export function GlobalColorsEditor() {
   const handleSave = useCallback(() => {
     if (!draft || !isDirty || save.isPending) return;
     save.mutate(draft, {
-      onSuccess: () => { setPast([]); setFuture([]); },
+      onSuccess: () => {
+        setPast([]);
+        setFuture([]);
+      },
     });
   }, [draft, isDirty, save]);
 
@@ -266,9 +292,16 @@ export function GlobalColorsEditor() {
       const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
       const k = e.key.toLowerCase();
-      if (k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
-      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); redo(); }
-      else if (k === "s") { e.preventDefault(); handleSave(); }
+      if (k === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((k === "z" && e.shiftKey) || k === "y") {
+        e.preventDefault();
+        redo();
+      } else if (k === "s") {
+        e.preventDefault();
+        handleSave();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -276,7 +309,11 @@ export function GlobalColorsEditor() {
 
   if (isLoading || !draft) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
 
-  const setSlot = (key: string, mode: "light" | "dark" | "hoverLight" | "hoverDark", value: string) => {
+  const setSlot = (
+    key: string,
+    mode: "light" | "dark" | "hoverLight" | "hoverDark",
+    value: string,
+  ) => {
     applyDraft({ ...draft, [key]: { ...(draft[key] ?? {}), [mode]: value } });
   };
   const setSlotMeta = (
@@ -306,10 +343,8 @@ export function GlobalColorsEditor() {
   // Live preview - natychmiast nadpisuje :root / .dark tokenami z draftu.
   const liveCss = globalColorsToCss(draft);
 
-
   return (
     <div className="space-y-6">
-      {/* eslint-disable-next-line react/no-danger */}
       <style data-global-colors-preview dangerouslySetInnerHTML={{ __html: liveCss }} />
       <div className="flex items-center justify-between">
         <div>
@@ -358,10 +393,7 @@ export function GlobalColorsEditor() {
             {save.isPending ? "Zapisywanie…" : "Zapisz"}
           </Button>
         </div>
-
       </div>
-
-
 
       <BrandPaletteEditor palette={brandPalette} onChange={setBrandPalette} />
 
@@ -392,7 +424,11 @@ export function GlobalColorsEditor() {
           {GLOBAL_COLOR_GROUPS.filter((g) => !g.category).length > 0 && (
             <div className="grid grid-cols-2 gap-1">
               {GLOBAL_COLOR_GROUPS.filter((g) => !g.category).map((group) => (
-                <TabsTrigger key={group.id} value={group.id} className="text-xs justify-start w-full">
+                <TabsTrigger
+                  key={group.id}
+                  value={group.id}
+                  className="text-xs justify-start w-full"
+                >
                   {group.label}
                 </TabsTrigger>
               ))}
@@ -400,11 +436,13 @@ export function GlobalColorsEditor() {
           )}
         </TabsList>
 
-
         {GLOBAL_COLOR_GROUPS.map((group) => (
           <TabsContent key={group.id} value={group.id} className="mt-4">
             <div className="rounded-lg border border-border bg-card/40">
-              <div className="rounded-t-lg text-white text-xs font-semibold px-3 py-2" style={{ background: "#FA9346" }}>
+              <div
+                className="rounded-t-lg text-white text-xs font-semibold px-3 py-2"
+                style={{ background: "#FA9346" }}
+              >
                 {group.label}
               </div>
               <div className="p-4 space-y-5">
@@ -416,7 +454,9 @@ export function GlobalColorsEditor() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <Label className="text-base font-bold">{slot.label}</Label>
-                          <p className="text-[10px] font-normal text-muted-foreground mt-0.5">{slot.description}</p>
+                          <p className="text-[10px] font-normal text-muted-foreground mt-0.5">
+                            {slot.description}
+                          </p>
                         </div>
                         {(slot.defaultLight || slot.defaultDark) && (
                           <button
@@ -507,13 +547,18 @@ export function GlobalColorsEditor() {
           </TabsContent>
         ))}
       </Tabs>
-
     </div>
   );
 }
 
 function ColorRow({
-  label, value, defaultValue, onChange, onCommit, brandPalette, recentColors,
+  label,
+  value,
+  defaultValue,
+  onChange,
+  onCommit,
+  brandPalette,
+  recentColors,
 }: {
   label: string;
   value: string;
@@ -524,11 +569,16 @@ function ColorRow({
   recentColors: string[];
 }) {
   const effective = value || defaultValue || "#ffffff";
-  const handlePick = (v: string) => { onChange(v); onCommit(v); };
+  const handlePick = (v: string) => {
+    onChange(v);
+    onCommit(v);
+  };
   return (
     <div className="rounded-md border border-border bg-background/60 p-2.5 space-y-2">
       <div className="flex items-center gap-2">
-        <span className="text-[11px] uppercase tracking-wider text-muted-foreground w-12">{label}</span>
+        <span className="text-[11px] uppercase tracking-wider text-muted-foreground w-12">
+          {label}
+        </span>
         <Input
           type="color"
           value={effective}
@@ -556,10 +606,14 @@ function ColorRow({
       </div>
       <div className="space-y-1.5">
         <div>
-          <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Marka</div>
+          <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">
+            Marka
+          </div>
           <div className="flex flex-wrap gap-1">
             {brandPalette.length === 0 && (
-              <span className="text-[10px] text-muted-foreground italic">Brak kolorów - dodaj w sekcji „Paleta marki" powyżej.</span>
+              <span className="text-[10px] text-muted-foreground italic">
+                Brak kolorów - dodaj w sekcji „Paleta marki" powyżej.
+              </span>
             )}
             {brandPalette.map((c) => (
               <button
@@ -579,11 +633,18 @@ function ColorRow({
         </div>
         <div>
           <div className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">
-            Ostatnio użyte {recentColors.length > 0 && <span className="opacity-60">({recentColors.length}/{RECENT_MAX})</span>}
+            Ostatnio użyte{" "}
+            {recentColors.length > 0 && (
+              <span className="opacity-60">
+                ({recentColors.length}/{RECENT_MAX})
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap gap-1">
             {recentColors.length === 0 && (
-              <span className="text-[10px] text-muted-foreground italic">Wybrane kolory pojawią się tutaj.</span>
+              <span className="text-[10px] text-muted-foreground italic">
+                Wybrane kolory pojawią się tutaj.
+              </span>
             )}
             {recentColors.map((c) => (
               <button
@@ -628,7 +689,12 @@ function bumpFontSize(current: string, delta: number): string {
 }
 
 function TypographyRow({
-  fontFamily, fontSize, defaultFontFamily, defaultFontSize, onFontFamily, onFontSize,
+  fontFamily,
+  fontSize,
+  defaultFontFamily,
+  defaultFontSize,
+  onFontFamily,
+  onFontSize,
 }: {
   fontFamily: string;
   fontSize: string;
@@ -644,7 +710,9 @@ function TypographyRow({
       </div>
       <div className="grid grid-cols-[1fr_120px] gap-2 items-center">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] uppercase tracking-wider text-muted-foreground w-12">Font</span>
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground w-12">
+            Font
+          </span>
           <Input
             list="gc-font-presets"
             value={fontFamily}
@@ -654,7 +722,9 @@ function TypographyRow({
           />
           <datalist id="gc-font-presets">
             {FONT_PRESETS.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
             ))}
           </datalist>
         </div>
@@ -691,7 +761,10 @@ function TypographyRow({
       {(fontFamily || fontSize) && (
         <button
           type="button"
-          onClick={() => { onFontFamily(""); onFontSize(""); }}
+          onClick={() => {
+            onFontFamily("");
+            onFontSize("");
+          }}
           className="text-[10px] text-muted-foreground hover:text-foreground"
         >
           Wyczyść font/size
@@ -702,7 +775,12 @@ function TypographyRow({
 }
 
 function FormatRow({
-  fontWeight, fontStyle, textDecoration, onWeight, onStyle, onDecoration,
+  fontWeight,
+  fontStyle,
+  textDecoration,
+  onWeight,
+  onStyle,
+  onDecoration,
 }: {
   fontWeight: string;
   fontStyle: string;
@@ -717,7 +795,17 @@ function FormatRow({
     { label: "Semibold", value: "600" },
     { label: "Bold", value: "700" },
   ];
-  const Btn = ({ active, onClick, children, title }: { active: boolean; onClick: () => void; children: React.ReactNode; title: string }) => (
+  const Btn = ({
+    active,
+    onClick,
+    children,
+    title,
+  }: {
+    active: boolean;
+    onClick: () => void;
+    children: React.ReactNode;
+    title: string;
+  }) => (
     <button
       type="button"
       title={title}
@@ -734,21 +822,38 @@ function FormatRow({
       </div>
       <div className="flex flex-wrap items-center gap-1">
         {weightOptions.map((w) => (
-          <Btn key={w.value || "none"} active={fontWeight === w.value} onClick={() => onWeight(w.value)} title={`Grubość: ${w.label}`}>
+          <Btn
+            key={w.value || "none"}
+            active={fontWeight === w.value}
+            onClick={() => onWeight(w.value)}
+            title={`Grubość: ${w.label}`}
+          >
             <span style={{ fontWeight: w.value || "inherit" }}>{w.label}</span>
           </Btn>
         ))}
         <span className="w-px h-5 bg-border mx-1" />
-        <Btn active={fontStyle === "italic"} onClick={() => onStyle(fontStyle === "italic" ? "" : "italic")} title="Kursywa">
+        <Btn
+          active={fontStyle === "italic"}
+          onClick={() => onStyle(fontStyle === "italic" ? "" : "italic")}
+          title="Kursywa"
+        >
           <span className="italic">I</span>
         </Btn>
-        <Btn active={textDecoration === "underline"} onClick={() => onDecoration(textDecoration === "underline" ? "" : "underline")} title="Podkreślenie">
+        <Btn
+          active={textDecoration === "underline"}
+          onClick={() => onDecoration(textDecoration === "underline" ? "" : "underline")}
+          title="Podkreślenie"
+        >
           <span className="underline">U</span>
         </Btn>
         {(fontWeight || fontStyle || textDecoration) && (
           <button
             type="button"
-            onClick={() => { onWeight(""); onStyle(""); onDecoration(""); }}
+            onClick={() => {
+              onWeight("");
+              onStyle("");
+              onDecoration("");
+            }}
             className="text-[10px] text-muted-foreground hover:text-foreground ml-auto"
           >
             Wyczyść
@@ -760,19 +865,33 @@ function FormatRow({
 }
 
 function BrandPaletteEditor({
-  palette, onChange,
-}: { palette: BrandColor[]; onChange: (next: BrandColor[]) => void }) {
+  palette,
+  onChange,
+}: {
+  palette: BrandColor[];
+  onChange: (next: BrandColor[]) => void;
+}) {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [draftName, setDraftName] = useState("");
   const [draftValue, setDraftValue] = useState("#000000");
   const [adding, setAdding] = useState(false);
 
-  const startAdd = () => { setAdding(true); setEditingIdx(null); setDraftName(""); setDraftValue("#000000"); };
-  const startEdit = (i: number) => {
-    setAdding(false); setEditingIdx(i);
-    setDraftName(palette[i].name); setDraftValue(palette[i].value);
+  const startAdd = () => {
+    setAdding(true);
+    setEditingIdx(null);
+    setDraftName("");
+    setDraftValue("#000000");
   };
-  const cancel = () => { setAdding(false); setEditingIdx(null); };
+  const startEdit = (i: number) => {
+    setAdding(false);
+    setEditingIdx(i);
+    setDraftName(palette[i].name);
+    setDraftValue(palette[i].value);
+  };
+  const cancel = () => {
+    setAdding(false);
+    setEditingIdx(null);
+  };
   const commit = () => {
     const v = draftValue.trim();
     if (!isHexColor(v)) return;
@@ -789,7 +908,10 @@ function BrandPaletteEditor({
 
   return (
     <div className="rounded-lg border border-border bg-card/40">
-      <div className="flex items-center justify-between px-3 py-2 rounded-t-lg text-white text-xs font-semibold" style={{ background: "#FA9346" }}>
+      <div
+        className="flex items-center justify-between px-3 py-2 rounded-t-lg text-white text-xs font-semibold"
+        style={{ background: "#FA9346" }}
+      >
         <span>Paleta marki ({palette.length})</span>
         <button
           type="button"
@@ -801,7 +923,9 @@ function BrandPaletteEditor({
       </div>
       <div className="p-3 space-y-2">
         {palette.length === 0 && !adding && (
-          <p className="text-xs text-muted-foreground italic">Brak kolorów w palecie marki. Dodaj swój pierwszy.</p>
+          <p className="text-xs text-muted-foreground italic">
+            Brak kolorów w palecie marki. Dodaj swój pierwszy.
+          </p>
         )}
         <div className="flex flex-wrap gap-2">
           {palette.map((c, i) => (
@@ -849,7 +973,9 @@ function BrandPaletteEditor({
             <Button size="sm" onClick={commit} disabled={!isHexColor(draftValue)}>
               {adding ? "Dodaj" : "Zapisz"}
             </Button>
-            <Button size="sm" variant="outline" onClick={cancel}>Anuluj</Button>
+            <Button size="sm" variant="outline" onClick={cancel}>
+              Anuluj
+            </Button>
           </div>
         )}
       </div>
@@ -866,7 +992,10 @@ function getColor(draft: GlobalColorsValue, key: string, mode: "light" | "dark")
   let slot: GlobalColorSlot | undefined;
   for (const g of GLOBAL_COLOR_GROUPS) {
     const s = g.slots.find((x) => x.key === key);
-    if (s) { slot = s; break; }
+    if (s) {
+      slot = s;
+      break;
+    }
   }
   if (mode === "dark" && slot?.defaultDark) return slot.defaultDark;
   if (slot?.defaultLight) return slot.defaultLight;
@@ -885,28 +1014,50 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
         <div className="flex items-center gap-4 text-xs font-medium">
           <span style={{ color: base }}>Strona główna</span>
           <span style={{ color: hover, textDecoration: "underline" }}>Aktualności (hover)</span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={base} strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={hover} strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={base} strokeWidth="2">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m21 21-4-4" />
+          </svg>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={hover}
+            strokeWidth="2"
+          >
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+          </svg>
         </div>
       );
     }
     case "highlight":
       return (
         <div className="flex items-center gap-3 text-xs">
-          <a style={{ color: c }} className="font-medium underline">Link tekstowy</a>
-          <span style={{ color: c }} className="uppercase tracking-wider font-bold">Kategoria</span>
+          <a style={{ color: c }} className="font-medium underline">
+            Link tekstowy
+          </a>
+          <span style={{ color: c }} className="uppercase tracking-wider font-bold">
+            Kategoria
+          </span>
         </div>
       );
     case "dark-accent":
       return (
-        <div style={{ background: c }} className="w-full h-12 rounded flex items-center px-3 text-white text-xs font-semibold">
+        <div
+          style={{ background: c }}
+          className="w-full h-12 rounded flex items-center px-3 text-white text-xs font-semibold"
+        >
           Hero / nagłówek pojedynczego wpisu
         </div>
       );
     case "body-bg":
     case "body-bg-single":
       return (
-        <div style={{ background: c }} className="w-full h-12 rounded border border-black/10 flex items-center justify-center text-xs" >
+        <div
+          style={{ background: c }}
+          className="w-full h-12 rounded border border-black/10 flex items-center justify-center text-xs"
+        >
           <span style={{ color: get("highlight") }}>Tło strony</span>
         </div>
       );
@@ -920,8 +1071,18 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
       const hText = get("btn-hover-text");
       return (
         <div className="flex items-center gap-2">
-          <button style={{ background: bg, color: text }} className="text-xs font-semibold px-3 py-1.5 rounded">Normalny</button>
-          <button style={{ background: hBg, color: hText }} className="text-xs font-semibold px-3 py-1.5 rounded">Hover</button>
+          <button
+            style={{ background: bg, color: text }}
+            className="text-xs font-semibold px-3 py-1.5 rounded"
+          >
+            Normalny
+          </button>
+          <button
+            style={{ background: hBg, color: hText }}
+            className="text-xs font-semibold px-3 py-1.5 rounded"
+          >
+            Hover
+          </button>
         </div>
       );
     }
@@ -935,11 +1096,36 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
       const db = get("switcher-dark-bg");
       return (
         <div className="flex items-center gap-2">
-          <span style={{ background: lb, color: li }} className="inline-flex w-8 h-8 rounded-full items-center justify-center">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          <span
+            style={{ background: lb, color: li }}
+            className="inline-flex w-8 h-8 rounded-full items-center justify-center"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+            </svg>
           </span>
-          <span style={{ background: db, color: di }} className="inline-flex w-8 h-8 rounded-full items-center justify-center">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <span
+            style={{ background: db, color: di }}
+            className="inline-flex w-8 h-8 rounded-full items-center justify-center"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
           </span>
         </div>
       );
@@ -947,7 +1133,9 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
     case "bookmark-hover":
       return (
         <div className="flex items-center gap-2 text-xs">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill={c} stroke={c} strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill={c} stroke={c} strokeWidth="2">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+          </svg>
           <span style={{ opacity: 0.7 }}>Zakładka po najechaniu</span>
         </div>
       );
@@ -958,27 +1146,43 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
       return (
         <div className="flex items-center gap-1">
           {[0, 1, 2, 3, 4].map((i) => (
-            <span key={i} style={{ background: bg }} className="w-6 h-6 rounded inline-flex items-center justify-center">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill={ic}><polygon points="12 2 15 9 22 9.3 17 14 18.5 21 12 17.5 5.5 21 7 14 2 9.3 9 9 12 2"/></svg>
+            <span
+              key={i}
+              style={{ background: bg }}
+              className="w-6 h-6 rounded inline-flex items-center justify-center"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={ic}>
+                <polygon points="12 2 15 9 22 9.3 17 14 18.5 21 12 17.5 5.5 21 7 14 2 9.3 9 9 12 2" />
+              </svg>
             </span>
           ))}
         </div>
       );
     }
     case "sponsor-label":
-      return <span style={{ color: c }} className="text-[10px] uppercase tracking-widest font-bold">Sponsored</span>;
+      return (
+        <span style={{ color: c }} className="text-[10px] uppercase tracking-widest font-bold">
+          Sponsored
+        </span>
+      );
     case "popular-counter":
       return (
         <div className="flex items-baseline gap-2">
-          <span style={{ color: c }} className="text-3xl font-black leading-none">1</span>
-          <span className="text-xs" style={{ opacity: 0.6 }}>Popularny artykuł</span>
+          <span style={{ color: c }} className="text-3xl font-black leading-none">
+            1
+          </span>
+          <span className="text-xs" style={{ opacity: 0.6 }}>
+            Popularny artykuł
+          </span>
         </div>
       );
     case "live-blog":
       return (
         <div className="flex items-center gap-2 text-xs">
           <span style={{ background: c }} className="w-2 h-2 rounded-full animate-pulse" />
-          <span style={{ color: c }} className="font-bold uppercase tracking-wider">Live</span>
+          <span style={{ color: c }} className="font-bold uppercase tracking-wider">
+            Live
+          </span>
         </div>
       );
     case "toc-bg":
@@ -992,7 +1196,17 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
     case "verified-tick":
       return (
         <div className="flex items-center gap-2 text-xs">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill={c}><path d="M12 2l2.4 1.8 3 .2.2 3L19.4 9.6l-1.8 2.4 1.8 2.4-1.8 3-3 .2L12 19.4l-2.4-1.8-3-.2-.2-3L4.6 12 6.4 9.6 4.6 7.2l1.8-3 3-.2z"/><path d="M9 12.5l2 2 4-4.5" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill={c}>
+            <path d="M12 2l2.4 1.8 3 .2.2 3L19.4 9.6l-1.8 2.4 1.8 2.4-1.8 3-3 .2L12 19.4l-2.4-1.8-3-.2-.2-3L4.6 12 6.4 9.6 4.6 7.2l1.8-3 3-.2z" />
+            <path
+              d="M9 12.5l2 2 4-4.5"
+              stroke="white"
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
           <span style={{ opacity: 0.7 }}>Zweryfikowany autor</span>
         </div>
       );
@@ -1002,10 +1216,26 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
       const hover = get("icon-hover");
       return (
         <div className="flex items-center gap-4">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={base} strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z"/></svg>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={base} strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={hover} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          <span className="text-[10px]" style={{ opacity: 0.6 }}>base / hover</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={base} strokeWidth="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" />
+          </svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={base} strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 6v6l4 2" />
+          </svg>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={hover}
+            strokeWidth="2"
+          >
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+          <span className="text-[10px]" style={{ opacity: 0.6 }}>
+            base / hover
+          </span>
         </div>
       );
     }
@@ -1034,8 +1264,14 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
       const iconHover = get("sidebar-icon-hover");
       const iconActive = get("sidebar-icon-active");
       const Item = ({
-        state, label, path,
-      }: { state: "active" | "hover" | "idle"; label: string; path: string }) => {
+        state,
+        label,
+        path,
+      }: {
+        state: "active" | "hover" | "idle";
+        label: string;
+        path: string;
+      }) => {
         const itemBg = state === "active" ? btnBg : state === "hover" ? hBg : "transparent";
         const itemText = state === "active" ? btnText : state === "hover" ? hText : text;
         const itemIcon = state === "active" ? iconActive : state === "hover" ? iconHover : icon;
@@ -1044,7 +1280,16 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
             className="flex items-center gap-2 px-2 py-1.5 rounded text-[11px] font-medium"
             style={{ background: itemBg, color: itemText }}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={itemIcon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={itemIcon}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d={path} />
             </svg>
             <span className="flex-1 truncate">{label}</span>
@@ -1057,35 +1302,84 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
           style={{ background: bg, color: text, borderColor: border }}
           className="w-full rounded border p-2.5 flex flex-col gap-1.5"
         >
-          <div style={{ color: title }} className="text-[10px] font-bold uppercase tracking-wider px-1 pt-0.5">
+          <div
+            style={{ color: title }}
+            className="text-[10px] font-bold uppercase tracking-wider px-1 pt-0.5"
+          >
             Newsroom
           </div>
-          <div style={{ color: subtitle, borderColor: border }} className="text-[9px] uppercase tracking-widest font-semibold pb-1.5 border-b px-1">
+          <div
+            style={{ color: subtitle, borderColor: border }}
+            className="text-[9px] uppercase tracking-widest font-semibold pb-1.5 border-b px-1"
+          >
             Nawigacja
           </div>
-          <Item state="active" label="Kokpit" path="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" />
-          <Item state="idle" label="Wpisy" path="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <Item state="hover" label="Media" path="M21 15V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z" />
-          <div style={{ color: subtitle, borderColor: border }} className="text-[9px] uppercase tracking-widest font-semibold pt-1.5 pb-1.5 border-b px-1">
+          <Item
+            state="active"
+            label="Kokpit"
+            path="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z"
+          />
+          <Item
+            state="idle"
+            label="Wpisy"
+            path="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+          />
+          <Item
+            state="hover"
+            label="Media"
+            path="M21 15V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"
+          />
+          <div
+            style={{ color: subtitle, borderColor: border }}
+            className="text-[9px] uppercase tracking-widest font-semibold pt-1.5 pb-1.5 border-b px-1"
+          >
             Konto
           </div>
           <Item state="idle" label="Ustawienia" path="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
-          <Item state="idle" label="Wyloguj" path="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9" />
+          <Item
+            state="idle"
+            label="Wyloguj"
+            path="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9"
+          />
         </div>
       );
     }
     case "h1":
-      return <h1 style={{ color: c }} className="text-2xl font-black leading-tight m-0">Nagłówek H1 - tytuł</h1>;
+      return (
+        <h1 style={{ color: c }} className="text-2xl font-black leading-tight m-0">
+          Nagłówek H1 - tytuł
+        </h1>
+      );
     case "h2":
-      return <h2 style={{ color: c }} className="text-xl font-bold leading-tight m-0">Nagłówek H2 - sekcja</h2>;
+      return (
+        <h2 style={{ color: c }} className="text-xl font-bold leading-tight m-0">
+          Nagłówek H2 - sekcja
+        </h2>
+      );
     case "h3":
-      return <h3 style={{ color: c }} className="text-lg font-bold leading-snug m-0">Nagłówek H3 - podsekcja</h3>;
+      return (
+        <h3 style={{ color: c }} className="text-lg font-bold leading-snug m-0">
+          Nagłówek H3 - podsekcja
+        </h3>
+      );
     case "h4":
-      return <h4 style={{ color: c }} className="text-base font-semibold leading-snug m-0">Nagłówek H4 - akapit</h4>;
+      return (
+        <h4 style={{ color: c }} className="text-base font-semibold leading-snug m-0">
+          Nagłówek H4 - akapit
+        </h4>
+      );
     case "h5":
-      return <h5 style={{ color: c }} className="text-sm font-semibold uppercase tracking-wide m-0">Nagłówek H5</h5>;
+      return (
+        <h5 style={{ color: c }} className="text-sm font-semibold uppercase tracking-wide m-0">
+          Nagłówek H5
+        </h5>
+      );
     case "h6":
-      return <h6 style={{ color: c }} className="text-xs font-bold uppercase tracking-widest m-0">Nagłówek H6</h6>;
+      return (
+        <h6 style={{ color: c }} className="text-xs font-bold uppercase tracking-widest m-0">
+          Nagłówek H6
+        </h6>
+      );
     case "body-text":
       return (
         <p style={{ color: c }} className="text-xs leading-relaxed m-0">
@@ -1104,7 +1398,8 @@ function renderPreviewBody(slot: GlobalColorSlot, get: (key: string) => string):
       const hover = get("link-hover");
       return (
         <p className="text-xs leading-relaxed m-0" style={{ color: "inherit" }}>
-          To jest <a style={{ color: base, textDecoration: "underline" }}>link domyślny</a>, a to <a style={{ color: hover, textDecoration: "underline" }}>link po najechaniu</a>.
+          To jest <a style={{ color: base, textDecoration: "underline" }}>link domyślny</a>, a to{" "}
+          <a style={{ color: hover, textDecoration: "underline" }}>link po najechaniu</a>.
         </p>
       );
     }
@@ -1147,4 +1442,3 @@ function SlotPreview({ slot, draft }: { slot: GlobalColorSlot; draft: GlobalColo
     </div>
   );
 }
-
