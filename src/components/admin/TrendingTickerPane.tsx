@@ -707,7 +707,7 @@ export function TrendingTickerPane() {
             {currentSource === "pinned" && (
               <div className="space-y-1.5">
                 <Label>{t.pinnedUntil}</Label>
-                <PinnedUntilPicker
+                <AdminDateTimePicker
                   value={cfg.pinnedUntil ?? null}
                   onChange={(v) => set("pinnedUntil", v)}
                   lang={lang}
