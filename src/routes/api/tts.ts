@@ -30,6 +30,7 @@ export function normalizeTtsInput(body: TtsBody): TtsNormalized {
   const model = typeof body.model === "string" && body.model.length > 0 ? body.model : DEFAULT_MODEL;
   if (!text) return { ok: false, error: "Missing text" };
   if (!/^[A-Za-z0-9]{8,40}$/.test(voiceId)) return { ok: false, error: "Invalid voiceId" };
+  if (!ALLOWED_MODELS.has(model)) return { ok: false, error: "Invalid model" };
   return { ok: true, safeText: text.slice(0, MAX_CHARS), voiceId, model };
 }
 
