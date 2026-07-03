@@ -18,7 +18,7 @@ export const en = {
   },
   hero: {
     hotTopic: "Hot topic",
-    readMore: "Read more",
+    readMore: "Read the full analysis",
     minRead: "min read",
     by: "By",
   },
