@@ -6,6 +6,7 @@ import {
   VIDEO_LAYOUTS,
   AUDIO_LAYOUTS,
   GALLERY_LAYOUTS,
+  effectiveHasSidebar,
   type PostLayoutSettings,
   type LayoutPreset,
 } from "@/lib/postLayouts";
