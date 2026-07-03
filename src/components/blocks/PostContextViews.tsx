@@ -1,8 +1,11 @@
 // Publiczne renderery dla Phase 2 batch 7: author-bio, related-posts.
-// Korzystają z CurrentPostCtx (author, categories, tags) + supabase do dociągnięcia powiązanych.
+// Korzystają z CurrentPostCtx (author, categories, tags); dociąganie danych
+// idzie przez react-query (blocks.ts), więc prefetch SSR w loaderze $.tsx
+// renderuje powiązane wpisy również dla crawlerów.
 
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { authorPostsCountQueryOptions, relatedPostsBlockQueryOptions } from "@/lib/queries/blocks";
 import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
@@ -47,22 +50,11 @@ export function AuthorBioView({
   const ctx = useCurrentPostCtx();
   const t = L[lang];
   const author = ctx?.author;
-  const [postsCount, setPostsCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!showPostsCount || !author?.id) return;
-    let cancelled = false;
-    (async () => {
-      const { count } = await supabase
-        .from("posts")
-        .select("id", { count: "exact", head: true })
-        .eq("author_id", author.id!)
-        .eq("status", "published")
-        .is("deleted_at", null);
-      if (!cancelled) setPostsCount(typeof count === "number" ? count : 0);
-    })();
-    return () => { cancelled = true; };
-  }, [author?.id, showPostsCount]);
+  const { data: postsCountData } = useQuery({
+    ...authorPostsCountQueryOptions(author?.id ?? ""),
+    enabled: showPostsCount && !!author?.id,
+  });
+  const postsCount = postsCountData ?? null;
 
   if (!author?.name) {
     return (
@@ -72,25 +64,24 @@ export function AuthorBioView({
     );
   }
 
-  const bio = (lang === "en" ? author.bio_en : author.bio_pl) ?? author.bio_pl ?? author.bio_en ?? "";
+  const bio =
+    (lang === "en" ? author.bio_en : author.bio_pl) ?? author.bio_pl ?? author.bio_en ?? "";
   const profileHref = author.slug ? `/author/${author.slug}` : null;
 
-  const avatar = showAvatar
-    ? author.avatarUrl
-      ? (
-        <OptimizedImage
-          src={author.avatarUrl}
-          alt={author.name}
-          className="rounded-full object-cover w-full h-full"
-          sizes="80px"
-        />
-      )
-      : (
-        <div className="w-full h-full rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-          <User className="w-1/2 h-1/2" aria-hidden />
-        </div>
-      )
-    : null;
+  const avatar = showAvatar ? (
+    author.avatarUrl ? (
+      <OptimizedImage
+        src={author.avatarUrl}
+        alt={author.name}
+        className="rounded-full object-cover w-full h-full"
+        sizes="80px"
+      />
+    ) : (
+      <div className="w-full h-full rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+        <User className="w-1/2 h-1/2" aria-hidden />
+      </div>
+    )
+  ) : null;
 
   if (variant === "minimal") {
     return (
@@ -127,7 +118,9 @@ export function AuthorBioView({
           <div className="text-xs uppercase tracking-wide text-muted-foreground">{t.about}</div>
           <div className="text-lg font-serif font-semibold text-foreground leading-tight mt-0.5">
             {profileHref ? (
-              <AppLink href={profileHref} className="hover:text-primary">{author.name}</AppLink>
+              <AppLink href={profileHref} className="hover:text-primary">
+                {author.name}
+              </AppLink>
             ) : (
               author.name
             )}
@@ -136,7 +129,9 @@ export function AuthorBioView({
           <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
             {showPostsCount && postsCount !== null && <span>{t.posts(postsCount)}</span>}
             {showSocial && profileHref && (
-              <AppLink href={profileHref} className="text-primary hover:underline">{t.viewProfile}</AppLink>
+              <AppLink href={profileHref} className="text-primary hover:underline">
+                {t.viewProfile}
+              </AppLink>
             )}
           </div>
         </div>
@@ -175,62 +170,26 @@ export function RelatedPostsView({
 }: RelatedPostsProps) {
   const ctx = useCurrentPostCtx();
   const t = L[lang];
-  const [posts, setPosts] = useState<RelatedRow[]>([]);
 
   const currentId = ctx?.id ?? null;
-  const categorySlugs = useMemo(() => (ctx?.categories ?? []).map((c) => c.slug), [ctx?.categories]);
+  const categorySlugs = useMemo(
+    () => (ctx?.categories ?? []).map((c) => c.slug),
+    [ctx?.categories],
+  );
   const tagSlugs = useMemo(() => (ctx?.tags ?? []).map((tg) => tg.slug), [ctx?.tags]);
   const authorId = ctx?.author?.id ?? null;
 
-  useEffect(() => {
-    let cancelled = false;
-    const cap = Math.max(1, Math.min(12, limit));
-
-    (async () => {
-      const baseSelect = "id,slug,title_pl,title_en,cover_image_url,published_at";
-      let postIds: string[] | null = null;
-
-      if (strategy === "category" && categorySlugs.length > 0) {
-        const { data: cats } = await supabase.from("categories").select("id").in("slug", categorySlugs);
-        const catIds = (cats ?? []).map((r) => (r as { id: string }).id);
-        if (catIds.length > 0) {
-          const { data: pc } = await supabase.from("post_categories").select("post_id").in("category_id", catIds);
-          postIds = Array.from(new Set((pc ?? []).map((r) => (r as { post_id: string }).post_id)));
-        } else {
-          postIds = [];
-        }
-      } else if (strategy === "tag" && tagSlugs.length > 0) {
-        const { data: tags } = await supabase.from("tags").select("id").in("slug", tagSlugs);
-        const tagIds = (tags ?? []).map((r) => (r as { id: string }).id);
-        if (tagIds.length > 0) {
-          const { data: pt } = await supabase.from("post_tags").select("post_id").in("tag_id", tagIds);
-          postIds = Array.from(new Set((pt ?? []).map((r) => (r as { post_id: string }).post_id)));
-        } else {
-          postIds = [];
-        }
-      }
-
-      let q = supabase
-        .from("posts")
-        .select(baseSelect)
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(cap);
-
-      if (currentId) q = q.neq("id", currentId);
-      if (strategy === "author" && authorId) q = q.eq("author_id", authorId);
-      if (postIds !== null) {
-        if (postIds.length === 0) { if (!cancelled) setPosts([]); return; }
-        q = q.in("id", postIds);
-      }
-
-      const { data } = await q;
-      if (!cancelled) setPosts((data ?? []) as unknown as RelatedRow[]);
-    })();
-
-    return () => { cancelled = true; };
-  }, [strategy, limit, currentId, authorId, categorySlugs, tagSlugs]);
+  const { data } = useQuery(
+    relatedPostsBlockQueryOptions({
+      currentId,
+      strategy,
+      categorySlugs,
+      tagSlugs,
+      authorId,
+      limit,
+    }),
+  );
+  const posts: RelatedRow[] = data ?? [];
 
   if (posts.length === 0) return null;
 
@@ -239,13 +198,20 @@ export function RelatedPostsView({
   if (layout === "compact") {
     return (
       <section className={`not-prose ${cls ?? ""}`} aria-label={title}>
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">{title}</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+          {title}
+        </h3>
         <ul className="flex flex-col gap-2 list-none m-0 p-0">
           {posts.map((p) => {
             const tt = (lang === "en" ? p.title_en : p.title_pl) ?? "";
             return (
               <li key={p.id}>
-                <AppLink href={`/post/${p.slug}`} className="text-sm text-foreground hover:text-primary">{tt}</AppLink>
+                <AppLink
+                  href={`/post/${p.slug}`}
+                  className="text-sm text-foreground hover:text-primary"
+                >
+                  {tt}
+                </AppLink>
               </li>
             );
           })}
@@ -271,7 +237,11 @@ export function RelatedPostsView({
               {p.cover_image_url && (
                 <AppLink
                   href={href}
-                  className={isGrid ? "block overflow-hidden rounded-lg" : "block overflow-hidden rounded-lg shrink-0 w-32"}
+                  className={
+                    isGrid
+                      ? "block overflow-hidden rounded-lg"
+                      : "block overflow-hidden rounded-lg shrink-0 w-32"
+                  }
                   style={{ aspectRatio: "4 / 3" }}
                 >
                   <OptimizedImage
@@ -285,11 +255,18 @@ export function RelatedPostsView({
               )}
               <div className={isGrid ? "" : "flex-1 min-w-0"}>
                 <h4 className="font-serif text-base leading-tight m-0">
-                  <AppLink href={href} className="hover:text-primary">{tt}</AppLink>
+                  <AppLink href={href} className="hover:text-primary">
+                    {tt}
+                  </AppLink>
                 </h4>
                 {p.published_at && (
-                  <time className="text-xs text-muted-foreground mt-1 block" dateTime={p.published_at}>
-                    {new Intl.DateTimeFormat(lang === "en" ? "en" : "pl", { dateStyle: "medium" }).format(new Date(p.published_at))}
+                  <time
+                    className="text-xs text-muted-foreground mt-1 block"
+                    dateTime={p.published_at}
+                  >
+                    {new Intl.DateTimeFormat(lang === "en" ? "en" : "pl", {
+                      dateStyle: "medium",
+                    }).format(new Date(p.published_at))}
                   </time>
                 )}
               </div>

@@ -34,7 +34,13 @@ import { listCustomMetaDefs } from "@/lib/customMeta";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
 import { useUnlockedContent } from "@/hooks/useUnlockedContent";
-import { isGatedMode, hasRenderableBody, shouldShowPaywall, pickBody, type BodyParts } from "@/lib/access/gating";
+import {
+  isGatedMode,
+  hasRenderableBody,
+  shouldShowPaywall,
+  pickBody,
+  type BodyParts,
+} from "@/lib/access/gating";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead, buildArticleJsonLd, imagePreloadLink, splitUrl } from "@/lib/seo/meta";
 import {
@@ -46,7 +52,7 @@ import {
   socialImageIsGeneratedCard,
   type SeoFieldsRow,
 } from "@/lib/seo/fields";
-import { breadcrumbListJsonLd } from "@/lib/seo/jsonld";
+import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { effectiveTitleSuffix, parseSeoSettings } from "@/lib/seo/settings";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { buildImageSrcSet } from "@/lib/cropSizes";
@@ -59,18 +65,32 @@ import { NewsletterForm } from "@/components/NewsletterForm";
 import { KeyTakeaways } from "@/components/molecules/KeyTakeaways";
 
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
-import { mergeOverrides, pickLayoutId, findLayout, coverImageSizes, defaultPostLayoutSettings, type LayoutOverrides, type PostFormat, type PostLayoutSettings } from "@/lib/postLayouts";
-import { resolvedContentQueryOptions, type PostData, type PageData } from "@/lib/queries/public";
+import {
+  mergeOverrides,
+  pickLayoutId,
+  findLayout,
+  coverImageSizes,
+  defaultPostLayoutSettings,
+  type LayoutOverrides,
+  type PostFormat,
+  type PostLayoutSettings,
+} from "@/lib/postLayouts";
+import {
+  resolvedContentQueryOptions,
+  type PostData,
+  type PageData,
+  type ResolvedContent,
+} from "@/lib/queries/public";
 import { AdZone } from "@/components/AdSlot";
 import { MidPostAds } from "@/components/ads/MidPostAds";
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
 import type { AdPageType } from "@/lib/ads/types";
 import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
+import { prefetchBlockQueries } from "@/lib/queries/blocks";
 import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
 import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
-
 
 interface CoverPreload {
   href: string;
@@ -118,6 +138,14 @@ export const Route = createFileRoute("/$")({
     const url = getRequestUrl() || `/${splat}`;
     const lang: "pl" | "en" = activeLang(url) === "en" ? "en" : "pl";
     const doc = parseBuilderDoc(data.item.builder_data);
+    // Blocks engine: warm every data query its views will render (latest
+    // posts, taxonomies, related, calendar, ...) so the SSR HTML carries the
+    // real lists - without this a crawler sees only skeletons/empty markup.
+    const localizedBlocks =
+      (data.item as { blocks_data?: LocalizedBlocks | null }).blocks_data ?? null;
+    const blocksDoc: BlocksDoc | null = localizedBlocks
+      ? (localizedBlocks[lang] ?? localizedBlocks.pl ?? localizedBlocks.en ?? null)
+      : null;
     await Promise.allSettled([
       data.kind === "post"
         ? context.queryClient.prefetchQuery(postLayoutSettingsQueryOptions())
@@ -129,6 +157,15 @@ export const Route = createFileRoute("/$")({
           // (cache-miss) render's TTFB tracks the hero, not the whole document,
           // while the streamed body stays complete for the CDN and crawlers.
           prefetchAboveFoldQueries(context.queryClient, doc, lang)
+        : Promise.resolve(),
+      blocksDoc && blocksDoc.blocks.length > 0
+        ? prefetchBlockQueries(context.queryClient, blocksDoc, lang, {
+            postId: data.kind === "post" ? data.item.id : null,
+            publishedAt: data.item.published_at,
+            authorId: null,
+            categorySlugs: [],
+            tagSlugs: data.kind === "post" ? (data.tags ?? []).map((t) => t.slug) : [],
+          })
         : Promise.resolve(),
       context.queryClient.prefetchQuery(relatedPostsConfigQueryOptions()),
     ]);
@@ -164,7 +201,11 @@ export const Route = createFileRoute("/$")({
     const fallbackTitle =
       (lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en) || "Strona";
     const excerpt =
-      "excerpt_pl" in it ? (lang === "en" ? it.excerpt_en || it.excerpt_pl : it.excerpt_pl || it.excerpt_en) : null;
+      "excerpt_pl" in it
+        ? lang === "en"
+          ? it.excerpt_en || it.excerpt_pl
+          : it.excerpt_pl || it.excerpt_en
+        : null;
     const tags = "tags" in loaderData ? (loaderData.tags ?? []).map((t) => t.name) : [];
     const { title, description, titleIsOverride } = resolveSeoText(
       seoRow,
@@ -172,7 +213,11 @@ export const Route = createFileRoute("/$")({
       fallbackTitle,
       metaDescription(excerpt, fallbackTitle),
     );
-    const documentTitle = applyTitleSuffix(title, effectiveTitleSuffix(seoSettings), titleIsOverride);
+    const documentTitle = applyTitleSuffix(
+      title,
+      effectiveTitleSuffix(seoSettings),
+      titleIsOverride,
+    );
     const image = resolveSocialImage(seoRow, it.cover_image_url);
     const imageIsCard = socialImageIsGeneratedCard(seoRow, image);
     const head = buildContentHead({
@@ -200,12 +245,12 @@ export const Route = createFileRoute("/$")({
     // BreadcrumbList is SSR-emitted here because the body breadcrumbs only
     // exist after hydration.
     const takeaways = isPost
-      ? ((lang === "en"
-          ? (it as PostData).takeaways_en
-          : (it as PostData).takeaways_pl) ?? [])
+      ? ((lang === "en" ? (it as PostData).takeaways_en : (it as PostData).takeaways_pl) ?? [])
       : [];
     const parentCrumbs = [...(loaderData.crumbs ?? [])].sort((a, b) => a.depth - b.depth);
-    const sectionCrumb = isPost ? parentCrumbs[parentCrumbs.length - 1] : parentCrumbs[parentCrumbs.length - 2];
+    const sectionCrumb = isPost
+      ? parentCrumbs[parentCrumbs.length - 1]
+      : parentCrumbs[parentCrumbs.length - 2];
     const jsonLd = buildArticleJsonLd({
       url,
       lang,
@@ -217,7 +262,9 @@ export const Route = createFileRoute("/$")({
       modifiedAt: it.updated_at,
       gated: isGatedMode(loaderData.access?.mode),
       section: sectionCrumb
-        ? (lang === "en" ? sectionCrumb.title_en || sectionCrumb.title_pl : sectionCrumb.title_pl || sectionCrumb.title_en)
+        ? lang === "en"
+          ? sectionCrumb.title_en || sectionCrumb.title_pl
+          : sectionCrumb.title_pl || sectionCrumb.title_en
         : null,
       tags,
       takeaways,
@@ -226,7 +273,11 @@ export const Route = createFileRoute("/$")({
       speakable: isPost,
     });
     const breadcrumbLd = breadcrumbListJsonLd(
-      buildBreadcrumbs(loaderData.crumbs ?? [], lang === "en" ? "en" : "pl", isPost ? title : undefined),
+      buildBreadcrumbs(
+        loaderData.crumbs ?? [],
+        lang === "en" ? "en" : "pl",
+        isPost ? title : undefined,
+      ),
       origin,
       lang,
     );
@@ -240,33 +291,54 @@ export const Route = createFileRoute("/$")({
     return {
       ...head,
       links,
+      // safeJsonLd - editor-authored titles/excerpts must not be able to close
+      // the <script> element and inject markup (stored XSS).
       scripts: [
-        { type: "application/ld+json", children: JSON.stringify(jsonLd) },
-        { type: "application/ld+json", children: JSON.stringify(breadcrumbLd) },
+        { type: "application/ld+json", children: safeJsonLd(jsonLd) },
+        { type: "application/ld+json", children: safeJsonLd(breadcrumbLd) },
       ],
     };
   },
 
   component: PublicPage,
   notFoundComponent: PublicNotFound,
-  errorComponent: ({ error, reset }) => {
-    const router = useRouter();
-    return (
-      <main className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
-        <h1 className="font-display text-2xl">Nie udało się załadować strony</h1>
-        <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
-        <button onClick={() => { router.invalidate(); reset(); }} className="mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Spróbuj ponownie</button>
-      </main>
-    );
-  },
+  errorComponent: PublicErrorComponent,
 });
+
+// Named (uppercase) component - hooks inside an inline lowercase
+// `errorComponent` arrow violate rules-of-hooks (ESLint cannot treat it as a
+// component, and neither can React DevTools).
+function PublicErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  const router = useRouter();
+  return (
+    <main className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
+      <h1 className="font-display text-2xl">Nie udało się załadować strony</h1>
+      <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
+      <button
+        onClick={() => {
+          router.invalidate();
+          reset();
+        }}
+        className="mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm"
+      >
+        Spróbuj ponownie
+      </button>
+    </main>
+  );
+}
 
 function PublicPage() {
   const params = Route.useParams() as { _splat?: string };
   const segments = splatToSegments(params._splat ?? "");
   const { data } = useSuspenseQuery(resolvedContentQueryOptions(segments));
+  // The early return lives in this thin wrapper so ResolvedPage's hooks run
+  // unconditionally (rules-of-hooks: a guard ABOVE hooks in the same component
+  // changes the hook order between renders and crashes on the busiest route).
   if (!data) return <PublicNotFound />;
+  return <ResolvedPage data={data} />;
+}
 
+function ResolvedPage({ data }: { data: ResolvedContent }) {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const it = data.item;
@@ -274,7 +346,9 @@ function PublicPage() {
   const isPost = data.kind === "post";
   const post = isPost ? (it as PostData) : null;
   const excerpt = post ? (lang === "en" ? post.excerpt_en : post.excerpt_pl) : null;
-  const postTags = isPost ? (data as { tags?: Array<{ slug: string; name: string }> }).tags : undefined;
+  const postTags = isPost
+    ? (data as { tags?: Array<{ slug: string; name: string }> }).tags
+    : undefined;
 
   // Access rule (mode/teaser/plans/price) is non-sensitive and arrives from the
   // resolver, so the paywall teaser renders correctly even in anonymous SSR.
@@ -297,11 +371,14 @@ function PublicPage() {
   const body = pickBody(ssrBody, unlocked);
 
   const rawDoc = parseBuilderDoc(body.builder_data);
-  const rawHtml = lang === "en" ? body.content_en || body.content_pl : body.content_pl || body.content_en;
+  const rawHtml =
+    lang === "en" ? body.content_en || body.content_pl : body.content_pl || body.content_en;
 
   // Block editor (Gutenberg/Foxiz-style) - wpisy w nowym formacie
   const blocksData = (body.blocks_data as LocalizedBlocks | null) ?? null;
-  const blocksDoc: BlocksDoc | null = blocksData ? (blocksData[lang] ?? blocksData.pl ?? blocksData.en ?? null) : null;
+  const blocksDoc: BlocksDoc | null = blocksData
+    ? (blocksData[lang] ?? blocksData.pl ?? blocksData.en ?? null)
+    : null;
 
   const { doc, notes: builderNotes } = processDocFootnotes(rawDoc, lang);
   const { html: footnoteHtml, notes: htmlNotes } = processHtmlFootnotes(rawHtml ?? "", 1);
@@ -341,7 +418,7 @@ function PublicPage() {
   const showPaywall = shouldShowPaywall(accessRule?.mode, body);
 
   const takeaways: readonly string[] = post
-    ? (lang === "en" ? post.takeaways_en : post.takeaways_pl) ?? []
+    ? ((lang === "en" ? post.takeaways_en : post.takeaways_pl) ?? [])
     : [];
 
   const currentPostCtx: CurrentPostCtx = {
@@ -384,7 +461,6 @@ function PublicPage() {
     </div>
   );
 
-
   const adPageType: AdPageType = isPost ? "post" : "page";
 
   // Posts: render via PostLayoutRenderer with merged global+override settings.
@@ -409,11 +485,7 @@ function PublicPage() {
             meta={
               <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
                 {post.read_minutes ? <span>{post.read_minutes} min</span> : null}
-                <CustomMetaList
-                  defs={customMetaDefs}
-                  values={post.custom_meta}
-                  lang={lang}
-                />
+                <CustomMetaList defs={customMetaDefs} values={post.custom_meta} lang={lang} />
               </span>
             }
             content={
@@ -445,7 +517,10 @@ function PublicPage() {
                     postTitle={title}
                     lang={lang}
                     tags={postTags}
-                    layoutId={(post as unknown as { sidebar_layout_id?: string | null }).sidebar_layout_id ?? null}
+                    layoutId={
+                      (post as unknown as { sidebar_layout_id?: string | null })
+                        .sidebar_layout_id ?? null
+                    }
                   />
                 ) : (
                   <FloatingShareBar title={title} lang={lang} variant="sidebar" />
@@ -465,8 +540,15 @@ function PublicPage() {
                 {relatedCfg.enabled && relatedCfg.position === "end" && (
                   <RelatedPosts postId={post.id} lang={lang} override={relatedOverride} />
                 )}
-                <AdZone position="bottom_of_post" pageType={adPageType} pageId={it.id} className="my-6" />
-                {merged.show_bottom_newsletter && <NewsletterForm lang={lang} source={`post:${post.slug}`} />}
+                <AdZone
+                  position="bottom_of_post"
+                  pageType={adPageType}
+                  pageId={it.id}
+                  className="my-6"
+                />
+                {merged.show_bottom_newsletter && (
+                  <NewsletterForm lang={lang} source={`post:${post.slug}`} />
+                )}
               </>
             }
           />
@@ -525,9 +607,7 @@ function PublicPage() {
       data-page-template={tpl.id}
       data-page-header-override={page.header_override ?? "default"}
     >
-      <main className={`flex-1 ${pageMaxW} w-full mx-auto px-4 lg:px-8 py-10`}>
-        {pageBody}
-      </main>
+      <main className={`flex-1 ${pageMaxW} w-full mx-auto px-4 lg:px-8 py-10`}>{pageBody}</main>
       <FooterSlideup pageType={adPageType} pageId={it.id} />
     </div>
   );
@@ -538,7 +618,12 @@ function PublicNotFound() {
     <main className="flex-1 flex items-center justify-center px-4 py-20">
       <div className="text-center">
         <h1 className="font-display text-3xl">404 - nie znaleziono</h1>
-        <Link to="/" className="inline-block mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Strona główna</Link>
+        <Link
+          to="/"
+          className="inline-block mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm"
+        >
+          Strona główna
+        </Link>
       </div>
     </main>
   );

@@ -1,13 +1,26 @@
 // Live Blog block - public renderer. Subskrybuje Supabase realtime
 // (postgres_changes) i pokazuje wpisy posortowane wg occurred_at.
-// SSR-friendly: pierwszy fetch w useEffect, channel posprzątany na unmount.
+// Initial fetch przez react-query (SSR-prefetchowalny; realtime nadpisuje
+// cache przez setQueryData), channel posprzątany na unmount. To jedyny blok,
+// który utrzymuje websocket dla czytelników - relacja na żywo tego wymaga.
 import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
 
 const LABELS = {
-  pl: { live: "Na żywo", empty: "Brak wpisów na żywo.", pinned: "Przypięte", refreshing: "Odświeżanie..." },
-  en: { live: "Live", empty: "No live entries yet.", pinned: "Pinned", refreshing: "Refreshing..." },
+  pl: {
+    live: "Na żywo",
+    empty: "Brak wpisów na żywo.",
+    pinned: "Przypięte",
+    refreshing: "Odświeżanie...",
+  },
+  en: {
+    live: "Live",
+    empty: "No live entries yet.",
+    pinned: "Pinned",
+    refreshing: "Refreshing...",
+  },
 } as const;
 
 export interface LiveBlogEntry {
@@ -43,6 +56,15 @@ function fmtTime(iso: string, lang: "pl" | "en"): string {
   }
 }
 
+function liveBlogQueryKey(
+  postId: string,
+  blockId: string,
+  lang: "pl" | "en",
+  reverseChronological: boolean,
+) {
+  return ["public", "blocks", "liveblog", { postId, blockId, lang, reverseChronological }] as const;
+}
+
 export function LiveBlogBlock({
   postId,
   blockId,
@@ -52,14 +74,16 @@ export function LiveBlogBlock({
   autoRefresh = true,
 }: Props) {
   const L = LABELS[lang] ?? LABELS.pl;
-  const [entries, setEntries] = useState<LiveBlogEntry[]>([]);
+  const qc = useQueryClient();
   const [pulsing, setPulsing] = useState(false);
 
-  // initial fetch
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
+  const queryKey = liveBlogQueryKey(postId, blockId, lang, reverseChronological);
+  const { data } = useQuery({
+    queryKey,
+    staleTime: 30_000,
+    gcTime: 10 * 60_000,
+    queryFn: async (): Promise<LiveBlogEntry[]> => {
+      const { data: rows, error } = await supabase
         .from("live_blog_entries")
         .select("id, post_id, block_id, lang, title, body_html, pinned, occurred_at")
         .eq("post_id", postId)
@@ -67,14 +91,14 @@ export function LiveBlogBlock({
         .eq("lang", lang)
         .order("occurred_at", { ascending: !reverseChronological })
         .limit(200);
-      if (!cancelled && data) setEntries(data as LiveBlogEntry[]);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [postId, blockId, lang, reverseChronological]);
+      if (error) throw error;
+      return (rows ?? []) as LiveBlogEntry[];
+    },
+  });
+  const entries = useMemo(() => data ?? [], [data]);
 
-  // realtime subscription
+  // realtime subscription - merges live changes into the query cache, so the
+  // list stays consistent with react-query (refetches never clobber pushes).
   useEffect(() => {
     if (!autoRefresh) return;
     const channel = supabase
@@ -90,25 +114,28 @@ export function LiveBlogBlock({
         (payload) => {
           setPulsing(true);
           setTimeout(() => setPulsing(false), 800);
-          setEntries((prev) => {
-            const row = (payload.new ?? payload.old) as LiveBlogEntry | undefined;
-            if (!row || row.block_id !== blockId || row.lang !== lang) return prev;
-            if (payload.eventType === "DELETE") return prev.filter((e) => e.id !== row.id);
-            const next = prev.filter((e) => e.id !== row.id).concat(payload.new as LiveBlogEntry);
-            next.sort((a, b) =>
-              reverseChronological
-                ? b.occurred_at.localeCompare(a.occurred_at)
-                : a.occurred_at.localeCompare(b.occurred_at),
-            );
-            return next;
-          });
+          qc.setQueryData<LiveBlogEntry[]>(
+            liveBlogQueryKey(postId, blockId, lang, reverseChronological),
+            (prev = []) => {
+              const row = (payload.new ?? payload.old) as LiveBlogEntry | undefined;
+              if (!row || row.block_id !== blockId || row.lang !== lang) return prev;
+              if (payload.eventType === "DELETE") return prev.filter((e) => e.id !== row.id);
+              const next = prev.filter((e) => e.id !== row.id).concat(payload.new as LiveBlogEntry);
+              next.sort((a, b) =>
+                reverseChronological
+                  ? b.occurred_at.localeCompare(a.occurred_at)
+                  : a.occurred_at.localeCompare(b.occurred_at),
+              );
+              return next;
+            },
+          );
         },
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [postId, blockId, lang, reverseChronological, autoRefresh]);
+  }, [postId, blockId, lang, reverseChronological, autoRefresh, qc]);
 
   const sorted = useMemo(() => {
     const pinned = entries.filter((e) => e.pinned);
