@@ -21,7 +21,6 @@ import {
   MAX_TICKER_VARIANTS,
   makeDefaultVariant,
   normalizeTickerSettings,
-  type IconAnimation,
   type MixedFill,
   type TickerColors,
   type TickerColorScheme,
