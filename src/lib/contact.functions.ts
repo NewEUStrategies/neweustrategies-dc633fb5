@@ -71,13 +71,18 @@ function esc(v: string): string {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c] ?? c));
 }
 
+// SECURITY: ignore X-Forwarded-* headers - an attacker can set them on the
+// incoming request to make the confirmation link point at a phishing domain
+// and steal the DOI token. Prefer a hard-coded PUBLIC_SITE_URL env var; fall
+// back to the request URL's own origin (never the forwarded host).
 function originFromRequest(): string {
+  const envUrl = process.env.PUBLIC_SITE_URL
+    ?? process.env.SITE_URL
+    ?? process.env.URL;
+  if (envUrl) return envUrl.replace(/\/+$/, "");
   try {
     const req = getRequest();
-    const url = new URL(req.url);
-    const fwdHost = req.headers.get("x-forwarded-host");
-    const fwdProto = req.headers.get("x-forwarded-proto");
-    return `${fwdProto ?? url.protocol.replace(":", "")}://${fwdHost ?? url.host}`;
+    return new URL(req.url).origin;
   } catch {
     return "";
   }
