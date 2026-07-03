@@ -2,7 +2,13 @@
 // Wartości są wspólne dla wszystkich urządzeń (desktop / tablet / mobile)
 // - zapisujemy je jednocześnie do każdego breakpointa.
 import type { Align, CommonStyle, Device, ResponsiveValue } from "@/lib/builder/types";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { PropField } from "../atoms/PropField";
 
@@ -19,9 +25,12 @@ function parseSides(input: string | undefined): Sides {
   if (!input) return empty;
   const parts = input.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return empty;
-  if (parts.length === 1) return { top: parts[0], right: parts[0], bottom: parts[0], left: parts[0] };
-  if (parts.length === 2) return { top: parts[0], right: parts[1], bottom: parts[0], left: parts[1] };
-  if (parts.length === 3) return { top: parts[0], right: parts[1], bottom: parts[2], left: parts[1] };
+  if (parts.length === 1)
+    return { top: parts[0], right: parts[0], bottom: parts[0], left: parts[0] };
+  if (parts.length === 2)
+    return { top: parts[0], right: parts[1], bottom: parts[0], left: parts[1] };
+  if (parts.length === 3)
+    return { top: parts[0], right: parts[1], bottom: parts[2], left: parts[1] };
   return { top: parts[0], right: parts[1], bottom: parts[2], left: parts[3] };
 }
 
@@ -99,24 +108,36 @@ export function SpacingControl({ style, onChange }: Props) {
         <SideInputs
           value={style?.padding}
           placeholder="0"
-          onChange={(padding) => onChange((s) => { s.padding = padding; })}
+          onChange={(padding) =>
+            onChange((s) => {
+              s.padding = padding;
+            })
+          }
         />
       </PropField>
       <PropField label="Margin - zewnętrzne odstępy">
         <SideInputs
           value={style?.margin}
           placeholder="0"
-          onChange={(margin) => onChange((s) => { s.margin = margin; })}
+          onChange={(margin) =>
+            onChange((s) => {
+              s.margin = margin;
+            })
+          }
         />
       </PropField>
       <PropField label="Wyrównanie">
         <Select
           value={currentAlign}
-          onValueChange={(v) => onChange((s) => {
-            s.align = setAllDevices(v as Align);
-          })}
+          onValueChange={(v) =>
+            onChange((s) => {
+              s.align = setAllDevices(v as Align);
+            })
+          }
         >
-          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="left">Lewo</SelectItem>
             <SelectItem value="center">Środek</SelectItem>

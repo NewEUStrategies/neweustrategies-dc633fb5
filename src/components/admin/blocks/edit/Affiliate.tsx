@@ -26,10 +26,22 @@ export function AffiliateBlock({ block, onChange }: Props) {
         </label>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <Input placeholder="Tytuł produktu" value={get("title")} onChange={(e) => patch("title", e.target.value)} />
-        <Input placeholder="Sklep (np. Amazon)" value={get("store")} onChange={(e) => patch("store", e.target.value)} />
+        <Input
+          placeholder="Tytuł produktu"
+          value={get("title")}
+          onChange={(e) => patch("title", e.target.value)}
+        />
+        <Input
+          placeholder="Sklep (np. Amazon)"
+          value={get("store")}
+          onChange={(e) => patch("store", e.target.value)}
+        />
       </div>
-      <Input placeholder="URL obrazka" value={get("image")} onChange={(e) => patch("image", e.target.value)} />
+      <Input
+        placeholder="URL obrazka"
+        value={get("image")}
+        onChange={(e) => patch("image", e.target.value)}
+      />
       <textarea
         placeholder="Krótki opis"
         value={get("description")}
@@ -37,8 +49,16 @@ export function AffiliateBlock({ block, onChange }: Props) {
         className="w-full rounded border border-border bg-background px-3 py-2 text-sm min-h-[50px]"
       />
       <div className="grid grid-cols-3 gap-2">
-        <Input placeholder="Cena" value={get("price")} onChange={(e) => patch("price", e.target.value)} />
-        <Input placeholder="Waluta (PLN/EUR/USD)" value={get("currency")} onChange={(e) => patch("currency", e.target.value)} />
+        <Input
+          placeholder="Cena"
+          value={get("price")}
+          onChange={(e) => patch("price", e.target.value)}
+        />
+        <Input
+          placeholder="Waluta (PLN/EUR/USD)"
+          value={get("currency")}
+          onChange={(e) => patch("currency", e.target.value)}
+        />
         <Input
           type="number"
           min={0}
@@ -50,8 +70,16 @@ export function AffiliateBlock({ block, onChange }: Props) {
         />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <Input placeholder="Etykieta CTA (Kup teraz)" value={get("ctaLabel")} onChange={(e) => patch("ctaLabel", e.target.value)} />
-        <Input placeholder="Link partnerski" value={get("ctaHref")} onChange={(e) => patch("ctaHref", e.target.value)} />
+        <Input
+          placeholder="Etykieta CTA (Kup teraz)"
+          value={get("ctaLabel")}
+          onChange={(e) => patch("ctaLabel", e.target.value)}
+        />
+        <Input
+          placeholder="Link partnerski"
+          value={get("ctaHref")}
+          onChange={(e) => patch("ctaHref", e.target.value)}
+        />
       </div>
     </div>
   );

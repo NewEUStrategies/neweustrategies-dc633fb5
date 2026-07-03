@@ -55,9 +55,11 @@ export function ThemeOptionsStyle() {
   const bw = i.border_width ?? 1;
   const ringWidth = i.focus_ring_width ?? 2;
   const ringColor =
-    i.focus_ring === "none" ? "transparent" :
-    i.focus_ring === "border" ? "var(--gc-input-border, currentColor)" :
-    "var(--gc-input-focus-border, var(--gc-highlight, currentColor))";
+    i.focus_ring === "none"
+      ? "transparent"
+      : i.focus_ring === "border"
+        ? "var(--gc-input-border, currentColor)"
+        : "var(--gc-input-focus-border, var(--gc-highlight, currentColor))";
 
   const inputsCss = `
     :root {
@@ -68,9 +70,11 @@ export function ThemeOptionsStyle() {
     }
     :where(input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]):not([type="button"]):not([type="reset"]), textarea, select) {
       border-radius: var(--to-input-radius);
-      ${isUnderline
-        ? `border-width: 0; border-bottom-width: max(1px, var(--to-input-bw));`
-        : `border-width: var(--to-input-bw);`}
+      ${
+        isUnderline
+          ? `border-width: 0; border-bottom-width: max(1px, var(--to-input-bw));`
+          : `border-width: var(--to-input-bw);`
+      }
       border-style: solid;
       ${isFilled ? "" : ""}
     }
@@ -84,6 +88,5 @@ export function ThemeOptionsStyle() {
   `;
 
   const css = (buttonsCss + inputsCss).replace(/\s+/g, " ").trim();
-  // eslint-disable-next-line react/no-danger
   return <style data-theme-options dangerouslySetInnerHTML={{ __html: css }} />;
 }

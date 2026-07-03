@@ -63,8 +63,10 @@ export function defaultNewsletterSettings(): NewsletterSettings {
     heading_en: "Subscribe to our Newsletter",
     description_pl: "Otrzymuj najnowsze artykuły prosto na swoją skrzynkę.",
     description_en: "Get the latest articles delivered to your inbox.",
-    policy_html_pl: 'Zapisując się akceptujesz <a href="/polityka-prywatnosci">Politykę prywatności</a>. Możesz wypisać się w każdej chwili.',
-    policy_html_en: 'By signing up, you agree to our <a href="/privacy-policy">Privacy Policy</a>. You may unsubscribe at any time.',
+    policy_html_pl:
+      'Zapisując się akceptujesz <a href="/polityka-prywatnosci">Politykę prywatności</a>. Możesz wypisać się w każdej chwili.',
+    policy_html_en:
+      'By signing up, you agree to our <a href="/privacy-policy">Privacy Policy</a>. You may unsubscribe at any time.',
     success_message_pl: "Dziękujemy! Sprawdź swoją skrzynkę.",
     success_message_en: "Thanks! Please check your inbox.",
     double_opt_in: false,
@@ -78,7 +80,8 @@ export function defaultNewsletterSettings(): NewsletterSettings {
     popup_title_pl: "Dołącz do nas!",
     popup_title_en: "Join us!",
     popup_description_pl: "Poznaj kulisy europejskich strategii. Dołącz do unikalnej społeczności.",
-    popup_description_en: "Explore the behind-the-scenes of European strategies. Become a member of a unique community!",
+    popup_description_en:
+      "Explore the behind-the-scenes of European strategies. Become a member of a unique community!",
     popup_cta_pl: "Zapisz się",
     popup_cta_en: "Subscribe",
     popup_layout: "stacked",
@@ -113,7 +116,9 @@ export function useNewsletterSettings() {
       return {
         ...def,
         ...(data as unknown as Partial<NewsletterSettings>),
-        popup_mailing_lists: Array.isArray(lists) ? (lists as unknown as NewsletterMailingList[]) : [],
+        popup_mailing_lists: Array.isArray(lists)
+          ? (lists as unknown as NewsletterMailingList[])
+          : [],
       };
     },
     staleTime: 60_000,
@@ -124,16 +129,24 @@ export function useSaveNewsletterSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (patch: Partial<NewsletterSettings>) => {
-      const { data: existing } = await supabase.from("newsletter_settings").select("tenant_id").maybeSingle();
+      const { data: existing } = await supabase
+        .from("newsletter_settings")
+        .select("tenant_id")
+        .maybeSingle();
       const body = patch as unknown as Record<string, unknown>;
       const client = supabase as unknown as {
         from: (t: string) => {
-          update: (b: Record<string, unknown>) => { eq: (c: string, v: string) => Promise<{ error: unknown }> };
+          update: (b: Record<string, unknown>) => {
+            eq: (c: string, v: string) => Promise<{ error: unknown }>;
+          };
           insert: (b: Record<string, unknown>) => Promise<{ error: unknown }>;
         };
       };
       if (existing) {
-        const { error } = await client.from("newsletter_settings").update(body).eq("tenant_id", existing.tenant_id);
+        const { error } = await client
+          .from("newsletter_settings")
+          .update(body)
+          .eq("tenant_id", existing.tenant_id);
         if (error) throw error;
       } else {
         const { error } = await client.from("newsletter_settings").insert(body);

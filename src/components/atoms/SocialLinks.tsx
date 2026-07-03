@@ -18,7 +18,12 @@ const SpotifyFallback = ({ className }: IconProps) => (
   </svg>
 );
 
-const links: { name: string; href: string; label: string; fallback: React.ComponentType<IconProps> }[] = [
+const links: {
+  name: string;
+  href: string;
+  label: string;
+  fallback: React.ComponentType<IconProps>;
+}[] = [
   { name: "facebook", href: "#", label: "Facebook", fallback: Facebook },
   { name: "x", href: "#", label: "X", fallback: XFallback },
   { name: "twitter", href: "#", label: "Twitter", fallback: Twitter },

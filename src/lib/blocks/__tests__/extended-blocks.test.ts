@@ -5,8 +5,15 @@ import { BLOCK_SPECS } from "../registry";
 import type { BlockType } from "../types";
 
 const EXTENDED: BlockType[] = [
-  "review", "proscons", "spoiler", "faq", "toc",
-  "newsletter", "affiliate", "xquote", "compare",
+  "review",
+  "proscons",
+  "spoiler",
+  "faq",
+  "toc",
+  "newsletter",
+  "affiliate",
+  "xquote",
+  "compare",
 ];
 
 describe("extended Foxiz blocks", () => {

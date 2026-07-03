@@ -23,7 +23,7 @@ export function LostPasswordFormBlock({ block, onChange }: Props) {
           onChange={(e) => set("variant", e.target.value)}
           className="ml-auto bg-background border border-border rounded px-1 py-0.5 text-[11px] normal-case tracking-normal"
         >
-          <option value="card">{i18n.editor("newsletter","variantCard")}</option>
+          <option value="card">{i18n.editor("newsletter", "variantCard")}</option>
           <option value="plain">Bez ramki</option>
         </select>
       </div>
@@ -45,20 +45,38 @@ export function LostPasswordFormBlock({ block, onChange }: Props) {
           <Input value={s("subtitle_en")} onChange={(e) => set("subtitle_en", e.target.value)} />
         </div>
         <div className="space-y-1">
-          <Label className="text-[11px] uppercase text-muted-foreground">Strona resetu (link w e-mailu)</Label>
-          <Input value={s("redirectTo", "/reset-password")} onChange={(e) => set("redirectTo", e.target.value)} />
+          <Label className="text-[11px] uppercase text-muted-foreground">
+            Strona resetu (link w e-mailu)
+          </Label>
+          <Input
+            value={s("redirectTo", "/reset-password")}
+            onChange={(e) => set("redirectTo", e.target.value)}
+          />
         </div>
         <div className="space-y-1">
-          <Label className="text-[11px] uppercase text-muted-foreground">Link „Powrót do logowania"</Label>
-          <Input value={s("loginHref", "?mode=signin")} onChange={(e) => set("loginHref", e.target.value)} />
+          <Label className="text-[11px] uppercase text-muted-foreground">
+            Link „Powrót do logowania"
+          </Label>
+          <Input
+            value={s("loginHref", "?mode=signin")}
+            onChange={(e) => set("loginHref", e.target.value)}
+          />
         </div>
         <div className="space-y-1">
-          <Label className="text-[11px] uppercase text-muted-foreground">Etykieta przycisku (PL)</Label>
-          <Input value={s("submitLabel_pl")} onChange={(e) => set("submitLabel_pl", e.target.value)} />
+          <Label className="text-[11px] uppercase text-muted-foreground">
+            Etykieta przycisku (PL)
+          </Label>
+          <Input
+            value={s("submitLabel_pl")}
+            onChange={(e) => set("submitLabel_pl", e.target.value)}
+          />
         </div>
         <div className="space-y-1">
           <Label className="text-[11px] uppercase text-muted-foreground">Submit label (EN)</Label>
-          <Input value={s("submitLabel_en")} onChange={(e) => set("submitLabel_en", e.target.value)} />
+          <Input
+            value={s("submitLabel_en")}
+            onChange={(e) => set("submitLabel_en", e.target.value)}
+          />
         </div>
       </div>
     </div>

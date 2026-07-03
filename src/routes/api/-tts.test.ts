@@ -18,9 +18,18 @@ describe("normalizeTtsInput", () => {
   });
 
   it("rejects voiceId outside the [A-Za-z0-9]{8,40} allowlist", () => {
-    expect(normalizeTtsInput({ text: "hi", voiceId: "short" })).toEqual({ ok: false, error: "Invalid voiceId" });
-    expect(normalizeTtsInput({ text: "hi", voiceId: "has space 1234" })).toEqual({ ok: false, error: "Invalid voiceId" });
-    expect(normalizeTtsInput({ text: "hi", voiceId: "../../secret0000" })).toEqual({ ok: false, error: "Invalid voiceId" });
+    expect(normalizeTtsInput({ text: "hi", voiceId: "short" })).toEqual({
+      ok: false,
+      error: "Invalid voiceId",
+    });
+    expect(normalizeTtsInput({ text: "hi", voiceId: "has space 1234" })).toEqual({
+      ok: false,
+      error: "Invalid voiceId",
+    });
+    expect(normalizeTtsInput({ text: "hi", voiceId: "../../secret0000" })).toEqual({
+      ok: false,
+      error: "Invalid voiceId",
+    });
   });
 
   it("accepts a valid custom voiceId and model", () => {

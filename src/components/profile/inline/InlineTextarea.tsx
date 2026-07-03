@@ -120,9 +120,17 @@ export function InlineTextarea({
         className,
       )}
     >
-      <div className={cn("relative whitespace-pre-wrap text-sm leading-relaxed text-foreground/90", isEmpty && "italic text-muted-foreground/70")}>
-        {isEmpty ? emptyLabel ?? placeholder ?? "" : display}
-        <Pencil className="absolute right-0 top-0 h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-60" aria-hidden />
+      <div
+        className={cn(
+          "relative whitespace-pre-wrap text-sm leading-relaxed text-foreground/90",
+          isEmpty && "italic text-muted-foreground/70",
+        )}
+      >
+        {isEmpty ? (emptyLabel ?? placeholder ?? "") : display}
+        <Pencil
+          className="absolute right-0 top-0 h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-60"
+          aria-hidden
+        />
       </div>
     </button>
   );

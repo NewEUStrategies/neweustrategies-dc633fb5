@@ -4,15 +4,27 @@
 // always matches the published output.
 import type { CSSProperties, ReactElement } from "react";
 import type {
-  SectionNode, InnerSectionNode, Device, BackgroundSettings, OverlaySettings,
-  BorderSettings, ShapeDividerSettings, TypographySettings, SectionLayout,
-  BoxSides, ColumnsGap, VerticalAlign,
+  SectionNode,
+  InnerSectionNode,
+  Device,
+  BackgroundSettings,
+  OverlaySettings,
+  BorderSettings,
+  ShapeDividerSettings,
+  TypographySettings,
+  SectionLayout,
+  BoxSides,
+  ColumnsGap,
+  VerticalAlign,
 } from "./types";
 import { safeImageUrl } from "@/lib/sanitize";
 
 // ---------- responsive helper ----------
 
-const pick = <T,>(rv: { desktop?: T; tablet?: T; mobile?: T } | undefined, device: Device): T | undefined => {
+const pick = <T,>(
+  rv: { desktop?: T; tablet?: T; mobile?: T } | undefined,
+  device: Device,
+): T | undefined => {
   if (!rv) return undefined;
   return rv[device] ?? rv.desktop ?? rv.tablet ?? rv.mobile;
 };
@@ -20,7 +32,13 @@ const pick = <T,>(rv: { desktop?: T; tablet?: T; mobile?: T } | undefined, devic
 // ---------- layout ----------
 
 export const GAP_PX: Record<ColumnsGap, number> = {
-  default: 20, no: 0, narrow: 10, extended: 15, wide: 30, wider: 40, custom: 20,
+  default: 20,
+  no: 0,
+  narrow: 10,
+  extended: 15,
+  wide: 30,
+  wider: 40,
+  custom: 20,
 };
 
 export const SECTION_SAFE_AREA_PX = 8;
@@ -91,7 +109,10 @@ export function sectionContainerStyle(_node: SectionNode | InnerSectionNode): CS
 }
 
 /** Style for the columns grid container (gap + vertical alignment). */
-export function columnsRowStyle(node: SectionNode | InnerSectionNode, totalSpan: number): CSSProperties {
+export function columnsRowStyle(
+  node: SectionNode | InnerSectionNode,
+  totalSpan: number,
+): CSSProperties {
   const gap = columnsGapPx(node.layout);
   const valign = node.layout?.verticalAlign ?? "default";
   const css: CSSProperties = {
@@ -158,7 +179,9 @@ export function backgroundLayerStyle(bg: BackgroundSettings | undefined): CSSPro
 export function overlayLayerStyle(ov: OverlaySettings | undefined): CSSProperties {
   if (!ov || ov.type === "none" || !ov.type) return { display: "none" };
   const css: CSSProperties = {
-    position: "absolute", inset: 0, pointerEvents: "none",
+    position: "absolute",
+    inset: 0,
+    pointerEvents: "none",
     opacity: ov.opacity ?? 0.5,
     mixBlendMode: (ov.blendMode ?? "normal") as CSSProperties["mixBlendMode"],
     ...backgroundLayerStyle(ov),
@@ -170,7 +193,10 @@ export function overlayLayerStyle(ov: OverlaySettings | undefined): CSSPropertie
 
 function sides(v: BoxSides | undefined, unit = "px"): string | undefined {
   if (!v) return undefined;
-  const t = v.top ?? 0, r = v.right ?? 0, b = v.bottom ?? 0, l = v.left ?? 0;
+  const t = v.top ?? 0,
+    r = v.right ?? 0,
+    b = v.bottom ?? 0,
+    l = v.left ?? 0;
   if (!t && !r && !b && !l) return undefined;
   return `${t}${unit} ${r}${unit} ${b}${unit} ${l}${unit}`;
 }
@@ -191,30 +217,19 @@ export function borderStyle(b: BorderSettings | undefined): CSSProperties {
 
 /** Raw <path d="..."> for each preset. Authored for a 1000x100 viewBox. */
 const SHAPE_PATHS: Record<string, string> = {
-  mountains:
-    "M0,100 L0,40 L150,70 L300,20 L500,80 L700,10 L850,60 L1000,30 L1000,100 Z",
-  drops:
-    "M0,100 Q125,0 250,100 T500,100 T750,100 T1000,100 Z",
-  clouds:
-    "M0,100 C150,0 350,0 500,80 C650,160 850,40 1000,100 L1000,100 L0,100 Z",
+  mountains: "M0,100 L0,40 L150,70 L300,20 L500,80 L700,10 L850,60 L1000,30 L1000,100 Z",
+  drops: "M0,100 Q125,0 250,100 T500,100 T750,100 T1000,100 Z",
+  clouds: "M0,100 C150,0 350,0 500,80 C650,160 850,40 1000,100 L1000,100 L0,100 Z",
   zigzag:
     "M0,100 L100,20 L200,100 L300,20 L400,100 L500,20 L600,100 L700,20 L800,100 L900,20 L1000,100 Z",
-  pyramids:
-    "M0,100 L150,30 L300,100 L450,30 L600,100 L750,30 L900,100 L1000,40 L1000,100 Z",
-  triangle:
-    "M0,100 L500,0 L1000,100 Z",
-  tilt:
-    "M0,100 L1000,0 L1000,100 Z",
-  waves:
-    "M0,50 C150,150 350,-50 500,50 C650,150 850,-50 1000,50 L1000,100 L0,100 Z",
-  curve:
-    "M0,100 Q500,-50 1000,100 Z",
-  split:
-    "M0,100 L450,0 L500,40 L550,0 L1000,100 Z",
-  arrow:
-    "M0,100 L450,100 L500,0 L550,100 L1000,100 Z",
-  book:
-    "M0,100 C250,0 500,0 500,100 C500,0 750,0 1000,100 Z",
+  pyramids: "M0,100 L150,30 L300,100 L450,30 L600,100 L750,30 L900,100 L1000,40 L1000,100 Z",
+  triangle: "M0,100 L500,0 L1000,100 Z",
+  tilt: "M0,100 L1000,0 L1000,100 Z",
+  waves: "M0,50 C150,150 350,-50 500,50 C650,150 850,-50 1000,50 L1000,100 L0,100 Z",
+  curve: "M0,100 Q500,-50 1000,100 Z",
+  split: "M0,100 L450,0 L500,40 L550,0 L1000,100 Z",
+  arrow: "M0,100 L450,100 L500,0 L550,100 L1000,100 Z",
+  book: "M0,100 C250,0 500,0 500,100 C500,0 750,0 1000,100 Z",
 };
 
 interface DividerProps {

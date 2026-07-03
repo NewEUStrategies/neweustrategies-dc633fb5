@@ -23,12 +23,24 @@ function manualChunks(id: string): string | undefined {
   if (id.includes("node_modules/@dnd-kit/")) return "vendor-dnd";
   // Forms (auth/contact/newsletter) are lazy widgets - keep their deps lazy too.
   if (/node_modules\/(react-hook-form|@hookform)/.test(id)) return "vendor-forms";
-  if (id.includes("node_modules/react-markdown") || id.includes("node_modules/remark") || id.includes("node_modules/micromark") || id.includes("node_modules/mdast") || id.includes("node_modules/unist") || id.includes("node_modules/hast")) return "vendor-markdown";
+  if (
+    id.includes("node_modules/react-markdown") ||
+    id.includes("node_modules/remark") ||
+    id.includes("node_modules/micromark") ||
+    id.includes("node_modules/mdast") ||
+    id.includes("node_modules/unist") ||
+    id.includes("node_modules/hast")
+  )
+    return "vendor-markdown";
   if (/node_modules\/(@fortawesome)/.test(id)) return "vendor-fontawesome";
   if (id.includes("node_modules/lucide-react")) return "vendor-icons";
   if (/node_modules\/(isomorphic-)?dompurify/.test(id)) return "vendor-dompurify";
   if (id.includes("node_modules/date-fns")) return "vendor-datefns";
-  if (/node_modules\/(embla-carousel|yet-another-react-lightbox|react-day-picker|cmdk|vaul|sonner)/.test(id)) {
+  if (
+    /node_modules\/(embla-carousel|yet-another-react-lightbox|react-day-picker|cmdk|vaul|sonner)/.test(
+      id,
+    )
+  ) {
     return "vendor-ui";
   }
   if (/node_modules\/(i18next|react-i18next)/.test(id)) return "vendor-i18n";

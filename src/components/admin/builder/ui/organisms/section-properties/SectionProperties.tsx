@@ -15,9 +15,15 @@ export function SectionProperties({ section, device, onChange }: Props) {
   return (
     <Tabs defaultValue="layout">
       <TabsList className="grid grid-cols-3 w-full h-8">
-        <TabsTrigger value="layout" className="text-xs">Układ</TabsTrigger>
-        <TabsTrigger value="style" className="text-xs">Styl</TabsTrigger>
-        <TabsTrigger value="advanced" className="text-xs">Zaawans.</TabsTrigger>
+        <TabsTrigger value="layout" className="text-xs">
+          Układ
+        </TabsTrigger>
+        <TabsTrigger value="style" className="text-xs">
+          Styl
+        </TabsTrigger>
+        <TabsTrigger value="advanced" className="text-xs">
+          Zaawans.
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="layout" className="space-y-3 mt-3">

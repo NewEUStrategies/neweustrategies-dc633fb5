@@ -39,7 +39,9 @@ export function ImageSlot({
       const ext = file.name.split(".").pop()?.toLowerCase() || "png";
       const path = `${tenantId}/${uid}/${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: upErr } = await supabase.storage.from(bucket).upload(path, file, {
-        cacheControl: "3600", upsert: false, contentType: file.type,
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type,
       });
       if (upErr) throw upErr;
       const { data } = supabase.storage.from(bucket).getPublicUrl(path);
@@ -54,18 +56,15 @@ export function ImageSlot({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-        {icon}{label}
+        {icon}
+        {label}
       </div>
       {value && (
         <div
           className={`rounded-md border border-border p-2 flex items-center justify-center min-h-[80px] ${previewMode === "auto" ? "bg-muted/30" : ""}`}
           style={{
             background:
-              previewMode === "dark"
-                ? "#131822"
-                : previewMode === "light"
-                ? "#f8f6f4"
-                : undefined,
+              previewMode === "dark" ? "#131822" : previewMode === "light" ? "#f8f6f4" : undefined,
           }}
           data-preview-mode={previewMode}
         >
@@ -95,7 +94,11 @@ export function ImageSlot({
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+          e.target.value = "";
+        }}
       />
       <button
         type="button"

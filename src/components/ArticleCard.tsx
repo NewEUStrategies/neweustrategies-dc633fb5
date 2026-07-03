@@ -4,7 +4,10 @@ import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 
 type Props = {
   image?: string;
-  category?: { label: string; color?: "military" | "finance" | "diplomacy" | "cyber" | "brand" | "neutral" };
+  category?: {
+    label: string;
+    color?: "military" | "finance" | "diplomacy" | "cyber" | "brand" | "neutral";
+  };
   title: string;
   excerpt?: string;
   author?: string;
@@ -34,13 +37,17 @@ export function ArticleCard({
   return (
     <article className={`group ${horizontal ? "flex gap-4" : ""}`}>
       {image && (
-        <div className={`relative overflow-hidden ${horizontal ? "w-32 h-24 shrink-0" : "aspect-[16/10] mb-4"}`}>
+        <div
+          className={`relative overflow-hidden ${horizontal ? "w-32 h-24 shrink-0" : "aspect-[16/10] mb-4"}`}
+        >
           <OptimizedImage
             src={image}
             alt={title}
             responsive
             priority={priority}
-            sizes={horizontal ? "128px" : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"}
+            sizes={
+              horizontal ? "128px" : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            }
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           />
           {category && !horizontal && (
@@ -52,30 +59,50 @@ export function ArticleCard({
       )}
       <div className={horizontal ? "flex-1" : ""}>
         {category && horizontal && (
-          <div className="mb-2"><CategoryTag label={category.label} color={category.color} /></div>
+          <div className="mb-2">
+            <CategoryTag label={category.label} color={category.color} />
+          </div>
         )}
-        <h3 className={`${titleClass} font-bold leading-tight group-hover:text-brand transition-colors`}>
+        <h3
+          className={`${titleClass} font-bold leading-tight group-hover:text-brand transition-colors`}
+        >
           {title}
         </h3>
         {excerpt && (
-          <p className="text-sm text-muted-foreground mt-3 leading-relaxed line-clamp-3">{excerpt}</p>
+          <p className="text-sm text-muted-foreground mt-3 leading-relaxed line-clamp-3">
+            {excerpt}
+          </p>
         )}
         {rating !== undefined && (
           <div className="mt-3 flex items-center gap-2">
             <div className="flex h-2 w-32 overflow-hidden rounded-full">
-              {[0,1,2,3,4].map((i) => (
-                <div key={i} className="flex-1" style={{
-                  backgroundColor: ["#ef4444","#f97316","#facc15","#a3e635","#22c55e"][i]
-                }} />
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="flex-1"
+                  style={{
+                    backgroundColor: ["#ef4444", "#f97316", "#facc15", "#a3e635", "#22c55e"][i],
+                  }}
+                />
               ))}
             </div>
-            <span className="text-xs font-semibold">{rating} <span className="text-muted-foreground">/ 10</span></span>
+            <span className="text-xs font-semibold">
+              {rating} <span className="text-muted-foreground">/ 10</span>
+            </span>
           </div>
         )}
         {(author || readTime) && (
           <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-            {author && <span className="flex items-center gap-1.5"><User className="w-3 h-3" /> {author}</span>}
-            {readTime && <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> {readTime}</span>}
+            {author && (
+              <span className="flex items-center gap-1.5">
+                <User className="w-3 h-3" /> {author}
+              </span>
+            )}
+            {readTime && (
+              <span className="flex items-center gap-1.5">
+                <Clock className="w-3 h-3" /> {readTime}
+              </span>
+            )}
           </div>
         )}
       </div>

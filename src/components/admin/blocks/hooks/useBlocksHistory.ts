@@ -40,34 +40,37 @@ export function useBlocksHistory(initial: BlocksDoc, opts: Options = {}): Blocks
     }
   }, []);
 
-  const setDoc = useCallback((next: BlocksDoc, immediate = false) => {
-    setState((prev) => {
-      if (prev.doc === next) return prev;
-      const now = Date.now();
-      const elapsed = now - lastCommitRef.current;
-      const shouldCommit = immediate || elapsed > debounceMs;
-      if (shouldCommit) {
-        const past = [...prev.past, prev.doc];
-        if (past.length > limit) past.shift();
-        lastCommitRef.current = now;
-        return { doc: next, past, future: [] };
-      }
-      // Debounce: schedule a delayed commit if not pending.
-      if (!timerRef.current) {
-        const snapshot = prev.doc;
-        timerRef.current = setTimeout(() => {
-          timerRef.current = null;
-          lastCommitRef.current = Date.now();
-          setState((s) => {
-            const past = [...s.past, snapshot];
-            if (past.length > limit) past.shift();
-            return { ...s, past, future: [] };
-          });
-        }, debounceMs);
-      }
-      return { ...prev, doc: next };
-    });
-  }, [debounceMs, limit]);
+  const setDoc = useCallback(
+    (next: BlocksDoc, immediate = false) => {
+      setState((prev) => {
+        if (prev.doc === next) return prev;
+        const now = Date.now();
+        const elapsed = now - lastCommitRef.current;
+        const shouldCommit = immediate || elapsed > debounceMs;
+        if (shouldCommit) {
+          const past = [...prev.past, prev.doc];
+          if (past.length > limit) past.shift();
+          lastCommitRef.current = now;
+          return { doc: next, past, future: [] };
+        }
+        // Debounce: schedule a delayed commit if not pending.
+        if (!timerRef.current) {
+          const snapshot = prev.doc;
+          timerRef.current = setTimeout(() => {
+            timerRef.current = null;
+            lastCommitRef.current = Date.now();
+            setState((s) => {
+              const past = [...s.past, snapshot];
+              if (past.length > limit) past.shift();
+              return { ...s, past, future: [] };
+            });
+          }, debounceMs);
+        }
+        return { ...prev, doc: next };
+      });
+    },
+    [debounceMs, limit],
+  );
 
   const undo = useCallback(() => {
     flushPending();
@@ -87,11 +90,14 @@ export function useBlocksHistory(initial: BlocksDoc, opts: Options = {}): Blocks
     });
   }, [flushPending]);
 
-  const reset = useCallback((next: BlocksDoc) => {
-    flushPending();
-    lastCommitRef.current = 0;
-    setState({ doc: next, past: [], future: [] });
-  }, [flushPending]);
+  const reset = useCallback(
+    (next: BlocksDoc) => {
+      flushPending();
+      lastCommitRef.current = 0;
+      setState({ doc: next, past: [], future: [] });
+    },
+    [flushPending],
+  );
 
   useEffect(() => () => flushPending(), [flushPending]);
 

@@ -9,7 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { FieldLabel } from "@/components/profile/FieldLabel";
 import { ProfileMediaPreview } from "@/components/profile/ProfileMediaPreview";
 import { toast } from "sonner";
@@ -58,8 +64,13 @@ function AccountPage() {
   });
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
-  const [progress, setProgress] = useState<Record<"avatar" | "cover", number>>({ avatar: 0, cover: 0 });
-  const [status, setStatus] = useState<Record<"avatar" | "cover", "idle" | "uploading" | "success" | "failed">>({
+  const [progress, setProgress] = useState<Record<"avatar" | "cover", number>>({
+    avatar: 0,
+    cover: 0,
+  });
+  const [status, setStatus] = useState<
+    Record<"avatar" | "cover", "idle" | "uploading" | "success" | "failed">
+  >({
     avatar: "idle",
     cover: "idle",
   });
@@ -69,7 +80,9 @@ function AccountPage() {
   const refresh = async (uid: string) => {
     const { data: row } = await supabase
       .from("profiles")
-      .select("display_name, first_name, last_name, job_title, current_company, location, phone, bio, avatar_url, cover_url, tenant_id, gender")
+      .select(
+        "display_name, first_name, last_name, job_title, current_company, location, phone, bio, avatar_url, cover_url, tenant_id, gender",
+      )
       .eq("id", uid)
       .maybeSingle();
     if (!row) return;
@@ -79,7 +92,10 @@ function AccountPage() {
     const nameFromFull = (meta.full_name ?? meta.name ?? "").trim();
     const fullParts = nameFromFull.split(/\s+/).filter(Boolean);
     const metaFirst = meta.first_name || meta.given_name || fullParts[0] || "";
-    const metaLast = meta.last_name || meta.family_name || (fullParts.length > 1 ? fullParts.slice(1).join(" ") : "");
+    const metaLast =
+      meta.last_name ||
+      meta.family_name ||
+      (fullParts.length > 1 ? fullParts.slice(1).join(" ") : "");
     const metaDisplay = meta.display_name || meta.name || nameFromFull || "";
     const metaAvatar = meta.avatar_url || meta.picture || "";
 
@@ -93,7 +109,12 @@ function AccountPage() {
     setData(merged);
 
     // Persist auto-prefilled values so they show across the platform
-    const patch: { first_name?: string; last_name?: string; display_name?: string; avatar_url?: string } = {};
+    const patch: {
+      first_name?: string;
+      last_name?: string;
+      display_name?: string;
+      avatar_url?: string;
+    } = {};
     if (!row.first_name && metaFirst) patch.first_name = metaFirst;
     if (!row.last_name && metaLast) patch.last_name = metaLast;
     if (!row.display_name && metaDisplay) patch.display_name = metaDisplay;
@@ -108,7 +129,6 @@ function AccountPage() {
     void refresh(user.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
-
 
   const upload = async (file: File, kind: "avatar" | "cover") => {
     if (!user || !data.tenant_id) return;
@@ -142,7 +162,10 @@ function AccountPage() {
             setProgress((p) => ({ ...p, [kind]: Math.round((evt.loaded / evt.total) * 100) }));
           }
         };
-        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`HTTP ${xhr.status}`)));
+        xhr.onload = () =>
+          xhr.status >= 200 && xhr.status < 300
+            ? resolve()
+            : reject(new Error(`HTTP ${xhr.status}`));
         xhr.onerror = () => reject(new Error("network"));
         xhr.send(file);
       });
@@ -151,12 +174,8 @@ function AccountPage() {
       const publicUrl = pub.publicUrl;
       const patch = kind === "avatar" ? { avatar_url: publicUrl } : { cover_url: publicUrl };
 
-      const { error: updErr } = await supabase
-        .from("profiles")
-        .update(patch)
-        .eq("id", user.id);
+      const { error: updErr } = await supabase.from("profiles").update(patch).eq("id", user.id);
       if (updErr) throw updErr;
-
 
       setProgress((p) => ({ ...p, [kind]: 100 }));
       setStatus((s) => ({ ...s, [kind]: "success" }));
@@ -202,149 +221,214 @@ function AccountPage() {
     qc.invalidateQueries({ queryKey: ["greeting", user.id] });
   };
 
-
   return (
     <TooltipProvider>
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("profile.nav.account")}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form className="grid gap-5" onSubmit={save}>
-          {/* Personal */}
-          <section className="grid gap-4">
-            <h3 className="text-sm font-semibold text-foreground/80">{t("profile.account.personalSection")}</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("profile.nav.account")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="grid gap-5" onSubmit={save}>
+            {/* Personal */}
+            <section className="grid gap-4">
+              <h3 className="text-sm font-semibold text-foreground/80">
+                {t("profile.account.personalSection")}
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="first_name" tip={t("profile.account.tip.firstName")}>
+                    {t("profile.account.firstName")}
+                  </FieldLabel>
+                  <Input
+                    id="first_name"
+                    value={data.first_name ?? ""}
+                    onChange={(e) => setData({ ...data, first_name: e.target.value })}
+                    maxLength={80}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="last_name" tip={t("profile.account.tip.lastName")}>
+                    {t("profile.account.lastName")}
+                  </FieldLabel>
+                  <Input
+                    id="last_name"
+                    value={data.last_name ?? ""}
+                    onChange={(e) => setData({ ...data, last_name: e.target.value })}
+                    maxLength={80}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="job_title" tip={t("profile.account.tip.jobTitle")}>
+                    {t("profile.account.jobTitle")}
+                  </FieldLabel>
+                  <Input
+                    id="job_title"
+                    value={data.job_title ?? ""}
+                    onChange={(e) => setData({ ...data, job_title: e.target.value })}
+                    maxLength={120}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="current_company"
+                    tip={t("profile.account.tip.currentCompany")}
+                  >
+                    {t("profile.account.currentCompany")}
+                  </FieldLabel>
+                  <Input
+                    id="current_company"
+                    value={data.current_company ?? ""}
+                    onChange={(e) => setData({ ...data, current_company: e.target.value })}
+                    maxLength={160}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="location" tip={t("profile.account.tip.location")}>
+                    {t("profile.account.location")}
+                  </FieldLabel>
+                  <Input
+                    id="location"
+                    value={data.location ?? ""}
+                    onChange={(e) => setData({ ...data, location: e.target.value })}
+                    maxLength={160}
+                    placeholder={t("profile.account.locationPh")}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="phone" tip={t("profile.account.tip.phone")}>
+                    {t("profile.account.phone")}
+                  </FieldLabel>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={data.phone ?? ""}
+                    onChange={(e) => setData({ ...data, phone: e.target.value })}
+                    maxLength={32}
+                    placeholder={t("profile.account.phonePh")}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="gender" tip={t("profile.account.genderHint")}>
+                    {t("profile.account.gender")}
+                  </FieldLabel>
+                  <Select
+                    value={data.gender ?? "auto"}
+                    onValueChange={(v) =>
+                      setData({ ...data, gender: v === "auto" ? null : (v as Gender) })
+                    }
+                  >
+                    <SelectTrigger id="gender">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">{t("profile.account.genderAuto")}</SelectItem>
+                      <SelectItem value="female">{t("profile.account.genderFemale")}</SelectItem>
+                      <SelectItem value="male">{t("profile.account.genderMale")}</SelectItem>
+                      <SelectItem value="neutral">{t("profile.account.genderNeutral")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </section>
+
+            {/* Contact */}
+            <section className="grid gap-4">
+              <h3 className="text-sm font-semibold text-foreground/80">
+                {t("profile.account.contactSection")}
+              </h3>
               <div className="grid gap-2">
-                <FieldLabel htmlFor="first_name" tip={t("profile.account.tip.firstName")}>{t("profile.account.firstName")}</FieldLabel>
-                <Input id="first_name" value={data.first_name ?? ""} onChange={(e) => setData({ ...data, first_name: e.target.value })} maxLength={80} />
+                <FieldLabel htmlFor="email" tip={t("profile.account.tip.email")}>
+                  {t("profile.account.email")}
+                </FieldLabel>
+                <Input id="email" type="email" value={user?.email ?? ""} readOnly disabled />
+                <p className="text-xs text-muted-foreground">
+                  {t("profile.account.emailReadonly")}
+                </p>
               </div>
               <div className="grid gap-2">
-                <FieldLabel htmlFor="last_name" tip={t("profile.account.tip.lastName")}>{t("profile.account.lastName")}</FieldLabel>
-                <Input id="last_name" value={data.last_name ?? ""} onChange={(e) => setData({ ...data, last_name: e.target.value })} maxLength={80} />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel htmlFor="job_title" tip={t("profile.account.tip.jobTitle")}>{t("profile.account.jobTitle")}</FieldLabel>
-                <Input id="job_title" value={data.job_title ?? ""} onChange={(e) => setData({ ...data, job_title: e.target.value })} maxLength={120} />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel htmlFor="current_company" tip={t("profile.account.tip.currentCompany")}>{t("profile.account.currentCompany")}</FieldLabel>
-                <Input id="current_company" value={data.current_company ?? ""} onChange={(e) => setData({ ...data, current_company: e.target.value })} maxLength={160} />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel htmlFor="location" tip={t("profile.account.tip.location")}>{t("profile.account.location")}</FieldLabel>
-                <Input id="location" value={data.location ?? ""} onChange={(e) => setData({ ...data, location: e.target.value })} maxLength={160} placeholder={t("profile.account.locationPh")} />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel htmlFor="phone" tip={t("profile.account.tip.phone")}>{t("profile.account.phone")}</FieldLabel>
-                <Input id="phone" type="tel" value={data.phone ?? ""} onChange={(e) => setData({ ...data, phone: e.target.value })} maxLength={32} placeholder={t("profile.account.phonePh")} />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel htmlFor="gender" tip={t("profile.account.genderHint")}>{t("profile.account.gender")}</FieldLabel>
-                <Select
-                  value={data.gender ?? "auto"}
-                  onValueChange={(v) => setData({ ...data, gender: v === "auto" ? null : (v as Gender) })}
+                <FieldLabel
+                  htmlFor="display_name"
+                  tip={t("profile.account.tip.displayName")}
+                  hint={t("profile.account.displayNameAlt")}
                 >
-                  <SelectTrigger id="gender">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">{t("profile.account.genderAuto")}</SelectItem>
-                    <SelectItem value="female">{t("profile.account.genderFemale")}</SelectItem>
-                    <SelectItem value="male">{t("profile.account.genderMale")}</SelectItem>
-                    <SelectItem value="neutral">{t("profile.account.genderNeutral")}</SelectItem>
-                  </SelectContent>
-                </Select>
+                  {t("profile.account.displayName")}
+                </FieldLabel>
+                <Input
+                  id="display_name"
+                  value={data.display_name ?? ""}
+                  onChange={(e) => setData({ ...data, display_name: e.target.value })}
+                  maxLength={120}
+                />
               </div>
-            </div>
-          </section>
+              <div className="grid gap-2">
+                <FieldLabel htmlFor="bio" tip={t("profile.account.tip.bio")}>
+                  {t("profile.account.bio")}
+                </FieldLabel>
+                <Textarea
+                  id="bio"
+                  value={data.bio ?? ""}
+                  onChange={(e) => setData({ ...data, bio: e.target.value })}
+                  maxLength={500}
+                  rows={4}
+                />
+              </div>
+            </section>
 
-          {/* Contact */}
-          <section className="grid gap-4">
-            <h3 className="text-sm font-semibold text-foreground/80">{t("profile.account.contactSection")}</h3>
-            <div className="grid gap-2">
-              <FieldLabel htmlFor="email" tip={t("profile.account.tip.email")}>{t("profile.account.email")}</FieldLabel>
-              <Input id="email" type="email" value={user?.email ?? ""} readOnly disabled />
-              <p className="text-xs text-muted-foreground">{t("profile.account.emailReadonly")}</p>
-            </div>
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="display_name"
-                tip={t("profile.account.tip.displayName")}
-                hint={t("profile.account.displayNameAlt")}
-              >
-                {t("profile.account.displayName")}
-              </FieldLabel>
-              <Input
-                id="display_name"
-                value={data.display_name ?? ""}
-                onChange={(e) => setData({ ...data, display_name: e.target.value })}
-                maxLength={120}
+            {/* Media preview */}
+            <section className="grid gap-4">
+              <h3 className="text-sm font-semibold text-foreground/80">
+                {t("profile.account.mediaSection")}
+              </h3>
+              <ProfileMediaPreview
+                firstName={data.first_name}
+                lastName={data.last_name}
+                displayName={data.display_name}
+                jobTitle={data.job_title}
+                currentCompany={data.current_company}
+                location={data.location}
+                bio={data.bio}
+                avatarUrl={data.avatar_url}
+                coverUrl={data.cover_url}
+                uploading={uploading}
+                progress={progress}
+                status={status}
+                onAvatarUrlChange={(url) => setData({ ...data, avatar_url: url })}
+                onCoverUrlChange={(url) => setData({ ...data, cover_url: url })}
+                onAvatarUploadClick={() => avatarInput.current?.click()}
+                onCoverUploadClick={() => coverInput.current?.click()}
+                t={t}
               />
-            </div>
-            <div className="grid gap-2">
-              <FieldLabel htmlFor="bio" tip={t("profile.account.tip.bio")}>{t("profile.account.bio")}</FieldLabel>
-              <Textarea
-                id="bio"
-                value={data.bio ?? ""}
-                onChange={(e) => setData({ ...data, bio: e.target.value })}
-                maxLength={500}
-                rows={4}
+              {/* Hidden file inputs triggered by the preview component */}
+              <input
+                ref={avatarInput}
+                type="file"
+                accept={ACCEPT}
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void upload(f, "avatar");
+                  e.target.value = "";
+                }}
               />
-            </div>
-          </section>
+              <input
+                ref={coverInput}
+                type="file"
+                accept={ACCEPT}
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void upload(f, "cover");
+                  e.target.value = "";
+                }}
+              />
+            </section>
 
-          {/* Media preview */}
-          <section className="grid gap-4">
-            <h3 className="text-sm font-semibold text-foreground/80">{t("profile.account.mediaSection")}</h3>
-            <ProfileMediaPreview
-              firstName={data.first_name}
-              lastName={data.last_name}
-              displayName={data.display_name}
-              jobTitle={data.job_title}
-              currentCompany={data.current_company}
-              location={data.location}
-              bio={data.bio}
-              avatarUrl={data.avatar_url}
-              coverUrl={data.cover_url}
-              uploading={uploading}
-              progress={progress}
-              status={status}
-              onAvatarUrlChange={(url) => setData({ ...data, avatar_url: url })}
-              onCoverUrlChange={(url) => setData({ ...data, cover_url: url })}
-              onAvatarUploadClick={() => avatarInput.current?.click()}
-              onCoverUploadClick={() => coverInput.current?.click()}
-              t={t}
-            />
-            {/* Hidden file inputs triggered by the preview component */}
-            <input
-              ref={avatarInput}
-              type="file"
-              accept={ACCEPT}
-              hidden
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void upload(f, "avatar");
-                e.target.value = "";
-              }}
-            />
-            <input
-              ref={coverInput}
-              type="file"
-              accept={ACCEPT}
-              hidden
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void upload(f, "cover");
-                e.target.value = "";
-              }}
-            />
-          </section>
-
-          <Button type="submit" disabled={busy} title={t("profile.account.tip.save")}>{t("profile.account.save")}</Button>
-        </form>
-      </CardContent>
-    </Card>
+            <Button type="submit" disabled={busy} title={t("profile.account.tip.save")}>
+              {t("profile.account.save")}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </TooltipProvider>
   );
 }

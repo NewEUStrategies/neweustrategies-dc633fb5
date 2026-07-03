@@ -21,7 +21,7 @@ function PxSizeInput({
 }) {
   const match = value.trim().match(/^(-?\d*\.?\d+)\s*([a-z%]*)$/i);
   const num = match ? parseFloat(match[1]) : NaN;
-  const unit = match ? (match[2] || "px") : "px";
+  const unit = match ? match[2] || "px" : "px";
   const setNum = (n: number) => {
     const clamped = Math.max(min, Math.min(max, n));
     onChange(`${clamped}${unit}`);
@@ -69,13 +69,13 @@ import {
 } from "@/lib/builder/sectionLabelVariants";
 
 const PRESET_COLORS: { value: string; label: string; hex: string }[] = [
-  { value: "brand",     label: "Marka",     hex: "#FA9346" },
-  { value: "military",  label: "Military",  hex: "#9b4a2a" },
-  { value: "finance",   label: "Finance",   hex: "#2d8a4e" },
+  { value: "brand", label: "Marka", hex: "#FA9346" },
+  { value: "military", label: "Military", hex: "#9b4a2a" },
+  { value: "finance", label: "Finance", hex: "#2d8a4e" },
   { value: "transport", label: "Transport", hex: "#c98a2a" },
   { value: "diplomacy", label: "Diplomacy", hex: "#3a5da8" },
-  { value: "cyber",     label: "Cyber",     hex: "#2a9ec9" },
-  { value: "neutral",   label: "Neutralny", hex: "#777777" },
+  { value: "cyber", label: "Cyber", hex: "#2a9ec9" },
+  { value: "neutral", label: "Neutralny", hex: "#777777" },
 ];
 
 interface Props {
@@ -90,7 +90,8 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
   const label = (typeof c[labelKey] === "string" ? c[labelKey] : "") as string;
   const action = (typeof c[actionKey] === "string" ? c[actionKey] : "") as string;
   const href = (typeof c.href === "string" ? c.href : "") as string;
-  const variant = ((typeof c.variant === "string" && c.variant) || "left-bar") as SectionLabelVariant;
+  const variant = ((typeof c.variant === "string" && c.variant) ||
+    "left-bar") as SectionLabelVariant;
   const customAccent = (typeof c.accentColor === "string" ? c.accentColor : "") as string;
   const colorPreset = (typeof c.color === "string" ? c.color : "brand") as string;
   const accent = resolveAccentColor(customAccent || colorPreset);
@@ -131,7 +132,11 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                 className={`relative h-7 rounded border transition ${isActive ? "border-foreground ring-2 ring-foreground/30" : "border-border hover:border-foreground/40"}`}
                 style={{ background: p.hex }}
               >
-                {isActive && <span className="absolute inset-0 flex items-center justify-center text-white text-[10px] font-bold drop-shadow">✓</span>}
+                {isActive && (
+                  <span className="absolute inset-0 flex items-center justify-center text-white text-[10px] font-bold drop-shadow">
+                    ✓
+                  </span>
+                )}
               </button>
             );
           })}
@@ -162,15 +167,23 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
           )}
         </div>
         <div className="text-[10px] text-muted-foreground">
-          Aktywny: <span className="inline-block w-3 h-3 align-middle rounded-sm border border-border" style={{ background: accent }} />{" "}
+          Aktywny:{" "}
+          <span
+            className="inline-block w-3 h-3 align-middle rounded-sm border border-border"
+            style={{ background: accent }}
+          />{" "}
           <span className="font-mono">{customAccent || colorPreset}</span>
         </div>
       </div>
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Wariant nagłówka</span>
-          <span className="text-[10px] text-muted-foreground">{SECTION_LABEL_VARIANTS.find(v => v.value === variant)?.label}</span>
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Wariant nagłówka
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            {SECTION_LABEL_VARIANTS.find((v) => v.value === variant)?.label}
+          </span>
         </div>
         <div className="grid grid-cols-2 gap-1.5 max-h-[420px] overflow-y-auto pr-1">
           {SECTION_LABEL_VARIANTS.map((v) => {
@@ -242,7 +255,12 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                 className="h-8 text-[11px] font-mono flex-1"
               />
               {labelColor && (
-                <button type="button" onClick={() => setContent("labelColor", "")} title="Wyczyść" className="text-muted-foreground hover:text-destructive">
+                <button
+                  type="button"
+                  onClick={() => setContent("labelColor", "")}
+                  title="Wyczyść"
+                  className="text-muted-foreground hover:text-destructive"
+                >
                   <X className="w-3 h-3" />
                 </button>
               )}
@@ -276,7 +294,12 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
                 className="h-8 text-[11px] font-mono flex-1"
               />
               {actionColor && (
-                <button type="button" onClick={() => setContent("actionColor", "")} title="Wyczyść" className="text-muted-foreground hover:text-destructive">
+                <button
+                  type="button"
+                  onClick={() => setContent("actionColor", "")}
+                  title="Wyczyść"
+                  className="text-muted-foreground hover:text-destructive"
+                >
                   <X className="w-3 h-3" />
                 </button>
               )}
@@ -294,4 +317,3 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
     </div>
   );
 }
-

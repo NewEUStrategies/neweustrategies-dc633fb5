@@ -16,24 +16,33 @@ interface Props {
 const clamp = (n: number): number => Math.min(100, Math.max(0, n));
 
 export function FocalPointPicker({
-  image, x, y, onChange, aspectCls = "aspect-[16/10]", placeholderColor,
+  image,
+  x,
+  y,
+  onChange,
+  aspectCls = "aspect-[16/10]",
+  placeholderColor,
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
   const dragging = useRef(false);
 
-  const update = useCallback((ev: { clientX: number; clientY: number }): void => {
-    const el = ref.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const nx = clamp(((ev.clientX - rect.left) / rect.width) * 100);
-    const ny = clamp(((ev.clientY - rect.top) / rect.height) * 100);
-    onChange(Math.round(nx), Math.round(ny));
-  }, [onChange]);
+  const update = useCallback(
+    (ev: { clientX: number; clientY: number }): void => {
+      const el = ref.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const nx = clamp(((ev.clientX - rect.left) / rect.width) * 100);
+      const ny = clamp(((ev.clientY - rect.top) / rect.height) * 100);
+      onChange(Math.round(nx), Math.round(ny));
+    },
+    [onChange],
+  );
 
   const img = safeImageUrl(image);
   const style: CSSProperties = placeholderColor ? { background: placeholderColor } : {};
   const dotStyle: CSSProperties = {
-    left: `${clamp(x)}%`, top: `${clamp(y)}%`,
+    left: `${clamp(x)}%`,
+    top: `${clamp(y)}%`,
     transform: "translate(-50%, -50%)",
   };
 
@@ -42,10 +51,19 @@ export function FocalPointPicker({
       ref={ref}
       className={`${aspectCls} relative overflow-hidden rounded-md border border-border bg-muted cursor-crosshair select-none`}
       style={style}
-      onMouseDown={(e) => { dragging.current = true; update(e); }}
-      onMouseMove={(e) => { if (dragging.current) update(e); }}
-      onMouseUp={() => { dragging.current = false; }}
-      onMouseLeave={() => { dragging.current = false; }}
+      onMouseDown={(e) => {
+        dragging.current = true;
+        update(e);
+      }}
+      onMouseMove={(e) => {
+        if (dragging.current) update(e);
+      }}
+      onMouseUp={() => {
+        dragging.current = false;
+      }}
+      onMouseLeave={() => {
+        dragging.current = false;
+      }}
       onTouchStart={(e) => {
         const t = e.touches[0];
         if (t) update({ clientX: t.clientX, clientY: t.clientY });

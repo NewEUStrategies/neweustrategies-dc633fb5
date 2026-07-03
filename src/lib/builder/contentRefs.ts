@@ -64,7 +64,8 @@ async function fetchAuthorName(id: string | null): Promise<string> {
 function toPostRef(row: RawPostRow | null, authorName: string, lang: Lang): PostRefData | null {
   if (!row) return null;
   const title = (lang === "en" ? row.title_en : row.title_pl) ?? row.title_pl ?? row.title_en ?? "";
-  const excerpt = (lang === "en" ? row.excerpt_en : row.excerpt_pl) ?? row.excerpt_pl ?? row.excerpt_en ?? "";
+  const excerpt =
+    (lang === "en" ? row.excerpt_en : row.excerpt_pl) ?? row.excerpt_pl ?? row.excerpt_en ?? "";
   return {
     id: row.id,
     slug: row.slug,

@@ -75,4 +75,13 @@ test.describe("user paths (seeded)", () => {
     const rss = await (await request.get("/rss.xml")).text();
     expect(rss).toContain(POST.title_pl);
   });
+
+  test("legacy /post/<slug> URL redirects permanently (301) to the canonical path", async ({
+    request,
+  }) => {
+    // 301 (not 307) so crawlers transfer link equity to the canonical URL.
+    const res = await request.get("/post/seed-wpis-1", { maxRedirects: 0 });
+    expect(res.status()).toBe(301);
+    expect(res.headers()["location"] ?? "").toContain(POST.path);
+  });
 });

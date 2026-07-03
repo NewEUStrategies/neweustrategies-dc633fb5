@@ -13,7 +13,8 @@ function esc(s: string): string {
 
 function blockToHtml(b: Block): string {
   switch (b.type) {
-    case "paragraph": return `<p>${String(b.data.html ?? "")}</p>`;
+    case "paragraph":
+      return `<p>${String(b.data.html ?? "")}</p>`;
     case "heading": {
       const level = Number(b.data.level ?? 2);
       const tag = `h${Math.min(Math.max(level, 2), 4)}`;
@@ -26,9 +27,7 @@ function blockToHtml(b: Block): string {
       const cap = String(b.data.caption ?? "");
       if (!url) return "";
       const img = `<img src="${esc(url)}" alt="${alt}" />`;
-      return cap
-        ? `<figure>${img}<figcaption>${esc(cap)}</figcaption></figure>`
-        : img;
+      return cap ? `<figure>${img}<figcaption>${esc(cap)}</figcaption></figure>` : img;
     }
     case "list": {
       const items = Array.isArray(b.data.items) ? (b.data.items as string[]) : [];
@@ -39,8 +38,10 @@ function blockToHtml(b: Block): string {
       const cite = b.data.cite ? `<cite>${esc(String(b.data.cite))}</cite>` : "";
       return `<blockquote><p>${esc(String(b.data.text ?? ""))}</p>${cite}</blockquote>`;
     }
-    case "html": return String(b.data.html ?? "");
-    default: return "";
+    case "html":
+      return String(b.data.html ?? "");
+    default:
+      return "";
   }
 }
 

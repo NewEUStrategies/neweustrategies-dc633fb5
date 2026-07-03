@@ -16,15 +16,23 @@ describe("globalne tokeny Theme Design: `.cms-post-*` mają pierwszeństwo nad u
   it("styles.css: `.cms-post-title.cms-post-title` (podwojona specyficzność) referuje --td-pt-*", () => {
     const css = read("src/styles.css");
     expect(css).toMatch(/\.cms-post-title\.cms-post-title\s*\{[^}]*font-size:\s*var\(--td-pt-size/);
-    expect(css).toMatch(/\.cms-post-title\.cms-post-title\s*\{[^}]*font-weight:\s*var\(--td-pt-weight/);
+    expect(css).toMatch(
+      /\.cms-post-title\.cms-post-title\s*\{[^}]*font-weight:\s*var\(--td-pt-weight/,
+    );
     expect(css).toMatch(/\.cms-post-title\.cms-post-title\s*\{[^}]*line-height:\s*var\(--td-pt-lh/);
   });
 
   it("styles.css: `.cms-post-excerpt.cms-post-excerpt` (podwojona specyficzność) referuje --td-pe-*", () => {
     const css = read("src/styles.css");
-    expect(css).toMatch(/\.cms-post-excerpt\.cms-post-excerpt\s*\{[^}]*font-size:\s*var\(--td-pe-size/);
-    expect(css).toMatch(/\.cms-post-excerpt\.cms-post-excerpt\s*\{[^}]*font-weight:\s*var\(--td-pe-weight/);
-    expect(css).toMatch(/\.cms-post-excerpt\.cms-post-excerpt\s*\{[^}]*line-height:\s*var\(--td-pe-lh/);
+    expect(css).toMatch(
+      /\.cms-post-excerpt\.cms-post-excerpt\s*\{[^}]*font-size:\s*var\(--td-pe-size/,
+    );
+    expect(css).toMatch(
+      /\.cms-post-excerpt\.cms-post-excerpt\s*\{[^}]*font-weight:\s*var\(--td-pe-weight/,
+    );
+    expect(css).toMatch(
+      /\.cms-post-excerpt\.cms-post-excerpt\s*\{[^}]*line-height:\s*var\(--td-pe-lh/,
+    );
   });
 
   it("styles.css: klasa `.cms-meta` daje globalny --td-meta-size (dla meta/caption/breadcrumb)", () => {
@@ -32,7 +40,8 @@ describe("globalne tokeny Theme Design: `.cms-post-*` mają pierwszeństwo nad u
     expect(css).toMatch(/\.cms-meta\.cms-meta\s*\{[^}]*font-size:\s*var\(--td-meta-size/);
   });
 
-  const OFFENDING = /\b(?:leading-(?:none|tight|snug|normal|relaxed|loose)|text-(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl))\b/;
+  const OFFENDING =
+    /\b(?:leading-(?:none|tight|snug|normal|relaxed|loose)|text-(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl))\b/;
   const FILES = [
     "src/components/admin/builder/ui/organisms/widget-view/PostListView.tsx",
     "src/components/admin/builder/ui/organisms/widget-view/PodcastLatestView.tsx",
@@ -55,7 +64,10 @@ describe("globalne tokeny Theme Design: `.cms-post-*` mają pierwszeństwo nad u
           if (!m) return false;
           return OFFENDING.test(m[1]);
         });
-      expect(offenders, `Znaleziono twarde klasy Tailwind: ${JSON.stringify(offenders.map((o) => `${o.i}: ${o.l.trim()}`))}`).toEqual([]);
+      expect(
+        offenders,
+        `Znaleziono twarde klasy Tailwind: ${JSON.stringify(offenders.map((o) => `${o.i}: ${o.l.trim()}`))}`,
+      ).toEqual([]);
     });
   }
 });

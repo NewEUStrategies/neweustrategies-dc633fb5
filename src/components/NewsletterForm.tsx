@@ -71,7 +71,9 @@ export function NewsletterForm({ lang = "pl", source = "post-bottom", variant = 
 
   return (
     <section className={containerCls} aria-labelledby="newsletter-heading">
-      <h3 id="newsletter-heading" className="font-display text-2xl mb-2">{heading}</h3>
+      <h3 id="newsletter-heading" className="font-display text-2xl mb-2">
+        {heading}
+      </h3>
       {description && <p className="text-sm text-muted-foreground mb-4">{description}</p>}
       {state === "ok" ? (
         <p className="text-sm font-medium text-foreground bg-muted rounded p-3">{success}</p>
@@ -105,7 +107,10 @@ export function NewsletterForm({ lang = "pl", source = "post-bottom", variant = 
       )}
       {state === "err" && errMsg && <p className="text-xs text-destructive mt-2">{errMsg}</p>}
       {policy && (
-        <p className="text-xs text-muted-foreground mt-3" dangerouslySetInnerHTML={{ __html: sanitizeHtml(policy) }} />
+        <p
+          className="text-xs text-muted-foreground mt-3"
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(policy) }}
+        />
       )}
     </section>
   );

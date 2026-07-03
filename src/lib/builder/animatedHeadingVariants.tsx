@@ -40,34 +40,34 @@ export type AnimatedHeadingShape =
   | "hover-allsides-8";
 
 export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] = [
-  { value: "none",              label: "Brak" },
-  { value: "underline",         label: "Podkreślenie" },
-  { value: "double-underline",  label: "Podwójne podkreślenie" },
-  { value: "scribble",          label: "Odręczne podkreślenie" },
-  { value: "curly",             label: "Falisty" },
-  { value: "zigzag",            label: "Zygzak" },
-  { value: "circle",            label: "Okrąg" },
-  { value: "diagonal",          label: "Ukośny" },
-  { value: "strike",            label: "Przekreślenie" },
-  { value: "double-strike",     label: "Podwójne przekreślenie" },
-  { value: "x",                 label: "X" },
-  { value: "framed",            label: "Ramka" },
-  { value: "hover-line-1",      label: "Hover: rozwijana ze środka" },
-  { value: "hover-line-2",      label: "Hover: ze środka w 2 strony" },
-  { value: "hover-line-3",      label: "Hover: od krawędzi do środka" },
-  { value: "hover-line-4",      label: "Hover: skok w bok" },
-  { value: "hover-line-5",      label: "Hover: punkt + linia" },
-  { value: "hover-line-6",      label: "Hover: dwa segmenty" },
-  { value: "hover-line-7",      label: "Hover: sprężyna" },
-  { value: "hover-line-8",      label: "Hover: snap środek" },
-  { value: "hover-allsides-1",  label: "Allsides: rogi po przekątnej" },
-  { value: "hover-allsides-2",  label: "Allsides: z dwóch rogów" },
-  { value: "hover-allsides-3",  label: "Allsides: ze środka boków" },
-  { value: "hover-allsides-4",  label: "Allsides: spiralnie" },
-  { value: "hover-allsides-5",  label: "Allsides: skręt naprzemienny" },
-  { value: "hover-allsides-6",  label: "Allsides: 4 rogi (krótkie)" },
-  { value: "hover-allsides-7",  label: "Allsides: dół + prawo" },
-  { value: "hover-allsides-8",  label: "Allsides: rogi-segmenty" },
+  { value: "none", label: "Brak" },
+  { value: "underline", label: "Podkreślenie" },
+  { value: "double-underline", label: "Podwójne podkreślenie" },
+  { value: "scribble", label: "Odręczne podkreślenie" },
+  { value: "curly", label: "Falisty" },
+  { value: "zigzag", label: "Zygzak" },
+  { value: "circle", label: "Okrąg" },
+  { value: "diagonal", label: "Ukośny" },
+  { value: "strike", label: "Przekreślenie" },
+  { value: "double-strike", label: "Podwójne przekreślenie" },
+  { value: "x", label: "X" },
+  { value: "framed", label: "Ramka" },
+  { value: "hover-line-1", label: "Hover: rozwijana ze środka" },
+  { value: "hover-line-2", label: "Hover: ze środka w 2 strony" },
+  { value: "hover-line-3", label: "Hover: od krawędzi do środka" },
+  { value: "hover-line-4", label: "Hover: skok w bok" },
+  { value: "hover-line-5", label: "Hover: punkt + linia" },
+  { value: "hover-line-6", label: "Hover: dwa segmenty" },
+  { value: "hover-line-7", label: "Hover: sprężyna" },
+  { value: "hover-line-8", label: "Hover: snap środek" },
+  { value: "hover-allsides-1", label: "Allsides: rogi po przekątnej" },
+  { value: "hover-allsides-2", label: "Allsides: z dwóch rogów" },
+  { value: "hover-allsides-3", label: "Allsides: ze środka boków" },
+  { value: "hover-allsides-4", label: "Allsides: spiralnie" },
+  { value: "hover-allsides-5", label: "Allsides: skręt naprzemienny" },
+  { value: "hover-allsides-6", label: "Allsides: 4 rogi (krótkie)" },
+  { value: "hover-allsides-7", label: "Allsides: dół + prawo" },
+  { value: "hover-allsides-8", label: "Allsides: rogi-segmenty" },
 ];
 
 export const HOVER_LINE_CSS = `
@@ -187,10 +187,10 @@ export const HOVER_ALLSIDES_CSS = `
 `;
 
 export const ANIMATED_MODES: { value: AnimatedHeadingMode; label: string }[] = [
-  { value: "highlight",       label: "Wyróżnione słowo" },
-  { value: "rotate",          label: "Rotujące słowa" },
+  { value: "highlight", label: "Wyróżnione słowo" },
+  { value: "rotate", label: "Rotujące słowa" },
   { value: "hover-underline", label: "Hover - podkreślenie" },
-  { value: "hover-allsides",  label: "Hover - ramka (allsides)" },
+  { value: "hover-allsides", label: "Hover - ramka (allsides)" },
 ];
 
 export interface AnimatedHeadingConfig {
@@ -204,12 +204,12 @@ export interface AnimatedHeadingConfig {
   // ANIMATED text - used when mode = "rotate" (one word per line)
   rotateWords?: string[];
   // Duo-tone colors
-  color?: string;        // static text color (textBefore + textAfter)
-  accentColor?: string;  // animated text color + shape stroke
+  color?: string; // static text color (textBefore + textAfter)
+  accentColor?: string; // animated text color + shape stroke
   // Animation timing
-  durationMs?: number;   // shape draw duration / per-word rotate duration
-  delayMs?: number;      // initial delay
-  loop?: boolean;        // for shape: replay; for rotate: cycle infinitely
+  durationMs?: number; // shape draw duration / per-word rotate duration
+  delayMs?: number; // initial delay
+  loop?: boolean; // for shape: replay; for rotate: cycle infinitely
   tag?: "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
   align?: "left" | "center" | "right";
 }
@@ -227,10 +227,22 @@ const shapeStroke: Record<AnimatedHeadingShape, number> = {
   "double-strike": 2.5,
   x: 3,
   framed: 3,
-  "hover-line-1": 0, "hover-line-2": 0, "hover-line-3": 0, "hover-line-4": 0,
-  "hover-line-5": 0, "hover-line-6": 0, "hover-line-7": 0, "hover-line-8": 0,
-  "hover-allsides-1": 0, "hover-allsides-2": 0, "hover-allsides-3": 0, "hover-allsides-4": 0,
-  "hover-allsides-5": 0, "hover-allsides-6": 0, "hover-allsides-7": 0, "hover-allsides-8": 0,
+  "hover-line-1": 0,
+  "hover-line-2": 0,
+  "hover-line-3": 0,
+  "hover-line-4": 0,
+  "hover-line-5": 0,
+  "hover-line-6": 0,
+  "hover-line-7": 0,
+  "hover-line-8": 0,
+  "hover-allsides-1": 0,
+  "hover-allsides-2": 0,
+  "hover-allsides-3": 0,
+  "hover-allsides-4": 0,
+  "hover-allsides-5": 0,
+  "hover-allsides-6": 0,
+  "hover-allsides-7": 0,
+  "hover-allsides-8": 0,
 };
 
 // Rough path lengths (user-units) used to drive stroke-dashoffset animation.
@@ -248,14 +260,31 @@ const shapePathLen: Record<AnimatedHeadingShape, number> = {
   "double-strike": 440,
   x: 440,
   framed: 460,
-  "hover-line-1": 0, "hover-line-2": 0, "hover-line-3": 0, "hover-line-4": 0,
-  "hover-line-5": 0, "hover-line-6": 0, "hover-line-7": 0, "hover-line-8": 0,
-  "hover-allsides-1": 0, "hover-allsides-2": 0, "hover-allsides-3": 0, "hover-allsides-4": 0,
-  "hover-allsides-5": 0, "hover-allsides-6": 0, "hover-allsides-7": 0, "hover-allsides-8": 0,
+  "hover-line-1": 0,
+  "hover-line-2": 0,
+  "hover-line-3": 0,
+  "hover-line-4": 0,
+  "hover-line-5": 0,
+  "hover-line-6": 0,
+  "hover-line-7": 0,
+  "hover-line-8": 0,
+  "hover-allsides-1": 0,
+  "hover-allsides-2": 0,
+  "hover-allsides-3": 0,
+  "hover-allsides-4": 0,
+  "hover-allsides-5": 0,
+  "hover-allsides-6": 0,
+  "hover-allsides-7": 0,
+  "hover-allsides-8": 0,
 };
 
 function ShapeSvg({
-  shape, color, durationMs, delayMs, loop, animKey,
+  shape,
+  color,
+  durationMs,
+  delayMs,
+  loop,
+  animKey,
 }: {
   shape: AnimatedHeadingShape;
   color: string;
@@ -336,15 +365,29 @@ function ShapeSvg({
       }
     `;
     const positionScribble: CSSProperties = {
-      position: "absolute", left: 0, right: 0, top: "100%",
-      width: "100%", height: "0.65em", marginTop: "-0.12em",
-      pointerEvents: "none", zIndex: 0, overflow: "visible",
+      position: "absolute",
+      left: 0,
+      right: 0,
+      top: "100%",
+      width: "100%",
+      height: "0.65em",
+      marginTop: "-0.12em",
+      pointerEvents: "none",
+      zIndex: 0,
+      overflow: "visible",
     };
     return (
       <>
         <style>{css2}</style>
         <svg viewBox="0 0 200 20" preserveAspectRatio="none" style={positionScribble}>
-          <g fill="none" stroke={color} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
+          <g
+            fill="none"
+            stroke={color}
+            strokeWidth={3.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          >
             <path className={`ahead-scribbleA-${animKey}`} d="M3 8 Q 60 4 110 7 T 197 9" />
             <path className={`ahead-scribbleB-${animKey}`} d="M18 15 Q 70 12 120 14 T 175 15" />
           </g>
@@ -419,10 +462,14 @@ function ShapeSvg({
       break;
     case "zigzag":
       viewBox = "0 0 200 10";
-      body = <path d="M2 8 L 22 4 L 42 8 L 62 4 L 82 8 L 102 4 L 122 8 L 142 4 L 162 8 L 182 4 L 198 8" />;
+      body = (
+        <path d="M2 8 L 22 4 L 42 8 L 62 4 L 82 8 L 102 4 L 122 8 L 142 4 L 162 8 L 182 4 L 198 8" />
+      );
       break;
     case "circle":
-      body = <path d="M100 4 C 30 4, 4 12, 4 11.5 C 4 19, 30 19.5, 100 19.5 C 170 19.5, 196 19, 196 11.5 C 196 4, 170 4, 100 4 Z" />;
+      body = (
+        <path d="M100 4 C 30 4, 4 12, 4 11.5 C 4 19, 30 19.5, 100 19.5 C 170 19.5, 196 19, 196 11.5 C 196 4, 170 4, 100 4 Z" />
+      );
       break;
     case "diagonal":
       body = <path d="M2 19 L 198 4" />;
@@ -454,14 +501,46 @@ function ShapeSvg({
   }
 
   const isUnderlineLike =
-    shape === "underline" || shape === "double-underline" || shape === "curly" || shape === "zigzag";
+    shape === "underline" ||
+    shape === "double-underline" ||
+    shape === "curly" ||
+    shape === "zigzag";
 
   const position: CSSProperties =
     shape === "circle" || shape === "framed" || shape === "x"
-      ? { position: "absolute", inset: "-6% -4%", width: "108%", height: "112%", pointerEvents: "none", zIndex: 0, overflow: "visible" }
+      ? {
+          position: "absolute",
+          inset: "-6% -4%",
+          width: "108%",
+          height: "112%",
+          pointerEvents: "none",
+          zIndex: 0,
+          overflow: "visible",
+        }
       : shape === "strike" || shape === "double-strike" || shape === "diagonal"
-      ? { position: "absolute", left: 0, right: 0, top: "45%", width: "100%", height: "0.5em", pointerEvents: "none", zIndex: 0, overflow: "visible" }
-      : { position: "absolute", left: 0, right: 0, top: "100%", width: "100%", height: isUnderlineLike ? "0.55em" : "0.4em", marginTop: isUnderlineLike ? "-0.1em" : "-0.05em", pointerEvents: "none", zIndex: 0, overflow: "visible" };
+        ? {
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: "45%",
+            width: "100%",
+            height: "0.5em",
+            pointerEvents: "none",
+            zIndex: 0,
+            overflow: "visible",
+          }
+        : {
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: "100%",
+            width: "100%",
+            height: isUnderlineLike ? "0.55em" : "0.4em",
+            marginTop: isUnderlineLike ? "-0.1em" : "-0.05em",
+            pointerEvents: "none",
+            zIndex: 0,
+            overflow: "visible",
+          };
 
   return (
     <>
@@ -482,7 +561,6 @@ function ShapeSvg({
     </>
   );
 }
-
 
 export function AnimatedHeadingRender({
   config,
@@ -505,13 +583,12 @@ export function AnimatedHeadingRender({
 
   const words = (config.rotateWords ?? []).filter((w) => w && w.trim().length > 0);
   const [wIdx, setWIdx] = useState(0);
-  useEffect(() => { setWIdx(0); }, [words.length, mode]);
+  useEffect(() => {
+    setWIdx(0);
+  }, [words.length, mode]);
   useEffect(() => {
     if (mode !== "rotate" || preview || words.length < 2) return;
-    const t = window.setInterval(
-      () => setWIdx((i) => (i + 1) % words.length),
-      durationMs + 600,
-    );
+    const t = window.setInterval(() => setWIdx((i) => (i + 1) % words.length), durationMs + 600);
     return () => window.clearInterval(t);
   }, [mode, preview, words.length, durationMs]);
 
@@ -519,13 +596,13 @@ export function AnimatedHeadingRender({
   // re-draws for each new word.
   const animKey = mode === "rotate" ? `r-${wIdx}` : "h-0";
 
-  const animatedText =
-    mode === "rotate"
-      ? (words[wIdx] ?? "")
-      : (config.highlight ?? "");
+  const animatedText = mode === "rotate" ? (words[wIdx] ?? "") : (config.highlight ?? "");
 
   const isUnderlineLike =
-    shape === "underline" || shape === "double-underline" || shape === "curly" || shape === "zigzag";
+    shape === "underline" ||
+    shape === "double-underline" ||
+    shape === "curly" ||
+    shape === "zigzag";
   const needsFrame = shape === "circle" || shape === "framed" || shape === "x";
   const isHoverLine = shape.startsWith("hover-line-");
   const isHoverAllsides = shape.startsWith("hover-allsides-");
@@ -565,7 +642,12 @@ export function AnimatedHeadingRender({
         paddingTop: needsFrame ? "0.15em" : undefined,
       }}
     >
-      {config.textBefore ? <span>{config.textBefore}{config.textBefore.endsWith(" ") ? "" : " "}</span> : null}
+      {config.textBefore ? (
+        <span>
+          {config.textBefore}
+          {config.textBefore.endsWith(" ") ? "" : " "}
+        </span>
+      ) : null}
       <span
         key={animKey}
         className={hoverClass}
@@ -576,7 +658,9 @@ export function AnimatedHeadingRender({
           padding: shape === "circle" || shape === "framed" ? "0 .2em" : undefined,
         }}
       >
-        <span style={{ position: "relative", zIndex: 1 }}>{animatedText || (preview ? "wyróżnione" : "")}</span>
+        <span style={{ position: "relative", zIndex: 1 }}>
+          {animatedText || (preview ? "wyróżnione" : "")}
+        </span>
         <ShapeSvg
           shape={shape}
           color={accent}
@@ -586,7 +670,12 @@ export function AnimatedHeadingRender({
           animKey={animKey}
         />
       </span>
-      {config.textAfter ? <span>{config.textAfter.startsWith(" ") ? "" : " "}{config.textAfter}</span> : null}
+      {config.textAfter ? (
+        <span>
+          {config.textAfter.startsWith(" ") ? "" : " "}
+          {config.textAfter}
+        </span>
+      ) : null}
     </Tag>
   );
 }

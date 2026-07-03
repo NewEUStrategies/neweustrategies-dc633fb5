@@ -127,8 +127,8 @@ export function JoinUsForm({
     variant === "inline"
       ? "border-t border-b border-border py-6"
       : variant === "split"
-      ? "grid gap-6 rounded-xl border border-border bg-card p-6 sm:p-8 md:grid-cols-2"
-      : "rounded-xl border border-border bg-card p-6 sm:p-8";
+        ? "grid gap-6 rounded-xl border border-border bg-card p-6 sm:p-8 md:grid-cols-2"
+        : "rounded-xl border border-border bg-card p-6 sm:p-8";
 
   if (state === "ok") {
     return (
@@ -197,13 +197,15 @@ export function JoinUsForm({
         disabled={state === "loading"}
         className="inline-flex w-full items-center justify-center gap-2 rounded bg-brand px-4 py-2.5 text-sm font-semibold text-brand-foreground transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
       >
-        {state === "loading" ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+        {state === "loading" ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <UserPlus className="w-4 h-4" />
+        )}
         {state === "loading" ? t("joinUs.submitting") : t("joinUs.submit")}
       </button>
 
-      {state === "err" && errMsg && (
-        <p className="text-xs text-destructive">{errMsg}</p>
-      )}
+      {state === "err" && errMsg && <p className="text-xs text-destructive">{errMsg}</p>}
       <p className="text-[11px] leading-relaxed text-muted-foreground">{t("joinUs.consent")}</p>
     </form>
   );
@@ -212,12 +214,23 @@ export function JoinUsForm({
     return (
       <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
         <div>
-          <h3 id="joinus-heading" className="font-display text-2xl mb-2">{heading}</h3>
+          <h3 id="joinus-heading" className="font-display text-2xl mb-2">
+            {heading}
+          </h3>
           <p className="text-sm text-muted-foreground mb-4">{description}</p>
           <ul className="space-y-2 text-sm">
-            <li className="flex items-start gap-2"><Check className="w-4 h-4 mt-0.5 text-brand" />{t("joinUs.perk1")}</li>
-            <li className="flex items-start gap-2"><Check className="w-4 h-4 mt-0.5 text-brand" />{t("joinUs.perk2")}</li>
-            <li className="flex items-start gap-2"><Check className="w-4 h-4 mt-0.5 text-brand" />{t("joinUs.perk3")}</li>
+            <li className="flex items-start gap-2">
+              <Check className="w-4 h-4 mt-0.5 text-brand" />
+              {t("joinUs.perk1")}
+            </li>
+            <li className="flex items-start gap-2">
+              <Check className="w-4 h-4 mt-0.5 text-brand" />
+              {t("joinUs.perk2")}
+            </li>
+            <li className="flex items-start gap-2">
+              <Check className="w-4 h-4 mt-0.5 text-brand" />
+              {t("joinUs.perk3")}
+            </li>
           </ul>
         </div>
         <div>{form}</div>
@@ -227,7 +240,9 @@ export function JoinUsForm({
 
   return (
     <section className={cn(containerCls, className)} aria-labelledby="joinus-heading">
-      <h3 id="joinus-heading" className="font-display text-2xl mb-2">{heading}</h3>
+      <h3 id="joinus-heading" className="font-display text-2xl mb-2">
+        {heading}
+      </h3>
       {description && <p className="text-sm text-muted-foreground mb-4">{description}</p>}
       {form}
     </section>

@@ -37,7 +37,9 @@ export function LangSwitcherDropdown({ label }: { label: string }) {
       >
         <span className="text-base leading-none">{cur.flag}</span>
         <span>{cur.label}</span>
-        <LucideIcons.ChevronDown className={`w-3.5 h-3.5 opacity-60 transition-transform ${open ? "rotate-180" : ""}`} />
+        <LucideIcons.ChevronDown
+          className={`w-3.5 h-3.5 opacity-60 transition-transform ${open ? "rotate-180" : ""}`}
+        />
       </button>
       {open && (
         <ul

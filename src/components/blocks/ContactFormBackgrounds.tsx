@@ -4,20 +4,37 @@
 import type { CSSProperties } from "react";
 
 export type ContactBgVariant =
-  | "none" | "aurora" | "mesh-drift" | "floating-dots"
-  | "wave-lines" | "noise-shimmer" | "orbits";
+  | "none"
+  | "aurora"
+  | "mesh-drift"
+  | "floating-dots"
+  | "wave-lines"
+  | "noise-shimmer"
+  | "orbits";
 
-export function ContactFormBackground({ variant, style }: { variant: ContactBgVariant; style?: CSSProperties }) {
+export function ContactFormBackground({
+  variant,
+  style,
+}: {
+  variant: ContactBgVariant;
+  style?: CSSProperties;
+}) {
   if (!variant || variant === "none") return null;
   const base: CSSProperties = {
-    position: "absolute", inset: 0, overflow: "hidden",
-    pointerEvents: "none", borderRadius: "inherit", ...style,
+    position: "absolute",
+    inset: 0,
+    overflow: "hidden",
+    pointerEvents: "none",
+    borderRadius: "inherit",
+    ...style,
   };
 
   if (variant === "aurora") {
     return (
       <div className="cf-bg cf-bg--aurora" style={base} aria-hidden>
-        <span /><span /><span />
+        <span />
+        <span />
+        <span />
       </div>
     );
   }
@@ -28,12 +45,15 @@ export function ContactFormBackground({ variant, style }: { variant: ContactBgVa
     return (
       <div className="cf-bg cf-bg--dots" style={base} aria-hidden>
         {Array.from({ length: 18 }).map((_, i) => (
-          <span key={i} style={{
-            left: `${(i * 53) % 100}%`,
-            top: `${(i * 37) % 100}%`,
-            animationDelay: `${(i * 0.6) % 8}s`,
-            animationDuration: `${10 + (i % 6) * 2}s`,
-          }} />
+          <span
+            key={i}
+            style={{
+              left: `${(i * 53) % 100}%`,
+              top: `${(i * 37) % 100}%`,
+              animationDelay: `${(i * 0.6) % 8}s`,
+              animationDuration: `${10 + (i % 6) * 2}s`,
+            }}
+          />
         ))}
       </div>
     );
@@ -55,7 +75,10 @@ export function ContactFormBackground({ variant, style }: { variant: ContactBgVa
   if (variant === "orbits") {
     return (
       <div className="cf-bg cf-bg--orbits" style={base} aria-hidden>
-        <span /><span /><span /><span />
+        <span />
+        <span />
+        <span />
+        <span />
       </div>
     );
   }

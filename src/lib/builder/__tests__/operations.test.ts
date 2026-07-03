@@ -1,16 +1,38 @@
 import { describe, it, expect } from "vitest";
 import type {
-  BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode, SectionChild, WidgetType,
+  BuilderDocument,
+  SectionNode,
+  ColumnNode,
+  InnerSectionNode,
+  WidgetNode,
+  SectionChild,
+  WidgetType,
 } from "../types";
 import * as ops from "../operations";
 
 // ---------- fixtures ----------
-const w = (id: string, type: WidgetType = "text"): WidgetNode => ({ id, kind: "widget", type, content: {} });
-const col = (id: string, children: WidgetNode[] = [], span = 12): ColumnNode =>
-  ({ id, kind: "column", span: { desktop: span }, children });
-const inner = (id: string, columns: ColumnNode[]): InnerSectionNode =>
-  ({ id, kind: "inner-section", columns });
-const sec = (id: string, children: SectionChild[]): SectionNode => ({ id, kind: "section", children });
+const w = (id: string, type: WidgetType = "text"): WidgetNode => ({
+  id,
+  kind: "widget",
+  type,
+  content: {},
+});
+const col = (id: string, children: WidgetNode[] = [], span = 12): ColumnNode => ({
+  id,
+  kind: "column",
+  span: { desktop: span },
+  children,
+});
+const inner = (id: string, columns: ColumnNode[]): InnerSectionNode => ({
+  id,
+  kind: "inner-section",
+  columns,
+});
+const sec = (id: string, children: SectionChild[]): SectionNode => ({
+  id,
+  kind: "section",
+  children,
+});
 const doc = (...sections: SectionNode[]): BuilderDocument => ({ version: 1, sections });
 
 const ids = (c: ColumnNode) => c.children.map((x) => x.id);

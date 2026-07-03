@@ -41,7 +41,9 @@ export const startImpersonation = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: target, error: getErr } = await supabaseAdmin.auth.admin.getUserById(data.targetUserId);
+    const { data: target, error: getErr } = await supabaseAdmin.auth.admin.getUserById(
+      data.targetUserId,
+    );
     if (getErr || !target?.user?.email) {
       throw new Error("Target user not found or has no email");
     }

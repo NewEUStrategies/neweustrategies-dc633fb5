@@ -1,11 +1,21 @@
 import { useCallback } from "react";
 import type {
-  BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, WidgetNode,
+  BuilderDocument,
+  SectionNode,
+  ColumnNode,
+  InnerSectionNode,
+  WidgetNode,
 } from "@/lib/builder/types";
 import { newId } from "@/lib/builder/types";
 import {
-  cloneSection, cloneColumn, cloneInner, cloneWidget,
-  findWidget, findSection, findColumn, findInner,
+  cloneSection,
+  cloneColumn,
+  cloneInner,
+  cloneWidget,
+  findWidget,
+  findSection,
+  findColumn,
+  findInner,
 } from "@/lib/builder/operations";
 import { copyToClipboard, readClipboard, type ClipEnvelope } from "@/lib/builder/clipboard";
 import type { Selection } from "../organisms/builder";
@@ -40,9 +50,12 @@ export function useBuilderClipboard({ doc, selection, focusedColumn, update }: P
       d.sections = safeD.sections;
       if (env.kind === "section") {
         const cloned = cloneSection(env.node as SectionNode);
-        const i = selection.kind === "section" && selection.id
-          ? d.sections.findIndex((s) => s?.id === selection.id) : -1;
-        if (i >= 0) d.sections.splice(i + 1, 0, cloned); else d.sections.push(cloned);
+        const i =
+          selection.kind === "section" && selection.id
+            ? d.sections.findIndex((s) => s?.id === selection.id)
+            : -1;
+        if (i >= 0) d.sections.splice(i + 1, 0, cloned);
+        else d.sections.push(cloned);
       } else if (env.kind === "widget") {
         const cloned = cloneWidget(env.node as WidgetNode);
         const colId = focusedColumn?.id;
@@ -60,7 +73,9 @@ export function useBuilderClipboard({ doc, selection, focusedColumn, update }: P
             if (!Array.isArray(s.children)) s.children = [];
             s.children.push(cloned);
           }
-        } else { d.sections.push({ id: newId(), kind: "section", children: [cloned] }); }
+        } else {
+          d.sections.push({ id: newId(), kind: "section", children: [cloned] });
+        }
       } else if (env.kind === "inner-section") {
         const cloned = cloneInner(env.node as InnerSectionNode);
         if (selection.kind === "section" && selection.id) {

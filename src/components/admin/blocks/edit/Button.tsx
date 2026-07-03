@@ -12,8 +12,8 @@ export function ButtonBlock({ block, onChange }: Props) {
     variant === "outline"
       ? "border border-primary text-primary hover:bg-primary/10"
       : variant === "ghost"
-      ? "text-primary hover:bg-primary/10"
-      : "bg-primary text-primary-foreground hover:bg-primary/90";
+        ? "text-primary hover:bg-primary/10"
+        : "bg-primary text-primary-foreground hover:bg-primary/90";
 
   return (
     <div className="flex items-center gap-2">

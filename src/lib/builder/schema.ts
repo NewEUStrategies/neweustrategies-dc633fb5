@@ -29,24 +29,51 @@ import { emptyDocument } from "./types";
 // with the runtime registry (a drift test in schema.test.ts compares the two).
 export const WIDGET_TYPES = [
   // Basic
-  "heading", "text", "image", "button", "divider", "spacer",
+  "heading",
+  "text",
+  "image",
+  "button",
+  "divider",
+  "spacer",
   // Media
-  "video", "gallery", "icon", "map", "tts",
+  "video",
+  "gallery",
+  "icon",
+  "map",
+  "tts",
   // Dynamic
-  "post-list", "carousel", "categories", "tags",
+  "post-list",
+  "carousel",
+  "categories",
+  "tags",
   // Forms
-  "newsletter", "contact", "cta", "join-us", "customize-interests",
+  "newsletter",
+  "contact",
+  "cta",
+  "join-us",
+  "customize-interests",
   // Navigation
-  "nav-link", "mega-menu",
+  "nav-link",
+  "mega-menu",
   // Site chrome
-  "social-icons", "lang-switcher", "theme-toggle",
-  "account-link", "search-button", "copyright",
+  "social-icons",
+  "lang-switcher",
+  "theme-toggle",
+  "account-link",
+  "search-button",
+  "copyright",
   // Rich blocks
-  "accordion", "tabs", "testimonial", "pricing",
+  "accordion",
+  "tabs",
+  "testimonial",
+  "pricing",
   // Rich content (embeds the blocks engine)
   "rich-text",
   // Home-page building blocks
-  "section-label", "hot-topic-bar", "rated-list", "dark-featured-card",
+  "section-label",
+  "hot-topic-bar",
+  "rated-list",
+  "dark-featured-card",
   // Slider
   "slider",
   // Animated heading
@@ -60,11 +87,22 @@ export const WIDGET_TYPES = [
   // Web Stories
   "web-stories-carousel",
   // Auth forms
-  "login-form", "register-form", "lost-password-form", "reset-password-form",
+  "login-form",
+  "register-form",
+  "lost-password-form",
+  "reset-password-form",
   // Dynamic tags
-  "post-title", "post-meta", "post-tags-dyn", "post-categories-dyn",
-  "post-author-card", "post-breadcrumbs", "post-cover", "post-excerpt",
-  "archive-title", "search-form", "contact-form",
+  "post-title",
+  "post-meta",
+  "post-tags-dyn",
+  "post-categories-dyn",
+  "post-author-card",
+  "post-breadcrumbs",
+  "post-cover",
+  "post-excerpt",
+  "archive-title",
+  "search-form",
+  "contact-form",
 ] as const;
 
 // Compile-time guarantee that WIDGET_TYPES and the WidgetType union never drift:
@@ -126,7 +164,13 @@ function coerceColumn(raw: unknown, path: string): ColumnNode | null {
   const children = asArray(raw.children)
     .map((child, i) => coerceWidget(child, `${path}.w${i}`))
     .filter((w): w is WidgetNode => w !== null);
-  return { ...raw, id: takeId(raw, path), kind: "column", span: coerceSpan(raw.span), children } as ColumnNode;
+  return {
+    ...raw,
+    id: takeId(raw, path),
+    kind: "column",
+    span: coerceSpan(raw.span),
+    children,
+  } as ColumnNode;
 }
 
 function coerceInnerSection(raw: Record<string, unknown>, path: string): InnerSectionNode {
@@ -140,7 +184,10 @@ function coerceSectionChild(raw: unknown, path: string): ColumnNode | InnerSecti
   if (!isObject(raw)) return null;
   // Distinguish inner-sections from columns by their discriminator or shape:
   // an inner-section nests `columns`; a column nests widget `children`.
-  if (raw.kind === "inner-section" || (Array.isArray(raw.columns) && !Array.isArray(raw.children))) {
+  if (
+    raw.kind === "inner-section" ||
+    (Array.isArray(raw.columns) && !Array.isArray(raw.children))
+  ) {
     return coerceInnerSection(raw, path);
   }
   return coerceColumn(raw, path);
@@ -181,7 +228,9 @@ export function isBuilderDoc(value: unknown): value is BuilderDocument {
         if (c.kind === "inner-section") return Array.isArray((c as { columns?: unknown }).columns);
         return (
           Array.isArray((c as { children?: unknown }).children) &&
-          (c as { children: unknown[] }).children.every((w) => isObject(w) && isKnownWidgetType((w as { type?: unknown }).type))
+          (c as { children: unknown[] }).children.every(
+            (w) => isObject(w) && isKnownWidgetType((w as { type?: unknown }).type),
+          )
         );
       }),
   );

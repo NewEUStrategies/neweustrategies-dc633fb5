@@ -53,10 +53,13 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
         .ilike(titleCol, `%${q.trim()}%`)
         .limit(Math.max(1, Math.min(limit, 20)));
       if (cancelled) return;
+      // Kolumny są wybierane dynamicznie (per język), więc wiersz ma kształt
+      // slownika - bez any.
+      const rows = (data ?? []) as Array<Record<string, string | null>>;
       setResults(
-        (data ?? []).map((r: any) => ({
-          id: r.id,
-          slug: r.slug,
+        rows.map((r) => ({
+          id: r.id ?? "",
+          slug: r.slug ?? "",
           title: r[titleCol] || "",
           excerpt: r[excerptCol] || null,
         })),
@@ -96,12 +99,15 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, [open]);
 
   if (!open) return null;
 
-  const placeholder = heading || (lang === "pl" ? "Czego dzisiaj szukasz?" : "What are you looking for today?");
+  const placeholder =
+    heading || (lang === "pl" ? "Czego dzisiaj szukasz?" : "What are you looking for today?");
   const hasQuery = q.trim().length >= 2;
   const showEmpty = liveResults && hasQuery && !loading && results.length === 0;
   const showResults = liveResults && hasQuery && results.length > 0;
@@ -112,13 +118,23 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
     return (
       <div className="absolute right-4 top-14 w-[min(92vw,440px)] bg-background/95 backdrop-blur-xl border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
         <SearchBar
-          inputRef={inputRef} q={q} setQ={setQ} loading={loading}
-          onClose={onClose} placeholder={placeholder} compact
+          inputRef={inputRef}
+          q={q}
+          setQ={setQ}
+          loading={loading}
+          onClose={onClose}
+          placeholder={placeholder}
+          compact
         />
         {(showResults || showEmpty) && (
           <ResultsList
-            results={results} active={active} setActive={setActive}
-            onClose={onClose} lang={lang} empty={showEmpty} compact
+            results={results}
+            active={active}
+            setActive={setActive}
+            onClose={onClose}
+            lang={lang}
+            empty={showEmpty}
+            compact
           />
         )}
       </div>
@@ -136,13 +152,21 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
           onClick={(e) => e.stopPropagation()}
         >
           <SearchBar
-            inputRef={inputRef} q={q} setQ={setQ} loading={loading}
-            onClose={onClose} placeholder={placeholder}
+            inputRef={inputRef}
+            q={q}
+            setQ={setQ}
+            loading={loading}
+            onClose={onClose}
+            placeholder={placeholder}
           />
-          {(showResults || showEmpty) ? (
+          {showResults || showEmpty ? (
             <ResultsList
-              results={results} active={active} setActive={setActive}
-              onClose={onClose} lang={lang} empty={showEmpty}
+              results={results}
+              active={active}
+              setActive={setActive}
+              onClose={onClose}
+              lang={lang}
+              empty={showEmpty}
             />
           ) : (
             <div className="px-6 py-10 text-center">
@@ -150,7 +174,9 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
                 <Search className="w-5 h-5 text-muted-foreground" />
               </div>
               <p className="text-sm text-muted-foreground">
-                {lang === "pl" ? "Zacznij pisać, aby wyszukać artykuły" : "Start typing to search articles"}
+                {lang === "pl"
+                  ? "Zacznij pisać, aby wyszukać artykuły"
+                  : "Start typing to search articles"}
               </p>
             </div>
           )}
@@ -162,14 +188,26 @@ export function SearchOverlay({ open, onClose, mode, heading, liveResults, limit
 }
 
 function SearchBar({
-  inputRef, q, setQ, loading, onClose, placeholder, compact,
+  inputRef,
+  q,
+  setQ,
+  loading,
+  onClose,
+  placeholder,
+  compact,
 }: {
   inputRef: React.RefObject<HTMLInputElement | null>;
-  q: string; setQ: (v: string) => void; loading: boolean;
-  onClose: () => void; placeholder: string; compact?: boolean;
+  q: string;
+  setQ: (v: string) => void;
+  loading: boolean;
+  onClose: () => void;
+  placeholder: string;
+  compact?: boolean;
 }) {
   return (
-    <div className={`flex items-center gap-3 border-b border-border ${compact ? "px-3 py-2.5" : "px-5 py-4"}`}>
+    <div
+      className={`flex items-center gap-3 border-b border-border ${compact ? "px-3 py-2.5" : "px-5 py-4"}`}
+    >
       <Search className={`text-muted-foreground shrink-0 ${compact ? "w-4 h-4" : "w-5 h-5"}`} />
       <input
         ref={inputRef}
@@ -200,20 +238,35 @@ function SearchBar({
 }
 
 function ResultsList({
-  results, active, setActive, onClose, lang, empty, compact,
+  results,
+  active,
+  setActive,
+  onClose,
+  lang,
+  empty,
+  compact,
 }: {
-  results: Result[]; active: number; setActive: (i: number) => void;
-  onClose: () => void; lang: "pl" | "en"; empty: boolean; compact?: boolean;
+  results: Result[];
+  active: number;
+  setActive: (i: number) => void;
+  onClose: () => void;
+  lang: "pl" | "en";
+  empty: boolean;
+  compact?: boolean;
 }) {
   if (empty) {
     return (
-      <div className={`text-center text-sm text-muted-foreground ${compact ? "px-4 py-8" : "px-6 py-12"}`}>
+      <div
+        className={`text-center text-sm text-muted-foreground ${compact ? "px-4 py-8" : "px-6 py-12"}`}
+      >
         {lang === "pl" ? "Brak wyników" : "No results"}
       </div>
     );
   }
   return (
-    <ul className={`overflow-y-auto divide-y divide-border/60 ${compact ? "max-h-[60vh]" : "max-h-[52vh]"}`}>
+    <ul
+      className={`overflow-y-auto divide-y divide-border/60 ${compact ? "max-h-[60vh]" : "max-h-[52vh]"}`}
+    >
       {results.map((r, i) => {
         const isActive = i === active;
         return (
@@ -229,12 +282,18 @@ function ResultsList({
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-foreground line-clamp-1">{r.title}</div>
                 {r.excerpt && (
-                  <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{r.excerpt}</div>
+                  <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                    {r.excerpt}
+                  </div>
                 )}
               </div>
-              <ArrowRight className={`w-4 h-4 mt-0.5 shrink-0 transition ${
-                isActive ? "text-foreground translate-x-0.5" : "text-muted-foreground/40 group-hover:text-muted-foreground"
-              }`} />
+              <ArrowRight
+                className={`w-4 h-4 mt-0.5 shrink-0 transition ${
+                  isActive
+                    ? "text-foreground translate-x-0.5"
+                    : "text-muted-foreground/40 group-hover:text-muted-foreground"
+                }`}
+              />
             </AppLink>
           </li>
         );
@@ -248,16 +307,24 @@ function Footer({ lang }: { lang: "pl" | "en" }) {
     <div className="flex items-center justify-between gap-4 px-5 py-2.5 border-t border-border bg-muted/30 text-[11px] text-muted-foreground">
       <div className="flex items-center gap-3">
         <span className="inline-flex items-center gap-1">
-          <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">↑</kbd>
-          <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">↓</kbd>
+          <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">
+            ↑
+          </kbd>
+          <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">
+            ↓
+          </kbd>
           {lang === "pl" ? "nawiguj" : "navigate"}
         </span>
         <span className="inline-flex items-center gap-1">
-          <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">↵</kbd>
+          <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">
+            ↵
+          </kbd>
           {lang === "pl" ? "otwórz" : "open"}
         </span>
         <span className="inline-flex items-center gap-1">
-          <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">esc</kbd>
+          <kbd className="px-1.5 py-0.5 rounded border border-border bg-background font-mono text-[10px]">
+            esc
+          </kbd>
           {lang === "pl" ? "zamknij" : "close"}
         </span>
       </div>

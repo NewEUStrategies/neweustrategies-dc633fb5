@@ -25,7 +25,15 @@ function parse(raw: string): { num: number | null; unit: string } {
   return { num: parseFloat(m[1]), unit: (m[2] || "px").toLowerCase() };
 }
 
-export function StepperInput({ value, onChange, placeholder, min, max, step = 1, className }: Props) {
+export function StepperInput({
+  value,
+  onChange,
+  placeholder,
+  min,
+  max,
+  step = 1,
+  className,
+}: Props) {
   const cur = value ?? "";
   const { num, unit } = useMemo(() => parse(cur), [cur]);
 

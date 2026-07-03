@@ -16,17 +16,24 @@ interface Props {
 }
 
 export function AffiliateBlockView(p: Props) {
-  const L = p.lang === "pl"
-    ? { sponsored: "Sponsorowane", buy: "Sprawdź ofertę", at: "w" }
-    : { sponsored: "Sponsored", buy: "Check the offer", at: "at" };
+  const L =
+    p.lang === "pl"
+      ? { sponsored: "Sponsorowane", buy: "Sprawdź ofertę", at: "w" }
+      : { sponsored: "Sponsored", buy: "Check the offer", at: "at" };
   if (!p.title) return null;
-  const rel = p.sponsored !== false ? "noopener noreferrer sponsored nofollow" : "noopener noreferrer";
+  const rel =
+    p.sponsored !== false ? "noopener noreferrer sponsored nofollow" : "noopener noreferrer";
 
   return (
     <aside className="not-prose my-6 rounded-lg border border-border bg-card overflow-hidden grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-0">
       {p.image ? (
         <div className="bg-muted">
-          <img src={p.image} alt={p.title} className="w-full h-full object-cover aspect-square sm:aspect-auto" loading="lazy" />
+          <img
+            src={p.image}
+            alt={p.title}
+            className="w-full h-full object-cover aspect-square sm:aspect-auto"
+            loading="lazy"
+          />
         </div>
       ) : (
         <div className="bg-muted aspect-square sm:aspect-auto" />
@@ -40,12 +47,18 @@ export function AffiliateBlockView(p: Props) {
               </span>
             )}
             <h3 className="text-base font-semibold m-0 leading-tight">{p.title}</h3>
-            {p.store && <p className="text-xs text-muted-foreground mt-0.5">{L.at} {p.store}</p>}
+            {p.store && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {L.at} {p.store}
+              </p>
+            )}
           </div>
           {p.price && (
             <div className="text-right shrink-0">
               <p className="text-lg font-bold leading-none">{p.price}</p>
-              {p.currency && <p className="text-[10px] uppercase text-muted-foreground">{p.currency}</p>}
+              {p.currency && (
+                <p className="text-[10px] uppercase text-muted-foreground">{p.currency}</p>
+              )}
             </div>
           )}
         </div>

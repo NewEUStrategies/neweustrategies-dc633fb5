@@ -61,3 +61,62 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # Seeded user-path suite (e2e/user-paths.spec.ts): a real local Supabase
+  # stack (auth + REST + realtime) with migrations and seed.sql applied, then
+  # E2E_SEEDED=1 unlocks the suite that logs in as the seeded admin, walks the
+  # editorial flow and checks SSR/SEO surfaces. Runs as a separate job so the
+  # backend-agnostic smoke above keeps its fast, dependency-free signal.
+  e2e-seeded:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+
+      - name: Repoint lockfile to the public npm registry
+        run: |
+          sed -E -i 's#https://europe-west[0-9]+-npm\.pkg\.dev/lovable-core-prod/sandbox-npm-cache/#https://registry.npmjs.org/#g' bun.lock
+
+      - name: Install dependencies
+        run: bun install
+        env:
+          npm_config_registry: https://registry.npmjs.org
+
+      - name: Install Playwright Chromium
+        run: bunx playwright install --with-deps chromium
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Applies every migration + supabase/seed.sql (dev accounts, bilingual
+      # posts) - the same recipe as the local `supabase db reset` documented in
+      # e2e/user-paths.spec.ts.
+      - name: Start local Supabase (migrations + seed)
+        run: supabase start
+
+      - name: Run seeded E2E (user paths)
+        run: |
+          eval "$(supabase status -o env | grep -E '^[A-Z_]+=')"
+          export VITE_SUPABASE_URL="$API_URL"
+          export VITE_SUPABASE_PUBLISHABLE_KEY="$ANON_KEY"
+          export VITE_SUPABASE_PROJECT_ID="local"
+          export SUPABASE_URL="$API_URL"
+          export SUPABASE_PUBLISHABLE_KEY="$ANON_KEY"
+          export SUPABASE_SECRET_KEY="$SERVICE_ROLE_KEY"
+          export E2E_SEEDED=1
+          bun run test:e2e e2e/user-paths.spec.ts
+        env:
+          CI: "true"
+
+      - name: Upload seeded Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-seeded
+          path: playwright-report/
+          retention-days: 7

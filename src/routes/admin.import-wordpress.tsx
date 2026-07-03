@@ -6,7 +6,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2, ArrowLeft, AlertTriangle, Check, X } from "@/lib/lucide-shim";
 import { Download } from "lucide-react";
 import {
@@ -23,13 +29,28 @@ export const Route = createFileRoute("/admin/import-wordpress")({
   head: () => ({ meta: [{ title: "Import z WordPress.com" }] }),
 });
 
-interface SiteOption { id: number; name: string; url: string }
+interface SiteOption {
+  id: number;
+  name: string;
+  url: string;
+}
 interface PreviewPost {
-  id: number; slug: string; title: string; excerpt: string;
-  date: string; status: string; url: string; featured_image: string | null;
+  id: number;
+  slug: string;
+  title: string;
+  excerpt: string;
+  date: string;
+  status: string;
+  url: string;
+  featured_image: string | null;
 }
 
-interface LogEntry { ts: string; level: "info" | "warn" | "error"; msg: string; wp_id?: number }
+interface LogEntry {
+  ts: string;
+  level: "info" | "warn" | "error";
+  msg: string;
+  wp_id?: number;
+}
 
 function ImportWordpressPage() {
   const { i18n } = useTranslation();
@@ -79,10 +100,17 @@ function ImportWordpressPage() {
     }
     const preferred =
       list.find((s) => {
-        try { return new URL(s.url).host.replace(/^www\./, "") === "neweuropeanstrategies.com"; }
-        catch { return false; }
+        try {
+          return new URL(s.url).host.replace(/^www\./, "") === "neweuropeanstrategies.com";
+        } catch {
+          return false;
+        }
       }) ?? list[0];
-    try { setSite(new URL(preferred.url).host); } catch { /* ignore */ }
+    try {
+      setSite(new URL(preferred.url).host);
+    } catch {
+      /* ignore */
+    }
   }, [sites.data, site]);
 
   const cancel = useMutation({
@@ -116,7 +144,9 @@ function ImportWordpressPage() {
   // admin posts/media lists so the newly imported content shows up
   // without a manual page reload.
   const lastInvalidated = useRef<{ jobId: string | null; processed: number; status: string }>({
-    jobId: null, processed: -1, status: "",
+    jobId: null,
+    processed: -1,
+    status: "",
   });
   useEffect(() => {
     const d = job.data;
@@ -136,13 +166,22 @@ function ImportWordpressPage() {
     mutationFn: async () => {
       const only_ids = selected.size > 0 ? Array.from(selected) : undefined;
       const input = {
-        site: site.trim(), number, offset, status, type, language, only_ids,
-        sync_existing: syncExisting, import_media: importMedia,
+        site: site.trim(),
+        number,
+        offset,
+        status,
+        type,
+        language,
+        only_ids,
+        sync_existing: syncExisting,
+        import_media: importMedia,
       };
       const { jobId: id } = await callCreate({ data: input });
       setJobId(id);
       // Fire-and-track: run in parallel; UI is driven by the polling query.
-      void callRun({ data: { ...input, jobId: id } }).catch(() => { /* surfaced via job row */ });
+      void callRun({ data: { ...input, jobId: id } }).catch(() => {
+        /* surfaced via job row */
+      });
       return id;
     },
   });
@@ -152,22 +191,25 @@ function ImportWordpressPage() {
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(posts.map((p) => p.id)));
   const toggleOne = (id: number) => {
     const next = new Set(selected);
-    if (next.has(id)) next.delete(id); else next.add(id);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     setSelected(next);
   };
 
   const jobData = job.data;
   const isRunning = jobData?.status === "running";
-  const pct = jobData && jobData.total > 0
-    ? Math.round((jobData.processed / jobData.total) * 100)
-    : 0;
+  const pct =
+    jobData && jobData.total > 0 ? Math.round((jobData.processed / jobData.total) * 100) : 0;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-            <Link to="/admin/posts" className="inline-flex items-center gap-1 hover:text-foreground">
+            <Link
+              to="/admin/posts"
+              className="inline-flex items-center gap-1 hover:text-foreground"
+            >
               <ArrowLeft className="w-3 h-3" /> {isPL ? "Wpisy" : "Posts"}
             </Link>
           </div>
@@ -196,19 +238,30 @@ function ImportWordpressPage() {
                 className="h-8 text-xs"
               />
               <Button
-                type="button" variant="outline" size="sm"
+                type="button"
+                variant="outline"
+                size="sm"
                 className="h-8 text-xs whitespace-nowrap"
                 onClick={() => sites.mutate()}
                 disabled={sites.isPending}
               >
-                {sites.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : (isPL ? "Moje witryny" : "My sites")}
+                {sites.isPending ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : isPL ? (
+                  "Moje witryny"
+                ) : (
+                  "My sites"
+                )}
               </Button>
             </div>
             {sites.data && sites.data.length > 0 && (
               <div className="mt-1 flex flex-wrap gap-1">
                 {sites.data.map((s) => (
                   <Button
-                    key={s.id} type="button" variant="ghost" size="sm"
+                    key={s.id}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
                     className="h-6 px-2 text-[11px]"
                     onClick={() => setSite(new URL(s.url).host)}
                   >
@@ -223,24 +276,37 @@ function ImportWordpressPage() {
           </div>
           <div className="md:col-span-2">
             <Label className="text-[11px] text-muted-foreground">{isPL ? "Ilość" : "Count"}</Label>
-            <Input type="number" min={1} max={100} value={number}
+            <Input
+              type="number"
+              min={1}
+              max={100}
+              value={number}
               onChange={(e) => setNumber(Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
               className="h-8 text-xs"
             />
           </div>
           <div className="md:col-span-2">
             <Label className="text-[11px] text-muted-foreground">{isPL ? "Pomiń" : "Offset"}</Label>
-            <Input type="number" min={0} value={offset}
+            <Input
+              type="number"
+              min={0}
+              value={offset}
               onChange={(e) => setOffset(Math.max(0, Number(e.target.value) || 0))}
               className="h-8 text-xs"
             />
           </div>
           <div className="md:col-span-1.5">
-            <Label className="text-[11px] text-muted-foreground">{isPL ? "Typ treści" : "Content type"}</Label>
+            <Label className="text-[11px] text-muted-foreground">
+              {isPL ? "Typ treści" : "Content type"}
+            </Label>
             <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="post">{isPL ? "Wpisy (domyślnie)" : "Posts (default)"}</SelectItem>
+                <SelectItem value="post">
+                  {isPL ? "Wpisy (domyślnie)" : "Posts (default)"}
+                </SelectItem>
                 <SelectItem value="page">{isPL ? "Strony" : "Pages"}</SelectItem>
                 <SelectItem value="any">{isPL ? "Wpisy + strony" : "Posts + pages"}</SelectItem>
               </SelectContent>
@@ -249,7 +315,9 @@ function ImportWordpressPage() {
           <div className="md:col-span-1.5">
             <Label className="text-[11px] text-muted-foreground">Status</Label>
             <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="publish">{isPL ? "Opublikowane" : "Published"}</SelectItem>
                 <SelectItem value="draft">{isPL ? "Szkice" : "Drafts"}</SelectItem>
@@ -258,9 +326,13 @@ function ImportWordpressPage() {
             </Select>
           </div>
           <div className="md:col-span-1.5">
-            <Label className="text-[11px] text-muted-foreground">{isPL ? "Język" : "Language"}</Label>
+            <Label className="text-[11px] text-muted-foreground">
+              {isPL ? "Język" : "Language"}
+            </Label>
             <Select value={language} onValueChange={(v) => setLanguage(v as "pl" | "en")}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pl">PL</SelectItem>
                 <SelectItem value="en">EN</SelectItem>
@@ -271,28 +343,54 @@ function ImportWordpressPage() {
 
         <div className="flex flex-wrap items-center gap-3">
           <label className="inline-flex items-center gap-1.5 text-[11px] cursor-pointer">
-            <input type="checkbox" checked={syncExisting} onChange={(e) => setSyncExisting(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={syncExisting}
+              onChange={(e) => setSyncExisting(e.target.checked)}
+            />
             <span>{isPL ? "Synchronizuj istniejące (po slug)" : "Sync existing (by slug)"}</span>
           </label>
           <label className="inline-flex items-center gap-1.5 text-[11px] cursor-pointer">
-            <input type="checkbox" checked={importMedia} onChange={(e) => setImportMedia(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={importMedia}
+              onChange={(e) => setImportMedia(e.target.checked)}
+            />
             <span>{isPL ? "Importuj media (obrazy, cover)" : "Import media (images, cover)"}</span>
           </label>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button type="button" size="sm" variant="outline" className="h-8 text-xs"
-            onClick={() => preview.mutate()} disabled={preview.isPending || !site.trim()}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            onClick={() => preview.mutate()}
+            disabled={preview.isPending || !site.trim()}
+          >
             {preview.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
             {isPL ? "Podgląd" : "Preview"}
           </Button>
-          <Button type="button" size="sm" className="h-8 text-xs"
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 text-xs"
             onClick={() => importer.mutate()}
-            disabled={importer.isPending || isRunning || !preview.data}>
-            {importer.isPending || isRunning ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Download className="w-3 h-3 mr-1" />}
+            disabled={importer.isPending || isRunning || !preview.data}
+          >
+            {importer.isPending || isRunning ? (
+              <Loader2 className="w-3 h-3 animate-spin mr-1" />
+            ) : (
+              <Download className="w-3 h-3 mr-1" />
+            )}
             {isPL
-              ? selected.size > 0 ? `Importuj zaznaczone (${selected.size})` : "Importuj wszystkie"
-              : selected.size > 0 ? `Import selected (${selected.size})` : "Import all"}
+              ? selected.size > 0
+                ? `Importuj zaznaczone (${selected.size})`
+                : "Importuj wszystkie"
+              : selected.size > 0
+                ? `Import selected (${selected.size})`
+                : "Import all"}
           </Button>
           {preview.error && (
             <span className="inline-flex items-center gap-1 text-[11px] text-destructive">
@@ -319,7 +417,12 @@ function ImportWordpressPage() {
             <thead className="bg-muted/40 text-muted-foreground">
               <tr>
                 <th className="w-8 p-2 text-left">
-                  <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Select all" />
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    aria-label="Select all"
+                  />
                 </th>
                 <th className="p-2 text-left">{isPL ? "Tytuł" : "Title"}</th>
                 <th className="p-2 text-left w-32">{isPL ? "Data" : "Date"}</th>
@@ -331,13 +434,26 @@ function ImportWordpressPage() {
               {posts.map((p) => (
                 <tr key={p.id} className="border-t border-border hover:bg-muted/20">
                   <td className="p-2">
-                    <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleOne(p.id)} />
+                    <input
+                      type="checkbox"
+                      checked={selected.has(p.id)}
+                      onChange={() => toggleOne(p.id)}
+                    />
                   </td>
                   <td className="p-2">
-                    <a href={p.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                    <a
+                      href={p.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline"
+                    >
                       {p.title || `#${p.id}`}
                     </a>
-                    {p.excerpt && <div className="text-[11px] text-muted-foreground truncate max-w-xl">{p.excerpt}</div>}
+                    {p.excerpt && (
+                      <div className="text-[11px] text-muted-foreground truncate max-w-xl">
+                        {p.excerpt}
+                      </div>
+                    )}
                   </td>
                   <td className="p-2 text-muted-foreground">{p.date?.slice(0, 10)}</td>
                   <td className="p-2 text-muted-foreground">{p.status}</td>
@@ -359,16 +475,32 @@ function ImportWordpressPage() {
 
 interface JobShape {
   status: string;
-  total: number; processed: number; imported: number; updated_count: number;
-  skipped: number; failed: number; media_imported: number;
-  log: unknown; error: string | null; finished_at: string | null;
+  total: number;
+  processed: number;
+  imported: number;
+  updated_count: number;
+  skipped: number;
+  failed: number;
+  media_imported: number;
+  log: unknown;
+  error: string | null;
+  finished_at: string | null;
 }
 
 function JobPanel({
-  data, pct, isPL, canCancel, onCancel, cancelPending,
+  data,
+  pct,
+  isPL,
+  canCancel,
+  onCancel,
+  cancelPending,
 }: {
-  data: JobShape; pct: number; isPL: boolean;
-  canCancel: boolean; onCancel: () => void; cancelPending: boolean;
+  data: JobShape;
+  pct: number;
+  isPL: boolean;
+  canCancel: boolean;
+  onCancel: () => void;
+  cancelPending: boolean;
 }) {
   const log: LogEntry[] = Array.isArray(data.log) ? (data.log as LogEntry[]) : [];
   const logRef = useRef<HTMLDivElement>(null);
@@ -387,15 +519,25 @@ function JobPanel({
           {done && <Check className="w-4 h-4 text-emerald-600" />}
           {failed && <AlertTriangle className="w-4 h-4 text-destructive" />}
           {canceled && <X className="w-4 h-4 text-muted-foreground" />}
-          {!done && !failed && !canceled && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          {!done && !failed && !canceled && (
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          )}
           <strong>
             {done
-              ? (isPL ? "Import zakończony" : "Import completed")
+              ? isPL
+                ? "Import zakończony"
+                : "Import completed"
               : failed
-                ? (isPL ? "Import nieudany" : "Import failed")
+                ? isPL
+                  ? "Import nieudany"
+                  : "Import failed"
                 : canceled
-                  ? (isPL ? "Import anulowany" : "Import canceled")
-                  : (isPL ? "Importowanie w tle…" : "Importing in background…")}
+                  ? isPL
+                    ? "Import anulowany"
+                    : "Import canceled"
+                  : isPL
+                    ? "Importowanie w tle…"
+                    : "Importing in background…"}
           </strong>
         </div>
         <div className="flex items-center gap-2">
@@ -404,11 +546,18 @@ function JobPanel({
           </span>
           {canCancel && (
             <Button
-              type="button" size="sm" variant="outline"
+              type="button"
+              size="sm"
+              variant="outline"
               className="h-7 text-[11px]"
-              onClick={onCancel} disabled={cancelPending}
+              onClick={onCancel}
+              disabled={cancelPending}
             >
-              {cancelPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <X className="w-3 h-3 mr-1" />}
+              {cancelPending ? (
+                <Loader2 className="w-3 h-3 animate-spin mr-1" />
+              ) : (
+                <X className="w-3 h-3 mr-1" />
+              )}
               {isPL ? "Anuluj" : "Cancel"}
             </Button>
           )}
@@ -423,16 +572,29 @@ function JobPanel({
       </div>
 
       <ul className="grid grid-cols-2 md:grid-cols-5 gap-2 pt-1">
-        <li><span className="text-muted-foreground">{isPL ? "Nowe" : "Imported"}: </span>{data.imported}</li>
-        <li><span className="text-muted-foreground">{isPL ? "Zaktualizowane" : "Updated"}: </span>{data.updated_count}</li>
-        <li><span className="text-muted-foreground">{isPL ? "Pominięte" : "Skipped"}: </span>{data.skipped}</li>
-        <li><span className="text-muted-foreground">{isPL ? "Błędy" : "Errors"}: </span>{data.failed}</li>
-        <li><span className="text-muted-foreground">{isPL ? "Media" : "Media"}: </span>{data.media_imported}</li>
+        <li>
+          <span className="text-muted-foreground">{isPL ? "Nowe" : "Imported"}: </span>
+          {data.imported}
+        </li>
+        <li>
+          <span className="text-muted-foreground">{isPL ? "Zaktualizowane" : "Updated"}: </span>
+          {data.updated_count}
+        </li>
+        <li>
+          <span className="text-muted-foreground">{isPL ? "Pominięte" : "Skipped"}: </span>
+          {data.skipped}
+        </li>
+        <li>
+          <span className="text-muted-foreground">{isPL ? "Błędy" : "Errors"}: </span>
+          {data.failed}
+        </li>
+        <li>
+          <span className="text-muted-foreground">{isPL ? "Media" : "Media"}: </span>
+          {data.media_imported}
+        </li>
       </ul>
 
-      {data.error && (
-        <p className="text-destructive">{data.error}</p>
-      )}
+      {data.error && <p className="text-destructive">{data.error}</p>}
 
       <div
         ref={logRef}
@@ -445,14 +607,15 @@ function JobPanel({
           <div
             key={i}
             className={
-              e.level === "error" ? "text-destructive"
-              : e.level === "warn" ? "text-amber-600 dark:text-amber-400"
-              : "text-foreground/80"
+              e.level === "error"
+                ? "text-destructive"
+                : e.level === "warn"
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-foreground/80"
             }
           >
             <span className="text-muted-foreground">{e.ts.slice(11, 19)}</span>
-            {e.wp_id ? <span className="text-muted-foreground"> #{e.wp_id}</span> : null}
-            {" "}{e.msg}
+            {e.wp_id ? <span className="text-muted-foreground"> #{e.wp_id}</span> : null} {e.msg}
           </div>
         ))}
       </div>

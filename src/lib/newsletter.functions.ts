@@ -214,7 +214,9 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     );
     if (error) return { ok: false, error: error.message };
 
-    const confirmUrl = `${originFromRequest()}/api/public/newsletter/confirm?token=${encodeURIComponent(token)}`;
+    // Link z maila prowadzi na stronę wyniku (nie na API): człowiek widzi
+    // zlokalizowany komunikat, a strona woła endpoint JSON w tle.
+    const confirmUrl = `${originFromRequest()}/newsletter/confirm?token=${encodeURIComponent(token)}`;
     const mail = buildDoiEmail(displayName, data.language, confirmUrl);
     const send = await sendEmail({ to: email, subject: mail.subject, html: mail.html });
     return { ok: true, status: "pending", emailSent: send.ok };

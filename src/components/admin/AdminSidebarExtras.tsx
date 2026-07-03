@@ -1,6 +1,13 @@
 // Lightweight context so panels (e.g. ThemeOptionsPane) can publish a
 // secondary nav into the global admin left sidebar.
-import { createContext, useContext, useState, useEffect, type ReactNode, type ComponentType } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  type ReactNode,
+  type ComponentType,
+} from "react";
 
 export interface ExtraNavItem {
   id: string;

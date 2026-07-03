@@ -6,10 +6,17 @@ const KEY = "builder.clipboard.v1";
 
 export type ClipKind = "section" | "inner-section" | "column" | "widget";
 export type ClipNode = SectionNode | InnerSectionNode | ColumnNode | WidgetNode;
-export interface ClipEnvelope { kind: ClipKind; node: ClipNode }
+export interface ClipEnvelope {
+  kind: ClipKind;
+  node: ClipNode;
+}
 
 export function copyToClipboard(env: ClipEnvelope) {
-  try { sessionStorage.setItem(KEY, JSON.stringify(env)); } catch { /* ignore */ }
+  try {
+    sessionStorage.setItem(KEY, JSON.stringify(env));
+  } catch {
+    /* ignore */
+  }
 }
 
 export function readClipboard(): ClipEnvelope | null {
@@ -19,5 +26,7 @@ export function readClipboard(): ClipEnvelope | null {
     const parsed = JSON.parse(raw) as ClipEnvelope;
     if (!parsed || !parsed.kind || !parsed.node) return null;
     return parsed;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }

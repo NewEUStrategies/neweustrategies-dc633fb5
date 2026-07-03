@@ -38,11 +38,7 @@ function dedupeKey(section: SectionNode, lang: Lang): string {
  * we skip the prefetch entirely - the cached payload renders synchronously
  * and TanStack Query revalidates on its own schedule.
  */
-export function isSectionFresh(
-  client: QueryClient,
-  section: SectionNode,
-  lang: Lang,
-): boolean {
+export function isSectionFresh(client: QueryClient, section: SectionNode, lang: Lang): boolean {
   const widgets = collectSectionWidgets(section);
   const targets = sectionCacheTargets(widgets, lang);
   if (targets.length === 0) return true;

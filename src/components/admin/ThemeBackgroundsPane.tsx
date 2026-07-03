@@ -15,7 +15,6 @@ import {
 } from "@/lib/builder/globalColors";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
 
-
 function isTransparent(v: string): boolean {
   const t = v.trim().toLowerCase();
   return t === "transparent" || t === "#00000000" || t === "rgba(0,0,0,0)";
@@ -86,18 +85,15 @@ function isHex(v: string): boolean {
   return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v.trim());
 }
 
-
 function resolveColor(
   draft: GlobalColorsValue,
   key: string,
   mode: "light" | "dark",
-  fallback: string
+  fallback: string,
 ): string {
   const val = draft[key]?.[mode];
   if (val) return val;
-  const slot = GLOBAL_COLOR_GROUPS
-    .flatMap((g) => g.slots)
-    .find((s) => s.key === key);
+  const slot = GLOBAL_COLOR_GROUPS.flatMap((g) => g.slots).find((s) => s.key === key);
   if (slot) {
     if (mode === "dark" && slot.defaultDark) return slot.defaultDark;
     if (slot.defaultLight) return slot.defaultLight;
@@ -131,16 +127,62 @@ function InputGroupPreview({ draft }: { draft: GlobalColorsValue }) {
       <div className="text-sm font-semibold">Podgląd pola tekstowego</div>
       <div className="grid md:grid-cols-2 gap-3">
         <div className="space-y-2" style={light}>
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Tryb jasny</div>
-          <input readOnly placeholder="Placeholder..." className="w-full px-3 py-2 rounded-md border text-sm" />
-          <input readOnly placeholder="Hover state" className="w-full px-3 py-2 rounded-md border text-sm" style={{ background: "var(--gc-input-hover-bg)", borderColor: "var(--gc-input-hover-border)" }} />
-          <input readOnly placeholder="Focus state" className="w-full px-3 py-2 rounded-md border text-sm" style={{ borderColor: "var(--gc-input-focus-border)", outline: "2px solid var(--gc-input-focus-border)", outlineOffset: 0 }} />
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+            Tryb jasny
+          </div>
+          <input
+            readOnly
+            placeholder="Placeholder..."
+            className="w-full px-3 py-2 rounded-md border text-sm"
+          />
+          <input
+            readOnly
+            placeholder="Hover state"
+            className="w-full px-3 py-2 rounded-md border text-sm"
+            style={{
+              background: "var(--gc-input-hover-bg)",
+              borderColor: "var(--gc-input-hover-border)",
+            }}
+          />
+          <input
+            readOnly
+            placeholder="Focus state"
+            className="w-full px-3 py-2 rounded-md border text-sm"
+            style={{
+              borderColor: "var(--gc-input-focus-border)",
+              outline: "2px solid var(--gc-input-focus-border)",
+              outlineOffset: 0,
+            }}
+          />
         </div>
         <div className="space-y-2" style={dark}>
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Tryb ciemny</div>
-          <input readOnly placeholder="Placeholder..." className="w-full px-3 py-2 rounded-md border text-sm" />
-          <input readOnly placeholder="Hover state" className="w-full px-3 py-2 rounded-md border text-sm" style={{ background: "var(--gc-input-hover-bg)", borderColor: "var(--gc-input-hover-border)" }} />
-          <input readOnly placeholder="Focus state" className="w-full px-3 py-2 rounded-md border text-sm" style={{ borderColor: "var(--gc-input-focus-border)", outline: "2px solid var(--gc-input-focus-border)", outlineOffset: 0 }} />
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+            Tryb ciemny
+          </div>
+          <input
+            readOnly
+            placeholder="Placeholder..."
+            className="w-full px-3 py-2 rounded-md border text-sm"
+          />
+          <input
+            readOnly
+            placeholder="Hover state"
+            className="w-full px-3 py-2 rounded-md border text-sm"
+            style={{
+              background: "var(--gc-input-hover-bg)",
+              borderColor: "var(--gc-input-hover-border)",
+            }}
+          />
+          <input
+            readOnly
+            placeholder="Focus state"
+            className="w-full px-3 py-2 rounded-md border text-sm"
+            style={{
+              borderColor: "var(--gc-input-focus-border)",
+              outline: "2px solid var(--gc-input-focus-border)",
+              outlineOffset: 0,
+            }}
+          />
         </div>
       </div>
     </div>
@@ -175,7 +217,6 @@ export function ThemeBackgroundsPane({
   const baseline = { ...EMPTY_GLOBAL_COLORS, ...(data ?? {}) };
   const isDirty = JSON.stringify(draft) !== JSON.stringify(baseline);
 
-
   const setSlot = (key: string, mode: "light" | "dark", v: string) => {
     setDraft({ ...draft, [key]: { ...(draft[key] ?? {}), [mode]: v } });
   };
@@ -194,7 +235,6 @@ export function ThemeBackgroundsPane({
 
   return (
     <div className="space-y-6">
-      {/* eslint-disable-next-line react/no-danger */}
       <style data-theme-backgrounds-preview dangerouslySetInnerHTML={{ __html: liveCss }} />
 
       <div className="flex items-start justify-between gap-4">
@@ -237,9 +277,7 @@ export function ThemeBackgroundsPane({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <Label className="text-base font-bold">{slot.label}</Label>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {slot.description}
-                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{slot.description}</p>
                 </div>
                 <button
                   type="button"

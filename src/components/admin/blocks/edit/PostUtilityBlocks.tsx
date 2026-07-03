@@ -4,12 +4,17 @@
 
 import type { Block } from "@/lib/blocks/types";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
       {children}
     </div>
   );
@@ -25,13 +30,17 @@ export function BreadcrumbsBlock({ block, onChange }: Props) {
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={sep}
           placeholder="Separator (np. / lub ›)"
-          onChange={(e) => onChange({ ...block, data: { ...block.data, separator: e.target.value } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, separator: e.target.value } })
+          }
         />
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
             type="checkbox"
             checked={showHome}
-            onChange={(e) => onChange({ ...block, data: { ...block.data, showHome: e.target.checked } })}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...block.data, showHome: e.target.checked } })
+            }
           />
           Pokaż "Strona główna"
         </label>
@@ -52,7 +61,9 @@ export function ReadingTimeBlock({ block, onChange }: Props) {
           max={600}
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={wpm}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, wpm: Number(e.target.value) || 220 } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, wpm: Number(e.target.value) || 220 } })
+          }
         />
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
@@ -65,7 +76,15 @@ export function ReadingTimeBlock({ block, onChange }: Props) {
   );
 }
 
-const ALL_NETWORKS = ["facebook", "x", "linkedin", "whatsapp", "telegram", "email", "copy"] as const;
+const ALL_NETWORKS = [
+  "facebook",
+  "x",
+  "linkedin",
+  "whatsapp",
+  "telegram",
+  "email",
+  "copy",
+] as const;
 
 export function ShareButtonsBlock({ block, onChange }: Props) {
   const networks = Array.isArray(block.data.networks)

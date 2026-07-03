@@ -34,7 +34,10 @@ describe("pickLocalizedBlocks", () => {
 describe("RichTextView", () => {
   it("renders the blocks document for the active language", () => {
     const { getByText } = render(
-      <RichTextView content={{ doc: toJson({ pl: para("Witaj"), en: para("Hello") }) }} lang="en" />,
+      <RichTextView
+        content={{ doc: toJson({ pl: para("Witaj"), en: para("Hello") }) }}
+        lang="en"
+      />,
     );
     expect(getByText("Hello")).toBeTruthy();
   });

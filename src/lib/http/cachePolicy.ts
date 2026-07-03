@@ -24,7 +24,8 @@ export interface CacheControlInput {
 export function cacheControlHeader(input: CacheControlInput): string {
   if (!input.cacheable) return "private, no-store";
   const parts = ["public", `max-age=${Math.max(0, Math.floor(input.browserMaxAge ?? 0))}`];
-  if (input.sharedMaxAge != null) parts.push(`s-maxage=${Math.max(0, Math.floor(input.sharedMaxAge))}`);
+  if (input.sharedMaxAge != null)
+    parts.push(`s-maxage=${Math.max(0, Math.floor(input.sharedMaxAge))}`);
   if (input.staleWhileRevalidate != null) {
     parts.push(`stale-while-revalidate=${Math.max(0, Math.floor(input.staleWhileRevalidate))}`);
   }

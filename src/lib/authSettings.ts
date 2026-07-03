@@ -65,5 +65,4 @@ export const AUTH_DEFAULTS: AuthSettings = {
   show_language_switcher: true,
 };
 
-
 export const AUTH_SETTINGS_KEY = "auth_branding";

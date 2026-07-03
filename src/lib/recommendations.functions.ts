@@ -33,8 +33,12 @@ export const getRecommendedPosts = createServerFn({ method: "POST" })
       .from("user_follows")
       .select("target_type, target_id")
       .eq("user_id", userId);
-    const followedCats = new Set((follows ?? []).filter((f) => f.target_type === "category").map((f) => f.target_id));
-    const followedTags = new Set((follows ?? []).filter((f) => f.target_type === "tag").map((f) => f.target_id));
+    const followedCats = new Set(
+      (follows ?? []).filter((f) => f.target_type === "category").map((f) => f.target_id),
+    );
+    const followedTags = new Set(
+      (follows ?? []).filter((f) => f.target_type === "tag").map((f) => f.target_id),
+    );
 
     // 2. Get read history (to exclude + derive interests)
     const { data: history } = await supabase
@@ -60,7 +64,9 @@ export const getRecommendedPosts = createServerFn({ method: "POST" })
     // 4. Fetch candidate posts (recent published, not already read)
     let q = supabase
       .from("posts")
-      .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id")
+      .select(
+        "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id",
+      )
       .eq("status", "published")
       .is("deleted_at", null)
       .order("published_at", { ascending: false })
@@ -109,6 +115,8 @@ export const getRecommendedPosts = createServerFn({ method: "POST" })
       return { ...p, score } as RecommendedPost;
     });
 
-    scored.sort((a, b) => b.score - a.score || (b.published_at ?? "").localeCompare(a.published_at ?? ""));
+    scored.sort(
+      (a, b) => b.score - a.score || (b.published_at ?? "").localeCompare(a.published_at ?? ""),
+    );
     return scored.slice(0, data.limit);
   });

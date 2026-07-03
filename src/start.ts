@@ -63,10 +63,25 @@ const GONE_BODY = `<!doctype html><html><head><meta charset="utf-8"><title>410 G
  * Baseline security headers for every HTML document. The CSP is the defense-
  * in-depth layer behind output escaping (see safeJsonLd): even if an escape is
  * missed somewhere, no third-party script can load, nothing can frame the
- * site, <base> cannot be hijacked and plugins are dead. 'unsafe-inline' for
- * scripts is required by the framework's inline hydration/theme snippets;
- * everything else is locked down. connect-src allows Supabase (https + the
- * realtime websocket) and the observability/Stripe beacons.
+ * site, <base> cannot be hijacked and plugins are dead.
+ *
+ * Zakres 'unsafe-inline':
+ * - script-src trzyma 'unsafe-inline' wyłącznie dla framework'owych snippetów
+ *   hydratacji TanStack Start i skryptu inicjalizacji motywu (__root.tsx) -
+ *   zainstalowana wersja nie wspiera nonce'ów dla własnych skryptów. JSON-LD
+ *   (type="application/ld+json") to bloki danych, nie skrypty wykonywalne -
+ *   script-src ich nie dotyczy.
+ * - script-src-attr 'none' domyka realny wektor stored-XSS: inline handlery
+ *   (onerror=, onclick=) w treści redakcyjnej są martwe niezależnie od
+ *   'unsafe-inline' w script-src (React podpina zdarzenia addEventListenerem,
+ *   więc 'none' niczego nie psuje).
+ * - connect-src jest zawężony do 'self' + origin Supabase (https + realtime
+ *   websocket) - beacons (vitals, client-errors) i Stripe (redirect, nie XHR)
+ *   idą przez 'self'. Gdy origin Supabase jest nieznany w runtime (brak env
+ *   na edge'u), wraca szeroki wariant - lepsza słabsza polityka niż zerwanie
+ *   połączenia z bazą.
+ * - Google Fonts jest na allowliście stylów/fontów dla podglądu czcionek
+ *   w adminie (FontPicker wstrzykuje <link> do fonts.googleapis.com).
  */
 function contentSecurityPolicy(): string {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
@@ -79,13 +94,17 @@ function contentSecurityPolicy(): string {
   } catch {
     /* malformed env - omit */
   }
+  const connectSrc = supabaseOrigins
+    ? `connect-src 'self' ${supabaseOrigins}`
+    : "connect-src 'self' https: wss:";
   return [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
+    "script-src-attr 'none'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
-    "font-src 'self' data:",
-    `connect-src 'self' https: wss: ${supabaseOrigins}`.trim(),
+    "font-src 'self' data: https://fonts.gstatic.com",
+    connectSrc,
     "media-src 'self' https: blob:",
     "frame-src https:",
     "object-src 'none'",

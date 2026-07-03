@@ -33,7 +33,9 @@ export interface VitalsSummaryResult extends VitalsReport {
 
 export const getVitalsSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i: unknown) => z.object({ days: z.number().int().min(1).max(90).default(7) }).parse(i ?? {}))
+  .inputValidator((i: unknown) =>
+    z.object({ days: z.number().int().min(1).max(90).default(7) }).parse(i ?? {}),
+  )
   .handler(async ({ data, context }): Promise<VitalsSummaryResult> => {
     // Admin gate: a user can read their own roles under RLS (see useAuth), so we
     // check the role with the user-scoped client before touching the service role.
@@ -103,8 +105,10 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
 
       return { ...report, trends, windowTotal, capped: windowTotal > SAMPLE_CAP };
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn("[vitals] summary read failed; returning empty report:", e instanceof Error ? e.message : e);
+      console.warn(
+        "[vitals] summary read failed; returning empty report:",
+        e instanceof Error ? e.message : e,
+      );
       return empty;
     }
   });

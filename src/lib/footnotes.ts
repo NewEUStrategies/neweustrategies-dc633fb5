@@ -1,6 +1,12 @@
 // Footnotes processor: turns [fn]...[/fn] shortcodes into numbered superscript
 // markers and collects the list of notes for rendering at the end of an article.
-import type { BuilderDocument, SectionNode, SectionChild, ColumnNode, WidgetNode } from "./builder/types";
+import type {
+  BuilderDocument,
+  SectionNode,
+  SectionChild,
+  ColumnNode,
+  WidgetNode,
+} from "./builder/types";
 
 export type Footnote = { id: number; html: string };
 

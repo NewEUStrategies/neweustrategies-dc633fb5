@@ -6,12 +6,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetContent } from "@/lib/builder/types";
-import { getNum, getStr } from "./frame";
+import { getBool, getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { readThumbnailOverrides } from "@/lib/builder/thumbnailOverrides";
-import { dedupeAndSlice, postListQueryOptions, type Lang, type PostRow } from "@/lib/builder/postListQuery";
+import {
+  dedupeAndSlice,
+  postListQueryOptions,
+  type Lang,
+  type PostRow,
+} from "@/lib/builder/postListQuery";
 import { normalizeTypographyGapPx } from "@/lib/builder/typographyCss";
 
 // Cover renders across a 1-4 column responsive grid. Images are always painted
@@ -28,21 +33,42 @@ const ASPECT_CLASS: Record<ImageAspect, string> = {
 };
 function aspectOf(c: WidgetContent): ImageAspect {
   const v = getStr(c, "imageAspect");
-  return (v === "3/4" || v === "1/1" || v === "16/9" || v === "4/3") ? v : "4/3";
+  return v === "3/4" || v === "1/1" || v === "16/9" || v === "4/3" ? v : "4/3";
 }
-const tileFrame = (a: ImageAspect) => `relative block ${ASPECT_CLASS[a]} w-full shrink-0 overflow-hidden bg-muted`;
-const overlayFrame = (a: ImageAspect) => `relative block ${ASPECT_CLASS[a]} w-full shrink-0 overflow-hidden bg-muted`;
-const listFrame = (a: ImageAspect) => `relative block ${ASPECT_CLASS[a]} w-[112px] sm:w-[128px] shrink-0 overflow-hidden rounded-sm bg-muted`;
+const tileFrame = (a: ImageAspect) =>
+  `relative block ${ASPECT_CLASS[a]} w-full shrink-0 overflow-hidden bg-muted`;
+const overlayFrame = (a: ImageAspect) =>
+  `relative block ${ASPECT_CLASS[a]} w-full shrink-0 overflow-hidden bg-muted`;
+const listFrame = (a: ImageAspect) =>
+  `relative block ${ASPECT_CLASS[a]} w-[112px] sm:w-[128px] shrink-0 overflow-hidden rounded-sm bg-muted`;
 
-type Variant = "card" | "minimal" | "overlay" | "list" | "numbered" | "ranked" | "classic" | "flex-grid" | "boxed-grid" | "boxed-list";
+type Variant =
+  | "card"
+  | "minimal"
+  | "overlay"
+  | "list"
+  | "numbered"
+  | "ranked"
+  | "classic"
+  | "flex-grid"
+  | "boxed-grid"
+  | "boxed-list";
 
-export function PostListView({ c, lang, carousel = false, typography }: { c: WidgetContent; lang: Lang; carousel?: boolean; typography?: import("@/lib/builder/types").WidgetTypography }) {
+export function PostListView({
+  c,
+  lang,
+  carousel = false,
+  typography,
+}: {
+  c: WidgetContent;
+  lang: Lang;
+  carousel?: boolean;
+  typography?: import("@/lib/builder/types").WidgetTypography;
+}) {
   const { t } = useTranslation();
   const byLabel = t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
   const titleWeight = getStr(c, "titleWeight");
   const excerptWeight = getStr(c, "excerptWeight");
-  const titleSize = typography?.fontSize?.desktop;
-  const descSize = typography?.descriptionFontSize?.desktop;
   const gapPx = normalizeTypographyGapPx(typography?.titleDescriptionGapPx);
   // Shared typography (font family, alignment, transform, decoration, line-height,
   // letter-spacing, italic/normal) is applied to BOTH title and excerpt so the
@@ -50,8 +76,12 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
   const sharedTypo: React.CSSProperties = {
     ...(typography?.fontFamily ? { fontFamily: typography.fontFamily } : {}),
     ...(typography?.fontStyle ? { fontStyle: typography.fontStyle } : {}),
-    ...(typography?.textAlign ? { textAlign: typography.textAlign as React.CSSProperties["textAlign"] } : {}),
-    ...(typography?.textTransform ? { textTransform: typography.textTransform as React.CSSProperties["textTransform"] } : {}),
+    ...(typography?.textAlign
+      ? { textAlign: typography.textAlign as React.CSSProperties["textAlign"] }
+      : {}),
+    ...(typography?.textTransform
+      ? { textTransform: typography.textTransform as React.CSSProperties["textTransform"] }
+      : {}),
     ...(typography?.textDecoration ? { textDecoration: typography.textDecoration } : {}),
     ...(typography?.lineHeight ? { lineHeight: typography.lineHeight } : {}),
     ...(typography?.letterSpacing ? { letterSpacing: typography.letterSpacing } : {}),
@@ -63,13 +93,11 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
     ...sharedTypo,
     ...(typoWeight ? { fontWeight: typoWeight as React.CSSProperties["fontWeight"] } : {}),
     ...(titleWeight ? { fontWeight: titleWeight as React.CSSProperties["fontWeight"] } : {}),
-    ...(titleSize ? { fontSize: titleSize } : {}),
   };
   const excerptStyle: React.CSSProperties = {
     ...sharedTypo,
     ...(typoWeight ? { fontWeight: typoWeight as React.CSSProperties["fontWeight"] } : {}),
     ...(excerptWeight ? { fontWeight: excerptWeight as React.CSSProperties["fontWeight"] } : {}),
-    ...(descSize ? { fontSize: descSize } : {}),
     ...(typeof gapPx === "number" ? { marginTop: `${gapPx}px` } : {}),
   };
   const tStyle = Object.keys(titleStyle).length ? titleStyle : undefined;
@@ -78,8 +106,8 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
   const aspect = aspectOf(c);
   const limit = Math.max(1, Math.min(100, getNum(c, "limit", 6)));
   const cols = Math.max(1, Math.min(6, getNum(c, "columns", 3)));
-  const uniqueOnPage = c["uniqueOnPage"] === true || c["uniqueOnPage"] === "true";
-  const mobileHScroll = c["mobileHorizontalScroll"] === true || c["mobileHorizontalScroll"] === "true";
+  const uniqueOnPage = getBool(c, "uniqueOnPage", false);
+  const mobileHScroll = getBool(c, "mobileHorizontalScroll", false);
 
   const used = useUsedPostIds();
   // Stable, snapshot-independent query: the server prefetch / stream gate and the
@@ -101,7 +129,9 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
   }, [uniqueOnPage, used, data]);
 
   const overrides = useMemo(() => readThumbnailOverrides(c), [c]);
-  const visibleRows = uniqueOnPage ? dedupeAndSlice(data ?? [], excludeIds, limit) : (data ?? []).slice(0, limit);
+  const visibleRows = uniqueOnPage
+    ? dedupeAndSlice(data ?? [], excludeIds, limit)
+    : (data ?? []).slice(0, limit);
   const rows = visibleRows.map((p) =>
     overrides[p.id] ? { ...p, cover_image_url: overrides[p.id] } : p,
   );
@@ -152,15 +182,25 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
     );
   }
 
-
-  const title = (p: PostRow) => (lang === "pl" ? p.title_pl : p.title_en) || p.title_pl || p.title_en || "(bez tytułu)";
+  const title = (p: PostRow) =>
+    (lang === "pl" ? p.title_pl : p.title_en) || p.title_pl || p.title_en || "(bez tytułu)";
   const excerpt = (p: PostRow) => (lang === "pl" ? p.excerpt_pl : p.excerpt_en) || "";
 
   if (carousel) {
     return (
       <div className="w-full min-w-0 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
         {rows.map((p) => (
-          <PostCard key={p.id} p={p} variant={variant} aspect={aspect} carousel title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
+          <PostCard
+            key={p.id}
+            p={p}
+            variant={variant}
+            aspect={aspect}
+            carousel
+            title={title(p)}
+            excerpt={excerpt(p)}
+            titleStyle={tStyle}
+            excerptStyle={eStyle}
+          />
         ))}
       </div>
     );
@@ -187,10 +227,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
               />
             )}
             <div className="min-w-0">
-              <h4
-                className="cms-post-title line-clamp-2"
-                style={tStyle}
-              >
+              <h4 className="cms-post-title line-clamp-2" style={tStyle}>
                 {title(p)}
               </h4>
               {excerpt(p) && (
@@ -225,46 +262,46 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
       idxVAlign === "top"
         ? { top: 0, bottom: "auto", transform: "translate(0, 0)" }
         : idxVAlign === "bottom"
-        ? { top: "auto", bottom: 0, transform: "translate(0, 0)" }
-        : { top: "50%", bottom: "auto", transform: "translateY(-50%)" };
+          ? { top: "auto", bottom: 0, transform: "translate(0, 0)" }
+          : { top: "50%", bottom: "auto", transform: "translateY(-50%)" };
 
     return (
       <div
         className="w-full flex flex-col divide-y divide-border"
-        style={{
-          "--pl-num-light": idxColor,
-          "--pl-num-dark": idxColorDark,
-          "--pl-num-opacity": idxOpacity,
-        } as React.CSSProperties}
+        style={
+          {
+            "--pl-num-light": idxColor,
+            "--pl-num-dark": idxColorDark,
+            "--pl-num-opacity": idxOpacity,
+          } as React.CSSProperties
+        }
       >
         {rows.map((p, i) => (
-          <AppLink
-            key={p.id}
-            href={`/post/${p.slug}`}
-            className="block py-4 sm:py-5 group"
-          >
+          <AppLink key={p.id} href={`/post/${p.slug}`} className="block py-4 sm:py-5 group">
             {/* Title-anchored wrapper - the number is positioned relative to this
                 box so its top edge aligns exactly with the title's top edge and
                 never overflows the row. */}
-            <div className="relative isolate overflow-hidden min-w-0 w-full text-left">
+            <div className="post-list-numbered-shell relative isolate overflow-visible min-w-0 w-full text-left">
               <span
                 aria-hidden
                 className="post-list-numbered-index font-display tabular-nums select-none leading-none"
-                style={{
-                  ["--pl-num-fs" as string]: `${idxSize}px`,
-                  fontWeight: idxWeight as React.CSSProperties["fontWeight"],
-                  position: "absolute",
-                  left: idxSide === "left" ? 0 : "auto",
-                  right: idxSide === "right" ? 0 : "auto",
-                  ...vPos,
-                  textAlign: idxSide,
-                  pointerEvents: "none",
-                  zIndex: 0,
-                } as React.CSSProperties}
+                style={
+                  {
+                    ["--pl-num-fs" as string]: `${idxSize}px`,
+                    fontWeight: idxWeight as React.CSSProperties["fontWeight"],
+                    position: "absolute",
+                    left: idxSide === "left" ? 0 : "auto",
+                    right: idxSide === "right" ? 0 : "auto",
+                    ...vPos,
+                    textAlign: idxSide,
+                    pointerEvents: "none",
+                    zIndex: 0,
+                  } as React.CSSProperties
+                }
               >
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <div className="relative z-10">
+              <div className={`relative z-10 ${idxSide === "left" ? "pl-10 sm:pl-12 lg:pl-0" : "pr-10 sm:pr-12 lg:pr-0"}`}>
                 <h4
                   className="cms-post-title line-clamp-3"
                   style={tStyle}
@@ -285,8 +322,6 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
     );
   }
 
-
-
   if (variant === "numbered") {
     // Big faint index on the left, title in the middle, thumbnail on the right.
     // Defaults unified with the "ranked" variant (size 52, opacity 0.18) so both
@@ -304,7 +339,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
       const v = getStr(c, "indexVAlign") || "top";
       return v === "middle" || v === "bottom" ? v : "top";
     })();
-    const showExcerpt = false;
+    const showExcerpt = getBool(c, "showExcerpt", true);
     // Fall back to global Theme Design tokens when widget colors are empty.
     const lightColor = idxColor || "var(--td-li-light, rgb(35,31,32))";
     const darkColor = idxColorDark || "var(--td-li-dark, rgb(250,147,70))";
@@ -314,44 +349,47 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
       idxVAlign === "top"
         ? { top: "0", bottom: "auto", transform: "translateY(0)" }
         : idxVAlign === "bottom"
-        ? { top: "auto", bottom: "0", transform: "translateY(0)" }
-        : { top: "50%", bottom: "auto", transform: "translateY(-50%)" };
+          ? { top: "auto", bottom: "0", transform: "translateY(0)" }
+          : { top: "50%", bottom: "auto", transform: "translateY(-50%)" };
     return (
       <div
         className="w-full flex flex-col divide-y divide-border"
-        style={{
-          "--pl-num-light": lightColor,
-          "--pl-num-dark": darkColor,
-          "--pl-num-opacity": idxOpacity,
-        } as React.CSSProperties}
+        style={
+          {
+            "--pl-num-light": lightColor,
+            "--pl-num-dark": darkColor,
+            "--pl-num-opacity": idxOpacity,
+          } as React.CSSProperties
+        }
       >
         {rows.map((p, i) => (
           <AppLink
             key={p.id}
             href={`/post/${p.slug}`}
-            className={`grid items-start gap-3 sm:gap-4 py-4 sm:py-5 group ${
+            className={`post-list-numbered-row grid items-start gap-3 sm:gap-4 py-4 sm:py-5 group ${
               p.cover_image_url
                 ? "grid-cols-[minmax(0,1fr)_minmax(90px,32%)] sm:grid-cols-[minmax(0,1fr)_minmax(120px,28%)]"
                 : "grid-cols-1"
             }`}
-
           >
-            <div className="relative min-w-0 text-left isolate overflow-hidden">
+            <div className="post-list-numbered-shell relative min-w-0 text-left isolate overflow-visible">
               <span
                 aria-hidden
                 className="post-list-numbered-index font-display tabular-nums"
-                style={{
-                  ["--pl-num-fs" as string]: `${idxSize}px`,
-                  fontWeight: idxWeight as React.CSSProperties["fontWeight"],
-                  left: idxSide === "left" ? "0" : "auto",
-                  right: idxSide === "right" ? "0" : "auto",
-                  ...vPos,
-                  textAlign: idxSide,
-                } as React.CSSProperties}
+                style={
+                  {
+                    ["--pl-num-fs" as string]: `${idxSize}px`,
+                    fontWeight: idxWeight as React.CSSProperties["fontWeight"],
+                    left: idxSide === "left" ? "0" : "auto",
+                    right: idxSide === "right" ? "0" : "auto",
+                    ...vPos,
+                    textAlign: idxSide,
+                  } as React.CSSProperties
+                }
               >
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <div className={`relative z-10 ${idxSide === "left" ? "pl-1 pr-1" : "pr-1 pl-1"}`}>
+              <div className={`relative z-10 ${idxSide === "left" ? "pl-10 sm:pl-12 lg:pl-1" : "pr-10 sm:pr-12 lg:pr-1"}`}>
 
                 <h4
                   className="cms-post-title line-clamp-3"
@@ -361,7 +399,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
                 </h4>
                 {showExcerpt && excerpt(p) && (
                   <p
-                    className="cms-post-excerpt hidden sm:block line-clamp-2"
+                    className="cms-post-excerpt mt-1.5 line-clamp-2"
                     style={eStyle}
                   >
                     {excerpt(p)}
@@ -380,8 +418,6 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
                 hoverEffect="zoom"
               />
             )}
-
-
           </AppLink>
         ))}
       </div>
@@ -394,10 +430,23 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
         {rows.map((p) => (
           <AppLink key={p.id} href={`/post/${p.slug}`} className="block group">
             {p.cover_image_url && (
-              <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-md mb-4`} sizes="(max-width: 1024px) 100vw, 900px" foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
+              <WidgetMediaImage
+                src={p.cover_image_url}
+                alt=""
+                frameClassName={`${tileFrame(aspect)} rounded-md mb-4`}
+                sizes="(max-width: 1024px) 100vw, 900px"
+                foregroundClassName={COVER_IMG_CLASS}
+                hoverEffect="zoom"
+              />
             )}
-            <h3 className="cms-post-title line-clamp-3" style={tStyle}>{title(p)}</h3>
-            {excerpt(p) && <p className="cms-post-excerpt mt-2 line-clamp-3" style={eStyle}>{excerpt(p)}</p>}
+            <h3 className="cms-post-title line-clamp-3" style={tStyle}>
+              {title(p)}
+            </h3>
+            {excerpt(p) && (
+              <p className="cms-post-excerpt mt-2 line-clamp-3" style={eStyle}>
+                {excerpt(p)}
+              </p>
+            )}
           </AppLink>
         ))}
       </div>
@@ -408,7 +457,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
     // 1 large lead (asymmetric ~1.35fr) + remaining as compact side rows.
     const [lead, ...rest] = rows;
     return (
-        <div className="w-full grid gap-5 md:gap-8 grid-cols-1 md:grid-cols-[1.35fr_minmax(0,1fr)]">
+      <div className="w-full grid gap-5 md:gap-8 grid-cols-1 md:grid-cols-[1.35fr_minmax(0,1fr)]">
         <AppLink href={`/post/${lead.slug}`} className="group block">
           {lead.cover_image_url && (
             <div className="relative mb-3 sm:mb-4 overflow-hidden rounded-md">
@@ -421,8 +470,17 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
               />
             </div>
           )}
-          <h3 className="cms-post-title text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand" style={tStyle}>{title(lead)}</h3>
-          {excerpt(lead) && <p className="cms-post-excerpt mt-2 line-clamp-3 text-muted-foreground" style={eStyle}>{excerpt(lead)}</p>}
+          <h3
+            className="cms-post-title text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand"
+            style={tStyle}
+          >
+            {title(lead)}
+          </h3>
+          {excerpt(lead) && (
+            <p className="cms-post-excerpt mt-2 line-clamp-3 text-muted-foreground" style={eStyle}>
+              {excerpt(lead)}
+            </p>
+          )}
         </AppLink>
         <ol className="flex flex-col">
           {rest.map((p, i) => (
@@ -432,11 +490,25 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
                 className={`grid ${p.cover_image_url ? "grid-cols-[96px_minmax(0,1fr)] sm:grid-cols-[104px_minmax(0,1fr)]" : "grid-cols-[28px_minmax(0,1fr)]"} items-start gap-2.5 sm:gap-3 py-3 sm:py-3.5 first:pt-0 group`}
               >
                 {p.cover_image_url ? (
-                  <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`relative block aspect-[4/3] w-full shrink-0 overflow-hidden rounded-sm bg-muted`} sizes="104px" foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
+                  <WidgetMediaImage
+                    src={p.cover_image_url}
+                    alt=""
+                    frameClassName={`relative block aspect-[4/3] w-full shrink-0 overflow-hidden rounded-sm bg-muted`}
+                    sizes="104px"
+                    foregroundClassName={COVER_IMG_CLASS}
+                    hoverEffect="zoom"
+                  />
                 ) : (
-                  <span className="font-serif text-lg tabular-nums text-brand/80 leading-none pt-0.5">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="font-serif text-lg tabular-nums text-brand/80 leading-none pt-0.5">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
                 )}
-                <h4 className="cms-post-title line-clamp-3 transition-colors group-hover:text-brand" style={tStyle}>{title(p)}</h4>
+                <h4
+                  className="cms-post-title line-clamp-3 transition-colors group-hover:text-brand"
+                  style={tStyle}
+                >
+                  {title(p)}
+                </h4>
               </AppLink>
             </li>
           ))}
@@ -447,7 +519,11 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
 
   if (variant === "boxed-list") {
     return (
-      <div data-widget-grid className={`w-full grid gap-3 sm:gap-4 ${mobileHScroll ? "cms-mobile-hscroll" : ""}`} style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}>
+      <div
+        data-widget-grid
+        className={`w-full grid gap-3 sm:gap-4 ${mobileHScroll ? "cms-mobile-hscroll" : ""}`}
+        style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}
+      >
         {rows.map((p) => (
           <AppLink
             key={p.id}
@@ -466,8 +542,20 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
               </div>
             )}
             <div className="min-w-0 flex flex-col justify-center py-0.5">
-              <h4 className="cms-post-title line-clamp-2 transition-colors group-hover:text-brand" style={tStyle}>{title(p)}</h4>
-              {excerpt(p) && <p className="cms-post-excerpt mt-1.5 line-clamp-2 text-muted-foreground" style={eStyle}>{excerpt(p)}</p>}
+              <h4
+                className="cms-post-title line-clamp-2 transition-colors group-hover:text-brand"
+                style={tStyle}
+              >
+                {title(p)}
+              </h4>
+              {excerpt(p) && (
+                <p
+                  className="cms-post-excerpt mt-1.5 line-clamp-2 text-muted-foreground"
+                  style={eStyle}
+                >
+                  {excerpt(p)}
+                </p>
+              )}
             </div>
           </AppLink>
         ))}
@@ -481,16 +569,31 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
       className={`w-full grid gap-4 ${mobileHScroll ? "cms-mobile-hscroll" : ""}`}
       style={{ gridTemplateColumns: `repeat(${effectiveCols}, minmax(0, 1fr))` }}
     >
-
       {rows.map((p) => (
-        <PostCard key={p.id} p={p} variant={variant} aspect={aspect} title={title(p)} excerpt={excerpt(p)} titleStyle={tStyle} excerptStyle={eStyle} />
+        <PostCard
+          key={p.id}
+          p={p}
+          variant={variant}
+          aspect={aspect}
+          title={title(p)}
+          excerpt={excerpt(p)}
+          titleStyle={tStyle}
+          excerptStyle={eStyle}
+        />
       ))}
     </div>
   );
 }
 
 function PostCard({
-  p, variant, aspect, carousel = false, title, excerpt, titleStyle, excerptStyle,
+  p,
+  variant,
+  aspect,
+  carousel = false,
+  title,
+  excerpt,
+  titleStyle,
+  excerptStyle,
 }: {
   p: PostRow;
   variant: Variant;
@@ -521,7 +624,12 @@ function PostCard({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
         <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 text-white">
           <span className="inline-block h-[3px] w-8 bg-brand mb-2 rounded-full transition-all duration-300 group-hover:w-12" />
-          <h4 className="cms-post-title line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]" style={titleStyle}>{title}</h4>
+          <h4
+            className="cms-post-title line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
+            style={titleStyle}
+          >
+            {title}
+          </h4>
         </div>
       </AppLink>
     );
@@ -529,12 +637,31 @@ function PostCard({
 
   if (variant === "minimal") {
     return (
-      <AppLink href={`/post/${p.slug}`} className={`block group ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}>
+      <AppLink
+        href={`/post/${p.slug}`}
+        className={`block group ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}
+      >
         {p.cover_image_url && (
-          <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={`${tileFrame(aspect)} rounded-sm mb-3`} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
+          <WidgetMediaImage
+            src={p.cover_image_url}
+            alt=""
+            frameClassName={`${tileFrame(aspect)} rounded-sm mb-3`}
+            sizes={GRID_COVER_SIZES}
+            foregroundClassName={COVER_IMG_CLASS}
+            hoverEffect="zoom"
+          />
         )}
-        <h4 className="cms-post-title line-clamp-2" style={titleStyle}>{title}</h4>
-        {excerpt && <p className="cms-post-excerpt text-muted-foreground line-clamp-2 mt-1.5" style={excerptStyle}>{excerpt}</p>}
+        <h4 className="cms-post-title line-clamp-2" style={titleStyle}>
+          {title}
+        </h4>
+        {excerpt && (
+          <p
+            className="cms-post-excerpt text-muted-foreground line-clamp-2 mt-1.5"
+            style={excerptStyle}
+          >
+            {excerpt}
+          </p>
+        )}
       </AppLink>
     );
   }
@@ -543,11 +670,24 @@ function PostCard({
   return (
     <AppLink href={`/post/${p.slug}`} className={base}>
       {p.cover_image_url && (
-        <WidgetMediaImage src={p.cover_image_url} alt="" frameClassName={tileFrame(aspect)} sizes={GRID_COVER_SIZES} foregroundClassName={COVER_IMG_CLASS} hoverEffect="zoom" />
+        <WidgetMediaImage
+          src={p.cover_image_url}
+          alt=""
+          frameClassName={tileFrame(aspect)}
+          sizes={GRID_COVER_SIZES}
+          foregroundClassName={COVER_IMG_CLASS}
+          hoverEffect="zoom"
+        />
       )}
       <div className="p-3">
-        <h4 className="cms-post-title mb-1.5 line-clamp-2" style={titleStyle}>{title}</h4>
-        {excerpt && <p className="cms-post-excerpt text-muted-foreground line-clamp-2" style={excerptStyle}>{excerpt}</p>}
+        <h4 className="cms-post-title mb-1.5 line-clamp-2" style={titleStyle}>
+          {title}
+        </h4>
+        {excerpt && (
+          <p className="cms-post-excerpt text-muted-foreground line-clamp-2" style={excerptStyle}>
+            {excerpt}
+          </p>
+        )}
       </div>
     </AppLink>
   );

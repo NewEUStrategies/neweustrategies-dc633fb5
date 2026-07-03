@@ -4,7 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
-import { normalize, pickGreeting, DEFAULT_GREETINGS, type Lang, type NameEntry, type GreetingsDictionary } from "./greetings";
+import {
+  normalize,
+  pickGreeting,
+  DEFAULT_GREETINGS,
+  type Lang,
+  type NameEntry,
+  type GreetingsDictionary,
+} from "./greetings";
 
 interface ProfileLite {
   first_name: string | null;
@@ -12,11 +19,15 @@ interface ProfileLite {
   display_name: string | null;
 }
 
-function deriveFirstName(p: ProfileLite | null, meta: Record<string, unknown> | undefined, email: string | null): string {
+function deriveFirstName(
+  p: ProfileLite | null,
+  meta: Record<string, unknown> | undefined,
+  email: string | null,
+): string {
   const candidates: Array<string | null | undefined> = [
     p?.first_name,
-    (meta?.first_name as string | undefined),
-    (meta?.given_name as string | undefined),
+    meta?.first_name as string | undefined,
+    meta?.given_name as string | undefined,
     p?.display_name?.trim().split(/\s+/)[0],
     (meta?.full_name as string | undefined)?.trim().split(/\s+/)[0],
     (meta?.name as string | undefined)?.trim().split(/\s+/)[0],

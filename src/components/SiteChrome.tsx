@@ -47,10 +47,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
       <ImpersonationBanner />
       <RouteProgress />
       <Header />
-      <main
-        className="flex-1"
-        style={{ viewTransitionName: "site-main" }}
-      >
+      <main className="flex-1" style={{ viewTransitionName: "site-main" }}>
         {children}
       </main>
       <Footer />

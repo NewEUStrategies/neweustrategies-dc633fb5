@@ -51,7 +51,12 @@ interface BreadcrumbsProps {
   cls?: string;
 }
 
-export function BreadcrumbsView({ separator = "/", showHome = true, lang = "pl", cls }: BreadcrumbsProps) {
+export function BreadcrumbsView({
+  separator = "/",
+  showHome = true,
+  lang = "pl",
+  cls,
+}: BreadcrumbsProps) {
   const ctx = useCurrentPostCtx();
   const t = L[lang];
   const crumbs = ctx?.breadcrumbs ?? [];
@@ -82,12 +87,18 @@ export function BreadcrumbsView({ separator = "/", showHome = true, lang = "pl",
                 </span>
               )}
               {!last && c.href ? (
-                <AppLink href={c.href} className="hover:text-foreground transition-colors inline-flex items-center gap-1">
+                <AppLink
+                  href={c.href}
+                  className="hover:text-foreground transition-colors inline-flex items-center gap-1"
+                >
                   {i === 0 && showHome ? <Home className="w-3.5 h-3.5" aria-hidden /> : null}
                   <span>{c.label}</span>
                 </AppLink>
               ) : (
-                <span aria-current={last ? "page" : undefined} className={last ? "text-foreground font-medium" : ""}>
+                <span
+                  aria-current={last ? "page" : undefined}
+                  className={last ? "text-foreground font-medium" : ""}
+                >
                   {c.label}
                 </span>
               )}
@@ -113,7 +124,8 @@ export function ReadingTimeView({ wpm = 220, prefix = "", lang = "pl", cls }: Re
   const t = L[lang];
 
   const minutes = useMemo(() => {
-    if (typeof ctx?.readingTimeMin === "number" && ctx.readingTimeMin > 0) return ctx.readingTimeMin;
+    if (typeof ctx?.readingTimeMin === "number" && ctx.readingTimeMin > 0)
+      return ctx.readingTimeMin;
     const text = lang === "pl" ? ctx?.excerpt_pl : ctx?.excerpt_en;
     const words = (text ?? "").trim().split(/\s+/).filter(Boolean).length;
     if (!words) return 1;
@@ -182,20 +194,28 @@ export function ShareButtonsView({ networks, variant = "filled", lang = "pl", cl
   );
 
   const url = typeof window !== "undefined" ? window.location.href : "";
-  const title = (lang === "pl" ? ctx?.title_pl : ctx?.title_en) ?? ctx?.title_pl ?? ctx?.title_en ?? "";
+  const title =
+    (lang === "pl" ? ctx?.title_pl : ctx?.title_en) ?? ctx?.title_pl ?? ctx?.title_en ?? "";
 
   const buildHref = useCallback(
     (n: Network): string => {
       const u = encodeURIComponent(url);
       const txt = encodeURIComponent(title);
       switch (n) {
-        case "facebook": return `https://www.facebook.com/sharer/sharer.php?u=${u}`;
-        case "x": return `https://twitter.com/intent/tweet?url=${u}&text=${txt}`;
-        case "linkedin": return `https://www.linkedin.com/sharing/share-offsite/?url=${u}`;
-        case "whatsapp": return `https://wa.me/?text=${txt}%20${u}`;
-        case "telegram": return `https://t.me/share/url?url=${u}&text=${txt}`;
-        case "email": return `mailto:?subject=${txt}&body=${u}`;
-        default: return "#";
+        case "facebook":
+          return `https://www.facebook.com/sharer/sharer.php?u=${u}`;
+        case "x":
+          return `https://twitter.com/intent/tweet?url=${u}&text=${txt}`;
+        case "linkedin":
+          return `https://www.linkedin.com/sharing/share-offsite/?url=${u}`;
+        case "whatsapp":
+          return `https://wa.me/?text=${txt}%20${u}`;
+        case "telegram":
+          return `https://t.me/share/url?url=${u}&text=${txt}`;
+        case "email":
+          return `mailto:?subject=${txt}&body=${u}`;
+        default:
+          return "#";
       }
     },
     [url, title],
@@ -212,25 +232,42 @@ export function ShareButtonsView({ networks, variant = "filled", lang = "pl", cl
   }, [url]);
 
   const variantCls = (active: string): string => {
-    if (variant === "outline") return "bg-transparent border border-border text-foreground hover:bg-muted";
-    if (variant === "ghost") return "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted";
+    if (variant === "outline")
+      return "bg-transparent border border-border text-foreground hover:bg-muted";
+    if (variant === "ghost")
+      return "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted";
     return `${active} border border-transparent hover:opacity-90`;
   };
 
   return (
-    <div className={`flex flex-wrap items-center gap-2 ${cls ?? ""}`} role="group" aria-label={t.share}>
+    <div
+      className={`flex flex-wrap items-center gap-2 ${cls ?? ""}`}
+      role="group"
+      aria-label={t.share}
+    >
       <span className="text-sm font-medium text-foreground mr-1">{t.share}:</span>
       {list.map((n) => {
         const meta = NETWORK_META[n];
         const { Icon } = meta;
         const brandName: Record<Network, string> = {
-          facebook: "facebook", x: "x", linkedin: "linkedin",
-          whatsapp: "whatsapp", telegram: "telegram", email: "email", copy: "copy",
+          facebook: "facebook",
+          x: "x",
+          linkedin: "linkedin",
+          whatsapp: "whatsapp",
+          telegram: "telegram",
+          email: "email",
+          copy: "copy",
         };
         const className = `inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${variantCls(meta.color)}`;
         if (n === "copy") {
           return (
-            <button key={n} type="button" onClick={onCopy} className={className} aria-label={copied ? t.copied : t.copy}>
+            <button
+              key={n}
+              type="button"
+              onClick={onCopy}
+              className={className}
+              aria-label={copied ? t.copied : t.copy}
+            >
               {copied ? <Check className="w-3.5 h-3.5" /> : <Icon className="w-3.5 h-3.5" />}
               <span>{copied ? t.copied : t.copy}</span>
             </button>
@@ -245,7 +282,12 @@ export function ShareButtonsView({ networks, variant = "filled", lang = "pl", cl
             className={className}
             aria-label={`${t.share} ${meta.label}`}
           >
-            <BrandIcon name={brandName[n]} fallback={Icon} className="w-3.5 h-3.5" alt={meta.label} />
+            <BrandIcon
+              name={brandName[n]}
+              fallback={Icon}
+              className="w-3.5 h-3.5"
+              alt={meta.label}
+            />
             <span>{meta.label}</span>
           </a>
         );

@@ -30,7 +30,9 @@ export function AdSlotById({ slotId, className }: Props) {
 
   if (!slotId) {
     return (
-      <div className={`text-xs text-muted-foreground p-3 border border-dashed border-border rounded-md text-center ${className ?? ""}`}>
+      <div
+        className={`text-xs text-muted-foreground p-3 border border-dashed border-border rounded-md text-center ${className ?? ""}`}
+      >
         Wybierz slot reklamowy w ustawieniach widgetu.
       </div>
     );

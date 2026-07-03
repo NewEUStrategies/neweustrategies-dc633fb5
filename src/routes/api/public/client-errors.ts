@@ -39,7 +39,8 @@ export const Route = createFileRoute("/api/public/client-errors")({
           const message = clip(body.message, 2000);
           if (!message) return noContent(); // a message is the minimum useful signal
 
-          const source = typeof body.source === "string" && VALID_SOURCES.has(body.source) ? body.source : null;
+          const source =
+            typeof body.source === "string" && VALID_SOURCES.has(body.source) ? body.source : null;
           const stack = clip(body.stack, 8000);
           const path = clip(body.url ?? body.path, 512);
           // `meta` is bounded structured context (boundary label, component stack).

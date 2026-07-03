@@ -64,7 +64,8 @@ export function ParagraphBlock({
     content: html || "<p></p>",
     editorProps: {
       attributes: {
-        class: "prose prose-sm dark:prose-invert max-w-none outline-none min-h-[1.5em] focus:outline-none",
+        class:
+          "prose prose-sm dark:prose-invert max-w-none outline-none min-h-[1.5em] focus:outline-none",
       },
       handleKeyDown: (_view, event) => {
         const ed = editor;

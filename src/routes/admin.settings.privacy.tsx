@@ -25,10 +25,18 @@ function PrivacySettings() {
     <div>
       <h2 className="font-display text-xl mb-4">{t("admin.privacy.title")}</h2>
       <Field label={t("admin.privacy.policyPage")} hint={t("admin.privacy.policyPageHint")}>
-        <Text value={draft.privacy_page_slug} onChange={(e) => set("privacy_page_slug", e.target.value)} placeholder="polityka-prywatnosci" />
+        <Text
+          value={draft.privacy_page_slug}
+          onChange={(e) => set("privacy_page_slug", e.target.value)}
+          placeholder="polityka-prywatnosci"
+        />
       </Field>
       <Field label={t("admin.privacy.cookieBanner")}>
-        <Checkbox label={t("admin.privacy.cookieBannerLabel")} checked={draft.cookie_banner} onChange={(v) => set("cookie_banner", v)} />
+        <Checkbox
+          label={t("admin.privacy.cookieBannerLabel")}
+          checked={draft.cookie_banner}
+          onChange={(v) => set("cookie_banner", v)}
+        />
       </Field>
       <SaveBar saving={save.isPending} onSave={() => save.mutate(draft)} />
     </div>

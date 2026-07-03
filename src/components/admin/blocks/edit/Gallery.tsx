@@ -4,7 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Images, Plus, Trash2 } from "lucide-react";
 
-interface GalleryImage { url: string; alt?: string }
+interface GalleryImage {
+  url: string;
+  alt?: string;
+}
 
 interface Props {
   block: Block;
@@ -47,11 +50,21 @@ export function GalleryBlock({ block, onChange }: Props) {
     <div className="space-y-2">
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {images.map((img, i) => (
-          <div key={i} className="relative aspect-square rounded-md border border-border overflow-hidden bg-muted/40 group">
+          <div
+            key={i}
+            className="relative aspect-square rounded-md border border-border overflow-hidden bg-muted/40 group"
+          >
             {img.url ? (
-              <img src={img.url} alt={img.alt ?? ""} className="w-full h-full object-cover" loading="lazy" />
+              <img
+                src={img.url}
+                alt={img.alt ?? ""}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">brak URL</div>
+              <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                brak URL
+              </div>
             )}
             <button
               type="button"
@@ -63,7 +76,9 @@ export function GalleryBlock({ block, onChange }: Props) {
             </button>
             <Input
               value={img.url}
-              onChange={(e) => update(images.map((x, j) => j === i ? { ...x, url: e.target.value } : x))}
+              onChange={(e) =>
+                update(images.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))
+              }
               placeholder="URL…"
               className="absolute bottom-1 left-1 right-1 h-6 text-[10px] bg-popover/90"
             />

@@ -3,25 +3,40 @@ import { Plus, Trash2 } from "@/lib/lucide-shim";
 import { StructurePicker } from "../../../StructurePicker";
 
 export function SectionDropZone({
-  onInsert, index, prominent, label,
-  onRemoveAbove, onRemoveBelow,
+  onInsert,
+  index,
+  prominent,
+  label,
+  onRemoveAbove,
+  onRemoveBelow,
 }: {
-  onInsert: (spans: number[]) => void; index: number;
-  prominent?: boolean; label?: string;
+  onInsert: (spans: number[]) => void;
+  index: number;
+  prominent?: boolean;
+  label?: string;
   onRemoveAbove?: () => void;
   onRemoveBelow?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   if (open) {
     return (
-      <div data-section-inserter className="my-2 p-2 border border-brand/60 rounded bg-card shadow-sm" onClick={(e) => e.stopPropagation()}>
+      <div
+        data-section-inserter
+        className="my-2 p-2 border border-brand/60 rounded bg-card shadow-sm"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-2 gap-2">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Wybierz strukturę</span>
+          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+            Wybierz strukturę
+          </span>
           <div className="flex items-center gap-1">
             {onRemoveAbove && (
               <button
                 type="button"
-                onClick={() => { onRemoveAbove(); setOpen(false); }}
+                onClick={() => {
+                  onRemoveAbove();
+                  setOpen(false);
+                }}
                 title="Usuń sekcję powyżej"
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-destructive hover:bg-destructive/10 rounded"
               >
@@ -32,7 +47,10 @@ export function SectionDropZone({
             {onRemoveBelow && (
               <button
                 type="button"
-                onClick={() => { onRemoveBelow(); setOpen(false); }}
+                onClick={() => {
+                  onRemoveBelow();
+                  setOpen(false);
+                }}
                 title="Usuń sekcję poniżej"
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] text-destructive hover:bg-destructive/10 rounded"
               >
@@ -40,10 +58,23 @@ export function SectionDropZone({
                 Usuń ↓ poniżej
               </button>
             )}
-            <button type="button" onClick={() => setOpen(false)} className="px-1 text-[11px] text-muted-foreground hover:text-foreground">×</button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="px-1 text-[11px] text-muted-foreground hover:text-foreground"
+            >
+              ×
+            </button>
           </div>
         </div>
-        <StructurePicker onPick={(s) => { onInsert(s); setOpen(false); }} cols={7} compact />
+        <StructurePicker
+          onPick={(s) => {
+            onInsert(s);
+            setOpen(false);
+          }}
+          cols={7}
+          compact
+        />
       </div>
     );
   }
@@ -65,4 +96,3 @@ export function SectionDropZone({
     </div>
   );
 }
-

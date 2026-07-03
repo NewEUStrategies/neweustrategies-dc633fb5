@@ -25,11 +25,7 @@ export interface MegaMenuCategoryData {
 const pickLang = (a?: string | null, b?: string | null): string =>
   (a && a.length ? a : (b ?? "")) as string;
 
-export function megaMenuCategoryQueryOptions(
-  slug: string,
-  limit: number,
-  lang: MegaMenuLang,
-) {
+export function megaMenuCategoryQueryOptions(slug: string, limit: number, lang: MegaMenuLang) {
   return queryOptions({
     queryKey: ["mega-menu-cat", slug, limit, lang] as const,
     enabled: slug.length > 0,

@@ -31,7 +31,11 @@ export function setIconPack(next: IconPack) {
   if (next === current) return;
   current = next;
   if (typeof window !== "undefined") {
-    try { window.localStorage.setItem(STORAGE_KEY, next); } catch { /* ignore */ }
+    try {
+      window.localStorage.setItem(STORAGE_KEY, next);
+    } catch {
+      /* ignore */
+    }
   }
   emit();
 }

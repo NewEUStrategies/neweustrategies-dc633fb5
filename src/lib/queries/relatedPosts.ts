@@ -46,7 +46,11 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
       const [{ data: curCats }, { data: curTags }, { data: curPost }] = await Promise.all([
         supabase.from("post_categories").select("category_id").eq("post_id", input.postId),
         supabase.from("post_tags").select("tag_id").eq("post_id", input.postId),
-        supabase.from("posts").select("author_id, parent_page_id").eq("id", input.postId).maybeSingle(),
+        supabase
+          .from("posts")
+          .select("author_id, parent_page_id")
+          .eq("id", input.postId)
+          .maybeSingle(),
       ]);
 
       const curCatSet = new Set<string>((curCats ?? []).map((r) => r.category_id as string));
@@ -64,10 +68,7 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
 
       // 2. Candidate post IDs sharing at least one signal.
       const candidateIds = new Set<string>();
-      if (
-        (input.strategy === "categories" || input.strategy === "both") &&
-        curCatSet.size > 0
-      ) {
+      if ((input.strategy === "categories" || input.strategy === "both") && curCatSet.size > 0) {
         const { data } = await supabase
           .from("post_categories")
           .select("post_id")
@@ -77,10 +78,7 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
           if (id !== input.postId) candidateIds.add(id);
         });
       }
-      if (
-        (input.strategy === "tags" || input.strategy === "both") &&
-        curTagSet.size > 0
-      ) {
+      if ((input.strategy === "tags" || input.strategy === "both") && curTagSet.size > 0) {
         const { data } = await supabase
           .from("post_tags")
           .select("post_id")

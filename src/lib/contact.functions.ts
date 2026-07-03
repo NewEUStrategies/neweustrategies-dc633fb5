@@ -32,7 +32,10 @@ const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 const DOI_TTL_MS = 1000 * 60 * 60 * 48; // 48h
 
 async function sendEmail(opts: {
-  to: string; subject: string; html: string; from?: string;
+  to: string;
+  subject: string;
+  html: string;
+  from?: string;
 }): Promise<{ ok: boolean; status?: number; error?: string }> {
   const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -44,7 +47,7 @@ async function sendEmail(opts: {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "X-Connection-Api-Key": RESEND_API_KEY,
       },
       body: JSON.stringify({
@@ -67,8 +70,10 @@ async function sendEmail(opts: {
 }
 
 function esc(v: string): string {
-  return v.replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c] ?? c));
+  return v.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c,
+  );
 }
 
 // SECURITY: ignore X-Forwarded-* headers - an attacker can set them on the
@@ -76,9 +81,7 @@ function esc(v: string): string {
 // and steal the DOI token. Prefer a hard-coded PUBLIC_SITE_URL env var; fall
 // back to the request URL's own origin (never the forwarded host).
 function originFromRequest(): string {
-  const envUrl = process.env.PUBLIC_SITE_URL
-    ?? process.env.SITE_URL
-    ?? process.env.URL;
+  const envUrl = process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? process.env.URL;
   if (envUrl) return envUrl.replace(/\/+$/, "");
   try {
     const req = getRequest();
@@ -94,13 +97,21 @@ function hexToken(bytes = 32): string {
   return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function buildAutoReply(p: ContactPayload, settings: Record<string, unknown> | null): { subject: string; html: string } {
+function buildAutoReply(
+  p: ContactPayload,
+  settings: Record<string, unknown> | null,
+): { subject: string; html: string } {
   const lang = p.lang;
-  const subject = String(settings?.[`auto_reply_subject_${lang}`] ??
-    (lang === "pl" ? "Dziękujemy za wiadomość" : "Thanks for reaching out"));
-  const body = String(settings?.[`auto_reply_body_${lang}`] ?? (lang === "pl"
-    ? "Dziękujemy za kontakt - odpowiemy najszybciej jak to możliwe."
-    : "Thanks for reaching out - we will reply as soon as possible."));
+  const subject = String(
+    settings?.[`auto_reply_subject_${lang}`] ??
+      (lang === "pl" ? "Dziękujemy za wiadomość" : "Thanks for reaching out"),
+  );
+  const body = String(
+    settings?.[`auto_reply_body_${lang}`] ??
+      (lang === "pl"
+        ? "Dziękujemy za kontakt - odpowiemy najszybciej jak to możliwe."
+        : "Thanks for reaching out - we will reply as soon as possible."),
+  );
   const hi = lang === "pl" ? `Cześć ${esc(p.name)},` : `Hi ${esc(p.name)},`;
   const yourMsg = lang === "pl" ? "Twoja wiadomość" : "Your message";
   const html = `
@@ -117,7 +128,8 @@ function buildAutoReply(p: ContactPayload, settings: Record<string, unknown> | n
 function buildAdminNotice(p: ContactPayload): { subject: string; html: string } {
   const subject = `[Contact] ${p.subject || (p.lang === "pl" ? "Nowa wiadomość" : "New message")}`;
   const rows: Array<[string, string]> = [
-    ["Name", p.name], ["Email", p.email],
+    ["Name", p.name],
+    ["Email", p.email],
     ...(p.phone ? [["Phone", p.phone] as [string, string]] : []),
     ...(p.company ? [["Company", p.company] as [string, string]] : []),
     ...(p.subject ? [["Subject", p.subject] as [string, string]] : []),
@@ -140,9 +152,7 @@ function buildAdminNotice(p: ContactPayload): { subject: string; html: string } 
 
 function buildDoiEmail(p: ContactPayload, confirmUrl: string): { subject: string; html: string } {
   const pl = p.lang === "pl";
-  const subject = pl
-    ? "Potwierdź zapis do newslettera"
-    : "Confirm your newsletter subscription";
+  const subject = pl ? "Potwierdź zapis do newslettera" : "Confirm your newsletter subscription";
   const hi = pl ? `Cześć ${esc(p.name)},` : `Hi ${esc(p.name)},`;
   const intro = pl
     ? "Dziękujemy za chęć zapisu do naszego newslettera. Aby dokończyć rejestrację, potwierdź swój adres e-mail klikając poniższy przycisk:"
@@ -215,26 +225,33 @@ export const submitContactMessage = createServerFn({ method: "POST" })
       .maybeSingle();
     const settings = cfs as Record<string, unknown> | null;
 
-    const fromAddress = settings?.from_address && settings?.from_name
-      ? `${settings.from_name as string} <${settings.from_address as string}>`
-      : (settings?.from_address as string | undefined);
+    const fromAddress =
+      settings?.from_address && settings?.from_name
+        ? `${settings.from_name as string} <${settings.from_address as string}>`
+        : (settings?.from_address as string | undefined);
 
     // 1) Auto-reply to sender
     let autoReplyResult: { ok: boolean; error?: string } = { ok: false, error: "skipped" };
     if (settings?.auto_reply_enabled !== false) {
       const reply = buildAutoReply(data, settings);
       autoReplyResult = await sendEmail({
-        to: data.email, subject: reply.subject, html: reply.html, from: fromAddress,
+        to: data.email,
+        subject: reply.subject,
+        html: reply.html,
+        from: fromAddress,
       });
     }
 
     // 2) Admin notification
-    const adminTo = ((settings?.default_recipient as string | null) || null);
+    const adminTo = (settings?.default_recipient as string | null) || null;
     let adminResult: { ok: boolean; error?: string } = { ok: false, error: "no_recipient" };
     if (settings?.notify_admin_enabled !== false && adminTo) {
       const notice = buildAdminNotice(data);
       adminResult = await sendEmail({
-        to: adminTo, subject: notice.subject, html: notice.html, from: fromAddress,
+        to: adminTo,
+        subject: notice.subject,
+        html: notice.html,
+        from: fromAddress,
       });
     }
 
@@ -246,7 +263,11 @@ export const submitContactMessage = createServerFn({ method: "POST" })
     }
 
     // 3) Newsletter opt-in with double opt-in
-    let doiResult: { ok: boolean; status?: "pending" | "subscribed" | "exists"; error?: string } | null = null;
+    let doiResult: {
+      ok: boolean;
+      status?: "pending" | "subscribed" | "exists";
+      error?: string;
+    } | null = null;
     if (data.newsletterOptIn) {
       const { data: nls } = await supabaseAdmin
         .from("newsletter_settings")
@@ -254,8 +275,9 @@ export const submitContactMessage = createServerFn({ method: "POST" })
         .eq("tenant_id", inserted.tenant_id)
         .maybeSingle();
 
-      const doiEnabled = (nls?.double_opt_in ?? true) !== false
-        && (settings?.newsletter_double_optin ?? true) !== false;
+      const doiEnabled =
+        (nls?.double_opt_in ?? true) !== false &&
+        (settings?.newsletter_double_optin ?? true) !== false;
 
       // Check existing subscriber to avoid resetting an already-confirmed one.
       const { data: existing } = await supabaseAdmin
@@ -270,9 +292,8 @@ export const submitContactMessage = createServerFn({ method: "POST" })
       } else if (doiEnabled) {
         const token = hexToken(32);
         const expires = new Date(Date.now() + DOI_TTL_MS).toISOString();
-        const { error: upErr } = await supabaseAdmin
-          .from("newsletter_subscribers")
-          .upsert({
+        const { error: upErr } = await supabaseAdmin.from("newsletter_subscribers").upsert(
+          {
             email: data.email,
             display_name: data.name,
             tenant_id: inserted.tenant_id,
@@ -281,7 +302,9 @@ export const submitContactMessage = createServerFn({ method: "POST" })
             source: "contact-form",
             confirmation_token: token,
             confirmation_expires_at: expires,
-          }, { onConflict: "tenant_id,email" });
+          },
+          { onConflict: "tenant_id,email" },
+        );
 
         if (upErr) {
           doiResult = { ok: false, error: upErr.message };
@@ -290,7 +313,10 @@ export const submitContactMessage = createServerFn({ method: "POST" })
           const confirmUrl = `${origin}/api/public/newsletter/confirm?token=${encodeURIComponent(token)}`;
           const doiMail = buildDoiEmail(data, confirmUrl);
           const send = await sendEmail({
-            to: data.email, subject: doiMail.subject, html: doiMail.html, from: fromAddress,
+            to: data.email,
+            subject: doiMail.subject,
+            html: doiMail.html,
+            from: fromAddress,
           });
           doiResult = send.ok
             ? { ok: true, status: "pending" }
@@ -298,9 +324,8 @@ export const submitContactMessage = createServerFn({ method: "POST" })
         }
       } else {
         // Single opt-in path
-        const { error: upErr } = await supabaseAdmin
-          .from("newsletter_subscribers")
-          .upsert({
+        const { error: upErr } = await supabaseAdmin.from("newsletter_subscribers").upsert(
+          {
             email: data.email,
             display_name: data.name,
             tenant_id: inserted.tenant_id,
@@ -308,8 +333,12 @@ export const submitContactMessage = createServerFn({ method: "POST" })
             status: "subscribed",
             confirmed_at: new Date().toISOString(),
             source: "contact-form",
-          }, { onConflict: "tenant_id,email" });
-        doiResult = upErr ? { ok: false, error: upErr.message } : { ok: true, status: "subscribed" };
+          },
+          { onConflict: "tenant_id,email" },
+        );
+        doiResult = upErr
+          ? { ok: false, error: upErr.message }
+          : { ok: true, status: "subscribed" };
       }
     }
 

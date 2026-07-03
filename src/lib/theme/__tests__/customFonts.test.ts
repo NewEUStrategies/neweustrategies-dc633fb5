@@ -14,8 +14,10 @@ describe("customFonts", () => {
 
   it("emits a valid @font-face rule", () => {
     const f: CustomFont = {
-      id: "brand-serif", label: "Brand Serif",
-      url: "https://cdn.test/x.woff2", weight: "700",
+      id: "brand-serif",
+      label: "Brand Serif",
+      url: "https://cdn.test/x.woff2",
+      weight: "700",
     };
     const css = fontFaceCss(f);
     expect(css).toContain("@font-face");

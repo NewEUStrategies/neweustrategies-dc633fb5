@@ -12,7 +12,13 @@ describe("greetings", () => {
     const out = pickGreeting({
       lang: "pl",
       firstName: "Piotr",
-      entry: { name: "Piotr", name_normalized: "piotr", gender: "male", vocative_pl: "Piotrze", vocative_en: "Peter" },
+      entry: {
+        name: "Piotr",
+        name_normalized: "piotr",
+        gender: "male",
+        vocative_pl: "Piotrze",
+        vocative_en: "Peter",
+      },
       seed: "u",
       now: new Date("2026-01-01T09:00"),
     });
@@ -23,7 +29,13 @@ describe("greetings", () => {
     const out = pickGreeting({
       lang: "pl",
       firstName: "Marta",
-      entry: { name: "Marta", name_normalized: "marta", gender: "female", vocative_pl: null, vocative_en: null },
+      entry: {
+        name: "Marta",
+        name_normalized: "marta",
+        gender: "female",
+        vocative_pl: null,
+        vocative_en: null,
+      },
       seed: "u",
       now: new Date("2026-01-01T09:00"),
     });
@@ -36,7 +48,12 @@ describe("greetings", () => {
   });
 
   it("gracefully strips placeholder when no name given", () => {
-    const out = pickGreeting({ lang: "en", firstName: null, seed: 1, now: new Date("2026-01-01T09:00") });
+    const out = pickGreeting({
+      lang: "en",
+      firstName: null,
+      seed: 1,
+      now: new Date("2026-01-01T09:00"),
+    });
     expect(out).not.toMatch(/\{name\}/);
     expect(out.length).toBeGreaterThan(0);
   });

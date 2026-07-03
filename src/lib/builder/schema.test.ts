@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  WIDGET_TYPES,
-  isKnownWidgetType,
-  safeParseBuilderDoc,
-  isBuilderDoc,
-} from "./schema";
+import { WIDGET_TYPES, isKnownWidgetType, safeParseBuilderDoc, isBuilderDoc } from "./schema";
 import { WIDGET_MAP } from "./registry";
 import type { WidgetType } from "./types";
 
@@ -85,9 +80,7 @@ describe("safeParseBuilderDoc — sections", () => {
       sections: [
         {
           kind: "section",
-          children: [
-            { kind: "column", children: [{ type: "heading", content: {} }] },
-          ],
+          children: [{ kind: "column", children: [{ type: "heading", content: {} }] }],
         },
       ],
     };
@@ -104,7 +97,16 @@ describe("safeParseBuilderDoc — sections", () => {
     const style = { bgColor: "#fff" };
     const doc = safeParseBuilderDoc({
       version: 1,
-      sections: [{ id: "s1", kind: "section", children: [], background, style, layout: { contentWidth: "full" } }],
+      sections: [
+        {
+          id: "s1",
+          kind: "section",
+          children: [],
+          background,
+          style,
+          layout: { contentWidth: "full" },
+        },
+      ],
     });
     expect(doc.sections[0].background).toEqual(background);
     expect(doc.sections[0].style).toEqual(style);
@@ -134,7 +136,11 @@ describe("safeParseBuilderDoc — columns & widgets", () => {
         },
       ]),
     );
-    const col = doc.sections[0].children[0] as { kind: string; span: unknown; children: Array<{ id: string; content: unknown }> };
+    const col = doc.sections[0].children[0] as {
+      kind: string;
+      span: unknown;
+      children: Array<{ id: string; content: unknown }>;
+    };
     expect(col.kind).toBe("column");
     expect(col.span).toEqual({ desktop: 6 });
     expect(col.children.map((w) => w.id)).toEqual(["w1", "w3"]);
@@ -143,7 +149,9 @@ describe("safeParseBuilderDoc — columns & widgets", () => {
 
   it("coerces a span, keeping only numeric breakpoints", () => {
     const doc = safeParseBuilderDoc(
-      wrap([{ id: "c1", kind: "column", span: { desktop: 6, tablet: "x", mobile: 12 }, children: [] }]),
+      wrap([
+        { id: "c1", kind: "column", span: { desktop: 6, tablet: "x", mobile: 12 }, children: [] },
+      ]),
     );
     const col = doc.sections[0].children[0] as unknown as { span: Record<string, number> };
     expect(col.span).toEqual({ desktop: 6, mobile: 12 });
@@ -192,7 +200,9 @@ describe("safeParseBuilderDoc — inner sections", () => {
         {
           id: "s1",
           kind: "section",
-          children: [{ id: "inner1", columns: [null, { id: "ic1", kind: "column", children: [] }] }],
+          children: [
+            { id: "inner1", columns: [null, { id: "ic1", kind: "column", children: [] }] },
+          ],
         },
       ],
     });
@@ -204,7 +214,9 @@ describe("safeParseBuilderDoc — inner sections", () => {
   it("treats non-array inner-section columns as empty", () => {
     const doc = safeParseBuilderDoc({
       version: 1,
-      sections: [{ id: "s1", kind: "section", children: [{ id: "i", kind: "inner-section", columns: 5 }] }],
+      sections: [
+        { id: "s1", kind: "section", children: [{ id: "i", kind: "inner-section", columns: 5 }] },
+      ],
     });
     const inner = doc.sections[0].children[0] as { columns: unknown[] };
     expect(inner.columns).toEqual([]);
@@ -229,7 +241,12 @@ describe("isBuilderDoc", () => {
             id: "s1",
             kind: "section",
             children: [
-              { id: "c1", kind: "column", span: {}, children: [{ id: "w1", kind: "widget", type: "heading", content: {} }] },
+              {
+                id: "c1",
+                kind: "column",
+                span: {},
+                children: [{ id: "w1", kind: "widget", type: "heading", content: {} }],
+              },
               { id: "i1", kind: "inner-section", columns: [] },
             ],
           },
@@ -245,7 +262,10 @@ describe("isBuilderDoc", () => {
     expect(isBuilderDoc({ version: 1, sections: [{ id: "s1" }] })).toBe(false); // no children array
     expect(isBuilderDoc({ version: 1, sections: [{ children: "x" }] })).toBe(false);
     expect(
-      isBuilderDoc({ version: 1, sections: [{ children: [{ kind: "column", children: [{ type: "nope" }] }] }] }),
+      isBuilderDoc({
+        version: 1,
+        sections: [{ children: [{ kind: "column", children: [{ type: "nope" }] }] }],
+      }),
     ).toBe(false); // unknown widget type
     expect(isBuilderDoc({ version: 1, sections: [{ children: [3] }] })).toBe(false);
   });
@@ -254,7 +274,10 @@ describe("isBuilderDoc", () => {
     const messy = {
       version: 1,
       sections: [
-        { id: "s1", children: [{ columns: [{ children: [{ type: "heading" }, { type: "junk" }] }] }] },
+        {
+          id: "s1",
+          children: [{ columns: [{ children: [{ type: "heading" }, { type: "junk" }] }] }],
+        },
         "garbage",
       ],
     };

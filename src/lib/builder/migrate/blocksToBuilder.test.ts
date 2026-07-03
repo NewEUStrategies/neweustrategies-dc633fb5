@@ -9,8 +9,14 @@ const para = (text: string) => ({
 });
 
 const localized = (pl: number, en: number): LocalizedBlocks => ({
-  pl: { version: 1, blocks: Array.from({ length: pl }, (_, i) => ({ id: `p${i}`, type: "paragraph", data: {} })) },
-  en: { version: 1, blocks: Array.from({ length: en }, (_, i) => ({ id: `e${i}`, type: "paragraph", data: {} })) },
+  pl: {
+    version: 1,
+    blocks: Array.from({ length: pl }, (_, i) => ({ id: `p${i}`, type: "paragraph", data: {} })),
+  },
+  en: {
+    version: 1,
+    blocks: Array.from({ length: en }, (_, i) => ({ id: `e${i}`, type: "paragraph", data: {} })),
+  },
 });
 
 describe("hasBlocksContent", () => {
@@ -37,7 +43,11 @@ describe("localizedBlocksToBuilderDoc", () => {
     expect(section.kind).toBe("section");
     expect(section.children).toHaveLength(1);
 
-    const column = section.children[0] as unknown as { kind: string; span: Record<string, number>; children: unknown[] };
+    const column = section.children[0] as unknown as {
+      kind: string;
+      span: Record<string, number>;
+      children: unknown[];
+    };
     expect(column.kind).toBe("column");
     expect(column.span).toEqual({ desktop: 12 });
     expect(column.children).toHaveLength(1);

@@ -15,20 +15,33 @@ function useTaxonomy(mode: Mode) {
     queryKey: ["taxonomy-picker", mode],
     queryFn: async () => {
       if (mode === "categories") {
-        const { data: cats } = await supabase.from("categories").select("id, slug, name_pl").order("name_pl");
+        const { data: cats } = await supabase
+          .from("categories")
+          .select("id, slug, name_pl")
+          .order("name_pl");
         const { data: pcs } = await supabase.from("post_categories").select("category_id");
         const counts = new Map<string, number>();
-        (pcs ?? []).forEach((r: { category_id: string }) => counts.set(r.category_id, (counts.get(r.category_id) ?? 0) + 1));
+        (pcs ?? []).forEach((r: { category_id: string }) =>
+          counts.set(r.category_id, (counts.get(r.category_id) ?? 0) + 1),
+        );
         return (cats ?? []).map((c: { id: string; slug: string; name_pl: string }) => ({
-          id: c.id, slug: c.slug, label: c.name_pl, count: counts.get(c.id) ?? 0,
+          id: c.id,
+          slug: c.slug,
+          label: c.name_pl,
+          count: counts.get(c.id) ?? 0,
         }));
       }
       const { data: tags } = await supabase.from("tags").select("id, slug, name").order("name");
       const { data: pts } = await supabase.from("post_tags").select("tag_id");
       const counts = new Map<string, number>();
-      (pts ?? []).forEach((r: { tag_id: string }) => counts.set(r.tag_id, (counts.get(r.tag_id) ?? 0) + 1));
+      (pts ?? []).forEach((r: { tag_id: string }) =>
+        counts.set(r.tag_id, (counts.get(r.tag_id) ?? 0) + 1),
+      );
       return (tags ?? []).map((t: { id: string; slug: string; name: string }) => ({
-        id: t.id, slug: t.slug, label: t.name, count: counts.get(t.id) ?? 0,
+        id: t.id,
+        slug: t.slug,
+        label: t.name,
+        count: counts.get(t.id) ?? 0,
       }));
     },
     staleTime: 60_000,
@@ -49,27 +62,37 @@ export function TaxonomyPicker({ mode, value, onChange, placeholder }: Props) {
   const [filter, setFilter] = useState("");
 
   const selected = useMemo(
-    () => new Set(value.split(",").map((s) => s.trim()).filter(Boolean)),
-    [value]
+    () =>
+      new Set(
+        value
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
+    [value],
   );
 
   const toggle = (slug: string) => {
     const next = new Set(selected);
-    if (next.has(slug)) next.delete(slug); else next.add(slug);
+    if (next.has(slug)) next.delete(slug);
+    else next.add(slug);
     onChange(Array.from(next).join(","));
   };
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    return q ? rows.filter((r) => r.label.toLowerCase().includes(q) || r.slug.toLowerCase().includes(q)) : rows;
+    return q
+      ? rows.filter((r) => r.label.toLowerCase().includes(q) || r.slug.toLowerCase().includes(q))
+      : rows;
   }, [rows, filter]);
 
   const selectedRows = rows.filter((r) => selected.has(r.slug));
-  const displayLabel = selectedRows.length === 0
-    ? (placeholder ?? "- Wszystkie -")
-    : selectedRows.length === 1
-      ? selectedRows[0].label
-      : `${selectedRows.length} wybrane`;
+  const displayLabel =
+    selectedRows.length === 0
+      ? (placeholder ?? "- Wszystkie -")
+      : selectedRows.length === 1
+        ? selectedRows[0].label
+        : `${selectedRows.length} wybrane`;
 
   return (
     <div className="space-y-1">
@@ -102,7 +125,12 @@ export function TaxonomyPicker({ mode, value, onChange, placeholder }: Props) {
                   key={r.id}
                   className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-xs ${checked ? "bg-accent" : "hover:bg-muted/60"}`}
                 >
-                  <input type="checkbox" checked={checked} onChange={() => toggle(r.slug)} className="h-3 w-3" />
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggle(r.slug)}
+                    className="h-3 w-3"
+                  />
                   <span className="flex-1 truncate">{r.label}</span>
                   <span className="text-[10px] text-muted-foreground">{r.count}</span>
                 </label>
@@ -123,9 +151,18 @@ export function TaxonomyPicker({ mode, value, onChange, placeholder }: Props) {
       {selectedRows.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {selectedRows.map((r) => (
-            <span key={r.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-[10px]">
+            <span
+              key={r.id}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-[10px]"
+            >
               {r.label}
-              <button type="button" onClick={() => toggle(r.slug)} className="hover:text-destructive">×</button>
+              <button
+                type="button"
+                onClick={() => toggle(r.slug)}
+                className="hover:text-destructive"
+              >
+                ×
+              </button>
             </span>
           ))}
         </div>

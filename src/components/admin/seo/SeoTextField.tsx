@@ -61,8 +61,7 @@ export function SeoTextField({
     "aria-invalid": isInvalid || undefined,
     "aria-describedby": helperText ? errorId : undefined,
     className: cn(
-      (isInvalid || overPixelBudget) &&
-        "border-destructive/70 focus-visible:ring-destructive/40",
+      (isInvalid || overPixelBudget) && "border-destructive/70 focus-visible:ring-destructive/40",
     ),
   };
 

@@ -2,7 +2,10 @@ import type { Block } from "@/lib/blocks/types";
 import { Music } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 export function AudioBlock({ block, onChange }: Props) {
   const url = String(block.data.url ?? "");

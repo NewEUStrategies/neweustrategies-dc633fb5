@@ -29,7 +29,9 @@ export function ImageEditor({ c, lang, setContent }: Props) {
       {/* Preview on prepared backgrounds */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Podgląd</span>
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Podgląd
+          </span>
           <div className="inline-flex rounded-md border border-border overflow-hidden">
             <button
               type="button"
@@ -52,7 +54,7 @@ export function ImageEditor({ c, lang, setContent }: Props) {
           style={{ background: previewMode === "dark" ? "#0b0b0e" : "#ffffff" }}
         >
           {(() => {
-            const shown = previewMode === "dark" ? (srcDark || src) : (src || srcDark);
+            const shown = previewMode === "dark" ? srcDark || src : src || srcDark;
             if (!shown) {
               return (
                 <div className="flex flex-col items-center gap-1 text-[11px] text-muted-foreground">
@@ -94,7 +96,12 @@ export function ImageEditor({ c, lang, setContent }: Props) {
                 step={1}
                 value={widthPx || ""}
                 placeholder="auto"
-                onChange={(e) => setContent("widthPx", e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)))}
+                onChange={(e) =>
+                  setContent(
+                    "widthPx",
+                    e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                  )
+                }
                 className="h-8 text-xs w-24"
               />
               <span className="text-[10px] text-muted-foreground tabular-nums">
@@ -122,7 +129,12 @@ export function ImageEditor({ c, lang, setContent }: Props) {
             step={1}
             value={maxWidthPx || ""}
             placeholder="brak"
-            onChange={(e) => setContent("maxWidthPx", e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)))}
+            onChange={(e) =>
+              setContent(
+                "maxWidthPx",
+                e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+              )
+            }
             className="h-8 text-xs"
           />
         </PropField>
@@ -144,16 +156,31 @@ export function ImageEditor({ c, lang, setContent }: Props) {
 
       <div className="pt-2 border-t border-border space-y-2">
         <PropField label="Alt (PL)">
-          <Input value={altPl} onChange={(e) => setContent("alt_pl", e.target.value)} className="h-8 text-xs" />
+          <Input
+            value={altPl}
+            onChange={(e) => setContent("alt_pl", e.target.value)}
+            className="h-8 text-xs"
+          />
         </PropField>
         <PropField label="Alt (EN)">
-          <Input value={altEn} onChange={(e) => setContent("alt_en", e.target.value)} className="h-8 text-xs" />
+          <Input
+            value={altEn}
+            onChange={(e) => setContent("alt_en", e.target.value)}
+            className="h-8 text-xs"
+          />
         </PropField>
         <PropField label="Link (opcjonalnie)">
-          <Input value={href} placeholder="https://..." onChange={(e) => setContent("href", e.target.value)} className="h-8 text-xs" />
+          <Input
+            value={href}
+            placeholder="https://..."
+            onChange={(e) => setContent("href", e.target.value)}
+            className="h-8 text-xs"
+          />
         </PropField>
       </div>
-      <div className="text-[10px] text-muted-foreground">Aktywny język edycji: {lang.toUpperCase()}</div>
+      <div className="text-[10px] text-muted-foreground">
+        Aktywny język edycji: {lang.toUpperCase()}
+      </div>
     </div>
   );
 }

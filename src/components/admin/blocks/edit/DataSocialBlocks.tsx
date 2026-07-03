@@ -5,12 +5,17 @@ import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
       {children}
     </div>
   );
@@ -21,7 +26,14 @@ const selectCls = inputCls;
 
 // ===== Team Grid =====
 
-interface TeamMember { name: string; role: string; bio: string; avatar: string; href: string; social: string }
+interface TeamMember {
+  name: string;
+  role: string;
+  bio: string;
+  avatar: string;
+  href: string;
+  social: string;
+}
 
 export function TeamGridBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
@@ -55,7 +67,9 @@ export function TeamGridBlock({ block, onChange }: Props) {
         <select
           className={selectCls}
           value={columns}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, columns: Number(e.target.value) } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, columns: Number(e.target.value) } })
+          }
         >
           <option value={2}>2 kolumny</option>
           <option value={3}>3 kolumny</option>
@@ -79,7 +93,9 @@ export function TeamGridBlock({ block, onChange }: Props) {
                 placeholder="Imię i nazwisko"
                 value={it.name}
                 onChange={(e) => {
-                  const next = [...items]; next[idx] = { ...it, name: e.target.value }; update(next);
+                  const next = [...items];
+                  next[idx] = { ...it, name: e.target.value };
+                  update(next);
                 }}
               />
               <button
@@ -97,7 +113,9 @@ export function TeamGridBlock({ block, onChange }: Props) {
                 placeholder="Stanowisko"
                 value={it.role}
                 onChange={(e) => {
-                  const next = [...items]; next[idx] = { ...it, role: e.target.value }; update(next);
+                  const next = [...items];
+                  next[idx] = { ...it, role: e.target.value };
+                  update(next);
                 }}
               />
               <input
@@ -105,7 +123,9 @@ export function TeamGridBlock({ block, onChange }: Props) {
                 placeholder="URL profilu (opcjonalnie)"
                 value={it.href}
                 onChange={(e) => {
-                  const next = [...items]; next[idx] = { ...it, href: e.target.value }; update(next);
+                  const next = [...items];
+                  next[idx] = { ...it, href: e.target.value };
+                  update(next);
                 }}
               />
             </div>
@@ -114,7 +134,9 @@ export function TeamGridBlock({ block, onChange }: Props) {
               placeholder="URL awatara"
               value={it.avatar}
               onChange={(e) => {
-                const next = [...items]; next[idx] = { ...it, avatar: e.target.value }; update(next);
+                const next = [...items];
+                next[idx] = { ...it, avatar: e.target.value };
+                update(next);
               }}
             />
             <textarea
@@ -122,7 +144,9 @@ export function TeamGridBlock({ block, onChange }: Props) {
               placeholder="Krótki opis / bio"
               value={it.bio}
               onChange={(e) => {
-                const next = [...items]; next[idx] = { ...it, bio: e.target.value }; update(next);
+                const next = [...items];
+                next[idx] = { ...it, bio: e.target.value };
+                update(next);
               }}
             />
             <input
@@ -130,14 +154,18 @@ export function TeamGridBlock({ block, onChange }: Props) {
               placeholder="LinkedIn / X / strona (URL)"
               value={it.social}
               onChange={(e) => {
-                const next = [...items]; next[idx] = { ...it, social: e.target.value }; update(next);
+                const next = [...items];
+                next[idx] = { ...it, social: e.target.value };
+                update(next);
               }}
             />
           </div>
         ))}
         <button
           type="button"
-          onClick={() => update([...items, { name: "", role: "", bio: "", avatar: "", href: "", social: "" }])}
+          onClick={() =>
+            update([...items, { name: "", role: "", bio: "", avatar: "", href: "", social: "" }])
+          }
           className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-primary/50"
         >
           <Plus className="w-3.5 h-3.5" /> Dodaj osobę
@@ -149,7 +177,11 @@ export function TeamGridBlock({ block, onChange }: Props) {
 
 // ===== Logo Grid =====
 
-interface LogoItem { url: string; alt: string; href: string }
+interface LogoItem {
+  url: string;
+  alt: string;
+  href: string;
+}
 
 export function LogoGridBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
@@ -174,7 +206,9 @@ export function LogoGridBlock({ block, onChange }: Props) {
         <select
           className={selectCls}
           value={Number(block.data.columns ?? 5)}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, columns: Number(e.target.value) } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, columns: Number(e.target.value) } })
+          }
         >
           <option value={3}>3 kol.</option>
           <option value={4}>4 kol.</option>
@@ -185,7 +219,9 @@ export function LogoGridBlock({ block, onChange }: Props) {
           <input
             type="checkbox"
             checked={block.data.grayscale !== false}
-            onChange={(e) => onChange({ ...block, data: { ...block.data, grayscale: e.target.checked } })}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...block.data, grayscale: e.target.checked } })
+            }
           />
           Czarno-białe
         </label>
@@ -193,7 +229,9 @@ export function LogoGridBlock({ block, onChange }: Props) {
           <input
             type="checkbox"
             checked={block.data.bordered === true}
-            onChange={(e) => onChange({ ...block, data: { ...block.data, bordered: e.target.checked } })}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...block.data, bordered: e.target.checked } })
+            }
           />
           Ramki
         </label>
@@ -207,7 +245,9 @@ export function LogoGridBlock({ block, onChange }: Props) {
                 placeholder="URL logotypu"
                 value={it.url}
                 onChange={(e) => {
-                  const next = [...items]; next[idx] = { ...it, url: e.target.value }; update(next);
+                  const next = [...items];
+                  next[idx] = { ...it, url: e.target.value };
+                  update(next);
                 }}
               />
               <button
@@ -225,7 +265,9 @@ export function LogoGridBlock({ block, onChange }: Props) {
                 placeholder="Nazwa (alt)"
                 value={it.alt}
                 onChange={(e) => {
-                  const next = [...items]; next[idx] = { ...it, alt: e.target.value }; update(next);
+                  const next = [...items];
+                  next[idx] = { ...it, alt: e.target.value };
+                  update(next);
                 }}
               />
               <input
@@ -233,7 +275,9 @@ export function LogoGridBlock({ block, onChange }: Props) {
                 placeholder={i18n.field("href")}
                 value={it.href}
                 onChange={(e) => {
-                  const next = [...items]; next[idx] = { ...it, href: e.target.value }; update(next);
+                  const next = [...items];
+                  next[idx] = { ...it, href: e.target.value };
+                  update(next);
                 }}
               />
             </div>
@@ -253,7 +297,12 @@ export function LogoGridBlock({ block, onChange }: Props) {
 
 // ===== Feature Grid =====
 
-interface FeatureItem { icon: string; title: string; description: string; href: string }
+interface FeatureItem {
+  icon: string;
+  title: string;
+  description: string;
+  href: string;
+}
 
 export function FeatureGridBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
@@ -271,8 +320,18 @@ export function FeatureGridBlock({ block, onChange }: Props) {
     onChange({ ...block, data: { ...block.data, items: next as unknown as Json[] } });
   };
   const iconOptions = [
-    "star", "zap", "shield", "rocket", "heart", "check",
-    "trophy", "target", "globe", "lightbulb", "sparkles", "gauge",
+    "star",
+    "zap",
+    "shield",
+    "rocket",
+    "heart",
+    "check",
+    "trophy",
+    "target",
+    "globe",
+    "lightbulb",
+    "sparkles",
+    "gauge",
   ];
 
   return (
@@ -293,7 +352,9 @@ export function FeatureGridBlock({ block, onChange }: Props) {
         <select
           className={selectCls}
           value={Number(block.data.columns ?? 3)}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, columns: Number(e.target.value) } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, columns: Number(e.target.value) } })
+          }
         >
           <option value={2}>2 kolumny</option>
           <option value={3}>3 kolumny</option>
@@ -317,17 +378,25 @@ export function FeatureGridBlock({ block, onChange }: Props) {
                 className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
                 value={it.icon}
                 onChange={(e) => {
-                  const next = [...items]; next[idx] = { ...it, icon: e.target.value }; update(next);
+                  const next = [...items];
+                  next[idx] = { ...it, icon: e.target.value };
+                  update(next);
                 }}
               >
-                {iconOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+                {iconOptions.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
               </select>
               <input
                 className={inputCls}
                 placeholder="Tytuł funkcji"
                 value={it.title}
                 onChange={(e) => {
-                  const next = [...items]; next[idx] = { ...it, title: e.target.value }; update(next);
+                  const next = [...items];
+                  next[idx] = { ...it, title: e.target.value };
+                  update(next);
                 }}
               />
               <button
@@ -344,7 +413,9 @@ export function FeatureGridBlock({ block, onChange }: Props) {
               placeholder="Opis funkcji"
               value={it.description}
               onChange={(e) => {
-                const next = [...items]; next[idx] = { ...it, description: e.target.value }; update(next);
+                const next = [...items];
+                next[idx] = { ...it, description: e.target.value };
+                update(next);
               }}
             />
             <input
@@ -352,7 +423,9 @@ export function FeatureGridBlock({ block, onChange }: Props) {
               placeholder={i18n.field("href")}
               value={it.href}
               onChange={(e) => {
-                const next = [...items]; next[idx] = { ...it, href: e.target.value }; update(next);
+                const next = [...items];
+                next[idx] = { ...it, href: e.target.value };
+                update(next);
               }}
             />
           </div>

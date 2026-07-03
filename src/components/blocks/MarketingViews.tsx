@@ -36,9 +36,18 @@ interface HeroProps {
 }
 
 export function HeroView({
-  eyebrow, title, subtitle, bgImage, ctaLabel, ctaHref,
-  secondaryLabel, secondaryHref, align = "center", height = "md",
-  overlay = 40, cls,
+  eyebrow,
+  title,
+  subtitle,
+  bgImage,
+  ctaLabel,
+  ctaHref,
+  secondaryLabel,
+  secondaryHref,
+  align = "center",
+  height = "md",
+  overlay = 40,
+  cls,
 }: HeroProps) {
   const isCenter = align === "center";
   const ov = Math.max(0, Math.min(90, overlay));
@@ -47,7 +56,9 @@ export function HeroView({
       className={[
         "relative overflow-hidden rounded-2xl",
         HERO_HEIGHT_CLS[height],
-        bgImage ? "bg-cover bg-center" : "bg-gradient-to-br from-primary/15 via-background to-muted",
+        bgImage
+          ? "bg-cover bg-center"
+          : "bg-gradient-to-br from-primary/15 via-background to-muted",
         cls ?? "",
       ].join(" ")}
       style={bgImage ? { backgroundImage: `url(${bgImage})` } : undefined}
@@ -92,7 +103,7 @@ export function HeroView({
               {subtitle}
             </p>
           ) : null}
-          {(ctaLabel || secondaryLabel) ? (
+          {ctaLabel || secondaryLabel ? (
             <div className={`flex flex-wrap gap-3 ${isCenter ? "justify-center" : ""} pt-2`}>
               {ctaLabel && ctaHref ? (
                 <AppLink
@@ -151,7 +162,12 @@ interface CtaSectionProps {
 }
 
 export function CtaSectionView({
-  title, description, ctaLabel, ctaHref, variant = "primary", cls,
+  title,
+  description,
+  ctaLabel,
+  ctaHref,
+  variant = "primary",
+  cls,
 }: CtaSectionProps) {
   return (
     <section
@@ -162,7 +178,9 @@ export function CtaSectionView({
       ].join(" ")}
     >
       {title ? <h2 className="font-serif text-2xl md:text-3xl font-bold">{title}</h2> : null}
-      {description ? <p className="max-w-2xl text-sm md:text-base opacity-90">{description}</p> : null}
+      {description ? (
+        <p className="max-w-2xl text-sm md:text-base opacity-90">{description}</p>
+      ) : null}
       {ctaLabel && ctaHref ? (
         <AppLink
           href={ctaHref}
@@ -180,7 +198,12 @@ export function CtaSectionView({
 
 // ===== Image Carousel =====
 
-interface SlideLite { url: string; alt: string; caption: string; href: string }
+interface SlideLite {
+  url: string;
+  alt: string;
+  caption: string;
+  href: string;
+}
 
 const ASPECT_CLS: Record<string, string> = {
   "16:9": "aspect-[16/9]",
@@ -197,7 +220,13 @@ interface CarouselProps {
   cls?: string;
 }
 
-export function ImageCarouselView({ items, autoplay, interval = 5000, aspect = "16:9", cls }: CarouselProps) {
+export function ImageCarouselView({
+  items,
+  autoplay,
+  interval = 5000,
+  aspect = "16:9",
+  cls,
+}: CarouselProps) {
   const parsed: SlideLite[] = useMemo(() => {
     if (!Array.isArray(items)) return [];
     return items
@@ -216,14 +245,20 @@ export function ImageCarouselView({ items, autoplay, interval = 5000, aspect = "
   const [paused, setPaused] = useState(false);
   const total = parsed.length;
 
-  const go = useCallback((d: number) => {
-    if (total === 0) return;
-    setIdx((cur) => (cur + d + total) % total);
-  }, [total]);
+  const go = useCallback(
+    (d: number) => {
+      if (total === 0) return;
+      setIdx((cur) => (cur + d + total) % total);
+    },
+    [total],
+  );
 
   useEffect(() => {
     if (!autoplay || paused || total < 2) return;
-    const t = window.setInterval(() => setIdx((cur) => (cur + 1) % total), Math.max(1500, interval));
+    const t = window.setInterval(
+      () => setIdx((cur) => (cur + 1) % total),
+      Math.max(1500, interval),
+    );
     return () => window.clearInterval(t);
   }, [autoplay, paused, interval, total]);
 
@@ -266,7 +301,9 @@ export function ImageCarouselView({ items, autoplay, interval = 5000, aspect = "
               ].join(" ")}
             >
               {s.href ? (
-                <AppLink href={s.href} className="block w-full h-full">{inner}</AppLink>
+                <AppLink href={s.href} className="block w-full h-full">
+                  {inner}
+                </AppLink>
               ) : (
                 inner
               )}
@@ -329,17 +366,27 @@ interface ContactFormProps {
 
 const CONTACT_L = {
   pl: {
-    name: "Imię i nazwisko", email: "Adres e-mail", phone: "Telefon", subject: "Temat",
-    message: "Wiadomość", consent: "Wyrażam zgodę na przetwarzanie danych w celu udzielenia odpowiedzi.",
-    submit: "Wyślij wiadomość", sending: "Wysyłanie...",
+    name: "Imię i nazwisko",
+    email: "Adres e-mail",
+    phone: "Telefon",
+    subject: "Temat",
+    message: "Wiadomość",
+    consent: "Wyrażam zgodę na przetwarzanie danych w celu udzielenia odpowiedzi.",
+    submit: "Wyślij wiadomość",
+    sending: "Wysyłanie...",
     success: "Dziękujemy - wiadomość została wysłana.",
     error: "Nie udało się wysłać wiadomości. Spróbuj ponownie.",
     consentRequired: "Wymagana zgoda na przetwarzanie danych.",
   },
   en: {
-    name: "Full name", email: "Email address", phone: "Phone", subject: "Subject",
-    message: "Message", consent: "I agree to data processing to receive a reply.",
-    submit: "Send message", sending: "Sending...",
+    name: "Full name",
+    email: "Email address",
+    phone: "Phone",
+    subject: "Subject",
+    message: "Message",
+    consent: "I agree to data processing to receive a reply.",
+    submit: "Send message",
+    sending: "Sending...",
     success: "Thanks - your message has been sent.",
     error: "Could not send the message. Please try again.",
     consentRequired: "Consent is required to submit.",
@@ -347,8 +394,15 @@ const CONTACT_L = {
 } as const;
 
 export function ContactFormView({
-  title, description, showPhone = false, showSubject = true,
-  requireConsent = true, submitLabel, successMessage, lang = "pl", cls,
+  title,
+  description,
+  showPhone = false,
+  showSubject = true,
+  requireConsent = true,
+  submitLabel,
+  successMessage,
+  lang = "pl",
+  cls,
 }: ContactFormProps) {
   const t = CONTACT_L[lang];
   const [name, setName] = useState("");
@@ -363,10 +417,12 @@ export function ContactFormView({
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (requireConsent && !consent) {
-      setStatus("err"); setErrMsg(t.consentRequired);
+      setStatus("err");
+      setErrMsg(t.consentRequired);
       return;
     }
-    setStatus("loading"); setErrMsg("");
+    setStatus("loading");
+    setErrMsg("");
     try {
       const payload = {
         name: name.trim(),
@@ -378,7 +434,11 @@ export function ContactFormView({
       const { error } = await supabase.from("contact_messages").insert(payload);
       if (error) throw error;
       setStatus("ok");
-      setName(""); setEmail(""); setPhone(""); setSubject(""); setMessage("");
+      setName("");
+      setEmail("");
+      setPhone("");
+      setSubject("");
+      setMessage("");
       if (requireConsent) setConsent(false);
     } catch (err) {
       setStatus("err");
@@ -390,7 +450,9 @@ export function ContactFormView({
 
   return (
     <div className={`rounded-2xl border border-border bg-card p-6 ${cls ?? ""}`}>
-      {title ? <h2 className="font-serif text-xl md:text-2xl font-bold text-foreground">{title}</h2> : null}
+      {title ? (
+        <h2 className="font-serif text-xl md:text-2xl font-bold text-foreground">{title}</h2>
+      ) : null}
       {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
       <form onSubmit={onSubmit} className="mt-4 space-y-3">
         <div className="grid gap-3 md:grid-cols-2">
@@ -465,13 +527,17 @@ export function ContactFormView({
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60"
           >
             {status === "loading" ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : null}
-            {status === "loading" ? t.sending : (submitLabel || t.submit)}
+            {status === "loading" ? t.sending : submitLabel || t.submit}
           </button>
           {status === "ok" ? (
-            <span className="text-sm text-emerald-600" role="status">{success}</span>
+            <span className="text-sm text-emerald-600" role="status">
+              {success}
+            </span>
           ) : null}
           {status === "err" ? (
-            <span className="text-sm text-destructive" role="alert">{errMsg || t.error}</span>
+            <span className="text-sm text-destructive" role="alert">
+              {errMsg || t.error}
+            </span>
           ) : null}
         </div>
       </form>
@@ -490,7 +556,14 @@ interface MapProps {
   cls?: string;
 }
 
-export function MapView({ lat = 52.2297, lng = 21.0122, zoom = 13, height = 360, label, cls }: MapProps) {
+export function MapView({
+  lat = 52.2297,
+  lng = 21.0122,
+  zoom = 13,
+  height = 360,
+  label,
+  cls,
+}: MapProps) {
   // OSM "export" embed - safe, no API key. bbox = ~0.01 degrees around point per zoom level.
   const span = Math.max(0.0008, 0.5 / Math.pow(1.6, Math.max(1, Math.min(18, zoom)) - 1));
   const bbox = `${(lng - span).toFixed(5)},${(lat - span).toFixed(5)},${(lng + span).toFixed(5)},${(lat + span).toFixed(5)}`;

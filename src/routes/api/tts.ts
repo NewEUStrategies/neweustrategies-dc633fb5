@@ -1,8 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { rateLimit } from "@/lib/server/rate-limit.server";
 
 const MAX_CHARS = 5000;
+// Trwały (DB-backed) budzet wywołań na uzytkownika: TTS pali płatną kwotę
+// ElevenLabs, więc nawet uprawnione konto ma limit na minutę i na godzinę.
+const TTS_LIMIT_PER_MINUTE = 6;
+const TTS_LIMIT_PER_HOUR = 60;
 const DEFAULT_VOICE = "JBFqnCBsd6RMkjVDRZzb";
 const DEFAULT_MODEL = "eleven_multilingual_v2";
 // Explicit allowlist so an attacker cannot switch the request to a more
@@ -26,8 +31,10 @@ export type TtsNormalized =
  */
 export function normalizeTtsInput(body: TtsBody): TtsNormalized {
   const text = typeof body.text === "string" ? body.text.trim() : "";
-  const voiceId = typeof body.voiceId === "string" && body.voiceId.length > 0 ? body.voiceId : DEFAULT_VOICE;
-  const model = typeof body.model === "string" && body.model.length > 0 ? body.model : DEFAULT_MODEL;
+  const voiceId =
+    typeof body.voiceId === "string" && body.voiceId.length > 0 ? body.voiceId : DEFAULT_VOICE;
+  const model =
+    typeof body.model === "string" && body.model.length > 0 ? body.model : DEFAULT_MODEL;
   if (!text) return { ok: false, error: "Missing text" };
   if (!/^[A-Za-z0-9]{8,40}$/.test(voiceId)) return { ok: false, error: "Invalid voiceId" };
   if (!ALLOWED_MODELS.has(model)) return { ok: false, error: "Invalid model" };
@@ -61,6 +68,38 @@ export const Route = createFileRoute("/api/tts")({
           return new Response(JSON.stringify({ error: "Unauthorized" }), {
             status: 401,
             headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        // SECURITY: TTS jest funkcją redakcyjną (generowanie audio w edytorze),
+        // nie publiczną - wymagamy roli staff (admin/editor/author), tym samym
+        // RPC SECURITY DEFINER co middleware requireStaff. Zwykłe konto
+        // czytelnika nie może palić kwoty ElevenLabs.
+        const { data: isStaff, error: staffErr } = await supabase.rpc("is_staff");
+        if (staffErr || !isStaff) {
+          return new Response(JSON.stringify({ error: "Forbidden" }), {
+            status: 403,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        // Dwuoknowy limit per uzytkownik (minutowy chroni przed seriami,
+        // godzinowy przed powolnym drenowaniem kwoty). Fail-open przy awarii
+        // DB - patrz rate-limit.server.ts.
+        const userId = userData.user.id;
+        const [minuteOk, hourOk] = await Promise.all([
+          rateLimit({ scope: "tts.minute", subjectId: userId, max: TTS_LIMIT_PER_MINUTE }),
+          rateLimit({
+            scope: "tts.hour",
+            subjectId: userId,
+            max: TTS_LIMIT_PER_HOUR,
+            windowMinutes: 60,
+          }),
+        ]);
+        if (!minuteOk || !hourOk) {
+          return new Response(JSON.stringify({ error: "Too Many Requests" }), {
+            status: 429,
+            headers: { "Content-Type": "application/json", "Retry-After": "60" },
           });
         }
 
@@ -116,10 +155,13 @@ export const Route = createFileRoute("/api/tts")({
         if (!upstream.ok) {
           const errText = await upstream.text();
           console.error("ElevenLabs TTS error", upstream.status, errText);
-          return new Response(JSON.stringify({ error: "TTS upstream error", status: upstream.status }), {
-            status: 502,
-            headers: { "Content-Type": "application/json" },
-          });
+          return new Response(
+            JSON.stringify({ error: "TTS upstream error", status: upstream.status }),
+            {
+              status: 502,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
         }
 
         const audio = await upstream.arrayBuffer();

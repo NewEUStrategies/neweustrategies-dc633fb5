@@ -89,10 +89,7 @@ export function SeoPanel(props: SeoPanelProps) {
   );
 
   const issuesKey = useMemo(
-    () =>
-      issues
-        .map((i) => `${i.lang}:${i.kind}:${i.severity}:${i.chars}:${i.px}`)
-        .join("|"),
+    () => issues.map((i) => `${i.lang}:${i.kind}:${i.severity}:${i.chars}:${i.px}`).join("|"),
     [issues],
   );
   useEffect(() => {

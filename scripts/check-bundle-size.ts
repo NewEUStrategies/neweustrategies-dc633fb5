@@ -47,7 +47,8 @@ const MAX_TOTAL_KB = Number(process.env.MAX_TOTAL_KB ?? 1300); // gzipped JS inc
 // builder/editor organisms and admin-only drag-and-drop by component
 // ("Builder-", "PostBlockEditor", "ThemeOptionsPane", "AdminShell", "sidebar",
 // "vendor-dnd"). Keep this in sync with the manualChunks split in vite.config.ts.
-const ADMIN_ONLY = /^(admin\.|Builder-|PostBlockEditor|ThemeOptionsPane|AdminShell|sidebar|vendor-dnd-)/;
+const ADMIN_ONLY =
+  /^(admin\.|Builder-|PostBlockEditor|ThemeOptionsPane|AdminShell|sidebar|vendor-dnd-)/;
 function isAdminOnly(file: string): boolean {
   return ADMIN_ONLY.test(basename(file));
 }
@@ -101,7 +102,8 @@ console.log(`Largest chunk: ${max.toFixed(1)} KB gzip (${maxFile})  (budget ≤ 
 
 const errors: string[] = [];
 if (max > MAX_CHUNK_KB) errors.push(`largest chunk ${max.toFixed(1)} KB > ${MAX_CHUNK_KB} KB`);
-if (publicTotal > MAX_PUBLIC_KB) errors.push(`public total ${publicTotal.toFixed(1)} KB > ${MAX_PUBLIC_KB} KB`);
+if (publicTotal > MAX_PUBLIC_KB)
+  errors.push(`public total ${publicTotal.toFixed(1)} KB > ${MAX_PUBLIC_KB} KB`);
 if (total > MAX_TOTAL_KB) errors.push(`overall total ${total.toFixed(1)} KB > ${MAX_TOTAL_KB} KB`);
 
 if (errors.length) {

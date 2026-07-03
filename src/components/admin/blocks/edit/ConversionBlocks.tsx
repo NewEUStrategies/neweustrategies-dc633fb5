@@ -5,12 +5,17 @@ import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
       {children}
     </div>
   );
@@ -21,7 +26,11 @@ const sel = inp;
 
 // ===== Step List (how-it-works) =====
 
-interface StepItem { title: string; description: string; icon: string }
+interface StepItem {
+  title: string;
+  description: string;
+  icon: string;
+}
 
 export function StepListBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
@@ -50,7 +59,9 @@ export function StepListBlock({ block, onChange }: Props) {
         <select
           className={sel}
           value={String(block.data.orientation ?? "vertical")}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, orientation: e.target.value } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, orientation: e.target.value } })
+          }
         >
           <option value="vertical">Pionowo</option>
           <option value="horizontal">Poziomo</option>
@@ -58,7 +69,9 @@ export function StepListBlock({ block, onChange }: Props) {
         <select
           className={sel}
           value={String(block.data.numberStyle ?? "circle")}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, numberStyle: e.target.value } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, numberStyle: e.target.value } })
+          }
         >
           <option value="circle">Numer: koło</option>
           <option value="square">Numer: kwadrat</option>
@@ -69,13 +82,17 @@ export function StepListBlock({ block, onChange }: Props) {
         {items.map((it, idx) => (
           <div key={idx} className="rounded border border-border p-2 space-y-1.5">
             <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center">
-              <span className="text-xs font-semibold text-muted-foreground w-6 text-center">{idx + 1}.</span>
+              <span className="text-xs font-semibold text-muted-foreground w-6 text-center">
+                {idx + 1}.
+              </span>
               <input
                 className={inp}
                 placeholder="Tytuł kroku"
                 value={it.title}
                 onChange={(e) => {
-                  const next = [...items]; next[idx] = { ...it, title: e.target.value }; update(next);
+                  const next = [...items];
+                  next[idx] = { ...it, title: e.target.value };
+                  update(next);
                 }}
               />
               <button
@@ -92,7 +109,9 @@ export function StepListBlock({ block, onChange }: Props) {
               placeholder="Opis kroku"
               value={it.description}
               onChange={(e) => {
-                const next = [...items]; next[idx] = { ...it, description: e.target.value }; update(next);
+                const next = [...items];
+                next[idx] = { ...it, description: e.target.value };
+                update(next);
               }}
             />
           </div>
@@ -111,8 +130,13 @@ export function StepListBlock({ block, onChange }: Props) {
 
 // ===== Comparison Table (feature matrix) =====
 
-interface CompCell { value: string }
-interface CompRow { feature: string; values: string[] }
+interface CompCell {
+  value: string;
+}
+interface CompRow {
+  feature: string;
+  values: string[];
+}
 
 export function ComparisonTableBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
@@ -166,15 +190,24 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
               placeholder={`Kolumna ${i + 1}`}
               value={c}
               onChange={(e) => {
-                const next = [...columns]; next[i] = e.target.value; setColumns(next);
+                const next = [...columns];
+                next[i] = e.target.value;
+                setColumns(next);
               }}
             />
             <button
               type="button"
-              onClick={() => onChange({ ...block, data: { ...block.data, featuredIndex: featuredIdx === i ? -1 : i } })}
+              onClick={() =>
+                onChange({
+                  ...block,
+                  data: { ...block.data, featuredIndex: featuredIdx === i ? -1 : i },
+                })
+              }
               className={[
                 "text-xs px-2 py-1 rounded border",
-                featuredIdx === i ? "border-primary text-primary" : "border-border text-muted-foreground",
+                featuredIdx === i
+                  ? "border-primary text-primary"
+                  : "border-border text-muted-foreground",
               ].join(" ")}
               aria-label="Wyróżnij kolumnę"
             >
@@ -208,7 +241,9 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
                 placeholder="Nazwa funkcji"
                 value={r.feature}
                 onChange={(e) => {
-                  const next = [...rows]; next[ri] = { ...r, feature: e.target.value }; setRows(next);
+                  const next = [...rows];
+                  next[ri] = { ...r, feature: e.target.value };
+                  setRows(next);
                 }}
               />
               <button
@@ -220,7 +255,12 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
-            <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, columns.length)}, minmax(0,1fr))` }}>
+            <div
+              className="grid gap-1.5"
+              style={{
+                gridTemplateColumns: `repeat(${Math.max(1, columns.length)}, minmax(0,1fr))`,
+              }}
+            >
               {columns.map((_, ci) => (
                 <input
                   key={ci}

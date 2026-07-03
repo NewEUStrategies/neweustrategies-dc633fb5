@@ -5,14 +5,10 @@ import { AdminShell } from "@/components/admin/AdminShell";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
-    meta: [
-      { name: "robots", content: "noindex, nofollow" },
-      { title: "Admin" },
-    ],
+    meta: [{ name: "robots", content: "noindex, nofollow" }, { title: "Admin" }],
   }),
   component: AdminLayout,
 });
-
 
 function AdminLayout() {
   const { loading, session, isStaff } = useAuth();
@@ -23,7 +19,11 @@ function AdminLayout() {
   }, [loading, session, isStaff, navigate]);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">…</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
+        …
+      </div>
+    );
   }
   if (!session || !isStaff) return null;
 

@@ -27,7 +27,8 @@ export function ProfileNav() {
   return (
     <nav className="flex flex-col gap-1" aria-label={t("profile.title")}>
       {ITEMS.map((item) => {
-        const active = pathname === item.to || (item.to !== "/profile" && pathname.startsWith(item.to));
+        const active =
+          pathname === item.to || (item.to !== "/profile" && pathname.startsWith(item.to));
         return (
           <Link
             key={item.to}

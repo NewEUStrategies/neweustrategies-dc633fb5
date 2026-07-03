@@ -67,11 +67,7 @@ export function resolveSetting<T extends object>(
  * Reads from the shared bulk query - the second call costs nothing.
  * Pass a Zod schema to enforce shape; invalid rows fall back to `defaults`.
  */
-export function useSiteSetting<T extends object>(
-  key: string,
-  defaults: T,
-  schema?: ZodType<T>,
-): T {
+export function useSiteSetting<T extends object>(key: string, defaults: T, schema?: ZodType<T>): T {
   const { data } = useQuery(siteSettingsQueryOptions);
   return useMemo(() => resolveSetting(data, key, defaults, schema), [data, key, defaults, schema]);
 }

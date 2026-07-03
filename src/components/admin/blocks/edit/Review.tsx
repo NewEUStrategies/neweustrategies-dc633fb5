@@ -9,7 +9,10 @@ interface Props {
   onChange: (next: Block) => void;
 }
 
-interface Criterion { label: string; score: number }
+interface Criterion {
+  label: string;
+  score: number;
+}
 
 function readCriteria(raw: Json | undefined): Criterion[] {
   if (!Array.isArray(raw)) return [];
@@ -31,11 +34,10 @@ export function ReviewBlock({ block, onChange }: Props) {
   const scale = Math.max(5, Math.min(10, Number(block.data.scale ?? 10)));
   const criteria = readCriteria(block.data.criteria);
 
-  const total = criteria.length
-    ? criteria.reduce((a, c) => a + c.score, 0) / criteria.length
-    : 0;
+  const total = criteria.length ? criteria.reduce((a, c) => a + c.score, 0) / criteria.length : 0;
 
-  const patch = (key: string, value: Json) => onChange({ ...block, data: { ...block.data, [key]: value } });
+  const patch = (key: string, value: Json) =>
+    onChange({ ...block, data: { ...block.data, [key]: value } });
   const patchCriteria = (next: Criterion[]) => patch("criteria", toJson(next));
 
   return (

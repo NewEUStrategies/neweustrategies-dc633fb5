@@ -22,18 +22,20 @@ export function SpoilerBlock({ block, onChange }: Props) {
           <input
             type="checkbox"
             checked={defaultOpen}
-            onChange={(e) => onChange({ ...block, data: { ...block.data, defaultOpen: e.target.checked } })}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...block.data, defaultOpen: e.target.checked } })
+            }
           />
           Otwarty domyślnie
         </label>
       </div>
       <Input
-        placeholder={i18n.editor("spoiler","summaryPh")}
+        placeholder={i18n.editor("spoiler", "summaryPh")}
         value={summary}
         onChange={(e) => onChange({ ...block, data: { ...block.data, summary: e.target.value } })}
       />
       <textarea
-        placeholder={i18n.editor("spoiler","hiddenHtmlPh")}
+        placeholder={i18n.editor("spoiler", "hiddenHtmlPh")}
         value={html}
         onChange={(e) => onChange({ ...block, data: { ...block.data, html: e.target.value } })}
         className="w-full rounded border border-border bg-background px-3 py-2 text-sm min-h-[80px] font-mono"

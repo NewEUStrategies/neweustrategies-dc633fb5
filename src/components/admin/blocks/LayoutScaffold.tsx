@@ -5,7 +5,12 @@
 // wewnątrz kolumny "content" - dokładnie tak, jak na froncie.
 
 import type { ReactNode } from "react";
-import { findLayout, type PostFormat, type PostLayoutSettings, type LayoutPreset } from "@/lib/postLayouts";
+import {
+  findLayout,
+  type PostFormat,
+  type PostLayoutSettings,
+  type LayoutPreset,
+} from "@/lib/postLayouts";
 
 interface Props {
   format: PostFormat;
@@ -25,22 +30,30 @@ function ZoneTag({ label }: { label: string }) {
   return <span className={ZONE_LABEL}>{label}</span>;
 }
 
-function Cover({ url, preset, ratio }: { url?: string | null; preset: LayoutPreset; ratio: number }) {
+function Cover({
+  url,
+  preset,
+  ratio,
+}: {
+  url?: string | null;
+  preset: LayoutPreset;
+  ratio: number;
+}) {
   if (preset.cover === "none") return null;
   const aspect =
     preset.cover === "ratio"
       ? `100 / ${ratio}`
       : preset.cover === "full-bleed"
-      ? "16 / 7"
-      : preset.cover === "boxed"
-      ? "16 / 9"
-      : "21 / 9";
+        ? "16 / 7"
+        : preset.cover === "boxed"
+          ? "16 / 9"
+          : "21 / 9";
   const wrap =
     preset.cover === "full-bleed"
       ? "-mx-4 lg:-mx-8"
       : preset.cover === "boxed"
-      ? "max-w-2xl mx-auto"
-      : "";
+        ? "max-w-2xl mx-auto"
+        : "";
   return (
     <div className={`relative ${wrap}`}>
       <ZoneTag label={`Cover · ${preset.cover}`} />
@@ -57,7 +70,15 @@ function Cover({ url, preset, ratio }: { url?: string | null; preset: LayoutPres
   );
 }
 
-function Header({ title, excerpt, center }: { title: string; excerpt?: string | null; center: boolean }) {
+function Header({
+  title,
+  excerpt,
+  center,
+}: {
+  title: string;
+  excerpt?: string | null;
+  center: boolean;
+}) {
   return (
     <div className={`relative pt-6 ${ZONE} px-4 pb-3 mt-3`}>
       <ZoneTag label={center ? "Nagłówek · centered" : "Nagłówek"} />
@@ -68,9 +89,13 @@ function Header({ title, excerpt, center }: { title: string; excerpt?: string | 
         {excerpt ? (
           <p className="text-sm text-muted-foreground mt-1.5">{excerpt}</p>
         ) : (
-          <p className="text-xs text-muted-foreground/60 mt-1.5">Excerpt - uzupełnij w „Szczegóły"</p>
+          <p className="text-xs text-muted-foreground/60 mt-1.5">
+            Excerpt - uzupełnij w „Szczegóły"
+          </p>
         )}
-        <div className={`flex flex-wrap gap-2 mt-2 text-[11px] text-muted-foreground ${center ? "justify-center" : ""}`}>
+        <div
+          className={`flex flex-wrap gap-2 mt-2 text-[11px] text-muted-foreground ${center ? "justify-center" : ""}`}
+        >
           <span className="px-1.5 py-0.5 rounded bg-muted/60">data</span>
           <span className="px-1.5 py-0.5 rounded bg-muted/60">autor</span>
           <span className="px-1.5 py-0.5 rounded bg-muted/60">read time</span>
@@ -80,23 +105,39 @@ function Header({ title, excerpt, center }: { title: string; excerpt?: string | 
   );
 }
 
-function OverlayCover({ url, title, excerpt, center }: { url?: string | null; title: string; excerpt?: string | null; center: boolean }) {
+function OverlayCover({
+  url,
+  title,
+  excerpt,
+  center,
+}: {
+  url?: string | null;
+  title: string;
+  excerpt?: string | null;
+  center: boolean;
+}) {
   return (
     <div className={`relative ${ZONE} overflow-hidden`} style={{ aspectRatio: "16 / 7" }}>
       <ZoneTag label="Cover overlay + nagłówek" />
       {url && <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover" />}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
       <div className={`absolute inset-x-0 bottom-0 p-4 text-white ${center ? "text-center" : ""}`}>
-        <p className="font-display text-xl lg:text-2xl leading-tight">
-          {title || "Tytuł wpisu"}
-        </p>
+        <p className="font-display text-xl lg:text-2xl leading-tight">{title || "Tytuł wpisu"}</p>
         {excerpt && <p className="text-xs opacity-80 mt-1 line-clamp-2">{excerpt}</p>}
       </div>
     </div>
   );
 }
 
-function SideBySide({ url, title, excerpt }: { url?: string | null; title: string; excerpt?: string | null }) {
+function SideBySide({
+  url,
+  title,
+  excerpt,
+}: {
+  url?: string | null;
+  title: string;
+  excerpt?: string | null;
+}) {
   return (
     <div className="grid lg:grid-cols-2 gap-4 items-center">
       <div className={`relative ${ZONE} overflow-hidden`} style={{ aspectRatio: "4 / 3" }}>
@@ -130,7 +171,10 @@ function FooterBars({ s }: { s: PostLayoutSettings }) {
       <ZoneTag label="Stopka wpisu" />
       <div className="flex flex-wrap gap-1.5">
         {enabled.map(([label]) => (
-          <span key={label} className="text-[11px] px-2 py-0.5 rounded-full bg-brand/15 text-foreground/80 border border-brand/30">
+          <span
+            key={label}
+            className="text-[11px] px-2 py-0.5 rounded-full bg-brand/15 text-foreground/80 border border-brand/30"
+          >
             {label}
           </span>
         ))}
@@ -165,7 +209,9 @@ export function LayoutScaffold({
   const preset = findLayout(format, layoutId);
   const ratio = preset.featuredRatioKey ? settings[preset.featuredRatioKey] : 56;
   const center = settings.center_header ?? preset.centerHeaderDefault ?? false;
-  const contentMaxW = preset.hasSidebar ? settings.has_sidebar_max_width : settings.no_sidebar_max_width;
+  const contentMaxW = preset.hasSidebar
+    ? settings.has_sidebar_max_width
+    : settings.no_sidebar_max_width;
 
   const topZone = (() => {
     if (preset.header === "overlay") {

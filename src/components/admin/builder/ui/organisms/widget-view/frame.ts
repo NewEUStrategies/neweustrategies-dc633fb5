@@ -1,8 +1,14 @@
 // Widget view helpers: style/frame computation + content getters.
 import type { CSSProperties } from "react";
 import type {
-  WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device, Mode,
-  WidgetTypography, HoverStyle,
+  WidgetNode,
+  WidgetContent,
+  CommonStyle,
+  AdvancedSettings,
+  Device,
+  Mode,
+  WidgetTypography,
+  HoverStyle,
 } from "@/lib/builder/types";
 import { pickMode } from "@/lib/builder/themed";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
@@ -28,7 +34,7 @@ export const COMPACT_WIDGET_TYPES = new Set([
   "newsletter",
 ]);
 
-const pick = <T,>(
+const pick = <T>(
   rv: { desktop?: T; tablet?: T; mobile?: T } | undefined,
   device: Device,
 ): T | undefined => {
@@ -64,14 +70,17 @@ export const styleToCSS = (
   const borderStyle = pickMode(s.borderStyle, "light") ?? pickMode(s.borderStyle, "dark");
   if (borderStyle && borderStyle !== "none") {
     css.borderStyle = borderStyle;
-    css.borderWidth = (pickMode(s.borderWidth, "light") ?? pickMode(s.borderWidth, "dark")) || "1px";
+    css.borderWidth =
+      (pickMode(s.borderWidth, "light") ?? pickMode(s.borderWidth, "dark")) || "1px";
     const borderColor = resolveColorForMode(s.borderColor, mode);
     if (borderColor) css.borderColor = borderColor;
   }
   const boxShadow = pickMode(s.boxShadow, "light") ?? pickMode(s.boxShadow, "dark");
   if (boxShadow) css.boxShadow = boxShadow;
   if (typeof s.opacity === "number") css.opacity = s.opacity;
-  const t = pickMode<WidgetTypography>(s.typography, "light") ?? pickMode<WidgetTypography>(s.typography, "dark");
+  const t =
+    pickMode<WidgetTypography>(s.typography, "light") ??
+    pickMode<WidgetTypography>(s.typography, "dark");
   if (t) {
     if (t.fontFamily) css.fontFamily = t.fontFamily;
     // Do not set the title font-size on the widget wrapper. Post widgets map
@@ -92,8 +101,11 @@ export const styleToCSS = (
 // Re-export so consumers don't need a separate import.
 export type { HoverStyle };
 
-
-type ResponsiveSize = number | "auto" | { desktop?: number | "auto"; tablet?: number | "auto"; mobile?: number | "auto" } | undefined;
+type ResponsiveSize =
+  | number
+  | "auto"
+  | { desktop?: number | "auto"; tablet?: number | "auto"; mobile?: number | "auto" }
+  | undefined;
 
 function pickSize(value: ResponsiveSize, device: Device): number | "auto" | undefined {
   if (value === undefined) return undefined;
@@ -106,8 +118,13 @@ function toCssSize(value: number | "auto" | undefined): string | number | undefi
   return value === "auto" ? "auto" : value;
 }
 
-export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"): CSSProperties => {
-  const adv = node.advanced as { width?: ResponsiveSize; height?: ResponsiveSize; layout?: "block" | "inline" } | undefined;
+export const getWidgetFrameStyle = (
+  node: WidgetNode,
+  device: Device = "desktop",
+): CSSProperties => {
+  const adv = node.advanced as
+    | { width?: ResponsiveSize; height?: ResponsiveSize; layout?: "block" | "inline" }
+    | undefined;
   const wRaw = pickSize(adv?.width, device);
   const hRaw = pickSize(adv?.height, device);
   const isInline = adv?.layout === "inline";
@@ -126,17 +143,20 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
   const sa = !saRaw || saRaw === "auto" ? undefined : saRaw;
   const horizontalAnchored = sj && sj !== "auto";
 
-
   // When user anchors the widget horizontally OR opted into inline flow, it
   // must shrink to its content so siblings can sit next to it.
   // Exception: the search widget always fills the full column width.
   const isSearch = node.type === "search-button";
   const shrinkToContent = !isSearch && !shouldAlwaysFillColumn && (horizontalAnchored || isInline);
-  const sliderShouldFill = node.type === "slider" && wRaw === undefined && !node.style?.maxWidth && !shrinkToContent;
+  const sliderShouldFill =
+    node.type === "slider" && wRaw === undefined && !node.style?.maxWidth && !shrinkToContent;
   const searchShouldFill = isSearch && wRaw === undefined;
-  const w = sliderShouldFill || searchShouldFill
-    ? "100%"
-    : toCssSize(wRaw) ?? node.style?.maxWidth ?? (shrinkToContent ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]);
+  const w =
+    sliderShouldFill || searchShouldFill
+      ? "100%"
+      : (toCssSize(wRaw) ??
+        node.style?.maxWidth ??
+        (shrinkToContent ? "auto" : DEFAULT_WIDGET_WIDTH_BY_DEVICE[device]));
   // On narrow viewports clamp pixel widths so widgets shrink with the column.
   if (device !== "desktop" && typeof w === "number") {
     style.width = `min(100%, ${w}px)`;
@@ -166,10 +186,7 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
 
   // Horizontal alignment (cross axis in a flex-col column).
   if (horizontalAnchored) {
-    style.alignSelf =
-      sj === "start" ? "flex-start" :
-      sj === "end" ? "flex-end" :
-      "center";
+    style.alignSelf = sj === "start" ? "flex-start" : sj === "end" ? "flex-end" : "center";
   }
 
   // Vertical alignment inside the column (uses auto margins so it works in
@@ -191,7 +208,6 @@ export const getWidgetFrameStyle = (node: WidgetNode, device: Device = "desktop"
     }
   }
 
-
   return style;
 };
 
@@ -211,6 +227,21 @@ export function getStr(c: WidgetContent, k: string): string {
 export function getNum(c: WidgetContent, k: string, dflt: number): number {
   const v = c[k];
   return typeof v === "number" ? v : dflt;
+}
+
+export function getBool(c: WidgetContent, k: string, dflt = false): boolean {
+  const v = c[k];
+  if (typeof v === "boolean") return v;
+  if (typeof v === "string") {
+    const normalized = v.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1" || normalized === "yes") return true;
+    if (normalized === "false" || normalized === "0" || normalized === "no") return false;
+  }
+  if (typeof v === "number") {
+    if (v === 1) return true;
+    if (v === 0) return false;
+  }
+  return dflt;
 }
 
 export function getStrArr(c: WidgetContent, k: string): string[] {

@@ -93,4 +93,3 @@ describe("heading widget - fallback do globalnych ustawień Theme Design", () =>
     expect(html).not.toContain("var(--td-pe-weight");
   });
 });
-

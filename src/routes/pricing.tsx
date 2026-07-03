@@ -11,7 +11,10 @@ export const Route = createFileRoute("/pricing")({
   head: () => ({
     meta: [
       { title: "Cennik - Plany subskrypcji" },
-      { name: "description", content: "Wybierz plan dopasowany do Twoich potrzeb. Subskrypcje miesięczne i roczne." },
+      {
+        name: "description",
+        content: "Wybierz plan dopasowany do Twoich potrzeb. Subskrypcje miesięczne i roczne.",
+      },
     ],
   }),
 });

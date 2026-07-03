@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { scoreAnswers, isComplete, answeredCount, type PersonalityQuestion } from "../profile/personality";
+import {
+  scoreAnswers,
+  isComplete,
+  answeredCount,
+  type PersonalityQuestion,
+} from "../profile/personality";
 
 const Q: PersonalityQuestion[] = [
   { id: 1, axis: "openness", reverse: false, text_pl: "", text_en: "", sort_order: 1 },

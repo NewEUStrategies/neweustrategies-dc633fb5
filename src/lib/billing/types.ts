@@ -109,15 +109,24 @@ export function planName(plan: Pick<AccessPlan, "name_pl" | "name_en">, lang: st
   return lang === "en" ? plan.name_en || plan.name_pl : plan.name_pl || plan.name_en;
 }
 
-export function planDescription(plan: Pick<AccessPlan, "description_pl" | "description_en">, lang: string): string {
+export function planDescription(
+  plan: Pick<AccessPlan, "description_pl" | "description_en">,
+  lang: string,
+): string {
   return (lang === "en" ? plan.description_en : plan.description_pl) ?? "";
 }
 
-export function planFeatures(plan: Pick<AccessPlan, "features_pl" | "features_en">, lang: string): string[] {
+export function planFeatures(
+  plan: Pick<AccessPlan, "features_pl" | "features_en">,
+  lang: string,
+): string[] {
   const list = lang === "en" ? plan.features_en : plan.features_pl;
   return Array.isArray(list) ? list.filter((x): x is string => typeof x === "string") : [];
 }
 
-export function planBadge(plan: Pick<AccessPlan, "badge_pl" | "badge_en">, lang: string): string | null {
+export function planBadge(
+  plan: Pick<AccessPlan, "badge_pl" | "badge_en">,
+  lang: string,
+): string | null {
   return (lang === "en" ? plan.badge_en : plan.badge_pl) ?? null;
 }

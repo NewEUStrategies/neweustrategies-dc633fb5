@@ -90,17 +90,44 @@ export function buildWidgetTypographyRules(
     `${sel}[data-description-root]`,
     `${sel} [data-typography-role="description"]`,
     `${sel}[data-typography-role="description"]`,
-    ...["p", "li", "dd", "blockquote", "figcaption", "small"].map((tag) => `${sel} ${tag}:not(.cms-post-title)${notCounters}`),
+    ...["p", "li", "dd", "blockquote", "figcaption", "small"].map(
+      (tag) => `${sel} ${tag}:not(.cms-post-title)${notCounters}`,
+    ),
     `${sel} .prose p`,
   ];
   const genericTextTags = [
-    "p", "span", "a", "strong", "em", "small", "li", "dt", "dd", "blockquote",
-    "cite", "label", "button", "input", "textarea", "select", "option", "figcaption",
-    "legend", "time", "h1", "h2", "h3", "h4", "h5", "h6",
+    "p",
+    "span",
+    "a",
+    "strong",
+    "em",
+    "small",
+    "li",
+    "dt",
+    "dd",
+    "blockquote",
+    "cite",
+    "label",
+    "button",
+    "input",
+    "textarea",
+    "select",
+    "option",
+    "figcaption",
+    "legend",
+    "time",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
   ];
   const genericTextTargets = [
     sel,
-    ...genericTextTags.map((tag) => `${sel} ${tag}:not(.cms-post-title):not(.cms-post-excerpt)${notCounters}`),
+    ...genericTextTags.map(
+      (tag) => `${sel} ${tag}:not(.cms-post-title):not(.cms-post-excerpt)${notCounters}`,
+    ),
     `${sel} .prose`,
     `${sel} .prose *:not(.cms-post-title):not(.cms-post-excerpt)${notCounters}`,
   ];
@@ -116,14 +143,18 @@ export function buildWidgetTypographyRules(
 
   const fontFamily = cleanCssValue(typography.fontFamily);
   const fontSize = cleanCssValue(pickResponsiveValue(typography.fontSize, device));
-  const descriptionFontSize = cleanCssValue(pickResponsiveValue(typography.descriptionFontSize, device));
+  const descriptionFontSize = cleanCssValue(
+    pickResponsiveValue(typography.descriptionFontSize, device),
+  );
   const fontWeight = cleanCssValue(typography.fontWeight);
   const lineHeight = cleanCssValue(typography.lineHeight);
   const letterSpacing = cleanCssValue(typography.letterSpacing);
 
   if (fontFamily) {
     rules.push(`${allText}{font-family:${fontFamily} !important;}`);
-    rules.push(`${sel} input::placeholder, ${sel} textarea::placeholder{font-family:${fontFamily} !important;}`);
+    rules.push(
+      `${sel} input::placeholder, ${sel} textarea::placeholder{font-family:${fontFamily} !important;}`,
+    );
   }
 
   if (fontSize) {
@@ -134,34 +165,48 @@ export function buildWidgetTypographyRules(
       rules.push(`${genericNoPost}{font-size:${fontSize} !important;}`);
       rules.push(`${titleClassSel}{font-size:${fontSize} !important;}`);
       if (titleFallbackSel) rules.push(`${titleFallbackSel}{font-size:${fontSize} !important;}`);
-      rules.push(`${sel} input::placeholder, ${sel} textarea::placeholder{font-size:${fontSize} !important;}`);
+      rules.push(
+        `${sel} input::placeholder, ${sel} textarea::placeholder{font-size:${fontSize} !important;}`,
+      );
     }
   }
   if (descriptionFontSize) {
     rules.push(`${descriptionClassSel}{font-size:${descriptionFontSize} !important;}`);
-    if (descriptionFallbackSel) rules.push(`${descriptionFallbackSel}{font-size:${descriptionFontSize} !important;}`);
+    if (descriptionFallbackSel)
+      rules.push(`${descriptionFallbackSel}{font-size:${descriptionFontSize} !important;}`);
   }
 
   const gapPx = normalizeTypographyGapPx(typography.titleDescriptionGapPx);
   if (typeof gapPx === "number") {
     const gap = `${gapPx}px`;
     rules.push(`${sel}{--cms-title-description-gap:${gap};}`);
-    rules.push(`${sel} .cms-post-title + .cms-post-excerpt, ${sel} .cms-post-title ~ .cms-post-excerpt, ${sel} [data-title-root] + [data-description-root], ${sel} [data-title-root] ~ [data-description-root], ${sel} [data-typography-gap-target]{margin-top:${gap} !important;}`);
-    rules.push(`${sel} a:has(> .cms-post-title) + .cms-post-excerpt{margin-top:${gap} !important;}`);
+    rules.push(
+      `${sel} .cms-post-title + .cms-post-excerpt, ${sel} .cms-post-title ~ .cms-post-excerpt, ${sel} [data-title-root] + [data-description-root], ${sel} [data-title-root] ~ [data-description-root], ${sel} [data-typography-gap-target]{margin-top:${gap} !important;}`,
+    );
+    rules.push(
+      `${sel} a:has(> .cms-post-title) + .cms-post-excerpt{margin-top:${gap} !important;}`,
+    );
   }
 
   if (fontWeight) rules.push(`${allText}{font-weight:${fontWeight} !important;}`);
-  if (typography.fontStyle) rules.push(`${allText}{font-style:${typography.fontStyle} !important;}`);
+  if (typography.fontStyle)
+    rules.push(`${allText}{font-style:${typography.fontStyle} !important;}`);
   if (lineHeight) rules.push(`${allText}{line-height:${lineHeight} !important;}`);
   if (letterSpacing) rules.push(`${allText}{letter-spacing:${letterSpacing} !important;}`);
-  if (typography.textTransform) rules.push(`${allText}{text-transform:${typography.textTransform} !important;}`);
-  if (typography.textDecoration) rules.push(`${allText}{text-decoration:${typography.textDecoration} !important;}`);
-  if (typography.textAlign) rules.push(`${allText}{text-align:${typography.textAlign} !important;}`);
+  if (typography.textTransform)
+    rules.push(`${allText}{text-transform:${typography.textTransform} !important;}`);
+  if (typography.textDecoration)
+    rules.push(`${allText}{text-decoration:${typography.textDecoration} !important;}`);
+  if (typography.textAlign)
+    rules.push(`${allText}{text-align:${typography.textAlign} !important;}`);
 
   return rules;
 }
 
-export function buildLiveWidgetTypographyCss(widgetId: string, typography: WidgetTypography): string {
+export function buildLiveWidgetTypographyCss(
+  widgetId: string,
+  typography: WidgetTypography,
+): string {
   const base = buildWidgetTypographyCss(widgetId, typography, "desktop", { specificity: 3 });
   const tablet = buildWidgetTypographyCss(widgetId, typography, "tablet", {
     ancestor: `[data-builder-renderer][data-device="tablet"] `,
@@ -185,5 +230,7 @@ export function buildLiveWidgetTypographyCss(widgetId: string, typography: Widge
     tabletCanvas ? `@media (max-width: 1023px) and (min-width: 768px){${tabletCanvas}}` : "",
     mobile ? `@media (max-width: 767px){${mobile}}` : "",
     mobileCanvas ? `@media (max-width: 767px){${mobileCanvas}}` : "",
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }

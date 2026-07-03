@@ -25,10 +25,12 @@ export function fuzzyMatch(query: string, target: string): FuzzyMatch | null {
   for (let i = 0; i < t.length && qi < q.length; i++) {
     if (t[i] !== q[qi]) continue;
     let bonus = 1;
-    if (i === 0) bonus += 8; // start of string
+    if (i === 0)
+      bonus += 8; // start of string
     else {
       const before = t[i - 1];
-      if (before === " " || before === "-" || before === "_" || before === "/" || before === ".") bonus += 6;
+      if (before === " " || before === "-" || before === "_" || before === "/" || before === ".")
+        bonus += 6;
       if (before !== before.toLowerCase() && t[i] === t[i].toLowerCase()) bonus += 2;
     }
     if (i === prev + 1) bonus += 5; // consecutive
@@ -48,7 +50,11 @@ export interface RankableItem {
   haystack: string;
 }
 
-export function rankItems<T extends RankableItem>(items: readonly T[], query: string, limit = 50): T[] {
+export function rankItems<T extends RankableItem>(
+  items: readonly T[],
+  query: string,
+  limit = 50,
+): T[] {
   const q = query.trim();
   if (!q) return items.slice(0, limit);
   const scored: Array<{ item: T; score: number }> = [];

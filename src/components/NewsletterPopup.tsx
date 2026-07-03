@@ -24,7 +24,11 @@ function shouldShow(freqDays: number): boolean {
 }
 
 function markDismissed() {
-  try { window.localStorage.setItem(LS_KEY, String(Date.now())); } catch { /* noop */ }
+  try {
+    window.localStorage.setItem(LS_KEY, String(Date.now()));
+  } catch {
+    /* noop */
+  }
 }
 
 export function NewsletterPopup() {
@@ -81,11 +85,17 @@ export function NewsletterPopup() {
 
   const title = isPl ? s.popup_title_pl : s.popup_title_en;
   const desc = isPl ? s.popup_description_pl : s.popup_description_en;
-  const close = () => { markDismissed(); setOpen(false); };
-  const onSuccess = () => { markDismissed(); setTimeout(() => setOpen(false), 1800); };
+  const close = () => {
+    markDismissed();
+    setOpen(false);
+  };
+  const onSuccess = () => {
+    markDismissed();
+    setTimeout(() => setOpen(false), 1800);
+  };
 
   const split = s.popup_layout === "split";
-  const eyebrow = isPl ? (s.popup_eyebrow_pl || "Newsletter") : (s.popup_eyebrow_en || "Newsletter");
+  const eyebrow = isPl ? s.popup_eyebrow_pl || "Newsletter" : s.popup_eyebrow_en || "Newsletter";
   const radius = `${Math.max(0, s.popup_border_radius_px ?? 16)}px`;
   const popupStyle: React.CSSProperties = {
     backgroundColor: s.popup_bg_color || "#0a0a0a",
@@ -143,32 +153,65 @@ export function NewsletterPopup() {
               {!s.popup_side_image_url && (
                 <div className="absolute inset-0 flex items-center justify-center p-6 md:p-8 text-center">
                   <div className="space-y-2">
-                    <div className="text-[10px] sm:text-xs uppercase tracking-[0.3em]" style={{ color: s.popup_muted_color || "#b8b8b8" }}>
+                    <div
+                      className="text-[10px] sm:text-xs uppercase tracking-[0.3em]"
+                      style={{ color: s.popup_muted_color || "#b8b8b8" }}
+                    >
                       {eyebrow}
                     </div>
-                    <div className="font-display text-xl sm:text-2xl md:text-3xl" style={{ color: s.popup_text_color || "#ffffff" }}>{title}</div>
+                    <div
+                      className="font-display text-xl sm:text-2xl md:text-3xl"
+                      style={{ color: s.popup_text_color || "#ffffff" }}
+                    >
+                      {title}
+                    </div>
                   </div>
                 </div>
               )}
             </div>
             <div className="p-5 sm:p-6 md:p-8 lg:p-10 md:max-h-[92vh] md:overflow-y-auto">
               <div className="flex items-start justify-between gap-3 mb-2 pr-10 md:pr-0">
-                <h2 id="nl-popup-title" className="font-display text-2xl sm:text-3xl leading-tight">{title}</h2>
-                <Send className="w-6 h-6 sm:w-7 sm:h-7 shrink-0 mt-1" style={{ color: s.popup_accent_color || "#f97316" }} />
+                <h2 id="nl-popup-title" className="font-display text-2xl sm:text-3xl leading-tight">
+                  {title}
+                </h2>
+                <Send
+                  className="w-6 h-6 sm:w-7 sm:h-7 shrink-0 mt-1"
+                  style={{ color: s.popup_accent_color || "#f97316" }}
+                />
               </div>
-              {desc && <p className="text-sm mb-5 leading-relaxed" style={{ color: s.popup_muted_color || "#b8b8b8" }}>{desc}</p>}
+              {desc && (
+                <p
+                  className="text-sm mb-5 leading-relaxed"
+                  style={{ color: s.popup_muted_color || "#b8b8b8" }}
+                >
+                  {desc}
+                </p>
+              )}
               <NewsletterPopupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
             </div>
           </>
         ) : (
           <>
             {s.popup_cover_url && (
-              <img src={s.popup_cover_url} alt="" loading="lazy" className="w-full aspect-[16/7] object-cover" />
+              <img
+                src={s.popup_cover_url}
+                alt=""
+                loading="lazy"
+                className="w-full aspect-[16/7] object-cover"
+              />
             )}
             <div className="p-6 lg:p-8 space-y-3">
-              <h2 id="nl-popup-title" className="font-display text-2xl">{title}</h2>
-              {desc && <p className="text-sm" style={{ color: s.popup_muted_color || "#b8b8b8" }}>{desc}</p>}
-              {s.popup_extended_fields || s.popup_mailing_lists.length > 0 || s.popup_require_terms ? (
+              <h2 id="nl-popup-title" className="font-display text-2xl">
+                {title}
+              </h2>
+              {desc && (
+                <p className="text-sm" style={{ color: s.popup_muted_color || "#b8b8b8" }}>
+                  {desc}
+                </p>
+              )}
+              {s.popup_extended_fields ||
+              s.popup_mailing_lists.length > 0 ||
+              s.popup_require_terms ? (
                 <NewsletterPopupForm settings={s} lang={isPl ? "pl" : "en"} onSuccess={onSuccess} />
               ) : (
                 <NewsletterForm lang={isPl ? "pl" : "en"} source="popup" variant="inline" />

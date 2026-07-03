@@ -12,42 +12,82 @@ import { TocBlockView } from "./TocBlockView";
 import { AffiliateBlockView } from "./AffiliateBlockView";
 import { XQuoteShare } from "./XQuoteShare";
 import { CompareSlider } from "./CompareSlider";
-import { LoginFormView, RegisterFormView, LostPasswordFormView, ResetPasswordFormView } from "./AuthFormBlocks";
+import {
+  LoginFormView,
+  RegisterFormView,
+  LostPasswordFormView,
+  ResetPasswordFormView,
+} from "./AuthFormBlocks";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
 import type { ComponentType } from "react";
-import { ThumbsUp, ThumbsDown, Facebook, Twitter, Instagram, Youtube, Linkedin, Github, Mail, Rss, Search as SearchIcon, Music as TikTokIcon } from "lucide-react";
+import {
+  ThumbsUp,
+  ThumbsDown,
+  Facebook,
+  Twitter,
+  Instagram,
+  Youtube,
+  Linkedin,
+  Github,
+  Mail,
+  Rss,
+  Search as SearchIcon,
+  Music as TikTokIcon,
+} from "lucide-react";
 import { LatestPostsView } from "./LatestPostsView";
 import { TaxonomyListView } from "./TaxonomyListView";
 import { TagCloudView } from "./TagCloudView";
 import { CalendarView } from "./CalendarView";
 import {
-  PostTitleView, PostDateView, PostAuthorView, PostExcerptView, PostFeaturedImageView, PostTermsView,
-  SiteTitleView, SiteTaglineView, SiteLogoView,
+  PostTitleView,
+  PostDateView,
+  PostAuthorView,
+  PostExcerptView,
+  PostFeaturedImageView,
+  PostTermsView,
+  SiteTitleView,
+  SiteTaglineView,
+  SiteLogoView,
 } from "./ContextBlockViews";
 import { NavigationView, PostNavigationLinkView, QueryLoopView } from "./NavLoopViews";
 import {
-  BreadcrumbsView, ReadingTimeView, ShareButtonsView, PostViewsView,
+  BreadcrumbsView,
+  ReadingTimeView,
+  ShareButtonsView,
+  PostViewsView,
 } from "./PostUtilityViews";
 import { AuthorBioView, RelatedPostsView } from "./PostContextViews";
 import { PostStatsView, PostRatingView, LoginOutView, MorePostsView } from "./FoxizExtraViews";
 import { AccordionView, TabsView, CountdownView, ProgressView } from "./InteractiveViews";
 import {
-  IconBoxView, StatsCounterView, TestimonialsView, PricingTableView, TimelineView,
+  IconBoxView,
+  StatsCounterView,
+  TestimonialsView,
+  PricingTableView,
+  TimelineView,
 } from "./PresentationViews";
 import {
-  HeroView, CtaSectionView, ImageCarouselView, ContactFormView, MapView,
+  HeroView,
+  CtaSectionView,
+  ImageCarouselView,
+  ContactFormView,
+  MapView,
 } from "./MarketingViews";
 import {
-  TeamGridView, LogoGridView, FeatureGridView, AlertBannerView, DividerTextView,
+  TeamGridView,
+  LogoGridView,
+  FeatureGridView,
+  AlertBannerView,
+  DividerTextView,
 } from "./DataSocialViews";
 import {
-  StepListView, ComparisonTableView, BannerImageView, VideoHeroView,
+  StepListView,
+  ComparisonTableView,
+  BannerImageView,
+  VideoHeroView,
 } from "./ConversionViews";
-
-
-
 
 interface Props {
   doc: BlocksDoc | null | undefined;
@@ -66,8 +106,12 @@ type FootnoteCollector = { notes: string[] };
 
 /** Escape HTML w treści przypisu używanej w atrybucie title oraz w sekcji końcowej. */
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /** Zamienia [fn]treść[/fn] na <sup> z tooltipem; treści dopisuje do kolektora. */
@@ -106,17 +150,36 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
         // malformed block degrades to nothing (prod) / a diagnostic (dev) instead
         // of crashing the whole article via the global boundary.
         <RenderErrorBoundary key={b.id} label={`block:${b.type}:${b.id}`}>
-          <BlockView block={b} fnHtml={fnHtml} lang={lang} postId={postId} allBlocks={safe.blocks} />
+          <BlockView
+            block={b}
+            fnHtml={fnHtml}
+            lang={lang}
+            postId={postId}
+            allBlocks={safe.blocks}
+          />
         </RenderErrorBoundary>
       ))}
       {fn.notes.length > 0 && (
-        <section className="footnotes mt-10 pt-6 border-t border-border text-sm" aria-labelledby="footnotes-heading">
-          <h2 id="footnotes-heading" data-footnotes-title className="text-base font-semibold mb-3">{L.title}</h2>
+        <section
+          className="footnotes mt-10 pt-6 border-t border-border text-sm"
+          aria-labelledby="footnotes-heading"
+        >
+          <h2 id="footnotes-heading" data-footnotes-title className="text-base font-semibold mb-3">
+            {L.title}
+          </h2>
           <ol data-footnotes-list className="space-y-2 pl-5 list-decimal">
             {fn.notes.map((n, i) => (
               <li key={i} id={`fn-${i + 1}`}>
                 <span dangerouslySetInnerHTML={{ __html: renderFootnoteHtml(n) }} />{" "}
-                <a href={`#fnref-${i + 1}`} data-footnote-backlink className="text-muted-foreground hover:text-primary" aria-label={L.back} title={L.back}>↩</a>
+                <a
+                  href={`#fnref-${i + 1}`}
+                  data-footnote-backlink
+                  className="text-muted-foreground hover:text-primary"
+                  aria-label={L.back}
+                  title={L.back}
+                >
+                  ↩
+                </a>
               </li>
             ))}
           </ol>
@@ -132,7 +195,11 @@ export function BlocksRenderer({ doc, lang = "pl", postId }: Props) {
  * notes. Rendering then becomes a pure lookup by block id, and the footnotes
  * section is known before the first paint. Numbering matches render order.
  */
-function precomputeFootnotes(blocks: Block[], fn: FootnoteCollector, out: Map<string, string>): void {
+function precomputeFootnotes(
+  blocks: Block[],
+  fn: FootnoteCollector,
+  out: Map<string, string>,
+): void {
   for (const b of blocks) {
     if (b.type === "paragraph" || b.type === "html") {
       out.set(b.id, replaceFootnotes(sanitize(String(b.data.html ?? "")), fn));
@@ -174,8 +241,12 @@ function readBlocksArray(raw: Json | undefined): Block[] {
 }
 
 function slugify(s: string): string {
-  return s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function readObjArray<T>(raw: Json | undefined, map: (o: Record<string, unknown>) => T): T[] {
@@ -189,7 +260,19 @@ function readObjArray<T>(raw: Json | undefined, map: (o: Record<string, unknown>
   return out;
 }
 
-function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: Block; fnHtml: Map<string, string>; lang?: "pl" | "en"; postId?: string; allBlocks?: Block[] }) {
+function BlockView({
+  block,
+  fnHtml,
+  lang = "pl",
+  postId,
+  allBlocks,
+}: {
+  block: Block;
+  fnHtml: Map<string, string>;
+  lang?: "pl" | "en";
+  postId?: string;
+  allBlocks?: Block[];
+}) {
   const cls = alignClass(block);
 
   switch (block.type) {
@@ -203,7 +286,11 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const explicit = block.data.anchor ? String(block.data.anchor) : "";
       const id = explicit || (text ? slugify(text) : undefined);
       const Tag = `h${level}` as "h2" | "h3" | "h4";
-      return <Tag id={id} className={cls}>{text}</Tag>;
+      return (
+        <Tag id={id} className={cls}>
+          {text}
+        </Tag>
+      );
     }
     case "image": {
       // Sanitize author-supplied URLs: image src restricted to http(s)/data:image/
@@ -213,12 +300,30 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const cap = String(block.data.caption ?? "");
       const href = safeUrl(String(block.data.href ?? ""), "");
       if (!url) return null;
-      const img = <OptimizedImage src={url} alt={alt} className="rounded-lg" responsive sizes="(max-width: 768px) 100vw, 800px" />;
-      const wrapped = href ? <a href={href} target="_blank" rel="noopener noreferrer">{img}</a> : img;
+      const img = (
+        <OptimizedImage
+          src={url}
+          alt={alt}
+          className="rounded-lg"
+          responsive
+          sizes="(max-width: 768px) 100vw, 800px"
+        />
+      );
+      const wrapped = href ? (
+        <a href={href} target="_blank" rel="noopener noreferrer">
+          {img}
+        </a>
+      ) : (
+        img
+      );
       return (
         <figure className={cls}>
           {wrapped}
-          {cap && <figcaption className="text-sm text-muted-foreground text-center italic mt-2">{cap}</figcaption>}
+          {cap && (
+            <figcaption className="text-sm text-muted-foreground text-center italic mt-2">
+              {cap}
+            </figcaption>
+          )}
         </figure>
       );
     }
@@ -227,8 +332,14 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const ordered = Boolean(block.data.ordered);
       const Tag = ordered ? "ol" : "ul";
       return (
-        <Tag className={`my-0 pl-6 ${ordered ? "list-decimal" : "list-disc"} marker:text-foreground ${cls}`}>
-          {items.filter(Boolean).map((it, i) => <li key={i} className="my-0 pl-1">{it}</li>)}
+        <Tag
+          className={`my-0 pl-6 ${ordered ? "list-decimal" : "list-disc"} marker:text-foreground ${cls}`}
+        >
+          {items.filter(Boolean).map((it, i) => (
+            <li key={i} className="my-0 pl-1">
+              {it}
+            </li>
+          ))}
         </Tag>
       );
     }
@@ -257,7 +368,13 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       if (!parsed || !isIframeEmbed(parsed)) {
         // Non-embeddable: render as a plain link, but only for a safe-scheme URL.
         const link = safeUrl(url, "");
-        return link ? <p className={cls}><a href={link} target="_blank" rel="noopener noreferrer">{link}</a></p> : null;
+        return link ? (
+          <p className={cls}>
+            <a href={link} target="_blank" rel="noopener noreferrer">
+              {link}
+            </a>
+          </p>
+        ) : null;
       }
       return (
         <div className={`relative aspect-video w-full ${cls}`}>
@@ -276,7 +393,15 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const url = safeUrl(String(block.data.url ?? ""), "");
       const poster = safeImageUrl(String(block.data.poster ?? ""));
       if (!url) return null;
-      return <video src={url} poster={poster || undefined} controls preload="metadata" className={`w-full rounded-lg ${cls}`} />;
+      return (
+        <video
+          src={url}
+          poster={poster || undefined}
+          controls
+          preload="metadata"
+          className={`w-full rounded-lg ${cls}`}
+        />
+      );
     }
     case "gallery": {
       const raw = Array.isArray(block.data.images) ? block.data.images : [];
@@ -292,8 +417,16 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
     }
     case "separator": {
       const variant = String(block.data.variant ?? "line");
-      if (variant === "dots") return <div className="text-center text-2xl tracking-[0.5em] text-muted-foreground py-3 select-none">···</div>;
-      if (variant === "wide") return <hr className="border-0 h-px bg-gradient-to-r from-transparent via-border to-transparent my-6" />;
+      if (variant === "dots")
+        return (
+          <div className="text-center text-2xl tracking-[0.5em] text-muted-foreground py-3 select-none">
+            ···
+          </div>
+        );
+      if (variant === "wide")
+        return (
+          <hr className="border-0 h-px bg-gradient-to-r from-transparent via-border to-transparent my-6" />
+        );
       return <hr className="border-border my-6" />;
     }
     case "callout": {
@@ -306,19 +439,43 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
         danger: "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300",
       };
       const stl = map[variant] ?? map.info;
-      return <div className={`not-prose rounded-md border px-4 py-3 my-4 whitespace-pre-line ${stl} ${cls}`}>{text}</div>;
+      return (
+        <div
+          className={`not-prose rounded-md border px-4 py-3 my-4 whitespace-pre-line ${stl} ${cls}`}
+        >
+          {text}
+        </div>
+      );
     }
     case "table": {
       const rowsRaw = Array.isArray(block.data.rows) ? block.data.rows : [];
-      const rows: string[][] = rowsRaw.map((r) => Array.isArray(r) ? r.map((c) => String(c ?? "")) : []);
+      const rows: string[][] = rowsRaw.map((r) =>
+        Array.isArray(r) ? r.map((c) => String(c ?? "")) : [],
+      );
       const header = Boolean(block.data.header);
       if (rows.length === 0) return null;
       const [head, ...body] = header ? [rows[0], ...rows.slice(1)] : [null, ...rows];
       return (
         <div className={`overflow-x-auto ${cls}`}>
           <table>
-            {head && <thead><tr>{head.map((c, i) => <th key={i}>{c}</th>)}</tr></thead>}
-            <tbody>{body.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody>
+            {head && (
+              <thead>
+                <tr>
+                  {head.map((c, i) => (
+                    <th key={i}>{c}</th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {body.map((r, i) => (
+                <tr key={i}>
+                  {r.map((c, j) => (
+                    <td key={j}>{c}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
       );
@@ -328,13 +485,20 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const href = safeUrl(String(block.data.href ?? "#"));
       const variant = String(block.data.variant ?? "default");
       const stl =
-        variant === "outline" ? "border border-primary text-primary hover:bg-primary/10"
-        : variant === "ghost" ? "text-primary hover:bg-primary/10"
-        : "bg-primary text-primary-foreground hover:bg-primary/90";
+        variant === "outline"
+          ? "border border-primary text-primary hover:bg-primary/10"
+          : variant === "ghost"
+            ? "text-primary hover:bg-primary/10"
+            : "bg-primary text-primary-foreground hover:bg-primary/90";
       if (!label) return null;
       return (
         <p className={`not-prose ${cls}`}>
-          <a href={href} className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium ${stl}`}>{label}</a>
+          <a
+            href={href}
+            className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium ${stl}`}
+          >
+            {label}
+          </a>
         </p>
       );
     }
@@ -343,8 +507,30 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const right = readBlocksArray(block.data.right);
       return (
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 not-prose ${cls}`}>
-          <div className="prose dark:prose-invert max-w-none">{left.map((b) => <BlockView key={b.id} block={b} fnHtml={fnHtml} lang={lang} postId={postId} allBlocks={allBlocks} />)}</div>
-          <div className="prose dark:prose-invert max-w-none">{right.map((b) => <BlockView key={b.id} block={b} fnHtml={fnHtml} lang={lang} postId={postId} allBlocks={allBlocks} />)}</div>
+          <div className="prose dark:prose-invert max-w-none">
+            {left.map((b) => (
+              <BlockView
+                key={b.id}
+                block={b}
+                fnHtml={fnHtml}
+                lang={lang}
+                postId={postId}
+                allBlocks={allBlocks}
+              />
+            ))}
+          </div>
+          <div className="prose dark:prose-invert max-w-none">
+            {right.map((b) => (
+              <BlockView
+                key={b.id}
+                block={b}
+                fnHtml={fnHtml}
+                lang={lang}
+                postId={postId}
+                allBlocks={allBlocks}
+              />
+            ))}
+          </div>
         </div>
       );
     }
@@ -391,9 +577,14 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
     }
     case "proscons": {
       const title = String(block.data.title ?? "");
-      const pros = (Array.isArray(block.data.pros) ? block.data.pros : []).map((x) => String(x ?? "")).filter(Boolean);
-      const cons = (Array.isArray(block.data.cons) ? block.data.cons : []).map((x) => String(x ?? "")).filter(Boolean);
-      const LBL = lang === "pl" ? { pros: "Plusy", cons: "Minusy" } : { pros: "Pros", cons: "Cons" };
+      const pros = (Array.isArray(block.data.pros) ? block.data.pros : [])
+        .map((x) => String(x ?? ""))
+        .filter(Boolean);
+      const cons = (Array.isArray(block.data.cons) ? block.data.cons : [])
+        .map((x) => String(x ?? ""))
+        .filter(Boolean);
+      const LBL =
+        lang === "pl" ? { pros: "Plusy", cons: "Minusy" } : { pros: "Pros", cons: "Cons" };
       if (!pros.length && !cons.length) return null;
       return (
         <section className={`not-prose my-6 ${cls}`}>
@@ -404,7 +595,9 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
                 <ThumbsUp className="w-4 h-4" /> {LBL.pros}
               </div>
               <ul className="m-0 pl-5 list-disc space-y-1 text-sm">
-                {pros.map((p, i) => <li key={i}>{p}</li>)}
+                {pros.map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
               </ul>
             </div>
             <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4">
@@ -412,7 +605,9 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
                 <ThumbsDown className="w-4 h-4" /> {LBL.cons}
               </div>
               <ul className="m-0 pl-5 list-disc space-y-1 text-sm">
-                {cons.map((p, i) => <li key={i}>{p}</li>)}
+                {cons.map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
               </ul>
             </div>
           </div>
@@ -425,11 +620,17 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const open = Boolean(block.data.defaultOpen);
       if (!inner) return null;
       return (
-        <details className={`not-prose my-4 rounded-md border border-border bg-muted/30 ${cls}`} open={open}>
+        <details
+          className={`not-prose my-4 rounded-md border border-border bg-muted/30 ${cls}`}
+          open={open}
+        >
           <summary className="cursor-pointer select-none px-4 py-3 font-medium text-sm hover:bg-accent/50 rounded-t-md">
             {summary || (lang === "pl" ? "Pokaż więcej" : "Show more")}
           </summary>
-          <div className="px-4 py-3 border-t border-border text-sm" dangerouslySetInnerHTML={{ __html: inner }} />
+          <div
+            className="px-4 py-3 border-t border-border text-sm"
+            dangerouslySetInnerHTML={{ __html: inner }}
+          />
         </details>
       );
     }
@@ -461,9 +662,13 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
     case "newsletter": {
       const title = String(block.data.title ?? "");
       const description = String(block.data.description ?? "");
-      const variant = (String(block.data.variant ?? "card") === "inline" ? "inline" : "card") as "card" | "inline";
+      const variant = (String(block.data.variant ?? "card") === "inline" ? "inline" : "card") as
+        | "card"
+        | "inline";
       return (
-        <section className={`not-prose my-6 rounded-lg border border-border bg-gradient-to-br from-primary/10 to-transparent p-5 ${cls}`}>
+        <section
+          className={`not-prose my-6 rounded-lg border border-border bg-gradient-to-br from-primary/10 to-transparent p-5 ${cls}`}
+        >
           {title && <h3 className="text-lg font-semibold m-0 mb-1">{title}</h3>}
           {description && <p className="text-sm text-muted-foreground mb-3 m-0">{description}</p>}
           <NewsletterForm lang={lang} source="inline-block" variant={variant} />
@@ -519,13 +724,29 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       );
     }
     case "login-form":
-      return <div className={cls}><LoginFormView data={block.data} lang={lang} /></div>;
+      return (
+        <div className={cls}>
+          <LoginFormView data={block.data} lang={lang} />
+        </div>
+      );
     case "register-form":
-      return <div className={cls}><RegisterFormView data={block.data} lang={lang} /></div>;
+      return (
+        <div className={cls}>
+          <RegisterFormView data={block.data} lang={lang} />
+        </div>
+      );
     case "lost-password-form":
-      return <div className={cls}><LostPasswordFormView data={block.data} lang={lang} /></div>;
+      return (
+        <div className={cls}>
+          <LostPasswordFormView data={block.data} lang={lang} />
+        </div>
+      );
     case "reset-password-form":
-      return <div className={cls}><ResetPasswordFormView data={block.data} lang={lang} /></div>;
+      return (
+        <div className={cls}>
+          <ResetPasswordFormView data={block.data} lang={lang} />
+        </div>
+      );
     case "audio": {
       const url = String(block.data.url ?? "");
       const caption = String(block.data.caption ?? "");
@@ -533,7 +754,11 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       return (
         <figure className={`not-prose my-4 ${cls}`}>
           <audio src={url} controls preload="metadata" className="w-full" />
-          {caption && <figcaption className="text-sm text-muted-foreground text-center italic mt-2">{caption}</figcaption>}
+          {caption && (
+            <figcaption className="text-sm text-muted-foreground text-center italic mt-2">
+              {caption}
+            </figcaption>
+          )}
         </figure>
       );
     }
@@ -548,24 +773,49 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
           className={`relative w-full rounded-lg overflow-hidden flex items-center justify-center not-prose my-4 ${cls}`}
           // url is scheme-restricted by safeImageUrl; quote it so the value stays a
           // single CSS url() token even if it contains parentheses.
-          style={{ minHeight, backgroundImage: `url("${url}")`, backgroundSize: "cover", backgroundPosition: "center" }}
+          style={{
+            minHeight,
+            backgroundImage: `url("${url}")`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
         >
           <div className="absolute inset-0 bg-black" style={{ opacity: overlay / 100 }} />
-          {title && <h2 className="relative z-10 text-white text-3xl md:text-5xl font-semibold text-center px-6">{title}</h2>}
+          {title && (
+            <h2 className="relative z-10 text-white text-3xl md:text-5xl font-semibold text-center px-6">
+              {title}
+            </h2>
+          )}
         </div>
       );
     }
     case "file": {
       const url = safeUrl(String(block.data.url ?? ""), "");
-      const label = String(block.data.label ?? "") || (lang === "pl" ? "Pobierz plik" : "Download file");
+      const label =
+        String(block.data.label ?? "") || (lang === "pl" ? "Pobierz plik" : "Download file");
       const showButton = block.data.showButton !== false;
       if (!url) return null;
       const labelDownload = lang === "pl" ? "Pobierz" : "Download";
       return (
-        <div className={`not-prose my-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 ${cls}`}>
-          <a href={url} className="text-foreground hover:text-primary font-medium truncate" target="_blank" rel="noopener noreferrer">{label}</a>
+        <div
+          className={`not-prose my-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 ${cls}`}
+        >
+          <a
+            href={url}
+            className="text-foreground hover:text-primary font-medium truncate"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {label}
+          </a>
           {showButton && (
-            <a href={url} download className="shrink-0 inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90">{labelDownload}</a>
+            <a
+              href={url}
+              download
+              className="shrink-0 inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {labelDownload}
+            </a>
           )}
         </div>
       );
@@ -575,7 +825,9 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const text = String(block.data.text ?? "");
       const isRight = String(block.data.mediaPosition ?? "left") === "right";
       return (
-        <div className={`not-prose my-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-center ${isRight ? "md:[&>*:first-child]:order-2" : ""} ${cls}`}>
+        <div
+          className={`not-prose my-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-center ${isRight ? "md:[&>*:first-child]:order-2" : ""} ${cls}`}
+        >
           <div className="aspect-video rounded-lg overflow-hidden bg-muted">
             {url && <OptimizedImage src={url} alt="" className="w-full h-full object-cover" />}
           </div>
@@ -589,16 +841,28 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const children = readBlocksArray(block.data.children);
       const layout = String(block.data.layout ?? "group");
       const layoutCls =
-        layout === "row" ? "flex flex-row flex-wrap gap-4"
-        : layout === "stack" ? "flex flex-col gap-4"
-        : layout === "grid" ? "grid grid-cols-1 md:grid-cols-2 gap-4"
-        : "";
+        layout === "row"
+          ? "flex flex-row flex-wrap gap-4"
+          : layout === "stack"
+            ? "flex flex-col gap-4"
+            : layout === "grid"
+              ? "grid grid-cols-1 md:grid-cols-2 gap-4"
+              : "";
       return (
         <div
           className={`not-prose rounded-lg ${layoutCls} ${cls}`}
           style={{ backgroundColor: bg || undefined, padding }}
         >
-          {children.map((c) => <BlockView key={c.id} block={c} fnHtml={fnHtml} lang={lang} postId={postId} allBlocks={allBlocks} />)}
+          {children.map((c) => (
+            <BlockView
+              key={c.id}
+              block={c}
+              fnHtml={fnHtml}
+              lang={lang}
+              postId={postId}
+              allBlocks={allBlocks}
+            />
+          ))}
         </div>
       );
     }
@@ -619,7 +883,9 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       return (
         <blockquote className={`not-prose border-y-4 border-primary py-6 my-6 text-center ${cls}`}>
           <p className="text-2xl md:text-3xl font-serif italic m-0">{text}</p>
-          {cite && <cite className="block mt-3 text-sm text-muted-foreground not-italic">— {cite}</cite>}
+          {cite && (
+            <cite className="block mt-3 text-sm text-muted-foreground not-italic">— {cite}</cite>
+          )}
         </blockquote>
       );
     }
@@ -629,7 +895,13 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
     }
     case "verse": {
       const text = String(block.data.text ?? "");
-      return <pre className={`font-serif italic text-lg leading-relaxed whitespace-pre-wrap bg-transparent border-none p-0 ${cls}`}>{text}</pre>;
+      return (
+        <pre
+          className={`font-serif italic text-lg leading-relaxed whitespace-pre-wrap bg-transparent border-none p-0 ${cls}`}
+        >
+          {text}
+        </pre>
+      );
     }
     case "details": {
       const summary = String(block.data.summary ?? "");
@@ -637,7 +909,9 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       if (!summary && !body) return null;
       return (
         <details className={`not-prose my-4 rounded-md border border-border bg-muted/20 ${cls}`}>
-          <summary className="cursor-pointer select-none px-4 py-3 font-medium text-sm hover:bg-accent/40 rounded-t-md">{summary || (lang === "pl" ? "Szczegóły" : "Details")}</summary>
+          <summary className="cursor-pointer select-none px-4 py-3 font-medium text-sm hover:bg-accent/40 rounded-t-md">
+            {summary || (lang === "pl" ? "Szczegóły" : "Details")}
+          </summary>
           <div className="px-4 py-3 border-t border-border text-sm whitespace-pre-line">{body}</div>
         </details>
       );
@@ -650,20 +924,37 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const children = readBlocksArray(block.data.children);
       const cols = Math.min(6, Math.max(1, Number(block.data.columns ?? 3)));
       const layoutCls =
-        block.type === "row" ? "flex flex-row flex-wrap gap-4"
-        : block.type === "stack" ? "flex flex-col gap-4"
-        : `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${cols} gap-4`;
+        block.type === "row"
+          ? "flex flex-row flex-wrap gap-4"
+          : block.type === "stack"
+            ? "flex flex-col gap-4"
+            : `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${cols} gap-4`;
       return (
-        <div className={`not-prose rounded-lg ${layoutCls} ${cls}`} style={{ backgroundColor: bg || undefined, padding: padding || undefined }}>
-          {children.map((c) => <BlockView key={c.id} block={c} fnHtml={fnHtml} lang={lang} postId={postId} allBlocks={allBlocks} />)}
+        <div
+          className={`not-prose rounded-lg ${layoutCls} ${cls}`}
+          style={{ backgroundColor: bg || undefined, padding: padding || undefined }}
+        >
+          {children.map((c) => (
+            <BlockView
+              key={c.id}
+              block={c}
+              fnHtml={fnHtml}
+              lang={lang}
+              postId={postId}
+              allBlocks={allBlocks}
+            />
+          ))}
         </div>
       );
     }
     case "buttons": {
       type ButtonItem = { label?: string; href?: string; variant?: string };
-      const raw = Array.isArray(block.data.items) ? (block.data.items as unknown as ButtonItem[]) : [];
+      const raw = Array.isArray(block.data.items)
+        ? (block.data.items as unknown as ButtonItem[])
+        : [];
       const align = String(block.data.align ?? "left");
-      const alignCls = align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start";
+      const alignCls =
+        align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start";
       if (raw.length === 0) return null;
       return (
         <div className={`not-prose flex flex-wrap gap-2 ${alignCls} ${cls}`}>
@@ -672,12 +963,20 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
             const href = safeUrl(String(it.href ?? "#"));
             const variant = String(it.variant ?? "default");
             const stl =
-              variant === "outline" ? "border border-primary text-primary hover:bg-primary/10"
-              : variant === "ghost" ? "text-primary hover:bg-primary/10"
-              : "bg-primary text-primary-foreground hover:bg-primary/90";
+              variant === "outline"
+                ? "border border-primary text-primary hover:bg-primary/10"
+                : variant === "ghost"
+                  ? "text-primary hover:bg-primary/10"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90";
             if (!label) return null;
             return (
-              <a key={i} href={href} className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium ${stl}`}>{label}</a>
+              <a
+                key={i}
+                href={href}
+                className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium ${stl}`}
+              >
+                {label}
+              </a>
             );
           })}
         </div>
@@ -685,16 +984,26 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
     }
     case "social-icons": {
       type SocialItem = { platform?: string; url?: string };
-      const raw = Array.isArray(block.data.items) ? (block.data.items as unknown as SocialItem[]) : [];
+      const raw = Array.isArray(block.data.items)
+        ? (block.data.items as unknown as SocialItem[])
+        : [];
       const size = String(block.data.size ?? "md");
       const align = String(block.data.align ?? "left");
-      const alignCls = align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start";
+      const alignCls =
+        align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start";
       const sizeCls = size === "sm" ? "h-4 w-4" : size === "lg" ? "h-7 w-7" : "h-5 w-5";
       if (raw.length === 0) return null;
       const ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
-        facebook: Facebook, x: Twitter, twitter: Twitter, instagram: Instagram,
-        youtube: Youtube, linkedin: Linkedin, tiktok: TikTokIcon,
-        github: Github, mail: Mail, rss: Rss,
+        facebook: Facebook,
+        x: Twitter,
+        twitter: Twitter,
+        instagram: Instagram,
+        youtube: Youtube,
+        linkedin: Linkedin,
+        tiktok: TikTokIcon,
+        github: Github,
+        mail: Mail,
+        rss: Rss,
       };
       return (
         <div className={`not-prose flex flex-wrap gap-3 ${alignCls} ${cls}`}>
@@ -731,7 +1040,10 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
             aria-label={placeholder}
             className="flex-1 h-10 px-3 rounded-md border border-border bg-background text-sm"
           />
-          <button type="submit" className="inline-flex items-center gap-1 px-4 h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90">
+          <button
+            type="submit"
+            className="inline-flex items-center gap-1 px-4 h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
+          >
             <SearchIcon className="h-4 w-4" />
             {buttonLabel}
           </button>
@@ -760,7 +1072,11 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
     case "tag-cloud": {
       return (
         <div className={cls}>
-          <TagCloudView count={Number(block.data.count ?? 30)} showCount={Boolean(block.data.showCount)} lang={lang} />
+          <TagCloudView
+            count={Number(block.data.count ?? 30)}
+            showCount={Boolean(block.data.showCount)}
+            lang={lang}
+          />
         </div>
       );
     }
@@ -768,7 +1084,12 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const layout = String(block.data.layout ?? "list") === "dropdown" ? "dropdown" : "list";
       return (
         <div className={cls}>
-          <TaxonomyListView kind="categories" lang={lang} showCount={Boolean(block.data.showCount)} layout={layout} />
+          <TaxonomyListView
+            kind="categories"
+            lang={lang}
+            showCount={Boolean(block.data.showCount)}
+            layout={layout}
+          />
         </div>
       );
     }
@@ -776,7 +1097,12 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const layout = String(block.data.layout ?? "list") === "dropdown" ? "dropdown" : "list";
       return (
         <div className={cls}>
-          <TaxonomyListView kind="archives" lang={lang} showCount={Boolean(block.data.showCount)} layout={layout} />
+          <TaxonomyListView
+            kind="archives"
+            lang={lang}
+            showCount={Boolean(block.data.showCount)}
+            layout={layout}
+          />
         </div>
       );
     }
@@ -790,13 +1116,33 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
     case "post-title":
       return <PostTitleView level={Number(block.data.level ?? 1)} lang={lang} cls={cls} />;
     case "post-date":
-      return <PostDateView format={String(block.data.format ?? "long")} showUpdated={Boolean(block.data.showUpdated)} lang={lang} cls={cls} />;
+      return (
+        <PostDateView
+          format={String(block.data.format ?? "long")}
+          showUpdated={Boolean(block.data.showUpdated)}
+          lang={lang}
+          cls={cls}
+        />
+      );
     case "post-author":
-      return <PostAuthorView showAvatar={block.data.showAvatar !== false} showBio={Boolean(block.data.showBio)} lang={lang} cls={cls} />;
+      return (
+        <PostAuthorView
+          showAvatar={block.data.showAvatar !== false}
+          showBio={Boolean(block.data.showBio)}
+          lang={lang}
+          cls={cls}
+        />
+      );
     case "post-excerpt":
       return <PostExcerptView showMore={Boolean(block.data.showMore)} lang={lang} cls={cls} />;
     case "post-featured-image":
-      return <PostFeaturedImageView aspect={String(block.data.aspect ?? "16/9")} rounded={block.data.rounded !== false} cls={cls} />;
+      return (
+        <PostFeaturedImageView
+          aspect={String(block.data.aspect ?? "16/9")}
+          rounded={block.data.rounded !== false}
+          cls={cls}
+        />
+      );
     case "post-terms": {
       const tx = String(block.data.taxonomy ?? "categories") === "tags" ? "tags" : "categories";
       return <PostTermsView taxonomy={tx} cls={cls} />;
@@ -808,10 +1154,24 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
     case "site-logo":
       return <SiteLogoView width={Number(block.data.width ?? 120)} cls={cls} />;
     case "navigation":
-      return <NavigationView menuKey={String(block.data.menuKey ?? "primary")} layout={String(block.data.layout ?? "horizontal")} lang={lang} cls={cls} />;
+      return (
+        <NavigationView
+          menuKey={String(block.data.menuKey ?? "primary")}
+          layout={String(block.data.layout ?? "horizontal")}
+          lang={lang}
+          cls={cls}
+        />
+      );
     case "post-navigation-link": {
       const dir = String(block.data.direction ?? "next") === "prev" ? "prev" : "next";
-      return <PostNavigationLinkView direction={dir} showTitle={block.data.showTitle !== false} lang={lang} cls={cls} />;
+      return (
+        <PostNavigationLinkView
+          direction={dir}
+          showTitle={block.data.showTitle !== false}
+          lang={lang}
+          cls={cls}
+        />
+      );
     }
     case "query-loop": {
       const lay = String(block.data.layout ?? "grid") === "list" ? "list" : "grid";
@@ -849,16 +1209,20 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
         />
       );
     case "share-buttons": {
-      const nets = Array.isArray(block.data.networks) ? (block.data.networks as string[]) : undefined;
+      const nets = Array.isArray(block.data.networks)
+        ? (block.data.networks as string[])
+        : undefined;
       const v = String(block.data.variant ?? "filled");
-      const variant: "filled" | "outline" | "ghost" = v === "outline" ? "outline" : v === "ghost" ? "ghost" : "filled";
+      const variant: "filled" | "outline" | "ghost" =
+        v === "outline" ? "outline" : v === "ghost" ? "ghost" : "filled";
       return <ShareButtonsView networks={nets} variant={variant} lang={lang} cls={cls} />;
     }
     case "post-views":
       return <PostViewsView suffix={String(block.data.suffix ?? "")} lang={lang} cls={cls} />;
     case "author-bio": {
       const v = String(block.data.variant ?? "card");
-      const variant: "card" | "inline" | "minimal" = v === "inline" ? "inline" : v === "minimal" ? "minimal" : "card";
+      const variant: "card" | "inline" | "minimal" =
+        v === "inline" ? "inline" : v === "minimal" ? "minimal" : "card";
       return (
         <AuthorBioView
           showAvatar={block.data.showAvatar !== false}
@@ -875,7 +1239,8 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       const strategy: "category" | "tag" | "author" | "latest" =
         s === "tag" ? "tag" : s === "author" ? "author" : s === "latest" ? "latest" : "category";
       const l = String(block.data.layout ?? "grid");
-      const layout: "grid" | "list" | "compact" = l === "list" ? "list" : l === "compact" ? "compact" : "grid";
+      const layout: "grid" | "list" | "compact" =
+        l === "list" ? "list" : l === "compact" ? "compact" : "grid";
       return (
         <RelatedPostsView
           limit={Number(block.data.limit ?? 3)}
@@ -889,7 +1254,14 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
     }
     case "post-stats": {
       const items = Array.isArray(block.data.items) ? (block.data.items as string[]) : undefined;
-      return <PostStatsView items={items} separator={String(block.data.separator ?? "•")} lang={lang} cls={cls} />;
+      return (
+        <PostStatsView
+          items={items}
+          separator={String(block.data.separator ?? "•")}
+          lang={lang}
+          cls={cls}
+        />
+      );
     }
     case "post-rating":
       return (
@@ -954,7 +1326,13 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
     case "progress": {
       const c = String(block.data.color ?? "primary");
       const color: "primary" | "success" | "warning" | "danger" =
-        c === "success" ? "success" : c === "warning" ? "warning" : c === "danger" ? "danger" : "primary";
+        c === "success"
+          ? "success"
+          : c === "warning"
+            ? "warning"
+            : c === "danger"
+              ? "danger"
+              : "primary";
       return (
         <ProgressView
           value={Number(block.data.value ?? 0)}
@@ -1120,7 +1498,8 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
     }
     case "alert-banner": {
       const v = String(block.data.variant ?? "info");
-      const variant = v === "success" || v === "warning" || v === "danger" || v === "neutral" ? v : "info";
+      const variant =
+        v === "success" || v === "warning" || v === "danger" || v === "neutral" ? v : "info";
       return (
         <AlertBannerView
           variant={variant}
@@ -1213,6 +1592,3 @@ function BlockView({ block, fnHtml, lang = "pl", postId, allBlocks }: { block: B
       return null;
   }
 }
-
-
-

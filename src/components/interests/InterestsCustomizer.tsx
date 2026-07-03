@@ -97,10 +97,7 @@ export function InterestsCustomizer({ variant = "full", showHeader = true, class
           <LogIn className="w-4 h-4 mt-0.5 text-brand" />
           <div className="flex-1">
             <p className="text-foreground">{t("interests.loginRequired")}</p>
-            <Link
-              to="/login"
-              className="mt-1 inline-block text-brand font-medium hover:underline"
-            >
+            <Link to="/login" className="mt-1 inline-block text-brand font-medium hover:underline">
               {t("interests.loginCta")} →
             </Link>
           </div>

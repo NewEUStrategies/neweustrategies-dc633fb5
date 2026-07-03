@@ -5,7 +5,11 @@ import type { WidgetContent } from "@/lib/builder/types";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { AppLink } from "@/components/atoms/AppLink";
 import { dedupeAndSlice, type Lang } from "@/lib/builder/postListQuery";
-import { newsTickerQueryOptions, newsTickerDisplayLimit, type TickerPost } from "@/lib/builder/newsTickerQuery";
+import {
+  newsTickerQueryOptions,
+  newsTickerDisplayLimit,
+  type TickerPost,
+} from "@/lib/builder/newsTickerQuery";
 
 function bool(c: WidgetContent, key: string, dflt: boolean): boolean {
   const v = c[key];
@@ -25,7 +29,8 @@ function str(c: WidgetContent, key: string, dflt = ""): string {
 }
 
 export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
-  const badge = str(c, `badge_${lang}`) || str(c, "badge_pl") || (lang === "pl" ? "Najnowsze" : "Latest");
+  const badge =
+    str(c, `badge_${lang}`) || str(c, "badge_pl") || (lang === "pl" ? "Najnowsze" : "Latest");
   const displayLimit = newsTickerDisplayLimit(c);
   const speedSeconds = Math.max(10, Math.min(180, num(c, "speedSeconds", 40)));
   const pauseOnHover = bool(c, "pauseOnHover", true);
@@ -93,13 +98,12 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
     >
       {items.map((p, i) => (
         <span key={`${p.id}-${i}`} className="inline-flex items-center gap-3 shrink-0">
-          <AppLink
-            href={`/post/${p.slug}`}
-            className="cms-post-title whitespace-nowrap"
-          >
+          <AppLink href={`/post/${p.slug}`} className="cms-post-title whitespace-nowrap">
             {title(p)}
           </AppLink>
-          <span aria-hidden className="text-muted-foreground/70 select-none">{separator}</span>
+          <span aria-hidden className="text-muted-foreground/70 select-none">
+            {separator}
+          </span>
         </span>
       ))}
     </NewsTickerMarquee>
@@ -107,7 +111,10 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
 }
 
 function NewsTickerMarquee({
-  badge, durationSec, pauseOnHover, children,
+  badge,
+  durationSec,
+  pauseOnHover,
+  children,
 }: {
   badge: string;
   separator: string;
@@ -136,12 +143,18 @@ function NewsTickerMarquee({
             animation: `${animName} ${durationSec}s linear infinite`,
             animationPlayState: "running",
           }}
-          onMouseEnter={(e) => { if (pauseOnHover) e.currentTarget.style.animationPlayState = "paused"; }}
-          onMouseLeave={(e) => { if (pauseOnHover) e.currentTarget.style.animationPlayState = "running"; }}
+          onMouseEnter={(e) => {
+            if (pauseOnHover) e.currentTarget.style.animationPlayState = "paused";
+          }}
+          onMouseLeave={(e) => {
+            if (pauseOnHover) e.currentTarget.style.animationPlayState = "running";
+          }}
         >
           {children}
         </div>
-        <style dangerouslySetInnerHTML={{ __html: `
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
           @keyframes ${animName} {
             0% { transform: translate3d(0,0,0); }
             100% { transform: translate3d(-50%,0,0); }
@@ -149,7 +162,9 @@ function NewsTickerMarquee({
           @media (prefers-reduced-motion: reduce) {
             [data-news-ticker] [style*="animation"] { animation: none !important; }
           }
-        ` }} />
+        `,
+          }}
+        />
       </div>
     </div>
   );

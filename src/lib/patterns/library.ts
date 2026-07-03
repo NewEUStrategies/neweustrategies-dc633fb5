@@ -5,13 +5,22 @@ import { newId } from "@/lib/builder/types";
 import type { Pattern } from "./types";
 
 const w = (type: WidgetNode["type"], content: WidgetNode["content"]): WidgetNode => ({
-  id: newId(), kind: "widget", type, content,
+  id: newId(),
+  kind: "widget",
+  type,
+  content,
 });
 const c = (span: number, children: WidgetNode[]): ColumnNode => ({
-  id: newId(), kind: "column", span: { desktop: span }, children,
+  id: newId(),
+  kind: "column",
+  span: { desktop: span },
+  children,
 });
 const s = (children: ColumnNode[], opts: Partial<SectionNode> = {}): SectionNode => ({
-  id: newId(), kind: "section", children, ...opts,
+  id: newId(),
+  kind: "section",
+  children,
+  ...opts,
 });
 
 // ---------------- PAGE PATTERNS ----------------
@@ -19,111 +28,236 @@ const s = (children: ColumnNode[], opts: Partial<SectionNode> = {}): SectionNode
 const landingHeroDoc = (): BuilderDocument => ({
   version: 1,
   sections: [
-    s([
-      c(12, [
-        w("heading", {
-          text_pl: "Zbuduj coś, co ma znaczenie",
-          text_en: "Build something that matters",
-          tag: "h1", variant: "default", sizePreset: "display",
-        }),
-        w("text", {
-          html_pl: "<p>Krótki, sugestywny opis tego, co oferujesz. Pokaż wartość w jednym zdaniu.</p>",
-          html_en: "<p>A short, suggestive description of what you offer. Show the value in one sentence.</p>",
-        }),
-        w("button", {
-          label_pl: "Zacznij teraz", label_en: "Get started",
-          href: "/pricing", variant: "primary", size: "lg",
-        }),
-      ]),
-    ], { layout: { contentWidth: "boxed", width: 1140, verticalAlign: "middle" },
-         style: { padding: { desktop: "96px 24px" }, align: { desktop: "center" } } }),
-    s([
-      c(4, [w("heading", { text_pl: "Szybkość", text_en: "Speed", tag: "h3", sizePreset: "md" }),
-            w("text", { html_pl: "<p>Lekki kod, natychmiastowa reakcja.</p>", html_en: "<p>Lean code, instant response.</p>" })]),
-      c(4, [w("heading", { text_pl: "Stabilność", text_en: "Stability", tag: "h3", sizePreset: "md" }),
-            w("text", { html_pl: "<p>Sprawdzone wzorce i testy.</p>", html_en: "<p>Proven patterns and tests.</p>" })]),
-      c(4, [w("heading", { text_pl: "Skalowalność", text_en: "Scalability", tag: "h3", sizePreset: "md" }),
-            w("text", { html_pl: "<p>Architektura, która rośnie z Tobą.</p>", html_en: "<p>Architecture that grows with you.</p>" })]),
-    ], { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "64px 24px" } } }),
-    s([
-      c(12, [
-        w("cta", {
-          title_pl: "Gotowy, by zacząć?", title_en: "Ready to start?",
-          cta_pl: "Skontaktuj się", cta_en: "Contact us",
-          href: "/contact",
-        }),
-      ]),
-    ], { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "64px 24px" } } }),
+    s(
+      [
+        c(12, [
+          w("heading", {
+            text_pl: "Zbuduj coś, co ma znaczenie",
+            text_en: "Build something that matters",
+            tag: "h1",
+            variant: "default",
+            sizePreset: "display",
+          }),
+          w("text", {
+            html_pl:
+              "<p>Krótki, sugestywny opis tego, co oferujesz. Pokaż wartość w jednym zdaniu.</p>",
+            html_en:
+              "<p>A short, suggestive description of what you offer. Show the value in one sentence.</p>",
+          }),
+          w("button", {
+            label_pl: "Zacznij teraz",
+            label_en: "Get started",
+            href: "/pricing",
+            variant: "primary",
+            size: "lg",
+          }),
+        ]),
+      ],
+      {
+        layout: { contentWidth: "boxed", width: 1140, verticalAlign: "middle" },
+        style: { padding: { desktop: "96px 24px" }, align: { desktop: "center" } },
+      },
+    ),
+    s(
+      [
+        c(4, [
+          w("heading", { text_pl: "Szybkość", text_en: "Speed", tag: "h3", sizePreset: "md" }),
+          w("text", {
+            html_pl: "<p>Lekki kod, natychmiastowa reakcja.</p>",
+            html_en: "<p>Lean code, instant response.</p>",
+          }),
+        ]),
+        c(4, [
+          w("heading", {
+            text_pl: "Stabilność",
+            text_en: "Stability",
+            tag: "h3",
+            sizePreset: "md",
+          }),
+          w("text", {
+            html_pl: "<p>Sprawdzone wzorce i testy.</p>",
+            html_en: "<p>Proven patterns and tests.</p>",
+          }),
+        ]),
+        c(4, [
+          w("heading", {
+            text_pl: "Skalowalność",
+            text_en: "Scalability",
+            tag: "h3",
+            sizePreset: "md",
+          }),
+          w("text", {
+            html_pl: "<p>Architektura, która rośnie z Tobą.</p>",
+            html_en: "<p>Architecture that grows with you.</p>",
+          }),
+        ]),
+      ],
+      {
+        layout: { contentWidth: "boxed", width: 1140 },
+        style: { padding: { desktop: "64px 24px" } },
+      },
+    ),
+    s(
+      [
+        c(12, [
+          w("cta", {
+            title_pl: "Gotowy, by zacząć?",
+            title_en: "Ready to start?",
+            cta_pl: "Skontaktuj się",
+            cta_en: "Contact us",
+            href: "/contact",
+          }),
+        ]),
+      ],
+      {
+        layout: { contentWidth: "boxed", width: 1140 },
+        style: { padding: { desktop: "64px 24px" } },
+      },
+    ),
   ],
 });
 
 const aboutTwoColumnDoc = (): BuilderDocument => ({
   version: 1,
   sections: [
-    s([
-      c(6, [
-        w("heading", {
-          text_pl: "O nas", text_en: "About us",
-          tag: "h1", sizePreset: "xl",
-        }),
-        w("text", {
-          html_pl: "<p>Jesteśmy zespołem, który łączy strategię z technologią. Pracujemy z klientami, którym zależy na trwałych efektach.</p>",
-          html_en: "<p>We are a team that joins strategy with technology. We work with clients who care about lasting impact.</p>",
-        }),
-      ]),
-      c(6, [
-        w("image", { src: "", alt_pl: "Zespół", alt_en: "Team" }),
-      ]),
-    ], { layout: { contentWidth: "boxed", width: 1140, verticalAlign: "middle" },
-         style: { padding: { desktop: "80px 24px" } } }),
-    s([
-      c(12, [
-        w("heading", { text_pl: "Co robimy", text_en: "What we do", tag: "h2", sizePreset: "lg" }),
-        w("accordion", {
-          items: [
-            { q_pl: "Strategia", q_en: "Strategy", a_pl: "Diagnoza, cele, mapa drogowa.", a_en: "Discovery, goals, roadmap." },
-            { q_pl: "Produkt", q_en: "Product", a_pl: "Projekt, prototypy, walidacja.", a_en: "Design, prototypes, validation." },
-            { q_pl: "Wdrożenie", q_en: "Implementation", a_pl: "Iteracyjny rozwój, jakość, wsparcie.", a_en: "Iterative delivery, quality, support." },
-          ],
-        }),
-      ]),
-    ], { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "64px 24px" } } }),
+    s(
+      [
+        c(6, [
+          w("heading", {
+            text_pl: "O nas",
+            text_en: "About us",
+            tag: "h1",
+            sizePreset: "xl",
+          }),
+          w("text", {
+            html_pl:
+              "<p>Jesteśmy zespołem, który łączy strategię z technologią. Pracujemy z klientami, którym zależy na trwałych efektach.</p>",
+            html_en:
+              "<p>We are a team that joins strategy with technology. We work with clients who care about lasting impact.</p>",
+          }),
+        ]),
+        c(6, [w("image", { src: "", alt_pl: "Zespół", alt_en: "Team" })]),
+      ],
+      {
+        layout: { contentWidth: "boxed", width: 1140, verticalAlign: "middle" },
+        style: { padding: { desktop: "80px 24px" } },
+      },
+    ),
+    s(
+      [
+        c(12, [
+          w("heading", {
+            text_pl: "Co robimy",
+            text_en: "What we do",
+            tag: "h2",
+            sizePreset: "lg",
+          }),
+          w("accordion", {
+            items: [
+              {
+                q_pl: "Strategia",
+                q_en: "Strategy",
+                a_pl: "Diagnoza, cele, mapa drogowa.",
+                a_en: "Discovery, goals, roadmap.",
+              },
+              {
+                q_pl: "Produkt",
+                q_en: "Product",
+                a_pl: "Projekt, prototypy, walidacja.",
+                a_en: "Design, prototypes, validation.",
+              },
+              {
+                q_pl: "Wdrożenie",
+                q_en: "Implementation",
+                a_pl: "Iteracyjny rozwój, jakość, wsparcie.",
+                a_en: "Iterative delivery, quality, support.",
+              },
+            ],
+          }),
+        ]),
+      ],
+      {
+        layout: { contentWidth: "boxed", width: 1140 },
+        style: { padding: { desktop: "64px 24px" } },
+      },
+    ),
   ],
 });
 
 const pricingThreeColDoc = (): BuilderDocument => ({
   version: 1,
   sections: [
-    s([
-      c(12, [
-        w("heading", { text_pl: "Cennik", text_en: "Pricing", tag: "h1", sizePreset: "xl" }),
-        w("text", { html_pl: "<p>Wybierz plan dopasowany do Twoich potrzeb.</p>", html_en: "<p>Choose the plan that fits your needs.</p>" }),
-      ]),
-    ], { layout: { contentWidth: "boxed", width: 1140 },
-         style: { padding: { desktop: "80px 24px 24px" }, align: { desktop: "center" } } }),
-    s([
-      c(12, [
-        w("pricing", {
-          plans: [
-            { name_pl: "Start", name_en: "Starter", price: "0", currency: "PLN",
-              period_pl: "/mies.", period_en: "/mo",
-              features_pl: ["Podstawowe funkcje", "1 użytkownik"],
-              features_en: ["Core features", "1 user"],
-              cta_pl: "Wybierz", cta_en: "Choose", href: "/checkout/starter", featured: false },
-            { name_pl: "Pro", name_en: "Pro", price: "49", currency: "PLN",
-              period_pl: "/mies.", period_en: "/mo",
-              features_pl: ["Wszystko ze Start", "Wsparcie 24/7"],
-              features_en: ["Everything in Starter", "24/7 support"],
-              cta_pl: "Wybierz", cta_en: "Choose", href: "/checkout/pro", featured: true },
-            { name_pl: "Enterprise", name_en: "Enterprise", price: "199", currency: "PLN",
-              period_pl: "/mies.", period_en: "/mo",
-              features_pl: ["Wszystko z Pro", "SLA + onboarding"],
-              features_en: ["Everything in Pro", "SLA + onboarding"],
-              cta_pl: "Kontakt", cta_en: "Contact", href: "/contact", featured: false },
-          ],
-        }),
-      ]),
-    ], { layout: { contentWidth: "boxed", width: 1140 }, style: { padding: { desktop: "32px 24px 96px" } } }),
+    s(
+      [
+        c(12, [
+          w("heading", { text_pl: "Cennik", text_en: "Pricing", tag: "h1", sizePreset: "xl" }),
+          w("text", {
+            html_pl: "<p>Wybierz plan dopasowany do Twoich potrzeb.</p>",
+            html_en: "<p>Choose the plan that fits your needs.</p>",
+          }),
+        ]),
+      ],
+      {
+        layout: { contentWidth: "boxed", width: 1140 },
+        style: { padding: { desktop: "80px 24px 24px" }, align: { desktop: "center" } },
+      },
+    ),
+    s(
+      [
+        c(12, [
+          w("pricing", {
+            plans: [
+              {
+                name_pl: "Start",
+                name_en: "Starter",
+                price: "0",
+                currency: "PLN",
+                period_pl: "/mies.",
+                period_en: "/mo",
+                features_pl: ["Podstawowe funkcje", "1 użytkownik"],
+                features_en: ["Core features", "1 user"],
+                cta_pl: "Wybierz",
+                cta_en: "Choose",
+                href: "/checkout/starter",
+                featured: false,
+              },
+              {
+                name_pl: "Pro",
+                name_en: "Pro",
+                price: "49",
+                currency: "PLN",
+                period_pl: "/mies.",
+                period_en: "/mo",
+                features_pl: ["Wszystko ze Start", "Wsparcie 24/7"],
+                features_en: ["Everything in Starter", "24/7 support"],
+                cta_pl: "Wybierz",
+                cta_en: "Choose",
+                href: "/checkout/pro",
+                featured: true,
+              },
+              {
+                name_pl: "Enterprise",
+                name_en: "Enterprise",
+                price: "199",
+                currency: "PLN",
+                period_pl: "/mies.",
+                period_en: "/mo",
+                features_pl: ["Wszystko z Pro", "SLA + onboarding"],
+                features_en: ["Everything in Pro", "SLA + onboarding"],
+                cta_pl: "Kontakt",
+                cta_en: "Contact",
+                href: "/contact",
+                featured: false,
+              },
+            ],
+          }),
+        ]),
+      ],
+      {
+        layout: { contentWidth: "boxed", width: 1140 },
+        style: { padding: { desktop: "32px 24px 96px" } },
+      },
+    ),
   ],
 });
 
@@ -226,8 +360,12 @@ export const PATTERNS: Pattern[] = [
   },
 ];
 
-export const PAGE_PATTERNS = PATTERNS.filter((p): p is Extract<Pattern, { kind: "page" }> => p.kind === "page");
-export const POST_PATTERNS = PATTERNS.filter((p): p is Extract<Pattern, { kind: "post" }> => p.kind === "post");
+export const PAGE_PATTERNS = PATTERNS.filter(
+  (p): p is Extract<Pattern, { kind: "page" }> => p.kind === "page",
+);
+export const POST_PATTERNS = PATTERNS.filter(
+  (p): p is Extract<Pattern, { kind: "post" }> => p.kind === "post",
+);
 
 export function findPattern(id: string): Pattern | undefined {
   return PATTERNS.find((p) => p.id === id);

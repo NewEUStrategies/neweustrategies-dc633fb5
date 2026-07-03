@@ -5,7 +5,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Gauge, AlertTriangle, Loader2 } from "@/lib/lucide-shim";
 import { getVitalsSummary } from "@/lib/observability/vitals.functions";
-import type { VitalMetricSummary, VitalPathRow, VitalTrendPoint } from "@/lib/observability/aggregate";
+import type {
+  VitalMetricSummary,
+  VitalPathRow,
+  VitalTrendPoint,
+} from "@/lib/observability/aggregate";
 import { rateVital, type VitalName, type VitalRating } from "@/lib/observability/vitalsThresholds";
 
 export const Route = createFileRoute("/admin/performance")({
@@ -25,8 +29,16 @@ const META: Record<VitalName, { label: string; hint: string }> = {
 };
 
 const RATING_STYLE: Record<VitalRating, { dot: string; text: string; bar: string }> = {
-  good: { dot: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400", bar: "bg-emerald-500" },
-  "needs-improvement": { dot: "bg-amber-500", text: "text-amber-600 dark:text-amber-400", bar: "bg-amber-500" },
+  good: {
+    dot: "bg-emerald-500",
+    text: "text-emerald-600 dark:text-emerald-400",
+    bar: "bg-emerald-500",
+  },
+  "needs-improvement": {
+    dot: "bg-amber-500",
+    text: "text-amber-600 dark:text-amber-400",
+    bar: "bg-amber-500",
+  },
   poor: { dot: "bg-red-500", text: "text-red-600 dark:text-red-400", bar: "bg-red-500" },
 };
 
@@ -64,7 +76,9 @@ function PerformancePage() {
               key={w}
               onClick={() => setDays(w)}
               className={`px-2.5 py-1 rounded text-xs font-medium transition ${
-                days === w ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                days === w
+                  ? "bg-card shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {t(`admin.performance.window.${w}`)}
@@ -90,12 +104,11 @@ function PerformancePage() {
         {data && !isLoading && (
           <>
             <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
-              <span>
-                {t("admin.performance.sampleCount", { count: data.windowTotal })}
-              </span>
+              <span>{t("admin.performance.sampleCount", { count: data.windowTotal })}</span>
               {data.capped && (
                 <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                  <AlertTriangle className="w-3 h-3" /> {t("admin.performance.capped", { shown: data.total })}
+                  <AlertTriangle className="w-3 h-3" />{" "}
+                  {t("admin.performance.capped", { shown: data.total })}
                 </span>
               )}
             </div>
@@ -115,7 +128,9 @@ function PerformancePage() {
                     <MetricCard key={m.metric} m={m} />
                   ))}
                 </div>
-                {data.trends.length > 1 && <TrendsSection metrics={data.metrics} trends={data.trends} />}
+                {data.trends.length > 1 && (
+                  <TrendsSection metrics={data.metrics} trends={data.trends} />
+                )}
                 {data.paths.length > 0 && <PathsSection paths={data.paths} />}
               </>
             )}
@@ -127,7 +142,13 @@ function PerformancePage() {
 }
 
 // Per-metric daily p75 as a compact bar sparkline; bars colored by rating.
-function TrendsSection({ metrics, trends }: { metrics: VitalMetricSummary[]; trends: VitalTrendPoint[] }) {
+function TrendsSection({
+  metrics,
+  trends,
+}: {
+  metrics: VitalMetricSummary[];
+  trends: VitalTrendPoint[];
+}) {
   const { t } = useTranslation();
   const series = metrics
     .map((m) => ({
@@ -193,7 +214,9 @@ function PathsSection({ paths }: { paths: VitalPathRow[] }) {
           <tbody>
             {paths.map((p) => (
               <tr key={p.path} className="border-t border-border align-top">
-                <td className="p-2 font-mono truncate max-w-[280px]" title={p.path}>{p.path}</td>
+                <td className="p-2 font-mono truncate max-w-[280px]" title={p.path}>
+                  {p.path}
+                </td>
                 <td className="p-2 text-right tabular-nums">{p.total}</td>
                 <td className="p-2">
                   <div className="flex flex-wrap gap-1.5">
@@ -203,7 +226,9 @@ function PathsSection({ paths }: { paths: VitalPathRow[] }) {
                         className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-muted/40 ${RATING_STYLE[pm.rating].text}`}
                         title={`${pm.metric} p75 (${pm.count})`}
                       >
-                        <span className={`w-1.5 h-1.5 rounded-full ${RATING_STYLE[pm.rating].dot}`} />
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${RATING_STYLE[pm.rating].dot}`}
+                        />
                         {pm.metric} {formatVital(pm.metric, pm.p75)}
                       </span>
                     ))}
@@ -228,7 +253,9 @@ function MetricCard({ m }: { m: VitalMetricSummary }) {
     <div className="bg-card border border-border rounded-md p-3.5">
       <div className="flex items-center justify-between">
         <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">{m.metric}</div>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
+            {m.metric}
+          </div>
           <div className="text-[11px] text-muted-foreground truncate">{meta.label}</div>
         </div>
         <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${style.text}`}>
@@ -238,13 +265,16 @@ function MetricCard({ m }: { m: VitalMetricSummary }) {
       </div>
 
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-2xl font-bold font-display leading-none">{formatVital(m.metric, m.p75)}</span>
+        <span className="text-2xl font-bold font-display leading-none">
+          {formatVital(m.metric, m.p75)}
+        </span>
         <span className="text-[10px] text-muted-foreground">{t("admin.performance.p75")}</span>
       </div>
 
       <div className="mt-1 text-[11px] text-muted-foreground">
-        {t("admin.performance.median")}: {formatVital(m.metric, m.p50)} · {t("admin.performance.range")}:{" "}
-        {formatVital(m.metric, m.min)}–{formatVital(m.metric, m.max)}
+        {t("admin.performance.median")}: {formatVital(m.metric, m.p50)} ·{" "}
+        {t("admin.performance.range")}: {formatVital(m.metric, m.min)}–
+        {formatVital(m.metric, m.max)}
       </div>
 
       {/* Distribution bar: good / needs-improvement / poor share of samples */}

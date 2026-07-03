@@ -11,7 +11,7 @@ interface Props {
 function readRows(block: Block): string[][] {
   const raw = block.data.rows;
   if (!Array.isArray(raw)) return [[""]];
-  return raw.map((r) => Array.isArray(r) ? r.map((c) => String(c ?? "")) : [""]);
+  return raw.map((r) => (Array.isArray(r) ? r.map((c) => String(c ?? "")) : [""]));
 }
 
 export function TableBlockEdit({ block, onChange }: Props) {
@@ -19,16 +19,18 @@ export function TableBlockEdit({ block, onChange }: Props) {
   const header = Boolean(block.data.header);
   const cols = Math.max(1, ...rows.map((r) => r.length));
 
-  const set = (rows: string[][]) => onChange({ ...block, data: { ...block.data, rows: toJson(rows) } });
+  const set = (rows: string[][]) =>
+    onChange({ ...block, data: { ...block.data, rows: toJson(rows) } });
 
   const updateCell = (r: number, c: number, v: string) => {
-    set(rows.map((row, i) => i === r ? row.map((cell, j) => j === c ? v : cell) : row));
+    set(rows.map((row, i) => (i === r ? row.map((cell, j) => (j === c ? v : cell)) : row)));
   };
 
   const addRow = () => set([...rows, Array(cols).fill("")]);
   const addCol = () => set(rows.map((r) => [...r, ""]));
   const removeRow = (i: number) => set(rows.length > 1 ? rows.filter((_, j) => j !== i) : rows);
-  const removeCol = (i: number) => set(rows.map((r) => r.length > 1 ? r.filter((_, j) => j !== i) : r));
+  const removeCol = (i: number) =>
+    set(rows.map((r) => (r.length > 1 ? r.filter((_, j) => j !== i) : r)));
 
   return (
     <div className="space-y-2">
@@ -37,7 +39,9 @@ export function TableBlockEdit({ block, onChange }: Props) {
           <input
             type="checkbox"
             checked={header}
-            onChange={(e) => onChange({ ...block, data: { ...block.data, header: e.target.checked } })}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...block.data, header: e.target.checked } })
+            }
           />
           Pierwszy wiersz = nagłówek
         </label>
@@ -58,7 +62,12 @@ export function TableBlockEdit({ block, onChange }: Props) {
                   </td>
                 ))}
                 <td className="border-l border-border w-8 text-center">
-                  <button type="button" onClick={() => removeRow(r)} className="text-muted-foreground hover:text-destructive p-1" title="Usuń wiersz">
+                  <button
+                    type="button"
+                    onClick={() => removeRow(r)}
+                    className="text-muted-foreground hover:text-destructive p-1"
+                    title="Usuń wiersz"
+                  >
                     <Trash2 className="w-3 h-3" />
                   </button>
                 </td>
@@ -67,7 +76,12 @@ export function TableBlockEdit({ block, onChange }: Props) {
             <tr>
               {Array.from({ length: cols }).map((_, c) => (
                 <td key={c} className="border-t border-border text-center">
-                  <button type="button" onClick={() => removeCol(c)} className="text-muted-foreground hover:text-destructive p-1" title="Usuń kolumnę">
+                  <button
+                    type="button"
+                    onClick={() => removeCol(c)}
+                    className="text-muted-foreground hover:text-destructive p-1"
+                    title="Usuń kolumnę"
+                  >
                     <Trash2 className="w-3 h-3 inline" />
                   </button>
                 </td>
@@ -77,8 +91,12 @@ export function TableBlockEdit({ block, onChange }: Props) {
         </table>
       </div>
       <div className="flex gap-2">
-        <Button size="sm" variant="outline" onClick={addRow}><Plus className="w-3 h-3 mr-1" /> Wiersz</Button>
-        <Button size="sm" variant="outline" onClick={addCol}><Plus className="w-3 h-3 mr-1" /> Kolumna</Button>
+        <Button size="sm" variant="outline" onClick={addRow}>
+          <Plus className="w-3 h-3 mr-1" /> Wiersz
+        </Button>
+        <Button size="sm" variant="outline" onClick={addCol}>
+          <Plus className="w-3 h-3 mr-1" /> Kolumna
+        </Button>
       </div>
     </div>
   );

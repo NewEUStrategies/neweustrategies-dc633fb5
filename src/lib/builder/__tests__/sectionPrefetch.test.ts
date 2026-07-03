@@ -58,9 +58,7 @@ describe("section prefetch helpers", () => {
         {
           kind: "inner-section",
           id: "is",
-          columns: [
-            { kind: "column", id: "c", span: { desktop: 12 }, children: [inner] },
-          ],
+          columns: [{ kind: "column", id: "c", span: { desktop: 12 }, children: [inner] }],
         },
       ],
     } as unknown as SectionNode;
@@ -76,7 +74,11 @@ describe("section prefetch helpers", () => {
       version: 1,
       sections: [makeSection([a], "s1"), makeSection([b], "s2")],
     } as unknown as BuilderDocument;
-    expect(collectBuilderWidgets(doc).map((w) => w.id).sort()).toEqual([a.id, b.id].sort());
+    expect(
+      collectBuilderWidgets(doc)
+        .map((w) => w.id)
+        .sort(),
+    ).toEqual([a.id, b.id].sort());
   });
 });
 

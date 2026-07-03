@@ -8,7 +8,10 @@ export function useAuthSettings(): AuthSettings {
     queryKey: ["site_settings_public", AUTH_SETTINGS_KEY],
     queryFn: async ({ client }): Promise<AuthSettings> => {
       const settings = await client.ensureQueryData(siteSettingsQueryOptions);
-      return { ...AUTH_DEFAULTS, ...((settings[AUTH_SETTINGS_KEY] as Partial<AuthSettings> | null) ?? {}) };
+      return {
+        ...AUTH_DEFAULTS,
+        ...((settings[AUTH_SETTINGS_KEY] as Partial<AuthSettings> | null) ?? {}),
+      };
     },
     staleTime: 60_000,
   });

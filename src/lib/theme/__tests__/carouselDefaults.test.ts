@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  resolveCarouselSettings,
-  CAROUSEL_DEFAULTS,
-} from "@/lib/theme/carouselDefaults";
+import { resolveCarouselSettings, CAROUSEL_DEFAULTS } from "@/lib/theme/carouselDefaults";
 
 describe("resolveCarouselSettings", () => {
   it("returns defaults when override is missing", () => {

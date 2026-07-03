@@ -28,7 +28,7 @@ describe("parseBakedFootnotes", () => {
     const notes = parseBakedFootnotes(
       mount(
         '<ol data-footnotes-list><li id="fn-3">' +
-          '<span data-fn-marker>[3]</span> <span>body text</span> ' +
+          "<span data-fn-marker>[3]</span> <span>body text</span> " +
           '<a data-footnote-backlink href="#fnref-3">↩</a></li></ol>',
       ),
     );
@@ -42,7 +42,7 @@ describe("parseBakedFootnotes", () => {
   it("skips malformed ids and empty bodies", () => {
     const notes = parseBakedFootnotes(
       mount(
-        '<ol data-footnotes-list>' +
+        "<ol data-footnotes-list>" +
           '<li id="fn-x"><span>nope</span></li>' +
           '<li id="fn-0"><span>zero</span></li>' +
           '<li id="fn-5"><span data-fn-marker>[5]</span> <span>  </span></li>' +

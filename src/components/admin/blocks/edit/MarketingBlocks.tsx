@@ -5,12 +5,17 @@ import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
       {children}
     </div>
   );
@@ -160,7 +165,12 @@ export function CtaSectionBlock({ block, onChange }: Props) {
 
 // ===== Image Carousel =====
 
-interface SlideItem { url: string; alt: string; caption: string; href: string }
+interface SlideItem {
+  url: string;
+  alt: string;
+  caption: string;
+  href: string;
+}
 
 export function ImageCarouselBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
@@ -198,7 +208,9 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
           <input
             type="checkbox"
             checked={autoplay}
-            onChange={(e) => onChange({ ...block, data: { ...block.data, autoplay: e.target.checked } })}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...block.data, autoplay: e.target.checked } })
+            }
           />
           Autoodtwarzanie
         </label>
@@ -213,7 +225,9 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
             step={500}
             className="mt-1 w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
             value={interval}
-            onChange={(e) => onChange({ ...block, data: { ...block.data, interval: Number(e.target.value) } })}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...block.data, interval: Number(e.target.value) } })
+            }
           />
         </label>
       ) : null}
@@ -226,7 +240,9 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
                 placeholder={i18n.field("imageUrl")}
                 value={it.url}
                 onChange={(e) => {
-                  const next = [...items]; next[idx] = { ...it, url: e.target.value }; update(next);
+                  const next = [...items];
+                  next[idx] = { ...it, url: e.target.value };
+                  update(next);
                 }}
               />
               <button
@@ -244,7 +260,9 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
                 placeholder={i18n.field("alt")}
                 value={it.alt}
                 onChange={(e) => {
-                  const next = [...items]; next[idx] = { ...it, alt: e.target.value }; update(next);
+                  const next = [...items];
+                  next[idx] = { ...it, alt: e.target.value };
+                  update(next);
                 }}
               />
               <input
@@ -252,7 +270,9 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
                 placeholder={i18n.field("href")}
                 value={it.href}
                 onChange={(e) => {
-                  const next = [...items]; next[idx] = { ...it, href: e.target.value }; update(next);
+                  const next = [...items];
+                  next[idx] = { ...it, href: e.target.value };
+                  update(next);
                 }}
               />
             </div>
@@ -261,7 +281,9 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
               placeholder={i18n.field("captionPh")}
               value={it.caption}
               onChange={(e) => {
-                const next = [...items]; next[idx] = { ...it, caption: e.target.value }; update(next);
+                const next = [...items];
+                next[idx] = { ...it, caption: e.target.value };
+                update(next);
               }}
             />
           </div>
@@ -318,7 +340,9 @@ export function ContactFormBlock({ block, onChange }: Props) {
           <input
             type="checkbox"
             checked={d.requireConsent !== false}
-            onChange={(e) => onChange({ ...block, data: { ...d, requireConsent: e.target.checked } })}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...d, requireConsent: e.target.checked } })
+            }
           />
           Wymagaj zgody RODO
         </label>

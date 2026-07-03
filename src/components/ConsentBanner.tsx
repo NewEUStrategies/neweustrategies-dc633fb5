@@ -10,24 +10,31 @@ import { useConsent, OPEN_PREFS_EVENT, type ConsentCategory } from "@/lib/ads/co
 
 type Cats = Record<ConsentCategory, boolean>;
 
-const CATEGORY_LABELS: Record<ConsentCategory, { pl: string; en: string; desc_pl: string; desc_en: string }> = {
+const CATEGORY_LABELS: Record<
+  ConsentCategory,
+  { pl: string; en: string; desc_pl: string; desc_en: string }
+> = {
   necessary: {
-    pl: "Niezbędne", en: "Necessary",
+    pl: "Niezbędne",
+    en: "Necessary",
     desc_pl: "Wymagane do działania strony (sesja, bezpieczeństwo). Nie można wyłączyć.",
     desc_en: "Required for the site to function (session, security). Cannot be disabled.",
   },
   functional: {
-    pl: "Funkcjonalne", en: "Functional",
+    pl: "Funkcjonalne",
+    en: "Functional",
     desc_pl: "Zapamiętywanie preferencji (język, motyw, układ).",
     desc_en: "Remember preferences (language, theme, layout).",
   },
   analytics: {
-    pl: "Analityczne", en: "Analytics",
+    pl: "Analityczne",
+    en: "Analytics",
     desc_pl: "Pomiar ruchu i wydajności w sposób zagregowany.",
     desc_en: "Aggregated traffic and performance measurement.",
   },
   marketing: {
-    pl: "Marketingowe", en: "Marketing",
+    pl: "Marketingowe",
+    en: "Marketing",
     desc_pl: "Personalizacja reklam i mierzenie ich skuteczności.",
     desc_en: "Ad personalization and measurement.",
   },
@@ -91,9 +98,15 @@ export function ConsentBanner() {
             <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{t.intro}</p>
           </div>
           <div className="flex flex-wrap gap-2 justify-end">
-            <Button variant="ghost" size="sm" onClick={() => setPrefsOpen(true)}>{t.customize}</Button>
-            <Button variant="outline" size="sm" onClick={rejectAll}>{t.reject}</Button>
-            <Button size="sm" onClick={acceptAll}>{t.accept}</Button>
+            <Button variant="ghost" size="sm" onClick={() => setPrefsOpen(true)}>
+              {t.customize}
+            </Button>
+            <Button variant="outline" size="sm" onClick={rejectAll}>
+              {t.reject}
+            </Button>
+            <Button size="sm" onClick={acceptAll}>
+              {t.accept}
+            </Button>
           </div>
         </div>
       </div>
@@ -106,7 +119,9 @@ export function ConsentBanner() {
       aria-modal="true"
       aria-label={t.prefsTitle}
       className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-3 bg-foreground/60 backdrop-blur-sm animate-in fade-in"
-      onClick={() => { if (decided) setPrefsOpen(false); }}
+      onClick={() => {
+        if (decided) setPrefsOpen(false);
+      }}
     >
       <div
         className="w-full max-w-lg bg-card text-foreground rounded-xl border border-border shadow-2xl overflow-hidden"
@@ -139,23 +154,37 @@ export function ConsentBanner() {
           })}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-t border-border bg-muted/30">
-          <Button variant="ghost" size="sm" onClick={rejectAll}>{t.reject}</Button>
+          <Button variant="ghost" size="sm" onClick={rejectAll}>
+            {t.reject}
+          </Button>
           <div className="flex gap-2 ml-auto">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { if (decided) setPrefsOpen(false); }}
+              onClick={() => {
+                if (decided) setPrefsOpen(false);
+              }}
               disabled={!decided}
             >
               {t.back}
             </Button>
             <Button
               size="sm"
-              onClick={() => { save(draft); setPrefsOpen(false); }}
+              onClick={() => {
+                save(draft);
+                setPrefsOpen(false);
+              }}
             >
               {t.save}
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => { acceptAll(); setPrefsOpen(false); }}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                acceptAll();
+                setPrefsOpen(false);
+              }}
+            >
               {t.accept}
             </Button>
           </div>

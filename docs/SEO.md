@@ -18,27 +18,27 @@ thin layers that never re-implement logic:
   `/admin/settings/seo`) - the same resolution chain editors preview is the one
   crawlers receive.
 
-| Module (`src/lib/seo/`) | Responsibility |
-| --- | --- |
-| `meta.ts` | `<head>` meta/links, hreflang, article JSON-LD (+ speakable, abstract, publisher logo), feed discovery links |
-| `fields.ts` | Per-entity SEO override resolution (title/description/canonical/robots/og image chain) |
-| `jsonld.ts` | Organization (NewsMediaOrganization), WebSite + SearchAction, localized BreadcrumbList |
-| `redirects.ts` | Path normalization, exact/query/wildcard matching, chain resolution, CSV import/export |
-| `rss.ts`, `newsSitemap.ts`, `llms.ts` | RSS 2.0, Google News sitemap and llms.txt document builders |
-| `serp.ts` | Pixel-width SERP metrics (Google truncates by px, not chars) for the admin preview |
-| `ogCard.ts` + `ogCardCanvas.ts` | 1200x630 OG-card layout (pure) + browser canvas renderer/uploader |
-| `settings.ts` | Site-wide SEO settings schema (site_settings key `"seo"`) + AI-crawler policy |
+| Module (`src/lib/seo/`)               | Responsibility                                                                                               |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `meta.ts`                             | `<head>` meta/links, hreflang, article JSON-LD (+ speakable, abstract, publisher logo), feed discovery links |
+| `fields.ts`                           | Per-entity SEO override resolution (title/description/canonical/robots/og image chain)                       |
+| `jsonld.ts`                           | Organization (NewsMediaOrganization), WebSite + SearchAction, localized BreadcrumbList                       |
+| `redirects.ts`                        | Path normalization, exact/query/wildcard matching, chain resolution, CSV import/export                       |
+| `rss.ts`, `newsSitemap.ts`, `llms.ts` | RSS 2.0, Google News sitemap and llms.txt document builders                                                  |
+| `serp.ts`                             | Pixel-width SERP metrics (Google truncates by px, not chars) for the admin preview                           |
+| `ogCard.ts` + `ogCardCanvas.ts`       | 1200x630 OG-card layout (pure) + browser canvas renderer/uploader                                            |
+| `settings.ts`                         | Site-wide SEO settings schema (site_settings key `"seo"`) + AI-crawler policy                                |
 
 ## Public surfaces
 
-| URL | Notes |
-| --- | --- |
-| `/sitemap.xml` | Published pages + posts, hreflang alternates, excludes `seo_noindex` |
-| `/sitemap`, `/en/sitemap` | HTML site map: page tree (`buildPageTree`), categories, latest posts |
-| `/news-sitemap.xml` | Google News: last 48h only, per-language entries |
+| URL                       | Notes                                                                               |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| `/sitemap.xml`            | Published pages + posts, hreflang alternates, excludes `seo_noindex`                |
+| `/sitemap`, `/en/sitemap` | HTML site map: page tree (`buildPageTree`), categories, latest posts                |
+| `/news-sitemap.xml`       | Google News: last 48h only, per-language entries                                    |
 | `/rss.xml`, `/en/rss.xml` | Language-addressed feeds (excerpt-only - paywall-safe); `/feed` 301s for WP readers |
-| `/llms.txt` | Site guide for AI assistants (GEO / zero-click citations) |
-| `/robots.txt` | Advertises all of the above + admin-managed AI-crawler policy |
+| `/llms.txt`               | Site guide for AI assistants (GEO / zero-click citations)                           |
+| `/robots.txt`             | Advertises all of the above + admin-managed AI-crawler policy                       |
 
 ## Per-entity SEO fields
 

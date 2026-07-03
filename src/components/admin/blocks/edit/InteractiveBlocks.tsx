@@ -5,12 +5,17 @@ import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
       {children}
     </div>
   );
@@ -18,7 +23,10 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
 
 // ===== Accordion =====
 
-interface AccordionItem { title: string; body: string }
+interface AccordionItem {
+  title: string;
+  body: string;
+}
 
 export function AccordionBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
@@ -39,7 +47,9 @@ export function AccordionBlock({ block, onChange }: Props) {
         <input
           type="checkbox"
           checked={allowMultiple}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, allowMultiple: e.target.checked } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, allowMultiple: e.target.checked } })
+          }
         />
         Zezwalaj na otwieranie wielu sekcji
       </label>
@@ -92,7 +102,10 @@ export function AccordionBlock({ block, onChange }: Props) {
 
 // ===== Tabs =====
 
-interface TabItem { label: string; body: string }
+interface TabItem {
+  label: string;
+  body: string;
+}
 
 export function TabsBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
@@ -112,7 +125,9 @@ export function TabsBlock({ block, onChange }: Props) {
       <select
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={orientation}
-        onChange={(e) => onChange({ ...block, data: { ...block.data, orientation: e.target.value } })}
+        onChange={(e) =>
+          onChange({ ...block, data: { ...block.data, orientation: e.target.value } })
+        }
       >
         <option value="horizontal">Poziomo</option>
         <option value="vertical">Pionowo</option>
@@ -189,7 +204,9 @@ export function CountdownBlock({ block, onChange }: Props) {
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={expiredText}
         placeholder="Tekst po wygaśnięciu (np. Promocja zakończona)"
-        onChange={(e) => onChange({ ...block, data: { ...block.data, expiredText: e.target.value } })}
+        onChange={(e) =>
+          onChange({ ...block, data: { ...block.data, expiredText: e.target.value } })
+        }
       />
     </Shell>
   );
@@ -217,7 +234,9 @@ export function ProgressBlock({ block, onChange }: Props) {
           min={0}
           max={100}
           value={value}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, value: Number(e.target.value) } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, value: Number(e.target.value) } })
+          }
         />
         <span className="text-xs tabular-nums text-muted-foreground w-10 text-right">{value}%</span>
       </div>
@@ -236,7 +255,9 @@ export function ProgressBlock({ block, onChange }: Props) {
           <input
             type="checkbox"
             checked={showValue}
-            onChange={(e) => onChange({ ...block, data: { ...block.data, showValue: e.target.checked } })}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...block.data, showValue: e.target.checked } })
+            }
           />
           Pokaż %
         </label>

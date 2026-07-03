@@ -21,7 +21,13 @@ describe("ContentRenderer accessibility (axe)", () => {
   it("renders accessible HTML for the richtext path", async () => {
     const { container } = render(
       <main>
-        <ContentRenderer editor="richtext" builderDoc={emptyDocument()} blocksDoc={null} html={RICH_HTML} lang="pl" />
+        <ContentRenderer
+          editor="richtext"
+          builderDoc={emptyDocument()}
+          blocksDoc={null}
+          html={RICH_HTML}
+          lang="pl"
+        />
       </main>,
     );
     const v = await axeViolations(container);

@@ -42,7 +42,16 @@ export function toClientHref(href: string | undefined): string | null {
  * sections) stays mounted and only the route body changes.
  */
 export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppLink(
-  { href = "#", target, onClick, onMouseEnter, onFocus, onTouchStart, preload = "intent", ...props },
+  {
+    href = "#",
+    target,
+    onClick,
+    onMouseEnter,
+    onFocus,
+    onTouchStart,
+    preload = "intent",
+    ...props
+  },
   ref,
 ) {
   const router = useRouter({ warn: false });
@@ -58,7 +67,12 @@ export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppL
     if (event.defaultPrevented || !router || !clientHref) return;
     const elementTarget = event.currentTarget.getAttribute("target");
     const effectiveTarget = target ?? elementTarget;
-    if (event.button !== 0 || isModifiedEvent(event) || (effectiveTarget && effectiveTarget !== "_self")) return;
+    if (
+      event.button !== 0 ||
+      isModifiedEvent(event) ||
+      (effectiveTarget && effectiveTarget !== "_self")
+    )
+      return;
 
     event.preventDefault();
     void router.navigate({ href: clientHref } as never);

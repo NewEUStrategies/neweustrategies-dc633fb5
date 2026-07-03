@@ -204,10 +204,9 @@ describe("aggregateVitals - per-day trends", () => {
   });
 
   it("ignores unparseable timestamps", () => {
-    const r = aggregateVitals(
-      [{ metric: "LCP", value: 2000, created_at: "not-a-date" }],
-      { windowDays: 7 },
-    );
+    const r = aggregateVitals([{ metric: "LCP", value: 2000, created_at: "not-a-date" }], {
+      windowDays: 7,
+    });
     expect(r.trends).toHaveLength(0);
   });
 });

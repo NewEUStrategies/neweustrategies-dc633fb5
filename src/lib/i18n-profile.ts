@@ -71,11 +71,14 @@ const pl = {
       saved: "Zapisano",
       saveError: "Nie udało się zapisać",
       tip: {
-        displayName: "Tak będziesz widoczny/a publicznie - przy komentarzach, wpisach i w nagłówku powitania. Nie musi to być prawdziwe imię.",
-        firstName: "Twoje prawdziwe imię. Wykorzystywane do personalizacji powitań i (opcjonalnie) na fakturach.",
+        displayName:
+          "Tak będziesz widoczny/a publicznie - przy komentarzach, wpisach i w nagłówku powitania. Nie musi to być prawdziwe imię.",
+        firstName:
+          "Twoje prawdziwe imię. Wykorzystywane do personalizacji powitań i (opcjonalnie) na fakturach.",
         lastName: "Twoje prawdziwe nazwisko. Wykorzystywane w komunikacji oficjalnej i fakturach.",
         jobTitle: "Stanowisko, które wyświetla się przy Twoim profilu autora.",
-        currentCompany: "Firma, w której obecnie pracujesz - pokazywana publicznie obok stanowiska.",
+        currentCompany:
+          "Firma, w której obecnie pracujesz - pokazywana publicznie obok stanowiska.",
         location: "Miasto i kraj. Pomaga czytelnikom rozpoznać kontekst Twoich publikacji.",
         phone: "Numer wewnętrzny, widoczny tylko dla zespołu redakcyjnego.",
         email: "Adres logowania. Aby go zmienić, użyj zakładki Bezpieczeństwo.",
@@ -91,7 +94,8 @@ const pl = {
       adminPanel: "Panel administracyjny",
       contactSection: "Dane kontaktowe",
       activitySection: "Aktywność i obserwowane",
-      bioPlaceholder: "Opowiedz krótko o sobie - czym się zajmujesz, jakie tematy Cię interesują...",
+      bioPlaceholder:
+        "Opowiedz krótko o sobie - czym się zajmujesz, jakie tematy Cię interesują...",
       addJobTitle: "Dodaj stanowisko",
       addCompany: "Dodaj firmę",
       addLocation: "Dodaj lokalizację",
@@ -105,8 +109,6 @@ const pl = {
       clickToEdit: "Kliknij, aby edytować",
       saving: "Zapisywanie...",
     },
-
-
 
     security: {
       changePassword: "Zmień hasło",
@@ -150,7 +152,7 @@ const pl = {
         taxId: "Numer identyfikacji podatkowej (NIP/VAT). Wymagany dla kupujących firmowych.",
         email: "Adres, na który wyślemy fakturę PDF.",
         phone: "Telefon kontaktowy do pytań związanych z zamówieniem.",
-        addressLine1: "Ulica i numer (np. „Marszałkowska 1\").",
+        addressLine1: 'Ulica i numer (np. „Marszałkowska 1").',
         addressLine2: "Mieszkanie, piętro, lokal - opcjonalnie.",
         city: "Miasto, w którym mieści się adres do faktury.",
         postalCode: "Kod pocztowy adresu rozliczeniowego.",
@@ -219,9 +221,10 @@ const pl = {
     payNow: "Zapłać {{amount}}",
     processing: "Przetwarzanie...",
     secured: "Płatność zabezpieczona przez Stripe",
-    terms: "Klikając \"Zapłać\" akceptujesz regulamin i politykę prywatności.",
+    terms: 'Klikając "Zapłać" akceptujesz regulamin i politykę prywatności.',
     successTitle: "Dziękujemy za zakup!",
-    successBody: "Twoje zamówienie zostało przyjęte. Status aktualizujemy po potwierdzeniu płatności.",
+    successBody:
+      "Twoje zamówienie zostało przyjęte. Status aktualizujemy po potwierdzeniu płatności.",
     cancelTitle: "Płatność anulowana",
     cancelBody: "Nie pobraliśmy żadnych środków. Możesz spróbować ponownie.",
     backToProfile: "Przejdź do profilu",
@@ -229,7 +232,8 @@ const pl = {
     notFound: "Nie znaleziono planu.",
     loginRequired: "Zaloguj się, aby kontynuować zakup.",
     fillBilling: "Uzupełnij dane rozliczeniowe.",
-    stripeNotConfigured: "Bramka płatności nie jest jeszcze skonfigurowana. Skontaktuj się z administratorem.",
+    stripeNotConfigured:
+      "Bramka płatności nie jest jeszcze skonfigurowana. Skontaktuj się z administratorem.",
   },
   auth: {
     required: "Wymagane logowanie",
@@ -307,8 +311,10 @@ const en: typeof pl = {
       saved: "Saved",
       saveError: "Could not save",
       tip: {
-        displayName: "How you appear publicly - on comments, posts and in the welcome header. Doesn't have to be your real name.",
-        firstName: "Your real first name. Used for personalised greetings and (optionally) on invoices.",
+        displayName:
+          "How you appear publicly - on comments, posts and in the welcome header. Doesn't have to be your real name.",
+        firstName:
+          "Your real first name. Used for personalised greetings and (optionally) on invoices.",
         lastName: "Your real last name. Used in official communication and on invoices.",
         jobTitle: "Job title shown on your public author profile.",
         currentCompany: "Where you currently work - shown publicly next to your job title.",
@@ -327,7 +333,8 @@ const en: typeof pl = {
       adminPanel: "Admin panel",
       contactSection: "Contact details",
       activitySection: "Activity & following",
-      bioPlaceholder: "Tell readers a bit about yourself - what you do, what topics interest you...",
+      bioPlaceholder:
+        "Tell readers a bit about yourself - what you do, what topics interest you...",
       addJobTitle: "Add job title",
       addCompany: "Add company",
       addLocation: "Add location",
@@ -341,9 +348,6 @@ const en: typeof pl = {
       clickToEdit: "Click to edit",
       saving: "Saving...",
     },
-
-
-
 
     security: {
       changePassword: "Change password",
@@ -387,7 +391,7 @@ const en: typeof pl = {
         taxId: "Tax ID / VAT number. Required for business buyers.",
         email: "Where we'll send your PDF invoice.",
         phone: "Contact number for questions about your order.",
-        addressLine1: "Street and number (e.g. \"5th Avenue 1\").",
+        addressLine1: 'Street and number (e.g. "5th Avenue 1").',
         addressLine2: "Apartment, floor, suite - optional.",
         city: "City for the billing address.",
         postalCode: "Postal / ZIP code of the billing address.",
@@ -405,7 +409,8 @@ const en: typeof pl = {
       renewsAt: "Renews",
       cancelsAt: "Expires",
       cancel: "Cancel subscription",
-      cancelConfirm: "Your subscription remains active until the end of the current billing period.",
+      cancelConfirm:
+        "Your subscription remains active until the end of the current billing period.",
       canceled: "Subscription canceled",
       change: "Change plan",
     },
@@ -456,7 +461,7 @@ const en: typeof pl = {
     payNow: "Pay {{amount}}",
     processing: "Processing...",
     secured: "Secured by Stripe",
-    terms: "By clicking \"Pay\" you agree to the terms and privacy policy.",
+    terms: 'By clicking "Pay" you agree to the terms and privacy policy.',
     successTitle: "Thank you!",
     successBody: "Your order was received. We will update its status once payment is confirmed.",
     cancelTitle: "Payment canceled",
@@ -478,43 +483,94 @@ const en: typeof pl = {
 
 type ProfileExtras = {
   profile: {
-    role: { badge: string; super_admin: string; admin: string; editor: string; author: string; user: string };
+    role: {
+      badge: string;
+      super_admin: string;
+      admin: string;
+      editor: string;
+      author: string;
+      user: string;
+    };
     social: {
-      title: string; subtitle: string; slug: string; slugHint: string;
-      slugReset: string; slugPreview: string;
-      slugInvalid: string; slugTooShort: string; slugTaken: string;
-      slugAvailable: string; slugChecking: string; slugReserved: string;
-      bioPl: string; bioEn: string;
-      twitter: string; linkedin: string; website: string;
-      facebook: string; instagram: string; spotify: string; email: string;
-      save: string; saved: string;
+      title: string;
+      subtitle: string;
+      slug: string;
+      slugHint: string;
+      slugReset: string;
+      slugPreview: string;
+      slugInvalid: string;
+      slugTooShort: string;
+      slugTaken: string;
+      slugAvailable: string;
+      slugChecking: string;
+      slugReserved: string;
+      bioPl: string;
+      bioEn: string;
+      twitter: string;
+      linkedin: string;
+      website: string;
+      facebook: string;
+      instagram: string;
+      spotify: string;
+      email: string;
+      save: string;
+      saved: string;
       tip: {
-        slug: string; bioPl: string; bioEn: string;
-        twitter: string; linkedin: string; website: string;
-        facebook: string; instagram: string; spotify: string; email: string;
+        slug: string;
+        bioPl: string;
+        bioEn: string;
+        twitter: string;
+        linkedin: string;
+        website: string;
+        facebook: string;
+        instagram: string;
+        spotify: string;
+        email: string;
         save: string;
       };
     };
 
-    bookmarks: { title: string; subtitle: string; empty: string; remove: string; open: string; tabPosts: string; tabPages: string };
+    bookmarks: {
+      title: string;
+      subtitle: string;
+      empty: string;
+      remove: string;
+      open: string;
+      tabPosts: string;
+      tabPages: string;
+    };
     follows: {
-      title: string; subtitle: string; empty: string; unfollow: string;
-      tabAuthors: string; tabCategories: string; tabTags: string;
+      title: string;
+      subtitle: string;
+      empty: string;
+      unfollow: string;
+      tabAuthors: string;
+      tabCategories: string;
+      tabTags: string;
     };
   };
 };
 
 const extrasPl: ProfileExtras = {
   profile: {
-    role: { badge: "Rola", super_admin: "Super admin", admin: "Administrator", editor: "Redaktor", author: "Autor", user: "Czytelnik" },
+    role: {
+      badge: "Rola",
+      super_admin: "Super admin",
+      admin: "Administrator",
+      editor: "Redaktor",
+      author: "Autor",
+      user: "Czytelnik",
+    },
     social: {
       title: "Media społecznościowe i profil publiczny",
       subtitle: "Te dane pojawią się na Twojej publicznej stronie autora.",
       slug: "Nick (unikalny identyfikator)",
-      slugHint: "Wybierz swój unikalny nick. Adres profilu: /author/{slug}. Małe litery, cyfry, myślniki.",
+      slugHint:
+        "Wybierz swój unikalny nick. Adres profilu: /author/{slug}. Małe litery, cyfry, myślniki.",
       slugReset: "Zaproponuj z imienia i nazwiska",
       slugPreview: "Podgląd adresu",
-      slugInvalid: "Dozwolone tylko małe litery, cyfry i myślnik (-). Bez polskich znaków i spacji.",
+      slugInvalid:
+        "Dozwolone tylko małe litery, cyfry i myślnik (-). Bez polskich znaków i spacji.",
       slugTooShort: "Minimum 3 znaki.",
       slugTaken: "Ten nick jest już zajęty.",
       slugAvailable: "Nick jest dostępny.",
@@ -569,15 +625,24 @@ const extrasPl: ProfileExtras = {
 
 const extrasEn: ProfileExtras = {
   profile: {
-    role: { badge: "Role", super_admin: "Super admin", admin: "Administrator", editor: "Editor", author: "Author", user: "Reader" },
+    role: {
+      badge: "Role",
+      super_admin: "Super admin",
+      admin: "Administrator",
+      editor: "Editor",
+      author: "Author",
+      user: "Reader",
+    },
     social: {
       title: "Social media and public profile",
       subtitle: "These details appear on your public author page.",
       slug: "Nickname (unique handle)",
-      slugHint: "Pick your unique nickname. Profile URL: /author/{slug}. Lowercase letters, digits, dashes.",
+      slugHint:
+        "Pick your unique nickname. Profile URL: /author/{slug}. Lowercase letters, digits, dashes.",
       slugReset: "Suggest from first and last name",
       slugPreview: "URL preview",
-      slugInvalid: "Only lowercase letters, digits and dashes (-) allowed. No spaces or special characters.",
+      slugInvalid:
+        "Only lowercase letters, digits and dashes (-) allowed. No spaces or special characters.",
       slugTooShort: "Minimum 3 characters.",
       slugTaken: "This nickname is already taken.",
       slugAvailable: "Nickname is available.",
@@ -636,4 +701,3 @@ i18n.addResourceBundle("pl", "translation", extrasPl, true, true);
 i18n.addResourceBundle("en", "translation", extrasEn, true, true);
 
 export {};
-

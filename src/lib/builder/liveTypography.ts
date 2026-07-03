@@ -23,7 +23,7 @@ function normalizePayload(value: unknown): WidgetTypographyLivePayload | null {
   const updatedAt = typeof value.updatedAt === "number" ? value.updatedAt : Date.now();
   return {
     widgetId: value.widgetId,
-    typography: typography === undefined ? undefined : typography as WidgetTypography,
+    typography: typography === undefined ? undefined : (typography as WidgetTypography),
     updatedAt,
   };
 }
@@ -36,7 +36,10 @@ function styleElementId(widgetId: string): string {
   return `${STYLE_ID_PREFIX}${widgetId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
-function applyLiveTypographyStyle(widgetId: string, typography: WidgetTypography | undefined): void {
+function applyLiveTypographyStyle(
+  widgetId: string,
+  typography: WidgetTypography | undefined,
+): void {
   if (typeof document === "undefined") return;
   const id = styleElementId(widgetId);
   const existing = document.getElementById(id);
@@ -51,13 +54,18 @@ function applyLiveTypographyStyle(widgetId: string, typography: WidgetTypography
   if (!existing) document.head.appendChild(style);
 }
 
-export function broadcastWidgetTypography(widgetId: string, typography: WidgetTypography | undefined): void {
+export function broadcastWidgetTypography(
+  widgetId: string,
+  typography: WidgetTypography | undefined,
+): void {
   if (typeof window === "undefined") return;
   const payload: WidgetTypographyLivePayload = { widgetId, typography, updatedAt: Date.now() };
 
   applyLiveTypographyStyle(widgetId, typography);
 
-  window.dispatchEvent(new CustomEvent<WidgetTypographyLivePayload>(EVENT_NAME, { detail: payload }));
+  window.dispatchEvent(
+    new CustomEvent<WidgetTypographyLivePayload>(EVENT_NAME, { detail: payload }),
+  );
 
   try {
     if (typography === undefined) window.sessionStorage.removeItem(storageKey(widgetId));

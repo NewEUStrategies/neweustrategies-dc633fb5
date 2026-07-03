@@ -15,7 +15,10 @@ interface Props {
   coverUrl: string | null;
   uploading: "avatar" | "cover" | null;
   progress: { avatar: number; cover: number };
-  status: { avatar: "idle" | "uploading" | "success" | "failed"; cover: "idle" | "uploading" | "success" | "failed" };
+  status: {
+    avatar: "idle" | "uploading" | "success" | "failed";
+    cover: "idle" | "uploading" | "success" | "failed";
+  };
   onAvatarUrlChange: (url: string) => void;
   onCoverUrlChange: (url: string) => void;
   onAvatarUploadClick: () => void;
@@ -43,10 +46,7 @@ function StatusBadge({
       </div>
     );
   }
-  const cls =
-    status === "success"
-      ? "text-green-600 dark:text-green-400"
-      : "text-destructive";
+  const cls = status === "success" ? "text-green-600 dark:text-green-400" : "text-destructive";
   return (
     <p className={`text-xs ${cls}`} role="status" aria-live="polite">
       {t(status === "success" ? "profile.account.uploadSuccess" : "profile.account.uploadFailed")}
@@ -115,19 +115,11 @@ export function ProfileMediaPreview({
                 {displayName || fullName || t("profile.account.unnamed")}
               </h3>
               {headline && (
-                <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                  {headline}
-                </p>
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">{headline}</p>
               )}
-              {location && (
-                <p className="text-xs text-muted-foreground truncate">
-                  {location}
-                </p>
-              )}
+              {location && <p className="text-xs text-muted-foreground truncate">{location}</p>}
               {bio && (
-                <p className="text-xs sm:text-sm text-foreground/80 line-clamp-2 mt-1">
-                  {bio}
-                </p>
+                <p className="text-xs sm:text-sm text-foreground/80 line-clamp-2 mt-1">{bio}</p>
               )}
             </div>
           </div>
@@ -154,7 +146,9 @@ export function ProfileMediaPreview({
               disabled={uploading === "avatar"}
             >
               <Upload className="h-4 w-4 mr-1.5" />
-              {uploading === "avatar" ? t("profile.account.uploading") : t("profile.account.uploadAvatar")}
+              {uploading === "avatar"
+                ? t("profile.account.uploading")
+                : t("profile.account.uploadAvatar")}
             </Button>
           </div>
           <StatusBadge status={status.avatar} percent={progress.avatar} t={t} />
@@ -179,7 +173,9 @@ export function ProfileMediaPreview({
               disabled={uploading === "cover"}
             >
               <Upload className="h-4 w-4 mr-1.5" />
-              {uploading === "cover" ? t("profile.account.uploading") : t("profile.account.uploadCover")}
+              {uploading === "cover"
+                ? t("profile.account.uploading")
+                : t("profile.account.uploadCover")}
             </Button>
           </div>
           <StatusBadge status={status.cover} percent={progress.cover} t={t} />

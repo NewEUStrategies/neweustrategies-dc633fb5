@@ -2,6 +2,10 @@
 // these into the resource bundle. Split per-language so PL and EN edits don't
 // collide in one giant file.
 export const pl = {
+  common: {
+    retry: "Spróbuj ponownie",
+    loadError: "Nie udało się załadować",
+  },
   nav: {
     analyses: "ANALIZY",
     interviews: "WYWIADY",
@@ -50,6 +54,18 @@ export const pl = {
     subscribe: "Zapisz się",
     terms: "Przeczytałem/am i zgadzam się z",
     termsLink: "regulaminem",
+    confirmPage: {
+      loading: "Potwierdzanie subskrypcji…",
+      okTitle: "Subskrypcja potwierdzona",
+      okBody: "Dziękujemy - od teraz będziesz otrzymywać nasz newsletter.",
+      alreadyTitle: "Już potwierdzono",
+      alreadyBody: "Ten adres jest już zapisany do newslettera.",
+      expiredTitle: "Link wygasł",
+      expiredBody: "Zapisz się ponownie, aby otrzymać świeży link.",
+      errorTitle: "Nie udało się potwierdzić",
+      errorBody: "Spróbuj ponownie lub skontaktuj się z redakcją.",
+      backHome: "← Wróć na stronę główną",
+    },
   },
   footer: {
     mission:
@@ -811,6 +827,19 @@ export const pl = {
     empty: "Brak elementów",
     confirmDelete: "Na pewno usunąć?",
     unsavedChanges: "Masz niezapisane zmiany - czy na pewno chcesz opuścić edytor?",
+    slugTaken: 'Slug był zajęty - zapisano jako "{{slug}}"',
+    bulkResult: {
+      none: "Nie wykonano - brak uprawnień lub elementy juz nie istnieją",
+      partial:
+        "Wykonano {{count}} z {{requested}} - pozostałe odrzucone (brak uprawnień lub element nie istnieje)",
+      trashed: "Przeniesiono do kosza: {{count}}",
+      restored: "Przywrócono: {{count}}",
+      purged: "Usunięto trwale: {{count}}",
+      updated: "Zaktualizowano: {{count}}",
+      trashedOne: "Przeniesiono do kosza",
+      restoredOne: "Przywrócono",
+      purgedOne: "Usunięto trwale",
+    },
     published: "opublikowanych",
     drafts: "szkiców",
     language: "Język panelu",

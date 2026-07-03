@@ -41,10 +41,14 @@ export interface AccountMenuItem {
 
 export interface AccountMenuConfig {
   items?: AccountMenuItem[];
-  signin_pl?: string; signin_en?: string;
-  signup_pl?: string; signup_en?: string;
-  panel_pl?: string; panel_en?: string;
-  logout_pl?: string; logout_en?: string;
+  signin_pl?: string;
+  signin_en?: string;
+  signup_pl?: string;
+  signup_en?: string;
+  panel_pl?: string;
+  panel_en?: string;
+  logout_pl?: string;
+  logout_en?: string;
   signinHref?: string;
   signupHref?: string;
   panelBg?: string;
@@ -56,20 +60,98 @@ export interface AccountMenuConfig {
 }
 
 // Presety profilowe / shop / system - wystawiane jako wybierane URL-e w edytorze.
-export const ACCOUNT_PRESETS: Array<{ key: string; href: string; label_pl: string; label_en: string; icon: string }> = [
-  { key: "profile", href: "/profile", label_pl: "Mój profil", label_en: "My profile", icon: "User" },
-  { key: "account", href: "/profile/account", label_pl: "Ustawienia konta", label_en: "Account settings", icon: "Settings" },
-  { key: "security", href: "/profile/security", label_pl: "Bezpieczeństwo", label_en: "Security", icon: "Shield" },
-  { key: "social", href: "/profile/social", label_pl: "Media społecznościowe", label_en: "Social media", icon: "Share2" },
-  { key: "bookmarks", href: "/profile/bookmarks", label_pl: "Zapisane materiały", label_en: "Saved items", icon: "Bookmark" },
-  { key: "follows", href: "/profile/follows", label_pl: "Obserwowane", label_en: "Following", icon: "Heart" },
-  { key: "interests", href: "/profile/interests", label_pl: "Zainteresowania", label_en: "Interests", icon: "SlidersHorizontal" },
-  { key: "reading-list", href: "/reading-list", label_pl: "Do przeczytania", label_en: "Reading list", icon: "BookOpen" },
-  { key: "subscription", href: "/profile/subscription", label_pl: "Subskrypcja", label_en: "Subscription", icon: "Crown" },
-  { key: "billing", href: "/profile/billing", label_pl: "Płatności", label_en: "Billing", icon: "CreditCard" },
-  { key: "orders", href: "/profile/orders", label_pl: "Zamówienia", label_en: "Orders", icon: "ShoppingBag" },
+export const ACCOUNT_PRESETS: Array<{
+  key: string;
+  href: string;
+  label_pl: string;
+  label_en: string;
+  icon: string;
+}> = [
+  {
+    key: "profile",
+    href: "/profile",
+    label_pl: "Mój profil",
+    label_en: "My profile",
+    icon: "User",
+  },
+  {
+    key: "account",
+    href: "/profile/account",
+    label_pl: "Ustawienia konta",
+    label_en: "Account settings",
+    icon: "Settings",
+  },
+  {
+    key: "security",
+    href: "/profile/security",
+    label_pl: "Bezpieczeństwo",
+    label_en: "Security",
+    icon: "Shield",
+  },
+  {
+    key: "social",
+    href: "/profile/social",
+    label_pl: "Media społecznościowe",
+    label_en: "Social media",
+    icon: "Share2",
+  },
+  {
+    key: "bookmarks",
+    href: "/profile/bookmarks",
+    label_pl: "Zapisane materiały",
+    label_en: "Saved items",
+    icon: "Bookmark",
+  },
+  {
+    key: "follows",
+    href: "/profile/follows",
+    label_pl: "Obserwowane",
+    label_en: "Following",
+    icon: "Heart",
+  },
+  {
+    key: "interests",
+    href: "/profile/interests",
+    label_pl: "Zainteresowania",
+    label_en: "Interests",
+    icon: "SlidersHorizontal",
+  },
+  {
+    key: "reading-list",
+    href: "/reading-list",
+    label_pl: "Do przeczytania",
+    label_en: "Reading list",
+    icon: "BookOpen",
+  },
+  {
+    key: "subscription",
+    href: "/profile/subscription",
+    label_pl: "Subskrypcja",
+    label_en: "Subscription",
+    icon: "Crown",
+  },
+  {
+    key: "billing",
+    href: "/profile/billing",
+    label_pl: "Płatności",
+    label_en: "Billing",
+    icon: "CreditCard",
+  },
+  {
+    key: "orders",
+    href: "/profile/orders",
+    label_pl: "Zamówienia",
+    label_en: "Orders",
+    icon: "ShoppingBag",
+  },
   { key: "pricing", href: "/pricing", label_pl: "Cennik", label_en: "Pricing", icon: "Tag" },
-  { key: "admin", href: "/admin", label_pl: "Panel admina", label_en: "Admin panel", icon: "LayoutDashboard" },
+  {
+    key: "admin",
+    href: "/admin",
+    label_pl: "Panel admina",
+    label_en: "Admin panel",
+    icon: "LayoutDashboard",
+  },
 ];
 
 function presetFor(key: string | undefined) {
@@ -84,7 +166,10 @@ function readStr(x: Json | undefined): string | undefined {
   return typeof x === "string" && x.length ? x : undefined;
 }
 
-interface PageRef { slug: string; title: string }
+interface PageRef {
+  slug: string;
+  title: string;
+}
 
 function usePagesIndex(enabled: boolean, lang: Lang) {
   return useQuery({
@@ -99,24 +184,32 @@ function usePagesIndex(enabled: boolean, lang: Lang) {
         .order("title_pl");
       return (data ?? [])
         .filter((p): p is { slug: string; title_pl: string; title_en: string } => !!p?.slug)
-        .map((p) => ({ slug: p.slug, title: (lang === "pl" ? p.title_pl : p.title_en) || p.title_pl || p.title_en || p.slug }));
+        .map((p) => ({
+          slug: p.slug,
+          title: (lang === "pl" ? p.title_pl : p.title_en) || p.title_pl || p.title_en || p.slug,
+        }));
     },
   });
 }
 
 function resolveItem(item: AccountMenuItem, pages: PageRef[] | undefined, lang: Lang) {
   const label =
-    (lang === "pl" ? item.label_pl : item.label_en) ||
-    item.label_pl || item.label_en || "";
+    (lang === "pl" ? item.label_pl : item.label_en) || item.label_pl || item.label_en || "";
   const desc = (lang === "pl" ? item.desc_pl : item.desc_en) || "";
   let href = "";
   let labelFallback = label;
   if (item.kind === "preset") {
     const p = presetFor(item.presetKey);
-    if (p) { href = p.href; labelFallback = label || (lang === "pl" ? p.label_pl : p.label_en); }
+    if (p) {
+      href = p.href;
+      labelFallback = label || (lang === "pl" ? p.label_pl : p.label_en);
+    }
   } else if (item.kind === "page") {
     const page = pages?.find((x) => x.slug === item.pageSlug);
-    if (page) { href = `/${page.slug}`; labelFallback = label || page.title; }
+    if (page) {
+      href = `/${page.slug}`;
+      labelFallback = label || page.title;
+    }
   } else if (item.kind === "custom") {
     href = item.customHref || "";
   }
@@ -125,7 +218,10 @@ function resolveItem(item: AccountMenuItem, pages: PageRef[] | undefined, lang: 
 
 function IconByName({ name, className }: { name: string | undefined; className?: string }) {
   if (!name) return null;
-  const reg = LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string }> | undefined>;
+  const reg = LucideIcons as unknown as Record<
+    string,
+    React.ComponentType<{ className?: string }> | undefined
+  >;
   const Cmp = reg[name];
   if (!Cmp) return null;
   return <Cmp className={className} />;
@@ -137,7 +233,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
 
-  const items = useMemo(() => Array.isArray(config.items) ? config.items : [], [config.items]);
+  const items = useMemo(() => (Array.isArray(config.items) ? config.items : []), [config.items]);
   const hasPageItems = items.some((i) => i.kind === "page");
   const { data: pages } = usePagesIndex(hasPageItems, lang);
 
@@ -148,10 +244,15 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const displayName = profile?.display_name ?? user?.email ?? "";
   const avatarUrl = profile?.avatar_url ?? null;
 
-  
-  const signInLabel = (lang === "pl" ? config.signin_pl : config.signin_en) || (lang === "pl" ? "Zaloguj" : "Sign in");
-  const signUpLabel = (lang === "pl" ? config.signup_pl : config.signup_en) || (lang === "pl" ? "Zarejestruj" : "Sign up");
-  const logoutLabel = (lang === "pl" ? config.logout_pl : config.logout_en) || (lang === "pl" ? "Wyloguj" : "Sign out");
+  const signInLabel =
+    (lang === "pl" ? config.signin_pl : config.signin_en) ||
+    (lang === "pl" ? "Zaloguj" : "Sign in");
+  const signUpLabel =
+    (lang === "pl" ? config.signup_pl : config.signup_en) ||
+    (lang === "pl" ? "Zarejestruj" : "Sign up");
+  const logoutLabel =
+    (lang === "pl" ? config.logout_pl : config.logout_en) ||
+    (lang === "pl" ? "Wyloguj" : "Sign out");
   const signinHref = config.signinHref || "/login";
   const signupHref = config.signupHref || "/login?mode=signup";
 
@@ -170,7 +271,10 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   // Hydration-safe placeholder (matches SSR neutral state).
   if (!mounted) {
     return (
-      <span className="inline-flex h-7 items-center gap-2 text-[11px] leading-none opacity-0" aria-hidden>
+      <span
+        className="inline-flex h-7 items-center gap-2 text-[11px] leading-none opacity-0"
+        aria-hidden
+      >
         {signInLabel}|{signUpLabel}
       </span>
     );
@@ -208,7 +312,9 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
     >
       <LucideIcons.LogIn className="w-3.5 h-3.5" />
       <span>{signInLabel}</span>
-      <span className="text-muted-foreground/40" aria-hidden>|</span>
+      <span className="text-muted-foreground/40" aria-hidden>
+        |
+      </span>
       <span style={{ color: "var(--brand)" }}>{signUpLabel}</span>
     </button>
   );
@@ -223,13 +329,21 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
         <button
           key={it.id}
           type="button"
-          onClick={async () => { setOpen(false); await signOut(); }}
+          onClick={async () => {
+            setOpen(false);
+            await signOut();
+          }}
           className="flex w-full items-start gap-3 rounded-md px-2.5 py-2 text-left text-sm hover:bg-muted/60 transition-colors"
         >
-          <IconByName name={it.icon || "LogOut"} className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <IconByName
+            name={it.icon || "LogOut"}
+            className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+          />
           <span className="flex-1">
             <span className="block font-medium leading-tight">{entry.label || logoutLabel}</span>
-            {entry.desc ? <span className="block text-xs text-muted-foreground mt-0.5">{entry.desc}</span> : null}
+            {entry.desc ? (
+              <span className="block text-xs text-muted-foreground mt-0.5">{entry.desc}</span>
+            ) : null}
           </span>
         </button>
       );
@@ -240,7 +354,11 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
         <IconByName name={it.icon} className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
         <span className="flex-1 min-w-0">
           <span className="block font-medium leading-tight truncate">{entry.label}</span>
-          {entry.desc ? <span className="block text-xs text-muted-foreground mt-0.5 line-clamp-2">{entry.desc}</span> : null}
+          {entry.desc ? (
+            <span className="block text-xs text-muted-foreground mt-0.5 line-clamp-2">
+              {entry.desc}
+            </span>
+          ) : null}
         </span>
       </>
     );
@@ -272,15 +390,79 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
 
   // Defaults when admin has not configured any menu items yet - sensible fallback so the
   // widget never looks empty even on a fresh install.
-  const effectiveGuest = guestItems.length ? guestItems : [
-    { raw: { id: "default-signin", section: "guest" as const, kind: "custom" as const, icon: "LogIn", label_pl: signInLabel, label_en: signInLabel, customHref: signinHref }, href: signinHref, label: signInLabel, desc: "" },
-    { raw: { id: "default-signup", section: "guest" as const, kind: "custom" as const, icon: "UserPlus", label_pl: signUpLabel, label_en: signUpLabel, customHref: signupHref }, href: signupHref, label: signUpLabel, desc: "" },
-  ];
-  const effectiveAuth = authItems.length ? authItems : [
-    { raw: { id: "default-profile", section: "auth" as const, kind: "preset" as const, presetKey: "profile", icon: "User" }, href: "/profile", label: lang === "pl" ? "Mój profil" : "My profile", desc: "" },
-    { raw: { id: "default-bookmarks", section: "auth" as const, kind: "preset" as const, presetKey: "bookmarks", icon: "Bookmark" }, href: "/profile/bookmarks", label: lang === "pl" ? "Zapisane" : "Saved", desc: "" },
-    { raw: { id: "default-logout", section: "auth" as const, kind: "logout" as const, icon: "LogOut", label_pl: logoutLabel, label_en: logoutLabel }, href: "", label: logoutLabel, desc: "" },
-  ];
+  const effectiveGuest = guestItems.length
+    ? guestItems
+    : [
+        {
+          raw: {
+            id: "default-signin",
+            section: "guest" as const,
+            kind: "custom" as const,
+            icon: "LogIn",
+            label_pl: signInLabel,
+            label_en: signInLabel,
+            customHref: signinHref,
+          },
+          href: signinHref,
+          label: signInLabel,
+          desc: "",
+        },
+        {
+          raw: {
+            id: "default-signup",
+            section: "guest" as const,
+            kind: "custom" as const,
+            icon: "UserPlus",
+            label_pl: signUpLabel,
+            label_en: signUpLabel,
+            customHref: signupHref,
+          },
+          href: signupHref,
+          label: signUpLabel,
+          desc: "",
+        },
+      ];
+  const effectiveAuth = authItems.length
+    ? authItems
+    : [
+        {
+          raw: {
+            id: "default-profile",
+            section: "auth" as const,
+            kind: "preset" as const,
+            presetKey: "profile",
+            icon: "User",
+          },
+          href: "/profile",
+          label: lang === "pl" ? "Mój profil" : "My profile",
+          desc: "",
+        },
+        {
+          raw: {
+            id: "default-bookmarks",
+            section: "auth" as const,
+            kind: "preset" as const,
+            presetKey: "bookmarks",
+            icon: "Bookmark",
+          },
+          href: "/profile/bookmarks",
+          label: lang === "pl" ? "Zapisane" : "Saved",
+          desc: "",
+        },
+        {
+          raw: {
+            id: "default-logout",
+            section: "auth" as const,
+            kind: "logout" as const,
+            icon: "LogOut",
+            label_pl: logoutLabel,
+            label_en: logoutLabel,
+          },
+          href: "",
+          label: logoutLabel,
+          desc: "",
+        },
+      ];
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -296,46 +478,68 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
             {user?.email && (
               <div className="px-2.5 pt-1 pb-2 border-b border-border/60 mb-1">
                 <div className="text-sm font-semibold truncate">{displayName || user.email}</div>
-                {displayName && <div className="text-xs text-muted-foreground truncate">{user.email}</div>}
+                {displayName && (
+                  <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                )}
               </div>
             )}
-            <div className="flex flex-col gap-0.5">
-              {effectiveAuth.map(renderItem)}
-            </div>
-            {isStaff && (() => {
-              // Auto-defaults for staff: ensure admin / super-admin always have a route
-              // back into the management panels even when no custom items are configured.
-              const autoStaff: ReturnType<typeof sectionItems> = [];
-              if (isAdmin) {
-                autoStaff.push({
-                  raw: { id: "auto-admin", section: "staff", kind: "custom", icon: "LayoutDashboard", customHref: "/admin" },
-                  href: "/admin",
-                  label: lang === "pl" ? "Panel admina" : "Admin panel",
-                  desc: "",
-                });
-              }
-              if (isSuperAdmin) {
-                autoStaff.push({
-                  raw: { id: "auto-users", section: "staff", kind: "custom", icon: "ShieldCheck", customHref: "/admin/users" },
-                  href: "/admin/users",
-                  label: lang === "pl" ? "Super admin - użytkownicy" : "Super admin - users",
-                  desc: lang === "pl" ? "Zarządzanie rolami i wcielanie się" : "Roles & impersonation",
-                });
-              }
-              // Merge: auto entries first, then admin-configured items (deduped by href).
-              const seen = new Set(autoStaff.map((x) => x.href));
-              const merged = [...autoStaff, ...staffItems.filter((x) => !seen.has(x.href))];
-              if (merged.length === 0) return null;
-              return (
-                <>
-                  <div className="my-1 h-px bg-border/70" />
-                  <div className="px-2.5 pt-1 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {isSuperAdmin ? (lang === "pl" ? "Super Admin" : "Super Admin") : (lang === "pl" ? "Zespół" : "Staff")}
-                  </div>
-                  <div className="flex flex-col gap-0.5">{merged.map(renderItem)}</div>
-                </>
-              );
-            })()}
+            <div className="flex flex-col gap-0.5">{effectiveAuth.map(renderItem)}</div>
+            {isStaff &&
+              (() => {
+                // Auto-defaults for staff: ensure admin / super-admin always have a route
+                // back into the management panels even when no custom items are configured.
+                const autoStaff: ReturnType<typeof sectionItems> = [];
+                if (isAdmin) {
+                  autoStaff.push({
+                    raw: {
+                      id: "auto-admin",
+                      section: "staff",
+                      kind: "custom",
+                      icon: "LayoutDashboard",
+                      customHref: "/admin",
+                    },
+                    href: "/admin",
+                    label: lang === "pl" ? "Panel admina" : "Admin panel",
+                    desc: "",
+                  });
+                }
+                if (isSuperAdmin) {
+                  autoStaff.push({
+                    raw: {
+                      id: "auto-users",
+                      section: "staff",
+                      kind: "custom",
+                      icon: "ShieldCheck",
+                      customHref: "/admin/users",
+                    },
+                    href: "/admin/users",
+                    label: lang === "pl" ? "Super admin - użytkownicy" : "Super admin - users",
+                    desc:
+                      lang === "pl"
+                        ? "Zarządzanie rolami i wcielanie się"
+                        : "Roles & impersonation",
+                  });
+                }
+                // Merge: auto entries first, then admin-configured items (deduped by href).
+                const seen = new Set(autoStaff.map((x) => x.href));
+                const merged = [...autoStaff, ...staffItems.filter((x) => !seen.has(x.href))];
+                if (merged.length === 0) return null;
+                return (
+                  <>
+                    <div className="my-1 h-px bg-border/70" />
+                    <div className="px-2.5 pt-1 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {isSuperAdmin
+                        ? lang === "pl"
+                          ? "Super Admin"
+                          : "Super Admin"
+                        : lang === "pl"
+                          ? "Zespół"
+                          : "Staff"}
+                    </div>
+                    <div className="flex flex-col gap-0.5">{merged.map(renderItem)}</div>
+                  </>
+                );
+              })()}
           </>
         ) : (
           <div className="flex flex-col gap-0.5">{effectiveGuest.map(renderItem)}</div>

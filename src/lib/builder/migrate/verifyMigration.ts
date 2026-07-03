@@ -98,16 +98,24 @@ export function auditBuilderDoc(doc: BuilderDocument): DocAudit {
   const warnings: string[] = [];
   for (const a of audits) {
     if (a.leftoverFnMarkers > 0) {
-      warnings.push(`[${a.lang}] ${a.leftoverFnMarkers} un-processed [fn] shortcode(s) survived migration`);
+      warnings.push(
+        `[${a.lang}] ${a.leftoverFnMarkers} un-processed [fn] shortcode(s) survived migration`,
+      );
     }
     if (a.refsWithoutList.length > 0) {
-      warnings.push(`[${a.lang}] footnote ref(s) with no list entry: ${a.refsWithoutList.join(", ")}`);
+      warnings.push(
+        `[${a.lang}] footnote ref(s) with no list entry: ${a.refsWithoutList.join(", ")}`,
+      );
     }
     if (a.listWithoutRefs.length > 0) {
-      warnings.push(`[${a.lang}] orphan footnote note(s) nothing references: ${a.listWithoutRefs.join(", ")}`);
+      warnings.push(
+        `[${a.lang}] orphan footnote note(s) nothing references: ${a.listWithoutRefs.join(", ")}`,
+      );
     }
     if (a.inlineStyleAttrs > 0) {
-      warnings.push(`[${a.lang}] ${a.inlineStyleAttrs} inline style="" attribute(s) will be stripped at render (review formatting)`);
+      warnings.push(
+        `[${a.lang}] ${a.inlineStyleAttrs} inline style="" attribute(s) will be stripped at render (review formatting)`,
+      );
     }
   }
   return { htmlBodies: bodies.length, audits, warnings };

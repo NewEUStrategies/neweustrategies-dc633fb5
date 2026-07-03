@@ -4,14 +4,14 @@
 import type { WidgetType } from "./types";
 
 export type FieldType =
-  | "text"        // single-line, language-agnostic
-  | "i18nText"    // single-line, separate PL/EN values stored as `${key}_pl|_en`
-  | "i18nHtml"    // textarea HTML, separate PL/EN values
+  | "text" // single-line, language-agnostic
+  | "i18nText" // single-line, separate PL/EN values stored as `${key}_pl|_en`
+  | "i18nHtml" // textarea HTML, separate PL/EN values
   | "url"
-  | "image"       // URL input + file upload to storage
+  | "image" // URL input + file upload to storage
   | "number"
   | "select"
-  | "color"       // hex color with native picker + text fallback ("" = inherit)
+  | "color" // hex color with native picker + text fallback ("" = inherit)
   | "textarea"
   | "stringArray"; // textarea with one item per line
 
@@ -43,11 +43,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "text", type: "i18nText", label: "Tekst" },
     { key: "subtitle", type: "i18nText", label: "Podtytuł (opcjonalny)" },
     {
-      key: "tag", type: "select", label: "Tag (SEO)",
+      key: "tag",
+      type: "select",
+      label: "Tag (SEO)",
       options: ["h1", "h2", "h3", "h4", "h5", "h6"].map((v) => ({ value: v })),
     },
     {
-      key: "variant", type: "select", label: "Wariant",
+      key: "variant",
+      type: "select",
+      label: "Wariant",
       options: [
         { value: "default", label: "klasyczny" },
         { value: "gradient", label: "gradient" },
@@ -58,7 +62,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
-      key: "sizePreset", type: "select", label: "Rozmiar (preset)",
+      key: "sizePreset",
+      type: "select",
+      label: "Rozmiar (preset)",
       options: [
         { value: "sm", label: "S" },
         { value: "md", label: "M (domyślny)" },
@@ -68,12 +74,17 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
-      key: "sizePx", type: "number", label: "Rozmiar tytułu (px)",
-      min: 8, max: 200,
+      key: "sizePx",
+      type: "number",
+      label: "Rozmiar tytułu (px)",
+      min: 8,
+      max: 200,
       hint: "Wpisz dokładny rozmiar w pikselach (np. 28, 32). Nadpisuje preset i działa identycznie na każdym urządzeniu.",
     },
     {
-      key: "titleWeight", type: "select", label: "Grubość tytułu",
+      key: "titleWeight",
+      type: "select",
+      label: "Grubość tytułu",
       options: [
         { value: "", label: "domyślna" },
         { value: "300", label: "300" },
@@ -86,12 +97,17 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
-      key: "subtitleSizePx", type: "number", label: "Rozmiar podtytułu (px)",
-      min: 8, max: 120,
+      key: "subtitleSizePx",
+      type: "number",
+      label: "Rozmiar podtytułu (px)",
+      min: 8,
+      max: 120,
       hint: "Działa identycznie na desktopie, tablecie i mobile.",
     },
     {
-      key: "subtitleWeight", type: "select", label: "Grubość podtytułu",
+      key: "subtitleWeight",
+      type: "select",
+      label: "Grubość podtytułu",
       options: [
         { value: "", label: "domyślna" },
         { value: "300", label: "300" },
@@ -103,7 +119,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
     { key: "href", type: "url", label: "Link (opcjonalny)", placeholder: "/o-nas lub https://…" },
     {
-      key: "target", type: "select", label: "Otwórz link w",
+      key: "target",
+      type: "select",
+      label: "Otwórz link w",
       options: [
         { value: "self", label: "tym samym oknie" },
         { value: "blank", label: "nowej karcie" },
@@ -111,12 +129,16 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       visibleWhen: (c) => typeof c.href === "string" && c.href.length > 0,
     },
     {
-      key: "iconName", type: "text", label: "Ikona (opcjonalna)",
+      key: "iconName",
+      type: "text",
+      label: "Ikona (opcjonalna)",
       placeholder: "Star, Sparkles, ArrowRight…",
       hint: "Nazwa ikony Lucide. Zostaw puste, aby ukryć.",
     },
     {
-      key: "iconPosition", type: "select", label: "Pozycja ikony",
+      key: "iconPosition",
+      type: "select",
+      label: "Pozycja ikony",
       options: [
         { value: "left", label: "po lewej" },
         { value: "right", label: "po prawej" },
@@ -127,21 +149,38 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   text: [
     { key: "html", type: "i18nHtml", label: "HTML", rows: 6 },
     {
-      key: "columns", type: "number", label: "Kolumny tekstu", min: 1, max: 4,
+      key: "columns",
+      type: "number",
+      label: "Kolumny tekstu",
+      min: 1,
+      max: 4,
       hint: "Podział tekstu na kolumny (CSS multi-column).",
     },
-    { key: "dropCap", type: "select", label: "Inicjał", options: [
-      { value: "off", label: "wyłączony" },
-      { value: "on", label: "włączony" },
-    ]},
+    {
+      key: "dropCap",
+      type: "select",
+      label: "Inicjał",
+      options: [
+        { value: "off", label: "wyłączony" },
+        { value: "on", label: "włączony" },
+      ],
+    },
   ],
   image: [
     { key: "src", type: "url", label: "URL obrazka", placeholder: "https://..." },
-    { key: "srcDark", type: "url", label: "URL obrazka (dark mode)", placeholder: "opcjonalnie - pusty = używa głównej grafiki", hint: "Osobna grafika dla trybu ciemnego. Pozostaw puste, aby użyć tej samej." },
+    {
+      key: "srcDark",
+      type: "url",
+      label: "URL obrazka (dark mode)",
+      placeholder: "opcjonalnie - pusty = używa głównej grafiki",
+      hint: "Osobna grafika dla trybu ciemnego. Pozostaw puste, aby użyć tej samej.",
+    },
     { key: "alt", type: "i18nText", label: "Alt" },
     { key: "caption", type: "i18nText", label: "Podpis (opcjonalny)" },
     {
-      key: "variant", type: "select", label: "Wariant",
+      key: "variant",
+      type: "select",
+      label: "Wariant",
       options: [
         { value: "default", label: "domyślny" },
         { value: "rounded", label: "zaokrąglony" },
@@ -153,7 +192,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
-      key: "objectFit", type: "select", label: "Dopasowanie",
+      key: "objectFit",
+      type: "select",
+      label: "Dopasowanie",
       options: [
         { value: "cover", label: "cover" },
         { value: "contain", label: "contain" },
@@ -161,27 +202,36 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "none", label: "none" },
       ],
     },
-    { key: "ratio", type: "select", label: "Proporcje", options: [
-      { value: "auto", label: "auto" },
-      { value: "1/1", label: "1:1" },
-      { value: "4/3", label: "4:3" },
-      { value: "16/9", label: "16:9" },
-      { value: "3/4", label: "3:4" },
-      { value: "9/16", label: "9:16" },
-    ]},
+    {
+      key: "ratio",
+      type: "select",
+      label: "Proporcje",
+      options: [
+        { value: "auto", label: "auto" },
+        { value: "1/1", label: "1:1" },
+        { value: "4/3", label: "4:3" },
+        { value: "16/9", label: "16:9" },
+        { value: "3/4", label: "3:4" },
+        { value: "9/16", label: "9:16" },
+      ],
+    },
   ],
   button: [
     { key: "label", type: "i18nText", label: "Etykieta" },
     { key: "href", type: "url", label: "Link" },
     {
-      key: "target", type: "select", label: "Otwórz w",
+      key: "target",
+      type: "select",
+      label: "Otwórz w",
       options: [
         { value: "self", label: "tym samym oknie" },
         { value: "blank", label: "nowej karcie" },
       ],
     },
     {
-      key: "variant", type: "select", label: "Wariant",
+      key: "variant",
+      type: "select",
+      label: "Wariant",
       options: [
         { value: "primary", label: "primary" },
         { value: "outline", label: "outline" },
@@ -192,7 +242,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
-      key: "size", type: "select", label: "Rozmiar",
+      key: "size",
+      type: "select",
+      label: "Rozmiar",
       options: [
         { value: "sm", label: "mały" },
         { value: "md", label: "średni" },
@@ -201,21 +253,30 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
     { key: "iconName", type: "text", label: "Ikona (Lucide)", placeholder: "ArrowRight…" },
     {
-      key: "iconPosition", type: "select", label: "Pozycja ikony",
+      key: "iconPosition",
+      type: "select",
+      label: "Pozycja ikony",
       options: [
         { value: "left", label: "po lewej" },
         { value: "right", label: "po prawej" },
       ],
       visibleWhen: (c) => typeof c.iconName === "string" && c.iconName.length > 0,
     },
-    { key: "fullWidth", type: "select", label: "Szerokość", options: [
-      { value: "auto", label: "automatyczna" },
-      { value: "full", label: "100%" },
-    ]},
+    {
+      key: "fullWidth",
+      type: "select",
+      label: "Szerokość",
+      options: [
+        { value: "auto", label: "automatyczna" },
+        { value: "full", label: "100%" },
+      ],
+    },
   ],
   divider: [
     {
-      key: "variant", type: "select", label: "Wariant",
+      key: "variant",
+      type: "select",
+      label: "Wariant",
       options: [
         { value: "line", label: "linia" },
         { value: "dashed", label: "przerywana" },
@@ -227,21 +288,36 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "space", label: "tylko odstęp (bez linii)" },
       ],
     },
-    { key: "iconName", type: "text", label: "Ikona (dla wariantu z ikoną)",
-      visibleWhen: (c) => c.variant === "icon" },
     {
-      key: "thickness", type: "number",
-      label: "Grubość / wysokość (px)", min: 1, max: 400, default: 2,
+      key: "iconName",
+      type: "text",
+      label: "Ikona (dla wariantu z ikoną)",
+      visibleWhen: (c) => c.variant === "icon",
+    },
+    {
+      key: "thickness",
+      type: "number",
+      label: "Grubość / wysokość (px)",
+      min: 1,
+      max: 400,
+      default: 2,
       hint: 'Dla wariantu „tylko odstęp" wartość określa wysokość pustej przestrzeni.',
     },
     {
-      key: "widthPct", type: "number",
-      label: "Szerokość (%)", min: 10, max: 100, step: 5, default: 100,
+      key: "widthPct",
+      type: "number",
+      label: "Szerokość (%)",
+      min: 10,
+      max: 100,
+      step: 5,
+      default: 100,
       hint: "Szerokość linii względem kontenera (10-100%).",
       visibleWhen: (c) => c.variant !== "space",
     },
     {
-      key: "align", type: "select", label: "Wyrównanie",
+      key: "align",
+      type: "select",
+      label: "Wyrównanie",
       options: [
         { value: "left", label: "do lewej" },
         { value: "center", label: "wyśrodkowane" },
@@ -251,135 +327,224 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       visibleWhen: (c) => c.variant !== "space" && Number(c.widthPct ?? 100) < 100,
     },
     {
-      key: "color", type: "color", label: "Kolor",
+      key: "color",
+      type: "color",
+      label: "Kolor",
       hint: "Pozostaw puste, aby użyć koloru motywu (border).",
       visibleWhen: (c) => c.variant !== "space",
     },
   ],
-  spacer: [
-    { key: "height", type: "number", label: "Wysokość (px)", min: 1, max: 800 },
-  ],
+  spacer: [{ key: "height", type: "number", label: "Wysokość (px)", min: 1, max: 800 }],
   video: [
     { key: "url", type: "url", label: "URL (YouTube lub MP4)" },
-    { key: "autoplay", type: "select", label: "Autoodtwarzanie", options: [
-      { value: "off", label: "wyłączone" },
-      { value: "on", label: "włączone (wymaga mute)" },
-    ]},
-    { key: "loop", type: "select", label: "Pętla", options: [
-      { value: "off", label: "wyłączona" },
-      { value: "on", label: "włączona" },
-    ]},
-    { key: "controls", type: "select", label: "Kontrolki", options: [
-      { value: "on", label: "widoczne" },
-      { value: "off", label: "ukryte" },
-    ]},
-    { key: "ratio", type: "select", label: "Proporcje", options: [
-      { value: "16/9", label: "16:9" },
-      { value: "4/3", label: "4:3" },
-      { value: "1/1", label: "1:1" },
-      { value: "21/9", label: "21:9" },
-      { value: "9/16", label: "9:16 (pion)" },
-    ]},
+    {
+      key: "autoplay",
+      type: "select",
+      label: "Autoodtwarzanie",
+      options: [
+        { value: "off", label: "wyłączone" },
+        { value: "on", label: "włączone (wymaga mute)" },
+      ],
+    },
+    {
+      key: "loop",
+      type: "select",
+      label: "Pętla",
+      options: [
+        { value: "off", label: "wyłączona" },
+        { value: "on", label: "włączona" },
+      ],
+    },
+    {
+      key: "controls",
+      type: "select",
+      label: "Kontrolki",
+      options: [
+        { value: "on", label: "widoczne" },
+        { value: "off", label: "ukryte" },
+      ],
+    },
+    {
+      key: "ratio",
+      type: "select",
+      label: "Proporcje",
+      options: [
+        { value: "16/9", label: "16:9" },
+        { value: "4/3", label: "4:3" },
+        { value: "1/1", label: "1:1" },
+        { value: "21/9", label: "21:9" },
+        { value: "9/16", label: "9:16 (pion)" },
+      ],
+    },
   ],
   gallery: [
     {
-      key: "images", type: "stringArray", rows: 5,
+      key: "images",
+      type: "stringArray",
+      rows: 5,
       label: "Obrazki (po jednym URL na linię)",
     },
     { key: "columns", type: "number", label: "Kolumny", min: 1, max: 6 },
-    { key: "variant", type: "select", label: "Wariant", options: [
-      { value: "grid", label: "siatka" },
-      { value: "masonry", label: "masonry" },
-      { value: "carousel", label: "karuzela" },
-      { value: "polaroid", label: "polaroid" },
-    ]},
-    { key: "gap", type: "select", label: "Odstęp", options: [
-      { value: "none", label: "brak" },
-      { value: "xs", label: "XS" },
-      { value: "sm", label: "S" },
-      { value: "md", label: "M" },
-      { value: "lg", label: "L" },
-    ]},
-    { key: "lightbox", type: "select", label: "Lightbox", options: [
-      { value: "off", label: "wyłączony" },
-      { value: "on", label: "włączony" },
-    ]},
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      options: [
+        { value: "grid", label: "siatka" },
+        { value: "masonry", label: "masonry" },
+        { value: "carousel", label: "karuzela" },
+        { value: "polaroid", label: "polaroid" },
+      ],
+    },
+    {
+      key: "gap",
+      type: "select",
+      label: "Odstęp",
+      options: [
+        { value: "none", label: "brak" },
+        { value: "xs", label: "XS" },
+        { value: "sm", label: "S" },
+        { value: "md", label: "M" },
+        { value: "lg", label: "L" },
+      ],
+    },
+    {
+      key: "lightbox",
+      type: "select",
+      label: "Lightbox",
+      options: [
+        { value: "off", label: "wyłączony" },
+        { value: "on", label: "włączony" },
+      ],
+    },
   ],
   icon: [
     { key: "name", type: "text", label: "Nazwa ikony", placeholder: "Star, Heart, Mail..." },
     { key: "size", type: "number", label: "Rozmiar (px)", min: 8, max: 256 },
-    { key: "variant", type: "select", label: "Wariant", options: [
-      { value: "plain", label: "domyślna" },
-      { value: "circle", label: "kółko" },
-      { value: "square", label: "kwadrat" },
-      { value: "soft", label: "soft" },
-      { value: "outlined", label: "obrysowana" },
-    ]},
-    { key: "spin", type: "select", label: "Animacja ciągła", options: [
-      { value: "none", label: "brak" },
-      { value: "spin", label: "obrót" },
-      { value: "pulse", label: "pulsowanie" },
-      { value: "bounce", label: "skakanie" },
-    ]},
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      options: [
+        { value: "plain", label: "domyślna" },
+        { value: "circle", label: "kółko" },
+        { value: "square", label: "kwadrat" },
+        { value: "soft", label: "soft" },
+        { value: "outlined", label: "obrysowana" },
+      ],
+    },
+    {
+      key: "spin",
+      type: "select",
+      label: "Animacja ciągła",
+      options: [
+        { value: "none", label: "brak" },
+        { value: "spin", label: "obrót" },
+        { value: "pulse", label: "pulsowanie" },
+        { value: "bounce", label: "skakanie" },
+      ],
+    },
   ],
   map: [
     { key: "query", type: "text", label: "Adres / zapytanie" },
-    { key: "ratio", type: "select", label: "Proporcje", options: [
-      { value: "16/9", label: "16:9" },
-      { value: "4/3", label: "4:3" },
-      { value: "1/1", label: "1:1" },
-    ]},
+    {
+      key: "ratio",
+      type: "select",
+      label: "Proporcje",
+      options: [
+        { value: "16/9", label: "16:9" },
+        { value: "4/3", label: "4:3" },
+        { value: "1/1", label: "1:1" },
+      ],
+    },
   ],
   tts: [
-    { key: "source", type: "select", label: "Źródło tekstu", options: [
-      { value: "post", label: "Treść wpisu (automatycznie)" },
-      { value: "custom", label: "Własny tekst" },
-    ]},
-    { key: "text", type: "i18nText", label: "Własny tekst (jeśli wybrane)", visibleWhen: (c) => c.source === "custom" },
+    {
+      key: "source",
+      type: "select",
+      label: "Źródło tekstu",
+      options: [
+        { value: "post", label: "Treść wpisu (automatycznie)" },
+        { value: "custom", label: "Własny tekst" },
+      ],
+    },
+    {
+      key: "text",
+      type: "i18nText",
+      label: "Własny tekst (jeśli wybrane)",
+      visibleWhen: (c) => c.source === "custom",
+    },
     { key: "label", type: "i18nText", label: "Etykieta przycisku" },
-    { key: "voiceId", type: "select", label: "Głos", options: [
-      { value: "JBFqnCBsd6RMkjVDRZzb", label: "George (męski, EN)" },
-      { value: "EXAVITQu4vr4xnSDxMaL", label: "Sarah (kobiecy, EN)" },
-      { value: "FGY2WhTYpPnrIDTdsKH5", label: "Laura (kobiecy, EN)" },
-      { value: "TX3LPaxmHKxFdv7VOQHJ", label: "Liam (męski, EN)" },
-      { value: "XrExE9yKIg1WjnnlVkGX", label: "Matilda (kobiecy, EN)" },
-      { value: "pFZP5JQG7iQjIQuC4Bku", label: "Lily (kobiecy, EN)" },
-      { value: "onwK4e9ZLuTAKqWW03F9", label: "Daniel (męski, EN)" },
-      { value: "cgSgspJ2msm6clMCkdW9", label: "Jessica (kobiecy, EN)" },
-    ]},
-    { key: "model", type: "select", label: "Model", options: [
-      { value: "eleven_multilingual_v2", label: "Multilingual v2 (PL/EN, najlepsza jakość)" },
-      { value: "eleven_turbo_v2_5", label: "Turbo v2.5 (szybszy)" },
-    ]},
+    {
+      key: "voiceId",
+      type: "select",
+      label: "Głos",
+      options: [
+        { value: "JBFqnCBsd6RMkjVDRZzb", label: "George (męski, EN)" },
+        { value: "EXAVITQu4vr4xnSDxMaL", label: "Sarah (kobiecy, EN)" },
+        { value: "FGY2WhTYpPnrIDTdsKH5", label: "Laura (kobiecy, EN)" },
+        { value: "TX3LPaxmHKxFdv7VOQHJ", label: "Liam (męski, EN)" },
+        { value: "XrExE9yKIg1WjnnlVkGX", label: "Matilda (kobiecy, EN)" },
+        { value: "pFZP5JQG7iQjIQuC4Bku", label: "Lily (kobiecy, EN)" },
+        { value: "onwK4e9ZLuTAKqWW03F9", label: "Daniel (męski, EN)" },
+        { value: "cgSgspJ2msm6clMCkdW9", label: "Jessica (kobiecy, EN)" },
+      ],
+    },
+    {
+      key: "model",
+      type: "select",
+      label: "Model",
+      options: [
+        { value: "eleven_multilingual_v2", label: "Multilingual v2 (PL/EN, najlepsza jakość)" },
+        { value: "eleven_turbo_v2_5", label: "Turbo v2.5 (szybszy)" },
+      ],
+    },
   ],
   "post-list": [
     { key: "limit", type: "number", label: "Limit", min: 1, max: 50 },
     { key: "columns", type: "number", label: "Kolumny", min: 1, max: 6 },
-    { key: "variant", type: "select", label: "Wariant", options: [
-      { value: "card", label: "karty" },
-      { value: "minimal", label: "minimalny" },
-      { value: "overlay", label: "overlay na okładce" },
-      { value: "list", label: "lista" },
-    ]},
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      options: [
+        { value: "card", label: "karty" },
+        { value: "minimal", label: "minimalny" },
+        { value: "overlay", label: "overlay na okładce" },
+        { value: "list", label: "lista" },
+      ],
+    },
   ],
   carousel: [
     { key: "limit", type: "number", label: "Limit", min: 1, max: 50 },
-    { key: "autoplay", type: "select", label: "Autoodtwarzanie", options: [
-      { value: "off", label: "wyłączone" },
-      { value: "on", label: "włączone" },
-    ]},
+    {
+      key: "autoplay",
+      type: "select",
+      label: "Autoodtwarzanie",
+      options: [
+        { value: "off", label: "wyłączone" },
+        { value: "on", label: "włączone" },
+      ],
+    },
   ],
   newsletter: [
     { key: "title", type: "i18nText", label: "Tytuł" },
-    { key: "variant", type: "select", label: "Wariant", options: [
-      { value: "icon-only", label: "sama ikona" },
-      { value: "icon", label: "ikona + tekst" },
-      { value: "inline", label: "inline (email + przycisk)" },
-      { value: "card", label: "karta z formularzem" },
-      { value: "minimal", label: "minimalny" },
-    ]},
     {
-      key: "iconName", type: "text", label: "Ikona (Lucide)",
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      options: [
+        { value: "icon-only", label: "sama ikona" },
+        { value: "icon", label: "ikona + tekst" },
+        { value: "inline", label: "inline (email + przycisk)" },
+        { value: "card", label: "karta z formularzem" },
+        { value: "minimal", label: "minimalny" },
+      ],
+    },
+    {
+      key: "iconName",
+      type: "text",
+      label: "Ikona (Lucide)",
       placeholder: "Mail, Send, BellRing, Inbox…",
       hint: "Nazwa ikony Lucide. Domyślnie: Mail.",
       visibleWhen: (c) => {
@@ -395,18 +560,28 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "subtitle", type: "i18nText", label: "Podtytuł (opcjonalny)" },
     { key: "cta", type: "i18nText", label: "CTA" },
     { key: "href", type: "url", label: "Link" },
-    { key: "variant", type: "select", label: "Wariant", options: [
-      { value: "default", label: "domyślny" },
-      { value: "gradient", label: "gradient" },
-      { value: "split", label: "split (dwa rzędy)" },
-      { value: "bar", label: "wąski pasek" },
-      { value: "card", label: "karta z cieniem" },
-    ]},
-    { key: "align", type: "select", label: "Wyrównanie", options: [
-      { value: "left", label: "lewo" },
-      { value: "center", label: "środek" },
-      { value: "between", label: "rozsunięte" },
-    ]},
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      options: [
+        { value: "default", label: "domyślny" },
+        { value: "gradient", label: "gradient" },
+        { value: "split", label: "split (dwa rzędy)" },
+        { value: "bar", label: "wąski pasek" },
+        { value: "card", label: "karta z cieniem" },
+      ],
+    },
+    {
+      key: "align",
+      type: "select",
+      label: "Wyrównanie",
+      options: [
+        { value: "left", label: "lewo" },
+        { value: "center", label: "środek" },
+        { value: "between", label: "rozsunięte" },
+      ],
+    },
   ],
   // Legacy "contact" alias - same fields as the new "contact-form" widget.
   // Actual array is attached after WIDGET_SCHEMAS is constructed (see bottom of file).
@@ -416,14 +591,18 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "label", type: "i18nText", label: "Etykieta" },
     { key: "href", type: "url", label: "Docelowy URL", placeholder: "/about lub https://…" },
     {
-      key: "target", type: "select", label: "Otwórz w",
+      key: "target",
+      type: "select",
+      label: "Otwórz w",
       options: [
         { value: "self", label: "tym samym oknie" },
         { value: "blank", label: "nowej karcie" },
       ],
     },
     {
-      key: "variant", type: "select", label: "Wygląd",
+      key: "variant",
+      type: "select",
+      label: "Wygląd",
       options: [
         { value: "text", label: "tekst" },
         { value: "underline", label: "podkreślony" },
@@ -433,7 +612,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
-      key: "iconName", type: "text", label: "Ikona (opcjonalna)",
+      key: "iconName",
+      type: "text",
+      label: "Ikona (opcjonalna)",
       placeholder: "ChevronRight, ExternalLink…",
       hint: "Nazwa ikony Lucide. Zostaw puste, aby ukryć.",
     },
@@ -444,26 +625,49 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "role", type: "i18nText", label: "Rola" },
     { key: "avatar", type: "url", label: "Avatar (URL)" },
     { key: "rating", type: "number", label: "Ocena (0–5)", min: 0, max: 5 },
-    { key: "variant", type: "select", label: "Wariant", options: [
-      { value: "card", label: "karta" },
-      { value: "minimal", label: "minimalny" },
-      { value: "quote", label: "z dużym cudzysłowem" },
-      { value: "centered", label: "wycentrowany" },
-    ]},
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      options: [
+        { value: "card", label: "karta" },
+        { value: "minimal", label: "minimalny" },
+        { value: "quote", label: "z dużym cudzysłowem" },
+        { value: "centered", label: "wycentrowany" },
+      ],
+    },
   ],
   "search-button": [
     { key: "label", type: "i18nText", label: "Placeholder", placeholder: "Szukaj" },
-    { key: "height", type: "number", label: "Wysokość pola (px)", min: 24, max: 120, default: 40, hint: "Domyślnie 40 px." },
+    {
+      key: "height",
+      type: "number",
+      label: "Wysokość pola (px)",
+      min: 24,
+      max: 120,
+      default: 40,
+      hint: "Domyślnie 40 px.",
+    },
     { key: "radius", type: "number", label: "Zaokrąglenie (px)", min: 0, max: 60, default: 8 },
-    { key: "fontSize", type: "number", label: "Rozmiar tekstu (px)", min: 10, max: 32, default: 14 },
+    {
+      key: "fontSize",
+      type: "number",
+      label: "Rozmiar tekstu (px)",
+      min: 10,
+      max: 32,
+      default: 14,
+    },
     { key: "limit", type: "number", label: "Limit wyników", min: 1, max: 20, default: 8 },
-    { key: "liveResults", type: "select", label: "Wyniki na żywo", options: [
-      { value: "on", label: "włączone" },
-      { value: "off", label: "wyłączone" },
-    ]},
+    {
+      key: "liveResults",
+      type: "select",
+      label: "Wyniki na żywo",
+      options: [
+        { value: "on", label: "włączone" },
+        { value: "off", label: "wyłączone" },
+      ],
+    },
   ],
-
-
 
   // ---------- Home-page building blocks ----------
   "section-label": [
@@ -478,7 +682,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "href", type: "url", label: "Link (opcjonalny)" },
     {
-      key: "iconName", type: "text", label: "Ikona (Lucide)",
+      key: "iconName",
+      type: "text",
+      label: "Ikona (Lucide)",
       placeholder: "Flame, Zap, AlertTriangle…",
       hint: "Nazwa ikony Lucide. Domyślnie: Flame.",
     },
@@ -489,7 +695,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "excerpt", type: "i18nText", label: "Zajawka (opcjonalna)" },
     { key: "image", type: "image", label: "Obrazek", hint: "Wklej URL lub wgraj plik z dysku." },
     {
-      key: "imageHover", type: "select", label: "Animacja obrazka (hover)",
+      key: "imageHover",
+      type: "select",
+      label: "Animacja obrazka (hover)",
       options: [
         { value: "zoom-in", label: "Zoom in (przybliżenie)" },
         { value: "zoom-out", label: "Zoom out (oddalenie)" },
@@ -503,14 +711,31 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "href", type: "url", label: "Link (opcjonalny)" },
   ],
   "social-icons": [
-    { key: "facebook", type: "url", label: "Facebook URL", placeholder: "https://facebook.com/..." },
+    {
+      key: "facebook",
+      type: "url",
+      label: "Facebook URL",
+      placeholder: "https://facebook.com/...",
+    },
     { key: "x", type: "url", label: "X (dawniej Twitter) URL", placeholder: "https://x.com/..." },
     { key: "youtube", type: "url", label: "YouTube URL", placeholder: "https://youtube.com/..." },
-    { key: "instagram", type: "url", label: "Instagram URL", placeholder: "https://instagram.com/..." },
-    { key: "linkedin", type: "url", label: "LinkedIn URL", placeholder: "https://linkedin.com/in/..." },
+    {
+      key: "instagram",
+      type: "url",
+      label: "Instagram URL",
+      placeholder: "https://instagram.com/...",
+    },
+    {
+      key: "linkedin",
+      type: "url",
+      label: "LinkedIn URL",
+      placeholder: "https://linkedin.com/in/...",
+    },
     { key: "email", type: "text", label: "Email", placeholder: "kontakt@..." },
     {
-      key: "showEmpty", type: "select", label: "Puste platformy",
+      key: "showEmpty",
+      type: "select",
+      label: "Puste platformy",
       options: [
         { value: "hide", label: "ukryj (tylko z linkiem)" },
         { value: "show", label: "pokaż wyszarzone" },
@@ -518,9 +743,18 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       hint: "Czy pokazywać ikony bez linku.",
     },
     { key: "size", type: "number", label: "Rozmiar ikony (px)", min: 10, max: 64 },
-    { key: "gap", type: "number", label: "Odstęp między ikonami (px)", min: 0, max: 32, hint: "Odległość między poszczególnymi ikonami." },
     {
-      key: "colorMode", type: "select", label: "Kolory ikon",
+      key: "gap",
+      type: "number",
+      label: "Odstęp między ikonami (px)",
+      min: 0,
+      max: 32,
+      hint: "Odległość między poszczególnymi ikonami.",
+    },
+    {
+      key: "colorMode",
+      type: "select",
+      label: "Kolory ikon",
       options: [
         { value: "inherit", label: "domyślne (dziedziczone)" },
         { value: "brand", label: "kolor brand" },
@@ -531,12 +765,16 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
-      key: "customColor", type: "text", label: "Własny kolor",
+      key: "customColor",
+      type: "text",
+      label: "Własny kolor",
       placeholder: "#1877F2 lub var(--brand)",
       visibleWhen: (c) => c.colorMode === "custom",
     },
     {
-      key: "bgMode", type: "select", label: "Tło ikony",
+      key: "bgMode",
+      type: "select",
+      label: "Tło ikony",
       options: [
         { value: "none", label: "brak" },
         { value: "subtle", label: "delikatne (muted)" },
@@ -547,12 +785,16 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
-      key: "customBgColor", type: "text", label: "Własny kolor tła",
+      key: "customBgColor",
+      type: "text",
+      label: "Własny kolor tła",
       placeholder: "#000000",
       visibleWhen: (c) => c.bgMode === "custom",
     },
     {
-      key: "shape", type: "select", label: "Zaokrąglenie",
+      key: "shape",
+      type: "select",
+      label: "Zaokrąglenie",
       options: [
         { value: "none", label: "brak (kant)" },
         { value: "sm", label: "małe" },
@@ -563,7 +805,9 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
-      key: "themeAdapt", type: "select", label: "Adaptacja dark / light",
+      key: "themeAdapt",
+      type: "select",
+      label: "Adaptacja dark / light",
       options: [
         { value: "auto", label: "automatyczna (dostosuj się)" },
         { value: "force-light", label: "wymuś jasny styl" },
@@ -575,22 +819,42 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   ],
   // `rated-list` has its own custom list editor in WidgetProperties.tsx.
   "news-ticker": [
-    { key: "badge", type: "i18nText", label: "Etykieta (badge)", placeholder: "Najnowsze / Latest" },
-    { key: "limit", type: "number", label: "Liczba wpisów", min: 3, max: 30 },
-    { key: "speedSeconds", type: "number", label: "Tempo (sekundy na pętlę)", min: 10, max: 180,
-      hint: "Im większa wartość, tym wolniejsze przewijanie." },
     {
-      key: "pauseOnHover", type: "select", label: "Pauza po najechaniu",
+      key: "badge",
+      type: "i18nText",
+      label: "Etykieta (badge)",
+      placeholder: "Najnowsze / Latest",
+    },
+    { key: "limit", type: "number", label: "Liczba wpisów", min: 3, max: 30 },
+    {
+      key: "speedSeconds",
+      type: "number",
+      label: "Tempo (sekundy na pętlę)",
+      min: 10,
+      max: 180,
+      hint: "Im większa wartość, tym wolniejsze przewijanie.",
+    },
+    {
+      key: "pauseOnHover",
+      type: "select",
+      label: "Pauza po najechaniu",
       options: [
         { value: "true", label: "Tak" },
         { value: "false", label: "Nie" },
       ],
     },
     { key: "separator", type: "text", label: "Separator", placeholder: "•" },
-    { key: "categoriesCsv", type: "text", label: "Kategorie (slugi, po przecinku)",
-      placeholder: "polityka, gospodarka", hint: "Pozostaw puste = wszystkie." },
     {
-      key: "uniqueOnPage", type: "select", label: "Nie powtarzaj wpisów",
+      key: "categoriesCsv",
+      type: "text",
+      label: "Kategorie (slugi, po przecinku)",
+      placeholder: "polityka, gospodarka",
+      hint: "Pozostaw puste = wszystkie.",
+    },
+    {
+      key: "uniqueOnPage",
+      type: "select",
+      label: "Nie powtarzaj wpisów",
       options: [
         { value: "false", label: "Wyłączone" },
         { value: "true", label: "Pomiń wpisy widoczne w innych widgetach" },
@@ -599,121 +863,299 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     },
   ],
   "podcast-latest": [
-    { key: "variant", type: "select", label: "Wariant",
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
       options: [
         { value: "grid", label: "Siatka" },
         { value: "list", label: "Lista" },
         { value: "featured", label: "Wyróżniony odcinek" },
-      ] },
+      ],
+    },
     { key: "limit", type: "number", label: "Liczba odcinków", min: 1, max: 24 },
-    { key: "columns", type: "number", label: "Kolumny (siatka)", min: 1, max: 4,
-      hint: "Tylko dla wariantu „Siatka”." },
-    { key: "showPlayer", type: "select", label: "Pokaż odtwarzacz",
+    {
+      key: "columns",
+      type: "number",
+      label: "Kolumny (siatka)",
+      min: 1,
+      max: 4,
+      hint: "Tylko dla wariantu „Siatka”.",
+    },
+    {
+      key: "showPlayer",
+      type: "select",
+      label: "Pokaż odtwarzacz",
       options: [
         { value: "true", label: "Tak" },
         { value: "false", label: "Nie" },
-      ] },
+      ],
+    },
   ],
   "web-stories-carousel": [
-    { key: "variant", type: "select", label: "Wariant",
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
       options: [
         { value: "carousel", label: "Karuzela" },
         { value: "grid", label: "Siatka" },
-      ] },
+      ],
+    },
     { key: "limit", type: "number", label: "Liczba historii", min: 2, max: 20 },
-    { key: "aspect", type: "select", label: "Proporcje kafla",
+    {
+      key: "aspect",
+      type: "select",
+      label: "Proporcje kafla",
       options: [
         { value: "9/16", label: "Pionowy 9:16" },
         { value: "3/4", label: "3:4" },
         { value: "1/1", label: "Kwadrat" },
-      ] },
+      ],
+    },
   ],
   "join-us": [
-    { key: "variant", type: "select", label: "Wariant", options: [
-      { value: "card", label: "karta" },
-      { value: "split", label: "split (lewo: korzyści, prawo: formularz)" },
-      { value: "inline", label: "inline" },
-    ]},
-    { key: "showInterests", type: "select", label: "Pokaż wybór zainteresowań",
-      options: [ { value: "1", label: "tak" }, { value: "0", label: "nie" } ] },
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      options: [
+        { value: "card", label: "karta" },
+        { value: "split", label: "split (lewo: korzyści, prawo: formularz)" },
+        { value: "inline", label: "inline" },
+      ],
+    },
+    {
+      key: "showInterests",
+      type: "select",
+      label: "Pokaż wybór zainteresowań",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
     { key: "title", type: "i18nText", label: "Tytuł (opcjonalny - zastępuje domyślny)" },
     { key: "subtitle", type: "i18nText", label: "Podtytuł (opcjonalny)" },
   ],
   "customize-interests": [
-    { key: "variant", type: "select", label: "Wariant", options: [
-      { value: "full", label: "pełny" },
-      { value: "compact", label: "kompaktowy" },
-    ]},
-    { key: "showHeader", type: "select", label: "Pokaż nagłówek",
-      options: [ { value: "1", label: "tak" }, { value: "0", label: "nie" } ] },
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      options: [
+        { value: "full", label: "pełny" },
+        { value: "compact", label: "kompaktowy" },
+      ],
+    },
+    {
+      key: "showHeader",
+      type: "select",
+      label: "Pokaż nagłówek",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
   ],
   "contact-form": [
-    { key: "variant", type: "select", label: "Wariant",
-      options: [{ value: "card", label: "Karta" }, { value: "flat", label: "Płaski" }] },
+    {
+      key: "variant",
+      type: "select",
+      label: "Wariant",
+      options: [
+        { value: "card", label: "Karta" },
+        { value: "flat", label: "Płaski" },
+      ],
+    },
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "subtitle", type: "i18nText", label: "Podtytuł" },
-    { key: "iconUrl", type: "image", label: "Ikona nagłówka", hint: "Rekomendowane 128x128 px (PNG/SVG, kwadrat)" },
+    {
+      key: "iconUrl",
+      type: "image",
+      label: "Ikona nagłówka",
+      hint: "Rekomendowane 128x128 px (PNG/SVG, kwadrat)",
+    },
     // ----- Pola formularza -----
-    { key: "showFirstName", type: "select", label: "Pole: Imię",
-      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
-    { key: "showLastName", type: "select", label: "Pole: Nazwisko",
-      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
-    { key: "showEmail", type: "select", label: "Pole: E-mail",
-      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
-    { key: "showPhone", type: "select", label: "Pole: Telefon",
-      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
-    { key: "showCompany", type: "select", label: "Pole: Firma",
-      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
-    { key: "showSubject", type: "select", label: "Pole: Temat",
-      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
-    { key: "showMessage", type: "select", label: "Pole: Wiadomość",
-      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
-    { key: "requireConsent", type: "select", label: "Wymagaj zgody (RODO)",
-      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
-    { key: "consentText", type: "i18nText", label: "Treść zgody (RODO)",
-      hint: "Możesz użyć składni [tekst linku](https://adres.pl) aby wstawić inline hiperłącze." },
-    { key: "showNewsletterOptIn", type: "select", label: "Pole: Zapis do newslettera",
-      options: [{ value: "1", label: "tak" }, { value: "0", label: "nie" }] },
+    {
+      key: "showFirstName",
+      type: "select",
+      label: "Pole: Imię",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
+    {
+      key: "showLastName",
+      type: "select",
+      label: "Pole: Nazwisko",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
+    {
+      key: "showEmail",
+      type: "select",
+      label: "Pole: E-mail",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
+    {
+      key: "showPhone",
+      type: "select",
+      label: "Pole: Telefon",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
+    {
+      key: "showCompany",
+      type: "select",
+      label: "Pole: Firma",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
+    {
+      key: "showSubject",
+      type: "select",
+      label: "Pole: Temat",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
+    {
+      key: "showMessage",
+      type: "select",
+      label: "Pole: Wiadomość",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
+    {
+      key: "requireConsent",
+      type: "select",
+      label: "Wymagaj zgody (RODO)",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
+    {
+      key: "consentText",
+      type: "i18nText",
+      label: "Treść zgody (RODO)",
+      hint: "Możesz użyć składni [tekst linku](https://adres.pl) aby wstawić inline hiperłącze.",
+    },
+    {
+      key: "showNewsletterOptIn",
+      type: "select",
+      label: "Pole: Zapis do newslettera",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
 
     { key: "newsletterLabel", type: "i18nText", label: "Etykieta zapisu do newslettera" },
     // ----- Layout & przycisk -----
-    { key: "columns", type: "select", label: "Kolumny",
-      options: [{ value: "1", label: "1" }, { value: "2", label: "2" }, { value: "3", label: "3" }] },
+    {
+      key: "columns",
+      type: "select",
+      label: "Kolumny",
+      options: [
+        { value: "1", label: "1" },
+        { value: "2", label: "2" },
+        { value: "3", label: "3" },
+      ],
+    },
     { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
-    { key: "buttonPosition", type: "select", label: "Pozycja przycisku",
+    {
+      key: "buttonPosition",
+      type: "select",
+      label: "Pozycja przycisku",
       options: [
         { value: "bottom", label: "pod formularzem" },
         { value: "inline-right", label: "obok pól (po prawej)" },
-      ] },
-    { key: "buttonAlign", type: "select", label: "Wyrównanie przycisku",
+      ],
+    },
+    {
+      key: "buttonAlign",
+      type: "select",
+      label: "Wyrównanie przycisku",
       options: [
         { value: "left", label: "lewa" },
         { value: "center", label: "środek" },
         { value: "right", label: "prawa" },
         { value: "full", label: "pełna szerokość" },
-      ] },
-    { key: "buttonVariant", type: "select", label: "Wariant przycisku",
+      ],
+    },
+    {
+      key: "buttonVariant",
+      type: "select",
+      label: "Wariant przycisku",
       options: [
         { value: "solid", label: "wypełniony" },
         { value: "outline", label: "obrysowany" },
         { value: "ghost", label: "ghost" },
         { value: "gradient", label: "gradient" },
-      ] },
-    { key: "buttonSize", type: "select", label: "Rozmiar przycisku",
+      ],
+    },
+    {
+      key: "buttonSize",
+      type: "select",
+      label: "Rozmiar przycisku",
       options: [
-        { value: "sm", label: "S" }, { value: "md", label: "M" }, { value: "lg", label: "L" },
-      ] },
+        { value: "sm", label: "S" },
+        { value: "md", label: "M" },
+        { value: "lg", label: "L" },
+      ],
+    },
     // ----- Wygląd / tło -----
     { key: "bgLight", type: "color", label: "Tło (light mode)" },
     { key: "bgDark", type: "color", label: "Tło (dark mode)" },
     { key: "textColor", type: "color", label: "Kolor tekstu" },
     { key: "borderColor", type: "color", label: "Kolor obramowania" },
     { key: "radiusPx", type: "number", label: "Zaokrąglenie (px)", min: 0, max: 64, step: 1 },
-    { key: "paddingPx", type: "number", label: "Padding wewnętrzny (px)", min: 0, max: 96, step: 2 },
-    { key: "bgImage", type: "image", label: "Obraz tła (desktop)", hint: "Rekomendowane 1600x900 px (lub 2400x1200 dla hero)" },
-    { key: "bgImageMobile", type: "image", label: "Obraz tła (mobile)", hint: "Rekomendowane 800x1000 px (portret)" },
-    { key: "bgOverlay", type: "number", label: "Przyciemnienie obrazu tła (%)", min: 0, max: 100, step: 5 },
-    { key: "bgAnimation", type: "select", label: "Animacja tła",
+    {
+      key: "paddingPx",
+      type: "number",
+      label: "Padding wewnętrzny (px)",
+      min: 0,
+      max: 96,
+      step: 2,
+    },
+    {
+      key: "bgImage",
+      type: "image",
+      label: "Obraz tła (desktop)",
+      hint: "Rekomendowane 1600x900 px (lub 2400x1200 dla hero)",
+    },
+    {
+      key: "bgImageMobile",
+      type: "image",
+      label: "Obraz tła (mobile)",
+      hint: "Rekomendowane 800x1000 px (portret)",
+    },
+    {
+      key: "bgOverlay",
+      type: "number",
+      label: "Przyciemnienie obrazu tła (%)",
+      min: 0,
+      max: 100,
+      step: 5,
+    },
+    {
+      key: "bgAnimation",
+      type: "select",
+      label: "Animacja tła",
       options: [
         { value: "none", label: "brak" },
         { value: "aurora", label: "Aurora (zorze)" },
@@ -722,15 +1164,16 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "wave-lines", label: "Wave lines (fale)" },
         { value: "noise-shimmer", label: "Noise shimmer (poświata)" },
         { value: "orbits", label: "Orbits (orbity)" },
-      ] },
-    { key: "recipient", type: "text", label: "E-mail odbiorcy (override)", placeholder: "kontakt@firma.pl" },
+      ],
+    },
+    {
+      key: "recipient",
+      type: "text",
+      label: "E-mail odbiorcy (override)",
+      placeholder: "kontakt@firma.pl",
+    },
   ],
 };
-
-
-
-
-
 
 // Alias legacy "contact" widget schema to the new "contact-form" schema so any
 // page still referencing the old type gets the full property panel.

@@ -18,20 +18,31 @@ const UsedPostIdsContext = createContext<UsedPostIdsApi | null>(null);
 
 export function UsedPostIdsProvider({ children }: { children: ReactNode }) {
   const ref = useRef<Set<string>>(new Set());
-  const api = useMemo<UsedPostIdsApi>(() => ({
-    register: (ids) => { for (const id of ids) if (id) ref.current.add(id); },
-    getSnapshot: () => Array.from(ref.current),
-  }), []);
+  const api = useMemo<UsedPostIdsApi>(
+    () => ({
+      register: (ids) => {
+        for (const id of ids) if (id) ref.current.add(id);
+      },
+      getSnapshot: () => Array.from(ref.current),
+    }),
+    [],
+  );
   return <UsedPostIdsContext.Provider value={api}>{children}</UsedPostIdsContext.Provider>;
 }
 
 export function useUsedPostIds(): UsedPostIdsApi {
   const ctx = useContext(UsedPostIdsContext);
   // Fallback no-op API for usages outside a provider (e.g. isolated tests).
-  return useMemo<UsedPostIdsApi>(() => ctx ?? ({
-    register: () => { /* no-op */ },
-    getSnapshot: () => [],
-  }), [ctx]);
+  return useMemo<UsedPostIdsApi>(
+    () =>
+      ctx ?? {
+        register: () => {
+          /* no-op */
+        },
+        getSnapshot: () => [],
+      },
+    [ctx],
+  );
 }
 
 // Test hook: registers a callback to be invoked whenever ids change.

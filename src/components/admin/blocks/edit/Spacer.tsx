@@ -1,7 +1,10 @@
 import type { Block } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 export function SpacerBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
@@ -13,13 +16,15 @@ export function SpacerBlock({ block, onChange }: Props) {
         style={{ height }}
       />
       <div className="flex items-center gap-2 mt-1 text-xs">
-        <label className="text-muted-foreground">{i18n.editor("spacer","heightLabel")}</label>
+        <label className="text-muted-foreground">{i18n.editor("spacer", "heightLabel")}</label>
         <input
           type="range"
           min={8}
           max={400}
           value={height}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, height: Number(e.target.value) } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, height: Number(e.target.value) } })
+          }
           className="flex-1"
         />
         <span className="font-mono w-12 text-right">{height}px</span>

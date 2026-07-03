@@ -16,14 +16,22 @@ describe("initObservability", () => {
     removeSpy = vi.spyOn(window, "removeEventListener");
     // Error capture now beacons by default (internal endpoint), so stub the
     // transport to keep the test off the network.
-    Object.defineProperty(navigator, "sendBeacon", { value: vi.fn(() => true), configurable: true, writable: true });
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: vi.fn(() => true),
+      configurable: true,
+      writable: true,
+    });
   });
   afterEach(() => {
     cleanup?.();
     cleanup = undefined;
     addSpy.mockRestore();
     removeSpy.mockRestore();
-    Object.defineProperty(navigator, "sendBeacon", { value: originalBeacon, configurable: true, writable: true });
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: originalBeacon,
+      configurable: true,
+      writable: true,
+    });
   });
 
   it("starts web vitals and wires global error listeners once", () => {
@@ -52,7 +60,9 @@ describe("initObservability", () => {
 
   it("error and rejection events are handled without throwing", () => {
     cleanup = initObservability();
-    expect(() => window.dispatchEvent(new ErrorEvent("error", { error: new Error("x") }))).not.toThrow();
+    expect(() =>
+      window.dispatchEvent(new ErrorEvent("error", { error: new Error("x") })),
+    ).not.toThrow();
     expect(() =>
       window.dispatchEvent(
         new (class extends Event {
