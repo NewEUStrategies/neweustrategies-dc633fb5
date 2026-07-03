@@ -84,6 +84,7 @@ import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAuthorsRouteImport } from './routes/admin.authors'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
 import { Route as AdminAdsRouteImport } from './routes/admin.ads'
+import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
@@ -485,6 +486,11 @@ const AdminAdsRoute = AdminAdsRouteImport.update({
   path: '/ads',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminUsersIndexRoute = AdminUsersIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminUsersRoute,
+} as any)
 const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -713,6 +719,7 @@ export interface FileRoutesByFullPath {
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
+  '/admin/users/': typeof AdminUsersIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
 }
@@ -763,7 +770,6 @@ export interface FileRoutesByTo {
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
-  '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
@@ -812,6 +818,7 @@ export interface FileRoutesByTo {
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
+  '/admin/users': typeof AdminUsersIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
 }
@@ -915,6 +922,7 @@ export interface FileRoutesById {
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
+  '/admin/users/': typeof AdminUsersIndexRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
 }
@@ -1019,6 +1027,7 @@ export interface FileRouteTypes {
     | '/api/public/client-errors'
     | '/api/public/vitals'
     | '/admin/settings/'
+    | '/admin/users/'
     | '/api/public/newsletter/confirm'
     | '/api/public/webhooks/stripe'
   fileRoutesByTo: FileRoutesByTo
@@ -1069,7 +1078,6 @@ export interface FileRouteTypes {
     | '/admin/tags'
     | '/admin/theme-design'
     | '/admin/theme-options'
-    | '/admin/users'
     | '/admin/web-stories'
     | '/api/tts'
     | '/author/$slug'
@@ -1118,6 +1126,7 @@ export interface FileRouteTypes {
     | '/api/public/client-errors'
     | '/api/public/vitals'
     | '/admin/settings'
+    | '/admin/users'
     | '/api/public/newsletter/confirm'
     | '/api/public/webhooks/stripe'
   id:
@@ -1220,6 +1229,7 @@ export interface FileRouteTypes {
     | '/api/public/client-errors'
     | '/api/public/vitals'
     | '/admin/settings/'
+    | '/admin/users/'
     | '/api/public/newsletter/confirm'
     | '/api/public/webhooks/stripe'
   fileRoutesById: FileRoutesById
@@ -1785,6 +1795,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAdsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/users/': {
+      id: '/admin/users/'
+      path: '/'
+      fullPath: '/admin/users/'
+      preLoaderRoute: typeof AdminUsersIndexRouteImport
+      parentRoute: typeof AdminUsersRoute
+    }
     '/admin/settings/': {
       id: '/admin/settings/'
       path: '/'
@@ -2053,10 +2070,12 @@ const AdminSettingsRouteWithChildren = AdminSettingsRoute._addFileChildren(
 
 interface AdminUsersRouteChildren {
   AdminUsersIdRoute: typeof AdminUsersIdRoute
+  AdminUsersIndexRoute: typeof AdminUsersIndexRoute
 }
 
 const AdminUsersRouteChildren: AdminUsersRouteChildren = {
   AdminUsersIdRoute: AdminUsersIdRoute,
+  AdminUsersIndexRoute: AdminUsersIndexRoute,
 }
 
 const AdminUsersRouteWithChildren = AdminUsersRoute._addFileChildren(
@@ -2214,3 +2233,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
