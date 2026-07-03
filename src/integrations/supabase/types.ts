@@ -3590,6 +3590,100 @@ export type Database = {
           content_pl: string
         }[]
       }
+      get_page_for_edit: {
+        Args: { _slug: string }
+        Returns: {
+          author_id: string | null
+          builder_data: Json | null
+          content_en: string | null
+          content_pl: string | null
+          cover_image_url: string | null
+          created_at: string
+          deleted_at: string | null
+          editor: Database["public"]["Enums"]["editor_type"]
+          excerpt_en: string | null
+          excerpt_pl: string | null
+          header_override: string | null
+          id: string
+          layout_overrides: Json | null
+          menu_order: number
+          og_image_generated_url: string | null
+          parent_id: string | null
+          published_at: string | null
+          search_vector: unknown
+          seo_canonical_url: string | null
+          seo_description_en: string | null
+          seo_description_pl: string | null
+          seo_noindex: boolean
+          seo_og_image_url: string | null
+          seo_title_en: string | null
+          seo_title_pl: string | null
+          slug: string
+          status: Database["public"]["Enums"]["post_status"]
+          template_id: string | null
+          template_type: string
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "pages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      get_post_for_edit: {
+        Args: { _slug: string }
+        Returns: {
+          author_id: string | null
+          blocks_data: Json | null
+          builder_data: Json | null
+          content_en: string | null
+          content_pl: string | null
+          cover_image_url: string | null
+          created_at: string
+          custom_meta: Json
+          deleted_at: string | null
+          editor: Database["public"]["Enums"]["editor_type"]
+          excerpt_en: string | null
+          excerpt_pl: string | null
+          id: string
+          layout_overrides: Json | null
+          og_image_generated_url: string | null
+          parent_page_id: string
+          post_format: string
+          publish_at: string | null
+          published_at: string | null
+          read_minutes: number | null
+          related_override: Json | null
+          search_vector: unknown
+          seo_canonical_url: string | null
+          seo_description_en: string | null
+          seo_description_pl: string | null
+          seo_noindex: boolean
+          seo_og_image_url: string | null
+          seo_title_en: string | null
+          seo_title_pl: string | null
+          sidebar_layout_id: string | null
+          slug: string
+          status: Database["public"]["Enums"]["post_status"]
+          takeaways_en: string[]
+          takeaways_pl: string[]
+          template_id: string | null
+          tenant_id: string
+          title_en: string
+          title_pl: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "posts"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       guess_gender_from_name: {
         Args: { _name: string }
         Returns: Database["public"]["Enums"]["name_gender"]
