@@ -450,9 +450,22 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     coverUrl: it.cover_image_url ?? undefined,
     publishedAt: it.published_at ?? undefined,
     readingTimeMin: post?.read_minutes ?? undefined,
-    author: null,
+    author: postAuthor
+      ? {
+          id: postAuthor.id,
+          name:
+            postAuthor.display_name ||
+            [postAuthor.first_name, postAuthor.last_name].filter(Boolean).join(" ") ||
+            undefined,
+          slug: postAuthor.slug ?? undefined,
+          avatarUrl: postAuthor.avatar_url ?? undefined,
+        }
+      : null,
     tags: postTags ?? [],
-    categories: (data as { categories?: Array<{ slug: string; name: string }> }).categories ?? [],
+    categories: postCategories.map((c) => ({
+      slug: c.slug,
+      name: lang === "en" ? c.name_en || c.name_pl : c.name_pl || c.name_en,
+    })),
     breadcrumbs: crumbs.map((b) => ({ label: b.label, href: b.href ?? undefined })),
   };
 
