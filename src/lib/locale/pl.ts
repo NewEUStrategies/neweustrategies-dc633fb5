@@ -18,7 +18,7 @@ export const pl = {
   },
   hero: {
     hotTopic: "Hot topic",
-    readMore: "Czytaj więcej",
+    readMore: "Przeczytaj pełną analizę",
     minRead: "min czytania",
     by: "Autor",
   },
