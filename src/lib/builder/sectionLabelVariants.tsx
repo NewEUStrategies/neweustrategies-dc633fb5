@@ -343,7 +343,7 @@ export function SectionLabelRender({
         : "text-[11px] sm:text-xs font-medium text-foreground/80 hover:opacity-80 transition";
       return (
         <div className={`${wrapperBase} w-full min-w-0`}>
-          <div className="relative flex items-end gap-2 w-full min-w-0 overflow-visible">
+          <div className="relative flex items-center gap-2 w-full min-w-0 overflow-visible">
             <span
               className={`relative z-10 inline-flex items-center flex-none max-w-full ${ribbonPadX} ${ribbonPadY} ${labelCls}`}
               style={{
