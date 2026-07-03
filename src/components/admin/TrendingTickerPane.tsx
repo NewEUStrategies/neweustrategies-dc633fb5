@@ -13,8 +13,10 @@ import { toast } from "sonner";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 
 type Json = Record<string, unknown>;
-type Source = "trending" | "latest" | "pinned";
+type Source = "trending" | "latest" | "pinned" | "selected";
 type Mode = "scroll" | "fade" | "slide" | "flip" | "typewriter";
+
+const MAX_SELECTED = 3;
 
 interface TrendingCfg {
   enabled: boolean;
@@ -26,6 +28,7 @@ interface TrendingCfg {
   intervalSec: number;
   pinnedPostId: string;
   pinnedUntil: string;
+  selectedPostIds: string[];
   fullWidth: boolean;
 }
 
@@ -39,6 +42,7 @@ const DEFAULTS: TrendingCfg = {
   intervalSec: 6,
   pinnedPostId: "",
   pinnedUntil: "",
+  selectedPostIds: [],
   fullWidth: true,
 };
 
