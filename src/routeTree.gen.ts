@@ -81,6 +81,7 @@ import { Route as AdminContentAreaRouteImport } from './routes/admin.content-are
 import { Route as AdminContactRouteImport } from './routes/admin.contact'
 import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category-colors'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
+import { Route as AdminAuthorsRouteImport } from './routes/admin.authors'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
 import { Route as AdminAdsRouteImport } from './routes/admin.ads'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
@@ -468,6 +469,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminAuthorsRoute = AdminAuthorsRouteImport.update({
+  id: '/authors',
+  path: '/authors',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminAppearanceRoute = AdminAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
@@ -620,6 +626,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
+  '/admin/authors': typeof AdminAuthorsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/contact': typeof AdminContactRoute
@@ -718,6 +725,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
+  '/admin/authors': typeof AdminAuthorsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/contact': typeof AdminContactRoute
@@ -818,6 +826,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
+  '/admin/authors': typeof AdminAuthorsRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/contact': typeof AdminContactRoute
@@ -920,6 +929,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/ads'
     | '/admin/appearance'
+    | '/admin/authors'
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/contact'
@@ -1018,6 +1028,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/ads'
     | '/admin/appearance'
+    | '/admin/authors'
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/contact'
@@ -1117,6 +1128,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin/ads'
     | '/admin/appearance'
+    | '/admin/authors'
     | '/admin/categories'
     | '/admin/category-colors'
     | '/admin/contact'
@@ -1740,6 +1752,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCategoriesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/authors': {
+      id: '/admin/authors'
+      path: '/authors'
+      fullPath: '/admin/authors'
+      preLoaderRoute: typeof AdminAuthorsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/appearance': {
       id: '/admin/appearance'
       path: '/appearance'
@@ -2016,6 +2035,7 @@ const AdminSettingsRouteWithChildren = AdminSettingsRoute._addFileChildren(
 interface AdminRouteChildren {
   AdminAdsRoute: typeof AdminAdsRoute
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
+  AdminAuthorsRoute: typeof AdminAuthorsRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCategoryColorsRoute: typeof AdminCategoryColorsRoute
   AdminContactRoute: typeof AdminContactRoute
@@ -2056,6 +2076,7 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAdsRoute: AdminAdsRoute,
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
+  AdminAuthorsRoute: AdminAuthorsRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCategoryColorsRoute: AdminCategoryColorsRoute,
   AdminContactRoute: AdminContactRoute,
