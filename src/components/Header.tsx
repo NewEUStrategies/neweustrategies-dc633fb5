@@ -1,7 +1,22 @@
 import { useTranslation } from "react-i18next";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { memo, Suspense, useEffect, useState, type ComponentType } from "react";
-import { Menu, X, LogIn, UserPlus, User, LayoutDashboard, LogOut, Home, Newspaper, Tag, Mic, Mail, DollarSign } from "lucide-react";
+import { createPortal } from "react-dom";
+import {
+  Menu,
+  X,
+  LogIn,
+  UserPlus,
+  User,
+  LayoutDashboard,
+  LogOut,
+  Home,
+  Newspaper,
+  Tag,
+  Mic,
+  Mail,
+  DollarSign,
+} from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
@@ -13,7 +28,6 @@ import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 import { AppLink } from "@/components/atoms/AppLink";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/useAuth";
-
 
 // Shared with the root loader (SSR prefetch of the ticker) - keep in sync.
 export type HeaderSettings = {
@@ -111,52 +125,59 @@ function HeaderInner() {
         <BuilderRenderer doc={cfg.builder_data} lang={isPl ? "pl" : "en"} />
       </div>
 
-      {/* Mobile/Tablet drawer: renders the same builder-authored header. */}
-      {open && (
-        <div
-          id="mobile-header-drawer"
-          role="dialog"
-          aria-modal="true"
-          aria-label={siteName}
-          className="fixed inset-0 z-[9999] lg:hidden"
-        >
-          <button
-            type="button"
-            aria-label={closeA11y}
-            onClick={() => setOpen(false)}
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in"
-          />
-          <div className="absolute inset-y-0 right-0 w-[min(88vw,360px)] bg-background shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right">
-            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
-              <span className="text-sm font-bold tracking-wider uppercase text-muted-foreground">
-                {isPl ? "Menu" : "Menu"}
-              </span>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label={closeA11y}
-                className="inline-flex items-center justify-center h-9 w-9 rounded-md border border-border text-foreground hover:bg-muted transition"
-              >
-                <X className="w-5 h-5" aria-hidden />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain isolate [&_*]:max-w-full">
-              <div className="relative z-50 isolate">
-                <MobileAccountNav isPl={isPl} onNavigate={() => setOpen(false)} />
+      {/* Mobile/Tablet drawer: renders the same builder-authored header.
+          Portaled to <body>: the <header> ancestor has a view-transition-name,
+          which creates a stacking context, so a fixed z-[9999] child would
+          still paint UNDER the later <main> (its own stacking context via
+          view-transition-name). Escaping to <body> restores global stacking. */}
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            id="mobile-header-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label={siteName}
+            className="fixed inset-0 z-[9999] lg:hidden"
+          >
+            <button
+              type="button"
+              aria-label={closeA11y}
+              onClick={() => setOpen(false)}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in"
+            />
+            <div className="absolute inset-y-0 right-0 w-[min(88vw,360px)] bg-background shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right">
+              <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
+                <span className="text-sm font-bold tracking-wider uppercase text-muted-foreground">
+                  {isPl ? "Menu" : "Menu"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label={closeA11y}
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-md border border-border text-foreground hover:bg-muted transition"
+                >
+                  <X className="w-5 h-5" aria-hidden />
+                </button>
               </div>
-              {/* Force mobile-device rendering inside the drawer so widgets
+              <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain isolate [&_*]:max-w-full">
+                <div className="relative z-50 isolate">
+                  <MobileAccountNav isPl={isPl} onNavigate={() => setOpen(false)} />
+                </div>
+                {/* Force mobile-device rendering inside the drawer so widgets
                   stack vertically (columns collapse to single column). */}
-              <div className="relative z-0 isolate">
-                <BuilderRenderer
-                  doc={cfg.builder_data}
-                  lang={isPl ? "pl" : "en"}
-                  device="mobile"
-                />
+                <div className="relative z-0 isolate">
+                  <BuilderRenderer
+                    doc={cfg.builder_data}
+                    lang={isPl ? "pl" : "en"}
+                    device="mobile"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
@@ -165,7 +186,11 @@ function MobileAccountNav({ isPl, onNavigate }: { isPl: boolean; onNavigate: () 
   const { session, isStaff, signOut } = useAuth();
   const t = (pl: string, en: string) => (isPl ? pl : en);
 
-  const navItems: Array<{ to: string; label: string; icon: ComponentType<{ className?: string }> }> = [
+  const navItems: Array<{
+    to: string;
+    label: string;
+    icon: ComponentType<{ className?: string }>;
+  }> = [
     { to: "/", label: t("Strona główna", "Home"), icon: Home },
     { to: "/blog", label: t("Aktualności", "News"), icon: Newspaper },
     { to: "/pricing", label: t("Cennik", "Pricing"), icon: DollarSign },
@@ -186,11 +211,7 @@ function MobileAccountNav({ isPl, onNavigate }: { isPl: boolean; onNavigate: () 
         </p>
         {session ? (
           <div className="flex flex-col gap-2">
-            <Link
-              to={isStaff ? "/admin" : "/profile"}
-              onClick={onNavigate}
-              className={primaryBtn}
-            >
+            <Link to={isStaff ? "/admin" : "/profile"} onClick={onNavigate} className={primaryBtn}>
               {isStaff ? <LayoutDashboard className="w-4 h-4" /> : <User className="w-4 h-4" />}
               {isStaff ? t("Panel", "Dashboard") : t("Mój profil", "My profile")}
             </Link>
@@ -249,7 +270,10 @@ export const Header = memo(function Header() {
   return (
     <header
       data-site-header
-      className="bg-background border-b border-border"
+      // z-40 lifts the header's stacking context (forced by
+      // view-transition-name) above <main>'s, so the sticky mobile bar and
+      // the desktop mega-menu dropdown paint over page content.
+      className="relative z-40 bg-background border-b border-border"
       style={{ viewTransitionName: "site-header" }}
     >
       <Suspense fallback={<HeaderSkeleton />}>
