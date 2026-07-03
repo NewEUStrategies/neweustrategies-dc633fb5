@@ -361,7 +361,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
                 </h4>
                 {showExcerpt && excerpt(p) && (
                   <p
-                    className="cms-post-excerpt hidden sm:block line-clamp-2"
+                    className="cms-post-excerpt mt-1.5 line-clamp-2"
                     style={eStyle}
                   >
                     {excerpt(p)}
