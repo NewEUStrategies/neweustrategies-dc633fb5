@@ -38,6 +38,32 @@ export const Route = createFileRoute("/api/tts")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        // SECURITY: require an authenticated Supabase user before spending
+        // ElevenLabs quota on their behalf. Without this any unauthenticated
+        // caller could exhaust the API key. Route runs with verify_jwt=false
+        // by default, so we validate the bearer token in code.
+        const authHeader = request.headers.get("authorization") ?? "";
+        const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+        const SUPABASE_URL = process.env.SUPABASE_URL;
+        const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
+        if (!token || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+          global: { headers: { Authorization: `Bearer ${token}` } },
+          auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+        });
+        const { data: userData, error: userErr } = await supabase.auth.getUser();
+        if (userErr || !userData?.user) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
         const apiKey = process.env.ELEVENLABS_API_KEY;
         if (!apiKey) {
           return new Response(JSON.stringify({ error: "ELEVENLABS_API_KEY not configured" }), {
