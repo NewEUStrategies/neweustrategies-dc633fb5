@@ -321,7 +321,83 @@ export function TrendingTickerPane() {
                 />
               </div>
             </>
-          )}
+        )}
+
+        {cfg.source === "selected" && (
+          <div className="space-y-3 rounded-[5px] border border-dashed border-border p-3">
+            <div>
+              <p className="font-medium text-sm">{t.selectedTitle}</p>
+              <p className="text-xs text-muted-foreground">{t.selectedHint}</p>
+            </div>
+
+            {cfg.selectedPostIds.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic">{t.selectedEmpty}</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {cfg.selectedPostIds.map((id, i) => (
+                  <li
+                    key={id}
+                    className="flex items-center gap-2 rounded-[5px] border border-border bg-background px-2 py-1.5 text-sm"
+                  >
+                    <span className="tabular-nums text-xs text-muted-foreground w-5">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="flex-1 truncate">{postTitle(id)}</span>
+                    <button
+                      type="button"
+                      onClick={() => moveSelected(id, -1)}
+                      disabled={i === 0}
+                      className="px-1.5 py-0.5 rounded border border-border text-xs hover:bg-muted disabled:opacity-30"
+                      aria-label="Up"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveSelected(id, 1)}
+                      disabled={i === cfg.selectedPostIds.length - 1}
+                      className="px-1.5 py-0.5 rounded border border-border text-xs hover:bg-muted disabled:opacity-30"
+                      aria-label="Down"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleSelected(id)}
+                      className="px-2 py-0.5 rounded border border-destructive/40 text-destructive text-xs hover:bg-destructive/10"
+                    >
+                      {t.selectedRemove}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="tt-add">{t.selectedAdd}</Label>
+              <select
+                id="tt-add"
+                value=""
+                disabled={cfg.selectedPostIds.length >= MAX_SELECTED}
+                onChange={(e) => {
+                  if (e.target.value) toggleSelected(e.target.value);
+                }}
+                className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+              >
+                <option value="">
+                  {cfg.selectedPostIds.length >= MAX_SELECTED ? "—" : t.pickPost}
+                </option>
+                {posts
+                  ?.filter((p) => !cfg.selectedPostIds.includes(p.id))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+        )}
         </div>
 
 
