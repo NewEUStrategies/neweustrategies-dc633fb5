@@ -18,8 +18,8 @@ import {
 import { cn } from "@/lib/utils";
 
 type Props = {
-  value?: string;
-  defaultValue?: string;
+  value?: string | number;
+  defaultValue?: string | number;
   onChange?: (event: { target: { value: string } }) => void;
   disabled?: boolean;
   className?: string;
