@@ -66,11 +66,9 @@ function Page() {
     // więc użytkownik nie musi klikać dodatkowego przełącznika.
     const pickVariant = (presetId: string, withSidebar: boolean) => {
       const nextMap = { ...overrides, [presetId]: withSidebar };
-      upd({
-        layout_sidebar_overrides: nextMap,
-        ...(value === presetId ? {} : {}),
-      });
-      onChange(presetId);
+      // Jedno wywołanie setLocal, żeby uniknąć wyścigu (drugi setState
+      // nadpisywałby pierwszy używając stale `local` z closure).
+      onChange(presetId, { layout_sidebar_overrides: nextMap });
     };
 
     return (
