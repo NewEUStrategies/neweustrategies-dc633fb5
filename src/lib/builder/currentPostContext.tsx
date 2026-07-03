@@ -9,6 +9,14 @@ export interface CurrentPostAuthor {
   avatarUrl?: string;
   bio_pl?: string;
   bio_en?: string;
+  jobTitle?: string;
+  contactEmail?: string;
+  twitterUrl?: string;
+  linkedinUrl?: string;
+  facebookUrl?: string;
+  instagramUrl?: string;
+  spotifyUrl?: string;
+  websiteUrl?: string;
 }
 
 export interface CurrentPostCategory {
