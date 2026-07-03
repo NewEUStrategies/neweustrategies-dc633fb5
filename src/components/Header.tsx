@@ -140,15 +140,19 @@ function HeaderInner() {
                 <X className="w-5 h-5" aria-hidden />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [&_*]:max-w-full">
-              <MobileAccountNav isPl={isPl} onNavigate={() => setOpen(false)} />
+            <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain isolate [&_*]:max-w-full">
+              <div className="relative z-50 isolate">
+                <MobileAccountNav isPl={isPl} onNavigate={() => setOpen(false)} />
+              </div>
               {/* Force mobile-device rendering inside the drawer so widgets
                   stack vertically (columns collapse to single column). */}
-              <BuilderRenderer
-                doc={cfg.builder_data}
-                lang={isPl ? "pl" : "en"}
-                device="mobile"
-              />
+              <div className="relative z-0 isolate">
+                <BuilderRenderer
+                  doc={cfg.builder_data}
+                  lang={isPl ? "pl" : "en"}
+                  device="mobile"
+                />
+              </div>
             </div>
           </div>
         </div>
