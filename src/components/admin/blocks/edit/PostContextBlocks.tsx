@@ -51,6 +51,10 @@ interface AuthorOption {
   slug: string | null;
   bio_pl: string | null;
   bio_en: string | null;
+  twitter_url: string | null;
+  linkedin_url: string | null;
+  website_url: string | null;
+  email: string | null;
   roles: string[] | null;
 }
 
@@ -87,18 +91,6 @@ export function AuthorBioBlock({ block, onChange }: Props) {
     onChange({ ...block, data: { ...block.data, ...patch } });
 
   const { data: authors = [] } = useAuthorOptions();
-  const selected = authors.find((a) => a.id === selectedAuthorId) ?? null;
-
-  const previewAuthor: CurrentPostAuthor = selected
-    ? {
-        id: selected.id,
-        name: selected.display_name ?? "-",
-        slug: selected.slug ?? undefined,
-        avatarUrl: selected.avatar_url ?? undefined,
-        bio_pl: selected.bio_pl ?? undefined,
-        bio_en: selected.bio_en ?? undefined,
-      }
-    : (PLACEHOLDER_POST_CTX.author as CurrentPostAuthor);
 
   return (
     <Shell label="Bio autora">
