@@ -4,6 +4,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -56,7 +57,7 @@ export function StepListBlock({ block, onChange }: Props) {
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className={sel}
           value={String(block.data.orientation ?? "vertical")}
           onChange={(e) =>
@@ -65,8 +66,8 @@ export function StepListBlock({ block, onChange }: Props) {
         >
           <option value="vertical">Pionowo</option>
           <option value="horizontal">Poziomo</option>
-        </select>
-        <select
+        </AdminSelect>
+        <AdminSelect
           className={sel}
           value={String(block.data.numberStyle ?? "circle")}
           onChange={(e) =>
@@ -76,7 +77,7 @@ export function StepListBlock({ block, onChange }: Props) {
           <option value="circle">Numer: koło</option>
           <option value="square">Numer: kwadrat</option>
           <option value="plain">Numer: tekst</option>
-        </select>
+        </AdminSelect>
       </div>
       <div className="space-y-2">
         {items.map((it, idx) => (
@@ -337,7 +338,7 @@ export function BannerImageBlock({ block, onChange }: Props) {
         />
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <select
+        <AdminSelect
           className={sel}
           value={String(d.position ?? "left")}
           onChange={(e) => onChange({ ...block, data: { ...d, position: e.target.value } })}
@@ -345,16 +346,16 @@ export function BannerImageBlock({ block, onChange }: Props) {
           <option value="left">Tekst lewo</option>
           <option value="center">Tekst środek</option>
           <option value="right">Tekst prawo</option>
-        </select>
-        <select
+        </AdminSelect>
+        <AdminSelect
           className={sel}
           value={String(d.theme ?? "dark")}
           onChange={(e) => onChange({ ...block, data: { ...d, theme: e.target.value } })}
         >
           <option value="dark">Tekst jasny</option>
           <option value="light">Tekst ciemny</option>
-        </select>
-        <select
+        </AdminSelect>
+        <AdminSelect
           className={sel}
           value={String(d.aspect ?? "21:9")}
           onChange={(e) => onChange({ ...block, data: { ...d, aspect: e.target.value } })}
@@ -363,7 +364,7 @@ export function BannerImageBlock({ block, onChange }: Props) {
           <option value="16:9">16:9</option>
           <option value="4:3">4:3</option>
           <option value="3:1">3:1</option>
-        </select>
+        </AdminSelect>
       </div>
       <label className="flex items-center gap-2 text-xs text-muted-foreground">
         <input
@@ -427,7 +428,7 @@ export function VideoHeroBlock({ block, onChange }: Props) {
         />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className={sel}
           value={String(d.height ?? "lg")}
           onChange={(e) => onChange({ ...block, data: { ...d, height: e.target.value } })}
@@ -435,15 +436,15 @@ export function VideoHeroBlock({ block, onChange }: Props) {
           <option value="md">Średnia</option>
           <option value="lg">Wysoka</option>
           <option value="screen">Pełny ekran</option>
-        </select>
-        <select
+        </AdminSelect>
+        <AdminSelect
           className={sel}
           value={String(d.align ?? "center")}
           onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}
         >
           <option value="left">Wyrównaj lewo</option>
           <option value="center">Wyśrodkuj</option>
-        </select>
+        </AdminSelect>
       </div>
       <label className="flex items-center gap-2 text-xs text-muted-foreground">
         <input

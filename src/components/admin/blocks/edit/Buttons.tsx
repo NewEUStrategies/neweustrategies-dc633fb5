@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -32,7 +33,7 @@ export function ButtonsBlock({ block, onChange }: Props) {
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium uppercase tracking-wide text-muted-foreground">Buttons</span>
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-1"
           value={align}
           onChange={(e) => onChange({ ...block, data: { ...block.data, align: e.target.value } })}
@@ -40,7 +41,7 @@ export function ButtonsBlock({ block, onChange }: Props) {
           <option value="left">left</option>
           <option value="center">center</option>
           <option value="right">right</option>
-        </select>
+        </AdminSelect>
       </div>
       <div className="space-y-2">
         {items.map((it, i) => (
@@ -63,7 +64,7 @@ export function ButtonsBlock({ block, onChange }: Props) {
                 update(next);
               }}
             />
-            <select
+            <AdminSelect
               className="text-xs bg-background border border-border rounded px-2 py-1"
               value={it.variant ?? "default"}
               onChange={(e) => {
@@ -75,7 +76,7 @@ export function ButtonsBlock({ block, onChange }: Props) {
               <option value="default">solid</option>
               <option value="outline">outline</option>
               <option value="ghost">ghost</option>
-            </select>
+            </AdminSelect>
             <Button
               type="button"
               size="icon"

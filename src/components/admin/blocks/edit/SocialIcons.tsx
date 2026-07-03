@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -47,7 +48,7 @@ export function SocialIconsBlock({ block, onChange }: Props) {
           Social Icons
         </span>
         <div className="flex gap-2">
-          <select
+          <AdminSelect
             className="text-xs bg-background border border-border rounded px-2 py-1"
             value={size}
             onChange={(e) => onChange({ ...block, data: { ...block.data, size: e.target.value } })}
@@ -55,8 +56,8 @@ export function SocialIconsBlock({ block, onChange }: Props) {
             <option value="sm">small</option>
             <option value="md">medium</option>
             <option value="lg">large</option>
-          </select>
-          <select
+          </AdminSelect>
+          <AdminSelect
             className="text-xs bg-background border border-border rounded px-2 py-1"
             value={align}
             onChange={(e) => onChange({ ...block, data: { ...block.data, align: e.target.value } })}
@@ -64,13 +65,13 @@ export function SocialIconsBlock({ block, onChange }: Props) {
             <option value="left">left</option>
             <option value="center">center</option>
             <option value="right">right</option>
-          </select>
+          </AdminSelect>
         </div>
       </div>
       <div className="space-y-2">
         {items.map((it, i) => (
           <div key={i} className="grid grid-cols-[160px_1fr_auto] gap-2 items-center">
-            <select
+            <AdminSelect
               className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
               value={it.platform}
               onChange={(e) => {
@@ -84,7 +85,7 @@ export function SocialIconsBlock({ block, onChange }: Props) {
                   {p}
                 </option>
               ))}
-            </select>
+            </AdminSelect>
             <Input
               value={it.url}
               placeholder={i18n.field("urlPh")}

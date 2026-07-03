@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { KeyRound } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -18,14 +19,14 @@ export function LostPasswordFormBlock({ block, onChange }: Props) {
     <div className="not-prose space-y-3 rounded-md border border-border bg-muted/30 p-3">
       <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
         <KeyRound className="w-3.5 h-3.5" /> Reset hasła - „zapomniałem"
-        <select
+        <AdminSelect
           value={s("variant", "card")}
           onChange={(e) => set("variant", e.target.value)}
           className="ml-auto bg-background border border-border rounded px-1 py-0.5 text-[11px] normal-case tracking-normal"
         >
           <option value="card">{i18n.editor("newsletter", "variantCard")}</option>
           <option value="plain">Bez ramki</option>
-        </select>
+        </AdminSelect>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div className="space-y-1">

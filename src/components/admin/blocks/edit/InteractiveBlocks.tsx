@@ -4,6 +4,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -122,7 +123,7 @@ export function TabsBlock({ block, onChange }: Props) {
 
   return (
     <Shell label="Zakładki">
-      <select
+      <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={orientation}
         onChange={(e) =>
@@ -131,7 +132,7 @@ export function TabsBlock({ block, onChange }: Props) {
       >
         <option value="horizontal">Poziomo</option>
         <option value="vertical">Pionowo</option>
-      </select>
+      </AdminSelect>
       <div className="space-y-2">
         {items.map((it, idx) => (
           <div key={idx} className="space-y-1.5 rounded border border-border p-2">
@@ -241,7 +242,7 @@ export function ProgressBlock({ block, onChange }: Props) {
         <span className="text-xs tabular-nums text-muted-foreground w-10 text-right">{value}%</span>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={color}
           onChange={(e) => onChange({ ...block, data: { ...block.data, color: e.target.value } })}
@@ -250,7 +251,7 @@ export function ProgressBlock({ block, onChange }: Props) {
           <option value="success">Sukces</option>
           <option value="warning">Ostrzeżenie</option>
           <option value="danger">Krytyczny</option>
-        </select>
+        </AdminSelect>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
             type="checkbox"

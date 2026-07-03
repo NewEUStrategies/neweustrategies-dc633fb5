@@ -4,6 +4,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -81,15 +82,15 @@ export function HeroBlock({ block, onChange }: Props) {
         />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={String(d.align ?? "center")}
           onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}
         >
           <option value="left">Wyrównaj do lewej</option>
           <option value="center">Wyśrodkuj</option>
-        </select>
-        <select
+        </AdminSelect>
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={String(d.height ?? "md")}
           onChange={(e) => onChange({ ...block, data: { ...d, height: e.target.value } })}
@@ -98,7 +99,7 @@ export function HeroBlock({ block, onChange }: Props) {
           <option value="md">Średni</option>
           <option value="lg">Wysoki</option>
           <option value="screen">Pełny ekran</option>
-        </select>
+        </AdminSelect>
       </div>
       <label className="flex items-center gap-2 text-xs text-muted-foreground">
         <input
@@ -149,7 +150,7 @@ export function CtaSectionBlock({ block, onChange }: Props) {
           onChange={(e) => onChange({ ...block, data: { ...d, ctaHref: e.target.value } })}
         />
       </div>
-      <select
+      <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={String(d.variant ?? "primary")}
         onChange={(e) => onChange({ ...block, data: { ...d, variant: e.target.value } })}
@@ -158,7 +159,7 @@ export function CtaSectionBlock({ block, onChange }: Props) {
         <option value="muted">Wariant: stonowany</option>
         <option value="gradient">Wariant: gradient</option>
         <option value="outline">Wariant: kontur</option>
-      </select>
+      </AdminSelect>
     </Shell>
   );
 }
@@ -194,7 +195,7 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
   return (
     <Shell label="Karuzela obrazów">
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={aspect}
           onChange={(e) => onChange({ ...block, data: { ...block.data, aspect: e.target.value } })}
@@ -203,7 +204,7 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
           <option value="4:3">4:3</option>
           <option value="1:1">1:1</option>
           <option value="21:9">21:9</option>
-        </select>
+        </AdminSelect>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
             type="checkbox"

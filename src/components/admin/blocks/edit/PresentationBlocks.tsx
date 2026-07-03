@@ -4,6 +4,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -47,7 +48,7 @@ export function IconBoxBlock({ block, onChange }: Props) {
   const d = block.data;
   return (
     <Shell label="Karta z ikoną">
-      <select
+      <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={String(d.icon ?? "star")}
         onChange={(e) => onChange({ ...block, data: { ...d, icon: e.target.value } })}
@@ -57,7 +58,7 @@ export function IconBoxBlock({ block, onChange }: Props) {
             {n}
           </option>
         ))}
-      </select>
+      </AdminSelect>
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         placeholder={i18n.field("title")}
@@ -84,14 +85,14 @@ export function IconBoxBlock({ block, onChange }: Props) {
           onChange={(e) => onChange({ ...block, data: { ...d, linkLabel: e.target.value } })}
         />
       </div>
-      <select
+      <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={String(d.align ?? "center")}
         onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}
       >
         <option value="left">Wyrównaj do lewej</option>
         <option value="center">Wyśrodkuj</option>
-      </select>
+      </AdminSelect>
     </Shell>
   );
 }
@@ -218,14 +219,14 @@ export function TestimonialsBlock({ block, onChange }: Props) {
 
   return (
     <Shell label="Opinie / Testimoniale">
-      <select
+      <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={layout}
         onChange={(e) => onChange({ ...block, data: { ...block.data, layout: e.target.value } })}
       >
         <option value="grid">Siatka</option>
         <option value="slider">Slider</option>
-      </select>
+      </AdminSelect>
       <div className="space-y-2">
         {items.map((it, idx) => (
           <div key={idx} className="rounded border border-border p-2 space-y-1.5">

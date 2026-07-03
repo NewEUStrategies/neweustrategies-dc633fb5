@@ -3,6 +3,7 @@ import { toJson } from "@/lib/builder/types";
 import type { Block, Json } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, Star } from "lucide-react";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -65,14 +66,14 @@ export function ReviewBlock({ block, onChange }: Props) {
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-1">
               Skala:
-              <select
+              <AdminSelect
                 value={scale}
                 onChange={(e) => patch("scale", Number(e.target.value))}
                 className="bg-background border border-border rounded px-1 py-0.5"
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>
-              </select>
+              </AdminSelect>
             </label>
           </div>
         </div>

@@ -1,6 +1,7 @@
 // Admin edytory dla bloków Phase 2 batch 7: author-bio, related-posts.
 import type { Block, Json } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -46,7 +47,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
 
   return (
     <Shell label="Bio autora">
-      <select
+      <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={variant}
         onChange={(e) => set({ variant: e.target.value })}
@@ -54,7 +55,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
         <option value="card">{i18n.editor("newsletter", "variantCard")}</option>
         <option value="inline">Inline</option>
         <option value="minimal">Minimalna</option>
-      </select>
+      </AdminSelect>
       <div className="flex flex-wrap gap-3">
         <Toggle checked={showAvatar} onChange={(v) => set({ showAvatar: v })} label="Avatar" />
         <Toggle
@@ -98,7 +99,7 @@ export function RelatedPostsBlock({ block, onChange }: Props) {
           value={limit}
           onChange={(e) => set({ limit: Number(e.target.value) || 3 })}
         />
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={strategy}
           onChange={(e) => set({ strategy: e.target.value })}
@@ -107,8 +108,8 @@ export function RelatedPostsBlock({ block, onChange }: Props) {
           <option value="tag">Wg tagu</option>
           <option value="author">Wg autora</option>
           <option value="latest">Najnowsze</option>
-        </select>
-        <select
+        </AdminSelect>
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={layout}
           onChange={(e) => set({ layout: e.target.value })}
@@ -116,7 +117,7 @@ export function RelatedPostsBlock({ block, onChange }: Props) {
           <option value="grid">Grid</option>
           <option value="list">Lista</option>
           <option value="compact">Kompakt</option>
-        </select>
+        </AdminSelect>
       </div>
     </Shell>
   );

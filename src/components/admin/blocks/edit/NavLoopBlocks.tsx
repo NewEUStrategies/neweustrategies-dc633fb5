@@ -1,5 +1,6 @@
 // Admin edytory dla bloków Phase 2 batch 5: navigation, post-navigation-link, query-loop.
 import type { Block, Json } from "@/lib/blocks/types";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -29,14 +30,14 @@ export function NavigationBlock({ block, onChange }: Props) {
           placeholder="menuKey (np. primary)"
           onChange={(e) => onChange({ ...block, data: { ...block.data, menuKey: e.target.value } })}
         />
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={layout}
           onChange={(e) => onChange({ ...block, data: { ...block.data, layout: e.target.value } })}
         >
           <option value="horizontal">Pozioma</option>
           <option value="vertical">Pionowa</option>
-        </select>
+        </AdminSelect>
       </div>
     </Shell>
   );
@@ -48,7 +49,7 @@ export function PostNavigationLinkBlock({ block, onChange }: Props) {
   return (
     <Shell label="Poprzedni / Następny wpis">
       <div className="grid grid-cols-2 gap-2 items-center">
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={direction}
           onChange={(e) =>
@@ -57,7 +58,7 @@ export function PostNavigationLinkBlock({ block, onChange }: Props) {
         >
           <option value="prev">Poprzedni</option>
           <option value="next">Następny</option>
-        </select>
+        </AdminSelect>
         <label className="flex items-center gap-2 text-xs">
           <input
             type="checkbox"
@@ -93,22 +94,22 @@ export function QueryLoopBlock({ block, onChange }: Props) {
           value={Number(d.limit ?? 6)}
           onChange={(e) => set({ limit: Number(e.target.value) || 6 })}
         />
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={String(d.layout ?? "grid")}
           onChange={(e) => set({ layout: e.target.value })}
         >
           <option value="grid">Siatka</option>
           <option value="list">Lista</option>
-        </select>
-        <select
+        </AdminSelect>
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={String(d.orderBy ?? "date")}
           onChange={(e) => set({ orderBy: e.target.value })}
         >
           <option value="date">Data</option>
           <option value="title">Tytuł</option>
-        </select>
+        </AdminSelect>
       </div>
       <div className="flex flex-wrap gap-3 pt-1">
         {(["showImage", "showExcerpt", "showDate"] as const).map((k) => (

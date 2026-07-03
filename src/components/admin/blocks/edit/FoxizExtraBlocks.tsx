@@ -2,6 +2,7 @@
 // post-stats, post-rating, loginout, more-posts.
 
 import type { Block } from "@/lib/blocks/types";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -75,7 +76,7 @@ export function PostRatingBlock({ block, onChange }: Props) {
   return (
     <Shell label="Ocena czytelnika">
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={max}
           onChange={(e) =>
@@ -84,7 +85,7 @@ export function PostRatingBlock({ block, onChange }: Props) {
         >
           <option value={5}>5 gwiazdek</option>
           <option value={10}>10 gwiazdek</option>
-        </select>
+        </AdminSelect>
         <input
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={label}
@@ -142,7 +143,7 @@ export function MorePostsBlock({ block, onChange }: Props) {
             onChange({ ...block, data: { ...block.data, limit: Number(e.target.value) || 4 } })
           }
         />
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={strategy}
           onChange={(e) =>
@@ -152,7 +153,7 @@ export function MorePostsBlock({ block, onChange }: Props) {
           <option value="latest">Najnowsze</option>
           <option value="trending">Popularne (7 dni)</option>
           <option value="category">Z tej kategorii</option>
-        </select>
+        </AdminSelect>
       </div>
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"

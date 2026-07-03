@@ -1,6 +1,7 @@
 // Admin edytory dla bloków dynamicznych "post-*" (Phase 2).
 // Wszystkie czytają CurrentPostCtx na public stronie; tu pokazujemy tylko placeholder + opcje.
 import type { Block } from "@/lib/blocks/types";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -22,7 +23,7 @@ export function PostTitleBlock({ block, onChange }: Props) {
   const level = Number(block.data.level ?? 1);
   return (
     <Shell label="Post · Tytuł">
-      <select
+      <AdminSelect
         className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={level}
         onChange={(e) =>
@@ -34,7 +35,7 @@ export function PostTitleBlock({ block, onChange }: Props) {
             H{l}
           </option>
         ))}
-      </select>
+      </AdminSelect>
     </Shell>
   );
 }
@@ -45,7 +46,7 @@ export function PostDateBlock({ block, onChange }: Props) {
   return (
     <Shell label="Post · Data">
       <div className="flex gap-2 items-center text-xs">
-        <select
+        <AdminSelect
           className="bg-background border border-border rounded px-2 py-2 h-9"
           value={format}
           onChange={(e) => onChange({ ...block, data: { ...block.data, format: e.target.value } })}
@@ -53,7 +54,7 @@ export function PostDateBlock({ block, onChange }: Props) {
           <option value="long">Pełna (15 stycznia 2025)</option>
           <option value="short">Krótka (15.01.2025)</option>
           <option value="relative">Względna (3 dni temu)</option>
-        </select>
+        </AdminSelect>
         <label className="flex items-center gap-1">
           <input
             type="checkbox"
@@ -124,7 +125,7 @@ export function PostFeaturedImageBlock({ block, onChange }: Props) {
   return (
     <Shell label="Post · Obraz wyróżniony">
       <div className="flex gap-2 items-center text-xs">
-        <select
+        <AdminSelect
           className="bg-background border border-border rounded px-2 py-2 h-9"
           value={aspect}
           onChange={(e) => onChange({ ...block, data: { ...block.data, aspect: e.target.value } })}
@@ -133,7 +134,7 @@ export function PostFeaturedImageBlock({ block, onChange }: Props) {
           <option value="4/3">4:3</option>
           <option value="1/1">1:1</option>
           <option value="3/2">3:2</option>
-        </select>
+        </AdminSelect>
         <label className="flex items-center gap-1">
           <input
             type="checkbox"
@@ -153,14 +154,14 @@ export function PostTermsBlock({ block, onChange }: Props) {
   const taxonomy = String(block.data.taxonomy ?? "categories");
   return (
     <Shell label="Post · Taksonomie">
-      <select
+      <AdminSelect
         className="text-xs bg-background border border-border rounded px-2 py-2 h-9 w-full"
         value={taxonomy}
         onChange={(e) => onChange({ ...block, data: { ...block.data, taxonomy: e.target.value } })}
       >
         <option value="categories">Kategorie</option>
         <option value="tags">Tagi</option>
-      </select>
+      </AdminSelect>
     </Shell>
   );
 }
@@ -169,7 +170,7 @@ export function SiteTitleBlock({ block, onChange }: Props) {
   const level = Number(block.data.level ?? 1);
   return (
     <Shell label="Witryna · Tytuł">
-      <select
+      <AdminSelect
         className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={level}
         onChange={(e) =>
@@ -181,7 +182,7 @@ export function SiteTitleBlock({ block, onChange }: Props) {
             H{l}
           </option>
         ))}
-      </select>
+      </AdminSelect>
     </Shell>
   );
 }
