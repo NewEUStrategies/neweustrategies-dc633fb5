@@ -4,17 +4,15 @@
 // - dwie zakładki językowe (PL/EN) z izolowanymi stosami historii
 // - sidebar po prawej z zakładkami Blok / Dokument
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import type { Block, BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
-import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
+import type { Block, LocalizedBlocks } from "@/lib/blocks/types";
 import { BlockCanvas } from "./BlockCanvas";
 import { BlockSidebar } from "./BlockSidebar";
-import { BlockLibraryPanel } from "./BlockLibraryPanel";
-import { useBlocksHistory } from "./hooks/useBlocksHistory";
+import { useLocalizedBlocksHistory } from "./hooks/useLocalizedBlocksHistory";
 import { IconButton } from "./atoms/IconButton";
-import { Undo, Redo, Plus } from "@/lib/lucide-shim";
+import { Undo, Redo } from "@/lib/lucide-shim";
 
 interface Props {
   value: LocalizedBlocks | null;
@@ -26,42 +24,11 @@ interface Props {
 
 export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: Props) {
   const { t } = useTranslation();
-  const [lang, setLang] = useState<"pl" | "en">("pl");
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  const safe: LocalizedBlocks = {
-    pl: value?.pl ?? EMPTY_BLOCKS_DOC,
-    en: value?.en ?? EMPTY_BLOCKS_DOC,
-  };
-
-  const history = useBlocksHistory(safe[lang]);
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
-  const safeRef = useRef(safe);
-  safeRef.current = safe;
-
-  // Reset history when switching languages or when external value identity changes per-lang.
-  const lastSyncRef = useRef<{ lang: "pl" | "en"; doc: BlocksDoc } | null>(null);
-  useEffect(() => {
-    const current = safeRef.current[lang];
-    if (lastSyncRef.current?.lang !== lang || lastSyncRef.current.doc !== current) {
-      history.reset(current);
-      lastSyncRef.current = { lang, doc: current };
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang, safe.pl, safe.en]);
-
-  // Propagate history.doc upstream whenever the user actually edits.
-  // Guard against propagating the previous language's doc right after a
-  // lang switch (history.reset is asynchronous, so history.doc briefly
-  // still points at the old language's content during the next render).
-  useEffect(() => {
-    const current = safeRef.current[lang];
-    const lastSynced = lastSyncRef.current;
-    if (!lastSynced || lastSynced.lang !== lang) return;
-    if (history.doc === current) return;
-    onChangeRef.current({ ...safeRef.current, [lang]: history.doc });
-  }, [history.doc, lang]);
+  // Per-language undo/redo with parent-echo protection (dead-undo fix) -
+  // see useLocalizedBlocksHistory for the sync contract.
+  const { lang, setLang, history } = useLocalizedBlocksHistory(value, onChange);
 
   // Keyboard: Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z (or Y), Alt+ArrowUp/Down to move active block.
   useEffect(() => {
@@ -104,22 +71,35 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap }: P
     return () => window.removeEventListener("keydown", onKey);
   }, [history, activeId]);
 
-  const activeBlock: Block | null =
-    activeId ? history.doc.blocks.find((b) => b.id === activeId) ?? null : null;
+  const activeBlock: Block | null = activeId
+    ? (history.doc.blocks.find((b) => b.id === activeId) ?? null)
+    : null;
 
-  const updateActive = useCallback((next: Block | null) => {
-    if (!next) return;
-    history.setDoc({
-      ...history.doc,
-      blocks: history.doc.blocks.map((b) => (b.id === next.id ? next : b)),
-    }, true);
-  }, [history]);
+  const updateActive = useCallback(
+    (next: Block | null) => {
+      if (!next) return;
+      history.setDoc(
+        {
+          ...history.doc,
+          blocks: history.doc.blocks.map((b) => (b.id === next.id ? next : b)),
+        },
+        true,
+      );
+    },
+    [history],
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 min-h-[600px]">
       <div className="bg-background border border-border rounded-lg p-4 lg:p-6">
         <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-          <Tabs value={lang} onValueChange={(v) => { setLang(v as "pl" | "en"); setActiveId(null); }}>
+          <Tabs
+            value={lang}
+            onValueChange={(v) => {
+              setLang(v as "pl" | "en");
+              setActiveId(null);
+            }}
+          >
             <TabsList>
               <TabsTrigger value="pl">🇵🇱 PL</TabsTrigger>
               <TabsTrigger value="en">🇬🇧 EN</TabsTrigger>

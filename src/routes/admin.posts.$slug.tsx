@@ -17,18 +17,33 @@ import { EditPresenceBanner } from "@/components/admin/molecules/EditPresenceBan
 import { migratePostToBlocks } from "@/lib/posts-migrate.functions";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import { useAutosave } from "@/hooks/useAutosave";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { AutosaveBar } from "@/components/admin/AutosaveBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { PostEditor } from "@/components/admin/PostEditor";
 import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
-import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon, Layers } from "@/lib/lucide-shim";
+import {
+  ArrowLeft,
+  Save,
+  Trash2,
+  ArrowRight,
+  FileText,
+  Settings as SettingsIcon,
+  Layers,
+} from "@/lib/lucide-shim";
 import { ChevronDown } from "lucide-react";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
 import type { LocalizedBlocks, BlocksDoc } from "@/lib/blocks/types";
@@ -42,7 +57,10 @@ import { CustomMetaValuesEditor } from "@/components/admin/CustomMetaValuesEdito
 import { RelatedOverrideEditor } from "@/components/admin/RelatedOverrideEditor";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { toast } from "sonner";
-import { invalidateWidgetCaches, emitWidgetCacheInvalidate } from "@/lib/builder/widgetCacheInvalidation";
+import {
+  invalidateWidgetCaches,
+  emitWidgetCacheInvalidate,
+} from "@/lib/builder/widgetCacheInvalidation";
 import { invalidateSeoCaches } from "@/lib/seo/invalidate";
 import { hasBlockingSeoIssues, type SeoIssue } from "@/lib/seo/validation";
 
@@ -88,12 +106,27 @@ interface PostForm {
   og_image_generated_url: string | null;
 }
 
+interface CategoryOpt {
+  id: string;
+  name_pl: string;
+  name_en: string;
+}
+interface TagOpt {
+  id: string;
+  name: string;
+}
 
-
-interface CategoryOpt { id: string; name_pl: string; name_en: string }
-interface TagOpt { id: string; name: string }
-
-function SidebarSection({ title, icon: Icon, children, defaultOpen = true }: { title: string; icon?: React.ElementType; children: React.ReactNode; defaultOpen?: boolean }) {
+function SidebarSection({
+  title,
+  icon: Icon,
+  children,
+  defaultOpen = true,
+}: {
+  title: string;
+  icon?: React.ElementType;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -105,7 +138,9 @@ function SidebarSection({ title, icon: Icon, children, defaultOpen = true }: { t
         <h3 className="text-sm font-semibold inline-flex items-center gap-2">
           {Icon ? <Icon className="w-4 h-4" /> : null} {title}
         </h3>
-        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        <ChevronDown
+          className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
       </button>
       {open && <div className="px-4 pb-4 space-y-3">{children}</div>}
     </div>
@@ -148,22 +183,33 @@ function EditPost() {
 
   const { data: allCats } = useQuery({
     queryKey: ["categories", tenantId],
-    queryFn: async (): Promise<CategoryOpt[]> => (await supabase.from("categories").select("id, name_pl, name_en").eq("tenant_id", tenantId).order("name_pl")).data ?? [],
+    queryFn: async (): Promise<CategoryOpt[]> =>
+      (
+        await supabase
+          .from("categories")
+          .select("id, name_pl, name_en")
+          .eq("tenant_id", tenantId)
+          .order("name_pl")
+      ).data ?? [],
   });
   const { data: allTags } = useQuery({
     queryKey: ["tags", tenantId],
-    queryFn: async (): Promise<TagOpt[]> => (await supabase.from("tags").select("id, name").eq("tenant_id", tenantId).order("name")).data ?? [],
+    queryFn: async (): Promise<TagOpt[]> =>
+      (await supabase.from("tags").select("id, name").eq("tenant_id", tenantId).order("name"))
+        .data ?? [],
   });
 
   const { data: postCats } = useQuery({
     queryKey: ["post-cats", id],
     enabled: !!id,
-    queryFn: async () => (await supabase.from("post_categories").select("category_id").eq("post_id", id)).data ?? [],
+    queryFn: async () =>
+      (await supabase.from("post_categories").select("category_id").eq("post_id", id)).data ?? [],
   });
   const { data: postTags } = useQuery({
     queryKey: ["post-tags", id],
     enabled: !!id,
-    queryFn: async () => (await supabase.from("post_tags").select("tag_id").eq("post_id", id)).data ?? [],
+    queryFn: async () =>
+      (await supabase.from("post_tags").select("tag_id").eq("post_id", id)).data ?? [],
   });
 
   const history = useUndoRedo<PostForm | null>(null);
@@ -176,9 +222,15 @@ function EditPost() {
   // languages; "content" opens the actual editor (builder / rich text).
   const [step, setStep] = useState<"details" | "content">("details");
 
-  useEffect(() => { if (post) history.reset(post); }, [post, history.reset]);
-  useEffect(() => { if (postCats) setSelectedCats(postCats.map((c) => c.category_id)); }, [postCats]);
-  useEffect(() => { if (postTags) setSelectedTags(postTags.map((c) => c.tag_id)); }, [postTags]);
+  useEffect(() => {
+    if (post) history.reset(post);
+  }, [post, history.reset]);
+  useEffect(() => {
+    if (postCats) setSelectedCats(postCats.map((c) => c.category_id));
+  }, [postCats]);
+  useEffect(() => {
+    if (postTags) setSelectedTags(postTags.map((c) => c.tag_id));
+  }, [postTags]);
 
   // Keyboard shortcuts: Ctrl/Cmd+Z = undo, Shift+Ctrl/Cmd+Z (or Ctrl+Y) = redo
   useEffect(() => {
@@ -186,74 +238,88 @@ function EditPost() {
       const meta = e.ctrlKey || e.metaKey;
       if (!meta) return;
       const k = e.key.toLowerCase();
-      if (k === "z" && !e.shiftKey) { e.preventDefault(); history.undo(); }
-      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); history.redo(); }
+      if (k === "z" && !e.shiftKey) {
+        e.preventDefault();
+        history.undo();
+      } else if ((k === "z" && e.shiftKey) || k === "y") {
+        e.preventDefault();
+        history.redo();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [history.undo, history.redo]);
 
-  const saveFn = useCallback(async (snapshot: PostForm | null) => {
-    if (!snapshot) return;
-    await update$({
-      data: {
-        id,
-        fields: {
-          slug: snapshot.slug,
-          status: snapshot.status,
-          publish_at: snapshot.publish_at,
-          editor: snapshot.editor,
-          title_pl: snapshot.title_pl,
-          title_en: snapshot.title_en,
-          excerpt_pl: snapshot.excerpt_pl,
-          excerpt_en: snapshot.excerpt_en,
-          content_pl: snapshot.content_pl,
-          content_en: snapshot.content_en,
-          cover_image_url: snapshot.cover_image_url,
-          read_minutes: snapshot.read_minutes,
-          builder_data: snapshot.builder_data,
-          blocks_data: snapshot.blocks_data as unknown as Record<string, unknown> | null,
-          parent_page_id: snapshot.parent_page_id,
-          post_format: snapshot.post_format,
-          layout_overrides: snapshot.layout_overrides,
-          takeaways_pl: snapshot.takeaways_pl ?? [],
-          takeaways_en: snapshot.takeaways_en ?? [],
-          custom_meta: snapshot.custom_meta ?? null,
-          related_override: snapshot.related_override ?? null,
-          seo_title_pl: snapshot.seo_title_pl,
-          seo_title_en: snapshot.seo_title_en,
-          seo_description_pl: snapshot.seo_description_pl,
-          seo_description_en: snapshot.seo_description_en,
-          seo_canonical_url: snapshot.seo_canonical_url,
-          seo_noindex: snapshot.seo_noindex ?? false,
-          seo_og_image_url: snapshot.seo_og_image_url,
-          og_image_generated_url: snapshot.og_image_generated_url,
+  const saveFn = useCallback(
+    async (snapshot: PostForm | null) => {
+      if (!snapshot) return;
+      await update$({
+        data: {
+          id,
+          fields: {
+            slug: snapshot.slug,
+            status: snapshot.status,
+            publish_at: snapshot.publish_at,
+            editor: snapshot.editor,
+            title_pl: snapshot.title_pl,
+            title_en: snapshot.title_en,
+            excerpt_pl: snapshot.excerpt_pl,
+            excerpt_en: snapshot.excerpt_en,
+            content_pl: snapshot.content_pl,
+            content_en: snapshot.content_en,
+            cover_image_url: snapshot.cover_image_url,
+            read_minutes: snapshot.read_minutes,
+            builder_data: snapshot.builder_data,
+            blocks_data: snapshot.blocks_data as unknown as Record<string, unknown> | null,
+            parent_page_id: snapshot.parent_page_id,
+            post_format: snapshot.post_format,
+            layout_overrides: snapshot.layout_overrides,
+            takeaways_pl: snapshot.takeaways_pl ?? [],
+            takeaways_en: snapshot.takeaways_en ?? [],
+            custom_meta: snapshot.custom_meta ?? null,
+            related_override: snapshot.related_override ?? null,
+            seo_title_pl: snapshot.seo_title_pl,
+            seo_title_en: snapshot.seo_title_en,
+            seo_description_pl: snapshot.seo_description_pl,
+            seo_description_en: snapshot.seo_description_en,
+            seo_canonical_url: snapshot.seo_canonical_url,
+            seo_noindex: snapshot.seo_noindex ?? false,
+            seo_og_image_url: snapshot.seo_og_image_url,
+            og_image_generated_url: snapshot.og_image_generated_url,
+          },
+          categories: selectedCats,
+          tags: selectedTags,
         },
-        categories: selectedCats,
-        tags: selectedTags,
-
-      },
-    });
-    qc.invalidateQueries({ queryKey: ["admin-posts"] });
-    qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, snapshot.slug] });
-    // Refresh every widget cache that references posts (live sync across the site).
-    invalidateWidgetCaches(qc);
-    emitWidgetCacheInvalidate();
-    // Odswiez publiczne surface'y SEO (mapa strony HTML, dashboard /admin/seo);
-    // sitemap.xml + llms.txt są serwerowe i mają wlasny SWR.
-    invalidateSeoCaches(qc);
-    if (snapshot.slug !== routeSlug) {
-      navigate({ to: "/admin/posts/$slug", params: { slug: snapshot.slug }, replace: true });
-    }
-  }, [id, update$, selectedCats, selectedTags, qc, navigate, routeSlug, tenantId]);
+      });
+      qc.invalidateQueries({ queryKey: ["admin-posts"] });
+      qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, snapshot.slug] });
+      // Refresh every widget cache that references posts (live sync across the site).
+      invalidateWidgetCaches(qc);
+      emitWidgetCacheInvalidate();
+      // Odswiez publiczne surface'y SEO (mapa strony HTML, dashboard /admin/seo);
+      // sitemap.xml + llms.txt są serwerowe i mają wlasny SWR.
+      invalidateSeoCaches(qc);
+      if (snapshot.slug !== routeSlug) {
+        navigate({ to: "/admin/posts/$slug", params: { slug: snapshot.slug }, replace: true });
+      }
+    },
+    [id, update$, selectedCats, selectedTags, qc, navigate, routeSlug, tenantId],
+  );
 
   // Track tuple [form, cats, tags] for autosave so taxonomies persist too.
-  const autoValue = useMemo(() => ({ form, cats: selectedCats, tags: selectedTags }),
-    [form, selectedCats, selectedTags]);
+  const autoValue = useMemo(
+    () => ({ form, cats: selectedCats, tags: selectedTags }),
+    [form, selectedCats, selectedTags],
+  );
   const autosave = useAutosave({
-    value: autoValue, enabled: !!form,
-    save: async (v) => { await saveFn(v.form); },
+    value: autoValue,
+    enabled: !!form,
+    save: async (v) => {
+      await saveFn(v.form);
+    },
   });
+  // Tab close / route change with unsaved edits -> confirmation prompt.
+  useUnsavedChangesGuard(autosave.isDirty || autosave.status === "saving");
 
   if (isLoading || !form) return <div className="text-sm text-muted-foreground">...</div>;
 
@@ -326,7 +392,8 @@ function EditPost() {
 
   const statusOptions = statusOptionsFor({ canPublish });
   const scheduledInPast =
-    form.status === "scheduled" && !!form.publish_at &&
+    form.status === "scheduled" &&
+    !!form.publish_at &&
     new Date(form.publish_at).getTime() <= Date.now();
 
   const workflowSection = (
@@ -334,7 +401,9 @@ function EditPost() {
       <div>
         <Label>{t("admin.posts.status")}</Label>
         <Select value={form.status} onValueChange={(v) => set("status", v as PostWorkflowStatus)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             {statusOptions.map((o) => (
               <SelectItem key={o.value} value={o.value} disabled={o.publisherOnly}>
@@ -349,7 +418,8 @@ function EditPost() {
         {!canPublish && (
           <p className="mt-1 text-[11px] text-muted-foreground">
             {t("admin.workflow.writerHint", {
-              defaultValue: "Publikuje administrator - wyślij wpis do recenzji, a redakcja go zatwierdzi.",
+              defaultValue:
+                "Publikuje administrator - wyślij wpis do recenzji, a redakcja go zatwierdzi.",
             })}
           </p>
         )}
@@ -370,7 +440,8 @@ function EditPost() {
                 })
               : scheduledInPast
                 ? t("admin.workflow.publishAtPast", {
-                    defaultValue: "Data jest w przeszłości - wpis zostanie opublikowany natychmiast.",
+                    defaultValue:
+                      "Data jest w przeszłości - wpis zostanie opublikowany natychmiast.",
                   })
                 : t("admin.workflow.publishAtHint", {
                     defaultValue: "Wpis opublikuje się automatycznie o wskazanej godzinie.",
@@ -389,20 +460,36 @@ function EditPost() {
       )}
 
       {!canPublish && form.status === "draft" && (
-        <Button type="button" size="sm" className="w-full" disabled={busy}
-          onClick={() => applyStatus("pending_review")}>
+        <Button
+          type="button"
+          size="sm"
+          className="w-full"
+          disabled={busy}
+          onClick={() => applyStatus("pending_review")}
+        >
           {t("admin.workflow.submitReview", { defaultValue: "Wyślij do recenzji" })}
         </Button>
       )}
-      {form.status === "pending_review" && (
-        canPublish ? (
+      {form.status === "pending_review" &&
+        (canPublish ? (
           <div className="flex gap-2">
-            <Button type="button" size="sm" className="flex-1" disabled={busy}
-              onClick={() => applyStatus("published")}>
+            <Button
+              type="button"
+              size="sm"
+              className="flex-1"
+              disabled={busy}
+              onClick={() => applyStatus("published")}
+            >
               {t("admin.workflow.approvePublish", { defaultValue: "Zatwierdź i opublikuj" })}
             </Button>
-            <Button type="button" size="sm" variant="outline" className="flex-1" disabled={busy}
-              onClick={() => applyStatus("draft")}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="flex-1"
+              disabled={busy}
+              onClick={() => applyStatus("draft")}
+            >
               {t("admin.workflow.rejectToDraft", { defaultValue: "Odrzuć do szkicu" })}
             </Button>
           </div>
@@ -412,23 +499,35 @@ function EditPost() {
               defaultValue: "Wpis czeka na recenzję administratora.",
             })}
           </p>
-        )
-      )}
+        ))}
     </div>
   );
 
   const metaCard = (
-    <SidebarSection title={t("admin.posts.settingsCard", { defaultValue: "Ustawienia wpisu" })} icon={SettingsIcon}>
+    <SidebarSection
+      title={t("admin.posts.settingsCard", { defaultValue: "Ustawienia wpisu" })}
+      icon={SettingsIcon}
+    >
       {workflowSection}
       <div>
         <Label>{t("admin.posts.editor")}</Label>
         <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="blocks">{t("admin.posts.editorBlocks", { defaultValue: "Block editor (zalecane)" })}</SelectItem>
-            <SelectItem value="builder">{t("admin.posts.editorBuilder", { defaultValue: "Visual Builder (Elementor)" })}</SelectItem>
-            <SelectItem value="richtext">{t("admin.posts.editorRichtext", { defaultValue: "Rich text (legacy)" })}</SelectItem>
-            <SelectItem value="markdown">{t("admin.posts.editorMarkdown", { defaultValue: "Markdown (legacy)" })}</SelectItem>
+            <SelectItem value="blocks">
+              {t("admin.posts.editorBlocks", { defaultValue: "Block editor (zalecane)" })}
+            </SelectItem>
+            <SelectItem value="builder">
+              {t("admin.posts.editorBuilder", { defaultValue: "Visual Builder (Elementor)" })}
+            </SelectItem>
+            <SelectItem value="richtext">
+              {t("admin.posts.editorRichtext", { defaultValue: "Rich text (legacy)" })}
+            </SelectItem>
+            <SelectItem value="markdown">
+              {t("admin.posts.editorMarkdown", { defaultValue: "Markdown (legacy)" })}
+            </SelectItem>
           </SelectContent>
         </Select>
         {form.editor !== "blocks" && (
@@ -469,13 +568,25 @@ function EditPost() {
       />
       <div>
         <Label>{t("admin.posts.readMinutes")}</Label>
-        <Input type="number" value={form.read_minutes ?? ""} onChange={(e) => set("read_minutes", e.target.value ? Number(e.target.value) : null)} />
+        <Input
+          type="number"
+          value={form.read_minutes ?? ""}
+          onChange={(e) => set("read_minutes", e.target.value ? Number(e.target.value) : null)}
+        />
       </div>
       <div>
         <Label>{t("admin.posts.cover")}</Label>
-        <Input value={form.cover_image_url ?? ""} onChange={(e) => set("cover_image_url", e.target.value)} placeholder="https://..." />
+        <Input
+          value={form.cover_image_url ?? ""}
+          onChange={(e) => set("cover_image_url", e.target.value)}
+          placeholder="https://..."
+        />
         {form.cover_image_url && (
-          <img src={form.cover_image_url} alt="" className="mt-2 rounded w-full h-24 object-cover" />
+          <img
+            src={form.cover_image_url}
+            alt=""
+            className="mt-2 rounded w-full h-24 object-cover"
+          />
         )}
       </div>
     </SidebarSection>
@@ -495,8 +606,13 @@ function EditPost() {
     <SidebarSection title="Layout wpisu" icon={Layers}>
       <div>
         <Label>Format wpisu</Label>
-        <Select value={form.post_format ?? "standard"} onValueChange={(v) => set("post_format", v as PostFormat)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+        <Select
+          value={form.post_format ?? "standard"}
+          onValueChange={(v) => set("post_format", v as PostFormat)}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="standard">Standard</SelectItem>
             <SelectItem value="video">Video</SelectItem>
@@ -511,48 +627,66 @@ function EditPost() {
           value={ov.layout ?? "__inherit__"}
           onValueChange={(v) => setOv({ layout: v === "__inherit__" ? undefined : v })}
         >
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="__inherit__">- Użyj globalnego -</SelectItem>
             {layoutSet.map((l) => (
-              <SelectItem key={l.id} value={l.id}>{l.label}</SelectItem>
+              <SelectItem key={l.id} value={l.id}>
+                {l.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
-      {globalLayout && (() => {
-        const effective = mergeOverrides(globalLayout, ov);
-        const layoutId = pickLayoutId(globalLayout, currentFormat, ov.layout);
-        const preset = findLayout(currentFormat, layoutId);
-        return (
-          <div className="pt-2 border-t border-border space-y-1.5">
-            <p className="text-xs text-muted-foreground">Podgląd na żywo</p>
-            <LayoutPreview preset={preset} settings={effective} />
-            <p className="text-[10px] text-muted-foreground">
-              {preset.label} · format: {currentFormat}
-              {ov.layout ? " · override" : " · z globalnych"}
-            </p>
-          </div>
-        );
-      })()}
+      {globalLayout &&
+        (() => {
+          const effective = mergeOverrides(globalLayout, ov);
+          const layoutId = pickLayoutId(globalLayout, currentFormat, ov.layout);
+          const preset = findLayout(currentFormat, layoutId);
+          return (
+            <div className="pt-2 border-t border-border space-y-1.5">
+              <p className="text-xs text-muted-foreground">Podgląd na żywo</p>
+              <LayoutPreview preset={preset} settings={effective} />
+              <p className="text-[10px] text-muted-foreground">
+                {preset.label} · format: {currentFormat}
+                {ov.layout ? " · override" : " · z globalnych"}
+              </p>
+            </div>
+          );
+        })()}
       <div className="space-y-1.5 pt-2 border-t border-border">
-        <p className="text-xs text-muted-foreground mb-1">Nadpisz sekcje stopki (puste = z globalnych):</p>
-        {([
-          ["center_header", "Wyśrodkuj nagłówek"],
-          ["show_post_tags_bar", "Pasek tagów"],
-          ["show_sources_bar", "Pasek źródeł"],
-          ["show_via_bar", "Pasek „via”"],
-          ["show_author_card", "Karta autora"],
-          ["show_prev_next", "Poprzedni / następny"],
-          ["show_bottom_newsletter", "Newsletter pod wpisem"],
-        ] as const).map(([key, label]) => {
+        <p className="text-xs text-muted-foreground mb-1">
+          Nadpisz sekcje stopki (puste = z globalnych):
+        </p>
+        {(
+          [
+            ["center_header", "Wyśrodkuj nagłówek"],
+            ["show_post_tags_bar", "Pasek tagów"],
+            ["show_sources_bar", "Pasek źródeł"],
+            ["show_via_bar", "Pasek „via”"],
+            ["show_author_card", "Karta autora"],
+            ["show_prev_next", "Poprzedni / następny"],
+            ["show_bottom_newsletter", "Newsletter pod wpisem"],
+          ] as const
+        ).map(([key, label]) => {
           const val = ov[key];
           const tri = val === true ? "on" : val === false ? "off" : "inherit";
           return (
             <div key={key} className="flex items-center justify-between text-xs">
               <span>{label}</span>
-              <Select value={tri} onValueChange={(v) => setOv({ [key]: v === "inherit" ? undefined : v === "on" } as Partial<LayoutOverrides>)}>
-                <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
+              <Select
+                value={tri}
+                onValueChange={(v) =>
+                  setOv({
+                    [key]: v === "inherit" ? undefined : v === "on",
+                  } as Partial<LayoutOverrides>)
+                }
+              >
+                <SelectTrigger className="h-7 w-32 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="inherit">Globalne</SelectItem>
                   <SelectItem value="on">Włącz</SelectItem>
@@ -576,13 +710,17 @@ function EditPost() {
               type="checkbox"
               checked={selectedCats.includes(c.id)}
               onChange={(e) =>
-                setSelectedCats((s) => (e.target.checked ? [...s, c.id] : s.filter((x) => x !== c.id)))
+                setSelectedCats((s) =>
+                  e.target.checked ? [...s, c.id] : s.filter((x) => x !== c.id),
+                )
               }
             />
             {c.name_pl} / {c.name_en}
           </label>
         ))}
-        {!allCats?.length && <p className="text-xs text-muted-foreground">{t("admin.posts.noCats")}</p>}
+        {!allCats?.length && (
+          <p className="text-xs text-muted-foreground">{t("admin.posts.noCats")}</p>
+        )}
       </div>
     </div>
   );
@@ -606,7 +744,9 @@ function EditPost() {
             </button>
           );
         })}
-        {!allTags?.length && <p className="text-xs text-muted-foreground">{t("admin.posts.noTags")}</p>}
+        {!allTags?.length && (
+          <p className="text-xs text-muted-foreground">{t("admin.posts.noTags")}</p>
+        )}
       </div>
     </div>
   );
@@ -615,11 +755,17 @@ function EditPost() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         {step === "details" ? (
-          <Link to="/admin/posts" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+          <Link
+            to="/admin/posts"
+            className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+          >
             <ArrowLeft className="w-4 h-4" /> {t("admin.back")}
           </Link>
         ) : (
-          <button onClick={() => setStep("details")} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+          <button
+            onClick={() => setStep("details")}
+            className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+          >
             <ArrowLeft className="w-4 h-4" /> Szczegóły wpisu
           </button>
         )}
@@ -641,14 +787,21 @@ function EditPost() {
             </button>
           </div>
           <AutosaveBar
-            status={autosave.status} error={autosave.error}
-            canUndo={history.canUndo} canRedo={history.canRedo}
-            onUndo={history.undo} onRedo={history.redo}
+            status={autosave.status}
+            error={autosave.error}
+            canUndo={history.canUndo}
+            canRedo={history.canRedo}
+            onUndo={history.undo}
+            onRedo={history.redo}
             onDiscard={post ? () => history.reset(post) : undefined}
           />
 
-          <Button variant="ghost" size="sm" onClick={del}><Trash2 className="w-4 h-4 mr-1 text-destructive" /> {t("admin.delete")}</Button>
-          <Button onClick={save} disabled={busy}><Save className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.save")}</Button>
+          <Button variant="ghost" size="sm" onClick={del}>
+            <Trash2 className="w-4 h-4 mr-1 text-destructive" /> {t("admin.delete")}
+          </Button>
+          <Button onClick={save} disabled={busy}>
+            <Save className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.save")}
+          </Button>
         </div>
       </div>
 
@@ -661,38 +814,75 @@ function EditPost() {
               <div>
                 <h2 className="text-lg font-display font-semibold mb-1">Szczegóły wpisu</h2>
                 <p className="text-xs text-muted-foreground">
-                  Uzupełnij tytuł i opis w obu językach. Po zapisaniu przejdź do kroku „Treść”, by edytować treść właściwą.
+                  Uzupełnij tytuł i opis w obu językach. Po zapisaniu przejdź do kroku „Treść”, by
+                  edytować treść właściwą.
                 </p>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <Label>{t("admin.posts.titleCol")} <span className="text-[10px] text-muted-foreground">(PL)</span></Label>
-                  <Input value={form.title_pl} onChange={(e) => set("title_pl", e.target.value)} className="text-lg font-display" placeholder="Tytuł po polsku" />
+                  <Label>
+                    {t("admin.posts.titleCol")}{" "}
+                    <span className="text-[10px] text-muted-foreground">(PL)</span>
+                  </Label>
+                  <Input
+                    value={form.title_pl}
+                    onChange={(e) => set("title_pl", e.target.value)}
+                    className="text-lg font-display"
+                    placeholder="Tytuł po polsku"
+                  />
                 </div>
                 <div>
-                  <Label>{t("admin.posts.titleCol")} <span className="text-[10px] text-muted-foreground">(EN)</span></Label>
-                  <Input value={form.title_en} onChange={(e) => set("title_en", e.target.value)} className="text-lg font-display" placeholder="Title in English" />
+                  <Label>
+                    {t("admin.posts.titleCol")}{" "}
+                    <span className="text-[10px] text-muted-foreground">(EN)</span>
+                  </Label>
+                  <Input
+                    value={form.title_en}
+                    onChange={(e) => set("title_en", e.target.value)}
+                    className="text-lg font-display"
+                    placeholder="Title in English"
+                  />
                 </div>
                 <div>
-                  <Label>{t("admin.posts.excerpt")} <span className="text-[10px] text-muted-foreground">(PL)</span></Label>
-                  <Textarea value={form.excerpt_pl ?? ""} onChange={(e) => set("excerpt_pl", e.target.value)} rows={4} placeholder="Krótki opis wpisu po polsku" />
+                  <Label>
+                    {t("admin.posts.excerpt")}{" "}
+                    <span className="text-[10px] text-muted-foreground">(PL)</span>
+                  </Label>
+                  <Textarea
+                    value={form.excerpt_pl ?? ""}
+                    onChange={(e) => set("excerpt_pl", e.target.value)}
+                    rows={4}
+                    placeholder="Krótki opis wpisu po polsku"
+                  />
                 </div>
                 <div>
-                  <Label>{t("admin.posts.excerpt")} <span className="text-[10px] text-muted-foreground">(EN)</span></Label>
-                  <Textarea value={form.excerpt_en ?? ""} onChange={(e) => set("excerpt_en", e.target.value)} rows={4} placeholder="Short excerpt in English" />
+                  <Label>
+                    {t("admin.posts.excerpt")}{" "}
+                    <span className="text-[10px] text-muted-foreground">(EN)</span>
+                  </Label>
+                  <Textarea
+                    value={form.excerpt_en ?? ""}
+                    onChange={(e) => set("excerpt_en", e.target.value)}
+                    rows={4}
+                    placeholder="Short excerpt in English"
+                  />
                 </div>
               </div>
 
               <TakeawaysEditor
                 pl={form.takeaways_pl ?? []}
                 en={form.takeaways_en ?? []}
-                onChange={(lang, next) => set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)}
+                onChange={(lang, next) =>
+                  set(lang === "pl" ? "takeaways_pl" : "takeaways_en", next)
+                }
               />
 
               <div className="rounded-lg border border-border p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold">Custom meta</h3>
-                  <Link to="/admin/custom-meta" className="text-xs text-brand underline">Edytuj definicje</Link>
+                  <Link to="/admin/custom-meta" className="text-xs text-brand underline">
+                    Edytuj definicje
+                  </Link>
                 </div>
                 <CustomMetaValuesEditor
                   tenantId={tenantId}
@@ -705,7 +895,9 @@ function EditPost() {
               <div className="rounded-lg border border-border p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold">Powiązane wpisy - override</h3>
-                  <Link to="/admin/related-posts" className="text-xs text-brand underline">Konfiguracja globalna</Link>
+                  <Link to="/admin/related-posts" className="text-xs text-brand underline">
+                    Konfiguracja globalna
+                  </Link>
                 </div>
                 <RelatedOverrideEditor
                   value={form.related_override}
@@ -733,14 +925,15 @@ function EditPost() {
                 fallbackTitle={{ pl: form.title_pl, en: form.title_en }}
                 fallbackDescription={{ pl: form.excerpt_pl, en: form.excerpt_en }}
                 coverImageUrl={form.cover_image_url}
-                ogKicker={
-                  allCats?.find((c) => selectedCats.includes(c.id))?.name_pl ?? null
-                }
+                ogKicker={allCats?.find((c) => selectedCats.includes(c.id))?.name_pl ?? null}
                 onIssuesChange={setSeoIssues}
               />
 
               <div className="flex justify-end pt-2 border-t border-border">
-                <Button onClick={() => setStep("content")} disabled={!form.title_pl.trim() && !form.title_en.trim()}>
+                <Button
+                  onClick={() => setStep("content")}
+                  disabled={!form.title_pl.trim() && !form.title_en.trim()}
+                >
                   Przejdź do edycji treści <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>
@@ -788,7 +981,8 @@ function EditPost() {
                 if (!globalLayout) return canvas;
                 const effective = mergeOverrides(globalLayout, ov);
                 const layoutId = pickLayoutId(globalLayout, currentFormat, ov.layout);
-                const title = lang === "en" ? form.title_en || form.title_pl : form.title_pl || form.title_en;
+                const title =
+                  lang === "en" ? form.title_en || form.title_pl : form.title_pl || form.title_en;
                 const excerpt = lang === "en" ? form.excerpt_en : form.excerpt_pl;
                 return (
                   <LayoutScaffold
@@ -803,7 +997,7 @@ function EditPost() {
                   </LayoutScaffold>
                 );
               }}
-              documentPane={(
+              documentPane={
                 <div className="space-y-4">
                   {metaCard}
                   {layoutCard}
@@ -812,7 +1006,7 @@ function EditPost() {
                   <AccessSettingsPane entityType="post" entityId={id} />
                   <RevisionsCard entityType="post" entityId={id} onRestored={onRevisionRestored} />
                 </div>
-              )}
+              }
             />
           ) : form.editor === "builder" ? (
             <BuilderPane form={form} set={set} />
@@ -825,13 +1019,23 @@ function EditPost() {
               <TabsContent value="pl" className="space-y-4 mt-4">
                 <div>
                   <Label>{t("admin.posts.content")} (PL)</Label>
-                  <PostEditor mode={form.editor === "markdown" ? "markdown" : "richtext"} value={form.content_pl ?? ""} onChange={(v) => set("content_pl", v)} onPickImage={pickImage} />
+                  <PostEditor
+                    mode={form.editor === "markdown" ? "markdown" : "richtext"}
+                    value={form.content_pl ?? ""}
+                    onChange={(v) => set("content_pl", v)}
+                    onPickImage={pickImage}
+                  />
                 </div>
               </TabsContent>
               <TabsContent value="en" className="space-y-4 mt-4">
                 <div>
                   <Label>{t("admin.posts.content")} (EN)</Label>
-                  <PostEditor mode={form.editor === "markdown" ? "markdown" : "richtext"} value={form.content_en ?? ""} onChange={(v) => set("content_en", v)} onPickImage={pickImage} />
+                  <PostEditor
+                    mode={form.editor === "markdown" ? "markdown" : "richtext"}
+                    value={form.content_en ?? ""}
+                    onChange={(v) => set("content_en", v)}
+                    onPickImage={pickImage}
+                  />
                 </div>
               </TabsContent>
             </Tabs>
@@ -842,9 +1046,22 @@ function EditPost() {
   );
 }
 
-function BuilderPane({ form, set }: { form: { builder_data: BuilderDocument | null }; set: (k: "builder_data", v: BuilderDocument) => void }) {
+function BuilderPane({
+  form,
+  set,
+}: {
+  form: { builder_data: BuilderDocument | null };
+  set: (k: "builder_data", v: BuilderDocument) => void;
+}) {
   const [lang, setLang] = useState<"pl" | "en">("pl");
-  return <Builder value={form.builder_data} onChange={(v) => set("builder_data", v)} lang={lang} onLangChange={setLang} />;
+  return (
+    <Builder
+      value={form.builder_data}
+      onChange={(v) => set("builder_data", v)}
+      lang={lang}
+      onLangChange={setLang}
+    />
+  );
 }
 
 const MAX_TAKEAWAYS = 6;
@@ -886,8 +1103,12 @@ function TakeawaysEditor({
         </div>
         <Tabs value={active} onValueChange={(v) => setActive(v === "en" ? "en" : "pl")}>
           <TabsList>
-            <TabsTrigger value="pl">PL ({pl.length}/{MAX_TAKEAWAYS})</TabsTrigger>
-            <TabsTrigger value="en">EN ({en.length}/{MAX_TAKEAWAYS})</TabsTrigger>
+            <TabsTrigger value="pl">
+              PL ({pl.length}/{MAX_TAKEAWAYS})
+            </TabsTrigger>
+            <TabsTrigger value="en">
+              EN ({en.length}/{MAX_TAKEAWAYS})
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -907,7 +1128,13 @@ function TakeawaysEditor({
                 onChange={(e) => updateAt(i, e.target.value)}
                 className="flex-1"
               />
-              <Button type="button" variant="ghost" size="sm" onClick={() => removeAt(i)} aria-label={t("post.takeaways.remove")}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => removeAt(i)}
+                aria-label={t("post.takeaways.remove")}
+              >
                 <Trash2 className="w-4 h-4 text-destructive" />
               </Button>
             </li>
@@ -915,11 +1142,15 @@ function TakeawaysEditor({
         </ul>
       )}
 
-      <Button type="button" variant="outline" size="sm" onClick={add} disabled={current.length >= MAX_TAKEAWAYS}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={add}
+        disabled={current.length >= MAX_TAKEAWAYS}
+      >
         + {t("post.takeaways.add")}
       </Button>
     </div>
   );
 }
-
-
