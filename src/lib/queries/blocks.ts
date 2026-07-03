@@ -382,6 +382,35 @@ export const authorPostsCountQueryOptions = (authorId: string) =>
   });
 
 // ---------------------------------------------------------------------------
+// author-bio (fetch author profile when block explicitly overrides ctx)
+// ---------------------------------------------------------------------------
+
+export interface AuthorProfileRow {
+  id: string;
+  slug: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  bio_pl: string | null;
+  bio_en: string | null;
+}
+
+export const authorProfileByIdQueryOptions = (authorId: string) =>
+  queryOptions({
+    queryKey: ["public", "blocks", "author-profile", authorId] as const,
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+    queryFn: async (): Promise<AuthorProfileRow | null> => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, slug, display_name, avatar_url, bio_pl, bio_en")
+        .eq("id", authorId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as AuthorProfileRow | null) ?? null;
+    },
+  });
+
+// ---------------------------------------------------------------------------
 // more-posts (latest / trending / same category as current post)
 // ---------------------------------------------------------------------------
 
