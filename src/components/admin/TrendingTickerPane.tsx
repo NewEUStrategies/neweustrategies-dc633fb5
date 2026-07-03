@@ -14,7 +14,7 @@ import { TrendingTicker } from "@/components/header/TrendingTicker";
 
 type Json = Record<string, unknown>;
 type Source = "trending" | "latest" | "pinned";
-type Mode = "scroll" | "rotate";
+type Mode = "scroll" | "fade" | "slide" | "flip" | "typewriter";
 
 interface TrendingCfg {
   enabled: boolean;
@@ -22,6 +22,7 @@ interface TrendingCfg {
   mode: Mode;
   days: number;
   limit: number;
+  visibleCount: number;
   intervalSec: number;
   pinnedPostId: string;
   pinnedUntil: string;
@@ -34,6 +35,7 @@ const DEFAULTS: TrendingCfg = {
   mode: "scroll",
   days: 7,
   limit: 8,
+  visibleCount: 1,
   intervalSec: 6,
   pinnedPostId: "",
   pinnedUntil: "",
@@ -49,9 +51,13 @@ const COPY = {
     source_trending: "Najczęściej czytane",
     source_latest: "Najnowsze",
     source_pinned: "Przypięty wpis",
-    mode: "Tryb wyświetlania",
-    mode_scroll: "Przewijanie poziome",
-    mode_rotate: "Rotacja (po jednym)",
+    mode: "Tryb animacji",
+    mode_scroll: "Przewijanie w pętli",
+    mode_fade: "Przenikanie (fade)",
+    mode_slide: "Wysuwanie z dołu",
+    mode_flip: "Obrót 3D (flip)",
+    mode_typewriter: "Maszyna do pisania",
+    visibleCount: "Ile newsów widocznych jednocześnie",
     days: "Okres dla trendingu (dni)",
     limit: "Liczba wpisów",
     interval: "Co ile sekund zmieniać komunikat",
@@ -71,9 +77,13 @@ const COPY = {
     source_trending: "Most read",
     source_latest: "Latest",
     source_pinned: "Pinned post",
-    mode: "Display mode",
-    mode_scroll: "Horizontal scroll",
-    mode_rotate: "Rotate (one at a time)",
+    mode: "Animation mode",
+    mode_scroll: "Loop scroll",
+    mode_fade: "Cross-fade",
+    mode_slide: "Slide up",
+    mode_flip: "3D flip",
+    mode_typewriter: "Typewriter",
+    visibleCount: "Items visible at once",
     days: "Trending window (days)",
     limit: "Posts shown",
     interval: "Seconds between rotations",
@@ -157,7 +167,7 @@ export function TrendingTickerPane() {
 
   const previewKey = useMemo(
     () =>
-      `${cfg.source}-${cfg.mode}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}`,
+      `${cfg.source}-${cfg.mode}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}`,
     [cfg],
   );
 
@@ -202,8 +212,8 @@ export function TrendingTickerPane() {
 
         <div className="space-y-1.5">
           <Label>{t.mode}</Label>
-          <div className="grid grid-cols-2 gap-2">
-            {(["scroll", "rotate"] as const).map((m) => (
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {(["scroll", "fade", "slide", "flip", "typewriter"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
@@ -247,20 +257,36 @@ export function TrendingTickerPane() {
               />
             </div>
           )}
-          {cfg.mode === "rotate" && (
-            <div className="space-y-1.5">
-              <Label htmlFor="tt-int">{t.interval}</Label>
-              <Input
-                id="tt-int"
-                type="number"
-                min={2}
-                max={120}
-                value={cfg.intervalSec}
-                onChange={(e) => set("intervalSec", Math.max(2, Number(e.target.value) || 2))}
-              />
-            </div>
+          {cfg.mode !== "scroll" && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="tt-visible">{t.visibleCount}</Label>
+                <Input
+                  id="tt-visible"
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={cfg.visibleCount}
+                  onChange={(e) =>
+                    set("visibleCount", Math.max(1, Math.min(5, Number(e.target.value) || 1)))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="tt-int">{t.interval}</Label>
+                <Input
+                  id="tt-int"
+                  type="number"
+                  min={2}
+                  max={120}
+                  value={cfg.intervalSec}
+                  onChange={(e) => set("intervalSec", Math.max(2, Number(e.target.value) || 2))}
+                />
+              </div>
+            </>
           )}
         </div>
+
 
         {cfg.source === "pinned" && (
           <div className="space-y-3 rounded-[5px] border border-dashed border-border p-3">
@@ -323,6 +349,7 @@ export function TrendingTickerPane() {
               mode={cfg.mode}
               days={cfg.days}
               limit={cfg.limit}
+              visibleCount={cfg.visibleCount}
               intervalSec={cfg.intervalSec}
               pinnedPostId={cfg.pinnedPostId || undefined}
               pinnedUntil={cfg.pinnedUntil || null}

@@ -12,7 +12,8 @@ import {
 } from "@/lib/views/postViews.functions";
 
 export type TickerSource = "trending" | "latest" | "pinned";
-export type TickerMode = "scroll" | "rotate";
+// `rotate` retained as legacy alias for `slide` (single, slides up).
+export type TickerMode = "scroll" | "rotate" | "fade" | "slide" | "flip" | "typewriter";
 
 /** Header ticker knobs as stored in site_settings.header.trending. */
 export interface TickerConfig {
@@ -21,6 +22,8 @@ export interface TickerConfig {
   mode?: TickerMode;
   days?: number;
   limit?: number;
+  /** Rotate modes only: how many posts visible side-by-side at once. */
+  visibleCount?: number;
   intervalSec?: number;
   pinnedPostId?: string;
   pinnedUntil?: string | null;
