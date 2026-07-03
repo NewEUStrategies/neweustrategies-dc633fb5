@@ -999,6 +999,11 @@ const CategoryCore = z.object({
   slug: SlugInput,
   description_pl: NullableStr(2000),
   description_en: NullableStr(2000),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "color must be #rrggbb")
+    .nullable()
+    .optional(),
 });
 
 export const upsertCategory = createServerFn({ method: "POST" })
