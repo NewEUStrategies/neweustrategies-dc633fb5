@@ -147,6 +147,18 @@ function RedirectsAdmin() {
     },
   });
 
+  // Own tenant domains - the only hosts an absolute target may point at
+  // (mirrors the server-side allowlist, so the live preview and the actual
+  // validation in upsertRedirect always agree).
+  const { data: tenantDomains } = useQuery({
+    queryKey: ["admin-tenant-domains"],
+    staleTime: 10 * 60_000,
+    queryFn: async (): Promise<string[]> => {
+      const { data } = await supabase.from("tenants").select("domain");
+      return (data ?? []).map((t) => t.domain).filter((d): d is string => !!d);
+    },
+  });
+
   const { data: hits404 } = useQuery({
     queryKey: ["admin-seo-404"],
     queryFn: async (): Promise<Hit404Row[]> => {
@@ -280,7 +292,9 @@ function RedirectsAdmin() {
   };
 
   const normalizedSource = editor ? normalizeSourcePath(editor.source_path) : null;
-  const normalizedTarget = editor ? normalizeTargetPath(editor.target_path) : null;
+  const normalizedTarget = editor
+    ? normalizeTargetPath(editor.target_path, tenantDomains ?? [])
+    : null;
 
   return (
     <div className="space-y-5">

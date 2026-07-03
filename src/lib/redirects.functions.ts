@@ -48,6 +48,17 @@ async function resolveTenant(supabase: SupabaseClient, userId: string): Promise<
   return data.tenant_id as string;
 }
 
+/**
+ * Hosts an absolute redirect target may point at: the installation's own
+ * tenant domains. Anything else is rejected by normalizeTargetPath - a
+ * redirect rule must never become an open redirect to an arbitrary host.
+ */
+async function allowedRedirectHosts(): Promise<string[]> {
+  const { getTenantDirectory } = await import("@/lib/server/tenant.server");
+  const directory = await getTenantDirectory();
+  return [...directory.byDomain.keys()];
+}
+
 export const upsertRedirect = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .inputValidator((i: unknown) =>
@@ -60,11 +71,12 @@ export const upsertRedirect = createServerFn({ method: "POST" })
       const source = normalizeSourcePath(data.fields.source_path);
       if (!source) throw new Error("Invalid source path");
       if (!isRedirectStatusCode(data.fields.status_code)) throw new Error("Invalid status code");
+      const allowedHosts = await allowedRedirectHosts();
       // 410 Gone needs no meaningful target; store "/" as a placeholder.
       const target =
         data.fields.status_code === 410
-          ? (normalizeTargetPath(data.fields.target_path) ?? "/")
-          : normalizeTargetPath(data.fields.target_path);
+          ? (normalizeTargetPath(data.fields.target_path, allowedHosts) ?? "/")
+          : normalizeTargetPath(data.fields.target_path, allowedHosts);
       if (!target) throw new Error("Invalid target path");
       if (target === source) throw new Error("Redirect cannot point at itself");
 
@@ -76,8 +88,14 @@ export const upsertRedirect = createServerFn({ method: "POST" })
         note: data.fields.note?.trim() || null,
       };
       if (data.id) {
-        const { error } = await supabase.from("redirects").update(row).eq("id", data.id);
+        const { data: updated, error } = await supabase
+          .from("redirects")
+          .update(row)
+          .eq("id", data.id)
+          .eq("tenant_id", tenantId)
+          .select("id");
         if (error) throw new Error(error.message);
+        if (!updated?.length) throw new Error("Redirect not found or access denied");
         await recordAudit(supabase, {
           tenantId,
           action: "redirect.update",
@@ -89,7 +107,10 @@ export const upsertRedirect = createServerFn({ method: "POST" })
       }
       const { data: inserted, error } = await supabase
         .from("redirects")
-        .upsert({ ...row, source: "manual", created_by: userId }, { onConflict: "source_path" })
+        .upsert(
+          { ...row, tenant_id: tenantId, source: "manual", created_by: userId },
+          { onConflict: "tenant_id,source_path" },
+        )
         .select("id")
         .single();
       if (error) throw new Error(error.message);
@@ -157,9 +178,11 @@ export const importRedirectsCsv = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("redirect.import", userId, 10, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const { rows, issues } = parseRedirectsCsv(data.csv);
+      const allowedHosts = await allowedRedirectHosts();
+      const { rows, issues } = parseRedirectsCsv(data.csv, allowedHosts);
       if (!rows.length) return { imported: 0, issues };
       const payload = rows.map((row) => ({
+        tenant_id: tenantId,
         source_path: row.source_path,
         target_path: row.target_path,
         status_code: row.status_code,
@@ -172,7 +195,7 @@ export const importRedirectsCsv = createServerFn({ method: "POST" })
       for (let i = 0; i < payload.length; i += 500) {
         const { error } = await supabase
           .from("redirects")
-          .upsert(payload.slice(i, i + 500), { onConflict: "source_path" });
+          .upsert(payload.slice(i, i + 500), { onConflict: "tenant_id,source_path" });
         if (error) throw new Error(error.message);
       }
       await recordAudit(supabase, {
@@ -195,7 +218,12 @@ export const dismissSeo404 = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("redirect.dismiss404", userId, 60, async () => {
-      const { error } = await supabase.from("seo_404_hits").delete().in("path", data.paths);
+      const tenantId = await resolveTenant(supabase, userId);
+      const { error } = await supabase
+        .from("seo_404_hits")
+        .delete()
+        .eq("tenant_id", tenantId)
+        .in("path", data.paths);
       if (error) throw new Error(error.message);
       return { ok: true as const };
     });

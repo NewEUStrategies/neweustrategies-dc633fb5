@@ -23,7 +23,12 @@ export interface ConsentState {
   source?: "local" | "profile";
 }
 
-export const ALL_CATEGORIES: ConsentCategory[] = ["necessary", "functional", "analytics", "marketing"];
+export const ALL_CATEGORIES: ConsentCategory[] = [
+  "necessary",
+  "functional",
+  "analytics",
+  "marketing",
+];
 
 export function defaultConsent(granted: boolean): ConsentState {
   return {
@@ -127,12 +132,10 @@ async function syncConsentToProfile(state: ConsentState): Promise<void> {
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth?.user?.id;
     if (!uid) return;
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("prefs")
-      .eq("id", uid)
-      .maybeSingle();
-    const prevPrefs = (profile?.prefs ?? {}) as Record<string, unknown>;
+    // `prefs` is excluded from the profiles column grant (private preferences);
+    // own-row access goes through the SECURITY DEFINER get_own_profile().
+    const { data: ownRows } = await supabase.rpc("get_own_profile");
+    const prevPrefs = (ownRows?.[0]?.prefs ?? {}) as Record<string, unknown>;
     const nextPrefs = { ...prevPrefs, consent: { ...state, source: "profile" } };
     await supabase.from("profiles").update({ prefs: nextPrefs }).eq("id", uid);
   } catch {
@@ -146,12 +149,8 @@ export async function hydrateConsentFromProfile(): Promise<ConsentState | null> 
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth?.user?.id;
     if (!uid) return null;
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("prefs")
-      .eq("id", uid)
-      .maybeSingle();
-    const prefs = (profile?.prefs ?? {}) as Record<string, unknown>;
+    const { data: ownRows } = await supabase.rpc("get_own_profile");
+    const prefs = (ownRows?.[0]?.prefs ?? {}) as Record<string, unknown>;
     const remote = safeParse(JSON.stringify(prefs.consent ?? null));
     const local = readLocal();
     if (remote && (!local || remote.ts > local.ts)) {
@@ -183,7 +182,9 @@ export function useConsent() {
     // Po zalogowaniu - pobierz z profilu
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "USER_UPDATED") {
-        void hydrateConsentFromProfile().then((r) => { if (r) setState(r); });
+        void hydrateConsentFromProfile().then((r) => {
+          if (r) setState(r);
+        });
       }
     });
     return () => {
@@ -198,8 +199,14 @@ export function useConsent() {
     setState(next);
   }, []);
 
-  const acceptAll = useCallback(() => save({ functional: true, analytics: true, marketing: true }), [save]);
-  const rejectAll = useCallback(() => save({ functional: false, analytics: false, marketing: false }), [save]);
+  const acceptAll = useCallback(
+    () => save({ functional: true, analytics: true, marketing: true }),
+    [save],
+  );
+  const rejectAll = useCallback(
+    () => save({ functional: false, analytics: false, marketing: false }),
+    [save],
+  );
 
   return {
     state,

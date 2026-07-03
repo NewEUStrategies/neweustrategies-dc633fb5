@@ -1,6 +1,11 @@
 // Review Box - Foxiz style. Score badge + criterion bars + verdict + CTA.
 // Emits schema.org Review JSON-LD when title/score are present.
-interface Criterion { label: string; score: number }
+import { safeJsonLd } from "@/lib/seo/jsonld";
+
+interface Criterion {
+  label: string;
+  score: number;
+}
 interface Props {
   title?: string;
   summary?: string;
@@ -20,40 +25,51 @@ function colorForScore(pct: number): string {
 }
 
 export function ReviewBlockView({
-  title, summary, criteria, ctaLabel, ctaHref, scale = 10, lang = "pl",
+  title,
+  summary,
+  criteria,
+  ctaLabel,
+  ctaHref,
+  scale = 10,
+  lang = "pl",
 }: Props) {
-  const L = lang === "pl"
-    ? { verdict: "Werdykt", overall: "Ocena ogólna", cta: "Sprawdź" }
-    : { verdict: "Verdict", overall: "Overall score", cta: "Check it out" };
+  const L =
+    lang === "pl"
+      ? { verdict: "Werdykt", overall: "Ocena ogólna", cta: "Sprawdź" }
+      : { verdict: "Verdict", overall: "Overall score", cta: "Check it out" };
   const valid = (criteria ?? []).filter((c) => c.label.trim());
-  const overall = valid.length
-    ? valid.reduce((a, c) => a + c.score, 0) / valid.length
-    : 0;
+  const overall = valid.length ? valid.reduce((a, c) => a + c.score, 0) / valid.length : 0;
   const overallPct = overall / scale;
 
-  const jsonLd = title ? {
-    "@context": "https://schema.org",
-    "@type": "Review",
-    name: title,
-    reviewRating: {
-      "@type": "Rating",
-      ratingValue: overall.toFixed(1),
-      bestRating: scale,
-      worstRating: 0,
-    },
-    reviewBody: summary || "",
-  } : null;
+  const jsonLd = title
+    ? {
+        "@context": "https://schema.org",
+        "@type": "Review",
+        name: title,
+        reviewRating: {
+          "@type": "Rating",
+          ratingValue: overall.toFixed(1),
+          bestRating: scale,
+          worstRating: 0,
+        },
+        reviewBody: summary || "",
+      }
+    : null;
 
   return (
     <section className="not-prose my-6 rounded-lg border border-border bg-card overflow-hidden">
       <div className="flex items-stretch">
-        <div className={`flex flex-col items-center justify-center px-5 py-4 text-primary-foreground ${colorForScore(overallPct)}`}>
+        <div
+          className={`flex flex-col items-center justify-center px-5 py-4 text-primary-foreground ${colorForScore(overallPct)}`}
+        >
           <span className="text-3xl md:text-4xl font-bold leading-none">{overall.toFixed(1)}</span>
           <span className="text-[10px] uppercase tracking-wider opacity-90 mt-1">/ {scale}</span>
         </div>
         <div className="flex-1 px-4 py-3 min-w-0">
           {title && <h3 className="text-base font-semibold m-0 truncate">{title}</h3>}
-          <p className="text-xs uppercase tracking-wider text-muted-foreground mt-0.5">{L.overall}</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground mt-0.5">
+            {L.overall}
+          </p>
         </div>
         {ctaLabel && ctaHref && (
           <a
@@ -77,7 +93,10 @@ export function ReviewBlockView({
                   <span className="tabular-nums text-muted-foreground">{c.score.toFixed(1)}</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                  <div className={`h-full rounded-full ${colorForScore(c.score / scale)}`} style={{ width: `${pct}%` }} />
+                  <div
+                    className={`h-full rounded-full ${colorForScore(c.score / scale)}`}
+                    style={{ width: `${pct}%` }}
+                  />
                 </div>
               </div>
             );
@@ -86,7 +105,9 @@ export function ReviewBlockView({
       )}
       {summary && (
         <div className="px-4 py-3 border-t border-border text-sm">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{L.verdict}</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+            {L.verdict}
+          </p>
           <p className="m-0 whitespace-pre-line">{summary}</p>
         </div>
       )}
@@ -103,8 +124,9 @@ export function ReviewBlockView({
       {jsonLd && (
         <script
           type="application/ld+json"
-          // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          // safeJsonLd escapes </script> breakouts - editor-authored title /
+          // summary cannot terminate the element and inject live HTML.
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }}
         />
       )}
     </section>

@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface TenantAuthor {
   id: string;
   display_name: string | null;
-  email: string | null;
+  slug: string | null;
   avatar_url: string | null;
 }
 
@@ -13,6 +13,8 @@ export interface TenantAuthor {
  * filters and label author_id cells in admin lists.
  * Per-tenant scoped (RLS-safe: profiles has public read by design but
  * we constrain by tenant_id on the client to keep UI tenant-isolated).
+ * Deliberately does NOT select `email`: the column grant excludes it for
+ * regular staff; labels fall back to slug instead.
  */
 export function useTenantAuthors(tenantId: string | null | undefined) {
   return useQuery({
@@ -22,7 +24,7 @@ export function useTenantAuthors(tenantId: string | null | undefined) {
     queryFn: async (): Promise<TenantAuthor[]> => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, display_name, email, avatar_url")
+        .select("id, display_name, slug, avatar_url")
         .eq("tenant_id", tenantId!)
         .order("display_name", { ascending: true, nullsFirst: false });
       if (error) throw error;
@@ -33,5 +35,5 @@ export function useTenantAuthors(tenantId: string | null | undefined) {
 
 export function authorLabel(a: TenantAuthor | undefined | null): string {
   if (!a) return "-";
-  return a.display_name?.trim() || a.email?.trim() || "-";
+  return a.display_name?.trim() || a.slug?.trim() || "-";
 }

@@ -60,6 +60,61 @@ const legacyLangQueryMiddleware = createMiddleware().server(async ({ request, ne
 const GONE_BODY = `<!doctype html><html><head><meta charset="utf-8"><title>410 Gone</title></head><body style="font-family:system-ui;text-align:center;padding:4rem 1rem"><h1>410</h1><p>Ta treść została trwale usunięta. / This content has been permanently removed.</p><p><a href="/">New European Strategies</a></p></body></html>`;
 
 /**
+ * Baseline security headers for every HTML document. The CSP is the defense-
+ * in-depth layer behind output escaping (see safeJsonLd): even if an escape is
+ * missed somewhere, no third-party script can load, nothing can frame the
+ * site, <base> cannot be hijacked and plugins are dead. 'unsafe-inline' for
+ * scripts is required by the framework's inline hydration/theme snippets;
+ * everything else is locked down. connect-src allows Supabase (https + the
+ * realtime websocket) and the observability/Stripe beacons.
+ */
+function contentSecurityPolicy(): string {
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
+  let supabaseOrigins = "";
+  try {
+    if (supabaseUrl) {
+      const u = new URL(supabaseUrl);
+      supabaseOrigins = `${u.origin} wss://${u.host}`;
+    }
+  } catch {
+    /* malformed env - omit */
+  }
+  return [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    `connect-src 'self' https: wss: ${supabaseOrigins}`.trim(),
+    "media-src 'self' https: blob:",
+    "frame-src https:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'self'",
+    "upgrade-insecure-requests",
+  ].join("; ");
+}
+
+const securityHeadersMiddleware = createMiddleware().server(async ({ next }) => {
+  const response = await next();
+  if (!(response instanceof Response)) return response;
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("text/html")) return response;
+  if (!response.headers.has("Content-Security-Policy")) {
+    response.headers.set("Content-Security-Policy", contentSecurityPolicy());
+  }
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "SAMEORIGIN");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), payment=(self)",
+  );
+  return response;
+});
+
+/**
  * Redirect manager + 404 monitor. Runs before routing on every GET/HEAD:
  *   1. matches the raw path (query-aware, so WP shortlinks like "/?p=123"
  *      work), then the language-stripped path with the prefix re-applied to
@@ -76,18 +131,33 @@ const redirectMiddleware = createMiddleware().server(async ({ request, next }) =
   const url = new URL(request.url);
   if (isProtectedPath(url.pathname)) return next();
 
-  // Dynamic import keeps the Supabase service-role client strictly out of the
-  // client bundle (module instance is cached after the first request).
-  const { recordRedirectHit, recordSeo404, resolveRedirect } =
-    await import("@/lib/server/redirects.server");
+  // Dynamic imports keep the Supabase service-role client strictly out of the
+  // client bundle (module instances are cached after the first request).
+  const [{ recordRedirectHit, recordSeo404, resolveRedirect }, { resolveTenantIdForHost }] =
+    await Promise.all([
+      import("@/lib/server/redirects.server"),
+      import("@/lib/server/tenant.server"),
+    ]);
+
+  // Rules are tenant-scoped: resolve the tenant owning this host first, so a
+  // rule created by one tenant's staff can never capture another tenant's
+  // traffic. Unresolvable tenant (empty/unavailable directory) -> no redirect
+  // handling, plain pass-through.
+  let tenantId: string | null = null;
+  try {
+    tenantId = await resolveTenantIdForHost(request.headers.get("host"));
+  } catch (e) {
+    console.warn("[redirects] tenant resolution failed:", e);
+  }
+  if (!tenantId) return next();
 
   try {
-    let match = await resolveRedirect(url.pathname, url.search);
+    let match = await resolveRedirect(tenantId, url.pathname, url.search);
     let target = match?.target ?? "";
     if (!match) {
       const { lang, pathname } = stripLangPrefix(url.pathname);
       if (lang) {
-        match = await resolveRedirect(pathname, url.search);
+        match = await resolveRedirect(tenantId, pathname, url.search);
         if (match) {
           // Keep the visitor in their language when the target is a same-site path.
           target = /^https?:\/\//i.test(match.target)
@@ -124,13 +194,18 @@ const redirectMiddleware = createMiddleware().server(async ({ request, next }) =
   if (method === "GET" && response instanceof Response && response.status === 404) {
     const accept = request.headers.get("accept") ?? "";
     if (accept.includes("text/html")) {
-      recordSeo404(url.pathname, url.search, request.headers.get("referer"));
+      recordSeo404(tenantId, url.pathname, url.search, request.headers.get("referer"));
     }
   }
   return response;
 });
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [errorMiddleware, redirectMiddleware, legacyLangQueryMiddleware],
+  requestMiddleware: [
+    errorMiddleware,
+    securityHeadersMiddleware,
+    redirectMiddleware,
+    legacyLangQueryMiddleware,
+  ],
   functionMiddleware: [attachSupabaseAuth],
 }));

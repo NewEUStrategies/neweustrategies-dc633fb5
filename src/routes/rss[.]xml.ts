@@ -11,8 +11,9 @@ import { SITE_DEFAULT_DESCRIPTION, SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/s
 import { buildRssXml, type RssItem } from "@/lib/seo/rss";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import { fetchPublishedPosts, fetchSeoSettingsValue } from "@/lib/server/publishedContent.server";
+import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 
-function requestContext(): { origin: string; lang: AppLang } {
+function requestContext(): { origin: string; host: string; lang: AppLang } {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = req.headers.get("host") ?? "";
@@ -23,20 +24,25 @@ function requestContext(): { origin: string; lang: AppLang } {
   } catch {
     /* keep default */
   }
-  return { origin, lang };
+  return { origin, host, lang };
 }
 
 export const Route = createFileRoute("/rss.xml")({
   server: {
     handlers: {
       GET: async () => {
-        const { origin, lang } = requestContext();
-        const settings = parseSeoSettings(await fetchSeoSettingsValue());
+        const { origin, host, lang } = requestContext();
+        // Feeds are served with the service role (bypasses RLS), so the reads
+        // MUST be scoped to the tenant owning this request host. When the
+        // tenant directory is unavailable the feed degrades to an EMPTY shell
+        // (crawler surfaces never 500 and never serve unscoped data).
+        const tenantId = await resolveTenantIdForHost(host);
+        const settings = parseSeoSettings(tenantId ? await fetchSeoSettingsValue(tenantId) : null);
         if (!settings.rss_enabled) {
           return new Response("Feed disabled", { status: 404 });
         }
 
-        const posts = await fetchPublishedPosts(settings.rss_item_count);
+        const posts = tenantId ? await fetchPublishedPosts(tenantId, settings.rss_item_count) : [];
         const items: RssItem[] = posts.map((post) => ({
           url: `${origin}${localizedPath(post.path, lang)}`,
           title:

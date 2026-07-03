@@ -11,6 +11,24 @@ import { SITE_NAME, SITE_DEFAULT_DESCRIPTION, absoluteUrl, type Lang } from "@/l
 import { localizedPath } from "@/lib/i18n/localePath";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 
+/**
+ * Serialize a JSON-LD graph for embedding inside a <script> element. Plain
+ * JSON.stringify is NOT safe there: user-authored content containing
+ * "</script>" (or an HTML comment / CDATA opener) terminates the script
+ * element early and everything after it parses as live HTML - stored XSS.
+ * Escaping <, >, & as \uXXXX keeps the payload identical after JSON.parse
+ * (crawlers see the same graph) while making element breakout impossible.
+ * U+2028/U+2029 are escaped for legacy JS-parser compatibility.
+ */
+export function safeJsonLd(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003C")
+    .replace(/>/g, "\\u003E")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
 export interface OrganizationJsonLdInput {
   origin: string;
   lang: Lang;

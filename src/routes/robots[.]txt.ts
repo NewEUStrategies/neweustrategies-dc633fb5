@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { aiCrawlerDirectives, parseSeoSettings } from "@/lib/seo/settings";
 import { fetchSeoSettingsValue } from "@/lib/server/publishedContent.server";
+import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 
 export const Route = createFileRoute("/robots.txt")({
   server: {
@@ -15,7 +16,8 @@ export const Route = createFileRoute("/robots.txt")({
         const proto = req.headers.get("x-forwarded-proto") ?? "https";
         const host = req.headers.get("host") ?? "";
         const origin = host ? `${proto}://${host}` : "";
-        const settings = parseSeoSettings(await fetchSeoSettingsValue());
+        const tenantId = await resolveTenantIdForHost(host);
+        const settings = parseSeoSettings(tenantId ? await fetchSeoSettingsValue(tenantId) : null);
 
         const lines: string[] = [
           "User-agent: *",

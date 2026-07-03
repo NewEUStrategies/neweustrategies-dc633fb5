@@ -53,20 +53,24 @@ export function alternateLinks(loc: string): string[] {
   return lines;
 }
 
-function originFromRequest(): string {
+function requestContext(): { origin: string; host: string } {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = req.headers.get("host") ?? "";
-  return host ? `${proto}://${host}` : "";
+  return { origin: host ? `${proto}://${host}` : "", host };
 }
 
 // Paths of ALL published pages (a noindex page still parents indexable posts,
 // so it stays in the path map) + the set of page ids excluded from their own
-// sitemap entry via the per-page `seo_noindex` flag.
-async function buildPagePaths(): Promise<{ paths: Map<string, string>; noindex: Set<string> }> {
+// sitemap entry via the per-page `seo_noindex` flag. Service-role read -
+// bypasses RLS - so it is explicitly scoped to the host's tenant.
+async function buildPagePaths(
+  tenantId: string,
+): Promise<{ paths: Map<string, string>; noindex: Set<string> }> {
   const { data } = await supabaseAdmin
     .from("pages")
     .select("id, seo_noindex")
+    .eq("tenant_id", tenantId)
     .eq("status", "published")
     .is("deleted_at", null);
   const rows = (data ?? []) as Array<{ id: string; seo_noindex: boolean }>;
@@ -85,7 +89,7 @@ export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
       GET: async () => {
-        const origin = originFromRequest();
+        const { origin, host } = requestContext();
         const entries: SitemapEntry[] = [
           { loc: `${origin}/`, changefreq: "daily", priority: "1.0" },
           { loc: `${origin}/blog`, changefreq: "daily", priority: "0.8" },
@@ -95,7 +99,10 @@ export const Route = createFileRoute("/sitemap.xml")({
         // Crawler surfaces degrade, never 500: on a DB failure the sitemap
         // still serves the static entries instead of poisoning the crawl.
         try {
-          const { paths: pagePaths, noindex: noindexPages } = await buildPagePaths();
+          const { resolveTenantIdForHost } = await import("@/lib/server/tenant.server");
+          const tenantId = await resolveTenantIdForHost(host);
+          if (!tenantId) throw new Error("tenant unresolved - static entries only");
+          const { paths: pagePaths, noindex: noindexPages } = await buildPagePaths(tenantId);
           for (const [id, path] of pagePaths) {
             // Pages marked noindex are excluded - a sitemap must not advertise
             // URLs the robots meta asks crawlers to skip.
@@ -106,6 +113,7 @@ export const Route = createFileRoute("/sitemap.xml")({
           const { data: posts } = await supabaseAdmin
             .from("posts")
             .select("slug, parent_page_id, updated_at, published_at")
+            .eq("tenant_id", tenantId)
             .eq("status", "published")
             .is("deleted_at", null)
             .eq("seo_noindex", false);
@@ -155,7 +163,8 @@ export const Route = createFileRoute("/sitemap.xml")({
             // stare zwracane jako fallback do 30 min - dzięki temu zmiany SEO
             // (nowy wpis, seo_noindex, redirect) propagują się bez ręcznego
             // odswieżania cache.
-            "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=1800, must-revalidate",
+            "Cache-Control":
+              "public, max-age=0, s-maxage=60, stale-while-revalidate=1800, must-revalidate",
           },
         });
       },
