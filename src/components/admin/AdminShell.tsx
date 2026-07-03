@@ -127,6 +127,13 @@ function AdminShellInner({
         { to: "/admin/pages", icon: File, label: t("admin.nav.pages") },
         { to: "/admin/media", icon: ImageIcon, label: t("admin.nav.media") },
         { to: "/admin/categories", icon: FolderTree, label: t("admin.nav.categories") },
+        {
+          to: "/admin/category-colors",
+          icon: Palette,
+          label: t("admin.nav.categoryColors", {
+            defaultValue: "Kolory kategorii",
+          }),
+        },
         { to: "/admin/tags", icon: Tags, label: t("admin.nav.tags") },
         { to: "/admin/content-area", icon: FileText, label: t("admin.nav.contentArea") },
       ],

@@ -546,6 +546,7 @@ export type Database = {
       }
       categories: {
         Row: {
+          color: string | null
           created_at: string
           description_en: string | null
           description_pl: string | null
@@ -557,6 +558,7 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          color?: string | null
           created_at?: string
           description_en?: string | null
           description_pl?: string | null
@@ -568,6 +570,7 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          color?: string | null
           created_at?: string
           description_en?: string | null
           description_pl?: string | null

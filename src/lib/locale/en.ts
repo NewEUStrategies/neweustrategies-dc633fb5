@@ -186,6 +186,26 @@ export const en = {
       redirects: "Redirects",
       seo: "SEO",
       experiments: "A/B tests",
+      categoryColors: "Category colors",
+    },
+    categoryColors: {
+      title: "Category badge colors",
+      subtitle:
+        "Assign a badge background color for each core category. The color is used in post headers and overlays. Avoid yellow hues.",
+      column: {
+        preview: "Preview",
+        name: "Name",
+        slug: "Slug",
+        color: "Color",
+      },
+      addMissing: "Add missing core areas",
+      addedMissing: "Missing categories added",
+      save: "Save colors",
+      saved: "Category colors saved",
+      saveError: "Failed to save colors",
+      reset: "Restore recommended",
+      previewLabel: "Preview",
+      noColor: "none",
     },
     popups: {
       title: "Popups",

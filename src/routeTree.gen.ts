@@ -79,6 +79,7 @@ import { Route as AdminCropSizesRouteImport } from './routes/admin.crop-sizes'
 import { Route as AdminCrmRouteImport } from './routes/admin.crm'
 import { Route as AdminContentAreaRouteImport } from './routes/admin.content-area'
 import { Route as AdminContactRouteImport } from './routes/admin.contact'
+import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category-colors'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
 import { Route as AdminAdsRouteImport } from './routes/admin.ads'
@@ -457,6 +458,11 @@ const AdminContactRoute = AdminContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCategoryColorsRoute = AdminCategoryColorsRouteImport.update({
+  id: '/category-colors',
+  path: '/category-colors',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
@@ -615,6 +621,7 @@ export interface FileRoutesByFullPath {
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crm': typeof AdminCrmRoute
@@ -712,6 +719,7 @@ export interface FileRoutesByTo {
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crm': typeof AdminCrmRoute
@@ -811,6 +819,7 @@ export interface FileRoutesById {
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/categories': typeof AdminCategoriesRoute
+  '/admin/category-colors': typeof AdminCategoryColorsRoute
   '/admin/contact': typeof AdminContactRoute
   '/admin/content-area': typeof AdminContentAreaRoute
   '/admin/crm': typeof AdminCrmRoute
@@ -912,6 +921,7 @@ export interface FileRouteTypes {
     | '/admin/ads'
     | '/admin/appearance'
     | '/admin/categories'
+    | '/admin/category-colors'
     | '/admin/contact'
     | '/admin/content-area'
     | '/admin/crm'
@@ -1009,6 +1019,7 @@ export interface FileRouteTypes {
     | '/admin/ads'
     | '/admin/appearance'
     | '/admin/categories'
+    | '/admin/category-colors'
     | '/admin/contact'
     | '/admin/content-area'
     | '/admin/crm'
@@ -1107,6 +1118,7 @@ export interface FileRouteTypes {
     | '/admin/ads'
     | '/admin/appearance'
     | '/admin/categories'
+    | '/admin/category-colors'
     | '/admin/contact'
     | '/admin/content-area'
     | '/admin/crm'
@@ -1714,6 +1726,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminContactRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/category-colors': {
+      id: '/admin/category-colors'
+      path: '/category-colors'
+      fullPath: '/admin/category-colors'
+      preLoaderRoute: typeof AdminCategoryColorsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/categories': {
       id: '/admin/categories'
       path: '/categories'
@@ -1998,6 +2017,7 @@ interface AdminRouteChildren {
   AdminAdsRoute: typeof AdminAdsRoute
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
   AdminCategoriesRoute: typeof AdminCategoriesRoute
+  AdminCategoryColorsRoute: typeof AdminCategoryColorsRoute
   AdminContactRoute: typeof AdminContactRoute
   AdminContentAreaRoute: typeof AdminContentAreaRoute
   AdminCrmRoute: typeof AdminCrmRoute
@@ -2037,6 +2057,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAdsRoute: AdminAdsRoute,
   AdminAppearanceRoute: AdminAppearanceRouteWithChildren,
   AdminCategoriesRoute: AdminCategoriesRoute,
+  AdminCategoryColorsRoute: AdminCategoryColorsRoute,
   AdminContactRoute: AdminContactRoute,
   AdminContentAreaRoute: AdminContentAreaRoute,
   AdminCrmRoute: AdminCrmRoute,

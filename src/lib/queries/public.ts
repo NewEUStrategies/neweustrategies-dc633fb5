@@ -123,6 +123,7 @@ export interface PostCategory {
   slug: string;
   name_pl: string;
   name_en: string;
+  color: string | null;
 }
 
 export type ResolvedContent =
@@ -327,7 +328,7 @@ export const resolvedContentQueryOptions = (segments: string[]) =>
             supabase.from("post_tags").select("tags(slug, name)").eq("post_id", hit.post_id),
             supabase
               .from("post_categories")
-              .select("categories(slug, name_pl, name_en)")
+              .select("categories(slug, name_pl, name_en, color)")
               .eq("post_id", hit.post_id),
             fetchPageBreadcrumbs(hit.page_id),
             fetchAccessRule("post", hit.post_id),
