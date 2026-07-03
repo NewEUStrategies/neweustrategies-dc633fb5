@@ -61,9 +61,19 @@ export function TtsPlayer({ text, voiceId, model, label }: TtsPlayerProps) {
     setLoading(true);
     setError(null);
     try {
+      // /api/tts requires an authenticated Supabase session. The bearer token
+      // is attached explicitly - the browser doesn't send it automatically.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        throw new Error("Zaloguj się, aby odsłuchać wersję audio.");
+      }
       const res = await fetch("/api/tts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ text: text.slice(0, 5000), voiceId, model }),
       });
       if (!res.ok) {
