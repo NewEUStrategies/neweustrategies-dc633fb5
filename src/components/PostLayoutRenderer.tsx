@@ -188,6 +188,11 @@ export function PostLayoutRenderer({
               sizes={coverImageSizes(preset)}
             />
             <div className={center ? "text-center" : ""}>
+              {categoryBadges && (
+                <div className={`mb-4 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
+                  {categoryBadges}
+                </div>
+              )}
               <h1 className="font-display text-3xl lg:text-5xl mb-4">{title}</h1>
               {excerpt && <p className="text-lg text-muted-foreground mb-4">{excerpt}</p>}
               {meta && (
