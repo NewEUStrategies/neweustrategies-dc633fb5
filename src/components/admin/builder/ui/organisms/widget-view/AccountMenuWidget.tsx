@@ -476,18 +476,21 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
         avoidCollisions
         className={[
           "p-2 shadow-xl border-border/60 backdrop-blur-md",
-          // Smooth in/out — override the default snappy Radix animation
-          "will-change-[transform,opacity,filter]",
-          "data-[state=open]:animate-none data-[state=closed]:animate-none",
-          "data-[state=open]:opacity-100 data-[state=closed]:opacity-0",
-          "data-[state=open]:translate-y-0 data-[state=closed]:-translate-y-1",
-          "data-[state=open]:scale-100 data-[state=closed]:scale-[0.97]",
-          "data-[state=open]:blur-0 data-[state=closed]:blur-[2px]",
-          "transition-[opacity,transform,filter] duration-200 ease-[cubic-bezier(0.22,0.61,0.36,1)]",
+          // Smoother in/out using Radix state + tailwindcss-animate keyframes.
+          // Overrides the default 150ms snap with a longer, cubic-bezier easing
+          // and adds a small vertical slide + subtle scale for a premium feel.
+          "data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
+          "data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
+          "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
+          "data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2",
+          "duration-220 ease-[cubic-bezier(0.22,0.61,0.36,1)]",
+          "will-change-[transform,opacity]",
           "origin-(--radix-popover-content-transform-origin)",
         ].join(" ")}
         style={panelStyle}
       >
+
 
         {session ? (
           <>
