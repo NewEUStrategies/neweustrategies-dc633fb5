@@ -192,7 +192,7 @@ const COLOR_KEYS: readonly (keyof TickerColors)[] = [
   "counter",
 ];
 
-const ICON_OPTIONS: readonly IconAnimation[] = ["none", "pulse", "flicker", "spin", "wave"];
+
 
 export function TrendingTickerPane() {
   const qc = useQueryClient();
