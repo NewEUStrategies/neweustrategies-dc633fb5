@@ -10,6 +10,8 @@ interface Props {
     PostLayoutSettings,
     "featured_ratio_l6" | "featured_ratio_l10" | "featured_ratio_l11" | "center_header"
   >;
+  /** Nadpisanie hasSidebar (np. z override w ustawieniach). */
+  hasSidebarOverride?: boolean;
   className?: string;
 }
 
@@ -20,9 +22,9 @@ function ratioPct(p: LayoutPreset, s: Props["settings"]): number {
   return 56;
 }
 
-export function LayoutPreview({ preset, settings, className }: Props) {
+export function LayoutPreview({ preset, settings, hasSidebarOverride, className }: Props) {
   const ratio = ratioPct(preset, settings);
-  const hasSidebar = preset.hasSidebar;
+  const hasSidebar = hasSidebarOverride ?? preset.hasSidebar;
   const centered = (settings?.center_header ?? preset.centerHeaderDefault) === true;
   const headerJustify = centered ? "items-center text-center" : "items-start text-left";
 

@@ -1,0 +1,1 @@
+ALTER TABLE public.post_layout_settings ADD COLUMN IF NOT EXISTS layout_sidebar_overrides jsonb NOT NULL DEFAULT '{}'::jsonb;
