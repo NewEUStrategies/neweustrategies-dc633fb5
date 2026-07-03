@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -300,15 +300,16 @@ function EditPost() {
       // przejście na slug wpisany w formularzu załadowałoby CUDZY wpis,
       // który go posiada ("podmiana" edytowanego posta).
       const canonicalSlug = result?.slug ?? snapshot.slug;
-      qc.invalidateQueries({ queryKey: ["admin-posts"] });
-      qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, routeSlug] });
-      qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, canonicalSlug] });
-      // Refresh every widget cache that references posts (live sync across the site).
-      invalidateWidgetCaches(qc);
-      emitWidgetCacheInvalidate();
-      // Odswiez publiczne surface'y SEO (mapa strony HTML, dashboard /admin/seo);
-      // sitemap.xml + llms.txt są serwerowe i mają wlasny SWR.
-      invalidateSeoCaches(qc, router);
+      // WAZNE: autosave nie moze przebudowywac calego swiata przy kazdym
+      // debounced zapisie - to powodowalo "auto-refresh" edytora (loadery
+      // route'a znow pobieraly wiersz posta, cache widgetow leciał, a
+      // router.invalidate() re-renderowal cala trase). Tutaj robimy WYLACZNIE
+      // to co niezbedne dla poprawnosci UI: uaktualnienie listy w tle
+      // (nastepna wizyta /admin/posts) i sygnal statusu. Cieze inwalidacje
+      // (widget cache, SEO cache, router.invalidate) sa uruchamiane dopiero
+      // przez explicit "Publikuj/Zapisz i wyjdz" lub przy odmontowaniu edytora.
+      void qc.invalidateQueries({ queryKey: ["admin-posts"], refetchType: "none" });
+
       if (canonicalSlug !== snapshot.slug) {
         // Kolizja nie może być cicha: pokaz stan błędu/ostrzeżenia i zsynchronizuj
         // pole formularza z tym, co realnie trafiło do bazy.
@@ -353,6 +354,27 @@ function EditPost() {
   });
   // Tab close / route change with unsaved edits -> confirmation prompt.
   useUnsavedChangesGuard(autosave.isDirty || autosave.status === "saving");
+
+  // Ciezkie inwalidacje (widget cache, SEO cache, router.invalidate) NIE
+  // odpalaja sie przy kazdym autozapisie (patrz saveFn) - to powodowaloby
+  // ciagle "auto-refresh" edytora. Zamiast tego uruchamiamy je raz przy
+  // opuszczeniu edytora, tak zeby publiczne widoki i dashboard SEO zaladowaly
+  // swiezy stan przy nastepnej wizycie uzytkownika.
+  const dirtyRef = useRef(false);
+  useEffect(() => {
+    if (autosave.status === "saved") dirtyRef.current = true;
+  }, [autosave.status]);
+  useEffect(() => {
+    return () => {
+      if (!dirtyRef.current) return;
+      void qc.invalidateQueries({ queryKey: ["admin-posts"] });
+      invalidateWidgetCaches(qc);
+      emitWidgetCacheInvalidate();
+      invalidateSeoCaches(qc, router);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   if (isLoading || !form) return <div className="text-sm text-muted-foreground">...</div>;
 
