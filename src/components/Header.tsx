@@ -1,22 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { memo, Suspense, useEffect, useState, type ComponentType } from "react";
+import { memo, Suspense, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  Menu,
-  X,
-  LogIn,
-  UserPlus,
-  User,
-  LayoutDashboard,
-  LogOut,
-  Home,
-  Newspaper,
-  Tag,
-  Mic,
-  Mail,
-  DollarSign,
-} from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
@@ -25,9 +11,9 @@ import { AlertBar } from "@/components/AlertBar";
 import { AdZone } from "@/components/AdSlot";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
+import { MobileDrawerBody } from "@/components/header/mobile/MobileDrawerBody";
 import { AppLink } from "@/components/atoms/AppLink";
-import { Link, useRouterState } from "@tanstack/react-router";
-import { useAuth } from "@/hooks/useAuth";
+import { useRouterState } from "@tanstack/react-router";
 
 // Shared with the root loader (SSR prefetch of the ticker) - keep in sync.
 export type HeaderSettings = {
@@ -79,7 +65,6 @@ function HeaderInner() {
 
   const openLabel = isPl ? "Otwórz menu" : "Open menu";
   const closeLabel = isPl ? "Zamknij menu" : "Close menu";
-  // Prefer i18n if defined, else fall back to the two hardcoded strings above.
   const openA11y = t("nav.open", { defaultValue: openLabel });
   const closeA11y = t("nav.close", { defaultValue: closeLabel });
 
@@ -125,11 +110,9 @@ function HeaderInner() {
         <BuilderRenderer doc={cfg.builder_data} lang={isPl ? "pl" : "en"} />
       </div>
 
-      {/* Mobile/Tablet drawer: renders the same builder-authored header.
-          Portaled to <body>: the <header> ancestor has a view-transition-name,
-          which creates a stacking context, so a fixed z-[9999] child would
-          still paint UNDER the later <main> (its own stacking context via
-          view-transition-name). Escaping to <body> restores global stacking. */}
+      {/* Mobile/Tablet drawer: portalowany do <body>, żeby uciec ze stacking
+          contextu <header> (view-transition-name). Zawartość składana z
+          klocków wg konfiguracji zarządzanej przez super-admina. */}
       {open &&
         typeof document !== "undefined" &&
         createPortal(
@@ -160,20 +143,11 @@ function HeaderInner() {
                   <X className="w-5 h-5" aria-hidden />
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain isolate [&_*]:max-w-full">
-                <div className="relative z-50 isolate">
-                  <MobileAccountNav isPl={isPl} onNavigate={() => setOpen(false)} />
-                </div>
-                {/* Force mobile-device rendering inside the drawer so widgets
-                  stack vertically (columns collapse to single column). */}
-                <div className="relative z-0 isolate">
-                  <BuilderRenderer
-                    doc={cfg.builder_data}
-                    lang={isPl ? "pl" : "en"}
-                    device="mobile"
-                  />
-                </div>
-              </div>
+              <MobileDrawerBody
+                builderDoc={cfg.builder_data}
+                isPl={isPl}
+                onNavigate={() => setOpen(false)}
+              />
             </div>
           </div>,
           document.body,
@@ -182,91 +156,7 @@ function HeaderInner() {
   );
 }
 
-function MobileAccountNav({ isPl, onNavigate }: { isPl: boolean; onNavigate: () => void }) {
-  const { session, isStaff, signOut } = useAuth();
-  const t = (pl: string, en: string) => (isPl ? pl : en);
-
-  const navItems: Array<{
-    to: string;
-    label: string;
-    icon: ComponentType<{ className?: string }>;
-  }> = [
-    { to: "/", label: t("Strona główna", "Home"), icon: Home },
-    { to: "/blog", label: t("Aktualności", "News"), icon: Newspaper },
-    { to: "/pricing", label: t("Cennik", "Pricing"), icon: DollarSign },
-  ];
-
-  const linkCls =
-    "flex items-center gap-3 px-4 py-3 text-sm font-medium text-foreground hover:bg-muted border-b border-border/60 transition";
-  const primaryBtn =
-    "flex-1 inline-flex items-center justify-center gap-2 h-10 px-3 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition";
-  const secondaryBtn =
-    "flex-1 inline-flex items-center justify-center gap-2 h-10 px-3 rounded-md border border-border text-foreground text-sm font-semibold hover:bg-muted transition";
-
-  return (
-    <div className="border-b border-border bg-muted/30">
-      <div className="px-4 py-4">
-        <p className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground mb-2">
-          {t("Moje konto", "My account")}
-        </p>
-        {session ? (
-          <div className="flex flex-col gap-2">
-            <Link to={isStaff ? "/admin" : "/profile"} onClick={onNavigate} className={primaryBtn}>
-              {isStaff ? <LayoutDashboard className="w-4 h-4" /> : <User className="w-4 h-4" />}
-              {isStaff ? t("Panel", "Dashboard") : t("Mój profil", "My profile")}
-            </Link>
-            <button
-              type="button"
-              onClick={async () => {
-                await signOut();
-                onNavigate();
-              }}
-              className={secondaryBtn}
-            >
-              <LogOut className="w-4 h-4" />
-              {t("Wyloguj", "Sign out")}
-            </button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <Link to="/login" onClick={onNavigate} className={primaryBtn}>
-              <LogIn className="w-4 h-4" />
-              {t("Zaloguj", "Sign in")}
-            </Link>
-            <Link
-              to="/login"
-              search={{ mode: "signup" }}
-              onClick={onNavigate}
-              className={secondaryBtn}
-            >
-              <UserPlus className="w-4 h-4" />
-              {t("Zarejestruj", "Register")}
-            </Link>
-          </div>
-        )}
-      </div>
-      <nav aria-label={t("Menu główne", "Main menu")} className="border-t border-border">
-        <p className="px-4 pt-3 pb-2 text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
-          {t("Nawigacja", "Navigation")}
-        </p>
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link key={item.to} to={item.to} onClick={onNavigate} className={linkCls}>
-              <Icon className="w-4 h-4 text-muted-foreground" />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-    </div>
-  );
-}
-
 export const Header = memo(function Header() {
-  // Suspense fallback only fires when the loader hasn't pre-warmed the cache
-  // (e.g. routes that opt out of the prefetch). In normal navigation the
-  // inner component resolves synchronously and this boundary is a no-op.
   return (
     <header
       data-site-header

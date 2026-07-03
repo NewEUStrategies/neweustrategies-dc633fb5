@@ -85,6 +85,7 @@ import { Route as AdminAdsRouteImport } from './routes/admin.ads'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
 import { Route as ApiPublicClientErrorsRouteImport } from './routes/api/public/client-errors'
+import { Route as AdminSuperMobileDrawerRouteImport } from './routes/admin.super.mobile-drawer'
 import { Route as AdminSettingsSeoRouteImport } from './routes/admin.settings.seo'
 import { Route as AdminSettingsReadingRouteImport } from './routes/admin.settings.reading'
 import { Route as AdminSettingsPrivacyRouteImport } from './routes/admin.settings.privacy'
@@ -486,6 +487,11 @@ const ApiPublicClientErrorsRoute = ApiPublicClientErrorsRouteImport.update({
   path: '/api/public/client-errors',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSuperMobileDrawerRoute = AdminSuperMobileDrawerRouteImport.update({
+  id: '/super/mobile-drawer',
+  path: '/super/mobile-drawer',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminSettingsSeoRoute = AdminSettingsSeoRouteImport.update({
   id: '/seo',
   path: '/seo',
@@ -682,6 +688,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
+  '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
@@ -777,6 +784,7 @@ export interface FileRoutesByTo {
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
+  '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
@@ -876,6 +884,7 @@ export interface FileRoutesById {
   '/admin/settings/privacy': typeof AdminSettingsPrivacyRoute
   '/admin/settings/reading': typeof AdminSettingsReadingRoute
   '/admin/settings/seo': typeof AdminSettingsSeoRoute
+  '/admin/super/mobile-drawer': typeof AdminSuperMobileDrawerRoute
   '/api/public/client-errors': typeof ApiPublicClientErrorsRoute
   '/api/public/vitals': typeof ApiPublicVitalsRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
@@ -976,6 +985,7 @@ export interface FileRouteTypes {
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
     | '/admin/settings/seo'
+    | '/admin/super/mobile-drawer'
     | '/api/public/client-errors'
     | '/api/public/vitals'
     | '/admin/settings/'
@@ -1071,6 +1081,7 @@ export interface FileRouteTypes {
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
     | '/admin/settings/seo'
+    | '/admin/super/mobile-drawer'
     | '/api/public/client-errors'
     | '/api/public/vitals'
     | '/admin/settings'
@@ -1169,6 +1180,7 @@ export interface FileRouteTypes {
     | '/admin/settings/privacy'
     | '/admin/settings/reading'
     | '/admin/settings/seo'
+    | '/admin/super/mobile-drawer'
     | '/api/public/client-errors'
     | '/api/public/vitals'
     | '/admin/settings/'
@@ -1744,6 +1756,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicClientErrorsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/super/mobile-drawer': {
+      id: '/admin/super/mobile-drawer'
+      path: '/super/mobile-drawer'
+      fullPath: '/admin/super/mobile-drawer'
+      preLoaderRoute: typeof AdminSuperMobileDrawerRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/settings/seo': {
       id: '/admin/settings/seo'
       path: '/seo'
@@ -2011,6 +2030,7 @@ interface AdminRouteChildren {
   AdminUsersRoute: typeof AdminUsersRoute
   AdminWebStoriesRoute: typeof AdminWebStoriesRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminSuperMobileDrawerRoute: typeof AdminSuperMobileDrawerRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
@@ -2049,6 +2069,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminUsersRoute: AdminUsersRoute,
   AdminWebStoriesRoute: AdminWebStoriesRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminSuperMobileDrawerRoute: AdminSuperMobileDrawerRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
