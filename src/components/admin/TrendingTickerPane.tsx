@@ -684,19 +684,21 @@ export function TrendingTickerPane() {
           <div className="space-y-3 rounded-[5px] border border-dashed border-border p-3">
             <div className="space-y-1.5">
               <Label htmlFor="tt-pick">{t.pickPost}</Label>
-              <select
-                id="tt-pick"
+              <Select
                 value={cfg.pinnedPostId ?? ""}
-                onChange={(e) => set("pinnedPostId", e.target.value || undefined)}
-                className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm"
+                onValueChange={(v) => set("pinnedPostId", v || undefined)}
               >
-                <option value="">-</option>
-                {posts?.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="tt-pick" className="w-full">
+                  <SelectValue placeholder="-" />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {posts?.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span className="truncate">{p.title}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tt-pid">{t.pinnedId}</Label>
@@ -709,12 +711,11 @@ export function TrendingTickerPane() {
             </div>
             {currentSource === "pinned" && (
               <div className="space-y-1.5">
-                <Label htmlFor="tt-until">{t.pinnedUntil}</Label>
-                <Input
-                  id="tt-until"
-                  type="datetime-local"
-                  value={cfg.pinnedUntil ?? ""}
-                  onChange={(e) => set("pinnedUntil", e.target.value || null)}
+                <Label>{t.pinnedUntil}</Label>
+                <PinnedUntilPicker
+                  value={cfg.pinnedUntil ?? null}
+                  onChange={(v) => set("pinnedUntil", v)}
+                  lang={lang}
                 />
               </div>
             )}
