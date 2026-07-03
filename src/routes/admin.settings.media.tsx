@@ -4,12 +4,22 @@ import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, NumberInput, SaveBar } from "@/components/admin/settings/fields";
 
 type Media = {
-  thumbnail_w: number; thumbnail_h: number;
-  medium_w: number; medium_h: number;
-  large_w: number; large_h: number;
+  thumbnail_w: number;
+  thumbnail_h: number;
+  medium_w: number;
+  medium_h: number;
+  large_w: number;
+  large_h: number;
 };
 
-const DEFAULTS: Media = { thumbnail_w: 150, thumbnail_h: 150, medium_w: 768, medium_h: 768, large_w: 1536, large_h: 1536 };
+const DEFAULTS: Media = {
+  thumbnail_w: 150,
+  thumbnail_h: 150,
+  medium_w: 768,
+  medium_h: 768,
+  large_w: 1536,
+  large_h: 1536,
+};
 
 export const Route = createFileRoute("/admin/settings/media")({
   component: MediaSettings,

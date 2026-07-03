@@ -5,20 +5,20 @@ import { Plus } from "@/lib/lucide-shim";
 export type Structure = { spans: number[]; label: string };
 
 export const STRUCTURES: Structure[] = [
-  { spans: [12],              label: "1 kolumna" },
-  { spans: [6, 6],            label: "1/2 · 1/2" },
-  { spans: [4, 8],            label: "1/3 · 2/3" },
-  { spans: [8, 4],            label: "2/3 · 1/3" },
-  { spans: [3, 9],            label: "1/4 · 3/4" },
-  { spans: [9, 3],            label: "3/4 · 1/4" },
-  { spans: [4, 4, 4],         label: "1/3 × 3" },
-  { spans: [3, 6, 3],         label: "1/4 · 1/2 · 1/4" },
-  { spans: [6, 3, 3],         label: "1/2 · 1/4 · 1/4" },
-  { spans: [3, 3, 6],         label: "1/4 · 1/4 · 1/2" },
-  { spans: [3, 3, 3, 3],      label: "1/4 × 4" },
-  { spans: [6, 2, 2, 2],      label: "1/2 + 1/6 × 3" },
-  { spans: [2, 2, 2, 6],      label: "1/6 × 3 + 1/2" },
-  { spans: [1, 1, 1, 1, 1],   label: "1/5 × 5" },
+  { spans: [12], label: "1 kolumna" },
+  { spans: [6, 6], label: "1/2 · 1/2" },
+  { spans: [4, 8], label: "1/3 · 2/3" },
+  { spans: [8, 4], label: "2/3 · 1/3" },
+  { spans: [3, 9], label: "1/4 · 3/4" },
+  { spans: [9, 3], label: "3/4 · 1/4" },
+  { spans: [4, 4, 4], label: "1/3 × 3" },
+  { spans: [3, 6, 3], label: "1/4 · 1/2 · 1/4" },
+  { spans: [6, 3, 3], label: "1/2 · 1/4 · 1/4" },
+  { spans: [3, 3, 6], label: "1/4 · 1/4 · 1/2" },
+  { spans: [3, 3, 3, 3], label: "1/4 × 4" },
+  { spans: [6, 2, 2, 2], label: "1/2 + 1/6 × 3" },
+  { spans: [2, 2, 2, 6], label: "1/6 × 3 + 1/2" },
+  { spans: [1, 1, 1, 1, 1], label: "1/5 × 5" },
 ];
 
 interface Props {

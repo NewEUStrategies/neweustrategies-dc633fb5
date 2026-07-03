@@ -32,7 +32,8 @@ describe("i18n resources (pl/en split)", () => {
       const bad: string[] = [];
       for (const [k, v] of Object.entries(obj)) {
         const p = prefix ? `${prefix}.${k}` : k;
-        if (v && typeof v === "object" && !Array.isArray(v)) bad.push(...empties(v as Record<string, unknown>, p));
+        if (v && typeof v === "object" && !Array.isArray(v))
+          bad.push(...empties(v as Record<string, unknown>, p));
         else if (typeof v === "string" && v.trim() === "") bad.push(p);
       }
       return bad;

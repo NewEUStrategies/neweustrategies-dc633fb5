@@ -4,10 +4,26 @@ import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
-interface Item { platform: string; url: string }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
+interface Item {
+  platform: string;
+  url: string;
+}
 
-const PLATFORMS = ["facebook","x","instagram","youtube","linkedin","tiktok","github","mail","rss"] as const;
+const PLATFORMS = [
+  "facebook",
+  "x",
+  "instagram",
+  "youtube",
+  "linkedin",
+  "tiktok",
+  "github",
+  "mail",
+  "rss",
+] as const;
 
 /** Ikony socjalne (Gutenberg "Social Icons"). */
 export function SocialIconsBlock({ block, onChange }: Props) {
@@ -19,12 +35,17 @@ export function SocialIconsBlock({ block, onChange }: Props) {
   const align = String(block.data.align ?? "left");
 
   const update = (next: Item[]) =>
-    onChange({ ...block, data: { ...block.data, items: next as unknown as Block["data"][string] } });
+    onChange({
+      ...block,
+      data: { ...block.data, items: next as unknown as Block["data"][string] },
+    });
 
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
       <div className="flex items-center justify-between text-xs">
-        <span className="font-medium uppercase tracking-wide text-muted-foreground">Social Icons</span>
+        <span className="font-medium uppercase tracking-wide text-muted-foreground">
+          Social Icons
+        </span>
         <div className="flex gap-2">
           <select
             className="text-xs bg-background border border-border rounded px-2 py-1"
@@ -58,7 +79,11 @@ export function SocialIconsBlock({ block, onChange }: Props) {
                 update(next);
               }}
             >
-              {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
+              {PLATFORMS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
             </select>
             <Input
               value={it.url}

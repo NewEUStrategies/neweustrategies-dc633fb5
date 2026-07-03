@@ -5,7 +5,14 @@
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { WidgetNode, WidgetContent, CommonStyle, AdvancedSettings, Device, WidgetTypography } from "@/lib/builder/types";
+import type {
+  WidgetNode,
+  WidgetContent,
+  CommonStyle,
+  AdvancedSettings,
+  Device,
+  WidgetTypography,
+} from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import {
   sanitizeHtmlId,
@@ -17,7 +24,11 @@ import {
 import { useInView } from "@/hooks/use-in-view";
 import { hoverCss } from "@/lib/builder/hoverCss";
 import { subscribeWidgetTypography } from "@/lib/builder/liveTypography";
-import { buildWidgetTypographyCss, normalizeTypographyGapPx, resolveWidgetTypography } from "@/lib/builder/typographyCss";
+import {
+  buildWidgetTypographyCss,
+  normalizeTypographyGapPx,
+  resolveWidgetTypography,
+} from "@/lib/builder/typographyCss";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 import { mergeGlobalIntoInstance, useGlobalWidgetNode } from "@/lib/builder/globalWidgets";
 import { useTheme } from "@/components/ThemeProvider";
@@ -56,10 +67,18 @@ import {
 type Lang = "pl" | "en";
 
 import {
-  styleToCSS, getWidgetFrameStyle, hiddenOnDevice,
-  DEFAULT_WIDGET_WIDTH_BY_DEVICE, DEFAULT_WIDGET_MIN_HEIGHT, AUTO_SIZE_WIDGETS,
-  COMPACT_WIDGET_MIN_HEIGHT, COMPACT_WIDGET_TYPES,
-  getStr, getNum, getStrArr, normalizeNewsletterVariant,
+  styleToCSS,
+  getWidgetFrameStyle,
+  hiddenOnDevice,
+  DEFAULT_WIDGET_WIDTH_BY_DEVICE,
+  DEFAULT_WIDGET_MIN_HEIGHT,
+  AUTO_SIZE_WIDGETS,
+  COMPACT_WIDGET_MIN_HEIGHT,
+  COMPACT_WIDGET_TYPES,
+  getStr,
+  getNum,
+  getStrArr,
+  normalizeNewsletterVariant,
 } from "./ui/organisms/widget-view/frame";
 import { MOTION_INITIAL, MOTION_FINAL } from "./ui/organisms/widget-view/motion";
 import { Editable } from "./ui/molecules/Editable";
@@ -71,8 +90,12 @@ import { TagsView } from "./ui/organisms/widget-view/TagsView";
 import { renderSimpleWidget, ResizableBox } from "./ui/organisms/widget-view/SimpleWidgets";
 import { RichHtmlView } from "./ui/organisms/widget-view/RichHtmlView";
 export {
-  styleToCSS, getWidgetFrameStyle, hiddenOnDevice,
-  DEFAULT_WIDGET_WIDTH_BY_DEVICE, DEFAULT_WIDGET_MIN_HEIGHT, AUTO_SIZE_WIDGETS,
+  styleToCSS,
+  getWidgetFrameStyle,
+  hiddenOnDevice,
+  DEFAULT_WIDGET_WIDTH_BY_DEVICE,
+  DEFAULT_WIDGET_MIN_HEIGHT,
+  AUTO_SIZE_WIDGETS,
 };
 
 const EASING_MAP: Record<string, string> = {
@@ -95,14 +118,21 @@ interface ViewProps {
   onContentChange?: (key: string, value: string | number) => void;
 }
 
-export const WidgetView = memo(function WidgetView({ node: instanceNode, lang, device, editable = false, onContentChange }: ViewProps) {
+export const WidgetView = memo(function WidgetView({
+  node: instanceNode,
+  lang,
+  device,
+  editable = false,
+  onContentChange,
+}: ViewProps) {
   // Global-widget instances render the LIVE record (synchronized across pages);
   // the embedded snapshot is only the SSR / first-paint fallback. The hook is a
   // no-op (disabled query) for regular widgets, so hook order stays stable.
   const globalData = useGlobalWidgetNode(instanceNode.globalId);
-  const node = instanceNode.globalId && globalData
-    ? mergeGlobalIntoInstance(instanceNode, globalData)
-    : instanceNode;
+  const node =
+    instanceNode.globalId && globalData
+      ? mergeGlobalIntoInstance(instanceNode, globalData)
+      : instanceNode;
   const { theme } = useTheme();
   const builderMode = useBuilderMode();
   const effectiveMode = builderMode ?? theme;
@@ -110,8 +140,10 @@ export const WidgetView = memo(function WidgetView({ node: instanceNode, lang, d
   const baseStyle = styleToCSS(node.style, device, effectiveMode);
   const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
   const htmlId = sanitizeHtmlId(node.advanced?.htmlId);
-  const motion = node.advanced?.animation && node.advanced.animation !== "none"
-    ? node.advanced.animation : undefined;
+  const motion =
+    node.advanced?.animation && node.advanced.animation !== "none"
+      ? node.advanced.animation
+      : undefined;
 
   const { ref: motionRef, inView } = useInView<HTMLDivElement>({
     once: node.advanced?.animationOnce !== false,
@@ -146,7 +178,9 @@ export const WidgetView = memo(function WidgetView({ node: instanceNode, lang, d
     const sel = `[data-w-id="${node.id}"]`;
     const rules: string[] = [];
     if (widgetTextColor) {
-      rules.push(`${sel}, ${sel} *:not(svg):not(path):not([data-keep-color]) { color: ${widgetTextColor} !important; }`);
+      rules.push(
+        `${sel}, ${sel} *:not(svg):not(path):not([data-keep-color]) { color: ${widgetTextColor} !important; }`,
+      );
       rules.push(`${sel} svg:not([data-keep-color]) { color: ${widgetTextColor}; }`);
     }
     if (widgetBgColor) {
@@ -162,8 +196,12 @@ export const WidgetView = memo(function WidgetView({ node: instanceNode, lang, d
     if (iconHover) {
       // Trigger on the closest interactive ancestor (a, button, [role=button])
       // or directly on the icon container.
-      rules.push(`${sel} :is(a,button,[role="button"]):hover :is(svg,.cms-icon):not([data-keep-color]){color:${iconHover} !important;}`);
-      rules.push(`${sel} :is(svg,.cms-icon):not([data-keep-color]):hover{color:${iconHover} !important;}`);
+      rules.push(
+        `${sel} :is(a,button,[role="button"]):hover :is(svg,.cms-icon):not([data-keep-color]){color:${iconHover} !important;}`,
+      );
+      rules.push(
+        `${sel} :is(svg,.cms-icon):not([data-keep-color]):hover{color:${iconHover} !important;}`,
+      );
     }
     if (iconActive) {
       // Current page / active state - honour aria-current, .is-active, [data-active].
@@ -184,7 +222,12 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
   }, [activeTypography, device, node.id]);
 
   const isImage = node.type === "image";
-  const isMedia = isImage || node.type === "slider" || node.type === "video" || node.type === "gallery" || node.type === "map";
+  const isMedia =
+    isImage ||
+    node.type === "slider" ||
+    node.type === "video" ||
+    node.type === "gallery" ||
+    node.type === "map";
   const isCompactWidget = COMPACT_WIDGET_TYPES.has(node.type);
   // Coalesce every per-widget CSS source (hover, typography, color override,
   // user custom CSS) into a SINGLE <style> node instead of up to four. All four
@@ -198,7 +241,25 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       data-typography-gap-active={typeof activeGapPx === "number" ? "1" : undefined}
       ref={motion ? motionRef : undefined}
       className={`text-foreground ${cls}`.trim()}
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: isCompactWidget ? "center" : "flex-start", width: "100%", minWidth: 0, height: isMedia ? "auto" : "100%", maxWidth: isImage ? "none" : "100%", boxSizing: "border-box", overflow: isImage ? "visible" : (isMedia ? "visible" : "hidden"), ...(typeof activeGapPx === "number" ? { "--cms-title-description-gap": `${activeGapPx}px` } as CSSProperties : {}), ...baseStyle, marginTop: 0, marginBottom: 0, ...motionStyle }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: isCompactWidget ? "center" : "flex-start",
+        width: "100%",
+        minWidth: 0,
+        height: isMedia ? "auto" : "100%",
+        maxWidth: isImage ? "none" : "100%",
+        boxSizing: "border-box",
+        overflow: isImage ? "visible" : isMedia ? "visible" : "hidden",
+        ...(typeof activeGapPx === "number"
+          ? ({ "--cms-title-description-gap": `${activeGapPx}px` } as CSSProperties)
+          : {}),
+        ...baseStyle,
+        marginTop: 0,
+        marginBottom: 0,
+        ...motionStyle,
+      }}
     >
       {children}
       {widgetCss && <style dangerouslySetInnerHTML={{ __html: widgetCss }} />}
@@ -213,7 +274,14 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
   };
 
   // Read-only widgets without inline editing - short-circuit via dispatcher.
-  const simple = renderSimpleWidget(node, lang, effectiveMode, editable, onContentChange, activeTypography);
+  const simple = renderSimpleWidget(
+    node,
+    lang,
+    effectiveMode,
+    editable,
+    onContentChange,
+    activeTypography,
+  );
   if (simple !== undefined) return wrap(simple);
 
   switch (node.type) {
@@ -221,7 +289,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const key = `text_${lang}`;
       const text = getStr(c, key) || getStr(c, "text_pl");
       const subtitle = getStr(c, `subtitle_${lang}`) || getStr(c, "subtitle_pl");
-      const tag = (getStr(c, "tag") || "h2") as "h1"|"h2"|"h3"|"h4"|"h5"|"h6";
+      const tag = (getStr(c, "tag") || "h2") as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
       const variant = getStr(c, "variant") || "default";
       // Rozróżniamy "user nic nie ustawił" od "user wybrał md" - fallback do
       // globalnych ustawień Theme Design (superadmin) tylko gdy pole jest puste.
@@ -239,20 +307,30 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       // Jeśli widget nie ma własnego sizePx ANI preset nie jest wybrany
       // ręcznie, dziedziczymy globalny "Post title" z Theme Design.
       const useGlobalTitle = !usePx && !sizePresetRaw;
-      const sizeCls = usePx || useGlobalTitle
-        ? ""
-        : sizePreset === "sm" ? "text-xl"
-        : sizePreset === "lg" ? "text-4xl"
-        : sizePreset === "xl" ? "text-5xl"
-        : sizePreset === "display" ? "text-6xl md:text-7xl"
-        : "text-3xl";
+      const sizeCls =
+        usePx || useGlobalTitle
+          ? ""
+          : sizePreset === "sm"
+            ? "text-xl"
+            : sizePreset === "lg"
+              ? "text-4xl"
+              : sizePreset === "xl"
+                ? "text-5xl"
+                : sizePreset === "display"
+                  ? "text-6xl md:text-7xl"
+                  : "text-3xl";
       const variantCls =
-        variant === "gradient" ? "bg-gradient-to-r from-brand to-foreground bg-clip-text text-transparent"
-        : variant === "outlined" ? "[-webkit-text-stroke:1px_currentColor] text-transparent"
-        : variant === "highlight" ? "decoration-brand decoration-4 underline-offset-4 underline"
-        : variant === "uppercase" ? "uppercase tracking-widest"
-        : variant === "serif" ? "font-serif"
-        : "";
+        variant === "gradient"
+          ? "bg-gradient-to-r from-brand to-foreground bg-clip-text text-transparent"
+          : variant === "outlined"
+            ? "[-webkit-text-stroke:1px_currentColor] text-transparent"
+            : variant === "highlight"
+              ? "decoration-brand decoration-4 underline-offset-4 underline"
+              : variant === "uppercase"
+                ? "uppercase tracking-widest"
+                : variant === "serif"
+                  ? "font-serif"
+                  : "";
       const headCls = `font-display ${sizeCls} ${variantCls}`.trim();
       const headStyle: React.CSSProperties = {
         ...(usePx
@@ -267,14 +345,37 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       };
       const finalStyle = Object.keys(headStyle).length ? headStyle : undefined;
       const finalCls = headCls;
-      const reg: Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined> =
-        LucideIcons as Record<string, React.ComponentType<{ size?: number; className?: string }> | undefined>;
+      const reg: Record<
+        string,
+        React.ComponentType<{ size?: number; className?: string }> | undefined
+      > = LucideIcons as Record<
+        string,
+        React.ComponentType<{ size?: number; className?: string }> | undefined
+      >;
       const Icon = iconName ? (reg[iconName] ?? null) : null;
-      const inner = canEdit
-        ? <Editable as={tag} value={text} onCommit={(v) => commit(key, v)} className={finalCls} style={finalStyle} placeholder="Nagłówek…" />
-        : (() => { const Tag = tag as React.ElementType; return <Tag className={finalCls} style={finalStyle}>{text}</Tag>; })();
+      const inner = canEdit ? (
+        <Editable
+          as={tag}
+          value={text}
+          onCommit={(v) => commit(key, v)}
+          className={finalCls}
+          style={finalStyle}
+          placeholder="Nagłówek…"
+        />
+      ) : (
+        (() => {
+          const Tag = tag as React.ElementType;
+          return (
+            <Tag className={finalCls} style={finalStyle}>
+              {text}
+            </Tag>
+          );
+        })()
+      );
       const titleRow = (
-        <span className={`inline-flex items-center gap-2 ${iconPos === "right" ? "flex-row-reverse" : ""}`}>
+        <span
+          className={`inline-flex items-center gap-2 ${iconPos === "right" ? "flex-row-reverse" : ""}`}
+        >
           {Icon && <Icon size={28} className="opacity-80" />}
           <span className="contents">{inner}</span>
         </span>
@@ -291,12 +392,20 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       };
       const block = (
         <div className="space-y-1">
-          {href ? <AppLink href={href} target={target} rel={target === "_blank" ? "noopener noreferrer" : undefined} className="hover:opacity-80 transition">{titleRow}</AppLink> : titleRow}
-          {subtitle && (
-            <p
-              className="text-muted-foreground"
-              style={subtitleStyle}
+          {href ? (
+            <AppLink
+              href={href}
+              target={target}
+              rel={target === "_blank" ? "noopener noreferrer" : undefined}
+              className="hover:opacity-80 transition"
             >
+              {titleRow}
+            </AppLink>
+          ) : (
+            titleRow
+          )}
+          {subtitle && (
+            <p className="text-muted-foreground" style={subtitleStyle}>
               {subtitle}
             </p>
           )}
@@ -310,16 +419,40 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const cols = getNum(c, "columns", 1);
       const dropCap = getStr(c, "dropCap") === "on";
       const proseCls = `prose prose-sm max-w-none [&_*]:text-inherit ${dropCap ? "first-letter:float-left first-letter:text-5xl first-letter:font-display first-letter:mr-2 first-letter:leading-none" : ""}`;
-      const colStyle = cols > 1 ? { columnCount: cols, columnGap: "1.5rem" } as CSSProperties : undefined;
-      const singleColumnCompactStyle = cols <= 1
-        ? { ...compactRowStyle, display: "flex", alignItems: "center", width: "100%" } satisfies CSSProperties
-        : undefined;
+      const colStyle =
+        cols > 1 ? ({ columnCount: cols, columnGap: "1.5rem" } as CSSProperties) : undefined;
+      const singleColumnCompactStyle =
+        cols <= 1
+          ? ({
+              ...compactRowStyle,
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+            } satisfies CSSProperties)
+          : undefined;
       if (canEdit) {
-        return wrap(<Editable as="div" html multiline value={html} onCommit={(v) => commit(key, v)} className={proseCls} style={singleColumnCompactStyle} placeholder="Wpisz tekst…" />);
+        return wrap(
+          <Editable
+            as="div"
+            html
+            multiline
+            value={html}
+            onCommit={(v) => commit(key, v)}
+            className={proseCls}
+            style={singleColumnCompactStyle}
+            placeholder="Wpisz tekst…"
+          />,
+        );
       }
       // RichHtmlView sanitizes + injects the HTML and re-mounts footnote tooltips
       // for migrated content whose footnote refs/list are baked into the markup.
-      return wrap(<RichHtmlView html={html} className={proseCls} style={{ ...colStyle, ...singleColumnCompactStyle }} />);
+      return wrap(
+        <RichHtmlView
+          html={html}
+          className={proseCls}
+          style={{ ...colStyle, ...singleColumnCompactStyle }}
+        />,
+      );
     }
     case "button": {
       const key = `label_${lang}`;
@@ -334,27 +467,58 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const widthPx = getNum(c, "widthPx", 0);
       const heightPx = getNum(c, "heightPx", 0);
       const variantCls =
-        variant === "outline" ? "border border-border hover:bg-muted"
-        : variant === "ghost" ? "hover:bg-muted"
-        : variant === "gradient" ? "bg-gradient-to-r from-brand to-foreground text-brand-foreground hover:opacity-90"
-        : variant === "soft" ? "bg-brand/10 text-brand hover:bg-brand/20"
-        : variant === "link" ? "underline-offset-4 hover:underline text-brand px-0"
-        : "bg-brand text-brand-foreground hover:opacity-90";
+        variant === "outline"
+          ? "border border-border hover:bg-muted"
+          : variant === "ghost"
+            ? "hover:bg-muted"
+            : variant === "gradient"
+              ? "bg-gradient-to-r from-brand to-foreground text-brand-foreground hover:opacity-90"
+              : variant === "soft"
+                ? "bg-brand/10 text-brand hover:bg-brand/20"
+                : variant === "link"
+                  ? "underline-offset-4 hover:underline text-brand px-0"
+                  : "bg-brand text-brand-foreground hover:opacity-90";
       // Default ("md") matches the search-widget closed pill height.
-      const sizeCls = size === "sm" ? "px-3 py-1.5 text-xs" : size === "lg" ? "px-7 py-3 text-base" : "px-3.5 py-2 text-xs";
+      const sizeCls =
+        size === "sm"
+          ? "px-3 py-1.5 text-xs"
+          : size === "lg"
+            ? "px-7 py-3 text-base"
+            : "px-3.5 py-2 text-xs";
       const cls = `inline-flex items-center justify-center gap-2 rounded-md font-medium leading-none transition w-full h-full ${sizeCls} ${variantCls} ${fullWidth ? "justify-center" : ""} ${iconPos === "right" ? "flex-row-reverse" : ""}`;
       const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
       const Icon = iconName ? (reg[iconName] ?? null) : null;
-      const inner = canEdit
-        ? <span className={cls}>{Icon && <Icon size={14} />}<Editable as="span" value={label} onCommit={(v) => commit(key, v)} placeholder="Etykieta…" /></span>
-        : <AppLink href={href} target={target} rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined} className={cls}>{Icon && <Icon size={14} />}{label}</AppLink>;
+      const inner = canEdit ? (
+        <span className={cls}>
+          {Icon && <Icon size={14} />}
+          <Editable
+            as="span"
+            value={label}
+            onCommit={(v) => commit(key, v)}
+            placeholder="Etykieta…"
+          />
+        </span>
+      ) : (
+        <AppLink
+          href={href}
+          target={target}
+          rel={target === "_blank" || href.startsWith("http") ? "noopener noreferrer" : undefined}
+          className={cls}
+        >
+          {Icon && <Icon size={14} />}
+          {label}
+        </AppLink>
+      );
       return wrap(
         <ResizableBox
           enabled={canEdit}
           widthPx={widthPx > 0 ? widthPx : undefined}
           heightPx={heightPx > 0 ? heightPx : undefined}
-          onCommit={(w, h) => { onContentChange?.("widthPx", w); onContentChange?.("heightPx", h); }}
+          onCommit={(w, h) => {
+            onContentChange?.("widthPx", w);
+            onContentChange?.("heightPx", h);
+          }}
         >
           {inner}
         </ResizableBox>,
@@ -368,11 +532,15 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const variant = getStr(c, "variant") || "text";
       const iconName = getStr(c, "iconName");
       const variantCls =
-        variant === "primary" ? "inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-brand text-brand-foreground hover:opacity-90"
-        : variant === "outline" ? "inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-border hover:bg-muted"
-        : variant === "pill" ? "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted hover:bg-muted/70"
-        : variant === "underline" ? "inline-flex items-center gap-1.5 underline-offset-4 hover:underline"
-        : "inline-flex items-center gap-1.5 text-foreground hover:opacity-80";
+        variant === "primary"
+          ? "inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-brand text-brand-foreground hover:opacity-90"
+          : variant === "outline"
+            ? "inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-border hover:bg-muted"
+            : variant === "pill"
+              ? "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted hover:bg-muted/70"
+              : variant === "underline"
+                ? "inline-flex items-center gap-1.5 underline-offset-4 hover:underline"
+                : "inline-flex items-center gap-1.5 text-foreground hover:opacity-80";
       const cls = `h-10 text-xs font-bold tracking-wider leading-none transition ${variantCls}`;
       const reg: Record<string, React.ComponentType<{ size?: number }> | undefined> =
         LucideIcons as Record<string, React.ComponentType<{ size?: number }> | undefined>;
@@ -381,7 +549,12 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         return wrap(
           <span className={cls}>
             {Cmp ? <Cmp size={14} /> : null}
-            <Editable as="span" value={label} onCommit={(v) => commit(key, v)} placeholder="Etykieta…" />
+            <Editable
+              as="span"
+              value={label}
+              onCommit={(v) => commit(key, v)}
+              placeholder="Etykieta…"
+            />
           </span>,
         );
       }
@@ -409,7 +582,10 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     case "tts": {
       const source = getStr(c, "source") || "post";
       const customText = getStr(c, `text_${lang}`) || getStr(c, "text_pl");
-      const label = getStr(c, `label_${lang}`) || getStr(c, "label_pl") || (lang === "pl" ? "Odsłuchaj artykuł" : "Listen to article");
+      const label =
+        getStr(c, `label_${lang}`) ||
+        getStr(c, "label_pl") ||
+        (lang === "pl" ? "Odsłuchaj artykuł" : "Listen to article");
       const voiceId = getStr(c, "voiceId") || "JBFqnCBsd6RMkjVDRZzb";
       const model = getStr(c, "model") || "eleven_multilingual_v2";
       return wrap(
@@ -427,7 +603,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       return wrap(<PostListView c={c} lang={lang} typography={activeTypography ?? undefined} />);
     }
     case "carousel": {
-      return wrap(<PostListView c={c} lang={lang} carousel typography={activeTypography ?? undefined} />);
+      return wrap(
+        <PostListView c={c} lang={lang} carousel typography={activeTypography ?? undefined} />,
+      );
     }
     case "news-ticker":
       return wrap(<NewsTickerView c={c} lang={lang} />);
@@ -443,7 +621,8 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const tKey = `title_${lang}`;
       const title = getStr(c, tKey) || getStr(c, "title_pl") || "Newsletter";
       const variant = normalizeNewsletterVariant(getStr(c, "variant") || "icon");
-      const placeholder = getStr(c, `placeholder_${lang}`) || getStr(c, "placeholder_pl") || "Twój email";
+      const placeholder =
+        getStr(c, `placeholder_${lang}`) || getStr(c, "placeholder_pl") || "Twój email";
       const ctaLabel = getStr(c, `cta_${lang}`) || getStr(c, "cta_pl") || "Zapisz";
       const iconName = getStr(c, "iconName") || "Mail";
       const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
@@ -453,18 +632,36 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       // Public render → realny <NewsletterForm/> z RLS-insert.
       if (!editable) {
         if (variant === "minimal") {
-          return wrap(<span style={compactRowStyle} className="inline-flex items-center text-sm font-medium leading-none border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
+          return wrap(
+            <span
+              style={compactRowStyle}
+              className="inline-flex items-center text-sm font-medium leading-none border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer"
+            >
+              {title}
+            </span>,
+          );
         }
         if (variant === "icon-only") {
           return wrap(
-            <a href="#newsletter" className="inline-flex items-center justify-center rounded-full text-foreground hover:opacity-80 transition-colors" style={compactRowStyle} title={title} aria-label={title}>
+            <a
+              href="#newsletter"
+              className="inline-flex items-center justify-center rounded-full text-foreground hover:opacity-80 transition-colors"
+              style={compactRowStyle}
+              title={title}
+              aria-label={title}
+            >
               {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
             </a>,
           );
         }
         if (variant === "icon") {
           return wrap(
-            <a href="#newsletter" style={compactRowStyle} className="inline-flex items-center gap-2 text-foreground hover:opacity-80 transition-colors" title={title}>
+            <a
+              href="#newsletter"
+              style={compactRowStyle}
+              className="inline-flex items-center gap-2 text-foreground hover:opacity-80 transition-colors"
+              title={title}
+            >
               {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
               <span className="text-sm font-medium">{title}</span>
             </a>,
@@ -483,34 +680,71 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       if (variant === "inline") {
         return wrap(
           <form className="flex gap-2 w-full max-w-md" onSubmit={(e) => e.preventDefault()}>
-            <input type="email" placeholder={placeholder} className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" />
-            <button type="submit" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium hover:opacity-90">{ctaLabel}</button>
+            <input
+              type="email"
+              placeholder={placeholder}
+              className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm"
+            />
+            <button
+              type="submit"
+              className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium hover:opacity-90"
+            >
+              {ctaLabel}
+            </button>
           </form>,
         );
       }
       if (variant === "card") {
         return wrap(
           <div className="rounded-xl border border-border bg-card p-6 space-y-3 max-w-md">
-            <div className="flex items-center gap-2">{IconCmp && <IconCmp className="w-5 h-5 text-brand" />}<h4 className="font-display text-lg">{title}</h4></div>
+            <div className="flex items-center gap-2">
+              {IconCmp && <IconCmp className="w-5 h-5 text-brand" />}
+              <h4 className="font-display text-lg">{title}</h4>
+            </div>
             <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
-              <input type="email" placeholder={placeholder} className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm" />
-              <button type="submit" className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium hover:opacity-90">{ctaLabel}</button>
+              <input
+                type="email"
+                placeholder={placeholder}
+                className="flex-1 bg-background border border-border rounded px-3 py-2 text-sm"
+              />
+              <button
+                type="submit"
+                className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm font-medium hover:opacity-90"
+              >
+                {ctaLabel}
+              </button>
             </form>
           </div>,
         );
       }
       if (variant === "minimal") {
-        return wrap(<span style={compactRowStyle} className="inline-flex items-center text-sm font-medium leading-none border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer">{title}</span>);
+        return wrap(
+          <span
+            style={compactRowStyle}
+            className="inline-flex items-center text-sm font-medium leading-none border-b border-dashed border-foreground/30 hover:border-brand transition cursor-pointer"
+          >
+            {title}
+          </span>,
+        );
       }
       if (variant === "icon-only") {
         return wrap(
-          <div className="inline-flex items-center justify-center rounded-full text-foreground hover:opacity-80 transition-colors cursor-pointer" style={compactRowStyle} title={title} aria-label={title}>
+          <div
+            className="inline-flex items-center justify-center rounded-full text-foreground hover:opacity-80 transition-colors cursor-pointer"
+            style={compactRowStyle}
+            title={title}
+            aria-label={title}
+          >
             {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
           </div>,
         );
       }
       return wrap(
-        <div style={compactRowStyle} className="inline-flex items-center gap-2 text-foreground hover:opacity-80 transition-colors cursor-pointer" title={title}>
+        <div
+          style={compactRowStyle}
+          className="inline-flex items-center gap-2 text-foreground hover:opacity-80 transition-colors cursor-pointer"
+          title={title}
+        >
           {IconCmp ? <IconCmp className="w-5 h-5" /> : <span>✉</span>}
           <span className="text-sm font-medium">{title}</span>
         </div>,
@@ -539,7 +773,6 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       return wrap(<InterestsCustomizer variant={variant} showHeader={showHeader} />);
     }
 
-
     case "cta": {
       const tKey = `title_${lang}`;
       const cKey = `cta_${lang}`;
@@ -550,25 +783,43 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const variant = getStr(c, "variant") || "default";
       const align = getStr(c, "align") || "between";
       const containerCls =
-        variant === "gradient" ? "bg-gradient-to-r from-brand to-foreground text-brand-foreground rounded-xl p-8"
-        : variant === "bar" ? "bg-brand text-brand-foreground rounded-md py-3 px-5"
-        : variant === "card" ? "bg-card border border-border rounded-xl p-8 shadow-2xl"
-        : "bg-brand text-brand-foreground rounded-lg p-8";
-      const layoutCls = variant === "split"
-        ? "flex flex-col items-start gap-4"
-        : `flex flex-col sm:flex-row gap-4 ${align === "left" ? "items-start sm:items-center" : align === "center" ? "items-center justify-center text-center" : "items-center justify-between"}`;
+        variant === "gradient"
+          ? "bg-gradient-to-r from-brand to-foreground text-brand-foreground rounded-xl p-8"
+          : variant === "bar"
+            ? "bg-brand text-brand-foreground rounded-md py-3 px-5"
+            : variant === "card"
+              ? "bg-card border border-border rounded-xl p-8 shadow-2xl"
+              : "bg-brand text-brand-foreground rounded-lg p-8";
+      const layoutCls =
+        variant === "split"
+          ? "flex flex-col items-start gap-4"
+          : `flex flex-col sm:flex-row gap-4 ${align === "left" ? "items-start sm:items-center" : align === "center" ? "items-center justify-center text-center" : "items-center justify-between"}`;
       const ctaWidthPx = getNum(c, "ctaWidthPx", 0);
       const ctaHeightPx = getNum(c, "ctaHeightPx", 0);
-      const ctaBtnCls = "inline-flex items-center justify-center w-full h-full bg-brand-foreground text-brand px-3.5 py-2 rounded font-medium text-xs leading-none";
-      const ctaInner = canEdit
-        ? <Editable as="span" value={cta} onCommit={(v) => commit(cKey, v)} className={ctaBtnCls} placeholder="Etykieta…" />
-        : <AppLink href={href} className={`${ctaBtnCls} hover:opacity-90 transition`}>{cta}</AppLink>;
+      const ctaBtnCls =
+        "inline-flex items-center justify-center w-full h-full bg-brand-foreground text-brand px-3.5 py-2 rounded font-medium text-xs leading-none";
+      const ctaInner = canEdit ? (
+        <Editable
+          as="span"
+          value={cta}
+          onCommit={(v) => commit(cKey, v)}
+          className={ctaBtnCls}
+          placeholder="Etykieta…"
+        />
+      ) : (
+        <AppLink href={href} className={`${ctaBtnCls} hover:opacity-90 transition`}>
+          {cta}
+        </AppLink>
+      );
       const ctaBtn = (
         <ResizableBox
           enabled={canEdit}
           widthPx={ctaWidthPx > 0 ? ctaWidthPx : undefined}
           heightPx={ctaHeightPx > 0 ? ctaHeightPx : undefined}
-          onCommit={(w, h) => { onContentChange?.("ctaWidthPx", w); onContentChange?.("ctaHeightPx", h); }}
+          onCommit={(w, h) => {
+            onContentChange?.("ctaWidthPx", w);
+            onContentChange?.("ctaHeightPx", h);
+          }}
         >
           {ctaInner}
         </ResizableBox>
@@ -577,9 +828,17 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         <div className={containerCls}>
           <div className={layoutCls}>
             <div className="space-y-1">
-              {canEdit
-                ? <Editable as="h3" value={title} onCommit={(v) => commit(tKey, v)} className="font-display text-2xl" placeholder="Nagłówek CTA…" />
-                : <h3 className="font-display text-2xl">{title}</h3>}
+              {canEdit ? (
+                <Editable
+                  as="h3"
+                  value={title}
+                  onCommit={(v) => commit(tKey, v)}
+                  className="font-display text-2xl"
+                  placeholder="Nagłówek CTA…"
+                />
+              ) : (
+                <h3 className="font-display text-2xl">{title}</h3>
+              )}
               {subtitle && <p className="text-sm opacity-80">{subtitle}</p>}
             </div>
             {ctaBtn}
@@ -588,12 +847,11 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       );
     }
     case "tabs": {
-      const tabs = Array.isArray(c.tabs) ? c.tabs as Array<Record<string, string>> : [];
+      const tabs = Array.isArray(c.tabs) ? (c.tabs as Array<Record<string, string>>) : [];
       return wrap(<TabsBlock tabs={tabs} lang={lang} nodeId={node.id} />);
     }
     case "rated-list":
       return wrap(<RatedListView c={c} lang={lang} mode={effectiveMode} />);
-
 
     case "dark-featured-card": {
       const badgeKey = `badge_${lang}`;
@@ -602,34 +860,49 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const excerpt = getStr(c, `excerpt_${lang}`) || getStr(c, "excerpt_pl");
       const img = safeImageUrl(getStr(c, "image"));
       const href = safeUrl(getStr(c, "href"));
-      const cardBg = resolveColorForMode(node.style?.bgColor, effectiveMode) ?? "oklch(0.18 0.02 260)";
+      const cardBg =
+        resolveColorForMode(node.style?.bgColor, effectiveMode) ?? "oklch(0.18 0.02 260)";
       const cardText = resolveColorForMode(node.style?.textColor, effectiveMode) ?? "#ffffff";
       const cardBorder = resolveColorForMode(node.style?.borderColor, effectiveMode);
       const badgeVariant = getStr(c, "badgeVariant") || "solid-red";
       const badgeRadius = getStr(c, "badgeRadius") || "none";
       const badgeSize = getStr(c, "badgeSize") || "xs";
       const radiusCls =
-        badgeRadius === "sm" ? "rounded-sm"
-        : badgeRadius === "md" ? "rounded-md"
-        : badgeRadius === "lg" ? "rounded-lg"
-        : badgeRadius === "full" ? "rounded-full"
-        : "rounded-none";
+        badgeRadius === "sm"
+          ? "rounded-sm"
+          : badgeRadius === "md"
+            ? "rounded-md"
+            : badgeRadius === "lg"
+              ? "rounded-lg"
+              : badgeRadius === "full"
+                ? "rounded-full"
+                : "rounded-none";
       const sizeCls =
-        badgeSize === "sm" ? "text-sm px-3.5 py-1.5"
-        : badgeSize === "md" ? "text-base px-4 py-2"
-        : "text-xs px-3 py-1";
+        badgeSize === "sm"
+          ? "text-sm px-3.5 py-1.5"
+          : badgeSize === "md"
+            ? "text-base px-4 py-2"
+            : "text-xs px-3 py-1";
       const variantCls =
-        badgeVariant === "solid-brand" ? "bg-brand text-brand-foreground"
-        : badgeVariant === "solid-dark" ? "bg-foreground text-background"
-        : badgeVariant === "outline" ? "border border-white/60 text-white bg-transparent"
-        : badgeVariant === "ghost" ? "bg-white/10 text-white backdrop-blur"
-        : badgeVariant === "gradient" ? "bg-gradient-to-r from-destructive to-brand text-white"
-        : "bg-destructive text-white";
+        badgeVariant === "solid-brand"
+          ? "bg-brand text-brand-foreground"
+          : badgeVariant === "solid-dark"
+            ? "bg-foreground text-background"
+            : badgeVariant === "outline"
+              ? "border border-white/60 text-white bg-transparent"
+              : badgeVariant === "ghost"
+                ? "bg-white/10 text-white backdrop-blur"
+                : badgeVariant === "gradient"
+                  ? "bg-gradient-to-r from-destructive to-brand text-white"
+                  : "bg-destructive text-white";
       const badgeCls = `inline-block font-bold uppercase tracking-wider mb-3 ${sizeCls} ${variantCls} ${radiusCls}`;
       const badgeBg = getStr(c, "badgeBg");
       const badgeText = getStr(c, "badgeText");
       const badgeStyle: CSSProperties = {};
-      if (badgeBg) { badgeStyle.background = badgeBg; badgeStyle.borderColor = badgeBg; }
+      if (badgeBg) {
+        badgeStyle.background = badgeBg;
+        badgeStyle.borderColor = badgeBg;
+      }
       if (badgeText) badgeStyle.color = badgeText;
       const imageHover = getStr(c, "imageHover") || "zoom-in";
       // Keep dynamic-feature-card imagery consistent with other widgets:
@@ -637,15 +910,15 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       const imgAnimCls =
         imageHover === "zoom-in"
           ? "inset-0 transition-transform duration-500 ease-out group-hover/dfcimg:scale-105"
-        : imageHover === "zoom-out"
-          ? "inset-0 scale-105 transition-transform duration-500 ease-out group-hover/dfcimg:scale-100"
-        : imageHover === "fade"
-          ? "inset-0 transition-[filter,opacity] duration-500 ease-out group-hover/dfcimg:brightness-75"
-        : imageHover === "brighten"
-          ? "inset-0 brightness-90 transition-[filter] duration-500 ease-out group-hover/dfcimg:brightness-110"
-        : imageHover === "tilt"
-          ? "inset-0 transition-transform duration-500 ease-out origin-center group-hover/dfcimg:rotate-1"
-        : "inset-0";
+          : imageHover === "zoom-out"
+            ? "inset-0 scale-105 transition-transform duration-500 ease-out group-hover/dfcimg:scale-100"
+            : imageHover === "fade"
+              ? "inset-0 transition-[filter,opacity] duration-500 ease-out group-hover/dfcimg:brightness-75"
+              : imageHover === "brighten"
+                ? "inset-0 brightness-90 transition-[filter] duration-500 ease-out group-hover/dfcimg:brightness-110"
+                : imageHover === "tilt"
+                  ? "inset-0 transition-transform duration-500 ease-out origin-center group-hover/dfcimg:rotate-1"
+                  : "inset-0";
       const card = (
         <div
           className="relative p-6 rounded"
@@ -657,21 +930,49 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
             borderWidth: cardBorder ? "1px" : undefined,
           }}
         >
-          {(badge || canEdit) && (
-            canEdit
-              ? <Editable as="div" value={badge} onCommit={(v) => commit(badgeKey, v)} className={badgeCls} style={badgeStyle} placeholder="Etykieta…" />
-              : <div className={badgeCls} style={badgeStyle}>{badge}</div>
-          )}
+          {(badge || canEdit) &&
+            (canEdit ? (
+              <Editable
+                as="div"
+                value={badge}
+                onCommit={(v) => commit(badgeKey, v)}
+                className={badgeCls}
+                style={badgeStyle}
+                placeholder="Etykieta…"
+              />
+            ) : (
+              <div className={badgeCls} style={badgeStyle}>
+                {badge}
+              </div>
+            ))}
           {img && (
-            <div data-widget-media className="group/dfcimg relative w-full overflow-hidden rounded bg-black/20" style={{ aspectRatio: "16 / 9" }}>
-              <OptimizedImage src={img} alt="" responsive sizes="(max-width: 767px) 100vw, 50vw" className={`absolute block h-full w-full object-contain ${imgAnimCls}`} />
+            <div
+              data-widget-media
+              className="group/dfcimg relative w-full overflow-hidden rounded bg-black/20"
+              style={{ aspectRatio: "16 / 9" }}
+            >
+              <OptimizedImage
+                src={img}
+                alt=""
+                responsive
+                sizes="(max-width: 767px) 100vw, 50vw"
+                className={`absolute block h-full w-full object-contain ${imgAnimCls}`}
+              />
             </div>
           )}
           <h3 className="mt-4 font-display text-2xl font-bold">{title}</h3>
           {excerpt && <p className="mt-2 text-sm opacity-70">{excerpt}</p>}
         </div>
       );
-      return wrap(href ? <AppLink href={href} className="block hover:opacity-95 transition">{card}</AppLink> : card);
+      return wrap(
+        href ? (
+          <AppLink href={href} className="block hover:opacity-95 transition">
+            {card}
+          </AppLink>
+        ) : (
+          card
+        ),
+      );
     }
     case "ad-slot": {
       const slotId = getStr(c, "slotId");
@@ -686,4 +987,3 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
 });
 
 WidgetView.displayName = "WidgetView";
-

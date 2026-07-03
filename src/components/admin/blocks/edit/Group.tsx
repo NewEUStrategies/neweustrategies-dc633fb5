@@ -1,7 +1,10 @@
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 /** Kontener (Group/Row/Stack/Grid). Layout dispatch przez block.data.layout. */
 export function GroupBlock({ block, onChange }: Props) {
@@ -20,7 +23,9 @@ export function GroupBlock({ block, onChange }: Props) {
         <Input
           value={bg}
           placeholder="Kolor tła (np. #f4f4f5)"
-          onChange={(e) => onChange({ ...block, data: { ...block.data, background: e.target.value } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, background: e.target.value } })
+          }
         />
         <Input
           type="number"
@@ -28,7 +33,9 @@ export function GroupBlock({ block, onChange }: Props) {
           max={120}
           value={padding}
           placeholder="Padding (px)"
-          onChange={(e) => onChange({ ...block, data: { ...block.data, padding: Number(e.target.value || 0) } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, padding: Number(e.target.value || 0) } })
+          }
         />
       </div>
       <p className="text-xs text-muted-foreground italic">

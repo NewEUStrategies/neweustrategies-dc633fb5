@@ -4,8 +4,18 @@ import { useServerFn } from "@tanstack/react-start";
 import { LogIn, Star } from "@/lib/lucide-shim";
 
 const Lock = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <rect width="18" height="11" x="3" y="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <rect width="18" height="11" x="3" y="11" rx="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
   </svg>
 );
 import { supabase } from "@/integrations/supabase/client";
@@ -157,36 +167,54 @@ export function Paywall({ rule, lang, fallbackText }: Props) {
                   const name = lang === "pl" ? p.name_pl : p.name_en;
                   const desc = lang === "pl" ? p.description_pl : p.description_en;
                   const intervalLabel =
-                    p.interval === "month" ? t.perMonth : p.interval === "year" ? t.perYear : t.oneTime;
+                    p.interval === "month"
+                      ? t.perMonth
+                      : p.interval === "year"
+                        ? t.perYear
+                        : t.oneTime;
                   return (
-                    <div key={p.id} className="border border-border rounded-lg p-4 bg-background hover:border-brand transition">
+                    <div
+                      key={p.id}
+                      className="border border-border rounded-lg p-4 bg-background hover:border-brand transition"
+                    >
                       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand mb-1">
                         <Star className="w-3.5 h-3.5" /> {name}
                       </div>
                       <div className="text-2xl font-bold">
                         {formatMoney(p.price_cents, p.currency)}
-                        <span className="text-xs font-normal text-muted-foreground ml-1">{intervalLabel}</span>
+                        <span className="text-xs font-normal text-muted-foreground ml-1">
+                          {intervalLabel}
+                        </span>
                       </div>
-                      {desc && <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{desc}</p>}
+                      {desc && (
+                        <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{desc}</p>
+                      )}
                       <Button asChild size="sm" className="w-full mt-3" disabled={busy}>
-                        <Link to="/checkout/$planId" params={{ planId: p.id }}>{t.subscribe}</Link>
+                        <Link to="/checkout/$planId" params={{ planId: p.id }}>
+                          {t.subscribe}
+                        </Link>
                       </Button>
                     </div>
                   );
                 })}
               </div>
             )}
-            {buyableEntity && rule.one_time_price_cents != null && rule.one_time_price_cents > 0 && (
-              <div className="inline-flex items-center gap-3 border border-border rounded-lg px-4 py-3 bg-background">
-                <span className="text-sm">
-                  {t.buy}: <strong>{formatMoney(rule.one_time_price_cents, rule.one_time_currency || "PLN")}</strong>
-                  <span className="text-xs text-muted-foreground ml-1">{t.oneTime}</span>
-                </span>
-                <Button size="sm" onClick={startOneTime} disabled={busy}>
-                  {busy ? t.processing : t.buy}
-                </Button>
-              </div>
-            )}
+            {buyableEntity &&
+              rule.one_time_price_cents != null &&
+              rule.one_time_price_cents > 0 && (
+                <div className="inline-flex items-center gap-3 border border-border rounded-lg px-4 py-3 bg-background">
+                  <span className="text-sm">
+                    {t.buy}:{" "}
+                    <strong>
+                      {formatMoney(rule.one_time_price_cents, rule.one_time_currency || "PLN")}
+                    </strong>
+                    <span className="text-xs text-muted-foreground ml-1">{t.oneTime}</span>
+                  </span>
+                  <Button size="sm" onClick={startOneTime} disabled={busy}>
+                    {busy ? t.processing : t.buy}
+                  </Button>
+                </div>
+              )}
             <p className="text-xs text-muted-foreground italic max-w-md mx-auto">{t.secureNote}</p>
           </div>
         )}
@@ -196,7 +224,10 @@ export function Paywall({ rule, lang, fallbackText }: Props) {
 }
 
 function buildAutoTeaser(text: string) {
-  const plain = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const plain = text
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   const target = Math.max(120, Math.floor(plain.length * 0.2));
   if (plain.length <= target) return plain;
   const cut = plain.slice(0, target);

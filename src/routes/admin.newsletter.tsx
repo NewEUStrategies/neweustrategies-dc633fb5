@@ -1,6 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { useNewsletterSettings, useSaveNewsletterSettings, defaultNewsletterSettings, type NewsletterSettings, type NewsletterMailingList } from "@/hooks/useNewsletterSettings";
+import {
+  useNewsletterSettings,
+  useSaveNewsletterSettings,
+  defaultNewsletterSettings,
+  type NewsletterSettings,
+  type NewsletterMailingList,
+} from "@/hooks/useNewsletterSettings";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
@@ -11,7 +17,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Save, Eye, Mail, X, Image as ImageIcon } from "@/lib/lucide-shim";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { sanitizeHtml } from "@/lib/sanitize";
@@ -34,7 +46,9 @@ function Page() {
   const { data } = useNewsletterSettings();
   const save = useSaveNewsletterSettings();
   const [local, setLocal] = useState<NewsletterSettings | null>(null);
-  useEffect(() => { if (data && !local) setLocal(data); }, [data, local]);
+  useEffect(() => {
+    if (data && !local) setLocal(data);
+  }, [data, local]);
 
   const { data: subs, refetch } = useQuery({
     queryKey: ["newsletter-subscribers"],
@@ -61,17 +75,32 @@ function Page() {
 
   const exportCsv = () => {
     const rows = subs ?? [];
-    const head = ["email", "display_name", "language", "status", "source", "created_at", "confirmed_at"];
+    const head = [
+      "email",
+      "display_name",
+      "language",
+      "status",
+      "source",
+      "created_at",
+      "confirmed_at",
+    ];
     const csv = [head.join(",")]
-      .concat(rows.map((r) => head.map((k) => {
-        const v = (r as unknown as Record<string, string | null>)[k] ?? "";
-        return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-      }).join(",")))
+      .concat(
+        rows.map((r) =>
+          head
+            .map((k) => {
+              const v = (r as unknown as Record<string, string | null>)[k] ?? "";
+              return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+            })
+            .join(","),
+        ),
+      )
       .join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `newsletter-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.href = url;
+    a.download = `newsletter-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -79,7 +108,10 @@ function Page() {
   const remove = async (id: string) => {
     if (!confirm(t("admin.newsletter.confirmRemove"))) return;
     const { error } = await supabase.from("newsletter_subscribers").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success(t("admin.deleted"));
     refetch();
   };
@@ -89,200 +121,382 @@ function Page() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl">{t("admin.newsletter.title")}</h1>
-          <Button onClick={onSave} disabled={save.isPending}><Save className="w-4 h-4 mr-2" />{t("admin.saveSettings")}</Button>
+          <Button onClick={onSave} disabled={save.isPending}>
+            <Save className="w-4 h-4 mr-2" />
+            {t("admin.saveSettings")}
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
           <div className="space-y-6 min-w-0">
+            <section className="bg-card border border-border rounded-lg p-5 space-y-4">
+              <h2 className="font-display text-lg">{t("admin.newsletter.formSettings")}</h2>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={cur.enabled}
+                  onChange={(e) => upd({ enabled: e.target.checked })}
+                />
+                {t("admin.newsletter.show")}
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={cur.double_opt_in}
+                  onChange={(e) => upd({ double_opt_in: e.target.checked })}
+                />
+                {t("admin.newsletter.doubleOptIn")}
+              </label>
 
+              <Tabs defaultValue="pl">
+                <TabsList>
+                  <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
+                  <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
+                </TabsList>
+                <TabsContent value="pl" className="space-y-3 mt-4">
+                  <div>
+                    <Label>{t("admin.newsletter.heading")}</Label>
+                    <Input
+                      value={cur.heading_pl}
+                      onChange={(e) => upd({ heading_pl: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("admin.newsletter.description")}</Label>
+                    <Textarea
+                      rows={2}
+                      value={cur.description_pl}
+                      onChange={(e) => upd({ description_pl: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("admin.newsletter.policyHtml")}</Label>
+                    <Textarea
+                      rows={2}
+                      value={cur.policy_html_pl ?? ""}
+                      onChange={(e) => upd({ policy_html_pl: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("admin.newsletter.successMsg")}</Label>
+                    <Input
+                      value={cur.success_message_pl}
+                      onChange={(e) => upd({ success_message_pl: e.target.value })}
+                    />
+                  </div>
+                </TabsContent>
+                <TabsContent value="en" className="space-y-3 mt-4">
+                  <div>
+                    <Label>{t("admin.newsletter.heading")}</Label>
+                    <Input
+                      value={cur.heading_en}
+                      onChange={(e) => upd({ heading_en: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("admin.newsletter.description")}</Label>
+                    <Textarea
+                      rows={2}
+                      value={cur.description_en}
+                      onChange={(e) => upd({ description_en: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("admin.newsletter.policyHtml")}</Label>
+                    <Textarea
+                      rows={2}
+                      value={cur.policy_html_en ?? ""}
+                      onChange={(e) => upd({ policy_html_en: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("admin.newsletter.successMsg")}</Label>
+                    <Input
+                      value={cur.success_message_en}
+                      onChange={(e) => upd({ success_message_en: e.target.value })}
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </section>
 
-        <section className="bg-card border border-border rounded-lg p-5 space-y-4">
-          <h2 className="font-display text-lg">{t("admin.newsletter.formSettings")}</h2>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={cur.enabled} onChange={(e) => upd({ enabled: e.target.checked })} />
-            {t("admin.newsletter.show")}
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={cur.double_opt_in} onChange={(e) => upd({ double_opt_in: e.target.checked })} />
-            {t("admin.newsletter.doubleOptIn")}
-          </label>
+            <section className="bg-card border border-border rounded-lg p-5 space-y-4">
+              <h2 className="font-display text-lg">Popup newslettera</h2>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={cur.popup_enabled}
+                  onChange={(e) => upd({ popup_enabled: e.target.checked })}
+                />
+                Włącz popup
+              </label>
 
-          <Tabs defaultValue="pl">
-            <TabsList>
-              <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
-              <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
-            </TabsList>
-            <TabsContent value="pl" className="space-y-3 mt-4">
-              <div><Label>{t("admin.newsletter.heading")}</Label><Input value={cur.heading_pl} onChange={(e) => upd({ heading_pl: e.target.value })} /></div>
-              <div><Label>{t("admin.newsletter.description")}</Label><Textarea rows={2} value={cur.description_pl} onChange={(e) => upd({ description_pl: e.target.value })} /></div>
-              <div><Label>{t("admin.newsletter.policyHtml")}</Label><Textarea rows={2} value={cur.policy_html_pl ?? ""} onChange={(e) => upd({ policy_html_pl: e.target.value })} /></div>
-              <div><Label>{t("admin.newsletter.successMsg")}</Label><Input value={cur.success_message_pl} onChange={(e) => upd({ success_message_pl: e.target.value })} /></div>
-            </TabsContent>
-            <TabsContent value="en" className="space-y-3 mt-4">
-              <div><Label>{t("admin.newsletter.heading")}</Label><Input value={cur.heading_en} onChange={(e) => upd({ heading_en: e.target.value })} /></div>
-              <div><Label>{t("admin.newsletter.description")}</Label><Textarea rows={2} value={cur.description_en} onChange={(e) => upd({ description_en: e.target.value })} /></div>
-              <div><Label>{t("admin.newsletter.policyHtml")}</Label><Textarea rows={2} value={cur.policy_html_en ?? ""} onChange={(e) => upd({ policy_html_en: e.target.value })} /></div>
-              <div><Label>{t("admin.newsletter.successMsg")}</Label><Input value={cur.success_message_en} onChange={(e) => upd({ success_message_en: e.target.value })} /></div>
-            </TabsContent>
-          </Tabs>
-        </section>
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div>
+                  <Label>Trigger</Label>
+                  <Select
+                    value={cur.popup_trigger}
+                    onValueChange={(v) =>
+                      upd({ popup_trigger: v as NewsletterSettings["popup_trigger"] })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="delay">Po opóźnieniu</SelectItem>
+                      <SelectItem value="scroll">Po przewinięciu %</SelectItem>
+                      <SelectItem value="exit-intent">Exit-intent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Opóźnienie (s)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={600}
+                    value={cur.popup_delay_seconds}
+                    onChange={(e) => upd({ popup_delay_seconds: Number(e.target.value) || 1 })}
+                    disabled={cur.popup_trigger !== "delay"}
+                  />
+                </div>
+                <div>
+                  <Label>Próg scroll (%)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={cur.popup_scroll_percent}
+                    onChange={(e) => upd({ popup_scroll_percent: Number(e.target.value) || 1 })}
+                    disabled={cur.popup_trigger !== "scroll"}
+                  />
+                </div>
+              </div>
 
-        <section className="bg-card border border-border rounded-lg p-5 space-y-4">
-          <h2 className="font-display text-lg">Popup newslettera</h2>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={cur.popup_enabled} onChange={(e) => upd({ popup_enabled: e.target.checked })} />
-            Włącz popup
-          </label>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <Label>Częstotliwość (dni między pokazami)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={365}
+                    value={cur.popup_frequency_days}
+                    onChange={(e) => upd({ popup_frequency_days: Number(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <Label>Układ popupu</Label>
+                  <Select
+                    value={cur.popup_layout}
+                    onValueChange={(v) =>
+                      upd({ popup_layout: v as NewsletterSettings["popup_layout"] })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="stacked">Klasyczny (okładka u góry)</SelectItem>
+                      <SelectItem value="split">Split (grafika z lewej + formularz)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-          <div className="grid sm:grid-cols-3 gap-3">
-            <div>
-              <Label>Trigger</Label>
-              <Select
-                value={cur.popup_trigger}
-                onValueChange={(v) => upd({ popup_trigger: v as NewsletterSettings["popup_trigger"] })}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="delay">Po opóźnieniu</SelectItem>
-                  <SelectItem value="scroll">Po przewinięciu %</SelectItem>
-                  <SelectItem value="exit-intent">Exit-intent</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Opóźnienie (s)</Label>
-              <Input type="number" min={1} max={600} value={cur.popup_delay_seconds}
-                onChange={(e) => upd({ popup_delay_seconds: Number(e.target.value) || 1 })}
-                disabled={cur.popup_trigger !== "delay"} />
-            </div>
-            <div>
-              <Label>Próg scroll (%)</Label>
-              <Input type="number" min={1} max={100} value={cur.popup_scroll_percent}
-                onChange={(e) => upd({ popup_scroll_percent: Number(e.target.value) || 1 })}
-                disabled={cur.popup_trigger !== "scroll"} />
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div>
-              <Label>Częstotliwość (dni między pokazami)</Label>
-              <Input type="number" min={0} max={365} value={cur.popup_frequency_days}
-                onChange={(e) => upd({ popup_frequency_days: Number(e.target.value) || 0 })} />
-            </div>
-            <div>
-              <Label>Układ popupu</Label>
-              <Select
-                value={cur.popup_layout}
-                onValueChange={(v) => upd({ popup_layout: v as NewsletterSettings["popup_layout"] })}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="stacked">Klasyczny (okładka u góry)</SelectItem>
-                  <SelectItem value="split">Split (grafika z lewej + formularz)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <ImageSlot
-              label="Okładka - układ klasyczny"
-              icon={<ImageIcon className="w-3 h-3" />}
-              value={cur.popup_cover_url ?? ""}
-              onChange={(v) => upd({ popup_cover_url: v || null })}
-              folder="newsletter"
-              hint="Wyświetlana u góry popupu w układzie klasycznym (zalecane 800×350 px)."
-            />
-            <ImageSlot
-              label="Grafika boczna - układ split"
-              icon={<ImageIcon className="w-3 h-3" />}
-              value={cur.popup_side_image_url ?? ""}
-              onChange={(v) => upd({ popup_side_image_url: v || null })}
-              folder="newsletter"
-              hint="Wyświetlana z lewej strony popupu w układzie split (zalecane 400×500 px)."
-            />
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-border">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={cur.popup_extended_fields}
-                onChange={(e) => upd({ popup_extended_fields: e.target.checked })} />
-              Rozszerzone pola (imię, nazwisko, stanowisko, firma, LinkedIn, telefon)
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={cur.popup_require_terms}
-                onChange={(e) => upd({ popup_require_terms: e.target.checked })} />
-              Wymagana zgoda na regulamin (checkbox)
-            </label>
-          </div>
-
-          <MailingListsEditor
-            lists={cur.popup_mailing_lists}
-            onChange={(popup_mailing_lists) => upd({ popup_mailing_lists })}
-          />
-
-          <div className="pt-3 border-t border-border space-y-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Wygląd popupu - kolory i styl
-            </h3>
-            <div className="grid sm:grid-cols-3 gap-3">
-              <ColorField label="Tło popupu" value={cur.popup_bg_color} onChange={(v) => upd({ popup_bg_color: v })} />
-              <ColorField label="Kolor tekstu" value={cur.popup_text_color} onChange={(v) => upd({ popup_text_color: v })} />
-              <ColorField label="Tekst dodatkowy" value={cur.popup_muted_color} onChange={(v) => upd({ popup_muted_color: v })} />
-              <ColorField label="Kolor akcentu (CTA)" value={cur.popup_accent_color} onChange={(v) => upd({ popup_accent_color: v })} />
-              <ColorField label="Tekst na akcentcie" value={cur.popup_accent_text_color} onChange={(v) => upd({ popup_accent_text_color: v })} />
-              <div>
-                <Label>Overlay (tło za popupem)</Label>
-                <Input
-                  value={cur.popup_overlay_color}
-                  onChange={(e) => upd({ popup_overlay_color: e.target.value })}
-                  placeholder="rgba(0,0,0,0.7)"
+              <div className="grid sm:grid-cols-2 gap-4">
+                <ImageSlot
+                  label="Okładka - układ klasyczny"
+                  icon={<ImageIcon className="w-3 h-3" />}
+                  value={cur.popup_cover_url ?? ""}
+                  onChange={(v) => upd({ popup_cover_url: v || null })}
+                  folder="newsletter"
+                  hint="Wyświetlana u góry popupu w układzie klasycznym (zalecane 800×350 px)."
+                />
+                <ImageSlot
+                  label="Grafika boczna - układ split"
+                  icon={<ImageIcon className="w-3 h-3" />}
+                  value={cur.popup_side_image_url ?? ""}
+                  onChange={(v) => upd({ popup_side_image_url: v || null })}
+                  folder="newsletter"
+                  hint="Wyświetlana z lewej strony popupu w układzie split (zalecane 400×500 px)."
                 />
               </div>
-              <div>
-                <Label>Zaokrąglenie rogów (px)</Label>
-                <Input
-                  type="number" min={0} max={48}
-                  value={cur.popup_border_radius_px}
-                  onChange={(e) => upd({ popup_border_radius_px: Number(e.target.value) || 0 })}
-                />
+
+              <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-border">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={cur.popup_extended_fields}
+                    onChange={(e) => upd({ popup_extended_fields: e.target.checked })}
+                  />
+                  Rozszerzone pola (imię, nazwisko, stanowisko, firma, LinkedIn, telefon)
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={cur.popup_require_terms}
+                    onChange={(e) => upd({ popup_require_terms: e.target.checked })}
+                  />
+                  Wymagana zgoda na regulamin (checkbox)
+                </label>
               </div>
-            </div>
-          </div>
 
+              <MailingListsEditor
+                lists={cur.popup_mailing_lists}
+                onChange={(popup_mailing_lists) => upd({ popup_mailing_lists })}
+              />
 
-          <Tabs defaultValue="pl">
-            <TabsList>
-              <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
-              <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
-            </TabsList>
-            <TabsContent value="pl" className="space-y-3 mt-4">
-              <div><Label>Eyebrow (nad nagłówkiem)</Label><Input value={cur.popup_eyebrow_pl} onChange={(e) => upd({ popup_eyebrow_pl: e.target.value })} placeholder="Newsletter" /></div>
-              <div><Label>Nagłówek</Label><Input value={cur.popup_title_pl} onChange={(e) => upd({ popup_title_pl: e.target.value })} /></div>
-              <div><Label>Opis</Label><Textarea rows={2} value={cur.popup_description_pl} onChange={(e) => upd({ popup_description_pl: e.target.value })} /></div>
-              <div><Label>CTA (przycisk)</Label><Input value={cur.popup_cta_pl} onChange={(e) => upd({ popup_cta_pl: e.target.value })} /></div>
-              <div><Label>Treść zgody na regulamin (HTML)</Label><Textarea rows={2} value={cur.popup_terms_html_pl ?? ""} onChange={(e) => upd({ popup_terms_html_pl: e.target.value || null })} /></div>
-            </TabsContent>
-            <TabsContent value="en" className="space-y-3 mt-4">
-              <div><Label>Eyebrow (above heading)</Label><Input value={cur.popup_eyebrow_en} onChange={(e) => upd({ popup_eyebrow_en: e.target.value })} placeholder="Newsletter" /></div>
-              <div><Label>Heading</Label><Input value={cur.popup_title_en} onChange={(e) => upd({ popup_title_en: e.target.value })} /></div>
-              <div><Label>Description</Label><Textarea rows={2} value={cur.popup_description_en} onChange={(e) => upd({ popup_description_en: e.target.value })} /></div>
-              <div><Label>CTA (button)</Label><Input value={cur.popup_cta_en} onChange={(e) => upd({ popup_cta_en: e.target.value })} /></div>
-              <div><Label>Terms checkbox label (HTML)</Label><Textarea rows={2} value={cur.popup_terms_html_en ?? ""} onChange={(e) => upd({ popup_terms_html_en: e.target.value || null })} /></div>
-            </TabsContent>
-          </Tabs>
-        </section>
+              <div className="pt-3 border-t border-border space-y-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                  Wygląd popupu - kolory i styl
+                </h3>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  <ColorField
+                    label="Tło popupu"
+                    value={cur.popup_bg_color}
+                    onChange={(v) => upd({ popup_bg_color: v })}
+                  />
+                  <ColorField
+                    label="Kolor tekstu"
+                    value={cur.popup_text_color}
+                    onChange={(v) => upd({ popup_text_color: v })}
+                  />
+                  <ColorField
+                    label="Tekst dodatkowy"
+                    value={cur.popup_muted_color}
+                    onChange={(v) => upd({ popup_muted_color: v })}
+                  />
+                  <ColorField
+                    label="Kolor akcentu (CTA)"
+                    value={cur.popup_accent_color}
+                    onChange={(v) => upd({ popup_accent_color: v })}
+                  />
+                  <ColorField
+                    label="Tekst na akcentcie"
+                    value={cur.popup_accent_text_color}
+                    onChange={(v) => upd({ popup_accent_text_color: v })}
+                  />
+                  <div>
+                    <Label>Overlay (tło za popupem)</Label>
+                    <Input
+                      value={cur.popup_overlay_color}
+                      onChange={(e) => upd({ popup_overlay_color: e.target.value })}
+                      placeholder="rgba(0,0,0,0.7)"
+                    />
+                  </div>
+                  <div>
+                    <Label>Zaokrąglenie rogów (px)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={48}
+                      value={cur.popup_border_radius_px}
+                      onChange={(e) => upd({ popup_border_radius_px: Number(e.target.value) || 0 })}
+                    />
+                  </div>
+                </div>
+              </div>
 
-        <PopupBilingualPreview settings={cur} />
+              <Tabs defaultValue="pl">
+                <TabsList>
+                  <TabsTrigger value="pl">🇵🇱 Polski</TabsTrigger>
+                  <TabsTrigger value="en">🇬🇧 English</TabsTrigger>
+                </TabsList>
+                <TabsContent value="pl" className="space-y-3 mt-4">
+                  <div>
+                    <Label>Eyebrow (nad nagłówkiem)</Label>
+                    <Input
+                      value={cur.popup_eyebrow_pl}
+                      onChange={(e) => upd({ popup_eyebrow_pl: e.target.value })}
+                      placeholder="Newsletter"
+                    />
+                  </div>
+                  <div>
+                    <Label>Nagłówek</Label>
+                    <Input
+                      value={cur.popup_title_pl}
+                      onChange={(e) => upd({ popup_title_pl: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Opis</Label>
+                    <Textarea
+                      rows={2}
+                      value={cur.popup_description_pl}
+                      onChange={(e) => upd({ popup_description_pl: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>CTA (przycisk)</Label>
+                    <Input
+                      value={cur.popup_cta_pl}
+                      onChange={(e) => upd({ popup_cta_pl: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Treść zgody na regulamin (HTML)</Label>
+                    <Textarea
+                      rows={2}
+                      value={cur.popup_terms_html_pl ?? ""}
+                      onChange={(e) => upd({ popup_terms_html_pl: e.target.value || null })}
+                    />
+                  </div>
+                </TabsContent>
+                <TabsContent value="en" className="space-y-3 mt-4">
+                  <div>
+                    <Label>Eyebrow (above heading)</Label>
+                    <Input
+                      value={cur.popup_eyebrow_en}
+                      onChange={(e) => upd({ popup_eyebrow_en: e.target.value })}
+                      placeholder="Newsletter"
+                    />
+                  </div>
+                  <div>
+                    <Label>Heading</Label>
+                    <Input
+                      value={cur.popup_title_en}
+                      onChange={(e) => upd({ popup_title_en: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Description</Label>
+                    <Textarea
+                      rows={2}
+                      value={cur.popup_description_en}
+                      onChange={(e) => upd({ popup_description_en: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>CTA (button)</Label>
+                    <Input
+                      value={cur.popup_cta_en}
+                      onChange={(e) => upd({ popup_cta_en: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Terms checkbox label (HTML)</Label>
+                    <Textarea
+                      rows={2}
+                      value={cur.popup_terms_html_en ?? ""}
+                      onChange={(e) => upd({ popup_terms_html_en: e.target.value || null })}
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </section>
+
+            <PopupBilingualPreview settings={cur} />
           </div>
 
           <NewsletterPreview settings={cur} />
         </div>
 
         <section className="bg-card border border-border rounded-lg p-5">
-
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-display text-lg">{t("admin.newsletter.subscribers")} ({subs?.length ?? 0})</h2>
+            <h2 className="font-display text-lg">
+              {t("admin.newsletter.subscribers")} ({subs?.length ?? 0})
+            </h2>
             <Button variant="outline" size="sm" onClick={exportCsv} disabled={!subs?.length}>
               {t("admin.newsletter.exportCsv")}
             </Button>
@@ -307,19 +521,32 @@ function Page() {
                     <td className="p-2">{s.display_name ?? "-"}</td>
                     <td className="p-2 uppercase">{s.language}</td>
                     <td className="p-2">
-                      <span className={`text-xs px-2 py-0.5 rounded ${s.status === "subscribed" ? "bg-green-500/10 text-green-700 dark:text-green-400" : s.status === "pending" ? "bg-amber-500/10 text-amber-700 dark:text-amber-400" : "bg-muted"}`}>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded ${s.status === "subscribed" ? "bg-green-500/10 text-green-700 dark:text-green-400" : s.status === "pending" ? "bg-amber-500/10 text-amber-700 dark:text-amber-400" : "bg-muted"}`}
+                      >
                         {s.status}
                       </span>
                     </td>
                     <td className="p-2 text-muted-foreground">{s.source ?? "-"}</td>
-                    <td className="p-2 text-muted-foreground">{new Date(s.created_at).toLocaleDateString()}</td>
+                    <td className="p-2 text-muted-foreground">
+                      {new Date(s.created_at).toLocaleDateString()}
+                    </td>
                     <td className="p-2 text-right">
-                      <button onClick={() => remove(s.id)} className="text-xs text-destructive hover:underline">{t("admin.delete")}</button>
+                      <button
+                        onClick={() => remove(s.id)}
+                        className="text-xs text-destructive hover:underline"
+                      >
+                        {t("admin.delete")}
+                      </button>
                     </td>
                   </tr>
                 ))}
                 {!subs?.length && (
-                  <tr><td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">{t("admin.newsletter.empty")}</td></tr>
+                  <tr>
+                    <td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">
+                      {t("admin.newsletter.empty")}
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -335,7 +562,9 @@ function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
   const [mode, setMode] = useState<"inline" | "popup">("inline");
   const heading = lang === "pl" ? settings.heading_pl : settings.heading_en;
   const description = lang === "pl" ? settings.description_pl : settings.description_en;
-  const policyHtml = sanitizeHtml((lang === "pl" ? settings.policy_html_pl : settings.policy_html_en) ?? "");
+  const policyHtml = sanitizeHtml(
+    (lang === "pl" ? settings.policy_html_pl : settings.policy_html_en) ?? "",
+  );
   const popupTitle = lang === "pl" ? settings.popup_title_pl : settings.popup_title_en;
   const popupDesc = lang === "pl" ? settings.popup_description_pl : settings.popup_description_en;
   const popupCta = lang === "pl" ? settings.popup_cta_pl : settings.popup_cta_en;
@@ -354,12 +583,16 @@ function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
             type="button"
             onClick={() => setLang("pl")}
             className={`px-2 py-1 text-xs rounded ${lang === "pl" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-          >PL</button>
+          >
+            PL
+          </button>
           <button
             type="button"
             onClick={() => setLang("en")}
             className={`px-2 py-1 text-xs rounded ${lang === "en" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-          >EN</button>
+          >
+            EN
+          </button>
         </div>
       </div>
 
@@ -368,12 +601,16 @@ function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
           type="button"
           onClick={() => setMode("inline")}
           className={`flex-1 px-2 py-1.5 text-xs rounded ${mode === "inline" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
-        >Formularz inline</button>
+        >
+          Formularz inline
+        </button>
         <button
           type="button"
           onClick={() => setMode("popup")}
           className={`flex-1 px-2 py-1.5 text-xs rounded ${mode === "popup" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
-        >Popup</button>
+        >
+          Popup
+        </button>
       </div>
 
       <div className="rounded-lg border border-border bg-gradient-to-br from-muted/40 to-muted/10 p-4 min-h-[400px]">
@@ -390,7 +627,9 @@ function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
               <div className="space-y-2">
                 <Input placeholder={emailPh} readOnly />
                 <Input placeholder={namePh} readOnly />
-                <Button className="w-full" type="button">{submitLabel}</Button>
+                <Button className="w-full" type="button">
+                  {submitLabel}
+                </Button>
               </div>
               {policyHtml && (
                 <p
@@ -404,95 +643,130 @@ function NewsletterPreview({ settings }: { settings: NewsletterSettings }) {
               Formularz newslettera jest wyłączony.
             </div>
           )
-        ) : (
-          settings.popup_enabled ? (
-            settings.popup_layout === "split" ? (
-              <div className="relative rounded-xl shadow-2xl overflow-hidden border border-white/10 bg-[#0a0a0a] text-white grid grid-cols-[40%_1fr] min-h-[420px]">
-                <button type="button" aria-label="Close"
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center z-10">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-                <div
-                  className="bg-cover bg-center"
-                  style={{
-                    backgroundImage: settings.popup_side_image_url
-                      ? `url(${settings.popup_side_image_url})`
-                      : "linear-gradient(135deg, oklch(0.25 0.04 260), oklch(0.15 0.02 260))",
-                  }}
-                  aria-hidden="true"
+        ) : settings.popup_enabled ? (
+          settings.popup_layout === "split" ? (
+            <div className="relative rounded-xl shadow-2xl overflow-hidden border border-white/10 bg-[#0a0a0a] text-white grid grid-cols-[40%_1fr] min-h-[420px]">
+              <button
+                type="button"
+                aria-label="Close"
+                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center z-10"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+              <div
+                className="bg-cover bg-center"
+                style={{
+                  backgroundImage: settings.popup_side_image_url
+                    ? `url(${settings.popup_side_image_url})`
+                    : "linear-gradient(135deg, oklch(0.25 0.04 260), oklch(0.15 0.02 260))",
+                }}
+                aria-hidden="true"
+              />
+              <div className="p-5 space-y-3 overflow-y-auto max-h-[520px]">
+                <h3 className="font-display text-2xl">{popupTitle || "-"}</h3>
+                {popupDesc && <p className="text-xs text-white/70">{popupDesc}</p>}
+                {settings.popup_extended_fields && (
+                  <>
+                    <input
+                      className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40"
+                      placeholder={lang === "pl" ? "Imię" : "Name"}
+                      readOnly
+                    />
+                    <input
+                      className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40"
+                      placeholder={lang === "pl" ? "Nazwisko" : "Surname"}
+                      readOnly
+                    />
+                    <input
+                      className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40"
+                      placeholder={lang === "pl" ? "Stanowisko" : "Job position"}
+                      readOnly
+                    />
+                    <input
+                      className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40"
+                      placeholder={lang === "pl" ? "Firma" : "Company"}
+                      readOnly
+                    />
+                    <input
+                      className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40"
+                      placeholder="LinkedIn"
+                      readOnly
+                    />
+                  </>
+                )}
+                <input
+                  className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40"
+                  placeholder={emailPh}
+                  readOnly
                 />
-                <div className="p-5 space-y-3 overflow-y-auto max-h-[520px]">
-                  <h3 className="font-display text-2xl">{popupTitle || "-"}</h3>
-                  {popupDesc && <p className="text-xs text-white/70">{popupDesc}</p>}
-                  {settings.popup_extended_fields && (
-                    <>
-                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Imię" : "Name"} readOnly />
-                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Nazwisko" : "Surname"} readOnly />
-                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Stanowisko" : "Job position"} readOnly />
-                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Firma" : "Company"} readOnly />
-                      <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder="LinkedIn" readOnly />
-                    </>
-                  )}
-                  <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={emailPh} readOnly />
-                  {settings.popup_extended_fields && (
-                    <input className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40" placeholder={lang === "pl" ? "Telefon" : "Phone"} readOnly />
-                  )}
-                  {settings.popup_mailing_lists.length > 0 && (
-                    <select className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white">
-                      <option>{lang === "pl" ? "Wybierz listę" : "Choose mailing list"}</option>
-                      {settings.popup_mailing_lists.map((l) => (
-                        <option key={l.id}>{lang === "pl" ? l.label_pl : l.label_en}</option>
-                      ))}
-                    </select>
-                  )}
-                  <button type="button" className="px-4 py-1.5 rounded bg-[var(--brand,#f97316)] text-white text-xs font-medium">
-                    {popupCta || submitLabel}
-                  </button>
-                  {settings.popup_require_terms && (
-                    <label className="flex items-start gap-2 text-[10px] text-white/60">
-                      <input type="checkbox" className="mt-0.5" />
-                      <span>{lang === "pl" ? "Akceptuję regulamin" : "I accept the terms"}</span>
-                    </label>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="relative bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+                {settings.popup_extended_fields && (
+                  <input
+                    className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white placeholder-white/40"
+                    placeholder={lang === "pl" ? "Telefon" : "Phone"}
+                    readOnly
+                  />
+                )}
+                {settings.popup_mailing_lists.length > 0 && (
+                  <select className="w-full px-2.5 py-1.5 rounded bg-white/5 border border-white/10 text-xs text-white">
+                    <option>{lang === "pl" ? "Wybierz listę" : "Choose mailing list"}</option>
+                    {settings.popup_mailing_lists.map((l) => (
+                      <option key={l.id}>{lang === "pl" ? l.label_pl : l.label_en}</option>
+                    ))}
+                  </select>
+                )}
                 <button
                   type="button"
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-muted-foreground hover:text-foreground z-10"
-                  aria-label="Close"
+                  className="px-4 py-1.5 rounded bg-[var(--brand,#f97316)] text-white text-xs font-medium"
                 >
-                  <X className="w-4 h-4" />
+                  {popupCta || submitLabel}
                 </button>
-                {settings.popup_cover_url && (
-                  <img src={settings.popup_cover_url} alt="" className="w-full h-32 object-cover" />
+                {settings.popup_require_terms && (
+                  <label className="flex items-start gap-2 text-[10px] text-white/60">
+                    <input type="checkbox" className="mt-0.5" />
+                    <span>{lang === "pl" ? "Akceptuję regulamin" : "I accept the terms"}</span>
+                  </label>
                 )}
-                <div className="p-5 space-y-3">
-                  <h3 className="font-display text-xl">{popupTitle || "-"}</h3>
-                  {popupDesc && <p className="text-sm text-muted-foreground">{popupDesc}</p>}
-                  <Input placeholder={emailPh} readOnly />
-                  <Button className="w-full" type="button">{popupCta || submitLabel}</Button>
-                  {policyHtml && (
-                    <p
-                      className="text-[11px] text-muted-foreground leading-relaxed [&_a]:underline"
-                      dangerouslySetInnerHTML={{ __html: policyHtml }}
-                    />
-                  )}
-                </div>
               </div>
-            )
+            </div>
           ) : (
-            <div className="text-center text-sm text-muted-foreground py-12">
-              Popup newslettera jest wyłączony.
+            <div className="relative bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+              <button
+                type="button"
+                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-muted-foreground hover:text-foreground z-10"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              {settings.popup_cover_url && (
+                <img src={settings.popup_cover_url} alt="" className="w-full h-32 object-cover" />
+              )}
+              <div className="p-5 space-y-3">
+                <h3 className="font-display text-xl">{popupTitle || "-"}</h3>
+                {popupDesc && <p className="text-sm text-muted-foreground">{popupDesc}</p>}
+                <Input placeholder={emailPh} readOnly />
+                <Button className="w-full" type="button">
+                  {popupCta || submitLabel}
+                </Button>
+                {policyHtml && (
+                  <p
+                    className="text-[11px] text-muted-foreground leading-relaxed [&_a]:underline"
+                    dangerouslySetInnerHTML={{ __html: policyHtml }}
+                  />
+                )}
+              </div>
             </div>
           )
+        ) : (
+          <div className="text-center text-sm text-muted-foreground py-12">
+            Popup newslettera jest wyłączony.
+          </div>
         )}
       </div>
 
       {mode === "popup" && settings.popup_enabled && (
         <div className="text-[11px] text-muted-foreground space-y-0.5 px-1">
-          <div>Trigger: <span className="font-medium text-foreground">{settings.popup_trigger}</span>
+          <div>
+            Trigger: <span className="font-medium text-foreground">{settings.popup_trigger}</span>
             {settings.popup_trigger === "delay" && <> ({settings.popup_delay_seconds}s)</>}
             {settings.popup_trigger === "scroll" && <> ({settings.popup_scroll_percent}%)</>}
           </div>
@@ -510,25 +784,45 @@ function MailingListsEditor({
   lists: NewsletterMailingList[];
   onChange: (next: NewsletterMailingList[]) => void;
 }) {
-  const add = () => onChange([...lists, { id: crypto.randomUUID().slice(0, 8), label_pl: "", label_en: "" }]);
+  const add = () =>
+    onChange([...lists, { id: crypto.randomUUID().slice(0, 8), label_pl: "", label_en: "" }]);
   const upd = (i: number, patch: Partial<NewsletterMailingList>) =>
-    onChange(lists.map((l, idx) => (idx === i ? ({ ...l, ...patch } as NewsletterMailingList) : l)));
+    onChange(
+      lists.map((l, idx) => (idx === i ? ({ ...l, ...patch } as NewsletterMailingList) : l)),
+    );
   const del = (i: number) => onChange(lists.filter((_, idx) => idx !== i));
 
   return (
     <div className="space-y-2 pt-2 border-t border-border">
       <div className="flex items-center justify-between">
         <Label>Listy mailingowe (select w popupie)</Label>
-        <Button type="button" size="sm" variant="outline" onClick={add}>+ Dodaj listę</Button>
+        <Button type="button" size="sm" variant="outline" onClick={add}>
+          + Dodaj listę
+        </Button>
       </div>
       {lists.length === 0 && (
-        <p className="text-xs text-muted-foreground">Brak list - select nie zostanie wyświetlony.</p>
+        <p className="text-xs text-muted-foreground">
+          Brak list - select nie zostanie wyświetlony.
+        </p>
       )}
       {lists.map((l, i) => (
         <div key={i} className="grid grid-cols-[80px_1fr_1fr_auto] gap-2 items-center">
-          <Input value={l.id} onChange={(e) => upd(i, { id: e.target.value })} placeholder="id" className="font-mono text-xs" />
-          <Input value={l.label_pl} onChange={(e) => upd(i, { label_pl: e.target.value })} placeholder="Etykieta PL" />
-          <Input value={l.label_en} onChange={(e) => upd(i, { label_en: e.target.value })} placeholder="Label EN" />
+          <Input
+            value={l.id}
+            onChange={(e) => upd(i, { id: e.target.value })}
+            placeholder="id"
+            className="font-mono text-xs"
+          />
+          <Input
+            value={l.label_pl}
+            onChange={(e) => upd(i, { label_pl: e.target.value })}
+            placeholder="Etykieta PL"
+          />
+          <Input
+            value={l.label_en}
+            onChange={(e) => upd(i, { label_en: e.target.value })}
+            placeholder="Label EN"
+          />
           <Button type="button" size="sm" variant="ghost" onClick={() => del(i)} aria-label="Usuń">
             <X className="w-4 h-4" />
           </Button>
@@ -562,7 +856,9 @@ function PopupMini({ settings, lang }: { settings: NewsletterSettings; lang: "pl
   const title = isPl ? settings.popup_title_pl : settings.popup_title_en;
   const desc = isPl ? settings.popup_description_pl : settings.popup_description_en;
   const cta = isPl ? settings.popup_cta_pl : settings.popup_cta_en;
-  const terms = sanitizeHtml((isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "");
+  const terms = sanitizeHtml(
+    (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "",
+  );
   const emailPh = isPl ? "twoj@email.pl" : "you@email.com";
 
   const split = settings.popup_layout === "split";
@@ -591,14 +887,34 @@ function PopupMini({ settings, lang }: { settings: NewsletterSettings; lang: "pl
             {desc && <p className="text-[11px] text-white/70">{desc}</p>}
             {settings.popup_extended_fields && (
               <>
-                <input className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40" placeholder={isPl ? "Imię" : "Name"} readOnly />
-                <input className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40" placeholder={isPl ? "Nazwisko" : "Surname"} readOnly />
-                <input className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40" placeholder="LinkedIn" readOnly />
+                <input
+                  className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40"
+                  placeholder={isPl ? "Imię" : "Name"}
+                  readOnly
+                />
+                <input
+                  className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40"
+                  placeholder={isPl ? "Nazwisko" : "Surname"}
+                  readOnly
+                />
+                <input
+                  className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40"
+                  placeholder="LinkedIn"
+                  readOnly
+                />
               </>
             )}
-            <input className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40" placeholder={emailPh} readOnly />
+            <input
+              className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40"
+              placeholder={emailPh}
+              readOnly
+            />
             {settings.popup_extended_fields && (
-              <input className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40" placeholder={isPl ? "Telefon" : "Phone"} readOnly />
+              <input
+                className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40"
+                placeholder={isPl ? "Telefon" : "Phone"}
+                readOnly
+              />
             )}
             {lists.length > 0 && (
               <select className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white">
@@ -608,7 +924,10 @@ function PopupMini({ settings, lang }: { settings: NewsletterSettings; lang: "pl
                 ))}
               </select>
             )}
-            <button type="button" className="px-3 py-1 rounded bg-[var(--brand,#f97316)] text-white text-[11px] font-medium">
+            <button
+              type="button"
+              className="px-3 py-1 rounded bg-[var(--brand,#f97316)] text-white text-[11px] font-medium"
+            >
               {cta || (isPl ? "Zapisz się" : "Subscribe")}
             </button>
             {settings.popup_require_terms && (
@@ -627,7 +946,11 @@ function PopupMini({ settings, lang }: { settings: NewsletterSettings; lang: "pl
           <div className="p-4 space-y-2">
             <h3 className="font-display text-lg">{title || "-"}</h3>
             {desc && <p className="text-[11px] text-white/70">{desc}</p>}
-            <input className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40" placeholder={emailPh} readOnly />
+            <input
+              className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white placeholder-white/40"
+              placeholder={emailPh}
+              readOnly
+            />
             {lists.length > 0 && (
               <select className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px] text-white">
                 <option>{isPl ? "Wybierz listę" : "Choose mailing list"}</option>
@@ -636,7 +959,10 @@ function PopupMini({ settings, lang }: { settings: NewsletterSettings; lang: "pl
                 ))}
               </select>
             )}
-            <button type="button" className="px-3 py-1 rounded bg-[var(--brand,#f97316)] text-white text-[11px] font-medium">
+            <button
+              type="button"
+              className="px-3 py-1 rounded bg-[var(--brand,#f97316)] text-white text-[11px] font-medium"
+            >
               {cta || (isPl ? "Zapisz się" : "Subscribe")}
             </button>
           </div>
@@ -646,7 +972,15 @@ function PopupMini({ settings, lang }: { settings: NewsletterSettings; lang: "pl
   );
 }
 
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function ColorField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
   return (
     <div>
       <Label>{label}</Label>
@@ -658,10 +992,12 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
           className="h-9 w-12 rounded border border-input bg-background cursor-pointer p-0.5"
           aria-label={label}
         />
-        <Input value={value} onChange={(e) => onChange(e.target.value)} className="font-mono text-xs" />
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="font-mono text-xs"
+        />
       </div>
     </div>
   );
 }
-
-

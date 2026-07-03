@@ -24,9 +24,7 @@ import {
   Newspaper,
 } from "@/lib/lucide-shim";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  allSidebarLayoutsQueryOptions,
-} from "@/lib/queries/sidebarLayouts";
+import { allSidebarLayoutsQueryOptions } from "@/lib/queries/sidebarLayouts";
 import {
   DEFAULT_READING_PANEL_SETTINGS,
   SOCIAL_KEYS,
@@ -49,12 +47,54 @@ interface PaletteEntry {
 }
 
 const PALETTE: PaletteEntry[] = [
-  { type: "reading-panel", labelPl: "Panel czytania", labelEn: "Reading panel", descPl: "Spis treści + udostępnianie + zapis", descEn: "ToC + share + save", Icon: PanelLeft },
-  { type: "tags", labelPl: "Tagi", labelEn: "Tags", descPl: "Tagi przypisane do wpisu", descEn: "Post tags", Icon: TagIcon },
-  { type: "author-card", labelPl: "Karta autora", labelEn: "Author card", descPl: "Bio i linki autora", descEn: "Author bio and links", Icon: Users },
-  { type: "related-posts", labelPl: "Powiązane wpisy", labelEn: "Related posts", descPl: "Lista podobnych artykułów", descEn: "List of related articles", Icon: Newspaper },
-  { type: "newsletter", labelPl: "Newsletter", labelEn: "Newsletter", descPl: "Formularz zapisu", descEn: "Signup form", Icon: Mail },
-  { type: "ad-slot", labelPl: "Reklama", labelEn: "Ad slot", descPl: "Slot reklamowy w sidebarze", descEn: "Sidebar ad slot", Icon: Megaphone },
+  {
+    type: "reading-panel",
+    labelPl: "Panel czytania",
+    labelEn: "Reading panel",
+    descPl: "Spis treści + udostępnianie + zapis",
+    descEn: "ToC + share + save",
+    Icon: PanelLeft,
+  },
+  {
+    type: "tags",
+    labelPl: "Tagi",
+    labelEn: "Tags",
+    descPl: "Tagi przypisane do wpisu",
+    descEn: "Post tags",
+    Icon: TagIcon,
+  },
+  {
+    type: "author-card",
+    labelPl: "Karta autora",
+    labelEn: "Author card",
+    descPl: "Bio i linki autora",
+    descEn: "Author bio and links",
+    Icon: Users,
+  },
+  {
+    type: "related-posts",
+    labelPl: "Powiązane wpisy",
+    labelEn: "Related posts",
+    descPl: "Lista podobnych artykułów",
+    descEn: "List of related articles",
+    Icon: Newspaper,
+  },
+  {
+    type: "newsletter",
+    labelPl: "Newsletter",
+    labelEn: "Newsletter",
+    descPl: "Formularz zapisu",
+    descEn: "Signup form",
+    Icon: Mail,
+  },
+  {
+    type: "ad-slot",
+    labelPl: "Reklama",
+    labelEn: "Ad slot",
+    descPl: "Slot reklamowy w sidebarze",
+    descEn: "Sidebar ad slot",
+    Icon: Megaphone,
+  },
 ];
 
 const SOCIAL_LABEL: Record<SocialKey, string> = {
@@ -94,8 +134,7 @@ export function SidebarBuilderPane() {
   // Pick default layout when data arrives.
   useEffect(() => {
     if (!layoutsQuery.data || activeId) return;
-    const def =
-      layoutsQuery.data.find((l) => l.is_default) ?? layoutsQuery.data[0];
+    const def = layoutsQuery.data.find((l) => l.is_default) ?? layoutsQuery.data[0];
     if (def) setActiveId(def.id);
   }, [layoutsQuery.data, activeId]);
 
@@ -197,9 +236,7 @@ export function SidebarBuilderPane() {
   function toggleHidden(id: string) {
     patchDraft((d) => ({
       ...d,
-      widgets: d.widgets.map((w) =>
-        w.id === id ? { ...w, hidden: !w.hidden } : w,
-      ),
+      widgets: d.widgets.map((w) => (w.id === id ? { ...w, hidden: !w.hidden } : w)),
     }));
   }
 
@@ -297,9 +334,7 @@ export function SidebarBuilderPane() {
             <input
               type="text"
               value={draft?.name ?? ""}
-              onChange={(e) =>
-                patchDraft((d) => ({ ...d, name: e.target.value }))
-              }
+              onChange={(e) => patchDraft((d) => ({ ...d, name: e.target.value }))}
               placeholder={lang === "pl" ? "Nazwa układu" : "Layout name"}
               className="text-sm font-semibold bg-transparent border border-border rounded-[5px] px-2 py-1 min-w-0 flex-1"
             />
@@ -308,9 +343,7 @@ export function SidebarBuilderPane() {
                 <input
                   type="checkbox"
                   checked={draft.is_default}
-                  onChange={(e) =>
-                    patchDraft((d) => ({ ...d, is_default: e.target.checked }))
-                  }
+                  onChange={(e) => patchDraft((d) => ({ ...d, is_default: e.target.checked }))}
                 />
                 {lang === "pl" ? "domyślny" : "default"}
               </label>
@@ -323,8 +356,12 @@ export function SidebarBuilderPane() {
             className="px-3 py-1.5 rounded-[5px] bg-brand text-brand-foreground text-sm font-semibold disabled:opacity-50"
           >
             {saveMutation.isPending
-              ? (lang === "pl" ? "Zapisywanie…" : "Saving…")
-              : (lang === "pl" ? "Zapisz" : "Save")}
+              ? lang === "pl"
+                ? "Zapisywanie…"
+                : "Saving…"
+              : lang === "pl"
+                ? "Zapisz"
+                : "Save"}
           </button>
         </header>
 
@@ -380,7 +417,15 @@ export function SidebarBuilderPane() {
                       <ChevronDown className="w-3.5 h-3.5" />
                     </IconBtn>
                     <IconBtn
-                      label={w.hidden ? (lang === "pl" ? "Pokaż" : "Show") : (lang === "pl" ? "Ukryj" : "Hide")}
+                      label={
+                        w.hidden
+                          ? lang === "pl"
+                            ? "Pokaż"
+                            : "Show"
+                          : lang === "pl"
+                            ? "Ukryj"
+                            : "Hide"
+                      }
                       onClick={() => toggleHidden(w.id)}
                     >
                       {w.hidden ? <Eye className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -440,8 +485,7 @@ export function SidebarBuilderPane() {
                 ...(selectedWidget.settings as Partial<ReadingPanelSettings>),
                 social: {
                   ...DEFAULT_READING_PANEL_SETTINGS.social,
-                  ...((selectedWidget.settings as Partial<ReadingPanelSettings>)
-                    ?.social ?? {}),
+                  ...((selectedWidget.settings as Partial<ReadingPanelSettings>)?.social ?? {}),
                 },
               } as ReadingPanelSettings
             }
@@ -481,9 +525,7 @@ function IconBtn({
       aria-label={label}
       title={label}
       className={`h-7 w-7 grid place-items-center rounded-[5px] border border-border transition disabled:opacity-30 ${
-        danger
-          ? "hover:bg-destructive/10 hover:text-destructive"
-          : "hover:bg-muted"
+        danger ? "hover:bg-destructive/10 hover:text-destructive" : "hover:bg-muted"
       }`}
     >
       {children}
@@ -520,7 +562,9 @@ function ReadingPanelSettingsForm({
                 <input
                   type="checkbox"
                   checked={Boolean(settings[k])}
-                  onChange={(e) => onChange({ [k]: e.target.checked } as Partial<ReadingPanelSettings>)}
+                  onChange={(e) =>
+                    onChange({ [k]: e.target.checked } as Partial<ReadingPanelSettings>)
+                  }
                 />
                 {lang === "pl" ? pl : en}
               </label>

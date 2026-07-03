@@ -2,6 +2,10 @@
 // these into the resource bundle. Split per-language so PL and EN edits don't
 // collide in one giant file.
 export const en = {
+  common: {
+    retry: "Try again",
+    loadError: "Failed to load",
+  },
   nav: {
     analyses: "ANALYSES",
     interviews: "INTERVIEWS",
@@ -50,6 +54,18 @@ export const en = {
     subscribe: "Subscribe",
     terms: "I have read and agree to the",
     termsLink: "terms & conditions",
+    confirmPage: {
+      loading: "Confirming your subscription…",
+      okTitle: "Subscription confirmed",
+      okBody: "Thank you - from now on you will receive our newsletter.",
+      alreadyTitle: "Already confirmed",
+      alreadyBody: "This address is already subscribed to the newsletter.",
+      expiredTitle: "Link expired",
+      expiredBody: "Subscribe again to receive a fresh confirmation link.",
+      errorTitle: "Confirmation failed",
+      errorBody: "Please try again or contact the editorial team.",
+      backHome: "← Back to the homepage",
+    },
   },
   footer: {
     mission:
@@ -811,6 +827,19 @@ export const en = {
     empty: "No items",
     confirmDelete: "Delete this item?",
     unsavedChanges: "You have unsaved changes - leave the editor anyway?",
+    slugTaken: 'Slug was already taken - saved as "{{slug}}"',
+    bulkResult: {
+      none: "Nothing was changed - no permission or the items no longer exist",
+      partial:
+        "Applied to {{count}} of {{requested}} - the rest were rejected (no permission or the item no longer exists)",
+      trashed: "Moved to trash: {{count}}",
+      restored: "Restored: {{count}}",
+      purged: "Permanently deleted: {{count}}",
+      updated: "Updated: {{count}}",
+      trashedOne: "Moved to trash",
+      restoredOne: "Restored",
+      purgedOne: "Permanently deleted",
+    },
     published: "published",
     drafts: "drafts",
     language: "Panel language",

@@ -69,9 +69,34 @@ jobs:
       - name: Bundle size budget
         run: bun run check:bundle
 
-      # Lint runs for visibility only: the existing tree has a large backlog of
-      # Prettier formatting findings, so it must not gate merges yet. Flip
-      # continue-on-error to false once the backlog is cleared.
-      - name: Lint (non-blocking)
+      # Blocking: the Prettier backlog was cleared (repo-wide format commit) and
+      # all remaining ESLint errors were fixed, so lint now gates merges like
+      # typecheck and tests.
+      - name: Lint
         run: bun run lint
-        continue-on-error: true
+
+  # pgTAP: RLS tenant isolation, role management and full-text search run
+  # against a real local Postgres (supabase db start applies migrations +
+  # seed.sql). Complements Vitest, which never touches RLS policies.
+  pgtap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local database (migrations + seed)
+        run: supabase db start
+
+      # Fresh CI database has no pgTAP; the tests expect it in `extensions`
+      # (see supabase/tests/README.md).
+      - name: Install pgTAP extension
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            -c 'create extension if not exists pgtap with schema extensions;'
+
+      - name: Run pgTAP tests
+        run: supabase test db

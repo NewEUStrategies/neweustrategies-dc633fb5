@@ -38,9 +38,7 @@ export function ColorInput({
         aria-pressed={transparent}
         title={transparent ? "Wyłącz przezroczystość" : "Ustaw przezroczyste"}
         className={`h-8 w-8 shrink-0 rounded border text-[10px] font-medium transition ${
-          transparent
-            ? ""
-            : "border-border text-muted-foreground hover:bg-muted"
+          transparent ? "" : "border-border text-muted-foreground hover:bg-muted"
         }`}
         style={
           transparent

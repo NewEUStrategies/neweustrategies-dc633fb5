@@ -33,23 +33,50 @@ import {
 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
-interface Props { editor: Editor }
+interface Props {
+  editor: Editor;
+}
 
 // Word-like swatch palette (CMYK-ish print safe primaries + neutrals).
 const TEXT_COLORS = [
-  "#111111", "#5b5b5b", "#9b9b9b", "#ffffff",
-  "#c0392b", "#e67e22", "#f1c40f", "#27ae60",
-  "#16a085", "#2980b9", "#8e44ad", "#d63384",
+  "#111111",
+  "#5b5b5b",
+  "#9b9b9b",
+  "#ffffff",
+  "#c0392b",
+  "#e67e22",
+  "#f1c40f",
+  "#27ae60",
+  "#16a085",
+  "#2980b9",
+  "#8e44ad",
+  "#d63384",
 ];
 const HL_COLORS = [
-  "#fff59d", "#ffe082", "#ffab91", "#f48fb1",
-  "#ce93d8", "#90caf9", "#80cbc4", "#a5d6a7",
+  "#fff59d",
+  "#ffe082",
+  "#ffab91",
+  "#f48fb1",
+  "#ce93d8",
+  "#90caf9",
+  "#80cbc4",
+  "#a5d6a7",
   "transparent",
 ];
 
 function ToolbarBtn({
-  onClick, active, title, children, disabled,
-}: { onClick: () => void; active?: boolean; title: string; children: React.ReactNode; disabled?: boolean }) {
+  onClick,
+  active,
+  title,
+  children,
+  disabled,
+}: {
+  onClick: () => void;
+  active?: boolean;
+  title: string;
+  children: React.ReactNode;
+  disabled?: boolean;
+}) {
   return (
     <button
       type="button"
@@ -76,10 +103,17 @@ function Divider() {
 }
 
 function ColorPopover({
-  open, onClose, swatches, onPick, label,
+  open,
+  onClose,
+  swatches,
+  onPick,
+  label,
 }: {
-  open: boolean; onClose: () => void; swatches: readonly string[];
-  onPick: (c: string | null) => void; label: string;
+  open: boolean;
+  onClose: () => void;
+  swatches: readonly string[];
+  onPick: (c: string | null) => void;
+  label: string;
 }) {
   if (!open) return null;
   return (
@@ -93,12 +127,16 @@ function ColorPopover({
         <button
           key={c}
           type="button"
-          onClick={() => { onPick(c === "transparent" ? null : c); onClose(); }}
+          onClick={() => {
+            onPick(c === "transparent" ? null : c);
+            onClose();
+          }}
           className="h-5 w-5 rounded-sm border border-border/60 hover:scale-110 transition-transform"
           style={{
-            background: c === "transparent"
-              ? "linear-gradient(45deg, transparent 45%, hsl(var(--destructive)) 45%, hsl(var(--destructive)) 55%, transparent 55%)"
-              : c,
+            background:
+              c === "transparent"
+                ? "linear-gradient(45deg, transparent 45%, hsl(var(--destructive)) 45%, hsl(var(--destructive)) 55%, transparent 55%)"
+                : c,
           }}
           title={c}
           aria-label={c}
@@ -106,7 +144,10 @@ function ColorPopover({
       ))}
       <button
         type="button"
-        onClick={() => { onPick(null); onClose(); }}
+        onClick={() => {
+          onPick(null);
+          onClose();
+        }}
         className="col-span-6 mt-1 rounded-sm border border-border px-2 py-1 text-[11px] hover:bg-accent"
       >
         ⌫
@@ -126,7 +167,8 @@ export function WordStyleToolbar({ editor }: Props) {
     function onDown(e: MouseEvent) {
       if (!rootRef.current) return;
       if (!rootRef.current.contains(e.target as Node)) {
-        setColorOpen(false); setHlOpen(false);
+        setColorOpen(false);
+        setHlOpen(false);
       }
     }
     document.addEventListener("mousedown", onDown);
@@ -135,8 +177,7 @@ export function WordStyleToolbar({ editor }: Props) {
 
   const can = editor.can();
   const isHeading = (lvl: 1 | 2 | 3) => editor.isActive("heading", { level: lvl });
-  const align = (a: "left" | "center" | "right" | "justify") =>
-    editor.isActive({ textAlign: a });
+  const align = (a: "left" | "center" | "right" | "justify") => editor.isActive({ textAlign: a });
 
   const promptLink = () => {
     const current = (editor.getAttributes("link").href as string | undefined) ?? "https://";
@@ -149,7 +190,9 @@ export function WordStyleToolbar({ editor }: Props) {
   const insertFootnote = () => {
     const { from, to, empty } = editor.state.selection;
     const selected = empty ? "" : editor.state.doc.textBetween(from, to, " ");
-    const promptLabel = i18n.t("blocks.toolbar.footnotePrompt", { defaultValue: "Treść przypisu:" });
+    const promptLabel = i18n.t("blocks.toolbar.footnotePrompt", {
+      defaultValue: "Treść przypisu:",
+    });
     const initial = selected || "";
     const text = window.prompt(promptLabel, initial);
     if (text === null) return;
@@ -166,42 +209,69 @@ export function WordStyleToolbar({ editor }: Props) {
     >
       {/* Wiersz 1: znak + style */}
       <div className="flex items-center gap-0.5">
-        <ToolbarBtn title={i18n.t("blocks.toolbar.undo", { defaultValue: "Cofnij" })}
-          onClick={() => editor.chain().focus().undo().run()} disabled={!can.undo()}>
+        <ToolbarBtn
+          title={i18n.t("blocks.toolbar.undo", { defaultValue: "Cofnij" })}
+          onClick={() => editor.chain().focus().undo().run()}
+          disabled={!can.undo()}
+        >
           <Undo2 className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title={i18n.t("blocks.toolbar.redo", { defaultValue: "Ponów" })}
-          onClick={() => editor.chain().focus().redo().run()} disabled={!can.redo()}>
+        <ToolbarBtn
+          title={i18n.t("blocks.toolbar.redo", { defaultValue: "Ponów" })}
+          onClick={() => editor.chain().focus().redo().run()}
+          disabled={!can.redo()}
+        >
           <Redo2 className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <Divider />
 
-        <ToolbarBtn title="Bold (⌘B)" active={editor.isActive("bold")}
-          onClick={() => editor.chain().focus().toggleBold().run()}>
+        <ToolbarBtn
+          title="Bold (⌘B)"
+          active={editor.isActive("bold")}
+          onClick={() => editor.chain().focus().toggleBold().run()}
+        >
           <Bold className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title="Italic (⌘I)" active={editor.isActive("italic")}
-          onClick={() => editor.chain().focus().toggleItalic().run()}>
+        <ToolbarBtn
+          title="Italic (⌘I)"
+          active={editor.isActive("italic")}
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+        >
           <Italic className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title="Underline (⌘U)" active={editor.isActive("underline")}
-          onClick={() => editor.chain().focus().toggleUnderline().run()}>
+        <ToolbarBtn
+          title="Underline (⌘U)"
+          active={editor.isActive("underline")}
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+        >
           <UnderlineIcon className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title="Strikethrough" active={editor.isActive("strike")}
-          onClick={() => editor.chain().focus().toggleStrike().run()}>
+        <ToolbarBtn
+          title="Strikethrough"
+          active={editor.isActive("strike")}
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+        >
           <Strikethrough className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title="Subscript" active={editor.isActive("subscript")}
-          onClick={() => editor.chain().focus().toggleSubscript().run()}>
+        <ToolbarBtn
+          title="Subscript"
+          active={editor.isActive("subscript")}
+          onClick={() => editor.chain().focus().toggleSubscript().run()}
+        >
           <SubscriptIcon className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title="Superscript" active={editor.isActive("superscript")}
-          onClick={() => editor.chain().focus().toggleSuperscript().run()}>
+        <ToolbarBtn
+          title="Superscript"
+          active={editor.isActive("superscript")}
+          onClick={() => editor.chain().focus().toggleSuperscript().run()}
+        >
           <SuperscriptIcon className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title="Code" active={editor.isActive("code")}
-          onClick={() => editor.chain().focus().toggleCode().run()}>
+        <ToolbarBtn
+          title="Code"
+          active={editor.isActive("code")}
+          onClick={() => editor.chain().focus().toggleCode().run()}
+        >
           <Code2 className="h-3.5 w-3.5" />
         </ToolbarBtn>
 
@@ -209,9 +279,14 @@ export function WordStyleToolbar({ editor }: Props) {
 
         {/* Text color */}
         <div className="relative flex items-center">
-          <ToolbarBtn title={i18n.t("blocks.toolbar.textColor", { defaultValue: "Kolor tekstu" })}
+          <ToolbarBtn
+            title={i18n.t("blocks.toolbar.textColor", { defaultValue: "Kolor tekstu" })}
             active={colorOpen}
-            onClick={() => { setColorOpen((v) => !v); setHlOpen(false); }}>
+            onClick={() => {
+              setColorOpen((v) => !v);
+              setHlOpen(false);
+            }}
+          >
             <Palette className="h-3.5 w-3.5" />
           </ToolbarBtn>
           <ColorPopover
@@ -228,9 +303,14 @@ export function WordStyleToolbar({ editor }: Props) {
 
         {/* Highlight */}
         <div className="relative flex items-center">
-          <ToolbarBtn title={i18n.t("blocks.toolbar.highlight", { defaultValue: "Zakreślacz" })}
+          <ToolbarBtn
+            title={i18n.t("blocks.toolbar.highlight", { defaultValue: "Zakreślacz" })}
             active={editor.isActive("highlight") || hlOpen}
-            onClick={() => { setHlOpen((v) => !v); setColorOpen(false); }}>
+            onClick={() => {
+              setHlOpen((v) => !v);
+              setColorOpen(false);
+            }}
+          >
             <Highlighter className="h-3.5 w-3.5" />
           </ToolbarBtn>
           <ColorPopover
@@ -247,8 +327,10 @@ export function WordStyleToolbar({ editor }: Props) {
 
         <Divider />
 
-        <ToolbarBtn title={i18n.t("blocks.toolbar.clearFormatting", { defaultValue: "Wyczyść formatowanie" })}
-          onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>
+        <ToolbarBtn
+          title={i18n.t("blocks.toolbar.clearFormatting", { defaultValue: "Wyczyść formatowanie" })}
+          onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}
+        >
           <Eraser className="h-3.5 w-3.5" />
         </ToolbarBtn>
 
@@ -258,71 +340,107 @@ export function WordStyleToolbar({ editor }: Props) {
           <LinkIcon className="h-3.5 w-3.5" />
         </ToolbarBtn>
         {editor.isActive("link") && (
-          <ToolbarBtn title={i18n.t("blocks.toolbar.unlink", { defaultValue: "Usuń link" })}
-            onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()}>
+          <ToolbarBtn
+            title={i18n.t("blocks.toolbar.unlink", { defaultValue: "Usuń link" })}
+            onClick={() => editor.chain().focus().extendMarkRange("link").unsetLink().run()}
+          >
             <Link2Off className="h-3.5 w-3.5" />
           </ToolbarBtn>
         )}
 
         <Divider />
 
-        <ToolbarBtn title={i18n.t("blocks.toolbar.footnote", { defaultValue: "Wstaw przypis [fn]…[/fn]" })}
-          onClick={insertFootnote}>
+        <ToolbarBtn
+          title={i18n.t("blocks.toolbar.footnote", { defaultValue: "Wstaw przypis [fn]…[/fn]" })}
+          onClick={insertFootnote}
+        >
           <StickyNote className="h-3.5 w-3.5" />
         </ToolbarBtn>
       </div>
 
       {/* Wiersz 2: akapit + wyrównanie + listy */}
       <div className="flex items-center gap-0.5">
-        <ToolbarBtn title={i18n.t("blocks.toolbar.paragraph", { defaultValue: "Akapit" })}
+        <ToolbarBtn
+          title={i18n.t("blocks.toolbar.paragraph", { defaultValue: "Akapit" })}
           active={editor.isActive("paragraph") && !isHeading(1) && !isHeading(2) && !isHeading(3)}
-          onClick={() => editor.chain().focus().setParagraph().run()}>
+          onClick={() => editor.chain().focus().setParagraph().run()}
+        >
           <Pilcrow className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title="H1" active={isHeading(1)}
-          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>
+        <ToolbarBtn
+          title="H1"
+          active={isHeading(1)}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+        >
           <Heading1 className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title="H2" active={isHeading(2)}
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
+        <ToolbarBtn
+          title="H2"
+          active={isHeading(2)}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+        >
           <Heading2 className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title="H3" active={isHeading(3)}
-          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
+        <ToolbarBtn
+          title="H3"
+          active={isHeading(3)}
+          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+        >
           <Heading3 className="h-3.5 w-3.5" />
         </ToolbarBtn>
 
         <Divider />
 
-        <ToolbarBtn title={i18n.t("blocks.toolbar.alignLeft", { defaultValue: "Do lewej" })} active={align("left")}
-          onClick={() => editor.chain().focus().setTextAlign("left").run()}>
+        <ToolbarBtn
+          title={i18n.t("blocks.toolbar.alignLeft", { defaultValue: "Do lewej" })}
+          active={align("left")}
+          onClick={() => editor.chain().focus().setTextAlign("left").run()}
+        >
           <AlignLeft className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title={i18n.t("blocks.toolbar.alignCenter", { defaultValue: "Środek" })} active={align("center")}
-          onClick={() => editor.chain().focus().setTextAlign("center").run()}>
+        <ToolbarBtn
+          title={i18n.t("blocks.toolbar.alignCenter", { defaultValue: "Środek" })}
+          active={align("center")}
+          onClick={() => editor.chain().focus().setTextAlign("center").run()}
+        >
           <AlignCenter className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title={i18n.t("blocks.toolbar.alignRight", { defaultValue: "Do prawej" })} active={align("right")}
-          onClick={() => editor.chain().focus().setTextAlign("right").run()}>
+        <ToolbarBtn
+          title={i18n.t("blocks.toolbar.alignRight", { defaultValue: "Do prawej" })}
+          active={align("right")}
+          onClick={() => editor.chain().focus().setTextAlign("right").run()}
+        >
           <AlignRight className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title={i18n.t("blocks.toolbar.alignJustify", { defaultValue: "Wyjustuj" })} active={align("justify")}
-          onClick={() => editor.chain().focus().setTextAlign("justify").run()}>
+        <ToolbarBtn
+          title={i18n.t("blocks.toolbar.alignJustify", { defaultValue: "Wyjustuj" })}
+          active={align("justify")}
+          onClick={() => editor.chain().focus().setTextAlign("justify").run()}
+        >
           <AlignJustify className="h-3.5 w-3.5" />
         </ToolbarBtn>
 
         <Divider />
 
-        <ToolbarBtn title={i18n.t("blocks.toolbar.bulletList", { defaultValue: "Lista punktowa" })} active={editor.isActive("bulletList")}
-          onClick={() => editor.chain().focus().toggleBulletList().run()}>
+        <ToolbarBtn
+          title={i18n.t("blocks.toolbar.bulletList", { defaultValue: "Lista punktowa" })}
+          active={editor.isActive("bulletList")}
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+        >
           <List className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title={i18n.t("blocks.toolbar.orderedList", { defaultValue: "Lista numerowana" })} active={editor.isActive("orderedList")}
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}>
+        <ToolbarBtn
+          title={i18n.t("blocks.toolbar.orderedList", { defaultValue: "Lista numerowana" })}
+          active={editor.isActive("orderedList")}
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        >
           <ListOrdered className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title={i18n.t("blocks.toolbar.blockquote", { defaultValue: "Cytat" })} active={editor.isActive("blockquote")}
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}>
+        <ToolbarBtn
+          title={i18n.t("blocks.toolbar.blockquote", { defaultValue: "Cytat" })}
+          active={editor.isActive("blockquote")}
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        >
           <Quote className="h-3.5 w-3.5" />
         </ToolbarBtn>
       </div>

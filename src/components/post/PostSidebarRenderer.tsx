@@ -8,10 +8,7 @@ import {
   defaultSidebarLayoutQueryOptions,
   sidebarLayoutByIdQueryOptions,
 } from "@/lib/queries/sidebarLayouts";
-import type {
-  ReadingPanelSettings,
-  SidebarWidget,
-} from "@/lib/sidebarBuilder/types";
+import type { ReadingPanelSettings, SidebarWidget } from "@/lib/sidebarBuilder/types";
 import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
 
@@ -22,9 +19,7 @@ const RelatedPosts = lazy(() =>
 const NewsletterForm = lazy(() =>
   import("@/components/NewsletterForm").then((m) => ({ default: m.NewsletterForm })),
 );
-const AdZone = lazy(() =>
-  import("@/components/AdSlot").then((m) => ({ default: m.AdZone })),
-);
+const AdZone = lazy(() => import("@/components/AdSlot").then((m) => ({ default: m.AdZone })));
 
 export interface PostSidebarRendererProps {
   postId: string;
@@ -42,8 +37,7 @@ export function PostSidebarRenderer(props: PostSidebarRendererProps) {
     enabled: !props.layoutId || overrideQuery.isError,
   });
 
-  const layout =
-    overrideQuery.data ?? defaultQuery.data ?? buildFallbackLayout();
+  const layout = overrideQuery.data ?? defaultQuery.data ?? buildFallbackLayout();
 
   const visible = layout.widgets.filter((w) => !w.hidden);
 
@@ -56,9 +50,7 @@ export function PostSidebarRenderer(props: PostSidebarRendererProps) {
   );
 }
 
-function WidgetView(
-  props: { widget: SidebarWidget } & PostSidebarRendererProps,
-) {
+function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps) {
   const { widget, postId, postTitle, lang, tags } = props;
   switch (widget.type) {
     case "reading-panel": {
@@ -70,14 +62,7 @@ function WidgetView(
           ...((widget.settings as Partial<ReadingPanelSettings>)?.social ?? {}),
         },
       };
-      return (
-        <FloatingShareBar
-          title={postTitle}
-          lang={lang}
-          variant="sidebar"
-          settings={cfg}
-        />
-      );
+      return <FloatingShareBar title={postTitle} lang={lang} variant="sidebar" settings={cfg} />;
     }
     case "tags": {
       if (!tags || tags.length === 0) return null;
@@ -114,12 +99,7 @@ function WidgetView(
     case "related-posts": {
       return (
         <Suspense fallback={null}>
-          <RelatedPosts
-            postId={postId}
-            lang={lang}
-            forceLayout="list"
-            forceColumns={2}
-          />
+          <RelatedPosts postId={postId} lang={lang} forceLayout="list" forceColumns={2} />
         </Suspense>
       );
     }

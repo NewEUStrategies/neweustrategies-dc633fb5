@@ -98,11 +98,7 @@ export interface BuilderDebugState {
 export function useBuilderDebug(): BuilderDebugState {
   const token = useId();
   const debug = useSyncExternalStore(subscribe, getEnabled, getServerEnabled);
-  const isPrimary = useSyncExternalStore(
-    subscribe,
-    () => live[0] === token,
-    getServerEnabled,
-  );
+  const isPrimary = useSyncExternalStore(subscribe, () => live[0] === token, getServerEnabled);
   useEffect(() => register(token), [token]);
   return { debug, isPrimary };
 }

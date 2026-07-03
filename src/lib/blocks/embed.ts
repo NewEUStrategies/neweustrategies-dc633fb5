@@ -127,7 +127,12 @@ export function parseEmbedUrl(raw: string): ParsedEmbed | null {
   // ---- Instagram (post, reel, tv) ----
   if (host === "instagram.com" || host === "instagr.am") {
     const m = u.pathname.match(/^\/(p|reel|tv)\/([\w-]+)/);
-    if (m) return { provider: "instagram", embedUrl: `https://www.instagram.com/${m[1]}/${m[2]}/embed`, sourceUrl };
+    if (m)
+      return {
+        provider: "instagram",
+        embedUrl: `https://www.instagram.com/${m[1]}/${m[2]}/embed`,
+        sourceUrl,
+      };
   }
 
   // ---- TikTok (tiktok.com/@user/video/id, vm.tiktok.com short links handled lossless) ----
@@ -166,24 +171,49 @@ export function parseEmbedUrl(raw: string): ParsedEmbed | null {
   // ---- Dailymotion (dai.ly short + dailymotion.com/video/ID) ----
   if (host === "dailymotion.com") {
     const m = u.pathname.match(/^\/video\/([A-Za-z0-9]+)/);
-    if (m) return { provider: "dailymotion", embedUrl: `https://www.dailymotion.com/embed/video/${m[1]}`, sourceUrl };
+    if (m)
+      return {
+        provider: "dailymotion",
+        embedUrl: `https://www.dailymotion.com/embed/video/${m[1]}`,
+        sourceUrl,
+      };
   }
   if (host === "dai.ly") {
     const id = u.pathname.replace(/^\//, "");
-    if (id) return { provider: "dailymotion", embedUrl: `https://www.dailymotion.com/embed/video/${id}`, sourceUrl };
+    if (id)
+      return {
+        provider: "dailymotion",
+        embedUrl: `https://www.dailymotion.com/embed/video/${id}`,
+        sourceUrl,
+      };
   }
 
   // ---- Twitch (channel live + video VOD + clip) ----
   if (host === "twitch.tv") {
     const parent = "lovable.app";
     const vod = u.pathname.match(/^\/videos\/(\d+)/);
-    if (vod) return { provider: "twitch", embedUrl: `https://player.twitch.tv/?video=${vod[1]}&parent=${parent}`, sourceUrl };
+    if (vod)
+      return {
+        provider: "twitch",
+        embedUrl: `https://player.twitch.tv/?video=${vod[1]}&parent=${parent}`,
+        sourceUrl,
+      };
     const channel = u.pathname.replace(/^\//, "").split("/")[0];
-    if (channel) return { provider: "twitch", embedUrl: `https://player.twitch.tv/?channel=${channel}&parent=${parent}`, sourceUrl };
+    if (channel)
+      return {
+        provider: "twitch",
+        embedUrl: `https://player.twitch.tv/?channel=${channel}&parent=${parent}`,
+        sourceUrl,
+      };
   }
   if (host === "clips.twitch.tv") {
     const clip = u.pathname.replace(/^\//, "");
-    if (clip) return { provider: "twitch", embedUrl: `https://clips.twitch.tv/embed?clip=${clip}&parent=lovable.app`, sourceUrl };
+    if (clip)
+      return {
+        provider: "twitch",
+        embedUrl: `https://clips.twitch.tv/embed?clip=${clip}&parent=lovable.app`,
+        sourceUrl,
+      };
   }
 
   // ---- Loom ----
@@ -195,19 +225,34 @@ export function parseEmbedUrl(raw: string): ParsedEmbed | null {
   // ---- Wistia ----
   if (host.endsWith("wistia.com") || host.endsWith("wistia.net")) {
     const m = u.pathname.match(/(?:medias|embed)\/([\w-]+)/);
-    if (m) return { provider: "wistia", embedUrl: `https://fast.wistia.net/embed/iframe/${m[1]}`, sourceUrl };
+    if (m)
+      return {
+        provider: "wistia",
+        embedUrl: `https://fast.wistia.net/embed/iframe/${m[1]}`,
+        sourceUrl,
+      };
   }
 
   // ---- CodePen ----
   if (host === "codepen.io") {
     const m = u.pathname.match(/^\/([\w-]+)\/(?:pen|details|full)\/([\w-]+)/);
-    if (m) return { provider: "codepen", embedUrl: `https://codepen.io/${m[1]}/embed/${m[2]}?default-tab=result`, sourceUrl };
+    if (m)
+      return {
+        provider: "codepen",
+        embedUrl: `https://codepen.io/${m[1]}/embed/${m[2]}?default-tab=result`,
+        sourceUrl,
+      };
   }
 
   // ---- CodeSandbox ----
   if (host === "codesandbox.io") {
     const m = u.pathname.match(/^\/(?:s|p\/sandbox)\/([\w-]+)/);
-    if (m) return { provider: "codesandbox", embedUrl: `https://codesandbox.io/embed/${m[1]}`, sourceUrl };
+    if (m)
+      return {
+        provider: "codesandbox",
+        embedUrl: `https://codesandbox.io/embed/${m[1]}`,
+        sourceUrl,
+      };
   }
 
   // ---- GitHub Gist (no iframe URL; renderer can render script tag) ----
@@ -232,13 +277,23 @@ export function parseEmbedUrl(raw: string): ParsedEmbed | null {
   // ---- LinkedIn (posts use embed URL with urn) ----
   if (host === "linkedin.com") {
     const m = u.pathname.match(/activity[-:](\d+)/);
-    if (m) return { provider: "linkedin", embedUrl: `https://www.linkedin.com/embed/feed/update/urn:li:activity:${m[1]}`, sourceUrl };
+    if (m)
+      return {
+        provider: "linkedin",
+        embedUrl: `https://www.linkedin.com/embed/feed/update/urn:li:activity:${m[1]}`,
+        sourceUrl,
+      };
   }
 
   // ---- Bluesky / Threads / Mastodon-ish (no canonical iframe; preserve) ----
   if (host === "bsky.app") return { provider: "bluesky", embedUrl: sourceUrl, sourceUrl };
-  if (host === "threads.net" || host === "threads.com") return { provider: "threads", embedUrl: sourceUrl, sourceUrl };
-  if (/^(?:.+\.)?(?:mastodon\.social|mastodon\.online|mas\.to|hachyderm\.io|fosstodon\.org)$/.test(host)) {
+  if (host === "threads.net" || host === "threads.com")
+    return { provider: "threads", embedUrl: sourceUrl, sourceUrl };
+  if (
+    /^(?:.+\.)?(?:mastodon\.social|mastodon\.online|mas\.to|hachyderm\.io|fosstodon\.org)$/.test(
+      host,
+    )
+  ) {
     return { provider: "mastodon", embedUrl: sourceUrl, sourceUrl };
   }
 
@@ -248,9 +303,22 @@ export function parseEmbedUrl(raw: string): ParsedEmbed | null {
 
 /** Providers that expose a real iframe-loadable embed URL. */
 const IFRAME_PROVIDERS = new Set<EmbedProvider>([
-  "youtube", "vimeo", "x", "instagram", "tiktok", "facebook",
-  "spotify", "soundcloud", "dailymotion", "twitch", "loom",
-  "wistia", "codepen", "codesandbox", "reddit", "linkedin",
+  "youtube",
+  "vimeo",
+  "x",
+  "instagram",
+  "tiktok",
+  "facebook",
+  "spotify",
+  "soundcloud",
+  "dailymotion",
+  "twitch",
+  "loom",
+  "wistia",
+  "codepen",
+  "codesandbox",
+  "reddit",
+  "linkedin",
 ]);
 
 export function isIframeEmbed(parsed: ParsedEmbed | null | undefined): boolean {

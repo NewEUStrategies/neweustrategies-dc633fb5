@@ -26,7 +26,10 @@ export function BookmarkButton({ entityType, entityId, size = "md", className = 
   const handleClick = () => {
     if (!user) {
       if (!settings.allowGuests) {
-        openLoginPopup({ title: settings.restrictedTitle, description: settings.restrictedDescription });
+        openLoginPopup({
+          title: settings.restrictedTitle,
+          description: settings.restrictedDescription,
+        });
         return;
       }
     }
@@ -38,7 +41,12 @@ export function BookmarkButton({ entityType, entityId, size = "md", className = 
           if (settings.popupNotification && next) {
             toast.success("Dodano do listy", {
               description: "Znajdziesz to w swojej liście do przeczytania.",
-              action: { label: "Otwórz", onClick: () => { window.location.href = settings.readingListPath; } },
+              action: {
+                label: "Otwórz",
+                onClick: () => {
+                  window.location.href = settings.readingListPath;
+                },
+              },
             });
           }
         },

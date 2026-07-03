@@ -42,7 +42,6 @@ const EMPTY: ProfileEditorRow = {
   twitter_url: null,
 };
 
-
 type UploadKind = "avatar" | "cover";
 type Status = "idle" | "uploading" | "success" | "failed";
 
@@ -51,7 +50,8 @@ const MAX_SIZE: Record<UploadKind, number> = {
   cover: 5 * 1024 * 1024,
 };
 
-const FIELDS = "display_name, first_name, last_name, job_title, current_company, specialization, location, phone, bio, avatar_url, cover_url, tenant_id, gender, linkedin_url, twitter_url";
+const FIELDS =
+  "display_name, first_name, last_name, job_title, current_company, specialization, location, phone, bio, avatar_url, cover_url, tenant_id, gender, linkedin_url, twitter_url";
 
 /**
  * Inline profile editor: per-field optimistic save with toast feedback.
@@ -63,7 +63,10 @@ export function useProfileEditor() {
   const [data, setData] = useState<ProfileEditorRow>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState<Record<UploadKind, number>>({ avatar: 0, cover: 0 });
-  const [status, setStatus] = useState<Record<UploadKind, Status>>({ avatar: "idle", cover: "idle" });
+  const [status, setStatus] = useState<Record<UploadKind, Status>>({
+    avatar: "idle",
+    cover: "idle",
+  });
 
   const refresh = useCallback(async (uid: string) => {
     const { data: row } = await supabase
@@ -137,7 +140,10 @@ export function useProfileEditor() {
               setProgress((p) => ({ ...p, [kind]: Math.round((evt.loaded / evt.total) * 100) }));
             }
           };
-          xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`HTTP ${xhr.status}`)));
+          xhr.onload = () =>
+            xhr.status >= 200 && xhr.status < 300
+              ? resolve()
+              : reject(new Error(`HTTP ${xhr.status}`));
           xhr.onerror = () => reject(new Error("network"));
           xhr.send(file);
         });

@@ -6,7 +6,8 @@ import type { Database } from "@/integrations/supabase/types";
 
 type Row = Database["public"]["Tables"]["web_stories"]["Row"];
 
-const FIELDS = "id,tenant_id,slug,title_pl,title_en,description_pl,description_en,cover_url,pages,status,published_at,author_id,created_at,updated_at";
+const FIELDS =
+  "id,tenant_id,slug,title_pl,title_en,description_pl,description_en,cover_url,pages,status,published_at,author_id,created_at,updated_at";
 
 function hydrate(r: Row): WebStory {
   return {

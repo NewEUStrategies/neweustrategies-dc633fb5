@@ -94,10 +94,7 @@ export function CustomFontUploader({ value, onChange }: Props) {
                 <span className="text-xs uppercase tracking-wider text-muted-foreground shrink-0">
                   {f.id}
                 </span>
-                <span
-                  className="truncate text-base"
-                  style={{ fontFamily: `"${f.id}", system-ui` }}
-                >
+                <span className="truncate text-base" style={{ fontFamily: `"${f.id}", system-ui` }}>
                   {f.label} - Aa Bb Cc 123
                 </span>
               </span>

@@ -13,16 +13,15 @@ export const Route = createFileRoute("/web-stories/$slug")({
     return null;
   },
   head: ({ params }) => ({
-    meta: [
-      { title: `Web Story · ${params.slug}` },
-      { property: "og:type", content: "article" },
-    ],
+    meta: [{ title: `Web Story · ${params.slug}` }, { property: "og:type", content: "article" }],
   }),
   errorComponent: ({ error }) => (
     <div className="container mx-auto p-8 text-sm">{error.message}</div>
   ),
   notFoundComponent: () => (
-    <div className="container mx-auto p-8 text-sm text-muted-foreground">Nie znaleziono historii.</div>
+    <div className="container mx-auto p-8 text-sm text-muted-foreground">
+      Nie znaleziono historii.
+    </div>
   ),
   component: WebStorySinglePage,
 });
@@ -52,7 +51,11 @@ function WebStorySinglePage() {
         className="relative aspect-[9/16] sm:aspect-video w-full overflow-hidden rounded-xl border border-border bg-black"
       >
         {story.cover_url && (
-          <img src={story.cover_url} alt={title} className="absolute inset-0 w-full h-full object-cover" />
+          <img
+            src={story.cover_url}
+            alt={title}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
         )}
         <div className="absolute inset-0 bg-black/30" />
         <div className="absolute inset-0 flex items-center justify-center">
@@ -68,20 +71,34 @@ function WebStorySinglePage() {
 
       {more && more.filter((m) => m.slug !== story.slug).length > 0 && (
         <section className="pt-6 border-t border-border">
-          <h2 className="font-display text-xl mb-3">{lang === "en" ? "More stories" : "Więcej historii"}</h2>
+          <h2 className="font-display text-xl mb-3">
+            {lang === "en" ? "More stories" : "Więcej historii"}
+          </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {more.filter((m) => m.slug !== story.slug).slice(0, 8).map((m) => (
-              <Link
-                key={m.id}
-                to="/web-stories/$slug"
-                params={{ slug: m.slug }}
-                className="relative aspect-[9/16] overflow-hidden rounded-xl border border-border bg-card"
-              >
-                {m.cover_url && <img src={m.cover_url} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                <div className="absolute bottom-2 left-2 right-2 text-white text-xs line-clamp-2">{storyTitle(m, lang)}</div>
-              </Link>
-            ))}
+            {more
+              .filter((m) => m.slug !== story.slug)
+              .slice(0, 8)
+              .map((m) => (
+                <Link
+                  key={m.id}
+                  to="/web-stories/$slug"
+                  params={{ slug: m.slug }}
+                  className="relative aspect-[9/16] overflow-hidden rounded-xl border border-border bg-card"
+                >
+                  {m.cover_url && (
+                    <img
+                      src={m.cover_url}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                  <div className="absolute bottom-2 left-2 right-2 text-white text-xs line-clamp-2">
+                    {storyTitle(m, lang)}
+                  </div>
+                </Link>
+              ))}
           </div>
         </section>
       )}

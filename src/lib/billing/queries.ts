@@ -84,10 +84,7 @@ export async function upsertMyBillingProfile(input: BillingProfileInput): Promis
 
   const { data, error } = await supabase
     .from("billing_profiles")
-    .upsert(
-      { ...input, user_id: uid, tenant_id: tenantId },
-      { onConflict: "user_id,tenant_id" },
-    )
+    .upsert({ ...input, user_id: uid, tenant_id: tenantId }, { onConflict: "user_id,tenant_id" })
     .select("*")
     .single();
   if (error) throw error;
@@ -114,7 +111,9 @@ export async function fetchMySubscription(): Promise<UserSubscriptionRow | null>
   if (!uid) return null;
   const { data, error } = await supabase
     .from("user_subscriptions")
-    .select(`id, user_id, plan_id, status, started_at, current_period_end, canceled_at, plan:access_plans(${PLAN_COLUMNS})`)
+    .select(
+      `id, user_id, plan_id, status, started_at, current_period_end, canceled_at, plan:access_plans(${PLAN_COLUMNS})`,
+    )
     .eq("user_id", uid)
     .eq("status", "active")
     .order("started_at", { ascending: false })

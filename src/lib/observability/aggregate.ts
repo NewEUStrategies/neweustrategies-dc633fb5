@@ -109,7 +109,11 @@ const roundFor = roundVitalValue;
 const RATING_KEYS = new Set<VitalRating>(["good", "needs-improvement", "poor"]);
 
 /** Resolve a sample's rating: prefer the stored one, else recompute from value. */
-function resolveRating(metric: VitalName, value: number, stored: string | null | undefined): VitalRating {
+function resolveRating(
+  metric: VitalName,
+  value: number,
+  stored: string | null | undefined,
+): VitalRating {
   return typeof stored === "string" && RATING_KEYS.has(stored as VitalRating)
     ? (stored as VitalRating)
     : rateVital(metric, value);
@@ -167,7 +171,10 @@ export function trendsFromDailyP75(rows: DailyP75Row[]): VitalTrendPoint[] {
 export function aggregateVitals(samples: VitalSample[], opts: AggregateOptions): VitalsReport {
   const topPaths = opts.topPaths ?? 8;
 
-  const byMetric = new Map<VitalName, { values: number[]; good: number; ni: number; poor: number }>();
+  const byMetric = new Map<
+    VitalName,
+    { values: number[]; good: number; ni: number; poor: number }
+  >();
   const byPath = new Map<string, Map<VitalName, number[]>>();
   const byDay = new Map<string, Map<VitalName, number[]>>();
 
@@ -249,7 +256,12 @@ export function aggregateVitals(samples: VitalSample[], opts: AggregateOptions):
       pathTotal += vals.length;
       const sorted = vals.slice().sort((a, b) => a - b);
       const p75raw = percentile(sorted, 0.75);
-      rows.push({ metric: name, count: sorted.length, p75: roundFor(name, p75raw), rating: rateVital(name, p75raw) });
+      rows.push({
+        metric: name,
+        count: sorted.length,
+        p75: roundFor(name, p75raw),
+        rating: rateVital(name, p75raw),
+      });
     }
     paths.push({ path, total: pathTotal, metrics: rows });
   }

@@ -25,7 +25,8 @@ export function NumberInput({
     if (typeof min === "number") n = Math.max(min, n);
     if (typeof max === "number") n = Math.min(max, n);
     // Round to avoid float drift (e.g. 0.05 stepping).
-    const decimals = step < 1 ? Math.max(0, Math.min(4, String(step).split(".")[1]?.length ?? 2)) : 0;
+    const decimals =
+      step < 1 ? Math.max(0, Math.min(4, String(step).split(".")[1]?.length ?? 2)) : 0;
     onChange(Number(n.toFixed(decimals)));
   };
 

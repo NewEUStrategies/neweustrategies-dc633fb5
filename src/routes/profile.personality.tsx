@@ -9,7 +9,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { AuthGate } from "@/components/profile/AuthGate";
 import {
-  scoreAnswers, answeredCount, isComplete, AXES, type PersonalityQuestion,
+  scoreAnswers,
+  answeredCount,
+  isComplete,
+  AXES,
+  type PersonalityQuestion,
 } from "@/lib/profile/personality";
 import "@/lib/i18n-profile";
 import "@/lib/i18n-profile-extras2";
@@ -56,7 +60,9 @@ function PersonalityRoute() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("personality_results")
-        .select("openness,conscientiousness,extraversion,agreeableness,neuroticism,taken_at,tenant_id")
+        .select(
+          "openness,conscientiousness,extraversion,agreeableness,neuroticism,taken_at,tenant_id",
+        )
         .eq("user_id", user!.id)
         .maybeSingle();
       if (error && error.code !== "PGRST116") throw error;
@@ -119,7 +125,10 @@ function PersonalityRoute() {
   return (
     <div className="mx-auto max-w-3xl space-y-5 p-4">
       <header className="space-y-2">
-        <Link to="/profile" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary">
+        <Link
+          to="/profile"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+        >
           <ArrowLeft className="h-3.5 w-3.5" /> {t("profile.personality.back")}
         </Link>
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
@@ -129,7 +138,9 @@ function PersonalityRoute() {
         <p className="text-sm text-muted-foreground">{t("profile.personality.intro")}</p>
         {qPrev.data?.taken_at ? (
           <p className="text-xs text-muted-foreground">
-            {t("profile.personality.lastTaken", { date: new Date(qPrev.data.taken_at).toLocaleString() })}
+            {t("profile.personality.lastTaken", {
+              date: new Date(qPrev.data.taken_at).toLocaleString(),
+            })}
           </p>
         ) : null}
       </header>
@@ -137,11 +148,18 @@ function PersonalityRoute() {
       {/* Sticky progress */}
       <div className="sticky top-2 z-10 rounded-[6px] border border-border bg-card/95 p-3 backdrop-blur">
         <div className="mb-2 flex items-center justify-between text-xs">
-          <span className="font-medium">{t("profile.personality.progress", { done, total: questions.length })}</span>
-          <span className="text-muted-foreground">{Math.round((done / Math.max(questions.length, 1)) * 100)}%</span>
+          <span className="font-medium">
+            {t("profile.personality.progress", { done, total: questions.length })}
+          </span>
+          <span className="text-muted-foreground">
+            {Math.round((done / Math.max(questions.length, 1)) * 100)}%
+          </span>
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <div className="h-full bg-primary transition-all" style={{ width: `${(done / Math.max(questions.length, 1)) * 100}%` }} />
+          <div
+            className="h-full bg-primary transition-all"
+            style={{ width: `${(done / Math.max(questions.length, 1)) * 100}%` }}
+          />
         </div>
       </div>
 
@@ -155,7 +173,7 @@ function PersonalityRoute() {
                 {lang === "pl" ? q.text_pl : q.text_en}
               </p>
               <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={`Q${idx + 1}`}>
-                {([1,2,3,4,5] as const).map((n) => {
+                {([1, 2, 3, 4, 5] as const).map((n) => {
                   const active = v === n;
                   return (
                     <button
@@ -185,16 +203,31 @@ function PersonalityRoute() {
       </ol>
 
       <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <Link to="/profile" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary">
+        <Link
+          to="/profile"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+        >
           <ArrowLeft className="h-3.5 w-3.5" /> {t("profile.personality.back")}
         </Link>
         <div className="flex items-center gap-2">
           {qPrev.data ? (
-            <Button type="button" variant="ghost" size="sm" onClick={() => setAnswers({})} className="h-8 text-xs">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setAnswers({})}
+              className="h-8 text-xs"
+            >
               <RotateCcw className="mr-1 h-3.5 w-3.5" /> {t("profile.personality.retake")}
             </Button>
           ) : null}
-          <Button type="button" size="sm" disabled={!complete || submitting} onClick={onSubmit} className="h-8 text-xs">
+          <Button
+            type="button"
+            size="sm"
+            disabled={!complete || submitting}
+            onClick={onSubmit}
+            className="h-8 text-xs"
+          >
             {submitting ? t("profile.personality.submitting") : t("profile.personality.submit")}
           </Button>
         </div>
@@ -207,7 +240,9 @@ function PersonalityRoute() {
           <div className="space-y-2.5">
             {AXES.map((axis) => {
               const value = scoreAnswers(answers, questions)[axis];
-              const [low, high] = t(`profile.personality.lowHigh.${axis}`, { returnObjects: true }) as [string, string];
+              const [low, high] = t(`profile.personality.lowHigh.${axis}`, {
+                returnObjects: true,
+              }) as [string, string];
               return (
                 <div key={axis}>
                   <div className="mb-1 flex items-center justify-between text-[11px]">
@@ -215,7 +250,10 @@ function PersonalityRoute() {
                     <span className="font-medium">{high}</span>
                   </div>
                   <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div className={`h-full ${AXIS_COLOR[axis]} transition-all`} style={{ width: `${value}%` }} />
+                    <div
+                      className={`h-full ${AXIS_COLOR[axis]} transition-all`}
+                      style={{ width: `${value}%` }}
+                    />
                   </div>
                 </div>
               );

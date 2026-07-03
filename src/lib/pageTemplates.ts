@@ -2,18 +2,9 @@
 //   - admin.pages.$slug to pick a template
 //   - routes/$.tsx to render the right shell
 //   - queries/public.ts to project the field on PageData
-export type PageTemplateType =
-  | "default"
-  | "full_width"
-  | "landing"
-  | "archive_listing"
-  | "contact";
+export type PageTemplateType = "default" | "full_width" | "landing" | "archive_listing" | "contact";
 
-export type HeaderOverride =
-  | null
-  | "transparent"
-  | "hidden"
-  | string; // builder_template_id for custom
+export type HeaderOverride = null | "transparent" | "hidden" | string; // builder_template_id for custom
 
 export interface PageTemplateSpec {
   id: PageTemplateType;

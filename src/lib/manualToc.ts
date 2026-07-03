@@ -23,17 +23,26 @@ const ID_ATTR_RE = /\sid\s*=\s*"([^"]+)"/i;
 const TOC_MARKER_RE = /<!--\s*TOC\s*-->/i;
 
 const PL_MAP: Record<string, string> = {
-  "ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "đ": "d", "Đ": "D", "ß": "ss",
+  ł: "l",
+  Ł: "L",
+  ø: "o",
+  Ø: "O",
+  đ: "d",
+  Đ: "D",
+  ß: "ss",
 };
 
 export function slugifyHeading(input: string): string {
-  return input
-    .replace(/[łŁøØđĐß]/g, (c) => PL_MAP[c] ?? c)
-    .toLowerCase()
-    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 80) || "section";
+  return (
+    input
+      .replace(/[łŁøØđĐß]/g, (c) => PL_MAP[c] ?? c)
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")
+      .slice(0, 80) || "section"
+  );
 }
 
 export interface ProcessedToc {
@@ -54,19 +63,24 @@ export function processManualToc(html: string, lang: "pl" | "en"): ProcessedToc 
   const toc: TocEntry[] = [];
   const usedIds = new Set<string>();
 
-  const withIds = html.replace(HEADING_RE, (full, levelStr: string, attrs: string, inner: string) => {
-    const level = (levelStr === "3" ? 3 : 2) as 2 | 3;
-    const text = inner.replace(STRIP_TAGS_RE, "").trim();
-    if (!text) return full;
-    const existing = attrs.match(ID_ATTR_RE)?.[1];
-    let id = existing ?? slugifyHeading(text);
-    let n = 2;
-    while (usedIds.has(id)) { id = `${slugifyHeading(text)}-${n++}`; }
-    usedIds.add(id);
-    toc.push({ level, id, text });
-    const cleanedAttrs = existing ? attrs : `${attrs} id="${id}"`;
-    return `<h${level}${cleanedAttrs}>${inner}</h${level}>`;
-  });
+  const withIds = html.replace(
+    HEADING_RE,
+    (full, levelStr: string, attrs: string, inner: string) => {
+      const level = (levelStr === "3" ? 3 : 2) as 2 | 3;
+      const text = inner.replace(STRIP_TAGS_RE, "").trim();
+      if (!text) return full;
+      const existing = attrs.match(ID_ATTR_RE)?.[1];
+      let id = existing ?? slugifyHeading(text);
+      let n = 2;
+      while (usedIds.has(id)) {
+        id = `${slugifyHeading(text)}-${n++}`;
+      }
+      usedIds.add(id);
+      toc.push({ level, id, text });
+      const cleanedAttrs = existing ? attrs : `${attrs} id="${id}"`;
+      return `<h${level}${cleanedAttrs}>${inner}</h${level}>`;
+    },
+  );
 
   if (!hasMarker) return { html: withIds, toc, hasMarker: false };
 

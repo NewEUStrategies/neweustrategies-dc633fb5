@@ -78,10 +78,9 @@ interface Props {
 const pickLang = (a?: string, b?: string): string => (a && a.length ? a : (b ?? ""));
 
 export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }: Props) {
-  const trigger = pickLang(
-    lang === "pl" ? config.trigger_pl : config.trigger_en,
-    config.trigger_pl,
-  ) || (lang === "pl" ? "Menu" : "Menu");
+  const trigger =
+    pickLang(lang === "pl" ? config.trigger_pl : config.trigger_en, config.trigger_pl) ||
+    (lang === "pl" ? "Menu" : "Menu");
   const triggerHref = safeUrl(config.href ?? "", "");
   const columns = Array.isArray(config.columns) ? config.columns : [];
   const triggerOn = config.triggerOn ?? "hover";
@@ -114,14 +113,18 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
       <details className="group/mega border-b border-border last:border-0 w-full">
         <summary className="flex items-center justify-between gap-2 py-3 cursor-pointer list-none select-none text-sm font-bold tracking-wider uppercase">
           {triggerHref ? (
-            <AppLink href={triggerHref} className="hover:text-brand transition flex-1">{trigger}</AppLink>
+            <AppLink href={triggerHref} className="hover:text-brand transition flex-1">
+              {trigger}
+            </AppLink>
           ) : (
             <span className="flex-1">{trigger}</span>
           )}
           <ChevronDown className="w-4 h-4 transition-transform group-open/mega:rotate-180" />
         </summary>
         <div className="pb-4 space-y-4">
-          {columns.map((col, i) => <MobileColumn key={i} col={col} lang={lang} />)}
+          {columns.map((col, i) => (
+            <MobileColumn key={i} col={col} lang={lang} />
+          ))}
         </div>
       </details>
     );
@@ -139,12 +142,15 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
   };
 
   const widthCls =
-    config.width === "fluid" ? "left-0 right-0 w-screen max-w-[100vw]"
-    : config.width === "fixed" ? ""
-    : "left-1/2 -translate-x-1/2 w-[min(1140px,calc(100vw-32px))]";
-  const widthStyle = config.width === "fixed" && config.widthPx && config.widthPx > 200
-    ? { width: `${config.widthPx}px`, left: "50%", transform: "translateX(-50%)" }
-    : undefined;
+    config.width === "fluid"
+      ? "left-0 right-0 w-screen max-w-[100vw]"
+      : config.width === "fixed"
+        ? ""
+        : "left-1/2 -translate-x-1/2 w-[min(1140px,calc(100vw-32px))]";
+  const widthStyle =
+    config.width === "fixed" && config.widthPx && config.widthPx > 200
+      ? { width: `${config.widthPx}px`, left: "50%", transform: "translateX(-50%)" }
+      : undefined;
 
   return (
     <div
@@ -189,9 +195,13 @@ export const MegaMenu = memo(function MegaMenu({ config, lang, mobile = false }:
         >
           <div
             className="grid gap-6"
-            style={{ gridTemplateColumns: `repeat(${Math.min(Math.max(columns.length, 1), 5)}, minmax(0, 1fr))` }}
+            style={{
+              gridTemplateColumns: `repeat(${Math.min(Math.max(columns.length, 1), 5)}, minmax(0, 1fr))`,
+            }}
           >
-            {columns.map((col, i) => <DesktopColumn key={i} col={col} lang={lang} />)}
+            {columns.map((col, i) => (
+              <DesktopColumn key={i} col={col} lang={lang} />
+            ))}
           </div>
         </div>
       )}
@@ -227,7 +237,9 @@ function DesktopColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang 
                   href={href}
                   className="block rounded-md px-2 py-1.5 -mx-2 hover:bg-muted transition"
                 >
-                  <span className="block text-sm font-medium text-foreground leading-tight">{label}</span>
+                  <span className="block text-sm font-medium text-foreground leading-tight">
+                    {label}
+                  </span>
                   {desc && (
                     <span className="block text-xs text-muted-foreground mt-0.5">{desc}</span>
                   )}
@@ -266,7 +278,10 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
             {heading}
           </h4>
           {slug && (
-            <AppLink href={viewAll} className="text-[10px] font-semibold text-brand hover:underline uppercase tracking-wider">
+            <AppLink
+              href={viewAll}
+              className="text-[10px] font-semibold text-brand hover:underline uppercase tracking-wider"
+            >
               {lang === "pl" ? "Zobacz" : "View all"} →
             </AppLink>
           )}
@@ -345,9 +360,10 @@ export function normalizeFeatured(
   const fy = clamp01(toNum(src.focalY, 50));
   const ratio: FeaturedAspectRatio =
     src.aspectRatio && ALLOWED_RATIOS.includes(src.aspectRatio) ? src.aspectRatio : "16/10";
-  const placeholderColor = typeof src.placeholderColor === "string" && src.placeholderColor.trim()
-    ? src.placeholderColor
-    : undefined;
+  const placeholderColor =
+    typeof src.placeholderColor === "string" && src.placeholderColor.trim()
+      ? src.placeholderColor
+      : undefined;
   return { ...src, focalX: fx, focalY: fy, aspectRatio: ratio, placeholderColor };
 }
 
@@ -359,14 +375,21 @@ function FeaturedCard({ featured, lang }: { featured: MegaMenuFeatured; lang: Me
   const href = safeUrl(f.href ?? "#");
   const img = safeImageUrl(f.image ?? "");
   const aspectCls =
-    f.aspectRatio === "16/9" ? "aspect-[16/9]"
-    : f.aspectRatio === "4/3" ? "aspect-[4/3]"
-    : f.aspectRatio === "1/1" ? "aspect-square"
-    : f.aspectRatio === "3/4" ? "aspect-[3/4]"
-    : "aspect-[16/10]";
+    f.aspectRatio === "16/9"
+      ? "aspect-[16/9]"
+      : f.aspectRatio === "4/3"
+        ? "aspect-[4/3]"
+        : f.aspectRatio === "1/1"
+          ? "aspect-square"
+          : f.aspectRatio === "3/4"
+            ? "aspect-[3/4]"
+            : "aspect-[16/10]";
   const placeholderStyle = f.placeholderColor ? { background: f.placeholderColor } : undefined;
   return (
-    <AppLink href={href} className="block group rounded-lg overflow-hidden border border-border hover:border-brand transition">
+    <AppLink
+      href={href}
+      className="block group rounded-lg overflow-hidden border border-border hover:border-brand transition"
+    >
       {img && (
         <div className={`${aspectCls} overflow-hidden bg-muted relative`} style={placeholderStyle}>
           <img
@@ -383,7 +406,7 @@ function FeaturedCard({ featured, lang }: { featured: MegaMenuFeatured; lang: Me
       <div className="p-3 space-y-1">
         {title && <div className="text-sm font-bold text-foreground leading-tight">{title}</div>}
         {excerpt && <div className="text-xs text-muted-foreground line-clamp-2">{excerpt}</div>}
-        {cta && (<div className="text-xs font-semibold text-brand pt-1">{cta} →</div>)}
+        {cta && <div className="text-xs font-semibold text-brand pt-1">{cta} →</div>}
       </div>
     </AppLink>
   );
@@ -422,7 +445,10 @@ function MobileColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang }
           if (!label) return null;
           return (
             <li key={i}>
-              <AppLink href={href} className="block py-2 text-sm text-foreground hover:text-brand transition">
+              <AppLink
+                href={href}
+                className="block py-2 text-sm text-foreground hover:text-brand transition"
+              >
                 {label}
               </AppLink>
             </li>

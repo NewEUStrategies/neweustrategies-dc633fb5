@@ -12,8 +12,7 @@ const EVENT = "lovable:open-login";
 
 export function openLoginPopup(arg?: LoginPopupMode | LoginPopupOptions) {
   if (typeof window === "undefined") return;
-  const opts: LoginPopupOptions =
-    typeof arg === "string" ? { mode: arg } : (arg ?? {});
+  const opts: LoginPopupOptions = typeof arg === "string" ? { mode: arg } : (arg ?? {});
   window.dispatchEvent(new CustomEvent<LoginPopupOptions>(EVENT, { detail: opts }));
 }
 

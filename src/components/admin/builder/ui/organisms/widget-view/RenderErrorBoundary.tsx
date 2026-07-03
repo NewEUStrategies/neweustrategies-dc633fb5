@@ -64,7 +64,14 @@ export class RenderErrorBoundary extends Component<Props, State> {
     // QA / automated checks / support instead of vanishing without a trace.
     // The error itself is already reported in componentDidCatch.
     if (!dev) {
-      return <span hidden aria-hidden="true" data-render-error={this.props.label} data-render-error-message={error.message} />;
+      return (
+        <span
+          hidden
+          aria-hidden="true"
+          data-render-error={this.props.label}
+          data-render-error-message={error.message}
+        />
+      );
     }
     return (
       <div

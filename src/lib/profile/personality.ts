@@ -2,7 +2,12 @@
 // Each axis has 6 items; half are reverse-keyed.
 // Item ids 1..30, mapped to axes per seed in migration.
 
-export type Axis = "openness" | "conscientiousness" | "extraversion" | "agreeableness" | "neuroticism";
+export type Axis =
+  | "openness"
+  | "conscientiousness"
+  | "extraversion"
+  | "agreeableness"
+  | "neuroticism";
 
 export const AXES: ReadonlyArray<Axis> = [
   "openness",

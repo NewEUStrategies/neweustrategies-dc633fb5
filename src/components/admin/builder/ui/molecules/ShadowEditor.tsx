@@ -30,7 +30,10 @@ function tokenize(input: string): string[] {
     if (ch === "(") depth++;
     if (ch === ")") depth--;
     if (/\s/.test(ch) && depth === 0) {
-      if (buf) { out.push(buf); buf = ""; }
+      if (buf) {
+        out.push(buf);
+        buf = "";
+      }
     } else {
       buf += ch;
     }
@@ -45,7 +48,10 @@ function parse(raw: string | undefined): ShadowParts {
   const first = raw.split(/,(?![^()]*\))/)[0];
   const tokens = tokenize(first);
   const out: ShadowParts = { ...EMPTY };
-  if (tokens[0] === "inset") { out.inset = true; tokens.shift(); }
+  if (tokens[0] === "inset") {
+    out.inset = true;
+    tokens.shift();
+  }
   const lengthLike = /^-?\d*\.?\d+(px|rem|em|%)?$/i;
   const lens: string[] = [];
   const rest: string[] = [];
@@ -100,7 +106,9 @@ export function ShadowEditor({ value, onChange }: Props) {
             type="button"
             onClick={() => onChange(p.value || undefined)}
             className="px-2 py-0.5 text-[10px] rounded border border-border hover:bg-muted"
-          >{p.label}</button>
+          >
+            {p.label}
+          </button>
         ))}
       </div>
 
@@ -137,18 +145,12 @@ export function ShadowEditor({ value, onChange }: Props) {
       </div>
 
       <PropField label="Kolor cienia">
-        <ColorField
-          value={parts.color}
-          onChange={(v) => update({ color: v || "" })}
-        />
+        <ColorField value={parts.color} onChange={(v) => update({ color: v || "" })} />
       </PropField>
 
       <label className="flex items-center justify-between gap-2 px-1">
         <span className="text-[11px] text-muted-foreground">Cień wewnętrzny (inset)</span>
-        <Switch
-          checked={parts.inset}
-          onCheckedChange={(checked) => update({ inset: checked })}
-        />
+        <Switch checked={parts.inset} onCheckedChange={(checked) => update({ inset: checked })} />
       </label>
     </div>
   );

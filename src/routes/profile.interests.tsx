@@ -5,10 +5,7 @@ import "@/lib/i18n-interests";
 export const Route = createFileRoute("/profile/interests")({
   component: InterestsRoute,
   head: () => ({
-    meta: [
-      { title: "Customize Interests" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
+    meta: [{ title: "Customize Interests" }, { name: "robots", content: "noindex, nofollow" }],
   }),
 });
 

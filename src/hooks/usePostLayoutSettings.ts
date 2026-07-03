@@ -7,10 +7,7 @@ export const postLayoutSettingsQueryOptions = () =>
   queryOptions({
     queryKey: ["post-layout-settings"] as const,
     queryFn: async (): Promise<PostLayoutSettings> => {
-      const { data, error } = await supabase
-        .from("post_layout_settings")
-        .select("*")
-        .maybeSingle();
+      const { data, error } = await supabase.from("post_layout_settings").select("*").maybeSingle();
       if (error && error.code !== "PGRST116") throw error;
       return (data as PostLayoutSettings | null) ?? defaultPostLayoutSettings();
     },

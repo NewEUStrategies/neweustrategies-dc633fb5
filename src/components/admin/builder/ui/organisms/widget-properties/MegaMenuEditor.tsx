@@ -4,7 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { Image as ImageIcon } from "@/lib/lucide-shim";
 import { supabase } from "@/integrations/supabase/client";
 import { PropField, ItemFrame, NumberInput, FocalPointPicker } from "../../atoms";
@@ -48,7 +54,9 @@ export function MegaMenuEditor({ c, lang, setContent }: Props) {
       <div className="grid grid-cols-2 gap-2">
         <PropField label="Otwieranie">
           <Select value={triggerOn} onValueChange={(v) => setContent("triggerOn", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="hover">najazd kursora</SelectItem>
               <SelectItem value="click">kliknięcie</SelectItem>
@@ -57,7 +65,9 @@ export function MegaMenuEditor({ c, lang, setContent }: Props) {
         </PropField>
         <PropField label="Szerokość panelu">
           <Select value={width} onValueChange={(v) => setContent("width", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="container">do containera</SelectItem>
               <SelectItem value="fluid">pełna szerokość</SelectItem>
@@ -110,7 +120,11 @@ export function MegaMenuEditor({ c, lang, setContent }: Props) {
 }
 
 function ColumnEditor({
-  col, lang, onChange, onRemove, index,
+  col,
+  lang,
+  onChange,
+  onRemove,
+  index,
 }: {
   col: Item;
   lang: "pl" | "en";
@@ -129,7 +143,9 @@ function ColumnEditor({
     <ItemFrame title={`Kolumna #${index + 1}`} onRemove={onRemove}>
       <PropField label="Typ kolumny">
         <Select value={kind} onValueChange={(v) => set("kind", v)}>
-          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="links">Linki + opcjonalna karta</SelectItem>
             <SelectItem value="category">Kategoria (najnowsze wpisy)</SelectItem>
@@ -142,7 +158,13 @@ function ColumnEditor({
           value={str(col[`title_${lang}`])}
           onChange={(e) => set(`title_${lang}`, e.target.value)}
           className="h-8 text-xs"
-          placeholder={kind === "category" ? (lang === "pl" ? "(zostaw puste = nazwa kategorii)" : "(empty = category name)") : ""}
+          placeholder={
+            kind === "category"
+              ? lang === "pl"
+                ? "(zostaw puste = nazwa kategorii)"
+                : "(empty = category name)"
+              : ""
+          }
         />
       </PropField>
 
@@ -158,162 +180,213 @@ function ColumnEditor({
       )}
 
       {kind === "links" && (
-      <>
-
-
-      <div className="space-y-1">
-        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Linki</div>
-        {links.map((l, i) => (
-          <div key={i} className="rounded-md border border-border p-2 space-y-1">
-            <div className="grid grid-cols-2 gap-1">
-              <Input
-                placeholder={lang === "pl" ? "Etykieta PL" : "Etykieta PL"}
-                value={str(l[`label_${lang}`])}
-                onChange={(e) => updateLinks(links.map((x, j) => (j === i ? { ...x, [`label_${lang}`]: e.target.value } : x)))}
-                className="h-7 text-xs"
-              />
-              <Input
-                placeholder="URL"
-                value={str(l.href)}
-                onChange={(e) => updateLinks(links.map((x, j) => (j === i ? { ...x, href: e.target.value } : x)))}
-                className="h-7 text-xs"
-              />
+        <>
+          <div className="space-y-1">
+            <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Linki
             </div>
-            <Input
-              placeholder={lang === "pl" ? "Opis (opcjonalnie)" : "Description (optional)"}
-              value={str(l[`desc_${lang}`])}
-              onChange={(e) => updateLinks(links.map((x, j) => (j === i ? { ...x, [`desc_${lang}`]: e.target.value } : x)))}
-              className="h-7 text-xs"
-            />
+            {links.map((l, i) => (
+              <div key={i} className="rounded-md border border-border p-2 space-y-1">
+                <div className="grid grid-cols-2 gap-1">
+                  <Input
+                    placeholder={lang === "pl" ? "Etykieta PL" : "Etykieta PL"}
+                    value={str(l[`label_${lang}`])}
+                    onChange={(e) =>
+                      updateLinks(
+                        links.map((x, j) =>
+                          j === i ? { ...x, [`label_${lang}`]: e.target.value } : x,
+                        ),
+                      )
+                    }
+                    className="h-7 text-xs"
+                  />
+                  <Input
+                    placeholder="URL"
+                    value={str(l.href)}
+                    onChange={(e) =>
+                      updateLinks(
+                        links.map((x, j) => (j === i ? { ...x, href: e.target.value } : x)),
+                      )
+                    }
+                    className="h-7 text-xs"
+                  />
+                </div>
+                <Input
+                  placeholder={lang === "pl" ? "Opis (opcjonalnie)" : "Description (optional)"}
+                  value={str(l[`desc_${lang}`])}
+                  onChange={(e) =>
+                    updateLinks(
+                      links.map((x, j) =>
+                        j === i ? { ...x, [`desc_${lang}`]: e.target.value } : x,
+                      ),
+                    )
+                  }
+                  className="h-7 text-xs"
+                />
+                <button
+                  type="button"
+                  className="text-[11px] text-destructive hover:underline"
+                  onClick={() => updateLinks(links.filter((_, j) => j !== i))}
+                >
+                  usuń link
+                </button>
+              </div>
+            ))}
             <button
               type="button"
-              className="text-[11px] text-destructive hover:underline"
-              onClick={() => updateLinks(links.filter((_, j) => j !== i))}
+              className="text-xs text-brand hover:underline"
+              onClick={() =>
+                updateLinks([...links, { label_pl: "Nowy link", label_en: "New link", href: "#" }])
+              }
             >
-              usuń link
+              + dodaj link
             </button>
           </div>
-        ))}
-        <button
-          type="button"
-          className="text-xs text-brand hover:underline"
-          onClick={() => updateLinks([...links, { label_pl: "Nowy link", label_en: "New link", href: "#" }])}
-        >
-          + dodaj link
-        </button>
-      </div>
 
-      <div className="space-y-1 pt-2 border-t border-border">
-        <div className="flex items-center justify-between">
-          <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Karta wyróżniona</div>
-          {featured ? (
-            <button type="button" className="text-[11px] text-destructive hover:underline" onClick={() => set("featured", null)}>
-              usuń
-            </button>
-          ) : (
-            <button type="button" className="text-[11px] text-brand hover:underline" onClick={() => set("featured", { title_pl: "Tytuł", title_en: "Title" })}>
-              + dodaj
-            </button>
-          )}
-        </div>
-        {featured && (
-          <div className="rounded-md border border-border p-2 space-y-2">
-            <ImageSlot
-              label="Obraz"
-              icon={<ImageIcon className="w-4 h-4" />}
-              value={str(featured.image)}
-              onChange={(v) => set("featured", { ...featured, image: v })}
-            />
-            {/* Focal point picker: drag to choose the visible center on every crop. */}
-            <PropField label="Punkt fokalny (kadrowanie)">
-              <FocalPointPicker
-                image={str(featured.image)}
-                x={typeof featured.focalX === "number" ? featured.focalX : 50}
-                y={typeof featured.focalY === "number" ? featured.focalY : 50}
-                aspectCls={aspectClassFor(str(featured.aspectRatio) || "16/10")}
-                placeholderColor={str(featured.placeholderColor) || undefined}
-                onChange={(x, y) =>
-                  set("featured", { ...featured, focalX: x, focalY: y })
-                }
-              />
-              <div className="grid grid-cols-2 gap-1 mt-1">
-                <Input
-                  type="number" min={0} max={100}
-                  value={typeof featured.focalX === "number" ? featured.focalX : 50}
-                  onChange={(e) => set("featured", { ...featured, focalX: Number(e.target.value) })}
-                  className="h-7 text-xs" placeholder="X%"
-                />
-                <Input
-                  type="number" min={0} max={100}
-                  value={typeof featured.focalY === "number" ? featured.focalY : 50}
-                  onChange={(e) => set("featured", { ...featured, focalY: Number(e.target.value) })}
-                  className="h-7 text-xs" placeholder="Y%"
-                />
+          <div className="space-y-1 pt-2 border-t border-border">
+            <div className="flex items-center justify-between">
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Karta wyróżniona
               </div>
-            </PropField>
-            <div className="grid grid-cols-2 gap-1">
-              <PropField label="Proporcje">
-                <Select
-                  value={str(featured.aspectRatio) || "16/10"}
-                  onValueChange={(v) => set("featured", { ...featured, aspectRatio: v })}
+              {featured ? (
+                <button
+                  type="button"
+                  className="text-[11px] text-destructive hover:underline"
+                  onClick={() => set("featured", null)}
                 >
-                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="16/10">16:10</SelectItem>
-                    <SelectItem value="16/9">16:9</SelectItem>
-                    <SelectItem value="4/3">4:3</SelectItem>
-                    <SelectItem value="1/1">1:1</SelectItem>
-                    <SelectItem value="3/4">3:4</SelectItem>
-                  </SelectContent>
-                </Select>
-              </PropField>
-              <PropField label="Tło placeholdera">
-                <Input
-                  type="color"
-                  value={str(featured.placeholderColor) || "#e5e7eb"}
-                  onChange={(e) => set("featured", { ...featured, placeholderColor: e.target.value })}
-                  className="h-7 p-1"
+                  usuń
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="text-[11px] text-brand hover:underline"
+                  onClick={() => set("featured", { title_pl: "Tytuł", title_en: "Title" })}
+                >
+                  + dodaj
+                </button>
+              )}
+            </div>
+            {featured && (
+              <div className="rounded-md border border-border p-2 space-y-2">
+                <ImageSlot
+                  label="Obraz"
+                  icon={<ImageIcon className="w-4 h-4" />}
+                  value={str(featured.image)}
+                  onChange={(v) => set("featured", { ...featured, image: v })}
                 />
-              </PropField>
-            </div>
-            <Input
-              placeholder={`Tytuł ${lang.toUpperCase()}`}
-              value={str(featured[`title_${lang}`])}
-              onChange={(e) => set("featured", { ...featured, [`title_${lang}`]: e.target.value })}
-              className="h-7 text-xs"
-            />
-            <Textarea
-              placeholder={`Opis ${lang.toUpperCase()}`}
-              rows={2}
-              value={str(featured[`excerpt_${lang}`])}
-              onChange={(e) => set("featured", { ...featured, [`excerpt_${lang}`]: e.target.value })}
-              className="text-xs"
-            />
-            <div className="grid grid-cols-2 gap-1">
-              <Input
-                placeholder="URL"
-                value={str(featured.href)}
-                onChange={(e) => set("featured", { ...featured, href: e.target.value })}
-                className="h-7 text-xs"
-              />
-              <Input
-                placeholder={`CTA ${lang.toUpperCase()}`}
-                value={str(featured[`cta_${lang}`])}
-                onChange={(e) => set("featured", { ...featured, [`cta_${lang}`]: e.target.value })}
-                className="h-7 text-xs"
-              />
-            </div>
+                {/* Focal point picker: drag to choose the visible center on every crop. */}
+                <PropField label="Punkt fokalny (kadrowanie)">
+                  <FocalPointPicker
+                    image={str(featured.image)}
+                    x={typeof featured.focalX === "number" ? featured.focalX : 50}
+                    y={typeof featured.focalY === "number" ? featured.focalY : 50}
+                    aspectCls={aspectClassFor(str(featured.aspectRatio) || "16/10")}
+                    placeholderColor={str(featured.placeholderColor) || undefined}
+                    onChange={(x, y) => set("featured", { ...featured, focalX: x, focalY: y })}
+                  />
+                  <div className="grid grid-cols-2 gap-1 mt-1">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={typeof featured.focalX === "number" ? featured.focalX : 50}
+                      onChange={(e) =>
+                        set("featured", { ...featured, focalX: Number(e.target.value) })
+                      }
+                      className="h-7 text-xs"
+                      placeholder="X%"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={typeof featured.focalY === "number" ? featured.focalY : 50}
+                      onChange={(e) =>
+                        set("featured", { ...featured, focalY: Number(e.target.value) })
+                      }
+                      className="h-7 text-xs"
+                      placeholder="Y%"
+                    />
+                  </div>
+                </PropField>
+                <div className="grid grid-cols-2 gap-1">
+                  <PropField label="Proporcje">
+                    <Select
+                      value={str(featured.aspectRatio) || "16/10"}
+                      onValueChange={(v) => set("featured", { ...featured, aspectRatio: v })}
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="16/10">16:10</SelectItem>
+                        <SelectItem value="16/9">16:9</SelectItem>
+                        <SelectItem value="4/3">4:3</SelectItem>
+                        <SelectItem value="1/1">1:1</SelectItem>
+                        <SelectItem value="3/4">3:4</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </PropField>
+                  <PropField label="Tło placeholdera">
+                    <Input
+                      type="color"
+                      value={str(featured.placeholderColor) || "#e5e7eb"}
+                      onChange={(e) =>
+                        set("featured", { ...featured, placeholderColor: e.target.value })
+                      }
+                      className="h-7 p-1"
+                    />
+                  </PropField>
+                </div>
+                <Input
+                  placeholder={`Tytuł ${lang.toUpperCase()}`}
+                  value={str(featured[`title_${lang}`])}
+                  onChange={(e) =>
+                    set("featured", { ...featured, [`title_${lang}`]: e.target.value })
+                  }
+                  className="h-7 text-xs"
+                />
+                <Textarea
+                  placeholder={`Opis ${lang.toUpperCase()}`}
+                  rows={2}
+                  value={str(featured[`excerpt_${lang}`])}
+                  onChange={(e) =>
+                    set("featured", { ...featured, [`excerpt_${lang}`]: e.target.value })
+                  }
+                  className="text-xs"
+                />
+                <div className="grid grid-cols-2 gap-1">
+                  <Input
+                    placeholder="URL"
+                    value={str(featured.href)}
+                    onChange={(e) => set("featured", { ...featured, href: e.target.value })}
+                    className="h-7 text-xs"
+                  />
+                  <Input
+                    placeholder={`CTA ${lang.toUpperCase()}`}
+                    value={str(featured[`cta_${lang}`])}
+                    onChange={(e) =>
+                      set("featured", { ...featured, [`cta_${lang}`]: e.target.value })
+                    }
+                    className="h-7 text-xs"
+                  />
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      </>
+        </>
       )}
     </ItemFrame>
   );
 }
 
 function CategoryColumnFields({
-  slug, postCount, viewAllHref, onSlug, onCount, onViewAll,
+  slug,
+  postCount,
+  viewAllHref,
+  onSlug,
+  onCount,
+  onViewAll,
 }: {
   slug: string;
   postCount: number;
@@ -326,10 +399,7 @@ function CategoryColumnFields({
     queryKey: ["mega-menu-cats"],
     staleTime: 60_000,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("categories")
-        .select("slug, name_pl")
-        .order("name_pl");
+      const { data } = await supabase.from("categories").select("slug, name_pl").order("name_pl");
       return (data ?? []) as Array<{ slug: string; name_pl: string }>;
     },
   });
@@ -337,11 +407,15 @@ function CategoryColumnFields({
     <div className="space-y-2 rounded-md border border-dashed border-border p-2 bg-muted/30">
       <PropField label="Kategoria">
         <Select value={slug || "__none"} onValueChange={(v) => onSlug(v === "__none" ? "" : v)}>
-          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="wybierz" /></SelectTrigger>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue placeholder="wybierz" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none">- brak -</SelectItem>
             {cats.map((c) => (
-              <SelectItem key={c.slug} value={c.slug}>{c.name_pl}</SelectItem>
+              <SelectItem key={c.slug} value={c.slug}>
+                {c.name_pl}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -368,7 +442,6 @@ function CategoryColumnFields({
     </div>
   );
 }
-
 
 function aspectClassFor(r: string): string {
   if (r === "16/9") return "aspect-[16/9]";

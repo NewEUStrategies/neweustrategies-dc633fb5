@@ -39,8 +39,7 @@ const pl = {
     errorEmail: "Niepoprawny adres e-mail.",
     errorGeneric: "Coś poszło nie tak. Spróbuj ponownie.",
     duplicate: "Ten adres jest już zapisany.",
-    consent:
-      "Zapisując się akceptujesz politykę prywatności. W każdej chwili możesz się wypisać.",
+    consent: "Zapisując się akceptujesz politykę prywatności. W każdej chwili możesz się wypisać.",
     perksTitle: "Co zyskujesz",
     perk1: "Cotygodniowy briefing redakcyjny",
     perk2: "Wcześniejszy dostęp do raportów",
@@ -84,8 +83,7 @@ const en: typeof pl = {
     errorEmail: "Invalid email address.",
     errorGeneric: "Something went wrong. Please try again.",
     duplicate: "This email is already subscribed.",
-    consent:
-      "By subscribing you accept the privacy policy. You can unsubscribe at any time.",
+    consent: "By subscribing you accept the privacy policy. You can unsubscribe at any time.",
     perksTitle: "What you get",
     perk1: "Weekly editorial briefing",
     perk2: "Early access to reports",

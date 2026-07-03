@@ -29,11 +29,24 @@ interface ExtendedFields {
 }
 
 const empty: ExtendedFields = {
-  name: "", surname: "", job: "", company: "",
-  linkedin: "", email: "", phone: "", list: "", terms: false,
+  name: "",
+  surname: "",
+  job: "",
+  company: "",
+  linkedin: "",
+  email: "",
+  phone: "",
+  list: "",
+  terms: false,
 };
 
-export function NewsletterPopupForm({ settings, lang, source = "popup", onSuccess, compact = false }: Props) {
+export function NewsletterPopupForm({
+  settings,
+  lang,
+  source = "popup",
+  onSuccess,
+  compact = false,
+}: Props) {
   const [v, setV] = useState<ExtendedFields>(empty);
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [err, setErr] = useState<string | null>(null);
@@ -73,26 +86,53 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
     if (ext) {
       const nameRe = /^[\p{L}\p{M}'’\- ]{2,80}$/u;
       if (v.name.trim() && !nameRe.test(v.name.trim())) {
-        setErr(t("Imię zawiera niedozwolone znaki (min. 2 znaki).", "Name contains invalid characters (min. 2 chars)."));
-        setState("err"); return;
+        setErr(
+          t(
+            "Imię zawiera niedozwolone znaki (min. 2 znaki).",
+            "Name contains invalid characters (min. 2 chars).",
+          ),
+        );
+        setState("err");
+        return;
       }
       if (v.surname.trim() && !nameRe.test(v.surname.trim())) {
-        setErr(t("Nazwisko zawiera niedozwolone znaki (min. 2 znaki).", "Surname contains invalid characters (min. 2 chars)."));
-        setState("err"); return;
+        setErr(
+          t(
+            "Nazwisko zawiera niedozwolone znaki (min. 2 znaki).",
+            "Surname contains invalid characters (min. 2 chars).",
+          ),
+        );
+        setState("err");
+        return;
       }
       if (v.linkedin.trim()) {
         const li = v.linkedin.trim();
-        const liOk = /^(https?:\/\/)?([a-z]{2,3}\.)?linkedin\.com\/(in|pub|company)\/[A-Za-z0-9_\-%.]{2,100}\/?$/i.test(li);
+        const liOk =
+          /^(https?:\/\/)?([a-z]{2,3}\.)?linkedin\.com\/(in|pub|company)\/[A-Za-z0-9_\-%.]{2,100}\/?$/i.test(
+            li,
+          );
         if (!liOk) {
-          setErr(t("Niepoprawny URL LinkedIn (np. https://linkedin.com/in/jan-kowalski).", "Invalid LinkedIn URL (e.g. https://linkedin.com/in/jane-doe)."));
-          setState("err"); return;
+          setErr(
+            t(
+              "Niepoprawny URL LinkedIn (np. https://linkedin.com/in/jan-kowalski).",
+              "Invalid LinkedIn URL (e.g. https://linkedin.com/in/jane-doe).",
+            ),
+          );
+          setState("err");
+          return;
         }
       }
       if (v.phone.trim()) {
         const phone = v.phone.trim().replace(/[\s\-().]/g, "");
         if (!/^\+?[0-9]{7,15}$/.test(phone)) {
-          setErr(t("Niepoprawny numer telefonu (7-15 cyfr, opcjonalnie z +).", "Invalid phone number (7-15 digits, optional leading +)."));
-          setState("err"); return;
+          setErr(
+            t(
+              "Niepoprawny numer telefonu (7-15 cyfr, opcjonalnie z +).",
+              "Invalid phone number (7-15 digits, optional leading +).",
+            ),
+          );
+          setState("err");
+          return;
         }
       }
     }
@@ -171,15 +211,21 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
       >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-            {doi ? <Mail className="w-5 h-5 text-emerald-300" /> : <Check className="w-5 h-5 text-emerald-300" />}
+            {doi ? (
+              <Mail className="w-5 h-5 text-emerald-300" />
+            ) : (
+              <Check className="w-5 h-5 text-emerald-300" />
+            )}
           </div>
           <h3 className="font-display text-lg text-emerald-100">{headline}</h3>
         </div>
         <p className="text-sm text-emerald-100/80 leading-relaxed">{body}</p>
         {doi && (
           <p className="text-[11px] text-emerald-100/60">
-            {t("Status: oczekuje potwierdzenia (double opt-in).",
-               "Status: pending confirmation (double opt-in).")}
+            {t(
+              "Status: oczekuje potwierdzenia (double opt-in).",
+              "Status: pending confirmation (double opt-in).",
+            )}
           </p>
         )}
       </div>
@@ -193,7 +239,10 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
   return (
     <form onSubmit={onSubmit} className="space-y-2.5" noValidate>
       {/* Honeypot: hidden from real users (CSS + tabIndex + aria-hidden), tempting for bots. */}
-      <div aria-hidden="true" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }}>
+      <div
+        aria-hidden="true"
+        style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }}
+      >
         <label>
           Website
           <input
@@ -209,29 +258,69 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
 
       {ext && (
         <>
-          <input className={inputCls} placeholder={t("Imię", "Name")} value={v.name}
-            onChange={(e) => upd("name", e.target.value)} maxLength={80} />
-          <input className={inputCls} placeholder={t("Nazwisko", "Surname")} value={v.surname}
-            onChange={(e) => upd("surname", e.target.value)} maxLength={80} />
-          <input className={inputCls} placeholder={t("Stanowisko", "Job position")} value={v.job}
-            onChange={(e) => upd("job", e.target.value)} maxLength={120} />
-          <input className={inputCls} placeholder={t("Firma / organizacja", "Company")} value={v.company}
-            onChange={(e) => upd("company", e.target.value)} maxLength={120} />
-          <input className={inputCls} placeholder="LinkedIn" value={v.linkedin}
-            onChange={(e) => upd("linkedin", e.target.value)} maxLength={200} />
+          <input
+            className={inputCls}
+            placeholder={t("Imię", "Name")}
+            value={v.name}
+            onChange={(e) => upd("name", e.target.value)}
+            maxLength={80}
+          />
+          <input
+            className={inputCls}
+            placeholder={t("Nazwisko", "Surname")}
+            value={v.surname}
+            onChange={(e) => upd("surname", e.target.value)}
+            maxLength={80}
+          />
+          <input
+            className={inputCls}
+            placeholder={t("Stanowisko", "Job position")}
+            value={v.job}
+            onChange={(e) => upd("job", e.target.value)}
+            maxLength={120}
+          />
+          <input
+            className={inputCls}
+            placeholder={t("Firma / organizacja", "Company")}
+            value={v.company}
+            onChange={(e) => upd("company", e.target.value)}
+            maxLength={120}
+          />
+          <input
+            className={inputCls}
+            placeholder="LinkedIn"
+            value={v.linkedin}
+            onChange={(e) => upd("linkedin", e.target.value)}
+            maxLength={200}
+          />
         </>
       )}
-      <input className={inputCls} type="email" required placeholder={t("Twój e-mail", "Your e-mail")}
-        value={v.email} onChange={(e) => upd("email", e.target.value)} maxLength={254} />
+      <input
+        className={inputCls}
+        type="email"
+        required
+        placeholder={t("Twój e-mail", "Your e-mail")}
+        value={v.email}
+        onChange={(e) => upd("email", e.target.value)}
+        maxLength={254}
+      />
       {ext && (
-        <input className={inputCls} type="tel" placeholder={t("Numer telefonu", "Phone number")}
-          value={v.phone} onChange={(e) => upd("phone", e.target.value)} maxLength={32} />
+        <input
+          className={inputCls}
+          type="tel"
+          placeholder={t("Numer telefonu", "Phone number")}
+          value={v.phone}
+          onChange={(e) => upd("phone", e.target.value)}
+          maxLength={32}
+        />
       )}
       {showLists && (
         <select className={inputCls} value={v.list} onChange={(e) => upd("list", e.target.value)}>
           <option value="">{t("Wybierz listę mailingową", "Choose your main mailing list")}</option>
           {lists.map((l) => (
-            <option key={l.id} value={l.id}>{isPl ? l.label_pl : l.label_en}</option>
+            <option key={l.id} value={l.id}>
+              {isPl ? l.label_pl : l.label_en}
+            </option>
           ))}
         </select>
       )}
@@ -248,19 +337,23 @@ export function NewsletterPopupForm({ settings, lang, source = "popup", onSucces
 
       {requireTerms && (
         <label className="flex items-start gap-2 text-[12px] text-white/70 leading-relaxed pt-1">
-          <input type="checkbox" checked={v.terms}
+          <input
+            type="checkbox"
+            checked={v.terms}
             onChange={(e) => upd("terms", e.target.checked)}
-            className="mt-0.5 accent-[var(--brand,#f97316)]" />
+            className="mt-0.5 accent-[var(--brand,#f97316)]"
+          />
           <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(termsHtml) }} />
         </label>
       )}
 
-      {state === "err" && err && (
-        <p className="text-xs text-red-300">{err}</p>
-      )}
+      {state === "err" && err && <p className="text-xs text-red-300">{err}</p>}
 
       <p className="text-[11px] text-white/50 pt-1">
-        {t("Zero spamu. Możesz się wypisać w każdej chwili.", "Zero spam, unsubscribe at any time.")}
+        {t(
+          "Zero spamu. Możesz się wypisać w każdej chwili.",
+          "Zero spam, unsubscribe at any time.",
+        )}
       </p>
     </form>
   );

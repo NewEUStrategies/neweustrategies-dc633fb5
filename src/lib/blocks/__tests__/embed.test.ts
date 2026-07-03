@@ -64,30 +64,44 @@ describe("parseEmbedUrl - other providers", () => {
     expect(p("https://www.tiktok.com/@user/video/7212345678901234567").provider).toBe("tiktok");
   });
   it("Spotify track", () => {
-    expect(p("https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC").embedUrl)
-      .toBe("https://open.spotify.com/embed/track/4uLU6hMCjMI75M1A2tKUQC");
+    expect(p("https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC").embedUrl).toBe(
+      "https://open.spotify.com/embed/track/4uLU6hMCjMI75M1A2tKUQC",
+    );
   });
   it("SoundCloud", () => {
     expect(p("https://soundcloud.com/artist/track").provider).toBe("soundcloud");
   });
   it("Dailymotion + dai.ly", () => {
-    expect(p("https://www.dailymotion.com/video/x7tgad0").embedUrl).toContain("/embed/video/x7tgad0");
+    expect(p("https://www.dailymotion.com/video/x7tgad0").embedUrl).toContain(
+      "/embed/video/x7tgad0",
+    );
     expect(p("https://dai.ly/x7tgad0").embedUrl).toContain("/embed/video/x7tgad0");
   });
   it("Twitch channel + VOD + clip", () => {
     expect(p("https://www.twitch.tv/shroud").embedUrl).toContain("channel=shroud");
     expect(p("https://www.twitch.tv/videos/123456").embedUrl).toContain("video=123456");
-    expect(p("https://clips.twitch.tv/HelloClip").embedUrl).toContain("clips.twitch.tv/embed?clip=HelloClip");
+    expect(p("https://clips.twitch.tv/HelloClip").embedUrl).toContain(
+      "clips.twitch.tv/embed?clip=HelloClip",
+    );
   });
   it("Loom + Wistia + CodePen + CodeSandbox", () => {
-    expect(p("https://www.loom.com/share/abc123").embedUrl).toBe("https://www.loom.com/embed/abc123");
-    expect(p("https://fast.wistia.com/medias/xyz789").embedUrl).toContain("fast.wistia.net/embed/iframe/xyz789");
-    expect(p("https://codepen.io/user/pen/abcDEF").embedUrl).toContain("codepen.io/user/embed/abcDEF");
-    expect(p("https://codesandbox.io/s/abc123").embedUrl).toBe("https://codesandbox.io/embed/abc123");
+    expect(p("https://www.loom.com/share/abc123").embedUrl).toBe(
+      "https://www.loom.com/embed/abc123",
+    );
+    expect(p("https://fast.wistia.com/medias/xyz789").embedUrl).toContain(
+      "fast.wistia.net/embed/iframe/xyz789",
+    );
+    expect(p("https://codepen.io/user/pen/abcDEF").embedUrl).toContain(
+      "codepen.io/user/embed/abcDEF",
+    );
+    expect(p("https://codesandbox.io/s/abc123").embedUrl).toBe(
+      "https://codesandbox.io/embed/abc123",
+    );
   });
   it("LinkedIn activity", () => {
-    expect(p("https://www.linkedin.com/posts/x_activity-7012345678901234567-abcd")
-      .embedUrl).toContain("urn:li:activity:7012345678901234567");
+    expect(
+      p("https://www.linkedin.com/posts/x_activity-7012345678901234567-abcd").embedUrl,
+    ).toContain("urn:li:activity:7012345678901234567");
   });
 });
 
@@ -114,7 +128,9 @@ describe("isIframeEmbed", () => {
   it("excludes unknown / link-only providers", () => {
     expect(isIframeEmbed(parseEmbedUrl("https://example.com/x"))).toBe(false);
     expect(isIframeEmbed(parseEmbedUrl("https://gist.github.com/u/abc"))).toBe(false);
-    expect(isIframeEmbed(parseEmbedUrl("https://bsky.app/profile/x.bsky.social/post/abc"))).toBe(false);
+    expect(isIframeEmbed(parseEmbedUrl("https://bsky.app/profile/x.bsky.social/post/abc"))).toBe(
+      false,
+    );
     expect(isIframeEmbed(null)).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
 // Admin: global related-posts configuration (singleton per tenant).
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,32 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  relatedPostsConfigQueryOptions,
-} from "@/lib/queries/relatedPosts";
+import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPosts";
 import { RELATED_POSTS_DEFAULTS, type RelatedPostsConfig } from "@/lib/relatedPosts";
 
 export const Route = createFileRoute("/admin/related-posts")({
   component: AdminRelatedPostsPage,
   notFoundComponent: () => <div className="p-8">Nie znaleziono</div>,
-  errorComponent: ({ error, reset }) => {
-    const router = useRouter();
-    return (
-      <div className="p-8">
-        <p className="text-sm text-destructive">{error.message}</p>
-        <Button
-          variant="outline"
-          className="mt-3"
-          onClick={() => {
-            router.invalidate();
-            reset();
-          }}
-        >
-          Spróbuj ponownie
-        </Button>
-      </div>
-    );
-  },
+  errorComponent: (props) => <RouteErrorFallback {...props} variant="admin" />,
 });
 
 function AdminRelatedPostsPage() {
@@ -79,7 +61,8 @@ function AdminRelatedPostsPage() {
       <header className="space-y-1">
         <h1 className="font-display text-2xl">Powiązane wpisy</h1>
         <p className="text-sm text-muted-foreground">
-          Globalna konfiguracja silnika rekomendacji. Wpisy mogą nadpisać te ustawienia indywidualnie.
+          Globalna konfiguracja silnika rekomendacji. Wpisy mogą nadpisać te ustawienia
+          indywidualnie.
         </p>
       </header>
 
@@ -106,8 +89,13 @@ function AdminRelatedPostsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="space-y-1">
             <Label>Pozycja</Label>
-            <Select value={form.position} onValueChange={(v) => set("position", v as RelatedPostsConfig["position"])}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={form.position}
+              onValueChange={(v) => set("position", v as RelatedPostsConfig["position"])}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="end">Na końcu wpisu</SelectItem>
                 <SelectItem value="sidebar">W sidebarze</SelectItem>
@@ -132,7 +120,9 @@ function AdminRelatedPostsPage() {
               min={1}
               max={24}
               value={form.items_limit}
-              onChange={(e) => set("items_limit", Math.max(1, Math.min(24, Number(e.target.value) || 1)))}
+              onChange={(e) =>
+                set("items_limit", Math.max(1, Math.min(24, Number(e.target.value) || 1)))
+              }
             />
           </div>
         </div>
@@ -140,8 +130,13 @@ function AdminRelatedPostsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="space-y-1">
             <Label>Layout</Label>
-            <Select value={form.layout} onValueChange={(v) => set("layout", v as RelatedPostsConfig["layout"])}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={form.layout}
+              onValueChange={(v) => set("layout", v as RelatedPostsConfig["layout"])}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="grid">Grid</SelectItem>
                 <SelectItem value="list">Lista</SelectItem>
@@ -155,7 +150,9 @@ function AdminRelatedPostsPage() {
               value={String(form.columns)}
               onValueChange={(v) => set("columns", Number(v) as RelatedPostsConfig["columns"])}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="2">2</SelectItem>
                 <SelectItem value="3">3</SelectItem>
@@ -167,9 +164,13 @@ function AdminRelatedPostsPage() {
             <Label>Strategia źródła</Label>
             <Select
               value={form.source_strategy}
-              onValueChange={(v) => set("source_strategy", v as RelatedPostsConfig["source_strategy"])}
+              onValueChange={(v) =>
+                set("source_strategy", v as RelatedPostsConfig["source_strategy"])
+              }
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="both">Kategorie + Tagi</SelectItem>
                 <SelectItem value="categories">Tylko kategorie</SelectItem>
@@ -203,12 +204,18 @@ function AdminRelatedPostsPage() {
                 type="number"
                 min={2000}
                 value={form.slider_interval_ms}
-                onChange={(e) => set("slider_interval_ms", Math.max(2000, Number(e.target.value) || 2000))}
+                onChange={(e) =>
+                  set("slider_interval_ms", Math.max(2000, Number(e.target.value) || 2000))
+                }
                 disabled={!form.slider_autoplay}
               />
             </div>
             <div className="pb-2">
-              <Toggle label="Autoplay" v={form.slider_autoplay} on={(v) => set("slider_autoplay", v)} />
+              <Toggle
+                label="Autoplay"
+                v={form.slider_autoplay}
+                on={(v) => set("slider_autoplay", v)}
+              />
             </div>
           </div>
         </div>

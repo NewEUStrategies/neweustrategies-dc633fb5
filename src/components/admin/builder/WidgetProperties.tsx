@@ -7,11 +7,23 @@
 //   - ColorField         -> bg / text colors with native picker
 import { useEffect, useState } from "react";
 import type {
-  WidgetNode, CommonStyle, AdvancedSettings, Device, Json, WidgetTypography,
-  Mode, Themed, HoverStyle,
+  WidgetNode,
+  CommonStyle,
+  AdvancedSettings,
+  Device,
+  Json,
+  WidgetTypography,
+  Mode,
+  Themed,
+  HoverStyle,
 } from "@/lib/builder/types";
 import { WIDGETS } from "@/lib/builder/registry";
-import { pickMode, setMode as setThemedMode, isModeOverridden, isThemedValue } from "@/lib/builder/themed";
+import {
+  pickMode,
+  setMode as setThemedMode,
+  isModeOverridden,
+  isThemedValue,
+} from "@/lib/builder/themed";
 import { broadcastWidgetTypography } from "@/lib/builder/liveTypography";
 import { Sun, Moon, Undo as RotateCcw, Globe, Link2Off } from "@/lib/lucide-shim";
 import { useGlobalWidgetMeta } from "@/lib/builder/globalWidgets";
@@ -19,7 +31,13 @@ import { useGlobalWidgetMeta } from "@/lib/builder/globalWidgets";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { PropField, ColorField, StepperInput, NumberInput } from "./ui/atoms";
 import { PositionAnchor } from "./ui/atoms/PositionAnchor";
 import { SpacingControl } from "./ui/molecules/SpacingControl";
@@ -57,42 +75,65 @@ interface Props {
   onChange: (mut: (w: WidgetNode) => void) => void;
 }
 
-export function WidgetProperties({ widget, lang, device, mode = "light", onModeChange, onChange }: Props) {
-  const setContent = (k: string, v: Json) => onChange((w) => { w.content = w.content ?? {}; w.content[k] = v; });
-  const setStyle = (mut: (s: CommonStyle) => void) => onChange((w) => {
-    w.style = w.style ?? {}; mut(w.style);
-  });
-  const setAdvanced = (mut: (a: AdvancedSettings) => void) => onChange((w) => {
-    w.advanced = w.advanced ?? {}; mut(w.advanced);
-  });
+export function WidgetProperties({
+  widget,
+  lang,
+  device,
+  mode = "light",
+  onModeChange,
+  onChange,
+}: Props) {
+  const setContent = (k: string, v: Json) =>
+    onChange((w) => {
+      w.content = w.content ?? {};
+      w.content[k] = v;
+    });
+  const setStyle = (mut: (s: CommonStyle) => void) =>
+    onChange((w) => {
+      w.style = w.style ?? {};
+      mut(w.style);
+    });
+  const setAdvanced = (mut: (a: AdvancedSettings) => void) =>
+    onChange((w) => {
+      w.advanced = w.advanced ?? {};
+      mut(w.advanced);
+    });
 
   // ---- Themed (light/dark) helpers for color-style fields ----
-  type ColorKey = "bgColor" | "textColor" | "borderColor" | "iconColor" | "iconHoverColor" | "iconActiveColor";
+  type ColorKey =
+    | "bgColor"
+    | "textColor"
+    | "borderColor"
+    | "iconColor"
+    | "iconHoverColor"
+    | "iconActiveColor";
   const getColor = (key: ColorKey): string | undefined =>
     pickMode<string>(widget.style?.[key] as Themed<string> | undefined, mode);
-  const setColor = (key: ColorKey, v: string | undefined) => setStyle((s) => {
-    const prev = s[key] as Themed<string> | undefined;
-    const next = setThemedMode<string>(prev, mode, v);
-    (s[key] as Themed<string> | undefined) = next;
-  });
+  const setColor = (key: ColorKey, v: string | undefined) =>
+    setStyle((s) => {
+      const prev = s[key] as Themed<string> | undefined;
+      const next = setThemedMode<string>(prev, mode, v);
+      (s[key] as Themed<string> | undefined) = next;
+    });
   const isOverridden = (key: ColorKey): boolean =>
     isModeOverridden(widget.style?.[key] as Themed<string> | undefined, mode);
-  const resetColor = (key: ColorKey) => setStyle((s) => {
-    const prev = s[key] as Themed<string> | undefined;
-    if (prev == null) return;
-    if (isThemedValue<string>(prev)) {
-      const next = { ...prev };
-      delete next[mode];
-      if (next.light == null && next.dark == null) {
-        delete (s as Record<string, unknown>)[key];
+  const resetColor = (key: ColorKey) =>
+    setStyle((s) => {
+      const prev = s[key] as Themed<string> | undefined;
+      if (prev == null) return;
+      if (isThemedValue<string>(prev)) {
+        const next = { ...prev };
+        delete next[mode];
+        if (next.light == null && next.dark == null) {
+          delete (s as Record<string, unknown>)[key];
+        } else {
+          (s[key] as Themed<string> | undefined) = next;
+        }
       } else {
-        (s[key] as Themed<string> | undefined) = next;
+        // Flat value applies to both modes - reset removes it entirely.
+        delete (s as Record<string, unknown>)[key];
       }
-    } else {
-      // Flat value applies to both modes - reset removes it entirely.
-      delete (s as Record<string, unknown>)[key];
-    }
-  });
+    });
 
   // ---- Shared (non-themed) read/write for dimension / border / shadow fields.
   // These are intentionally NOT per-mode: only colors differ between light
@@ -107,27 +148,35 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
     }
     return typeof v === "string" ? v : "";
   };
-  const setFlatStr = (key: StringStyleKey, v: string | undefined) => setStyle((s) => {
-    (s as Record<string, unknown>)[key] = v && v.length ? v : undefined;
-  });
+  const setFlatStr = (key: StringStyleKey, v: string | undefined) =>
+    setStyle((s) => {
+      (s as Record<string, unknown>)[key] = v && v.length ? v : undefined;
+    });
   const getFlatBorderStyle = (): string => {
     const v = widget.style?.borderStyle as unknown;
     if (v && typeof v === "object" && !Array.isArray(v)) {
       const o = v as { light?: string; dark?: string };
       return (o.light ?? o.dark ?? "none") as string;
     }
-    return (typeof v === "string" ? v : "none");
+    return typeof v === "string" ? v : "none";
   };
-  const setFlatBorderStyle = (v: CommonStyle["borderStyle"] | undefined) => setStyle((s) => {
-    (s as Record<string, unknown>).borderStyle = v ?? undefined;
-  });
+  const setFlatBorderStyle = (v: CommonStyle["borderStyle"] | undefined) =>
+    setStyle((s) => {
+      (s as Record<string, unknown>).borderStyle = v ?? undefined;
+    });
 
   // Typography metrics are shared between light/dark modes. Only colors are
   // mode-specific. Store typography as a flat object so editing in dark mode
   // immediately changes the same source of truth used by the renderer.
   const getThemedTypography = (): WidgetTypography | undefined =>
-    pickMode<WidgetTypography>(widget.style?.typography as Themed<WidgetTypography> | undefined, mode) ??
-    pickMode<WidgetTypography>(widget.style?.typography as Themed<WidgetTypography> | undefined, mode === "dark" ? "light" : "dark");
+    pickMode<WidgetTypography>(
+      widget.style?.typography as Themed<WidgetTypography> | undefined,
+      mode,
+    ) ??
+    pickMode<WidgetTypography>(
+      widget.style?.typography as Themed<WidgetTypography> | undefined,
+      mode === "dark" ? "light" : "dark",
+    );
   const setThemedTypography = (t: WidgetTypography | undefined) => {
     const next = t && Object.keys(t).length ? t : undefined;
     broadcastWidgetTypography(widget.id, next);
@@ -146,21 +195,33 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
       textColor: pickMode<string>(h.textColor as Themed<string> | undefined, mode),
     };
   })();
-  const onHoverChange = (next: HoverStyle | undefined) => setStyle((s) => {
-    if (!next) { s.hover = undefined; return; }
-    const prev = s.hover ?? {};
-    const merged: HoverStyle = { ...prev, ...next };
-    // Re-wrap themed color fields so they preserve the other mode's value.
-    if ("bgColor" in next) {
-      const v = setThemedMode<string>(prev.bgColor as Themed<string> | undefined, mode, next.bgColor);
-      (merged.bgColor as Themed<string> | undefined) = v;
-    }
-    if ("textColor" in next) {
-      const v = setThemedMode<string>(prev.textColor as Themed<string> | undefined, mode, next.textColor);
-      (merged.textColor as Themed<string> | undefined) = v;
-    }
-    s.hover = merged;
-  });
+  const onHoverChange = (next: HoverStyle | undefined) =>
+    setStyle((s) => {
+      if (!next) {
+        s.hover = undefined;
+        return;
+      }
+      const prev = s.hover ?? {};
+      const merged: HoverStyle = { ...prev, ...next };
+      // Re-wrap themed color fields so they preserve the other mode's value.
+      if ("bgColor" in next) {
+        const v = setThemedMode<string>(
+          prev.bgColor as Themed<string> | undefined,
+          mode,
+          next.bgColor,
+        );
+        (merged.bgColor as Themed<string> | undefined) = v;
+      }
+      if ("textColor" in next) {
+        const v = setThemedMode<string>(
+          prev.textColor as Themed<string> | undefined,
+          mode,
+          next.textColor,
+        );
+        (merged.textColor as Themed<string> | undefined) = v;
+      }
+      s.hover = merged;
+    });
 
   // Resolve inherited colors from the actually rendered widget DOM (global colors cascade).
   const inherited = useInheritedColors(widget.id, mode, widget.style);
@@ -169,381 +230,478 @@ export function WidgetProperties({ widget, lang, device, mode = "light", onModeC
 
   return (
     <div className="wp-compact">
-    <Tabs defaultValue="content">
-      <div className="mb-1.5 px-0.5">
-        <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Widget</div>
-        <div className="text-[12px] font-medium truncate">{widgetLabel}</div>
-      </div>
-      {widget.globalId && (
-        <GlobalWidgetBanner
-          globalId={widget.globalId}
-          onUnlink={() => onChange((w) => { delete w.globalId; })}
-        />
-      )}
-      <div className="mb-2 px-0.5">
-        <div className="text-[9px] uppercase tracking-wide text-muted-foreground mb-1">Pozycja</div>
-        <div className="flex gap-1">
-          <button
-            type="button"
-            onClick={() => setAdvanced((a) => { a.layout = undefined; })}
-            className={`flex-1 h-7 px-2 text-[11px] rounded border ${(widget.advanced?.layout ?? "block") === "block" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
-            title="Widget zajmuje cały wiersz (pod poprzednim)"
-          >
-            Pod
-          </button>
-          <button
-            type="button"
-            onClick={() => setAdvanced((a) => { a.layout = "inline"; })}
-            className={`flex-1 h-7 px-2 text-[11px] rounded border ${widget.advanced?.layout === "inline" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
-            title="Widget ustawia się obok poprzedniego inline-widgetu"
-          >
-            Obok
-          </button>
+      <Tabs defaultValue="content">
+        <div className="mb-1.5 px-0.5">
+          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Widget</div>
+          <div className="text-[12px] font-medium truncate">{widgetLabel}</div>
         </div>
-      </div>
-      <TabsList className="grid grid-cols-3 w-full h-6">
-        <TabsTrigger value="content" className="text-[11px]">Treść</TabsTrigger>
-        <TabsTrigger value="style" className="text-[11px]">Styl</TabsTrigger>
-        <TabsTrigger value="advanced" className="text-[11px]">Zaawans.</TabsTrigger>
-      </TabsList>
-
-
-      <TabsContent value="content" className="space-y-2 mt-2">
-        <ContentFields widget={widget} lang={lang} setContent={setContent} />
-      </TabsContent>
-
-      <TabsContent value="style" className="space-y-4 mt-3">
-        {/* Light / Dark mode tabs - synced with global preview switcher */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
-            Edytujesz: {device}
-          </div>
-          <div className="inline-flex items-center rounded border border-border bg-muted p-0.5" role="group" aria-label="Tryb">
-            {([["light", Sun, "Jasny"], ["dark", Moon, "Ciemny"]] as const).map(([m, Icon, label]) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => onModeChange?.(m)}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-sm transition ${
-                  mode === m ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Icon className="w-3 h-3" />
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <section className="space-y-2">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Typografia ({mode === "dark" ? "ciemny" : "jasny"})</h4>
-
-          <TypographyControl
-            value={getThemedTypography()}
-            device={device}
-            onChange={(typography: WidgetTypography) => setThemedTypography(typography)}
+        {widget.globalId && (
+          <GlobalWidgetBanner
+            globalId={widget.globalId}
+            onUnlink={() =>
+              onChange((w) => {
+                delete w.globalId;
+              })
+            }
           />
-        </section>
-
-        <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Kolory ({mode === "dark" ? "ciemny" : "jasny"})</h4>
-          <ThemedColorField
-            label="Tło"
-            value={getColor("bgColor")}
-            onChange={(v) => setColor("bgColor", v)}
-            overridden={isOverridden("bgColor")}
-            onReset={() => resetColor("bgColor")}
-            placeholderHint="dziedziczy z global colors"
-            inheritedValue={inherited.bgColor}
-          />
-          <ThemedColorField
-            label="Tekst"
-            value={getColor("textColor")}
-            onChange={(v) => setColor("textColor", v)}
-            overridden={isOverridden("textColor")}
-            onReset={() => resetColor("textColor")}
-            placeholderHint="dziedziczy z global colors"
-            inheritedValue={inherited.textColor}
-          />
-        </section>
-
-        <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            {lang === "en" ? "Icons" : "Ikony"} ({mode === "dark" ? "ciemny" : "jasny"})
-          </h4>
-          <p className="text-[10px] text-muted-foreground -mt-1">
-            {lang === "en"
-              ? "Colors for SVG icons: default, hover, and active (current page)."
-              : "Kolory ikon SVG: domyślny, po najechaniu i aktywny (bieżąca strona)."}
-          </p>
-          <ThemedColorField
-            label={lang === "en" ? "Default" : "Domyślny"}
-            value={getColor("iconColor")}
-            onChange={(v) => setColor("iconColor", v)}
-            overridden={isOverridden("iconColor")}
-            onReset={() => resetColor("iconColor")}
-            placeholderHint={lang === "en" ? "inherits from text color" : "dziedziczy z koloru tekstu"}
-          />
-          <ThemedColorField
-            label={lang === "en" ? "Hover" : "Po najechaniu"}
-            value={getColor("iconHoverColor")}
-            onChange={(v) => setColor("iconHoverColor", v)}
-            overridden={isOverridden("iconHoverColor")}
-            onReset={() => resetColor("iconHoverColor")}
-            placeholderHint={lang === "en" ? "inherits from default" : "dziedziczy z domyślnego"}
-          />
-          <ThemedColorField
-            label={lang === "en" ? "Active (current page)" : "Aktywny (bieżąca strona)"}
-            value={getColor("iconActiveColor")}
-            onChange={(v) => setColor("iconActiveColor", v)}
-            overridden={isOverridden("iconActiveColor")}
-            onReset={() => resetColor("iconActiveColor")}
-            placeholderHint={lang === "en" ? "inherits from hover" : "dziedziczy z hover"}
-          />
-        </section>
-
-
-
-        {widget.type === "dark-featured-card" && (
-          <section className="space-y-2 pt-2 border-t border-border">
-            <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Etykieta (badge)</h4>
-            <div className="grid grid-cols-2 gap-2">
-              <PropField label="Wariant">
-                <Select
-                  value={(widget.content?.badgeVariant as string) || "solid-red"}
-                  onValueChange={(v) => setContent("badgeVariant", v)}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {[
-                      { v: "solid-red", l: "Pełny - czerwony" },
-                      { v: "solid-brand", l: "Pełny - brand" },
-                      { v: "solid-dark", l: "Pełny - ciemny" },
-                      { v: "outline", l: "Obrysowany" },
-                      { v: "ghost", l: "Przezroczysty" },
-                      { v: "gradient", l: "Gradient" },
-                    ].map((o) => (
-                      <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </PropField>
-              <PropField label="Zaokrąglenie">
-                <Select
-                  value={(widget.content?.badgeRadius as string) || "none"}
-                  onValueChange={(v) => setContent("badgeRadius", v)}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {[
-                      { v: "none", l: "Brak" },
-                      { v: "sm", l: "Małe" },
-                      { v: "md", l: "Średnie" },
-                      { v: "lg", l: "Duże" },
-                      { v: "full", l: "Pill" },
-                    ].map((o) => (
-                      <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </PropField>
-              <PropField label="Rozmiar">
-                <Select
-                  value={(widget.content?.badgeSize as string) || "xs"}
-                  onValueChange={(v) => setContent("badgeSize", v)}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {[
-                      { v: "xs", l: "XS" },
-                      { v: "sm", l: "S" },
-                      { v: "md", l: "M" },
-                    ].map((o) => (
-                      <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </PropField>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <PropField label="Kolor tła etykiety">
-                <ColorField
-                  value={(widget.content?.badgeBg as string) || ""}
-                  onChange={(v) => setContent("badgeBg", v || "")}
-                />
-              </PropField>
-              <PropField label="Kolor tekstu etykiety">
-                <ColorField
-                  value={(widget.content?.badgeText as string) || ""}
-                  onChange={(v) => setContent("badgeText", v || "")}
-                />
-              </PropField>
-            </div>
-            <div className="text-[10px] text-muted-foreground">Własne kolory nadpisują wybrany wariant.</div>
-          </section>
         )}
-
-        <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Odstępy</h4>
-          <SpacingControl style={widget.style} device={device} onChange={setStyle} />
-          <PropField label="Pozycja w komórce">
-            <PositionAnchor
-              justify={widget.style?.selfJustify}
-              align={widget.style?.selfAlign}
-              onChange={({ justify, align }) => setStyle((s) => {
-                s.selfJustify = justify;
-                s.selfAlign = align;
-              })}
-            />
-          </PropField>
-        </section>
-
-
-        <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Zaokrąglenie rogów</h4>
-          <PropField label="Promień (px)">
-            <StepperInput
-              value={getFlatStr("borderRadius")}
-              placeholder="8px"
-              min={0}
-              onChange={(v) => setFlatStr("borderRadius", v ?? "")}
-            />
-          </PropField>
-        </section>
-
-        <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Obramowanie</h4>
-          <div className="grid grid-cols-2 gap-2">
-            <PropField label="Styl">
-              <Select
-                value={getFlatBorderStyle()}
-                onValueChange={(v) => setFlatBorderStyle(v === "none" ? undefined : (v as CommonStyle["borderStyle"]))}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {[
-                    { v: "none", l: "Brak" },
-                    { v: "solid", l: "Ciągła" },
-                    { v: "dashed", l: "Kreskowana" },
-                    { v: "dotted", l: "Kropkowana" },
-                    { v: "double", l: "Podwójna" },
-                  ].map((o) => (
-                    <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </PropField>
-            <PropField label="Grubość (px)">
-              <StepperInput
-                value={getFlatStr("borderWidth")}
-                placeholder="1px"
-                min={0}
-                onChange={(v) => setFlatStr("borderWidth", v ?? "")}
-              />
-            </PropField>
+        <div className="mb-2 px-0.5">
+          <div className="text-[9px] uppercase tracking-wide text-muted-foreground mb-1">
+            Pozycja
           </div>
-          <ThemedColorField
-            label={`Kolor (${mode === "dark" ? "ciemny" : "jasny"})`}
-            value={getColor("borderColor")}
-            onChange={(v) => setColor("borderColor", v)}
-            overridden={isOverridden("borderColor")}
-            onReset={() => resetColor("borderColor")}
-            placeholderHint="dziedziczy z global colors"
-            inheritedValue={inherited.borderColor}
-          />
-        </section>
-
-        <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Hover ({mode === "dark" ? "ciemny" : "jasny"})</h4>
-
-          <HoverControl
-            value={hoverValue}
-            onChange={onHoverChange}
-          />
-        </section>
-
-
-      </TabsContent>
-
-
-
-      <TabsContent value="advanced" className="space-y-4 mt-3">
-        <section className="space-y-2">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Identyfikatory</h4>
-          <PropField label="HTML ID">
-            <Input
-              value={widget.advanced?.htmlId ?? ""}
-              onChange={(e) => setAdvanced((a) => { a.htmlId = e.target.value || undefined; })}
-              className="h-8 text-xs"
-            />
-          </PropField>
-          <PropField label="CSS class">
-            <Input
-              value={widget.advanced?.cssClass ?? ""}
-              onChange={(e) => setAdvanced((a) => { a.cssClass = e.target.value || undefined; })}
-              className="h-8 text-xs"
-            />
-          </PropField>
-        </section>
-
-        <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Pozycja względem innych widgetów</h4>
           <div className="flex gap-1">
             <button
               type="button"
-              onClick={() => setAdvanced((a) => { a.layout = undefined; })}
-              className={`flex-1 h-8 px-2 text-xs rounded border ${(widget.advanced?.layout ?? "block") === "block" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
+              onClick={() =>
+                setAdvanced((a) => {
+                  a.layout = undefined;
+                })
+              }
+              className={`flex-1 h-7 px-2 text-[11px] rounded border ${(widget.advanced?.layout ?? "block") === "block" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
               title="Widget zajmuje cały wiersz (pod poprzednim)"
             >
-              Pod (pełna szerokość)
+              Pod
             </button>
             <button
               type="button"
-              onClick={() => setAdvanced((a) => { a.layout = "inline"; })}
-              className={`flex-1 h-8 px-2 text-xs rounded border ${widget.advanced?.layout === "inline" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
+              onClick={() =>
+                setAdvanced((a) => {
+                  a.layout = "inline";
+                })
+              }
+              className={`flex-1 h-7 px-2 text-[11px] rounded border ${widget.advanced?.layout === "inline" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
               title="Widget ustawia się obok poprzedniego inline-widgetu"
             >
-              Obok (w wierszu)
+              Obok
             </button>
           </div>
-          <p className="text-[10px] text-muted-foreground">Sąsiadujące widgety z opcją „Obok” łączą się w jeden wiersz.</p>
-        </section>
+        </div>
+        <TabsList className="grid grid-cols-3 w-full h-6">
+          <TabsTrigger value="content" className="text-[11px]">
+            Treść
+          </TabsTrigger>
+          <TabsTrigger value="style" className="text-[11px]">
+            Styl
+          </TabsTrigger>
+          <TabsTrigger value="advanced" className="text-[11px]">
+            Zaawans.
+          </TabsTrigger>
+        </TabsList>
 
-        <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Motion</h4>
-          <MotionControl value={widget.advanced} onChange={setAdvanced} />
-        </section>
+        <TabsContent value="content" className="space-y-2 mt-2">
+          <ContentFields widget={widget} lang={lang} setContent={setContent} />
+        </TabsContent>
 
-        <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Widoczność</h4>
-          <VisibilityControl value={widget.advanced} onChange={setAdvanced} />
-        </section>
+        <TabsContent value="style" className="space-y-4 mt-3">
+          {/* Light / Dark mode tabs - synced with global preview switcher */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+              Edytujesz: {device}
+            </div>
+            <div
+              className="inline-flex items-center rounded border border-border bg-muted p-0.5"
+              role="group"
+              aria-label="Tryb"
+            >
+              {(
+                [
+                  ["light", Sun, "Jasny"],
+                  ["dark", Moon, "Ciemny"],
+                ] as const
+              ).map(([m, Icon, label]) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => onModeChange?.(m)}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-sm transition ${
+                    mode === m
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="w-3 h-3" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Dostęp (auth / role)</h4>
-          <AccessControl value={widget.advanced} onChange={setAdvanced} />
-        </section>
+          <section className="space-y-2">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Typografia ({mode === "dark" ? "ciemny" : "jasny"})
+            </h4>
 
-        <section className="space-y-2 pt-2 border-t border-border">
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Custom CSS</h4>
-          <Textarea
-            rows={4}
-            value={widget.advanced?.customCss ?? ""}
-            onChange={(e) => setAdvanced((a) => { a.customCss = e.target.value || undefined; })}
-            className="text-xs font-mono"
-            placeholder=".my-class { color: red; }"
-          />
-        </section>
-      </TabsContent>
-    </Tabs>
+            <TypographyControl
+              value={getThemedTypography()}
+              device={device}
+              onChange={(typography: WidgetTypography) => setThemedTypography(typography)}
+            />
+          </section>
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Kolory ({mode === "dark" ? "ciemny" : "jasny"})
+            </h4>
+            <ThemedColorField
+              label="Tło"
+              value={getColor("bgColor")}
+              onChange={(v) => setColor("bgColor", v)}
+              overridden={isOverridden("bgColor")}
+              onReset={() => resetColor("bgColor")}
+              placeholderHint="dziedziczy z global colors"
+              inheritedValue={inherited.bgColor}
+            />
+            <ThemedColorField
+              label="Tekst"
+              value={getColor("textColor")}
+              onChange={(v) => setColor("textColor", v)}
+              overridden={isOverridden("textColor")}
+              onReset={() => resetColor("textColor")}
+              placeholderHint="dziedziczy z global colors"
+              inheritedValue={inherited.textColor}
+            />
+          </section>
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              {lang === "en" ? "Icons" : "Ikony"} ({mode === "dark" ? "ciemny" : "jasny"})
+            </h4>
+            <p className="text-[10px] text-muted-foreground -mt-1">
+              {lang === "en"
+                ? "Colors for SVG icons: default, hover, and active (current page)."
+                : "Kolory ikon SVG: domyślny, po najechaniu i aktywny (bieżąca strona)."}
+            </p>
+            <ThemedColorField
+              label={lang === "en" ? "Default" : "Domyślny"}
+              value={getColor("iconColor")}
+              onChange={(v) => setColor("iconColor", v)}
+              overridden={isOverridden("iconColor")}
+              onReset={() => resetColor("iconColor")}
+              placeholderHint={
+                lang === "en" ? "inherits from text color" : "dziedziczy z koloru tekstu"
+              }
+            />
+            <ThemedColorField
+              label={lang === "en" ? "Hover" : "Po najechaniu"}
+              value={getColor("iconHoverColor")}
+              onChange={(v) => setColor("iconHoverColor", v)}
+              overridden={isOverridden("iconHoverColor")}
+              onReset={() => resetColor("iconHoverColor")}
+              placeholderHint={lang === "en" ? "inherits from default" : "dziedziczy z domyślnego"}
+            />
+            <ThemedColorField
+              label={lang === "en" ? "Active (current page)" : "Aktywny (bieżąca strona)"}
+              value={getColor("iconActiveColor")}
+              onChange={(v) => setColor("iconActiveColor", v)}
+              overridden={isOverridden("iconActiveColor")}
+              onReset={() => resetColor("iconActiveColor")}
+              placeholderHint={lang === "en" ? "inherits from hover" : "dziedziczy z hover"}
+            />
+          </section>
+
+          {widget.type === "dark-featured-card" && (
+            <section className="space-y-2 pt-2 border-t border-border">
+              <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                Etykieta (badge)
+              </h4>
+              <div className="grid grid-cols-2 gap-2">
+                <PropField label="Wariant">
+                  <Select
+                    value={(widget.content?.badgeVariant as string) || "solid-red"}
+                    onValueChange={(v) => setContent("badgeVariant", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[
+                        { v: "solid-red", l: "Pełny - czerwony" },
+                        { v: "solid-brand", l: "Pełny - brand" },
+                        { v: "solid-dark", l: "Pełny - ciemny" },
+                        { v: "outline", l: "Obrysowany" },
+                        { v: "ghost", l: "Przezroczysty" },
+                        { v: "gradient", l: "Gradient" },
+                      ].map((o) => (
+                        <SelectItem key={o.v} value={o.v} className="text-xs">
+                          {o.l}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </PropField>
+                <PropField label="Zaokrąglenie">
+                  <Select
+                    value={(widget.content?.badgeRadius as string) || "none"}
+                    onValueChange={(v) => setContent("badgeRadius", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[
+                        { v: "none", l: "Brak" },
+                        { v: "sm", l: "Małe" },
+                        { v: "md", l: "Średnie" },
+                        { v: "lg", l: "Duże" },
+                        { v: "full", l: "Pill" },
+                      ].map((o) => (
+                        <SelectItem key={o.v} value={o.v} className="text-xs">
+                          {o.l}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </PropField>
+                <PropField label="Rozmiar">
+                  <Select
+                    value={(widget.content?.badgeSize as string) || "xs"}
+                    onValueChange={(v) => setContent("badgeSize", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[
+                        { v: "xs", l: "XS" },
+                        { v: "sm", l: "S" },
+                        { v: "md", l: "M" },
+                      ].map((o) => (
+                        <SelectItem key={o.v} value={o.v} className="text-xs">
+                          {o.l}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </PropField>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <PropField label="Kolor tła etykiety">
+                  <ColorField
+                    value={(widget.content?.badgeBg as string) || ""}
+                    onChange={(v) => setContent("badgeBg", v || "")}
+                  />
+                </PropField>
+                <PropField label="Kolor tekstu etykiety">
+                  <ColorField
+                    value={(widget.content?.badgeText as string) || ""}
+                    onChange={(v) => setContent("badgeText", v || "")}
+                  />
+                </PropField>
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                Własne kolory nadpisują wybrany wariant.
+              </div>
+            </section>
+          )}
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Odstępy
+            </h4>
+            <SpacingControl style={widget.style} device={device} onChange={setStyle} />
+            <PropField label="Pozycja w komórce">
+              <PositionAnchor
+                justify={widget.style?.selfJustify}
+                align={widget.style?.selfAlign}
+                onChange={({ justify, align }) =>
+                  setStyle((s) => {
+                    s.selfJustify = justify;
+                    s.selfAlign = align;
+                  })
+                }
+              />
+            </PropField>
+          </section>
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Zaokrąglenie rogów
+            </h4>
+            <PropField label="Promień (px)">
+              <StepperInput
+                value={getFlatStr("borderRadius")}
+                placeholder="8px"
+                min={0}
+                onChange={(v) => setFlatStr("borderRadius", v ?? "")}
+              />
+            </PropField>
+          </section>
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Obramowanie
+            </h4>
+            <div className="grid grid-cols-2 gap-2">
+              <PropField label="Styl">
+                <Select
+                  value={getFlatBorderStyle()}
+                  onValueChange={(v) =>
+                    setFlatBorderStyle(v === "none" ? undefined : (v as CommonStyle["borderStyle"]))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[
+                      { v: "none", l: "Brak" },
+                      { v: "solid", l: "Ciągła" },
+                      { v: "dashed", l: "Kreskowana" },
+                      { v: "dotted", l: "Kropkowana" },
+                      { v: "double", l: "Podwójna" },
+                    ].map((o) => (
+                      <SelectItem key={o.v} value={o.v} className="text-xs">
+                        {o.l}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </PropField>
+              <PropField label="Grubość (px)">
+                <StepperInput
+                  value={getFlatStr("borderWidth")}
+                  placeholder="1px"
+                  min={0}
+                  onChange={(v) => setFlatStr("borderWidth", v ?? "")}
+                />
+              </PropField>
+            </div>
+            <ThemedColorField
+              label={`Kolor (${mode === "dark" ? "ciemny" : "jasny"})`}
+              value={getColor("borderColor")}
+              onChange={(v) => setColor("borderColor", v)}
+              overridden={isOverridden("borderColor")}
+              onReset={() => resetColor("borderColor")}
+              placeholderHint="dziedziczy z global colors"
+              inheritedValue={inherited.borderColor}
+            />
+          </section>
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Hover ({mode === "dark" ? "ciemny" : "jasny"})
+            </h4>
+
+            <HoverControl value={hoverValue} onChange={onHoverChange} />
+          </section>
+        </TabsContent>
+
+        <TabsContent value="advanced" className="space-y-4 mt-3">
+          <section className="space-y-2">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Identyfikatory
+            </h4>
+            <PropField label="HTML ID">
+              <Input
+                value={widget.advanced?.htmlId ?? ""}
+                onChange={(e) =>
+                  setAdvanced((a) => {
+                    a.htmlId = e.target.value || undefined;
+                  })
+                }
+                className="h-8 text-xs"
+              />
+            </PropField>
+            <PropField label="CSS class">
+              <Input
+                value={widget.advanced?.cssClass ?? ""}
+                onChange={(e) =>
+                  setAdvanced((a) => {
+                    a.cssClass = e.target.value || undefined;
+                  })
+                }
+                className="h-8 text-xs"
+              />
+            </PropField>
+          </section>
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Pozycja względem innych widgetów
+            </h4>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() =>
+                  setAdvanced((a) => {
+                    a.layout = undefined;
+                  })
+                }
+                className={`flex-1 h-8 px-2 text-xs rounded border ${(widget.advanced?.layout ?? "block") === "block" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
+                title="Widget zajmuje cały wiersz (pod poprzednim)"
+              >
+                Pod (pełna szerokość)
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setAdvanced((a) => {
+                    a.layout = "inline";
+                  })
+                }
+                className={`flex-1 h-8 px-2 text-xs rounded border ${widget.advanced?.layout === "inline" ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
+                title="Widget ustawia się obok poprzedniego inline-widgetu"
+              >
+                Obok (w wierszu)
+              </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Sąsiadujące widgety z opcją „Obok” łączą się w jeden wiersz.
+            </p>
+          </section>
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Motion
+            </h4>
+            <MotionControl value={widget.advanced} onChange={setAdvanced} />
+          </section>
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Widoczność
+            </h4>
+            <VisibilityControl value={widget.advanced} onChange={setAdvanced} />
+          </section>
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Dostęp (auth / role)
+            </h4>
+            <AccessControl value={widget.advanced} onChange={setAdvanced} />
+          </section>
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Custom CSS
+            </h4>
+            <Textarea
+              rows={4}
+              value={widget.advanced?.customCss ?? ""}
+              onChange={(e) =>
+                setAdvanced((a) => {
+                  a.customCss = e.target.value || undefined;
+                })
+              }
+              className="text-xs font-mono"
+              placeholder=".my-class { color: red; }"
+            />
+          </section>
+        </TabsContent>
+      </Tabs>
     </div>
   );
-
 }
 
 // ---- Themed color field: shows reset button + override dot when overridden ----
 function ThemedColorField({
-  label, value, onChange, overridden, onReset, placeholderHint, inheritedValue,
+  label,
+  value,
+  onChange,
+  overridden,
+  onReset,
+  placeholderHint,
+  inheritedValue,
 }: {
   label: string;
   value: string | undefined;
@@ -559,7 +717,11 @@ function ThemedColorField({
         <span className="inline-flex items-center gap-1.5">
           {label}
           {overridden && (
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand" aria-label="Nadpisane" title="Nadpisane w tym trybie" />
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full bg-brand"
+              aria-label="Nadpisane"
+              title="Nadpisane w tym trybie"
+            />
           )}
           {overridden && (
             <button
@@ -602,7 +764,10 @@ function useInheritedColors(
         setV({});
         return;
       }
-      const textTarget = el.querySelector<HTMLElement>("h1,h2,h3,h4,h5,h6,p,span,a,button,li,blockquote,figcaption,[contenteditable='true']") ?? el;
+      const textTarget =
+        el.querySelector<HTMLElement>(
+          "h1,h2,h3,h4,h5,h6,p,span,a,button,li,blockquote,figcaption,[contenteditable='true']",
+        ) ?? el;
       const cs = window.getComputedStyle(el);
       const tcs = window.getComputedStyle(textTarget);
       setV({
@@ -618,9 +783,14 @@ function useInheritedColors(
   return v;
 }
 
-
-function ContentFields({ widget, lang, setContent }: {
-  widget: WidgetNode; lang: "pl" | "en"; setContent: (k: string, v: Json) => void;
+function ContentFields({
+  widget,
+  lang,
+  setContent,
+}: {
+  widget: WidgetNode;
+  lang: "pl" | "en";
+  setContent: (k: string, v: Json) => void;
 }) {
   const c = widget.content;
 
@@ -658,7 +828,9 @@ function ContentFields({ widget, lang, setContent }: {
   // Schema-driven render for simple widgets.
   const schema = WIDGET_SCHEMAS[widget.type];
   if (!schema || schema.length === 0) {
-    return <div className="text-xs text-muted-foreground">Brak edytowalnych pól dla tego widgetu.</div>;
+    return (
+      <div className="text-xs text-muted-foreground">Brak edytowalnych pól dla tego widgetu.</div>
+    );
   }
   return (
     <>
@@ -673,14 +845,14 @@ function ContentFields({ widget, lang, setContent }: {
           subtitleSizePx={typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : 0}
           sizePreset={typeof c.sizePreset === "string" ? c.sizePreset : ""}
           titleSample={
-            (typeof c[`text_${lang}`] === "string" && c[`text_${lang}`]) as string
-            || (typeof c.text_pl === "string" ? (c.text_pl as string) : "")
-            || "Przykładowy nagłówek"
+            ((typeof c[`text_${lang}`] === "string" && c[`text_${lang}`]) as string) ||
+            (typeof c.text_pl === "string" ? (c.text_pl as string) : "") ||
+            "Przykładowy nagłówek"
           }
           subtitleSample={
-            (typeof c[`subtitle_${lang}`] === "string" && c[`subtitle_${lang}`]) as string
-            || (typeof c.subtitle_pl === "string" ? (c.subtitle_pl as string) : "")
-            || "Przykładowy podtytuł"
+            ((typeof c[`subtitle_${lang}`] === "string" && c[`subtitle_${lang}`]) as string) ||
+            (typeof c.subtitle_pl === "string" ? (c.subtitle_pl as string) : "") ||
+            "Przykładowy podtytuł"
           }
         />
       ) : null}
@@ -688,8 +860,16 @@ function ContentFields({ widget, lang, setContent }: {
   );
 }
 
-function AdSlotEditor({ c, setContent }: { c: Record<string, Json>; setContent: (k: string, v: Json) => void }) {
-  const [slots, setSlots] = useState<Array<{ id: string; name: string; kind: string; status: string }>>([]);
+function AdSlotEditor({
+  c,
+  setContent,
+}: {
+  c: Record<string, Json>;
+  setContent: (k: string, v: Json) => void;
+}) {
+  const [slots, setSlots] = useState<
+    Array<{ id: string; name: string; kind: string; status: string }>
+  >([]);
   useEffect(() => {
     let cancelled = false;
     void import("@/integrations/supabase/client").then(async ({ supabase }) => {
@@ -699,15 +879,23 @@ function AdSlotEditor({ c, setContent }: { c: Record<string, Json>; setContent: 
         .order("name");
       if (!cancelled) setSlots(data ?? []);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
   const value = typeof c.slotId === "string" ? c.slotId : "";
   return (
     <PropField label="Slot reklamowy">
       <Select value={value} onValueChange={(v) => setContent("slotId", v)}>
-        <SelectTrigger><SelectValue placeholder="Wybierz slot…" /></SelectTrigger>
+        <SelectTrigger>
+          <SelectValue placeholder="Wybierz slot…" />
+        </SelectTrigger>
         <SelectContent>
-          {slots.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">Brak slotów - dodaj w panelu Reklamy.</div>}
+          {slots.length === 0 && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              Brak slotów - dodaj w panelu Reklamy.
+            </div>
+          )}
           {slots.map((s) => (
             <SelectItem key={s.id} value={s.id}>
               {s.name} {s.status !== "active" ? "(wstrzymany)" : ""}
@@ -718,7 +906,6 @@ function AdSlotEditor({ c, setContent }: { c: Record<string, Json>; setContent: 
     </PropField>
   );
 }
-
 
 /**
  * Banner shown for global-widget instances: every edit below synchronizes to

@@ -17,25 +17,40 @@ export function AuthLink({ className = "" }: { className?: string }) {
   const label = lang === "pl" ? "Zaloguj" : "Sign in";
 
   if (!mounted) {
-    return <span className={`inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground opacity-0 ${className}`}>{label}</span>;
+    return (
+      <span
+        className={`inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground opacity-0 ${className}`}
+      >
+        {label}
+      </span>
+    );
   }
 
   if (session && isStaff) {
     return (
-      <Link to="/admin" className={`inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline ${className}`}>
+      <Link
+        to="/admin"
+        className={`inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline ${className}`}
+      >
         <LayoutDashboard className="w-3.5 h-3.5" /> Panel
       </Link>
     );
   }
   if (session) {
     return (
-      <Link to="/profile" className={`inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline ${className}`}>
+      <Link
+        to="/profile"
+        className={`inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline ${className}`}
+      >
         <User className="w-3.5 h-3.5" /> {lang === "pl" ? "Profil" : "Profile"}
       </Link>
     );
   }
   return (
-    <Link to="/login" className={`inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-brand ${className}`}>
+    <Link
+      to="/login"
+      className={`inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-brand ${className}`}
+    >
       <LogIn className="w-3.5 h-3.5" /> {label}
     </Link>
   );

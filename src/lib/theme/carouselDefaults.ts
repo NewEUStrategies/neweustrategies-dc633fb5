@@ -43,10 +43,9 @@ export function useSaveCarouselDefaults() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (next: CarouselDefaults) => {
-      const { error } = await supabase.from("site_settings").upsert(
-        { key: KEY, value: toJson(next) },
-        { onConflict: "key" },
-      );
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert({ key: KEY, value: toJson(next) }, { onConflict: "key" });
       if (error) throw error;
       return next;
     },

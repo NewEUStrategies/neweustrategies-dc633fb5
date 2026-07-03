@@ -30,7 +30,10 @@
 import { createClient } from "@supabase/supabase-js";
 import type { LocalizedBlocks } from "../src/lib/blocks/types";
 import type { BuilderDocument } from "../src/lib/builder/types";
-import { localizedBlocksToBuilderDoc, hasBlocksContent } from "../src/lib/builder/migrate/blocksToBuilder";
+import {
+  localizedBlocksToBuilderDoc,
+  hasBlocksContent,
+} from "../src/lib/builder/migrate/blocksToBuilder";
 import { htmlToBuilderDoc, hasHtmlContent } from "../src/lib/builder/migrate/htmlToBuilder";
 
 type Row = {
@@ -67,7 +70,9 @@ function fail(msg: string): never {
 if (!url) fail("Missing SUPABASE_URL (or VITE_SUPABASE_URL).");
 if (!key) fail("Missing a Supabase key (SUPABASE_SERVICE_ROLE_KEY or *_PUBLISHABLE_KEY).");
 if (apply && !serviceKey) {
-  fail("--apply requires SUPABASE_SERVICE_ROLE_KEY (the anon/publishable key cannot write content).");
+  fail(
+    "--apply requires SUPABASE_SERVICE_ROLE_KEY (the anon/publishable key cannot write content).",
+  );
 }
 
 const supabase = createClient(url, key, { auth: { persistSession: false } });
@@ -96,11 +101,14 @@ function planRow(r: Row): { builder: BuilderDocument; desc: string } | null {
   return null;
 }
 
-async function migrateTable(table: string): Promise<{ candidates: number; migrated: number; skippedEmpty: number }> {
+async function migrateTable(
+  table: string,
+): Promise<{ candidates: number; migrated: number; skippedEmpty: number }> {
   // `pages` has no `blocks_data` column - only posts carry legacy block payloads.
-  const cols = table === "posts"
-    ? "id, slug, editor, blocks_data, content_pl, content_en"
-    : "id, slug, editor, content_pl, content_en";
+  const cols =
+    table === "posts"
+      ? "id, slug, editor, blocks_data, content_pl, content_en"
+      : "id, slug, editor, content_pl, content_en";
   const { data, error } = await supabase
     .from(table)
     .select(cols)
@@ -168,7 +176,9 @@ async function main(): Promise<void> {
         "(original blocks_data / content_* were preserved)",
     );
   } else {
-    console.log("Dry-run only - no changes written. Re-run with --apply and a service-role key to migrate.");
+    console.log(
+      "Dry-run only - no changes written. Re-run with --apply and a service-role key to migrate.",
+    );
   }
 }
 

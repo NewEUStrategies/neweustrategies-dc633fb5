@@ -3,9 +3,29 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState, type ReactNode } from "react";
 import {
-  Eye, Pencil, Mail, MapPin, Briefcase, ShieldCheck, Receipt, Bookmark, Users,
-  Award, Activity, Tag, Globe, ExternalLink, Camera, Image as ImageIcon, Loader2, Linkedin,
-  Twitter, Phone, User as UserIcon, Cake, Heart,
+  Eye,
+  Pencil,
+  Mail,
+  MapPin,
+  Briefcase,
+  ShieldCheck,
+  Receipt,
+  Bookmark,
+  Users,
+  Award,
+  Activity,
+  Tag,
+  Globe,
+  ExternalLink,
+  Camera,
+  Image as ImageIcon,
+  Loader2,
+  Linkedin,
+  Twitter,
+  Phone,
+  User as UserIcon,
+  Cake,
+  Heart,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
@@ -15,13 +35,24 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useProfileEditor } from "@/lib/profile/useProfileEditor";
 import { InlineText } from "@/components/profile/inline/InlineText";
 import { InlineTextarea } from "@/components/profile/inline/InlineTextarea";
 import {
-  ExperienceSection, EducationSection, SkillsSection, AwardsSection, CvSection,
-  PersonalityCard, HobbiesCard,
+  ExperienceSection,
+  EducationSection,
+  SkillsSection,
+  AwardsSection,
+  CvSection,
+  PersonalityCard,
+  HobbiesCard,
 } from "@/components/profile/sections/ProfileExtraSections";
 import { cn } from "@/lib/utils";
 import { useSiteSetting } from "@/lib/useSiteSetting";
@@ -53,10 +84,25 @@ function ProfileInline() {
     enabled: !!session && !!user,
     queryFn: async () => {
       const [bm, fa, fc, ft] = await Promise.all([
-        supabase.from("user_bookmarks").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
-        supabase.from("user_follows").select("id", { count: "exact", head: true }).eq("user_id", user!.id).eq("target_type", "author"),
-        supabase.from("user_follows").select("id", { count: "exact", head: true }).eq("user_id", user!.id).eq("target_type", "category"),
-        supabase.from("user_follows").select("id", { count: "exact", head: true }).eq("user_id", user!.id).eq("target_type", "tag"),
+        supabase
+          .from("user_bookmarks")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user!.id),
+        supabase
+          .from("user_follows")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .eq("target_type", "author"),
+        supabase
+          .from("user_follows")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .eq("target_type", "category"),
+        supabase
+          .from("user_follows")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .eq("target_type", "tag"),
       ]);
       return {
         bookmarks: bm.count ?? 0,
@@ -119,7 +165,9 @@ function ProfileInline() {
                 className="inline-block"
               />
             ) : (
-              <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight leading-[1.1]">{fullName}</h1>
+              <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight leading-[1.1]">
+                {fullName}
+              </h1>
             )}
           </div>
 
@@ -146,7 +194,9 @@ function ProfileInline() {
 
             {data.job_title ? (
               <>
-                <span className="inline-flex items-center text-[13px] leading-none text-muted-foreground/60">•</span>
+                <span className="inline-flex items-center text-[13px] leading-none text-muted-foreground/60">
+                  •
+                </span>
                 {editable ? (
                   <InlineText
                     value={data.job_title}
@@ -160,7 +210,9 @@ function ProfileInline() {
                     inputClassName="py-0 leading-[1.2]"
                   />
                 ) : (
-                  <span className="inline-flex items-center text-[13px] font-medium leading-[1.2] text-foreground">{data.job_title}</span>
+                  <span className="inline-flex items-center text-[13px] font-medium leading-[1.2] text-foreground">
+                    {data.job_title}
+                  </span>
                 )}
               </>
             ) : editable ? (
@@ -242,7 +294,12 @@ function ProfileInline() {
                 </span>
               ))}
               {isStaff && (
-                <Button asChild size="sm" variant="outline" className="h-6 rounded-full px-3 text-[10px] font-semibold gap-1 border-primary/20 hover:bg-primary/[0.05] hover:text-primary">
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="h-6 rounded-full px-3 text-[10px] font-semibold gap-1 border-primary/20 hover:bg-primary/[0.05] hover:text-primary"
+                >
                   <Link to="/admin" className="!text-foreground inline-flex items-center">
                     <ShieldCheck className="h-3 w-3" />
                     {t("profile.inline.adminPanel")}
@@ -252,7 +309,6 @@ function ProfileInline() {
             </div>
           )}
         </section>
-
 
         {/* TABS NAV */}
         <nav className="sticky top-0 z-10 rounded-[6px] border border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
@@ -271,7 +327,10 @@ function ProfileInline() {
                 >
                   {it.label}
                   {active && (
-                    <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" aria-hidden />
+                    <span
+                      className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary"
+                      aria-hidden
+                    />
                   )}
                 </button>
               );
@@ -281,213 +340,312 @@ function ProfileInline() {
 
         {/* MAIN */}
         <div className="space-y-4 min-w-0">
-            {tab === "about" && (
-              <>
-                <Card
-                  icon={<Activity className="h-3.5 w-3.5" />}
-                  title={t("profile.account.bio")}
-                >
+          {tab === "about" && (
+            <>
+              <Card icon={<Activity className="h-3.5 w-3.5" />} title={t("profile.account.bio")}>
+                {editable ? (
+                  <InlineTextarea
+                    value={data.bio}
+                    onSave={(v) => saveField("bio", v || null)}
+                    ariaLabel={t("profile.account.bio")}
+                    placeholder={t("profile.inline.bioPlaceholder")}
+                    emptyLabel={t("profile.inline.bioPlaceholder")}
+                    maxLength={500}
+                    rows={3}
+                  />
+                ) : (
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+                    {data.bio || "-"}
+                  </p>
+                )}
+              </Card>
+
+              <Card
+                icon={<Mail className="h-3.5 w-3.5" />}
+                title={t("profile.inline.contactSection")}
+              >
+                <ul className="divide-y divide-border/60">
+                  {/* Email - read-only from auth */}
+                  <ContactRow
+                    icon={<BrandIcon name="mail" fallback={Mail} className="h-4 w-4" alt="" />}
+                    ariaLabel={t("profile.account.email")}
+                  >
+                    <a
+                      href={`mailto:${user?.email ?? ""}`}
+                      className="truncate text-sm text-foreground/90 hover:text-primary"
+                    >
+                      {user?.email}
+                    </a>
+                  </ContactRow>
+
+                  {/* Phone */}
+                  <ContactRow
+                    icon={<BrandIcon name="phone" fallback={Phone} className="h-4 w-4" alt="" />}
+                    ariaLabel={t("profile.account.phone")}
+                  >
+                    {editable ? (
+                      <InlineText
+                        value={data.phone}
+                        onSave={(v) => saveField("phone", v || null)}
+                        ariaLabel={t("profile.account.phone")}
+                        placeholder={t("profile.account.phonePh")}
+                        emptyLabel={t("profile.inline.addPhone")}
+                        maxLength={32}
+                        className="w-full"
+                      />
+                    ) : data.phone ? (
+                      <a
+                        href={`tel:${data.phone}`}
+                        className="truncate text-sm text-foreground/90 hover:text-primary"
+                      >
+                        {data.phone}
+                      </a>
+                    ) : (
+                      <span className="text-sm italic text-muted-foreground/70">-</span>
+                    )}
+                  </ContactRow>
+
+                  {/* Location */}
+                  <ContactRow
+                    icon={
+                      <BrandIcon name="location" fallback={MapPin} className="h-4 w-4" alt="" />
+                    }
+                    ariaLabel={t("profile.account.location")}
+                  >
+                    {editable ? (
+                      <InlineText
+                        value={data.location}
+                        onSave={(v) => saveField("location", v || null)}
+                        ariaLabel={t("profile.account.location")}
+                        placeholder={t("profile.account.locationPh")}
+                        emptyLabel={t("profile.inline.addLocation")}
+                        maxLength={160}
+                        className="w-full"
+                      />
+                    ) : (
+                      <span className="truncate text-sm text-foreground/90">
+                        {data.location || "-"}
+                      </span>
+                    )}
+                  </ContactRow>
+
+                  {/* LinkedIn */}
+                  <ContactRow
+                    icon={
+                      <BrandIcon
+                        name="linkedin"
+                        fallback={Linkedin}
+                        className="h-4 w-4"
+                        alt="LinkedIn"
+                      />
+                    }
+                    ariaLabel="LinkedIn"
+                  >
+                    {editable ? (
+                      <InlineText
+                        value={data.linkedin_url}
+                        onSave={(v) => saveField("linkedin_url", v || null)}
+                        ariaLabel="LinkedIn"
+                        placeholder="https://linkedin.com/in/..."
+                        emptyLabel={t("profile.inline.addLinkedin")}
+                        maxLength={240}
+                        className="w-full"
+                      />
+                    ) : data.linkedin_url ? (
+                      <a
+                        href={data.linkedin_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-w-0 items-center gap-1 truncate text-sm text-foreground/90 hover:text-primary"
+                      >
+                        {prettyUrl(data.linkedin_url)}
+                        <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                      </a>
+                    ) : (
+                      <span className="text-sm italic text-muted-foreground/70">-</span>
+                    )}
+                  </ContactRow>
+
+                  {/* X / Twitter */}
+                  <ContactRow
+                    icon={<BrandIcon name="x" fallback={Twitter} className="h-4 w-4" alt="X" />}
+                    ariaLabel="X"
+                  >
+                    {editable ? (
+                      <InlineText
+                        value={data.twitter_url}
+                        onSave={(v) => saveField("twitter_url", v || null)}
+                        ariaLabel="X"
+                        placeholder="https://x.com/..."
+                        emptyLabel={t("profile.inline.addTwitter")}
+                        maxLength={240}
+                        className="w-full"
+                      />
+                    ) : data.twitter_url ? (
+                      <a
+                        href={data.twitter_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-w-0 items-center gap-1 truncate text-sm text-foreground/90 hover:text-primary"
+                      >
+                        {prettyUrl(data.twitter_url)}
+                        <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                      </a>
+                    ) : (
+                      <span className="text-sm italic text-muted-foreground/70">-</span>
+                    )}
+                  </ContactRow>
+                </ul>
+              </Card>
+
+              {user?.id && data.tenant_id ? (
+                <CvSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
+              ) : null}
+            </>
+          )}
+
+          {tab === "experience" && user?.id && data.tenant_id && (
+            <>
+              <ExperienceSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
+              <EducationSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
+              <SkillsSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
+            </>
+          )}
+
+          {tab === "badges" && user?.id && data.tenant_id && (
+            <>
+              <AwardsSection
+                userId={user.id}
+                tenantId={data.tenant_id}
+                editable={editable}
+                kind="award"
+              />
+              <AwardsSection
+                userId={user.id}
+                tenantId={data.tenant_id}
+                editable={editable}
+                kind="recognition"
+              />
+              <AwardsSection
+                userId={user.id}
+                tenantId={data.tenant_id}
+                editable={editable}
+                kind="mention"
+              />
+            </>
+          )}
+
+          {tab === "activity" && (
+            <>
+              <Card
+                icon={<Activity className="h-3.5 w-3.5" />}
+                title={t("profile.inline.activitySection")}
+              >
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <Stat
+                    icon={<Bookmark className="h-3.5 w-3.5" />}
+                    value={counts.data?.bookmarks ?? 0}
+                    label={t("profile.nav.bookmarks")}
+                    to="/profile/bookmarks"
+                  />
+                  <Stat
+                    icon={<Users className="h-3.5 w-3.5" />}
+                    value={counts.data?.authors ?? 0}
+                    label={t("profile.follows.tabAuthors")}
+                    to="/profile/follows"
+                  />
+                  <Stat
+                    icon={<Globe className="h-3.5 w-3.5" />}
+                    value={counts.data?.categories ?? 0}
+                    label={t("profile.follows.tabCategories")}
+                    to="/profile/follows"
+                  />
+                  <Stat
+                    icon={<Tag className="h-3.5 w-3.5" />}
+                    value={counts.data?.tags ?? 0}
+                    label={t("profile.follows.tabTags")}
+                    to="/profile/follows"
+                  />
+                </div>
+              </Card>
+              <Card icon={<Globe className="h-3.5 w-3.5" />} title={t("profile.inline.shortcuts")}>
+                <div className="grid gap-1">
+                  <SecondaryLink to="/profile/interests" icon={<Heart className="h-3.5 w-3.5" />}>
+                    {t("profile.nav.interests")}
+                  </SecondaryLink>
+                  <SecondaryLink
+                    to="/profile/social"
+                    icon={<ExternalLink className="h-3.5 w-3.5" />}
+                  >
+                    {t("profile.nav.social")}
+                  </SecondaryLink>
+                  <SecondaryLink to="/profile/billing" icon={<Receipt className="h-3.5 w-3.5" />}>
+                    {t("profile.nav.billing")}
+                  </SecondaryLink>
+                  <SecondaryLink
+                    to="/profile/subscription"
+                    icon={<ShieldCheck className="h-3.5 w-3.5" />}
+                  >
+                    {t("profile.nav.subscription")}
+                  </SecondaryLink>
+                  <SecondaryLink
+                    to="/profile/security"
+                    icon={<ShieldCheck className="h-3.5 w-3.5" />}
+                  >
+                    {t("profile.nav.security")}
+                  </SecondaryLink>
+                </div>
+              </Card>
+            </>
+          )}
+
+          {tab === "settings" && (
+            <Card icon={<ShieldCheck className="h-3.5 w-3.5" />} title={t("profile.tabs.settings")}>
+              <dl className="grid gap-2 text-sm">
+                <Row label={t("profile.account.gender")}>
                   {editable ? (
-                    <InlineTextarea
-                      value={data.bio}
-                      onSave={(v) => saveField("bio", v || null)}
-                      ariaLabel={t("profile.account.bio")}
-                      placeholder={t("profile.inline.bioPlaceholder")}
-                      emptyLabel={t("profile.inline.bioPlaceholder")}
-                      maxLength={500}
-                      rows={3}
+                    <Select
+                      value={data.gender ?? "auto"}
+                      onValueChange={(v) =>
+                        saveField("gender", v === "auto" ? null : (v as Gender))
+                      }
+                    >
+                      <SelectTrigger className="h-7 w-full max-w-[240px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">{t("profile.account.genderAuto")}</SelectItem>
+                        <SelectItem value="female">{t("profile.account.genderFemale")}</SelectItem>
+                        <SelectItem value="male">{t("profile.account.genderMale")}</SelectItem>
+                        <SelectItem value="neutral">
+                          {t("profile.account.genderNeutral")}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span>
+                      {data.gender ? t(`profile.account.gender${cap(data.gender)}`) : "-"}
+                    </span>
+                  )}
+                </Row>
+                <Row label={t("profile.account.location")}>
+                  {editable ? (
+                    <InlineText
+                      value={data.location}
+                      onSave={(v) => saveField("location", v || null)}
+                      ariaLabel={t("profile.account.location")}
+                      placeholder={t("profile.account.locationPh")}
+                      emptyLabel={t("profile.inline.notSet")}
+                      maxLength={160}
                     />
                   ) : (
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-                      {data.bio || "-"}
-                    </p>
+                    <span>{data.location || "-"}</span>
                   )}
-                </Card>
-
-                <Card icon={<Mail className="h-3.5 w-3.5" />} title={t("profile.inline.contactSection")}>
-                  <ul className="divide-y divide-border/60">
-                    {/* Email - read-only from auth */}
-                    <ContactRow
-                      icon={<BrandIcon name="mail" fallback={Mail} className="h-4 w-4" alt="" />}
-                      ariaLabel={t("profile.account.email")}
-                    >
-                      <a href={`mailto:${user?.email ?? ""}`} className="truncate text-sm text-foreground/90 hover:text-primary">
-                        {user?.email}
-                      </a>
-                    </ContactRow>
-
-                    {/* Phone */}
-                    <ContactRow
-                      icon={<BrandIcon name="phone" fallback={Phone} className="h-4 w-4" alt="" />}
-                      ariaLabel={t("profile.account.phone")}
-                    >
-                      {editable ? (
-                        <InlineText
-                          value={data.phone}
-                          onSave={(v) => saveField("phone", v || null)}
-                          ariaLabel={t("profile.account.phone")}
-                          placeholder={t("profile.account.phonePh")}
-                          emptyLabel={t("profile.inline.addPhone")}
-                          maxLength={32}
-                          className="w-full"
-                        />
-                      ) : data.phone ? (
-                        <a href={`tel:${data.phone}`} className="truncate text-sm text-foreground/90 hover:text-primary">{data.phone}</a>
-                      ) : (
-                        <span className="text-sm italic text-muted-foreground/70">-</span>
-                      )}
-                    </ContactRow>
-
-                    {/* Location */}
-                    <ContactRow
-                      icon={<BrandIcon name="location" fallback={MapPin} className="h-4 w-4" alt="" />}
-                      ariaLabel={t("profile.account.location")}
-                    >
-                      {editable ? (
-                        <InlineText
-                          value={data.location}
-                          onSave={(v) => saveField("location", v || null)}
-                          ariaLabel={t("profile.account.location")}
-                          placeholder={t("profile.account.locationPh")}
-                          emptyLabel={t("profile.inline.addLocation")}
-                          maxLength={160}
-                          className="w-full"
-                        />
-                      ) : (
-                        <span className="truncate text-sm text-foreground/90">{data.location || "-"}</span>
-                      )}
-                    </ContactRow>
-
-                    {/* LinkedIn */}
-                    <ContactRow
-                      icon={<BrandIcon name="linkedin" fallback={Linkedin} className="h-4 w-4" alt="LinkedIn" />}
-                      ariaLabel="LinkedIn"
-                    >
-                      {editable ? (
-                        <InlineText
-                          value={data.linkedin_url}
-                          onSave={(v) => saveField("linkedin_url", v || null)}
-                          ariaLabel="LinkedIn"
-                          placeholder="https://linkedin.com/in/..."
-                          emptyLabel={t("profile.inline.addLinkedin")}
-                          maxLength={240}
-                          className="w-full"
-                        />
-                      ) : data.linkedin_url ? (
-                        <a href={data.linkedin_url} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-0 items-center gap-1 truncate text-sm text-foreground/90 hover:text-primary">
-                          {prettyUrl(data.linkedin_url)}
-                          <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
-                        </a>
-                      ) : (
-                        <span className="text-sm italic text-muted-foreground/70">-</span>
-                      )}
-                    </ContactRow>
-
-                    {/* X / Twitter */}
-                    <ContactRow
-                      icon={<BrandIcon name="x" fallback={Twitter} className="h-4 w-4" alt="X" />}
-                      ariaLabel="X"
-                    >
-                      {editable ? (
-                        <InlineText
-                          value={data.twitter_url}
-                          onSave={(v) => saveField("twitter_url", v || null)}
-                          ariaLabel="X"
-                          placeholder="https://x.com/..."
-                          emptyLabel={t("profile.inline.addTwitter")}
-                          maxLength={240}
-                          className="w-full"
-                        />
-                      ) : data.twitter_url ? (
-                        <a href={data.twitter_url} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-0 items-center gap-1 truncate text-sm text-foreground/90 hover:text-primary">
-                          {prettyUrl(data.twitter_url)}
-                          <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
-                        </a>
-                      ) : (
-                        <span className="text-sm italic text-muted-foreground/70">-</span>
-                      )}
-                    </ContactRow>
-                  </ul>
-                </Card>
-
-
-                {user?.id && data.tenant_id ? (
-                  <CvSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
-                ) : null}
-              </>
-            )}
-
-            {tab === "experience" && user?.id && data.tenant_id && (
-              <>
-                <ExperienceSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
-                <EducationSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
-                <SkillsSection userId={user.id} tenantId={data.tenant_id} editable={editable} />
-              </>
-            )}
-
-            {tab === "badges" && user?.id && data.tenant_id && (
-              <>
-                <AwardsSection userId={user.id} tenantId={data.tenant_id} editable={editable} kind="award" />
-                <AwardsSection userId={user.id} tenantId={data.tenant_id} editable={editable} kind="recognition" />
-                <AwardsSection userId={user.id} tenantId={data.tenant_id} editable={editable} kind="mention" />
-              </>
-            )}
-
-            {tab === "activity" && (
-              <>
-                <Card icon={<Activity className="h-3.5 w-3.5" />} title={t("profile.inline.activitySection")}>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <Stat icon={<Bookmark className="h-3.5 w-3.5" />} value={counts.data?.bookmarks ?? 0} label={t("profile.nav.bookmarks")} to="/profile/bookmarks" />
-                    <Stat icon={<Users className="h-3.5 w-3.5" />} value={counts.data?.authors ?? 0} label={t("profile.follows.tabAuthors")} to="/profile/follows" />
-                    <Stat icon={<Globe className="h-3.5 w-3.5" />} value={counts.data?.categories ?? 0} label={t("profile.follows.tabCategories")} to="/profile/follows" />
-                    <Stat icon={<Tag className="h-3.5 w-3.5" />} value={counts.data?.tags ?? 0} label={t("profile.follows.tabTags")} to="/profile/follows" />
-                  </div>
-                </Card>
-                <Card icon={<Globe className="h-3.5 w-3.5" />} title={t("profile.inline.shortcuts")}>
-                  <div className="grid gap-1">
-                    <SecondaryLink to="/profile/interests" icon={<Heart className="h-3.5 w-3.5" />}>{t("profile.nav.interests")}</SecondaryLink>
-                    <SecondaryLink to="/profile/social" icon={<ExternalLink className="h-3.5 w-3.5" />}>{t("profile.nav.social")}</SecondaryLink>
-                    <SecondaryLink to="/profile/billing" icon={<Receipt className="h-3.5 w-3.5" />}>{t("profile.nav.billing")}</SecondaryLink>
-                    <SecondaryLink to="/profile/subscription" icon={<ShieldCheck className="h-3.5 w-3.5" />}>{t("profile.nav.subscription")}</SecondaryLink>
-                    <SecondaryLink to="/profile/security" icon={<ShieldCheck className="h-3.5 w-3.5" />}>{t("profile.nav.security")}</SecondaryLink>
-                  </div>
-                </Card>
-              </>
-            )}
-
-            {tab === "settings" && (
-              <Card icon={<ShieldCheck className="h-3.5 w-3.5" />} title={t("profile.tabs.settings")}>
-                <dl className="grid gap-2 text-sm">
-                  <Row label={t("profile.account.gender")}>
-                    {editable ? (
-                      <Select
-                        value={data.gender ?? "auto"}
-                        onValueChange={(v) => saveField("gender", v === "auto" ? null : (v as Gender))}
-                      >
-                        <SelectTrigger className="h-7 w-full max-w-[240px] text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="auto">{t("profile.account.genderAuto")}</SelectItem>
-                          <SelectItem value="female">{t("profile.account.genderFemale")}</SelectItem>
-                          <SelectItem value="male">{t("profile.account.genderMale")}</SelectItem>
-                          <SelectItem value="neutral">{t("profile.account.genderNeutral")}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <span>{data.gender ? t(`profile.account.gender${cap(data.gender)}`) : "-"}</span>
-                    )}
-                  </Row>
-                  <Row label={t("profile.account.location")}>
-                    {editable ? (
-                      <InlineText value={data.location} onSave={(v) => saveField("location", v || null)} ariaLabel={t("profile.account.location")} placeholder={t("profile.account.locationPh")} emptyLabel={t("profile.inline.notSet")} maxLength={160} />
-                    ) : <span>{data.location || "-"}</span>}
-                  </Row>
-                </dl>
-              </Card>
-            )}
-          </div>
-
+                </Row>
+              </dl>
+            </Card>
+          )}
+        </div>
       </div>
     </TooltipProvider>
   );
@@ -499,8 +657,17 @@ type UploadKind = "avatar" | "cover";
 type Status = "idle" | "uploading" | "success" | "failed";
 
 function CenteredHero({
-  editable, avatarUrl, coverUrl, fullName, onUpload, status, progress,
-  previewAsGuest, onTogglePreview, linkedinUrl, twitterUrl,
+  editable,
+  avatarUrl,
+  coverUrl,
+  fullName,
+  onUpload,
+  status,
+  progress,
+  previewAsGuest,
+  onTogglePreview,
+  linkedinUrl,
+  twitterUrl,
 }: {
   editable: boolean;
   avatarUrl: string | null;
@@ -601,7 +768,11 @@ function CenteredHero({
                 className="group flex h-full w-full flex-col items-center justify-center gap-1 rounded-[7px] bg-gradient-to-br from-muted to-muted/40 text-muted-foreground transition-colors hover:from-primary/15 hover:to-primary/5 hover:text-primary"
               >
                 <span className="grid h-9 w-9 place-items-center rounded-full bg-background/80 ring-1 ring-border shadow-sm group-hover:ring-primary/40">
-                  {upAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  {upAvatar ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Camera className="h-4 w-4" />
+                  )}
                 </span>
                 {editable && (
                   <span className="text-[10px] font-medium tracking-wide uppercase">
@@ -621,7 +792,11 @@ function CenteredHero({
                   hoverAvatar || upAvatar ? "opacity-100" : "opacity-0",
                 )}
               >
-                {upAvatar ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+                {upAvatar ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Camera className="h-5 w-5" />
+                )}
                 <span className="text-[10px] font-medium tracking-wide uppercase">
                   {lang === "pl" ? "Zmień" : "Change"}
                 </span>
@@ -665,21 +840,28 @@ function CenteredHero({
         </div>
       </div>
 
-
       {/* Hidden file inputs */}
       <input
         ref={coverInput}
         type="file"
         accept="image/jpeg,image/png,image/webp,image/avif"
         hidden
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) void onUpload(f, "cover"); e.target.value = ""; }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void onUpload(f, "cover");
+          e.target.value = "";
+        }}
       />
       <input
         ref={avatarInput}
         type="file"
         accept="image/jpeg,image/png,image/webp,image/avif"
         hidden
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) void onUpload(f, "avatar"); e.target.value = ""; }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void onUpload(f, "avatar");
+          e.target.value = "";
+        }}
       />
     </section>
   );
@@ -687,7 +869,17 @@ function CenteredHero({
 
 /* --------------------------- UI atoms -------------------------------- */
 
-function Card({ icon, title, action, children }: { icon?: ReactNode; title: string; action?: ReactNode; children: ReactNode }) {
+function Card({
+  icon,
+  title,
+  action,
+  children,
+}: {
+  icon?: ReactNode;
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <section className="rounded-[6px] border border-border bg-card p-4">
       <header className="mb-3 flex items-center justify-between gap-2">
@@ -705,10 +897,12 @@ function Card({ icon, title, action, children }: { icon?: ReactNode; title: stri
 function CompanyLogoIcon({ className = "h-3 w-3" }: { className?: string }) {
   // Logo firmy zaciągane z Admin Panel -> Wygląd -> Theme Options (klucz "theme_options.logo").
   // Wybiera wariant zgodny z aktualnym motywem (light/dark); fallback: ikona Briefcase.
-  const cfg = useSiteSetting<{ logo?: { main?: string; main_dark?: string } }>("theme_options", { logo: {} });
+  const cfg = useSiteSetting<{ logo?: { main?: string; main_dark?: string } }>("theme_options", {
+    logo: {},
+  });
   const { theme } = useTheme();
   const l = cfg.logo ?? {};
-  const src = theme === "dark" ? (l.main_dark || l.main) : (l.main || l.main_dark);
+  const src = theme === "dark" ? l.main_dark || l.main : l.main || l.main_dark;
   if (!src) return <Briefcase className={cn("object-contain", className)} />;
   return (
     <img
@@ -723,33 +917,56 @@ function CompanyLogoIcon({ className = "h-3 w-3" }: { className?: string }) {
   );
 }
 
-function Chip({ icon, children, tone = "muted", size = "sm", onClick }: { icon?: ReactNode; children: ReactNode; tone?: "primary" | "muted" | "solid" | "accent"; size?: "sm" | "lg"; onClick?: () => void }) {
-  const sizeCls = size === "lg"
-    ? "h-8 px-3 py-1.5 text-xs gap-1.5"
-    : "h-auto px-2.5 py-1 text-[10px] gap-1";
+function Chip({
+  icon,
+  children,
+  tone = "muted",
+  size = "sm",
+  onClick,
+}: {
+  icon?: ReactNode;
+  children: ReactNode;
+  tone?: "primary" | "muted" | "solid" | "accent";
+  size?: "sm" | "lg";
+  onClick?: () => void;
+}) {
+  const sizeCls =
+    size === "lg" ? "h-8 px-3 py-1.5 text-xs gap-1.5" : "h-auto px-2.5 py-1 text-[10px] gap-1";
   const toneCls =
     tone === "solid"
       ? "border border-primary/30 bg-primary/10 text-foreground [&_svg]:text-primary shadow-sm"
       : tone === "accent"
-      ? "border border-border bg-muted/60 text-foreground [&_svg]:text-primary"
-      : tone === "primary"
-      ? "border border-border bg-background text-foreground [&_svg]:text-primary"
-      : "border border-border bg-background text-foreground/80 [&_svg]:text-muted-foreground";
+        ? "border border-border bg-muted/60 text-foreground [&_svg]:text-primary"
+        : tone === "primary"
+          ? "border border-border bg-background text-foreground [&_svg]:text-primary"
+          : "border border-border bg-background text-foreground/80 [&_svg]:text-muted-foreground";
   const cls = cn(
     "inline-flex items-center rounded-[6px] font-medium leading-[1.2] whitespace-nowrap transition-colors",
     sizeCls,
     toneCls,
     onClick && "cursor-pointer border-dashed italic hover:bg-accent hover:text-accent-foreground",
   );
-  if (onClick) return <button type="button" onClick={onClick} className={cls}>{icon}{children}</button>;
-  return <span className={cls}>{icon}{children}</span>;
+  if (onClick)
+    return (
+      <button type="button" onClick={onClick} className={cls}>
+        {icon}
+        {children}
+      </button>
+    );
+  return (
+    <span className={cls}>
+      {icon}
+      {children}
+    </span>
+  );
 }
-
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid grid-cols-[110px_1fr] items-center gap-2">
-      <dt className="text-[10px] uppercase tracking-wide leading-normal text-muted-foreground">{label}</dt>
+      <dt className="text-[10px] uppercase tracking-wide leading-normal text-muted-foreground">
+        {label}
+      </dt>
       <dd className="min-w-0 text-sm">{children}</dd>
     </div>
   );
@@ -758,13 +975,26 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 function MiniRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded-[6px] px-1.5 py-1 hover:bg-muted/50">
-      <span className="flex items-center gap-1.5 text-muted-foreground">{icon}{label}</span>
+      <span className="flex items-center gap-1.5 text-muted-foreground">
+        {icon}
+        {label}
+      </span>
       <span className="truncate text-foreground/90">{value}</span>
     </div>
   );
 }
 
-function Stat({ icon, value, label, to }: { icon: ReactNode; value: number; label: string; to: string }) {
+function Stat({
+  icon,
+  value,
+  label,
+  to,
+}: {
+  icon: ReactNode;
+  value: number;
+  label: string;
+  to: string;
+}) {
   return (
     <Link
       to={to}
@@ -777,7 +1007,15 @@ function Stat({ icon, value, label, to }: { icon: ReactNode; value: number; labe
   );
 }
 
-function SecondaryLink({ to, icon, children }: { to: string; icon: ReactNode; children: ReactNode }) {
+function SecondaryLink({
+  to,
+  icon,
+  children,
+}: {
+  to: string;
+  icon: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <Link
       to={to}
@@ -796,9 +1034,20 @@ function cap(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function ContactRow({ icon, ariaLabel, children }: { icon: ReactNode; ariaLabel: string; children: ReactNode }) {
+function ContactRow({
+  icon,
+  ariaLabel,
+  children,
+}: {
+  icon: ReactNode;
+  ariaLabel: string;
+  children: ReactNode;
+}) {
   return (
-    <li className="flex min-w-0 items-center gap-3 py-2 first:pt-0 last:pb-0" aria-label={ariaLabel}>
+    <li
+      className="flex min-w-0 items-center gap-3 py-2 first:pt-0 last:pb-0"
+      aria-label={ariaLabel}
+    >
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[6px] bg-muted/70 text-muted-foreground">
         {icon}
       </span>
@@ -815,4 +1064,3 @@ function prettyUrl(url: string): string {
     return url;
   }
 }
-

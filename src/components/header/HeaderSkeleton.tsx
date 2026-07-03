@@ -5,11 +5,7 @@
  */
 export function HeaderSkeleton() {
   return (
-    <div
-      className="bg-background"
-      aria-hidden="true"
-      data-skeleton="header"
-    >
+    <div className="bg-background" aria-hidden="true" data-skeleton="header">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
         <div className="h-7 w-32 rounded-md bg-muted animate-pulse" />
         <nav className="hidden items-center gap-6 md:flex">

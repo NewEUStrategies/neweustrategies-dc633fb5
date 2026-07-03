@@ -19,7 +19,10 @@ function clean(html: string): string {
   return sanitizeHtml(html);
 }
 
-interface ItemLite { label: string; body: string }
+interface ItemLite {
+  label: string;
+  body: string;
+}
 
 function parseItems(raw: Json[] | undefined, key: "title" | "label"): ItemLite[] {
   if (!Array.isArray(raw)) return [];
@@ -41,18 +44,21 @@ export function AccordionView({ items, allowMultiple = false, cls }: AccordionPr
   const parsed = useMemo(() => parseItems(items, "title"), [items]);
   const [open, setOpen] = useState<Set<number>>(() => new Set());
 
-  const toggle = useCallback((idx: number) => {
-    setOpen((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) {
-        next.delete(idx);
-      } else {
-        if (!allowMultiple) next.clear();
-        next.add(idx);
-      }
-      return next;
-    });
-  }, [allowMultiple]);
+  const toggle = useCallback(
+    (idx: number) => {
+      setOpen((prev) => {
+        const next = new Set(prev);
+        if (next.has(idx)) {
+          next.delete(idx);
+        } else {
+          if (!allowMultiple) next.clear();
+          next.add(idx);
+        }
+        return next;
+      });
+    },
+    [allowMultiple],
+  );
 
   if (parsed.length === 0) return null;
 
@@ -69,7 +75,10 @@ export function AccordionView({ items, allowMultiple = false, cls }: AccordionPr
               className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium text-foreground hover:bg-muted/40 transition-colors"
             >
               <span>{it.label || `Sekcja ${idx + 1}`}</span>
-              <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden />
+              <ChevronDown
+                className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                aria-hidden
+              />
             </button>
             {isOpen ? (
               <div
@@ -105,7 +114,11 @@ export function TabsView({ items, orientation = "horizontal", cls }: TabsProps) 
       <div
         role="tablist"
         aria-orientation={orientation}
-        className={vert ? "flex flex-col border-r border-border min-w-[140px]" : "flex flex-wrap gap-1 border-b border-border"}
+        className={
+          vert
+            ? "flex flex-col border-r border-border min-w-[140px]"
+            : "flex flex-wrap gap-1 border-b border-border"
+        }
       >
         {parsed.map((it, idx) => {
           const selected = idx === active;
@@ -159,7 +172,10 @@ interface CountdownProps {
   cls?: string;
 }
 
-function diff(target: number, now: number): { d: number; h: number; m: number; s: number; done: boolean } {
+function diff(
+  target: number,
+  now: number,
+): { d: number; h: number; m: number; s: number; done: boolean } {
   const delta = Math.max(0, target - now);
   const done = delta === 0;
   const totalSec = Math.floor(delta / 1000);
@@ -192,7 +208,9 @@ export function CountdownView({ targetAt, label, expiredText, lang = "pl", cls }
 
   if (done) {
     return (
-      <div className={`inline-flex items-center justify-center px-4 py-3 rounded-lg bg-muted text-sm font-medium text-foreground ${cls ?? ""}`}>
+      <div
+        className={`inline-flex items-center justify-center px-4 py-3 rounded-lg bg-muted text-sm font-medium text-foreground ${cls ?? ""}`}
+      >
         {finished}
       </div>
     );
@@ -200,7 +218,9 @@ export function CountdownView({ targetAt, label, expiredText, lang = "pl", cls }
 
   const Cell = ({ value, unit }: { value: number; unit: string }) => (
     <div className="flex flex-col items-center px-3 py-2 rounded-lg bg-card border border-border min-w-[64px]">
-      <span className="text-2xl font-bold tabular-nums text-foreground">{value.toString().padStart(2, "0")}</span>
+      <span className="text-2xl font-bold tabular-nums text-foreground">
+        {value.toString().padStart(2, "0")}
+      </span>
       <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{unit}</span>
     </div>
   );
@@ -235,12 +255,18 @@ const PROGRESS_COLORS: Record<NonNullable<ProgressProps["color"]>, string> = {
   danger: "bg-destructive",
 };
 
-export function ProgressView({ value = 0, label, showValue = true, color = "primary", cls }: ProgressProps) {
+export function ProgressView({
+  value = 0,
+  label,
+  showValue = true,
+  color = "primary",
+  cls,
+}: ProgressProps) {
   const v = Math.max(0, Math.min(100, value));
   const fill = PROGRESS_COLORS[color];
   return (
     <div className={`w-full space-y-1.5 ${cls ?? ""}`}>
-      {(label || showValue) ? (
+      {label || showValue ? (
         <div className="flex items-center justify-between text-xs">
           <span className="font-medium text-foreground">{label}</span>
           {showValue ? <span className="tabular-nums text-muted-foreground">{v}%</span> : null}
@@ -254,7 +280,10 @@ export function ProgressView({ value = 0, label, showValue = true, color = "prim
         aria-valuemax={100}
         aria-label={label || undefined}
       >
-        <div className={`h-full ${fill} transition-[width] duration-500`} style={{ width: `${v}%` }} />
+        <div
+          className={`h-full ${fill} transition-[width] duration-500`}
+          style={{ width: `${v}%` }}
+        />
       </div>
     </div>
   );

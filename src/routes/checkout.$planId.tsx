@@ -18,10 +18,7 @@ import "@/lib/i18n-profile";
 export const Route = createFileRoute("/checkout/$planId")({
   component: CheckoutPage,
   head: () => ({
-    meta: [
-      { title: "Checkout" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
+    meta: [{ title: "Checkout" }, { name: "robots", content: "noindex, nofollow" }],
   }),
 });
 
@@ -102,10 +99,14 @@ function CheckoutPage() {
                     <div className="font-medium">
                       {billing.data?.is_company ? billing.data?.company : billing.data?.full_name}
                     </div>
-                    {billing.data?.tax_id && <div className="text-muted-foreground">NIP: {billing.data.tax_id}</div>}
+                    {billing.data?.tax_id && (
+                      <div className="text-muted-foreground">NIP: {billing.data.tax_id}</div>
+                    )}
                     <div>{billing.data?.address_line1}</div>
                     {billing.data?.address_line2 && <div>{billing.data.address_line2}</div>}
-                    <div>{billing.data?.postal_code} {billing.data?.city}</div>
+                    <div>
+                      {billing.data?.postal_code} {billing.data?.city}
+                    </div>
                     <div>{billing.data?.country_code}</div>
                     <Button asChild variant="link" className="p-0 h-auto">
                       <Link to="/profile/billing">{t("profile.billing.title")}</Link>
@@ -146,7 +147,9 @@ function CheckoutPage() {
                 {plan.data ? (
                   <>
                     <div>
-                      <div className="text-xs uppercase text-muted-foreground">{t("checkout.item")}</div>
+                      <div className="text-xs uppercase text-muted-foreground">
+                        {t("checkout.item")}
+                      </div>
                       <div className="font-semibold">{planName(plan.data, i18n.language)}</div>
                       {planDescription(plan.data, i18n.language) && (
                         <p className="text-sm text-muted-foreground">
@@ -172,12 +175,18 @@ function CheckoutPage() {
                         <>
                           <Lock className="mr-2 h-4 w-4" />
                           {t("checkout.payNow", {
-                            amount: formatMoney(plan.data.price_cents, plan.data.currency, i18n.language),
+                            amount: formatMoney(
+                              plan.data.price_cents,
+                              plan.data.currency,
+                              i18n.language,
+                            ),
                           })}
                         </>
                       )}
                     </Button>
-                    <p className="text-xs text-muted-foreground text-center">{t("checkout.terms")}</p>
+                    <p className="text-xs text-muted-foreground text-center">
+                      {t("checkout.terms")}
+                    </p>
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">{t("checkout.notFound")}</p>

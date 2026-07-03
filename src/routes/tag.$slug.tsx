@@ -1,5 +1,6 @@
 // Tag archive: /tag/$slug - same shape as category, reuses TaxonomyPage logic.
-import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
+import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
@@ -21,7 +22,11 @@ export const Route = createFileRoute("/tag/$slug")({
     const tax = loaderData?.taxonomy;
     const url = getRequestUrl() || `/tag/${params.slug}`;
     const lang = activeLang(url);
-    const name = tax ? (lang === "en" ? tax.name_en || tax.name_pl : tax.name_pl || tax.name_en) : "Tag";
+    const name = tax
+      ? lang === "en"
+        ? tax.name_en || tax.name_pl
+        : tax.name_pl || tax.name_en
+      : "Tag";
     return buildContentHead({
       url,
       lang,
@@ -32,17 +37,7 @@ export const Route = createFileRoute("/tag/$slug")({
   },
   component: TagArchivePage,
   notFoundComponent: NotFound,
-  errorComponent: ({ error, reset }) => {
-    const router = useRouter();
-    return (
-      <div className="min-h-screen flex flex-col">
-        <main className="flex-1 max-w-3xl mx-auto px-4 py-20 text-center">
-          <p className="text-sm text-destructive">{error.message}</p>
-          <button onClick={() => { router.invalidate(); reset(); }} className="mt-6 bg-brand text-brand-foreground px-4 py-2 rounded text-sm">Spróbuj ponownie</button>
-        </main>
-      </div>
-    );
-  },
+  errorComponent: (props) => <RouteErrorFallback {...props} />,
 });
 
 function TagArchivePage() {
@@ -59,7 +54,10 @@ function TagArchivePage() {
       <main className="flex-1 w-full">
         {taxonomy.featured_section && (
           <section className="border-b border-border">
-            <BuilderRenderer doc={{ version: 1, sections: [taxonomy.featured_section] }} lang={lang} />
+            <BuilderRenderer
+              doc={{ version: 1, sections: [taxonomy.featured_section] }}
+              lang={lang}
+            />
           </section>
         )}
         <section className="max-w-[1200px] mx-auto px-4 lg:px-8 py-10">

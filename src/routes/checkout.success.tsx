@@ -16,10 +16,7 @@ export const Route = createFileRoute("/checkout/success")({
   }),
   component: SuccessPage,
   head: () => ({
-    meta: [
-      { title: "Dziękujemy za zakup" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
+    meta: [{ title: "Dziękujemy za zakup" }, { name: "robots", content: "noindex, nofollow" }],
   }),
 });
 

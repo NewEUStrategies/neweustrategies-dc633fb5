@@ -7,7 +7,16 @@ import type { Lang } from "./frame";
 
 type SearchResult = { id: string; slug: string; title: string; excerpt: string | null };
 
-export function SearchButtonWidget({ label, heading, liveResults, limit, lang, height, radius, fontSize }: {
+export function SearchButtonWidget({
+  label,
+  heading,
+  liveResults,
+  limit,
+  lang,
+  height,
+  radius,
+  fontSize,
+}: {
   label: string;
   mode: "standalone" | "dropdown" | "fullscreen";
   heading: string;
@@ -31,7 +40,10 @@ export function SearchButtonWidget({ label, heading, liveResults, limit, lang, h
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setFocused(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { setFocused(false); inputRef.current?.blur(); }
+      if (e.key === "Escape") {
+        setFocused(false);
+        inputRef.current?.blur();
+      }
     };
     document.addEventListener("mousedown", onDocClick);
     window.addEventListener("keydown", onKey);
@@ -43,7 +55,11 @@ export function SearchButtonWidget({ label, heading, liveResults, limit, lang, h
 
   const runSearch = async (term: string) => {
     const t = term.trim();
-    if (t.length < 2) { setResults([]); setSearched(false); return; }
+    if (t.length < 2) {
+      setResults([]);
+      setSearched(false);
+      return;
+    }
     setLoading(true);
     const titleCol = lang === "pl" ? "title_pl" : "title_en";
     const excerptCol = lang === "pl" ? "excerpt_pl" : "excerpt_en";
@@ -54,9 +70,17 @@ export function SearchButtonWidget({ label, heading, liveResults, limit, lang, h
       .is("deleted_at", null)
       .ilike(titleCol, `%${t}%`)
       .limit(Math.max(1, Math.min(limit, 20)));
-    setResults((data ?? []).map((r: any) => ({
-      id: r.id, slug: r.slug, title: r[titleCol] || "", excerpt: r[excerptCol] || null,
-    })));
+    // Kolumny są wybierane dynamicznie (per język), więc wiersz ma kształt
+    // slownika - bez any.
+    const rows = (data ?? []) as Array<Record<string, string | null>>;
+    setResults(
+      rows.map((r) => ({
+        id: r.id ?? "",
+        slug: r.slug ?? "",
+        title: r[titleCol] || "",
+        excerpt: r[excerptCol] || null,
+      })),
+    );
     setLoading(false);
     setSearched(true);
   };
@@ -80,9 +104,20 @@ export function SearchButtonWidget({ label, heading, liveResults, limit, lang, h
     <div ref={wrapRef} className="builder-search-widget relative w-full max-w-full min-w-0">
       <div
         className="flex w-full items-center gap-2 border border-input bg-card text-foreground shadow-sm transition-colors"
-        style={{ direction: "ltr", height: `${h}px`, minHeight: `${h}px`, borderRadius: `${radius}px`, paddingLeft: `${pad}px`, paddingRight: `${pad}px` }}
+        style={{
+          direction: "ltr",
+          height: `${h}px`,
+          minHeight: `${h}px`,
+          borderRadius: `${radius}px`,
+          paddingLeft: `${pad}px`,
+          paddingRight: `${pad}px`,
+        }}
       >
-        <LucideIcons.Search className="text-muted-foreground shrink-0" style={{ width: Math.round(h * 0.4), height: Math.round(h * 0.4) }} aria-hidden />
+        <LucideIcons.Search
+          className="text-muted-foreground shrink-0"
+          style={{ width: Math.round(h * 0.4), height: Math.round(h * 0.4) }}
+          aria-hidden
+        />
         <input
           ref={inputRef}
           type="text"
@@ -94,7 +129,13 @@ export function SearchButtonWidget({ label, heading, liveResults, limit, lang, h
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => setFocused(true)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); runSearch(q); setFocused(true); } }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              runSearch(q);
+              setFocused(true);
+            }
+          }}
           placeholder={placeholder}
           aria-label={label || placeholder}
           dir="ltr"
@@ -117,12 +158,19 @@ export function SearchButtonWidget({ label, heading, liveResults, limit, lang, h
           }}
           className="flex-1 min-w-0 bg-transparent border-0 text-foreground outline-none ring-0 shadow-none [appearance:none] [-webkit-appearance:none] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-muted-foreground/70"
         />
-        {loading && <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />}
+        {loading && (
+          <LucideIcons.Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
+        )}
         {q && (
           <button
             type="button"
             aria-label={lang === "pl" ? "Wyczyść" : "Clear"}
-            onClick={() => { setQ(""); setResults([]); setSearched(false); inputRef.current?.focus(); }}
+            onClick={() => {
+              setQ("");
+              setResults([]);
+              setSearched(false);
+              inputRef.current?.focus();
+            }}
             className="shrink-0 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:outline-none focus:ring-0"
           >
             <LucideIcons.X className="w-3.5 h-3.5" />
@@ -162,7 +210,9 @@ export function SearchButtonWidget({ label, heading, liveResults, limit, lang, h
                     >
                       <div className="text-sm font-medium text-foreground truncate">{r.title}</div>
                       {r.excerpt && (
-                        <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{r.excerpt}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                          {r.excerpt}
+                        </div>
                       )}
                     </AppLink>
                   </li>

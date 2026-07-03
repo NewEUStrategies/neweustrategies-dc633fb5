@@ -3,7 +3,11 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 type Theme = "light" | "dark";
 const STORAGE_KEY = "theme";
 
-const ThemeContext = createContext<{ theme: Theme; toggle: () => void; setTheme: (t: Theme) => void }>({
+const ThemeContext = createContext<{
+  theme: Theme;
+  toggle: () => void;
+  setTheme: (t: Theme) => void;
+}>({
   theme: "light",
   toggle: () => {},
   setTheme: () => {},
@@ -64,7 +68,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const toggle = () => setTheme(theme === "dark" ? "light" : "dark");
 
-  return <ThemeContext.Provider value={{ theme, toggle, setTheme }}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={{ theme, toggle, setTheme }}>{children}</ThemeContext.Provider>
+  );
 }
 
 export const useTheme = () => useContext(ThemeContext);

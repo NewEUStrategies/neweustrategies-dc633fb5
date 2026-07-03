@@ -4,7 +4,7 @@ import i18n from "./i18n";
 const pl = {
   palette: {
     placeholder: "Wyszukaj strony, akcje, ustawienia...",
-    empty: "Brak wyników dla \"{{q}}\".",
+    empty: 'Brak wyników dla "{{q}}".',
     empty_hint: "Spróbuj innej frazy lub kategorii.",
     suggestions: "Popularne",
     type_to_search: "Wpisz co najmniej 2 znaki, aby przeszukać treści.",
@@ -42,7 +42,7 @@ const pl = {
 const en = {
   palette: {
     placeholder: "Search pages, actions, settings...",
-    empty: "No results for \"{{q}}\".",
+    empty: 'No results for "{{q}}".',
     empty_hint: "Try a different phrase or category.",
     suggestions: "Popular",
     type_to_search: "Type at least 2 characters to search content.",

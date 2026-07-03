@@ -43,7 +43,9 @@ function verifySignature(payload: string, header: string, secret: string): boole
   if (!parsed) return false;
   const ageSec = Math.abs(Math.floor(Date.now() / 1000) - parsed.timestamp);
   if (ageSec > TOLERANCE_SECONDS) return false;
-  const expected = createHmac("sha256", secret).update(`${parsed.timestamp}.${payload}`).digest("hex");
+  const expected = createHmac("sha256", secret)
+    .update(`${parsed.timestamp}.${payload}`)
+    .digest("hex");
   const expectedBuf = Buffer.from(expected);
   return parsed.signatures.some((sig) => {
     const sigBuf = Buffer.from(sig);
@@ -83,13 +85,20 @@ async function handle(request: Request): Promise<Response> {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object;
-        const orderId = str(session, "client_reference_id") ?? ((session.metadata as Record<string, string> | null)?.order_id ?? null);
+        const orderId =
+          str(session, "client_reference_id") ??
+          (session.metadata as Record<string, string> | null)?.order_id ??
+          null;
         const sessionId = str(session, "id");
         const subscriptionId = str(session, "subscription");
         const paymentIntent = str(session, "payment_intent");
-        const amountTotal = typeof session.amount_total === "number" ? (session.amount_total as number) : null;
+        const amountTotal =
+          typeof session.amount_total === "number" ? (session.amount_total as number) : null;
         const currency = str(session, "currency");
-        const customerEmail = str(session, "customer_email") ?? ((session.customer_details as Record<string, unknown> | null)?.email as string | null) ?? null;
+        const customerEmail =
+          str(session, "customer_email") ??
+          ((session.customer_details as Record<string, unknown> | null)?.email as string | null) ??
+          null;
 
         if (!orderId && !sessionId) break;
 
@@ -115,7 +124,8 @@ async function handle(request: Request): Promise<Response> {
         // `.neq("status","paid")` makes this idempotent: a Stripe retry of an
         // already-paid order updates zero rows -> order is null -> we skip the
         // grant instead of double-provisioning.
-        const cols = "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, amount_cents, currency";
+        const cols =
+          "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, amount_cents, currency";
         const base = supabaseAdmin.from("payment_orders").update(updates).neq("status", "paid");
         const { data: order, error: orderErr } = orderId
           ? await base.eq("id", orderId).select(cols).maybeSingle()
@@ -132,7 +142,10 @@ async function handle(request: Request): Promise<Response> {
       case "invoice.payment_succeeded": {
         const invoice = event.data.object;
         const subscriptionId = str(invoice, "subscription");
-        const periodEnd = typeof invoice.period_end === "number" ? new Date((invoice.period_end as number) * 1000) : null;
+        const periodEnd =
+          typeof invoice.period_end === "number"
+            ? new Date((invoice.period_end as number) * 1000)
+            : null;
         if (subscriptionId && periodEnd) {
           await supabaseAdmin
             .from("user_subscriptions")
@@ -165,7 +178,10 @@ async function handle(request: Request): Promise<Response> {
         if (orderId) {
           await supabaseAdmin.from("payment_orders").update({ status }).eq("id", orderId);
         } else if (sessionId) {
-          await supabaseAdmin.from("payment_orders").update({ status }).eq("provider_session_id", sessionId);
+          await supabaseAdmin
+            .from("payment_orders")
+            .update({ status })
+            .eq("provider_session_id", sessionId);
         }
         break;
       }

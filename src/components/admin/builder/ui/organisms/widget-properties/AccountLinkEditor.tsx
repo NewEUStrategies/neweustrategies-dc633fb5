@@ -5,7 +5,13 @@
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toJson } from "@/lib/builder/types";
@@ -51,7 +57,9 @@ function newItem(section: Section): Item {
   };
 }
 
-function readStr(v: unknown): string { return typeof v === "string" ? v : ""; }
+function readStr(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
 
 export function AccountLinkEditor({ c, lang, setContent }: Props) {
   const items = itemsOf(c, "items");
@@ -60,15 +68,21 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
   const [section, setSection] = useState<Section>("guest");
 
   useEffect(() => {
-    void supabase.from("pages")
+    void supabase
+      .from("pages")
       .select("slug, title_pl, title_en")
       .eq("status", "published")
       .order("title_pl")
       .then(({ data }) => {
-        setPages((data ?? []).map((p) => ({
-          slug: String(p.slug),
-          title: String(lang === "pl" ? p.title_pl : p.title_en) || String(p.title_pl) || String(p.slug),
-        })));
+        setPages(
+          (data ?? []).map((p) => ({
+            slug: String(p.slug),
+            title:
+              String(lang === "pl" ? p.title_pl : p.title_en) ||
+              String(p.title_pl) ||
+              String(p.slug),
+          })),
+        );
       });
   }, [lang]);
 
@@ -86,58 +100,86 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
   };
 
   const replaceAt = (globalIdx: number, patch: Partial<Item>) => {
-    update(items.map((x, j) => j === globalIdx ? { ...x, ...patch } : x));
+    update(items.map((x, j) => (j === globalIdx ? { ...x, ...patch } : x)));
   };
 
   return (
     <div className="space-y-4">
       {/* Style + presety nagłówków */}
       <div className="rounded-md border border-border/60 p-3 space-y-2">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Wygląd panelu</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Wygląd panelu
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <PropField label="Szerokość (px)">
-            <Input type="number" className="h-8 text-xs"
+            <Input
+              type="number"
+              className="h-8 text-xs"
               value={typeof c.panelWidth === "number" ? c.panelWidth : 280}
-              onChange={(e) => setContent("panelWidth", Number(e.target.value) || 280)} />
+              onChange={(e) => setContent("panelWidth", Number(e.target.value) || 280)}
+            />
           </PropField>
           <PropField label="Zaokrąglenie (px)">
-            <Input type="number" className="h-8 text-xs"
+            <Input
+              type="number"
+              className="h-8 text-xs"
               value={typeof c.panelRadius === "number" ? c.panelRadius : 12}
-              onChange={(e) => setContent("panelRadius", Number(e.target.value) || 0)} />
+              onChange={(e) => setContent("panelRadius", Number(e.target.value) || 0)}
+            />
           </PropField>
           <PropField label="Tło panelu">
-            <Input type="color" className="h-8 w-full" value={readStr(c.panelBg) || "#ffffff"}
-              onChange={(e) => setContent("panelBg", e.target.value)} />
+            <Input
+              type="color"
+              className="h-8 w-full"
+              value={readStr(c.panelBg) || "#ffffff"}
+              onChange={(e) => setContent("panelBg", e.target.value)}
+            />
           </PropField>
           <PropField label="Kolor tekstu">
-            <Input type="color" className="h-8 w-full" value={readStr(c.panelText) || "#0f172a"}
-              onChange={(e) => setContent("panelText", e.target.value)} />
+            <Input
+              type="color"
+              className="h-8 w-full"
+              value={readStr(c.panelText) || "#0f172a"}
+              onChange={(e) => setContent("panelText", e.target.value)}
+            />
           </PropField>
           <PropField label="Akcent (CTA)">
-            <Input type="color" className="h-8 w-full" value={readStr(c.panelAccent) || "#FA9346"}
-              onChange={(e) => setContent("panelAccent", e.target.value)} />
+            <Input
+              type="color"
+              className="h-8 w-full"
+              value={readStr(c.panelAccent) || "#FA9346"}
+              onChange={(e) => setContent("panelAccent", e.target.value)}
+            />
           </PropField>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <PropField label={`Etykieta "Zaloguj" (${lang.toUpperCase()})`}>
-            <Input className="h-8 text-xs"
+            <Input
+              className="h-8 text-xs"
               value={readStr(c[`signin_${lang}`])}
-              onChange={(e) => setContent(`signin_${lang}`, e.target.value)} />
+              onChange={(e) => setContent(`signin_${lang}`, e.target.value)}
+            />
           </PropField>
           <PropField label={`Etykieta "Zarejestruj" (${lang.toUpperCase()})`}>
-            <Input className="h-8 text-xs"
+            <Input
+              className="h-8 text-xs"
               value={readStr(c[`signup_${lang}`])}
-              onChange={(e) => setContent(`signup_${lang}`, e.target.value)} />
+              onChange={(e) => setContent(`signup_${lang}`, e.target.value)}
+            />
           </PropField>
           <PropField label="URL ekranu logowania">
-            <Input className="h-8 text-xs"
+            <Input
+              className="h-8 text-xs"
               value={readStr(c.signinHref) || "/login"}
-              onChange={(e) => setContent("signinHref", e.target.value)} />
+              onChange={(e) => setContent("signinHref", e.target.value)}
+            />
           </PropField>
           <PropField label="URL rejestracji">
-            <Input className="h-8 text-xs"
+            <Input
+              className="h-8 text-xs"
               value={readStr(c.signupHref) || "/login?mode=signup"}
-              onChange={(e) => setContent("signupHref", e.target.value)} />
+              onChange={(e) => setContent("signupHref", e.target.value)}
+            />
           </PropField>
         </div>
       </div>
@@ -145,9 +187,15 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
       <div className="flex items-center gap-2">
         <Label className="text-xs">Sekcja:</Label>
         <Select value={section} onValueChange={(v) => setSection(v as Section)}>
-          <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 w-[200px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
-            {SECTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            {SECTIONS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                {s.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -168,17 +216,37 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
                 onRemove={() => update(items.filter((_, j) => j !== globalIdx))}
               >
                 <div className="flex items-center gap-1 mb-2">
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" disabled={visIdx === 0}
-                    onClick={() => move(visIdx, -1)}><ChevronUp className="w-3 h-3" /></Button>
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" disabled={visIdx === sectionItems.length - 1}
-                    onClick={() => move(visIdx, 1)}><ChevronDown className="w-3 h-3" /></Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0"
+                    disabled={visIdx === 0}
+                    onClick={() => move(visIdx, -1)}
+                  >
+                    <ChevronUp className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0"
+                    disabled={visIdx === sectionItems.length - 1}
+                    onClick={() => move(visIdx, 1)}
+                  >
+                    <ChevronDown className="w-3 h-3" />
+                  </Button>
                 </div>
 
                 <PropField label="Typ pozycji">
                   <Select value={kind} onValueChange={(v) => replaceAt(globalIdx, { kind: v })}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      {KINDS.map((k) => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+                      {KINDS.map((k) => (
+                        <SelectItem key={k.value} value={k.value}>
+                          {k.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </PropField>
@@ -197,11 +265,14 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
                         });
                       }}
                     >
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         {ACCOUNT_PRESETS.map((p) => (
                           <SelectItem key={p.key} value={p.key}>
-                            {lang === "pl" ? p.label_pl : p.label_en} <span className="text-muted-foreground">({p.href})</span>
+                            {lang === "pl" ? p.label_pl : p.label_en}{" "}
+                            <span className="text-muted-foreground">({p.href})</span>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -211,14 +282,23 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
 
                 {kind === "page" && (
                   <PropField label="Strona">
-                    <Select value={readStr(it.pageSlug)} onValueChange={(v) => replaceAt(globalIdx, { pageSlug: v })}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Wybierz stronę…" /></SelectTrigger>
+                    <Select
+                      value={readStr(it.pageSlug)}
+                      onValueChange={(v) => replaceAt(globalIdx, { pageSlug: v })}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Wybierz stronę…" />
+                      </SelectTrigger>
                       <SelectContent>
                         {pages.length === 0 && (
-                          <div className="px-3 py-2 text-xs text-muted-foreground">Brak opublikowanych stron.</div>
+                          <div className="px-3 py-2 text-xs text-muted-foreground">
+                            Brak opublikowanych stron.
+                          </div>
                         )}
                         {pages.map((p) => (
-                          <SelectItem key={p.slug} value={p.slug}>{p.title}</SelectItem>
+                          <SelectItem key={p.slug} value={p.slug}>
+                            {p.title}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -228,14 +308,18 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
                 {kind === "custom" && (
                   <>
                     <PropField label="URL (lub /ścieżka)">
-                      <Input className="h-8 text-xs"
+                      <Input
+                        className="h-8 text-xs"
                         value={readStr(it.customHref)}
-                        onChange={(e) => replaceAt(globalIdx, { customHref: e.target.value })} />
+                        onChange={(e) => replaceAt(globalIdx, { customHref: e.target.value })}
+                      />
                     </PropField>
                     <PropField label="Otwórz w nowej karcie">
-                      <input type="checkbox"
+                      <input
+                        type="checkbox"
                         checked={!!it.external}
-                        onChange={(e) => replaceAt(globalIdx, { external: e.target.checked })} />
+                        onChange={(e) => replaceAt(globalIdx, { external: e.target.checked })}
+                      />
                     </PropField>
                   </>
                 )}
@@ -243,19 +327,29 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
                 {kind !== "separator" && (
                   <>
                     <PropField label="Ikona (Lucide)">
-                      <Input className="h-8 text-xs" placeholder="np. User, Bookmark, LogOut"
+                      <Input
+                        className="h-8 text-xs"
+                        placeholder="np. User, Bookmark, LogOut"
                         value={readStr(it.icon)}
-                        onChange={(e) => replaceAt(globalIdx, { icon: e.target.value })} />
+                        onChange={(e) => replaceAt(globalIdx, { icon: e.target.value })}
+                      />
                     </PropField>
                     <PropField label={`Etykieta (${lang.toUpperCase()})`}>
-                      <Input className="h-8 text-xs"
+                      <Input
+                        className="h-8 text-xs"
                         value={readStr(it[`label_${lang}`])}
-                        onChange={(e) => replaceAt(globalIdx, { [`label_${lang}`]: e.target.value })} />
+                        onChange={(e) =>
+                          replaceAt(globalIdx, { [`label_${lang}`]: e.target.value })
+                        }
+                      />
                     </PropField>
                     <PropField label={`Opis (${lang.toUpperCase()})`}>
-                      <Textarea rows={2} className="text-xs"
+                      <Textarea
+                        rows={2}
+                        className="text-xs"
                         value={readStr(it[`desc_${lang}`])}
-                        onChange={(e) => replaceAt(globalIdx, { [`desc_${lang}`]: e.target.value })} />
+                        onChange={(e) => replaceAt(globalIdx, { [`desc_${lang}`]: e.target.value })}
+                      />
                     </PropField>
                   </>
                 )}

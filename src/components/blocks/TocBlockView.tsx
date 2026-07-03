@@ -19,7 +19,14 @@ function slugify(s: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-export function TocBlockView({ blocks, title, maxLevel = 3, ordered = false, sticky = false, lang = "pl" }: Props) {
+export function TocBlockView({
+  blocks,
+  title,
+  maxLevel = 3,
+  ordered = false,
+  sticky = false,
+  lang = "pl",
+}: Props) {
   const L = lang === "pl" ? "Spis treści" : "Table of contents";
   const items = blocks
     .filter((b) => b.type === "heading")
@@ -39,7 +46,9 @@ export function TocBlockView({ blocks, title, maxLevel = 3, ordered = false, sti
       aria-label={title || L}
       className={`not-prose my-6 rounded-lg border border-border bg-muted/30 p-4 ${sticky ? "lg:sticky lg:top-24" : ""}`}
     >
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-semibold">{title || L}</p>
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 font-semibold">
+        {title || L}
+      </p>
       <Tag className={`m-0 pl-5 space-y-1 ${ordered ? "list-decimal" : "list-disc"} text-sm`}>
         {items.map((it, i) => (
           <li key={i} style={{ marginLeft: (it.level - 2) * 12 }}>

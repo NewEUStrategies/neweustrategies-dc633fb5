@@ -31,7 +31,9 @@ export function LayoutPreview({ preset, settings, className }: Props) {
     <div className={`${h} ${c} rounded ${w}`} />
   );
   const Img = ({ h }: { h: string }) => (
-    <div className={`${h} w-full rounded bg-gradient-to-br from-brand/40 to-brand/10 border border-border`} />
+    <div
+      className={`${h} w-full rounded bg-gradient-to-br from-brand/40 to-brand/10 border border-border`}
+    />
   );
   const Lines = () => (
     <div className="space-y-1">
@@ -64,12 +66,18 @@ export function LayoutPreview({ preset, settings, className }: Props) {
     case "overlay":
       body = (
         <div className="relative">
-          <div className={`w-full ${preset.cover === "full-bleed" ? "h-24" : "h-20"} bg-gradient-to-br from-foreground/80 to-foreground/40`} />
-          <div className={`absolute inset-0 p-3 flex flex-col ${centered ? "items-center text-center" : "items-start"} justify-end`}>
+          <div
+            className={`w-full ${preset.cover === "full-bleed" ? "h-24" : "h-20"} bg-gradient-to-br from-foreground/80 to-foreground/40`}
+          />
+          <div
+            className={`absolute inset-0 p-3 flex flex-col ${centered ? "items-center text-center" : "items-start"} justify-end`}
+          >
             <Bar w="w-1/3" h="h-1" c="bg-brand" />
             <Bar w="w-5/6" h="h-3" c="bg-background" />
           </div>
-          <div className="p-3"><Lines /></div>
+          <div className="p-3">
+            <Lines />
+          </div>
         </div>
       );
       break;
@@ -77,7 +85,11 @@ export function LayoutPreview({ preset, settings, className }: Props) {
       body = (
         <div className="p-3 grid grid-cols-2 gap-2">
           <Img h="h-16" />
-          <div className="space-y-2"><Header small /><Bar w="w-full" h="h-1" c="bg-foreground/30" /><Bar w="w-3/4" h="h-1" c="bg-foreground/30" /></div>
+          <div className="space-y-2">
+            <Header small />
+            <Bar w="w-full" h="h-1" c="bg-foreground/30" />
+            <Bar w="w-3/4" h="h-1" c="bg-foreground/30" />
+          </div>
         </div>
       );
       break;
@@ -94,12 +106,24 @@ export function LayoutPreview({ preset, settings, className }: Props) {
     default: {
       const ph = preset.cover === "ratio" ? `${Math.round((ratio / 150) * 28 + 10)}px` : "56px";
       body = (
-        <div className={`p-3 space-y-2 ${hasSidebar ? "grid grid-cols-[1fr_60px] gap-2 space-y-0" : ""}`}>
+        <div
+          className={`p-3 space-y-2 ${hasSidebar ? "grid grid-cols-[1fr_60px] gap-2 space-y-0" : ""}`}
+        >
           <div className="space-y-2">
             <Header />
-            {preset.cover === "full-bleed" ? <div className="w-[110%] -ml-[5%]"><Img h="h-14" /></div> :
-              preset.cover === "boxed" ? <div className="mx-auto w-3/4"><Img h="h-14" /></div> :
-              <div style={{ height: ph }}><Img h="h-full" /></div>}
+            {preset.cover === "full-bleed" ? (
+              <div className="w-[110%] -ml-[5%]">
+                <Img h="h-14" />
+              </div>
+            ) : preset.cover === "boxed" ? (
+              <div className="mx-auto w-3/4">
+                <Img h="h-14" />
+              </div>
+            ) : (
+              <div style={{ height: ph }}>
+                <Img h="h-full" />
+              </div>
+            )}
             <Lines />
           </div>
           {hasSidebar && (
@@ -117,7 +141,9 @@ export function LayoutPreview({ preset, settings, className }: Props) {
   }
 
   return (
-    <div className={`bg-background border border-border rounded-md overflow-hidden ${className ?? ""}`}>
+    <div
+      className={`bg-background border border-border rounded-md overflow-hidden ${className ?? ""}`}
+    >
       {body}
     </div>
   );

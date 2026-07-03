@@ -8,7 +8,12 @@ interface Props {
   labelAfter?: string;
 }
 
-export function CompareSlider({ before, after, labelBefore = "Before", labelAfter = "After" }: Props) {
+export function CompareSlider({
+  before,
+  after,
+  labelBefore = "Before",
+  labelAfter = "After",
+}: Props) {
   const [pos, setPos] = useState(50);
   const dragging = useRef(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -33,8 +38,12 @@ export function CompareSlider({ before, after, labelBefore = "Before", labelAfte
       onPointerMove={(e) => {
         if (dragging.current) updateFromClientX(e.clientX);
       }}
-      onPointerUp={() => { dragging.current = false; }}
-      onPointerCancel={() => { dragging.current = false; }}
+      onPointerUp={() => {
+        dragging.current = false;
+      }}
+      onPointerCancel={() => {
+        dragging.current = false;
+      }}
       role="slider"
       aria-valuemin={0}
       aria-valuemax={100}
@@ -46,11 +55,13 @@ export function CompareSlider({ before, after, labelBefore = "Before", labelAfte
         if (e.key === "ArrowRight") setPos((p) => Math.min(100, p + 2));
       }}
     >
-      <img src={after} alt={labelAfter} className="absolute inset-0 w-full h-full object-cover" draggable={false} />
-      <div
-        className="absolute inset-y-0 left-0 overflow-hidden"
-        style={{ width: `${pos}%` }}
-      >
+      <img
+        src={after}
+        alt={labelAfter}
+        className="absolute inset-0 w-full h-full object-cover"
+        draggable={false}
+      />
+      <div className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${pos}%` }}>
         <img
           src={before}
           alt={labelBefore}
@@ -59,8 +70,12 @@ export function CompareSlider({ before, after, labelBefore = "Before", labelAfte
           draggable={false}
         />
       </div>
-      <span className="absolute top-2 left-2 text-xs px-2 py-0.5 rounded bg-black/60 text-white">{labelBefore}</span>
-      <span className="absolute top-2 right-2 text-xs px-2 py-0.5 rounded bg-black/60 text-white">{labelAfter}</span>
+      <span className="absolute top-2 left-2 text-xs px-2 py-0.5 rounded bg-black/60 text-white">
+        {labelBefore}
+      </span>
+      <span className="absolute top-2 right-2 text-xs px-2 py-0.5 rounded bg-black/60 text-white">
+        {labelAfter}
+      </span>
       <div
         className="absolute inset-y-0 w-0.5 bg-white pointer-events-none"
         style={{ left: `${pos}%`, transform: "translateX(-50%)" }}

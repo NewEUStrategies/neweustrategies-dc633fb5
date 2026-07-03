@@ -5,7 +5,14 @@
 
 export type Lang = "pl" | "en";
 export type Gender = "male" | "female" | "neutral";
-export type TimeBucket = "night" | "earlyMorning" | "morning" | "noon" | "afternoon" | "evening" | "lateEvening";
+export type TimeBucket =
+  | "night"
+  | "earlyMorning"
+  | "morning"
+  | "noon"
+  | "afternoon"
+  | "evening"
+  | "lateEvening";
 
 export interface NameEntry {
   name: string;
@@ -39,87 +46,143 @@ export function normalize(input: string): string {
 // `{name}` placeholder = vocative form (or plain name if not found).
 const PL: Record<TimeBucket, string[]> = {
   night: [
-    "Dobry wieczór, {name}", "Miło Cię widzieć, {name}", "Witaj, {name}",
-    "Cieszymy się, że jesteś, {name}", "Dobrego wieczoru, {name}",
-    "Powodzenia, {name}", "Witaj ponownie, {name}",
+    "Dobry wieczór, {name}",
+    "Miło Cię widzieć, {name}",
+    "Witaj, {name}",
+    "Cieszymy się, że jesteś, {name}",
+    "Dobrego wieczoru, {name}",
+    "Powodzenia, {name}",
+    "Witaj ponownie, {name}",
   ],
   earlyMorning: [
-    "Dzień dobry, {name}!", "Miłego poranka, {name}", "Dobrego dnia, {name}",
-    "Witaj, {name}", "Powodzenia dziś, {name}", "Miło Cię widzieć, {name}",
+    "Dzień dobry, {name}!",
+    "Miłego poranka, {name}",
+    "Dobrego dnia, {name}",
+    "Witaj, {name}",
+    "Powodzenia dziś, {name}",
+    "Miło Cię widzieć, {name}",
     "Udanego dnia, {name}",
   ],
   morning: [
-    "Dzień dobry, {name}!", "Miłego poranka, {name}", "Witaj, {name}",
-    "Dobrego dnia, {name}", "Powodzenia dziś, {name}", "Miło Cię widzieć, {name}",
-    "Witaj ponownie, {name}", "Udanego dnia, {name}",
+    "Dzień dobry, {name}!",
+    "Miłego poranka, {name}",
+    "Witaj, {name}",
+    "Dobrego dnia, {name}",
+    "Powodzenia dziś, {name}",
+    "Miło Cię widzieć, {name}",
+    "Witaj ponownie, {name}",
+    "Udanego dnia, {name}",
   ],
   noon: [
-    "Dzień dobry, {name}!", "Miłego dnia, {name}", "Witaj, {name}",
-    "Dobrej przerwy, {name}", "Powodzenia, {name}", "Miło Cię widzieć, {name}",
+    "Dzień dobry, {name}!",
+    "Miłego dnia, {name}",
+    "Witaj, {name}",
+    "Dobrej przerwy, {name}",
+    "Powodzenia, {name}",
+    "Miło Cię widzieć, {name}",
     "Witaj ponownie, {name}",
   ],
   afternoon: [
-    "Dzień dobry, {name}!", "Miłego popołudnia, {name}", "Witaj, {name}",
-    "Dobrego dnia, {name}", "Powodzenia, {name}", "Miło Cię widzieć, {name}",
-    "Witaj ponownie, {name}", "Udanej drugiej połowy dnia, {name}",
+    "Dzień dobry, {name}!",
+    "Miłego popołudnia, {name}",
+    "Witaj, {name}",
+    "Dobrego dnia, {name}",
+    "Powodzenia, {name}",
+    "Miło Cię widzieć, {name}",
+    "Witaj ponownie, {name}",
+    "Udanej drugiej połowy dnia, {name}",
   ],
   evening: [
-    "Dobry wieczór, {name}!", "Miłego wieczoru, {name}", "Witaj, {name}",
-    "Miło Cię widzieć, {name}", "Dobrego wieczoru, {name}",
-    "Witaj ponownie, {name}", "Udanego wieczoru, {name}",
+    "Dobry wieczór, {name}!",
+    "Miłego wieczoru, {name}",
+    "Witaj, {name}",
+    "Miło Cię widzieć, {name}",
+    "Dobrego wieczoru, {name}",
+    "Witaj ponownie, {name}",
+    "Udanego wieczoru, {name}",
   ],
   lateEvening: [
-    "Dobry wieczór, {name}", "Miłego wieczoru, {name}", "Witaj, {name}",
-    "Miło Cię widzieć, {name}", "Dobrego wieczoru, {name}",
+    "Dobry wieczór, {name}",
+    "Miłego wieczoru, {name}",
+    "Witaj, {name}",
+    "Miło Cię widzieć, {name}",
+    "Dobrego wieczoru, {name}",
     "Witaj ponownie, {name}",
   ],
 };
 
 const EN: Record<TimeBucket, string[]> = {
   night: [
-    "Good evening, {name}", "Great to see you, {name}", "Welcome, {name}",
-    "Glad you're here, {name}", "Have a good evening, {name}",
-    "All the best, {name}", "Welcome back, {name}",
+    "Good evening, {name}",
+    "Great to see you, {name}",
+    "Welcome, {name}",
+    "Glad you're here, {name}",
+    "Have a good evening, {name}",
+    "All the best, {name}",
+    "Welcome back, {name}",
   ],
   earlyMorning: [
-    "Good morning, {name}!", "Have a great morning, {name}", "Have a good day, {name}",
-    "Welcome, {name}", "Good luck today, {name}", "Great to see you, {name}",
+    "Good morning, {name}!",
+    "Have a great morning, {name}",
+    "Have a good day, {name}",
+    "Welcome, {name}",
+    "Good luck today, {name}",
+    "Great to see you, {name}",
     "Wishing you a great day, {name}",
   ],
   morning: [
-    "Good morning, {name}!", "Have a great morning, {name}", "Welcome, {name}",
-    "Have a good day, {name}", "Good luck today, {name}", "Great to see you, {name}",
-    "Welcome back, {name}", "Wishing you a great day, {name}",
+    "Good morning, {name}!",
+    "Have a great morning, {name}",
+    "Welcome, {name}",
+    "Have a good day, {name}",
+    "Good luck today, {name}",
+    "Great to see you, {name}",
+    "Welcome back, {name}",
+    "Wishing you a great day, {name}",
   ],
   noon: [
-    "Good day, {name}!", "Have a nice day, {name}", "Welcome, {name}",
-    "Enjoy your break, {name}", "All the best, {name}", "Great to see you, {name}",
+    "Good day, {name}!",
+    "Have a nice day, {name}",
+    "Welcome, {name}",
+    "Enjoy your break, {name}",
+    "All the best, {name}",
+    "Great to see you, {name}",
     "Welcome back, {name}",
   ],
   afternoon: [
-    "Good afternoon, {name}!", "Have a great afternoon, {name}", "Welcome, {name}",
-    "Have a good day, {name}", "All the best, {name}", "Great to see you, {name}",
-    "Welcome back, {name}", "Wishing you a great afternoon, {name}",
+    "Good afternoon, {name}!",
+    "Have a great afternoon, {name}",
+    "Welcome, {name}",
+    "Have a good day, {name}",
+    "All the best, {name}",
+    "Great to see you, {name}",
+    "Welcome back, {name}",
+    "Wishing you a great afternoon, {name}",
   ],
   evening: [
-    "Good evening, {name}!", "Have a great evening, {name}", "Welcome, {name}",
-    "Great to see you, {name}", "Have a good evening, {name}",
-    "Welcome back, {name}", "Wishing you a great evening, {name}",
+    "Good evening, {name}!",
+    "Have a great evening, {name}",
+    "Welcome, {name}",
+    "Great to see you, {name}",
+    "Have a good evening, {name}",
+    "Welcome back, {name}",
+    "Wishing you a great evening, {name}",
   ],
   lateEvening: [
-    "Good evening, {name}", "Have a nice evening, {name}", "Welcome, {name}",
-    "Great to see you, {name}", "Have a good evening, {name}",
+    "Good evening, {name}",
+    "Have a nice evening, {name}",
+    "Welcome, {name}",
+    "Great to see you, {name}",
+    "Have a good evening, {name}",
     "Welcome back, {name}",
   ],
 };
-
 
 export type GreetingsDictionary = Record<Lang, Record<TimeBucket, string[]>>;
 
 export const DEFAULT_GREETINGS: GreetingsDictionary = { pl: PL, en: EN };
 
 const GREETINGS: GreetingsDictionary = DEFAULT_GREETINGS;
-
 
 // ----------- VOCATIVE FALLBACKS (PL) -----------
 // Used when the name is not in the dictionary. Heuristics by last letter / gender.
@@ -170,21 +233,33 @@ function hashSeed(seed: string | number): number {
   return h >>> 0;
 }
 
-export function pickGreeting({ lang, firstName, entry, seed, now, overrides }: GreetingArgs): string {
+export function pickGreeting({
+  lang,
+  firstName,
+  entry,
+  seed,
+  now,
+  overrides,
+}: GreetingArgs): string {
   const bucket = timeBucket(now);
   const custom = overrides?.[lang]?.[bucket];
-  const pool = (custom && custom.length > 0) ? custom : GREETINGS[lang][bucket];
+  const pool = custom && custom.length > 0 ? custom : GREETINGS[lang][bucket];
   // Stable variant within a 30-min window per user (or random if no seed).
   const halfHour = Math.floor((now ?? new Date()).getTime() / (30 * 60 * 1000));
-  const idx = seed !== undefined
-    ? (hashSeed(`${seed}:${halfHour}`) % pool.length)
-    : Math.floor(Math.random() * pool.length);
+  const idx =
+    seed !== undefined
+      ? hashSeed(`${seed}:${halfHour}`) % pool.length
+      : Math.floor(Math.random() * pool.length);
   const template = pool[idx];
 
   const raw = (firstName ?? "").trim();
   if (!raw) {
     // Strip ", {name}" gracefully.
-    return template.replace(/\s*-?\s*\{name\}!?/g, "").replace(/,\s*$/, "").replace(/\s+!/, "!").trim();
+    return template
+      .replace(/\s*-?\s*\{name\}!?/g, "")
+      .replace(/,\s*$/, "")
+      .replace(/\s+!/, "!")
+      .trim();
   }
 
   let vocative = raw;

@@ -19,12 +19,17 @@ function easeInOutCubic(t: number): number {
 }
 
 function prefersReducedMotion(): boolean {
-  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true
+  );
 }
 
 export function getAnchorScrollOffset(defaultOffset = 80): number {
   if (typeof document === "undefined") return defaultOffset;
-  const header = document.querySelector<HTMLElement>("[data-site-header], header[role='banner'], header");
+  const header = document.querySelector<HTMLElement>(
+    "[data-site-header], header[role='banner'], header",
+  );
   if (!header) return defaultOffset;
   const rect = header.getBoundingClientRect();
   if (rect.height <= 0 || rect.bottom <= 0) return defaultOffset;
@@ -40,15 +45,18 @@ export function replaceHashPreservingRouterState(id: string): void {
 function replaceUrlWithHashScrollDisabled(nextUrl: string): void {
   if (typeof window === "undefined") return;
   const currentState: unknown = window.history.state;
-  const nextState = currentState && typeof currentState === "object" && !Array.isArray(currentState)
-    ? { ...(currentState as Record<string, unknown>), __hashScrollIntoViewOptions: false }
-    : { __hashScrollIntoViewOptions: false };
+  const nextState =
+    currentState && typeof currentState === "object" && !Array.isArray(currentState)
+      ? { ...(currentState as Record<string, unknown>), __hashScrollIntoViewOptions: false }
+      : { __hashScrollIntoViewOptions: false };
   window.history.replaceState(nextState, "", nextUrl);
 }
 
 function disableRouterHashScrollForCurrentEntry(): void {
   if (typeof window === "undefined") return;
-  replaceUrlWithHashScrollDisabled(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+  replaceUrlWithHashScrollDisabled(
+    `${window.location.pathname}${window.location.search}${window.location.hash}`,
+  );
 }
 
 export function cancelSmoothAnchorScroll(): void {
@@ -81,7 +89,8 @@ export function smoothScrollToAnchor(id: string, options: SmoothAnchorScrollOpti
   html.style.overflowAnchor = "none";
   body.style.overflowAnchor = "none";
 
-  const targetTop = (): number => Math.max(0, el.getBoundingClientRect().top + window.scrollY - offset);
+  const targetTop = (): number =>
+    Math.max(0, el.getBoundingClientRect().top + window.scrollY - offset);
   const startTop = window.scrollY;
   let latestTarget = targetTop();
   const initialDistance = latestTarget - startTop;

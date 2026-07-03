@@ -33,7 +33,9 @@ export function TtsPlayerHost({ source, customText, label, voiceId, model, nodeI
       const clone = root.cloneNode(true) as HTMLElement;
       const selfClone = clone.querySelector(`[data-w-id="${nodeId}"]`);
       selfClone?.remove();
-      clone.querySelectorAll("script,style,nav,header,footer,button,iframe").forEach((n) => n.remove());
+      clone
+        .querySelectorAll("script,style,nav,header,footer,button,iframe")
+        .forEach((n) => n.remove());
       return (clone.textContent || "").replace(/\s+/g, " ").trim();
     };
     setText(grab());

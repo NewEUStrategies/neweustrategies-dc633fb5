@@ -13,15 +13,25 @@ export type MarkdownTransform =
   | { kind: "code" };
 
 const PATTERNS: Array<(t: string) => MarkdownTransform | null> = [
-  (t) => /^#{1}\s+(.*)$/.test(t) ? { kind: "heading", level: 2, text: t.replace(/^#\s+/, "") } : null,
-  (t) => /^#{2}\s+(.*)$/.test(t) ? { kind: "heading", level: 2, text: t.replace(/^##\s+/, "") } : null,
-  (t) => /^#{3}\s+(.*)$/.test(t) ? { kind: "heading", level: 3, text: t.replace(/^###\s+/, "") } : null,
-  (t) => /^#{4}\s+(.*)$/.test(t) ? { kind: "heading", level: 4, text: t.replace(/^####\s+/, "") } : null,
-  (t) => /^>\s+(.*)$/.test(t) ? { kind: "quote", text: t.replace(/^>\s+/, "") } : null,
-  (t) => /^[-*]\s+(.*)$/.test(t) ? { kind: "list", ordered: false, first: t.replace(/^[-*]\s+/, "") } : null,
-  (t) => /^1\.\s+(.*)$/.test(t) ? { kind: "list", ordered: true, first: t.replace(/^1\.\s+/, "") } : null,
-  (t) => /^-{3,}\s*$/.test(t) ? { kind: "separator" } : null,
-  (t) => /^```\s*$/.test(t) ? { kind: "code" } : null,
+  (t) =>
+    /^#{1}\s+(.*)$/.test(t) ? { kind: "heading", level: 2, text: t.replace(/^#\s+/, "") } : null,
+  (t) =>
+    /^#{2}\s+(.*)$/.test(t) ? { kind: "heading", level: 2, text: t.replace(/^##\s+/, "") } : null,
+  (t) =>
+    /^#{3}\s+(.*)$/.test(t) ? { kind: "heading", level: 3, text: t.replace(/^###\s+/, "") } : null,
+  (t) =>
+    /^#{4}\s+(.*)$/.test(t) ? { kind: "heading", level: 4, text: t.replace(/^####\s+/, "") } : null,
+  (t) => (/^>\s+(.*)$/.test(t) ? { kind: "quote", text: t.replace(/^>\s+/, "") } : null),
+  (t) =>
+    /^[-*]\s+(.*)$/.test(t)
+      ? { kind: "list", ordered: false, first: t.replace(/^[-*]\s+/, "") }
+      : null,
+  (t) =>
+    /^1\.\s+(.*)$/.test(t)
+      ? { kind: "list", ordered: true, first: t.replace(/^1\.\s+/, "") }
+      : null,
+  (t) => (/^-{3,}\s*$/.test(t) ? { kind: "separator" } : null),
+  (t) => (/^```\s*$/.test(t) ? { kind: "code" } : null),
 ];
 
 export function detectMarkdownShortcut(plain: string): MarkdownTransform | null {
@@ -36,7 +46,11 @@ export function detectMarkdownShortcut(plain: string): MarkdownTransform | null 
 export function shortcutToBlock(t: MarkdownTransform): Block {
   switch (t.kind) {
     case "heading":
-      return { id: newBlockId(), type: "heading", data: { level: t.level, text: t.text, anchor: "" } };
+      return {
+        id: newBlockId(),
+        type: "heading",
+        data: { level: t.level, text: t.text, anchor: "" },
+      };
     case "quote":
       return { id: newBlockId(), type: "quote", data: { text: t.text, cite: "" } };
     case "list":

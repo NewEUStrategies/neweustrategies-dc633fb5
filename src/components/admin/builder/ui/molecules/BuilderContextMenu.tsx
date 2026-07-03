@@ -5,8 +5,19 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
-  Copy, Trash2, Plus, ChevronUp, ChevronDown, Eye, Save, Columns2, Settings, X,
-  Globe, Link2Off, FlaskConical,
+  Copy,
+  Trash2,
+  Plus,
+  ChevronUp,
+  ChevronDown,
+  Eye,
+  Save,
+  Columns2,
+  Settings,
+  X,
+  Globe,
+  Link2Off,
+  FlaskConical,
 } from "@/lib/lucide-shim";
 
 export type CtxKind = "section" | "inner-section" | "column" | "widget" | "empty";
@@ -64,7 +75,9 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
     const onDocDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     const onScroll = () => onClose();
     document.addEventListener("mousedown", onDocDown);
     document.addEventListener("contextmenu", onDocDown);
@@ -97,10 +110,15 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
   if (!target) return null;
 
   const kindLabel =
-    target.kind === "section" ? "Sekcja" :
-    target.kind === "inner-section" ? "Sekcja wewn." :
-    target.kind === "column" ? "Kolumna" :
-    target.kind === "widget" ? "Widget" : "Obszar";
+    target.kind === "section"
+      ? "Sekcja"
+      : target.kind === "inner-section"
+        ? "Sekcja wewn."
+        : target.kind === "column"
+          ? "Kolumna"
+          : target.kind === "widget"
+            ? "Widget"
+            : "Obszar";
 
   const run = (fn?: () => void) => {
     if (!fn) return;
@@ -109,21 +127,32 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
   };
 
   const Item = ({
-    icon, label, shortcut, onClick, disabled, danger,
+    icon,
+    label,
+    shortcut,
+    onClick,
+    disabled,
+    danger,
   }: {
-    icon?: ReactNode; label: string; shortcut?: string;
-    onClick?: () => void; disabled?: boolean; danger?: boolean;
+    icon?: ReactNode;
+    label: string;
+    shortcut?: string;
+    onClick?: () => void;
+    disabled?: boolean;
+    danger?: boolean;
   }) => (
     <button
       type="button"
       disabled={disabled || !onClick}
       onClick={() => run(onClick)}
       className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded text-left transition
-        ${disabled || !onClick
-          ? "opacity-40 cursor-not-allowed text-muted-foreground"
-          : danger
-            ? "text-destructive hover:bg-destructive/10"
-            : "text-foreground hover:bg-muted"}`}
+        ${
+          disabled || !onClick
+            ? "opacity-40 cursor-not-allowed text-muted-foreground"
+            : danger
+              ? "text-destructive hover:bg-destructive/10"
+              : "text-foreground hover:bg-muted"
+        }`}
     >
       <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0">{icon}</span>
       <span className="flex-1 truncate">{label}</span>
@@ -160,39 +189,71 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
       <Sep />
 
       {actions.openProperties && (
-        <Item icon={<Settings className="w-3.5 h-3.5" />} label="Właściwości" onClick={actions.openProperties} />
+        <Item
+          icon={<Settings className="w-3.5 h-3.5" />}
+          label="Właściwości"
+          onClick={actions.openProperties}
+        />
       )}
 
       {(actions.canMoveUp !== undefined || actions.canMoveDown !== undefined) && (
         <>
-          <Item icon={<ChevronUp className="w-3.5 h-3.5" />} label="Przenieś w górę" onClick={actions.moveUp} disabled={!actions.canMoveUp} />
-          <Item icon={<ChevronDown className="w-3.5 h-3.5" />} label="Przenieś w dół" onClick={actions.moveDown} disabled={!actions.canMoveDown} />
+          <Item
+            icon={<ChevronUp className="w-3.5 h-3.5" />}
+            label="Przenieś w górę"
+            onClick={actions.moveUp}
+            disabled={!actions.canMoveUp}
+          />
+          <Item
+            icon={<ChevronDown className="w-3.5 h-3.5" />}
+            label="Przenieś w dół"
+            onClick={actions.moveDown}
+            disabled={!actions.canMoveDown}
+          />
         </>
       )}
 
       {(actions.addColumn || actions.addInnerSection || actions.addSection) && <Sep />}
       {actions.addSection && (
-        <Item icon={<Plus className="w-3.5 h-3.5" />} label="Dodaj sekcję" onClick={actions.addSection} />
+        <Item
+          icon={<Plus className="w-3.5 h-3.5" />}
+          label="Dodaj sekcję"
+          onClick={actions.addSection}
+        />
       )}
       {actions.addColumn && (
-        <Item icon={<Columns2 className="w-3.5 h-3.5" />} label="Dodaj kolumnę" onClick={actions.addColumn} />
+        <Item
+          icon={<Columns2 className="w-3.5 h-3.5" />}
+          label="Dodaj kolumnę"
+          onClick={actions.addColumn}
+        />
       )}
       {actions.addInnerSection && (
-        <Item icon={<Plus className="w-3.5 h-3.5" />} label="Sekcja wewnętrzna" onClick={actions.addInnerSection} />
+        <Item
+          icon={<Plus className="w-3.5 h-3.5" />}
+          label="Sekcja wewnętrzna"
+          onClick={actions.addInnerSection}
+        />
       )}
 
       {(actions.copy || actions.cut || actions.paste || actions.duplicate) && <Sep />}
       {actions.duplicate && (
-        <Item icon={<Copy className="w-3.5 h-3.5" />} label="Duplikuj" shortcut="⌘D" onClick={actions.duplicate} />
+        <Item
+          icon={<Copy className="w-3.5 h-3.5" />}
+          label="Duplikuj"
+          shortcut="⌘D"
+          onClick={actions.duplicate}
+        />
       )}
-      {actions.copy && (
-        <Item label="Kopiuj" shortcut="⌘C" onClick={actions.copy} />
-      )}
-      {actions.cut && (
-        <Item label="Wytnij" shortcut="⌘X" onClick={actions.cut} />
-      )}
+      {actions.copy && <Item label="Kopiuj" shortcut="⌘C" onClick={actions.copy} />}
+      {actions.cut && <Item label="Wytnij" shortcut="⌘X" onClick={actions.cut} />}
       {actions.paste && (
-        <Item label="Wklej" shortcut="⌘V" onClick={actions.paste} disabled={!actions.hasClipboard} />
+        <Item
+          label="Wklej"
+          shortcut="⌘V"
+          onClick={actions.paste}
+          disabled={!actions.hasClipboard}
+        />
       )}
 
       {actions.toggleHidden && (
@@ -207,20 +268,36 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
       )}
 
       {actions.saveAsTemplate && (
-        <Item icon={<Save className="w-3.5 h-3.5" />} label="Zapisz jako szablon" onClick={actions.saveAsTemplate} />
+        <Item
+          icon={<Save className="w-3.5 h-3.5" />}
+          label="Zapisz jako szablon"
+          onClick={actions.saveAsTemplate}
+        />
       )}
 
       {actions.saveAsGlobal && (
-        <Item icon={<Globe className="w-3.5 h-3.5" />} label="Zapisz jako widget globalny" onClick={actions.saveAsGlobal} />
+        <Item
+          icon={<Globe className="w-3.5 h-3.5" />}
+          label="Zapisz jako widget globalny"
+          onClick={actions.saveAsGlobal}
+        />
       )}
       {actions.unlinkGlobal && (
-        <Item icon={<Link2Off className="w-3.5 h-3.5" />} label="Odłącz od widgetu globalnego" onClick={actions.unlinkGlobal} />
+        <Item
+          icon={<Link2Off className="w-3.5 h-3.5" />}
+          label="Odłącz od widgetu globalnego"
+          onClick={actions.unlinkGlobal}
+        />
       )}
 
       {actions.startAbTest && (
         <>
           <Sep />
-          <Item icon={<FlaskConical className="w-3.5 h-3.5" />} label="Utwórz test A/B" onClick={actions.startAbTest} />
+          <Item
+            icon={<FlaskConical className="w-3.5 h-3.5" />}
+            label="Utwórz test A/B"
+            onClick={actions.startAbTest}
+          />
         </>
       )}
       {actions.abVariant && (
@@ -229,16 +306,34 @@ export function BuilderContextMenu({ target, actions, onClose }: Props) {
           <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">
             Test A/B - wariant {actions.abVariant.toUpperCase()}
           </div>
-          <Item icon={<FlaskConical className="w-3.5 h-3.5" />} label="Zakończ test - zostaw wariant A" onClick={actions.endAbTestKeepA} />
-          <Item icon={<FlaskConical className="w-3.5 h-3.5" />} label="Zakończ test - zostaw wariant B" onClick={actions.endAbTestKeepB} />
-          <Item icon={<FlaskConical className="w-3.5 h-3.5" />} label="Zakończ test - zostaw oba" onClick={actions.endAbTestKeepBoth} />
+          <Item
+            icon={<FlaskConical className="w-3.5 h-3.5" />}
+            label="Zakończ test - zostaw wariant A"
+            onClick={actions.endAbTestKeepA}
+          />
+          <Item
+            icon={<FlaskConical className="w-3.5 h-3.5" />}
+            label="Zakończ test - zostaw wariant B"
+            onClick={actions.endAbTestKeepB}
+          />
+          <Item
+            icon={<FlaskConical className="w-3.5 h-3.5" />}
+            label="Zakończ test - zostaw oba"
+            onClick={actions.endAbTestKeepBoth}
+          />
         </>
       )}
 
       {actions.remove && (
         <>
           <Sep />
-          <Item icon={<Trash2 className="w-3.5 h-3.5" />} label="Usuń" shortcut="Del" onClick={actions.remove} danger />
+          <Item
+            icon={<Trash2 className="w-3.5 h-3.5" />}
+            label="Usuń"
+            shortcut="Del"
+            onClick={actions.remove}
+            danger
+          />
         </>
       )}
     </div>,

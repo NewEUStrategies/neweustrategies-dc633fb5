@@ -16,7 +16,8 @@ function getNum(c: Record<string, unknown>, k: string, d: number): number {
   return typeof v === "number" ? v : typeof v === "string" && /^\d+$/.test(v) ? Number(v) : d;
 }
 function getStr(c: Record<string, unknown>, k: string, d = ""): string {
-  const v = c[k]; return typeof v === "string" ? v : d;
+  const v = c[k];
+  return typeof v === "string" ? v : d;
 }
 
 export function WebStoriesCarouselView({ c, lang }: Props) {
@@ -28,14 +29,19 @@ export function WebStoriesCarouselView({ c, lang }: Props) {
   const { data, isLoading } = useQuery(latestWebStoriesQueryOptions(limit));
   if (isLoading) return <div className="text-sm text-muted-foreground">…</div>;
   if (!data?.length) {
-    return <div className="text-sm text-muted-foreground">{lang === "en" ? "No web stories yet." : "Brak historii."}</div>;
+    return (
+      <div className="text-sm text-muted-foreground">
+        {lang === "en" ? "No web stories yet." : "Brak historii."}
+      </div>
+    );
   }
 
   const open = data[openIdx ?? -1];
 
-  const containerCls = variant === "grid"
-    ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"
-    : "flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-2 px-2 scrollbar-thin";
+  const containerCls =
+    variant === "grid"
+      ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"
+      : "flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-2 px-2 scrollbar-thin";
 
   return (
     <div>
@@ -51,13 +57,20 @@ export function WebStoriesCarouselView({ c, lang }: Props) {
               aria-label={title}
             >
               {s.cover_url ? (
-                <img src={s.cover_url} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105" />
+                <img
+                  src={s.cover_url}
+                  alt=""
+                  loading="lazy"
+                  className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105"
+                />
               ) : (
                 <div className="absolute inset-0 bg-gradient-to-br from-neutral-700 to-neutral-900" />
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
               <div className="absolute bottom-2 left-2 right-2">
-                <div className="text-white text-xs sm:text-sm font-medium line-clamp-2 drop-shadow">{title}</div>
+                <div className="text-white text-xs sm:text-sm font-medium line-clamp-2 drop-shadow">
+                  {title}
+                </div>
               </div>
             </button>
           );
@@ -65,17 +78,15 @@ export function WebStoriesCarouselView({ c, lang }: Props) {
       </div>
 
       {open && open.pages.length > 0 && (
-        <StoryViewer
-          pages={open.pages}
-          lang={lang}
-          onClose={() => setOpenIdx(null)}
-        />
+        <StoryViewer pages={open.pages} lang={lang} onClose={() => setOpenIdx(null)} />
       )}
 
       {/* SEO crawlable links to single story pages */}
       <div className="sr-only">
         {data.map((s) => (
-          <Link key={s.id} to="/web-stories/$slug" params={{ slug: s.slug }}>{storyTitle(s, lang)}</Link>
+          <Link key={s.id} to="/web-stories/$slug" params={{ slug: s.slug }}>
+            {storyTitle(s, lang)}
+          </Link>
         ))}
       </div>
     </div>

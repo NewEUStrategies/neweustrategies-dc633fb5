@@ -17,7 +17,12 @@
 // never mounted and have been removed.
 import { useCallback, useMemo, useState } from "react";
 import {
-  Settings as SettingsIcon, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
+  Settings as SettingsIcon,
+  X,
+  ChevronUp,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from "@/lib/lucide-shim";
 import type { BuilderDocument, Device, Mode } from "@/lib/builder/types";
 import { emptyDocument } from "@/lib/builder/types";
@@ -34,7 +39,11 @@ import { Navigator } from "./Navigator";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import {
-  Toolbar, CanvasActionBar, EmptyState, ChromeFrame, VisualCanvas,
+  Toolbar,
+  CanvasActionBar,
+  EmptyState,
+  ChromeFrame,
+  VisualCanvas,
   type Selection,
 } from "./ui/organisms/builder";
 import { useBuilderOperations } from "./ui/hooks/useBuilderOperations";
@@ -44,8 +53,6 @@ import { useGlobalWidgetSync } from "./ui/hooks/useGlobalWidgetSync";
 import { ConfirmDeleteDialog } from "./ui/molecules/ConfirmDeleteDialog";
 import { BuilderContextMenu, type CtxTarget } from "./ui/molecules/BuilderContextMenu";
 import { readClipboard } from "@/lib/builder/clipboard";
-
-
 
 interface Props {
   value: BuilderDocument | null;
@@ -59,14 +66,46 @@ interface Props {
 }
 
 const SCOPE_COPY = {
-  page:   { title: "Zacznij budować stronę", hint: "Wybierz strukturę pierwszej sekcji. Pojawi się między nagłówkiem a stopką.", first: "Wstaw sekcję pod nagłówkiem", last: "Wstaw sekcję nad stopką" },
-  header: { title: "Zbuduj nagłówek",        hint: "Dodaj pierwszą sekcję nagłówka (logo, menu, wyszukiwarka).",                first: "Wstaw sekcję nagłówka",      last: "Dodaj sekcję na końcu nagłówka" },
-  footer: { title: "Zbuduj stopkę",          hint: "Dodaj pierwszą sekcję stopki (kolumny linków, kontakt, copyright).",       first: "Wstaw sekcję stopki",        last: "Dodaj sekcję na końcu stopki" },
-  menu:   { title: "Zbuduj menu",            hint: "Dodaj sekcję z linkami menu - użyj widgetu Link nawigacji.",               first: "Wstaw sekcję menu",          last: "Dodaj sekcję na końcu menu" },
-  popup:  { title: "Zbuduj popup",           hint: "Dodaj pierwszą sekcję popupu (nagłówek, tekst, przycisk lub newsletter).", first: "Wstaw sekcję popupu",        last: "Dodaj sekcję na końcu popupu" },
+  page: {
+    title: "Zacznij budować stronę",
+    hint: "Wybierz strukturę pierwszej sekcji. Pojawi się między nagłówkiem a stopką.",
+    first: "Wstaw sekcję pod nagłówkiem",
+    last: "Wstaw sekcję nad stopką",
+  },
+  header: {
+    title: "Zbuduj nagłówek",
+    hint: "Dodaj pierwszą sekcję nagłówka (logo, menu, wyszukiwarka).",
+    first: "Wstaw sekcję nagłówka",
+    last: "Dodaj sekcję na końcu nagłówka",
+  },
+  footer: {
+    title: "Zbuduj stopkę",
+    hint: "Dodaj pierwszą sekcję stopki (kolumny linków, kontakt, copyright).",
+    first: "Wstaw sekcję stopki",
+    last: "Dodaj sekcję na końcu stopki",
+  },
+  menu: {
+    title: "Zbuduj menu",
+    hint: "Dodaj sekcję z linkami menu - użyj widgetu Link nawigacji.",
+    first: "Wstaw sekcję menu",
+    last: "Dodaj sekcję na końcu menu",
+  },
+  popup: {
+    title: "Zbuduj popup",
+    hint: "Dodaj pierwszą sekcję popupu (nagłówek, tekst, przycisk lub newsletter).",
+    first: "Wstaw sekcję popupu",
+    last: "Dodaj sekcję na końcu popupu",
+  },
 } as const;
 
-export function Builder({ value, onChange, lang, onLangChange, hideChrome = false, scope = "page" }: Props) {
+export function Builder({
+  value,
+  onChange,
+  lang,
+  onLangChange,
+  hideChrome = false,
+  scope = "page",
+}: Props) {
   const copy = SCOPE_COPY[scope];
 
   const initial = useMemo(() => safeParseBuilderDoc(value ?? emptyDocument()), [value]);
@@ -80,24 +119,53 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   const [selection, setSelection] = useState<Selection>({ kind: null, id: null });
   const [showNavigator, setShowNavigator] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<{ kind: "section" | "column" | "widget"; id: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    kind: "section" | "column" | "widget";
+    id: string;
+  } | null>(null);
   const [ctx, setCtx] = useState<CtxTarget | null>(null);
 
-  const askRemoveSection = useCallback((id: string) => setPendingDelete({ kind: "section", id }), []);
+  const askRemoveSection = useCallback(
+    (id: string) => setPendingDelete({ kind: "section", id }),
+    [],
+  );
   const askRemoveColumn = useCallback((id: string) => setPendingDelete({ kind: "column", id }), []);
   const askRemoveWidget = useCallback((id: string) => setPendingDelete({ kind: "widget", id }), []);
 
   // All tree mutations (add / remove / move / duplicate / update / toggle).
   const {
-    update, focusedColumn,
-    addSection, loadHomepage, insertTemplateSection, saveSectionAsTemplate,
-    removeSection, moveSection, duplicateSection, insertSectionAt,
-    addInnerSection, addColumn, removeColumn, duplicateColumn,
-    removeWidget, duplicateWidget, updateWidget, updateSection, updateColumn,
-    addWidgetToFocused, addWidgetToColumn, insertWidgetNear, appendWidgetToSection,
-    addGlobalWidgetToFocused, saveWidgetAsGlobal, unlinkGlobalWidget,
-    startAbTest, endAbTest,
-    moveWidgetTo, moveWidgetToColumn, moveWidgetToSection, moveSectionTo,
+    update,
+    focusedColumn,
+    addSection,
+    loadHomepage,
+    insertTemplateSection,
+    saveSectionAsTemplate,
+    removeSection,
+    moveSection,
+    duplicateSection,
+    insertSectionAt,
+    addInnerSection,
+    addColumn,
+    removeColumn,
+    duplicateColumn,
+    removeWidget,
+    duplicateWidget,
+    updateWidget,
+    updateSection,
+    updateColumn,
+    addWidgetToFocused,
+    addWidgetToColumn,
+    insertWidgetNear,
+    appendWidgetToSection,
+    addGlobalWidgetToFocused,
+    saveWidgetAsGlobal,
+    unlinkGlobalWidget,
+    startAbTest,
+    endAbTest,
+    moveWidgetTo,
+    moveWidgetToColumn,
+    moveWidgetToSection,
+    moveSectionTo,
     toggleHidden,
   } = useBuilderOperations({ history, doc, selection, setSelection, device });
 
@@ -107,7 +175,10 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
 
   // ---------- clipboard ----------
   const { copySelection, pasteFromClipboard } = useBuilderClipboard({
-    doc, selection, focusedColumn, update,
+    doc,
+    selection,
+    focusedColumn,
+    update,
   });
 
   // ---------- keyboard shortcuts ----------
@@ -120,21 +191,34 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
   }, [selection, copySelection, askRemoveSection, askRemoveColumn, askRemoveWidget]);
 
   useBuilderShortcuts({
-    selection, setSelection,
-    undo: history.undo, redo: history.redo,
-    copySelection, cutSelection, pasteFromClipboard,
-    duplicateSection, duplicateColumn, duplicateWidget,
-    askRemoveSection, askRemoveColumn, askRemoveWidget,
+    selection,
+    setSelection,
+    undo: history.undo,
+    redo: history.redo,
+    copySelection,
+    cutSelection,
+    pasteFromClipboard,
+    duplicateSection,
+    duplicateColumn,
+    duplicateWidget,
+    askRemoveSection,
+    askRemoveColumn,
+    askRemoveWidget,
     moveSection,
     onToggleNavigator: () => setShowNavigator((v) => !v),
   });
 
-
   // ---------- left panel content ----------
-  const selectedWidget = selection.kind === "widget" && selection.id ? findWidget(doc, selection.id)?.widget ?? null : null;
-  const selectedSection = selection.kind === "section" && selection.id ? findSection(doc, selection.id) : null;
-  const selectedColumn = selection.kind === "column" && selection.id ? findColumn(doc, selection.id) : null;
-  const selectedInner = selection.kind === "inner-section" && selection.id ? findInner(doc, selection.id) : null;
+  const selectedWidget =
+    selection.kind === "widget" && selection.id
+      ? (findWidget(doc, selection.id)?.widget ?? null)
+      : null;
+  const selectedSection =
+    selection.kind === "section" && selection.id ? findSection(doc, selection.id) : null;
+  const selectedColumn =
+    selection.kind === "column" && selection.id ? findColumn(doc, selection.id) : null;
+  const selectedInner =
+    selection.kind === "inner-section" && selection.id ? findInner(doc, selection.id) : null;
   const hasSelection = !!(selectedWidget || selectedSection || selectedColumn || selectedInner);
 
   // ---------- right-click context menu ----------
@@ -261,18 +345,34 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
     }
     return {};
   }, [
-    ctx, doc, device,
-    addSection, duplicateSection, moveSection, addColumn, addInnerSection,
-    saveSectionAsTemplate, askRemoveSection, askRemoveColumn, askRemoveWidget,
-    duplicateColumn, duplicateWidget, copySelection, cutSelection, pasteFromClipboard,
-    saveWidgetAsGlobal, unlinkGlobalWidget, startAbTest, endAbTest,
+    ctx,
+    doc,
+    device,
+    addSection,
+    duplicateSection,
+    moveSection,
+    addColumn,
+    addInnerSection,
+    saveSectionAsTemplate,
+    askRemoveSection,
+    askRemoveColumn,
+    askRemoveWidget,
+    duplicateColumn,
+    duplicateWidget,
+    copySelection,
+    cutSelection,
+    pasteFromClipboard,
+    saveWidgetAsGlobal,
+    unlinkGlobalWidget,
+    startAbTest,
+    endAbTest,
     toggleHidden,
   ]);
 
   return (
-    <div className={`cms-builder-compact grid ${sidebarCollapsed ? "grid-cols-[40px_1fr]" : "grid-cols-[260px_1fr]"} gap-3 items-start transition-[grid-template-columns] duration-200`}>
-
-
+    <div
+      className={`cms-builder-compact grid ${sidebarCollapsed ? "grid-cols-[40px_1fr]" : "grid-cols-[260px_1fr]"} gap-3 items-start transition-[grid-template-columns] duration-200`}
+    >
       {/* LEFT PANEL */}
       <aside className="bg-card border border-border rounded-lg flex flex-col overflow-hidden sticky top-3 max-h-[calc(100vh-1.5rem)] self-start">
         {sidebarCollapsed ? (
@@ -282,57 +382,99 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
             title="Rozwiń panel"
           >
             <ChevronRight className="w-4 h-4" />
-            <span className="text-[10px] font-medium uppercase tracking-wider [writing-mode:vertical-rl] rotate-180">Widgety</span>
+            <span className="text-[10px] font-medium uppercase tracking-wider [writing-mode:vertical-rl] rotate-180">
+              Widgety
+            </span>
           </button>
         ) : (
           <>
             {hasSelection ? (
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="p-3 border-b border-border flex items-center justify-between gap-2">
-                  <button onClick={() => setSelection({ kind: null, id: null })}
-                    className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+                  <button
+                    onClick={() => setSelection({ kind: null, id: null })}
+                    className="text-xs inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                  >
                     <ChevronLeft className="w-3.5 h-3.5" /> Widgety
                   </button>
                   <h3 className="text-sm font-medium inline-flex items-center gap-2">
                     <SettingsIcon className="w-4 h-4" />
-                    {selectedWidget ? "Widget"
-                      : selectedColumn ? "Kolumna"
-                      : selectedInner ? "Sekcja wewn."
-                      : "Sekcja"}
+                    {selectedWidget
+                      ? "Widget"
+                      : selectedColumn
+                        ? "Kolumna"
+                        : selectedInner
+                          ? "Sekcja wewn."
+                          : "Sekcja"}
                   </h3>
                   <div className="inline-flex items-center gap-1">
-                    <button onClick={() => setSelection({ kind: null, id: null })} title="Zamknij"><X className="w-4 h-4" /></button>
-                    <button onClick={() => setSidebarCollapsed(true)} title="Zwiń panel" className="text-muted-foreground hover:text-foreground"><ChevronLeft className="w-4 h-4" /></button>
+                    <button onClick={() => setSelection({ kind: null, id: null })} title="Zamknij">
+                      <X className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setSidebarCollapsed(true)}
+                      title="Zwiń panel"
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-3">
                   {selectedWidget && (
-                    <WidgetProperties widget={selectedWidget} lang={lang} device={device} mode={mode} onModeChange={setMode}
-                      onChange={(mut) => updateWidget(selectedWidget.id, mut)} />
+                    <WidgetProperties
+                      widget={selectedWidget}
+                      lang={lang}
+                      device={device}
+                      mode={mode}
+                      onModeChange={setMode}
+                      onChange={(mut) => updateWidget(selectedWidget.id, mut)}
+                    />
                   )}
                   {selectedSection && (
-                    <SectionProperties section={selectedSection} device={device}
-                      onChange={(mut) => updateSection(selectedSection.id, mut)} />
+                    <SectionProperties
+                      section={selectedSection}
+                      device={device}
+                      onChange={(mut) => updateSection(selectedSection.id, mut)}
+                    />
                   )}
                   {selectedColumn && (
-                    <ColumnProperties column={selectedColumn} device={device} mode={mode} onModeChange={setMode}
-                      onChange={(mut) => updateColumn(selectedColumn.id, mut)} />
+                    <ColumnProperties
+                      column={selectedColumn}
+                      device={device}
+                      mode={mode}
+                      onModeChange={setMode}
+                      onChange={(mut) => updateColumn(selectedColumn.id, mut)}
+                    />
                   )}
                   {selectedInner && (
-                    <div className="text-xs text-muted-foreground">Sekcja wewnętrzna - wybierz kolumnę aby ją edytować.</div>
+                    <div className="text-xs text-muted-foreground">
+                      Sekcja wewnętrzna - wybierz kolumnę aby ją edytować.
+                    </div>
                   )}
                 </div>
               </div>
             ) : (
               <>
                 <div className="px-3 py-2 border-b border-border flex items-center justify-between bg-muted/20">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Widgety</span>
-                  <button onClick={() => setSidebarCollapsed(true)} title="Zwiń panel" className="text-muted-foreground hover:text-foreground">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Widgety
+                  </span>
+                  <button
+                    onClick={() => setSidebarCollapsed(true)}
+                    title="Zwiń panel"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto min-h-0">
-                  <WidgetLibrary onPickWidget={addWidgetToFocused} onPickStructure={addSection} onPickTemplate={insertTemplateSection} onPickGlobal={addGlobalWidgetToFocused} />
+                  <WidgetLibrary
+                    onPickWidget={addWidgetToFocused}
+                    onPickStructure={addSection}
+                    onPickTemplate={insertTemplateSection}
+                    onPickGlobal={addGlobalWidgetToFocused}
+                  />
                 </div>
               </>
             )}
@@ -343,11 +485,20 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
                 className="w-full text-left px-3 py-2 text-xs inline-flex items-center justify-between bg-muted/30 hover:bg-muted"
               >
                 <span className="inline-flex items-center gap-2">Nawigator</span>
-                {showNavigator ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                {showNavigator ? (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronUp className="w-3.5 h-3.5" />
+                )}
               </button>
               {showNavigator && (
-                <Navigator doc={doc} selection={selection} device={device}
-                  onSelect={setSelection} onToggleHidden={toggleHidden} />
+                <Navigator
+                  doc={doc}
+                  selection={selection}
+                  device={device}
+                  onSelect={setSelection}
+                  onToggleHidden={toggleHidden}
+                />
               )}
             </div>
           </>
@@ -358,83 +509,103 @@ export function Builder({ value, onChange, lang, onLangChange, hideChrome = fals
       <div className="bg-muted/20 border border-border rounded-lg flex flex-col min-w-0">
         <div className="sticky top-3 z-20">
           <Toolbar
-            lang={lang} onLangChange={onLangChange}
-            device={device} setDevice={setDevice}
-            mode={mode} setMode={setMode}
-            canUndo={history.canUndo} canRedo={history.canRedo}
-            onUndo={history.undo} onRedo={history.redo}
+            lang={lang}
+            onLangChange={onLangChange}
+            device={device}
+            setDevice={setDevice}
+            mode={mode}
+            setMode={setMode}
+            canUndo={history.canUndo}
+            canRedo={history.canRedo}
+            onUndo={history.undo}
+            onRedo={history.redo}
           />
         </div>
 
-        <div className={`bg-muted/30 p-4 ${mode === "dark" ? "dark" : ""}`} onClick={() => setSelection({ kind: null, id: null })} onContextMenu={onCanvasContextMenu}>
+        <div
+          className={`bg-muted/30 p-4 ${mode === "dark" ? "dark" : ""}`}
+          onClick={() => setSelection({ kind: null, id: null })}
+          onContextMenu={onCanvasContextMenu}
+        >
           <BuilderModeProvider mode={mode}>
-          <div
-            className={`mx-auto bg-background shadow-lg ring-1 ring-border transition-all ${
-              device === "desktop" ? "max-w-[1440px]"
-              : device === "tablet" ? "max-w-[820px]"
-              : "max-w-[390px]"
-            } ${scope !== "page" ? "rounded-md" : ""}`}
-          >
-            {/* Site chrome - Header preview with hover edit overlay (page editor only) */}
-            {!hideChrome && scope === "page" && (
-              <ChromeFrame label="Nagłówek strony" editTo="/admin/settings/general">
-                <Header />
-              </ChromeFrame>
-            )}
-
-            {scope !== "page" && (
-              <div className="px-3 py-1.5 border-b border-border bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
-                Edytujesz: {scope === "header" ? "Nagłówek" : scope === "footer" ? "Stopkę" : scope === "popup" ? "Popup" : "Menu"}
-              </div>
-            )}
-
-            <div className={scope === "page" ? "px-2 py-2" : "p-0"}>
-              <CanvasActionBar
-                canUndo={history.canUndo}
-                canRedo={history.canRedo}
-                onUndo={history.undo}
-                onRedo={history.redo}
-                selection={selection}
-                onDelete={() => {
-                  if (!selection.id) return;
-                  if (selection.kind === "section") askRemoveSection(selection.id);
-                  else if (selection.kind === "column") askRemoveColumn(selection.id);
-                  else if (selection.kind === "widget") askRemoveWidget(selection.id);
-                }}
-              />
-
-              {doc.sections.length === 0 && scope === "page" && (
-                <EmptyState
-                  onAdd={addSection}
-                  title={copy.title}
-                  hint={copy.hint}
-                  onLoadHomepage={loadHomepage}
-                />
+            <div
+              className={`mx-auto bg-background shadow-lg ring-1 ring-border transition-all ${
+                device === "desktop"
+                  ? "max-w-[1440px]"
+                  : device === "tablet"
+                    ? "max-w-[820px]"
+                    : "max-w-[390px]"
+              } ${scope !== "page" ? "rounded-md" : ""}`}
+            >
+              {/* Site chrome - Header preview with hover edit overlay (page editor only) */}
+              {!hideChrome && scope === "page" && (
+                <ChromeFrame label="Nagłówek strony" editTo="/admin/settings/general">
+                  <Header />
+                </ChromeFrame>
               )}
-              <VisualCanvas
-                doc={doc} lang={lang} device={device}
-                selection={selection} setSelection={setSelection}
-                onInsertSection={insertSectionAt}
-                onRemoveSection={askRemoveSection}
-                onMoveWidget={moveWidgetTo}
-                onMoveWidgetToColumn={moveWidgetToColumn}
-                onMoveWidgetToSection={moveWidgetToSection}
-                onMoveSection={moveSectionTo}
-                onDropNewWidgetToColumn={addWidgetToColumn}
-                onDropNewWidgetNear={insertWidgetNear}
-                onDropNewWidgetToSection={appendWidgetToSection}
-                firstLabel={copy.first} lastLabel={copy.last}
-              />
+
+              {scope !== "page" && (
+                <div className="px-3 py-1.5 border-b border-border bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Edytujesz:{" "}
+                  {scope === "header"
+                    ? "Nagłówek"
+                    : scope === "footer"
+                      ? "Stopkę"
+                      : scope === "popup"
+                        ? "Popup"
+                        : "Menu"}
+                </div>
+              )}
+
+              <div className={scope === "page" ? "px-2 py-2" : "p-0"}>
+                <CanvasActionBar
+                  canUndo={history.canUndo}
+                  canRedo={history.canRedo}
+                  onUndo={history.undo}
+                  onRedo={history.redo}
+                  selection={selection}
+                  onDelete={() => {
+                    if (!selection.id) return;
+                    if (selection.kind === "section") askRemoveSection(selection.id);
+                    else if (selection.kind === "column") askRemoveColumn(selection.id);
+                    else if (selection.kind === "widget") askRemoveWidget(selection.id);
+                  }}
+                />
+
+                {doc.sections.length === 0 && scope === "page" && (
+                  <EmptyState
+                    onAdd={addSection}
+                    title={copy.title}
+                    hint={copy.hint}
+                    onLoadHomepage={loadHomepage}
+                  />
+                )}
+                <VisualCanvas
+                  doc={doc}
+                  lang={lang}
+                  device={device}
+                  selection={selection}
+                  setSelection={setSelection}
+                  onInsertSection={insertSectionAt}
+                  onRemoveSection={askRemoveSection}
+                  onMoveWidget={moveWidgetTo}
+                  onMoveWidgetToColumn={moveWidgetToColumn}
+                  onMoveWidgetToSection={moveWidgetToSection}
+                  onMoveSection={moveSectionTo}
+                  onDropNewWidgetToColumn={addWidgetToColumn}
+                  onDropNewWidgetNear={insertWidgetNear}
+                  onDropNewWidgetToSection={appendWidgetToSection}
+                  firstLabel={copy.first}
+                  lastLabel={copy.last}
+                />
+              </div>
+
+              {!hideChrome && scope === "page" && (
+                <ChromeFrame label="Stopka strony" editTo="/admin/settings/general">
+                  <Footer />
+                </ChromeFrame>
+              )}
             </div>
-
-
-            {!hideChrome && scope === "page" && (
-              <ChromeFrame label="Stopka strony" editTo="/admin/settings/general">
-                <Footer />
-              </ChromeFrame>
-            )}
-
-          </div>
           </BuilderModeProvider>
         </div>
       </div>

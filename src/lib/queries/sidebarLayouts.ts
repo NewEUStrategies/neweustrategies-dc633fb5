@@ -27,8 +27,7 @@ function parseWidgets(raw: unknown): SidebarWidget[] {
       id: String(w.id ?? crypto.randomUUID()),
       type: (w.type as SidebarWidget["type"]) ?? "reading-panel",
       hidden: Boolean(w.hidden),
-      settings:
-        (w.settings as Record<string, unknown>) ?? {},
+      settings: (w.settings as Record<string, unknown>) ?? {},
     }));
 }
 

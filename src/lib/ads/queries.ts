@@ -9,7 +9,11 @@ interface FetchArgs {
   pageId?: string | null;
 }
 
-async function fetchPlacements({ position, pageType, pageId }: FetchArgs): Promise<AdPlacementWithSlot[]> {
+async function fetchPlacements({
+  position,
+  pageType,
+  pageId,
+}: FetchArgs): Promise<AdPlacementWithSlot[]> {
   const { data, error } = await supabase
     .from("ad_placements")
     .select("*, slot:ad_slots!inner(*)")
@@ -26,7 +30,11 @@ async function fetchPlacements({ position, pageType, pageId }: FetchArgs): Promi
   );
 }
 
-export function useAdPlacements(position: AdPosition, pageType: AdPageType, pageId?: string | null) {
+export function useAdPlacements(
+  position: AdPosition,
+  pageType: AdPageType,
+  pageId?: string | null,
+) {
   return useQuery({
     queryKey: ["ad_placements", position, pageType, pageId ?? null],
     queryFn: () => fetchPlacements({ position, pageType, pageId }),

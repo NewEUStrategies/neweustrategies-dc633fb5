@@ -12,14 +12,14 @@ interface Props {
 }
 
 const COLS: Array<{ v: J; label: string }> = [
-  { v: "start",  label: "L" },
+  { v: "start", label: "L" },
   { v: "center", label: "Ś" },
-  { v: "end",    label: "P" },
+  { v: "end", label: "P" },
 ];
 const ROWS: Array<{ v: A; label: string }> = [
-  { v: "start",  label: "Góra" },
+  { v: "start", label: "Góra" },
   { v: "center", label: "Środek" },
-  { v: "end",    label: "Dół" },
+  { v: "end", label: "Dół" },
 ];
 
 export function PositionAnchor({ justify, align, onChange }: Props) {
@@ -48,7 +48,7 @@ export function PositionAnchor({ justify, align, onChange }: Props) {
                 ●
               </button>
             );
-          })
+          }),
         )}
       </div>
       <div className="flex items-center gap-2">
@@ -64,9 +64,7 @@ export function PositionAnchor({ justify, align, onChange }: Props) {
           <input
             type="checkbox"
             checked={stretched}
-            onChange={(e) =>
-              onChange({ justify, align: e.target.checked ? "stretch" : "auto" })
-            }
+            onChange={(e) => onChange({ justify, align: e.target.checked ? "stretch" : "auto" })}
           />
           Rozciągnij pionowo
         </label>

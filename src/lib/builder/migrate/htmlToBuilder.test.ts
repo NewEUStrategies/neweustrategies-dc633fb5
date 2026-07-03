@@ -66,7 +66,9 @@ describe("htmlToBuilderDoc", () => {
     const doc = htmlToBuilderDoc("<p>PL[fn]p[/fn]</p>", "<p>EN</p>");
     expect(isBuilderDoc(doc)).toBe(true);
 
-    const column = doc.sections[0].children[0] as unknown as { children: Array<{ type: string; content: Record<string, string> }> };
+    const column = doc.sections[0].children[0] as unknown as {
+      children: Array<{ type: string; content: Record<string, string> }>;
+    };
     const widget = column.children[0];
     expect(widget.type).toBe("text");
     expect(widget.content.html_pl).toContain('id="fn-1"'); // footnote baked
@@ -75,7 +77,9 @@ describe("htmlToBuilderDoc", () => {
 
   it("omits a language key when that language has no content", () => {
     const doc = htmlToBuilderDoc("<p>only PL</p>", null);
-    const column = doc.sections[0].children[0] as unknown as { children: Array<{ content: Record<string, string> }> };
+    const column = doc.sections[0].children[0] as unknown as {
+      children: Array<{ content: Record<string, string> }>;
+    };
     const content = column.children[0].content;
     expect(content.html_pl).toBeDefined();
     expect(content.html_en).toBeUndefined();

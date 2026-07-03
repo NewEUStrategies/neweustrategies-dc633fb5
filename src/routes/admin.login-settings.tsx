@@ -19,14 +19,20 @@ function LoginSettingsPage() {
   const save = useSaveAuthSettings();
   const [s, setS] = useState<AuthSettings>(remote);
 
-  useEffect(() => { setS(remote); }, [remote]);
+  useEffect(() => {
+    setS(remote);
+  }, [remote]);
 
   const update = <K extends keyof AuthSettings>(k: K, v: AuthSettings[K]) =>
     setS((prev) => ({ ...prev, [k]: v }));
 
   const submit = async () => {
-    try { await save.mutateAsync(s); toast.success("Zapisano"); }
-    catch (e) { toast.error(e instanceof Error ? e.message : "Błąd"); }
+    try {
+      await save.mutateAsync(s);
+      toast.success("Zapisano");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Błąd");
+    }
   };
 
   return (
@@ -34,8 +40,12 @@ function LoginSettingsPage() {
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl font-bold">Logowanie i rejestracja</h1>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setS(AUTH_DEFAULTS)}>Resetuj</Button>
-          <Button onClick={submit} disabled={save.isPending}>{save.isPending ? "Zapisywanie…" : "Zapisz zmiany"}</Button>
+          <Button variant="outline" onClick={() => setS(AUTH_DEFAULTS)}>
+            Resetuj
+          </Button>
+          <Button onClick={submit} disabled={save.isPending}>
+            {save.isPending ? "Zapisywanie…" : "Zapisz zmiany"}
+          </Button>
         </div>
       </div>
 
@@ -48,53 +58,108 @@ function LoginSettingsPage() {
         </TabsList>
 
         <TabsContent value="popup" className="space-y-4 mt-4">
-          <Card title="Włącz popup logowania" description="Modal logowania w headerze. Wyłączony = przekierowanie do /login.">
+          <Card
+            title="Włącz popup logowania"
+            description="Modal logowania w headerze. Wyłączony = przekierowanie do /login."
+          >
             <Switch checked={s.popup_enabled} onCheckedChange={(v) => update("popup_enabled", v)} />
           </Card>
-          <BiField label="Nagłówek" valPl={s.popup_heading_pl} valEn={s.popup_heading_en}
-            onPl={(v) => update("popup_heading_pl", v)} onEn={(v) => update("popup_heading_en", v)} />
-          <BiField label="Opis" textarea valPl={s.popup_description_pl} valEn={s.popup_description_en}
-            onPl={(v) => update("popup_description_pl", v)} onEn={(v) => update("popup_description_en", v)} />
+          <BiField
+            label="Nagłówek"
+            valPl={s.popup_heading_pl}
+            valEn={s.popup_heading_en}
+            onPl={(v) => update("popup_heading_pl", v)}
+            onEn={(v) => update("popup_heading_en", v)}
+          />
+          <BiField
+            label="Opis"
+            textarea
+            valPl={s.popup_description_pl}
+            valEn={s.popup_description_en}
+            onPl={(v) => update("popup_description_pl", v)}
+            onEn={(v) => update("popup_description_en", v)}
+          />
           <div>
             <Label>Logo formularza (URL)</Label>
-            <Input value={s.form_logo_url} onChange={(e) => update("form_logo_url", e.target.value)} placeholder="https://…/logo.png" />
+            <Input
+              value={s.form_logo_url}
+              onChange={(e) => update("form_logo_url", e.target.value)}
+              placeholder="https://…/logo.png"
+            />
             <p className="text-xs text-muted-foreground mt-1">Zalecana wysokość 48–80px.</p>
           </div>
         </TabsContent>
 
         <TabsContent value="page" className="space-y-4 mt-4">
-          <BiField label="Tytuł hero" valPl={s.hero_title_pl} valEn={s.hero_title_en}
-            onPl={(v) => update("hero_title_pl", v)} onEn={(v) => update("hero_title_en", v)} />
-          <BiField label="Podtytuł hero" textarea valPl={s.hero_subtitle_pl} valEn={s.hero_subtitle_en}
-            onPl={(v) => update("hero_subtitle_pl", v)} onEn={(v) => update("hero_subtitle_en", v)} />
+          <BiField
+            label="Tytuł hero"
+            valPl={s.hero_title_pl}
+            valEn={s.hero_title_en}
+            onPl={(v) => update("hero_title_pl", v)}
+            onEn={(v) => update("hero_title_en", v)}
+          />
+          <BiField
+            label="Podtytuł hero"
+            textarea
+            valPl={s.hero_subtitle_pl}
+            valEn={s.hero_subtitle_en}
+            onPl={(v) => update("hero_subtitle_pl", v)}
+            onEn={(v) => update("hero_subtitle_en", v)}
+          />
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Ilustracja hero - jasny motyw (URL)</Label>
-              <Input value={s.hero_image_url_light} onChange={(e) => update("hero_image_url_light", e.target.value)} placeholder="https://…/hero-light.jpg" />
+              <Input
+                value={s.hero_image_url_light}
+                onChange={(e) => update("hero_image_url_light", e.target.value)}
+                placeholder="https://…/hero-light.jpg"
+              />
             </div>
             <div>
               <Label>Ilustracja hero - ciemny motyw (URL)</Label>
-              <Input value={s.hero_image_url_dark} onChange={(e) => update("hero_image_url_dark", e.target.value)} placeholder="https://…/hero-dark.jpg" />
+              <Input
+                value={s.hero_image_url_dark}
+                onChange={(e) => update("hero_image_url_dark", e.target.value)}
+                placeholder="https://…/hero-dark.jpg"
+              />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Link do Polityki prywatności</Label>
-              <Input value={s.privacy_url} onChange={(e) => update("privacy_url", e.target.value)} placeholder="/polityka-prywatnosci" />
+              <Input
+                value={s.privacy_url}
+                onChange={(e) => update("privacy_url", e.target.value)}
+                placeholder="/polityka-prywatnosci"
+              />
             </div>
             <div>
               <Label>Link do Regulaminu</Label>
-              <Input value={s.terms_url} onChange={(e) => update("terms_url", e.target.value)} placeholder="/regulamin" />
+              <Input
+                value={s.terms_url}
+                onChange={(e) => update("terms_url", e.target.value)}
+                placeholder="/regulamin"
+              />
             </div>
           </div>
-          <Card title="Przełącznik języka PL/EN" description="Pokazuje przyciski PL/EN w prawym górnym rogu strony /login.">
-            <Switch checked={s.show_language_switcher} onCheckedChange={(v) => update("show_language_switcher", v)} />
+          <Card
+            title="Przełącznik języka PL/EN"
+            description="Pokazuje przyciski PL/EN w prawym górnym rogu strony /login."
+          >
+            <Switch
+              checked={s.show_language_switcher}
+              onCheckedChange={(v) => update("show_language_switcher", v)}
+            />
           </Card>
           <div>
             <Label>Pozycja formularza</Label>
-            <select className="w-full mt-1 border rounded p-2 bg-background"
+            <select
+              className="w-full mt-1 border rounded p-2 bg-background"
               value={s.login_position}
-              onChange={(e) => update("login_position", e.target.value as AuthSettings["login_position"])}>
+              onChange={(e) =>
+                update("login_position", e.target.value as AuthSettings["login_position"])
+              }
+            >
               <option value="left">Lewa</option>
               <option value="center">Środek</option>
               <option value="right">Prawa</option>
@@ -102,37 +167,75 @@ function LoginSettingsPage() {
           </div>
           <div>
             <Label>Tło strony logowania (URL)</Label>
-            <Input value={s.login_bg_url} onChange={(e) => update("login_bg_url", e.target.value)} placeholder="https://…/bg.jpg" />
+            <Input
+              value={s.login_bg_url}
+              onChange={(e) => update("login_bg_url", e.target.value)}
+              placeholder="https://…/bg.jpg"
+            />
           </div>
           <div>
             <Label>Kolor tła (hex / oklch / var)</Label>
-            <Input value={s.login_bg_color} onChange={(e) => update("login_bg_color", e.target.value)} placeholder="#0a0a0a" />
+            <Input
+              value={s.login_bg_color}
+              onChange={(e) => update("login_bg_color", e.target.value)}
+              placeholder="#0a0a0a"
+            />
           </div>
           <Card title="Pokaż link 'Wróć na stronę główną'" description="">
-            <Switch checked={s.show_back_to_home} onCheckedChange={(v) => update("show_back_to_home", v)} />
+            <Switch
+              checked={s.show_back_to_home}
+              onCheckedChange={(v) => update("show_back_to_home", v)}
+            />
           </Card>
           <div>
             <Label>Niestandardowy URL strony logowania (opcjonalnie)</Label>
-            <Input value={s.custom_login_url} onChange={(e) => update("custom_login_url", e.target.value)} placeholder="/membership/login" />
+            <Input
+              value={s.custom_login_url}
+              onChange={(e) => update("custom_login_url", e.target.value)}
+              placeholder="/membership/login"
+            />
           </div>
         </TabsContent>
 
-
         <TabsContent value="signup" className="space-y-4 mt-4">
-          <Card title="Pozwól na publiczną rejestrację" description="Czytelnicy mogą zakładać konta (rola: user).">
-            <Switch checked={s.allow_public_signup} onCheckedChange={(v) => update("allow_public_signup", v)} />
+          <Card
+            title="Pozwól na publiczną rejestrację"
+            description="Czytelnicy mogą zakładać konta (rola: user)."
+          >
+            <Switch
+              checked={s.allow_public_signup}
+              onCheckedChange={(v) => update("allow_public_signup", v)}
+            />
           </Card>
-          <BiField label="Etykieta 'Zaloguj'" valPl={s.signin_label_pl} valEn={s.signin_label_en}
-            onPl={(v) => update("signin_label_pl", v)} onEn={(v) => update("signin_label_en", v)} />
-          <BiField label="Etykieta 'Zarejestruj'" valPl={s.signup_label_pl} valEn={s.signup_label_en}
-            onPl={(v) => update("signup_label_pl", v)} onEn={(v) => update("signup_label_en", v)} />
+          <BiField
+            label="Etykieta 'Zaloguj'"
+            valPl={s.signin_label_pl}
+            valEn={s.signin_label_en}
+            onPl={(v) => update("signin_label_pl", v)}
+            onEn={(v) => update("signin_label_en", v)}
+          />
+          <BiField
+            label="Etykieta 'Zarejestruj'"
+            valPl={s.signup_label_pl}
+            valEn={s.signup_label_en}
+            onPl={(v) => update("signup_label_pl", v)}
+            onEn={(v) => update("signup_label_en", v)}
+          />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function Card({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+function Card({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex items-center justify-between border border-border rounded-lg p-4">
       <div>
@@ -144,20 +247,41 @@ function Card({ title, description, children }: { title: string; description: st
   );
 }
 
-function BiField({ label, valPl, valEn, onPl, onEn, textarea }: {
-  label: string; valPl: string; valEn: string;
-  onPl: (v: string) => void; onEn: (v: string) => void; textarea?: boolean;
+function BiField({
+  label,
+  valPl,
+  valEn,
+  onPl,
+  onEn,
+  textarea,
+}: {
+  label: string;
+  valPl: string;
+  valEn: string;
+  onPl: (v: string) => void;
+  onEn: (v: string) => void;
+  textarea?: boolean;
 }) {
   const C = textarea ? Textarea : Input;
   return (
     <div className="grid grid-cols-2 gap-3">
       <div>
         <Label>{label} (PL)</Label>
-        <C value={valPl} onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onPl(e.target.value)} />
+        <C
+          value={valPl}
+          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+            onPl(e.target.value)
+          }
+        />
       </div>
       <div>
         <Label>{label} (EN)</Label>
-        <C value={valEn} onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onEn(e.target.value)} />
+        <C
+          value={valEn}
+          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+            onEn(e.target.value)
+          }
+        />
       </div>
     </div>
   );

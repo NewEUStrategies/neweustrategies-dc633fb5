@@ -1,8 +1,18 @@
 // Dialog showing revision history for a section template.
 // Allows: insert a revision as a new section into canvas,
 // or restore a revision as the current template content (creates a new revision via DB trigger).
-import { useTemplateRevisions, type SectionTemplate, type TemplateRevision } from "@/lib/builder/templates";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  useTemplateRevisions,
+  type SectionTemplate,
+  type TemplateRevision,
+} from "@/lib/builder/templates";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Clock, Undo as RotateCcw, Plus } from "@/lib/lucide-shim";
 
 interface Props {
@@ -14,12 +24,21 @@ interface Props {
 }
 
 function fmt(iso: string): string {
-  try { return new Date(iso).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" }); }
-  catch { return iso; }
+  try {
+    return new Date(iso).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" });
+  } catch {
+    return iso;
+  }
 }
 
-export function TemplateHistoryDialog({ template, open, onOpenChange, onInsert, onRestore }: Props) {
-  const { items, loading } = useTemplateRevisions(open ? template?.id ?? null : null);
+export function TemplateHistoryDialog({
+  template,
+  open,
+  onOpenChange,
+  onInsert,
+  onRestore,
+}: Props) {
+  const { items, loading } = useTemplateRevisions(open ? (template?.id ?? null) : null);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -29,7 +48,8 @@ export function TemplateHistoryDialog({ template, open, onOpenChange, onInsert, 
             <Clock className="w-4 h-4" /> Historia: {template?.name ?? ""}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Każda zmiana szablonu jest automatycznie zapisywana. Możesz wstawić starszą wersję jako nową sekcję na canvasie lub przywrócić ją jako aktualną treść szablonu.
+            Każda zmiana szablonu jest automatycznie zapisywana. Możesz wstawić starszą wersję jako
+            nową sekcję na canvasie lub przywrócić ją jako aktualną treść szablonu.
           </DialogDescription>
         </DialogHeader>
 
@@ -40,7 +60,10 @@ export function TemplateHistoryDialog({ template, open, onOpenChange, onInsert, 
         ) : (
           <ul className="space-y-1.5 max-h-[60vh] overflow-y-auto">
             {items.map((r, idx) => (
-              <li key={r.id} className="flex items-center gap-2 p-2 border border-border rounded text-xs">
+              <li
+                key={r.id}
+                className="flex items-center gap-2 p-2 border border-border rounded text-xs"
+              >
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">
                     {idx === 0 ? "Aktualna" : `Wersja #${items.length - idx}`}

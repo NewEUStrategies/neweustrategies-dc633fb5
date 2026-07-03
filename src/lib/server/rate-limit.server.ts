@@ -13,7 +13,12 @@ interface CheckOpts {
   windowMinutes?: number;
 }
 
-export async function rateLimit({ scope, subjectId, max, windowMinutes = 1 }: CheckOpts): Promise<boolean> {
+export async function rateLimit({
+  scope,
+  subjectId,
+  max,
+  windowMinutes = 1,
+}: CheckOpts): Promise<boolean> {
   const bucketMs = windowMinutes * 60_000;
   const windowStart = new Date(Math.floor(Date.now() / bucketMs) * bucketMs).toISOString();
 

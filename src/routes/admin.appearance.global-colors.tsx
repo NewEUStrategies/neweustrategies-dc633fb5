@@ -9,10 +9,7 @@ import { Save } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import { ColorField } from "@/components/admin/builder/ui/atoms/ColorField";
 import { useGlobalColors, useSaveGlobalColors } from "@/hooks/useGlobalColors";
-import {
-  GLOBAL_COLOR_GROUPS,
-  type GlobalColorsValue,
-} from "@/lib/builder/globalColors";
+import { GLOBAL_COLOR_GROUPS, type GlobalColorsValue } from "@/lib/builder/globalColors";
 
 export const Route = createFileRoute("/admin/appearance/global-colors")({
   component: GlobalColorsPage,
@@ -51,8 +48,8 @@ function GlobalColorsPage() {
         <div>
           <h2 className="font-display text-2xl">Global Colors</h2>
           <p className="text-sm text-muted-foreground">
-            Centralna paleta - każdy slot opisuje, gdzie kolor pojawi się na stronie.
-            Zmiany są natychmiast widoczne w całej witrynie po zapisaniu.
+            Centralna paleta - każdy slot opisuje, gdzie kolor pojawi się na stronie. Zmiany są
+            natychmiast widoczne w całej witrynie po zapisaniu.
           </p>
         </div>
         <Button onClick={() => save.mutate(draft)} disabled={save.isPending}>
@@ -80,7 +77,12 @@ function GlobalColorsPage() {
                       <p className="text-xs text-muted-foreground mt-1">{slot.description}</p>
                       {slot.overrides?.length ? (
                         <p className="text-[11px] text-muted-foreground/80 mt-1">
-                          Nadpisuje: {slot.overrides.map((o) => <code key={o} className="mr-1">{o}</code>)}
+                          Nadpisuje:{" "}
+                          {slot.overrides.map((o) => (
+                            <code key={o} className="mr-1">
+                              {o}
+                            </code>
+                          ))}
                         </p>
                       ) : null}
                     </div>

@@ -18,7 +18,6 @@ export interface BreadcrumbRow {
 }
 type PageRow = BreadcrumbRow;
 
-
 export async function fetchPageBreadcrumbs(pageId: string): Promise<PageRow[]> {
   const { data, error } = await supabase.rpc("page_breadcrumbs", { _page_id: pageId });
   if (error) throw error;

@@ -16,18 +16,30 @@ describe("cacheControlHeader", () => {
 
   it("emits a full public directive set", () => {
     expect(
-      cacheControlHeader({ cacheable: true, browserMaxAge: 60, sharedMaxAge: 300, staleWhileRevalidate: 86400 }),
+      cacheControlHeader({
+        cacheable: true,
+        browserMaxAge: 60,
+        sharedMaxAge: 300,
+        staleWhileRevalidate: 86400,
+      }),
     ).toBe("public, max-age=60, s-maxage=300, stale-while-revalidate=86400");
   });
 
   it("defaults browser max-age to 0 and omits unset shared directives", () => {
     expect(cacheControlHeader({ cacheable: true })).toBe("public, max-age=0");
-    expect(cacheControlHeader({ cacheable: true, sharedMaxAge: 120 })).toBe("public, max-age=0, s-maxage=120");
+    expect(cacheControlHeader({ cacheable: true, sharedMaxAge: 120 })).toBe(
+      "public, max-age=0, s-maxage=120",
+    );
   });
 
   it("clamps negatives to 0 and floors fractional seconds", () => {
     expect(
-      cacheControlHeader({ cacheable: true, browserMaxAge: -5, sharedMaxAge: 30.9, staleWhileRevalidate: -1 }),
+      cacheControlHeader({
+        cacheable: true,
+        browserMaxAge: -5,
+        sharedMaxAge: 30.9,
+        staleWhileRevalidate: -1,
+      }),
     ).toBe("public, max-age=0, s-maxage=30, stale-while-revalidate=0");
   });
 });

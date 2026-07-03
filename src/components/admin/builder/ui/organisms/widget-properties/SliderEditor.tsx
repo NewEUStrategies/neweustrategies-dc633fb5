@@ -5,7 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { PropField } from "../../atoms";
 import { ImageSlot } from "./ImageSlot";
 import { PostPicker } from "./PostPicker";
@@ -28,18 +34,33 @@ interface Props {
 }
 
 export function SliderEditor({ c, lang, setContent }: Props) {
-  const variant = ((typeof c.variant === "string" && c.variant) || "editorial-hero") as SliderVariant;
-  const ratio = (typeof c.ratio === "string" ? c.ratio : "16/9") as "16/9" | "4/3" | "1/1" | "21/9" | "3/2";
+  const variant = ((typeof c.variant === "string" && c.variant) ||
+    "editorial-hero") as SliderVariant;
+  const ratio = (typeof c.ratio === "string" ? c.ratio : "16/9") as
+    | "16/9"
+    | "4/3"
+    | "1/1"
+    | "21/9"
+    | "3/2";
   const autoplay = c.autoplay !== false;
   const intervalMs = typeof c.intervalMs === "number" ? c.intervalMs : 4500;
-  const rounded = (typeof c.rounded === "string" ? c.rounded : "md") as "none" | "sm" | "md" | "lg" | "xl" | "full";
+  const rounded = (typeof c.rounded === "string" ? c.rounded : "md") as
+    | "none"
+    | "sm"
+    | "md"
+    | "lg"
+    | "xl"
+    | "full";
   const overlayOpacity = typeof c.overlayOpacity === "number" ? c.overlayOpacity : 0.45;
   const source = (typeof c.source === "string" ? c.source : "manual") as "manual" | "posts";
   const limit = typeof c.limit === "number" ? c.limit : 5;
   const categorySlugs = typeof c.categorySlugs === "string" ? c.categorySlugs : "";
   const tagSlugs = typeof c.tagSlugs === "string" ? c.tagSlugs : "";
   const excludeIds = typeof c.excludeIds === "string" ? c.excludeIds : "";
-  const orderBy = (typeof c.orderBy === "string" ? c.orderBy : "newest") as "newest" | "oldest" | "title";
+  const orderBy = (typeof c.orderBy === "string" ? c.orderBy : "newest") as
+    | "newest"
+    | "oldest"
+    | "title";
   const showExcerpt = c.showExcerpt !== false;
   const ctaKey = `cta_${lang}` as const;
   const ctaValue = typeof c[ctaKey] === "string" ? (c[ctaKey] as string) : "";
@@ -48,7 +69,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const subtitleSizePx = typeof c.subtitleSizePx === "number" ? c.subtitleSizePx : 0;
   const subtitleWeight = typeof c.subtitleWeight === "number" ? c.subtitleWeight : 400;
   const columnsRaw = typeof c.columns === "number" ? c.columns : 3;
-  const columns = (Math.max(1, Math.min(4, columnsRaw)) as 1 | 2 | 3 | 4);
+  const columns = Math.max(1, Math.min(4, columnsRaw)) as 1 | 2 | 3 | 4;
 
   // Navigation buttons style
   const navSizePx = typeof c.navSizePx === "number" ? c.navSizePx : 52;
@@ -57,10 +78,10 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   const navArrowColor = typeof c.navArrowColor === "string" ? c.navArrowColor : "#ffffff";
   const navBgStyle = (typeof c.navBgStyle === "string" ? c.navBgStyle : "glass") as NavBgStyle;
   const navPosition = (typeof c.navPosition === "string" ? c.navPosition : "mid") as NavPosition;
-  const navArrowVariant = (typeof c.navArrowVariant === "string" ? c.navArrowVariant : "chevron") as NavArrowVariant;
+  const navArrowVariant = (
+    typeof c.navArrowVariant === "string" ? c.navArrowVariant : "chevron"
+  ) as NavArrowVariant;
   const navArrowStroke = typeof c.navArrowStroke === "number" ? c.navArrowStroke : 2.25;
-
-
 
   const rawItems = Array.isArray(c.items) ? (c.items as unknown[]) : [];
   const items: SliderItem[] = rawItems
@@ -82,15 +103,26 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       readTime: typeof it.readTime === "string" ? it.readTime : "",
     }));
 
-  const updateItems = (next: SliderItem[]) =>
-    setContent("items", toJson(next));
+  const updateItems = (next: SliderItem[]) => setContent("items", toJson(next));
   const updateItem = (i: number, patch: Partial<SliderItem>) => {
     const next = items.slice();
     next[i] = { ...next[i], ...patch };
     updateItems(next);
   };
   const addItem = () =>
-    updateItems([...items, { image: "", title_pl: "", title_en: "", subtitle_pl: "", subtitle_en: "", href: "", cta_pl: "", cta_en: "" }]);
+    updateItems([
+      ...items,
+      {
+        image: "",
+        title_pl: "",
+        title_en: "",
+        subtitle_pl: "",
+        subtitle_en: "",
+        href: "",
+        cta_pl: "",
+        cta_en: "",
+      },
+    ]);
   const removeItem = (i: number) => updateItems(items.filter((_, j) => j !== i));
   const moveItem = (i: number, dir: -1 | 1) => {
     const j = i + dir;
@@ -126,12 +158,25 @@ export function SliderEditor({ c, lang, setContent }: Props) {
   });
   const hasRealItems = items.some((it) => it.image);
   const previewCfg = {
-    variant, ratio, autoplay: true, intervalMs, rounded, overlayOpacity, columns,
+    variant,
+    ratio,
+    autoplay: true,
+    intervalMs,
+    rounded,
+    overlayOpacity,
+    columns,
     titleSizePx: titleSizePx > 0 ? titleSizePx : undefined,
     titleWeight,
     subtitleSizePx: subtitleSizePx > 0 ? subtitleSizePx : undefined,
     subtitleWeight,
-    navSizePx, navRoundedPx, navBgColor, navArrowColor, navBgStyle, navPosition, navArrowVariant, navArrowStroke,
+    navSizePx,
+    navRoundedPx,
+    navBgColor,
+    navArrowColor,
+    navBgStyle,
+    navPosition,
+    navArrowVariant,
+    navArrowStroke,
     items: hasRealItems ? items : demoItems,
   };
 
@@ -143,32 +188,48 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             Wariant slidera
           </div>
-          <div className="text-[10px] text-muted-foreground/70">Animacja odtwarza się automatycznie</div>
+          <div className="text-[10px] text-muted-foreground/70">
+            Animacja odtwarza się automatycznie
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-3">
           {SLIDER_VARIANTS.map((v) => {
             const isActive = variant === v.value;
-            const sample: SliderItem[] = items.length && items[0].image
-              ? items.slice(0, 3)
-              : demoItems.slice(0, 3);
+            const sample: SliderItem[] =
+              items.length && items[0].image ? items.slice(0, 3) : demoItems.slice(0, 3);
             return (
               <div
                 key={v.value}
                 role="button"
                 tabIndex={0}
                 onClick={() => setContent("variant", v.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setContent("variant", v.value); } }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setContent("variant", v.value);
+                  }
+                }}
                 title={v.label}
                 className={`group relative text-left rounded-lg overflow-hidden transition-all duration-200 bg-card w-full cursor-pointer
-                  ${isActive
-                    ? "ring-2 ring-brand ring-offset-1 ring-offset-background shadow-md"
-                    : "ring-1 ring-border hover:ring-brand/60 hover:shadow-md"}`}
+                  ${
+                    isActive
+                      ? "ring-2 ring-brand ring-offset-1 ring-offset-background shadow-md"
+                      : "ring-1 ring-border hover:ring-brand/60 hover:shadow-md"
+                  }`}
               >
                 {/* Uniform preview frame - pointer-events disabled so inner buttons don't conflict */}
                 <div className="relative w-full aspect-[16/9] overflow-hidden bg-muted pointer-events-none">
                   <div className="absolute inset-0 [&>*]:!h-full [&>*]:!w-full">
                     <SliderRender
-                      config={{ variant: v.value, ratio: "16/9", autoplay: true, intervalMs: 2400, rounded: "none", overlayOpacity, items: sample }}
+                      config={{
+                        variant: v.value,
+                        ratio: "16/9",
+                        autoplay: true,
+                        intervalMs: 2400,
+                        rounded: "none",
+                        overlayOpacity,
+                        items: sample,
+                      }}
                       lang={lang}
                     />
                   </div>
@@ -180,7 +241,9 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                 </div>
                 {/* Label bar */}
                 <div className="px-3 py-2 border-t border-border bg-background flex items-center justify-between gap-1">
-                  <span className={`text-xs font-medium truncate ${isActive ? "text-brand" : "text-foreground/80"}`}>
+                  <span
+                    className={`text-xs font-medium truncate ${isActive ? "text-brand" : "text-foreground/80"}`}
+                  >
                     {v.label}
                   </span>
                 </div>
@@ -193,10 +256,14 @@ export function SliderEditor({ c, lang, setContent }: Props) {
       {/* Columns (only for multi-card carousel) */}
       {variant === "multi-card" && (
         <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Układ karuzeli</div>
+          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Układ karuzeli
+          </div>
           <PropField label="Liczba kolumn (desktop)">
             <Select value={String(columns)} onValueChange={(v) => setContent("columns", Number(v))}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="1">1 kolumna</SelectItem>
                 <SelectItem value="2">2 kolumny</SelectItem>
@@ -211,15 +278,16 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         </div>
       )}
 
-
-
-
       {/* Source */}
       <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
-        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Źródło slajdów</div>
+        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Źródło slajdów
+        </div>
         <PropField label="Źródło">
           <Select value={source} onValueChange={(v) => setContent("source", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="manual">Ręcznie (slajdy poniżej)</SelectItem>
               <SelectItem value="posts">Wpisy z bazy (filtry poniżej)</SelectItem>
@@ -230,13 +298,22 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           <>
             <div className="grid grid-cols-2 gap-2">
               <PropField label="Liczba slajdów">
-                <Input type="number" min={1} max={20} value={limit}
-                  onChange={(e) => setContent("limit", Math.max(1, Math.min(20, Number(e.target.value) || 5)))}
-                  className="h-8 text-xs" />
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={limit}
+                  onChange={(e) =>
+                    setContent("limit", Math.max(1, Math.min(20, Number(e.target.value) || 5)))
+                  }
+                  className="h-8 text-xs"
+                />
               </PropField>
               <PropField label="Sortowanie">
                 <Select value={orderBy} onValueChange={(v) => setContent("orderBy", v)}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="newest">Najnowsze</SelectItem>
                     <SelectItem value="oldest">Najstarsze</SelectItem>
@@ -246,20 +323,36 @@ export function SliderEditor({ c, lang, setContent }: Props) {
               </PropField>
             </div>
             <PropField label="Kategorie">
-              <TaxonomyPicker mode="categories" value={categorySlugs} onChange={(v) => setContent("categorySlugs", v)} />
+              <TaxonomyPicker
+                mode="categories"
+                value={categorySlugs}
+                onChange={(v) => setContent("categorySlugs", v)}
+              />
             </PropField>
             <PropField label="Tagi">
-              <TaxonomyPicker mode="tags" value={tagSlugs} onChange={(v) => setContent("tagSlugs", v)} />
+              <TaxonomyPicker
+                mode="tags"
+                value={tagSlugs}
+                onChange={(v) => setContent("tagSlugs", v)}
+              />
             </PropField>
             <PropField label="Wyklucz ID wpisów (po przecinku)">
-              <Input value={excludeIds}
+              <Input
+                value={excludeIds}
                 onChange={(e) => setContent("excludeIds", e.target.value)}
-                className="h-8 text-xs font-mono" placeholder="uuid1, uuid2" />
+                className="h-8 text-xs font-mono"
+                placeholder="uuid1, uuid2"
+              />
             </PropField>
             <div className="grid grid-cols-2 gap-2">
               <PropField label="Pokaż zajawkę">
-                <Select value={showExcerpt ? "on" : "off"} onValueChange={(v) => setContent("showExcerpt", v === "on")}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <Select
+                  value={showExcerpt ? "on" : "off"}
+                  onValueChange={(v) => setContent("showExcerpt", v === "on")}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="on">tak</SelectItem>
                     <SelectItem value="off">nie</SelectItem>
@@ -267,22 +360,25 @@ export function SliderEditor({ c, lang, setContent }: Props) {
                 </Select>
               </PropField>
               <PropField label={`Tekst CTA (${lang.toUpperCase()})`}>
-                <Input value={ctaValue}
+                <Input
+                  value={ctaValue}
                   onChange={(e) => setContent(ctaKey, e.target.value)}
-                  className="h-8 text-xs" placeholder="Czytaj więcej" />
+                  className="h-8 text-xs"
+                  placeholder="Czytaj więcej"
+                />
               </PropField>
             </div>
           </>
         )}
       </div>
 
-
-
       {/* Settings */}
       <div className="grid grid-cols-2 gap-2">
         <PropField label="Proporcje">
           <Select value={ratio} onValueChange={(v) => setContent("ratio", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="16/9">16:9</SelectItem>
               <SelectItem value="21/9">21:9 (panorama)</SelectItem>
@@ -294,7 +390,9 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         </PropField>
         <PropField label="Zaokrąglenie">
           <Select value={rounded} onValueChange={(v) => setContent("rounded", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">brak</SelectItem>
               <SelectItem value="sm">małe</SelectItem>
@@ -305,8 +403,13 @@ export function SliderEditor({ c, lang, setContent }: Props) {
           </Select>
         </PropField>
         <PropField label="Autoodtwarzanie">
-          <Select value={autoplay ? "on" : "off"} onValueChange={(v) => setContent("autoplay", v === "on")}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <Select
+            value={autoplay ? "on" : "off"}
+            onValueChange={(v) => setContent("autoplay", v === "on")}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="on">włączone</SelectItem>
               <SelectItem value="off">wyłączone</SelectItem>
@@ -331,7 +434,9 @@ export function SliderEditor({ c, lang, setContent }: Props) {
             max={1}
             step={0.05}
             value={overlayOpacity}
-            onChange={(e) => setContent("overlayOpacity", Math.min(1, Math.max(0, Number(e.target.value) || 0)))}
+            onChange={(e) =>
+              setContent("overlayOpacity", Math.min(1, Math.max(0, Number(e.target.value) || 0)))
+            }
             className="h-8 text-xs"
           />
         </PropField>
@@ -345,14 +450,25 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         <div className="grid grid-cols-2 gap-2">
           <PropField label={`Rozmiar (${navSizePx}px)`}>
             <Input
-              type="range" min={28} max={96} step={2} value={navSizePx}
-              onChange={(e) => setContent("navSizePx", Math.max(28, Math.min(96, Number(e.target.value) || 52)))}
+              type="range"
+              min={28}
+              max={96}
+              step={2}
+              value={navSizePx}
+              onChange={(e) =>
+                setContent("navSizePx", Math.max(28, Math.min(96, Number(e.target.value) || 52)))
+              }
               className="h-8"
             />
           </PropField>
-          <PropField label={`Zaokrąglenie (${navRoundedPx >= 999 ? "pełne" : `${navRoundedPx}px`})`}>
+          <PropField
+            label={`Zaokrąglenie (${navRoundedPx >= 999 ? "pełne" : `${navRoundedPx}px`})`}
+          >
             <Input
-              type="range" min={0} max={64} step={1}
+              type="range"
+              min={0}
+              max={64}
+              step={1}
               value={navRoundedPx >= 999 ? 64 : navRoundedPx}
               onChange={(e) => {
                 const v = Number(e.target.value);
@@ -365,28 +481,42 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         <div className="grid grid-cols-2 gap-2">
           <PropField label="Kolor tła">
             <div className="flex items-center gap-1.5">
-              <input type="color" value={navBgColor}
+              <input
+                type="color"
+                value={navBgColor}
                 onChange={(e) => setContent("navBgColor", e.target.value)}
-                className="h-8 w-12 p-0.5 rounded border border-border bg-background cursor-pointer" />
-              <Input value={navBgColor}
+                className="h-8 w-12 p-0.5 rounded border border-border bg-background cursor-pointer"
+              />
+              <Input
+                value={navBgColor}
                 onChange={(e) => setContent("navBgColor", e.target.value)}
-                className="h-8 text-xs font-mono" placeholder="#ffffff" />
+                className="h-8 text-xs font-mono"
+                placeholder="#ffffff"
+              />
             </div>
           </PropField>
           <PropField label="Kolor strzałki">
             <div className="flex items-center gap-1.5">
-              <input type="color" value={navArrowColor}
+              <input
+                type="color"
+                value={navArrowColor}
                 onChange={(e) => setContent("navArrowColor", e.target.value)}
-                className="h-8 w-12 p-0.5 rounded border border-border bg-background cursor-pointer" />
-              <Input value={navArrowColor}
+                className="h-8 w-12 p-0.5 rounded border border-border bg-background cursor-pointer"
+              />
+              <Input
+                value={navArrowColor}
                 onChange={(e) => setContent("navArrowColor", e.target.value)}
-                className="h-8 text-xs font-mono" placeholder="#ffffff" />
+                className="h-8 text-xs font-mono"
+                placeholder="#ffffff"
+              />
             </div>
           </PropField>
         </div>
         <PropField label="Styl tła przycisku">
           <Select value={navBgStyle} onValueChange={(v) => setContent("navBgStyle", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="glass">Glass (szkło, półprzezroczyste)</SelectItem>
               <SelectItem value="solid">Solid (jednolity)</SelectItem>
@@ -399,7 +529,9 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         </PropField>
         <PropField label="Pozycja">
           <Select value={navPosition} onValueChange={(v) => setContent("navPosition", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="mid">Środek boków (wewnątrz)</SelectItem>
               <SelectItem value="mid-outside">Środek boków (na zewnątrz)</SelectItem>
@@ -410,32 +542,42 @@ export function SliderEditor({ c, lang, setContent }: Props) {
         </PropField>
         <PropField label="Kształt strzałki">
           <Select value={navArrowVariant} onValueChange={(v) => setContent("navArrowVariant", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {NAV_ARROW_VARIANTS.map((v) => (
-                <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                <SelectItem key={v.value} value={v.value}>
+                  {v.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </PropField>
         <PropField label={`Grubość linii strzałki (${navArrowStroke.toFixed(2)})`}>
           <Input
-            type="range" min={0.5} max={4} step={0.25} value={navArrowStroke}
-            onChange={(e) => setContent("navArrowStroke", Math.max(0.5, Math.min(4, Number(e.target.value) || 2.25)))}
+            type="range"
+            min={0.5}
+            max={4}
+            step={0.25}
+            value={navArrowStroke}
+            onChange={(e) =>
+              setContent(
+                "navArrowStroke",
+                Math.max(0.5, Math.min(4, Number(e.target.value) || 2.25)),
+              )
+            }
             className="h-8"
           />
         </PropField>
         <div className="text-[10px] text-muted-foreground/80 leading-snug">
-          Wskazówka: dla stylu „Outline" ustaw kolor tła = kolor obrysu; dla „Glass" najlepiej sprawdzają się jasne kolory na ciemnych obrazach. Wariant „Caret" jest wypełniony - grubość linii nie ma wpływu.
+          Wskazówka: dla stylu „Outline" ustaw kolor tła = kolor obrysu; dla „Glass" najlepiej
+          sprawdzają się jasne kolory na ciemnych obrazach. Wariant „Caret" jest wypełniony -
+          grubość linii nie ma wpływu.
         </div>
       </div>
 
       {/* Typografia: edytuj w zakładce „Styl" → Typografia (tytuł / opis) */}
-
-
-
-
-
 
       {/* Live preview */}
       <div className="space-y-1.5">
@@ -449,111 +591,151 @@ export function SliderEditor({ c, lang, setContent }: Props) {
 
       {/* Slides (manual mode only) */}
       {source !== "posts" && (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Slajdy ({items.length})
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Slajdy ({items.length})
+            </div>
+            <button
+              type="button"
+              onClick={addItem}
+              className="h-7 px-2 rounded border border-border hover:bg-muted text-xs"
+            >
+              + Dodaj slajd
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={addItem}
-            className="h-7 px-2 rounded border border-border hover:bg-muted text-xs"
-          >+ Dodaj slajd</button>
-        </div>
 
-        {items.map((it, i) => {
-          const titleKey = `title_${lang}` as const;
-          const subKey = `subtitle_${lang}` as const;
-          const itemCtaKey = `cta_${lang}` as const;
-          return (
-            <div key={i} className="rounded-md border border-border p-2 space-y-2 bg-background">
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-xs font-medium">Slajd #{i + 1}</span>
-                <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => moveItem(i, -1)} disabled={i === 0}
-                    className="h-6 w-6 inline-flex items-center justify-center rounded border border-border hover:bg-muted disabled:opacity-40 text-xs">↑</button>
-                  <button type="button" onClick={() => moveItem(i, 1)} disabled={i === items.length - 1}
-                    className="h-6 w-6 inline-flex items-center justify-center rounded border border-border hover:bg-muted disabled:opacity-40 text-xs">↓</button>
-                  <button type="button" onClick={() => removeItem(i)}
-                    className="h-6 w-6 inline-flex items-center justify-center rounded border border-border hover:bg-destructive/10 text-destructive text-xs">×</button>
+          {items.map((it, i) => {
+            const titleKey = `title_${lang}` as const;
+            const subKey = `subtitle_${lang}` as const;
+            const itemCtaKey = `cta_${lang}` as const;
+            return (
+              <div key={i} className="rounded-md border border-border p-2 space-y-2 bg-background">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-xs font-medium">Slajd #{i + 1}</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => moveItem(i, -1)}
+                      disabled={i === 0}
+                      className="h-6 w-6 inline-flex items-center justify-center rounded border border-border hover:bg-muted disabled:opacity-40 text-xs"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveItem(i, 1)}
+                      disabled={i === items.length - 1}
+                      className="h-6 w-6 inline-flex items-center justify-center rounded border border-border hover:bg-muted disabled:opacity-40 text-xs"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(i)}
+                      className="h-6 w-6 inline-flex items-center justify-center rounded border border-border hover:bg-destructive/10 text-destructive text-xs"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+
+                <PropField label="Powiąż z wpisem (live sync)">
+                  <PostPicker
+                    value={it.postId}
+                    onChange={(id) => updateItem(i, { postId: id })}
+                    lang={lang}
+                  />
+                </PropField>
+
+                <ImageSlot
+                  label={it.postId ? "Obrazek (nadpisuje cover)" : "Obrazek"}
+                  icon={<ImageIcon className="w-3 h-3" />}
+                  value={it.image || ""}
+                  onChange={(v) => updateItem(i, { image: v })}
+                />
+
+                <PropField label={`Tytuł (${lang.toUpperCase()})`}>
+                  <Input
+                    value={(it[titleKey] as string) || ""}
+                    onChange={(e) => updateItem(i, { [titleKey]: e.target.value })}
+                    className="h-8 text-xs"
+                    placeholder="np. Najnowsze wieści"
+                  />
+                </PropField>
+                <PropField label={`Podtytuł (${lang.toUpperCase()})`}>
+                  <Input
+                    value={(it[subKey] as string) || ""}
+                    onChange={(e) => updateItem(i, { [subKey]: e.target.value })}
+                    className="h-8 text-xs"
+                    placeholder="krótki opis"
+                  />
+                </PropField>
+                <div className="grid grid-cols-2 gap-2">
+                  <PropField label="Link">
+                    <Input
+                      value={it.href || ""}
+                      onChange={(e) => updateItem(i, { href: e.target.value })}
+                      className="h-8 text-xs"
+                      placeholder="/post/..."
+                    />
+                  </PropField>
+                  <PropField label={`CTA (${lang.toUpperCase()})`}>
+                    <Input
+                      value={(it[itemCtaKey] as string) || ""}
+                      onChange={(e) => updateItem(i, { [itemCtaKey]: e.target.value })}
+                      className="h-8 text-xs"
+                      placeholder="Czytaj więcej"
+                    />
+                  </PropField>
+                </div>
+                <div className="grid grid-cols-[1fr_auto] gap-2">
+                  <PropField label={`Kategoria (${lang.toUpperCase()})`}>
+                    <Input
+                      value={(it[`category_${lang}` as const] as string) || ""}
+                      onChange={(e) => updateItem(i, { [`category_${lang}`]: e.target.value })}
+                      className="h-8 text-xs"
+                      placeholder="np. RAPORTY"
+                    />
+                  </PropField>
+                  <PropField label="Kolor">
+                    <input
+                      type="color"
+                      value={it.categoryColor || "#ef6c2e"}
+                      onChange={(e) => updateItem(i, { categoryColor: e.target.value })}
+                      className="h-8 w-12 p-0.5 rounded border border-border bg-background cursor-pointer"
+                    />
+                  </PropField>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <PropField label="Autor">
+                    <Input
+                      value={it.author || ""}
+                      onChange={(e) => updateItem(i, { author: e.target.value })}
+                      className="h-8 text-xs"
+                      placeholder="np. Jan Kowalski"
+                    />
+                  </PropField>
+                  <PropField label="Czas czytania">
+                    <Input
+                      value={it.readTime || ""}
+                      onChange={(e) => updateItem(i, { readTime: e.target.value })}
+                      className="h-8 text-xs"
+                      placeholder="np. 18 Min Read"
+                    />
+                  </PropField>
                 </div>
               </div>
+            );
+          })}
 
-              <PropField label="Powiąż z wpisem (live sync)">
-                <PostPicker
-                  value={it.postId}
-                  onChange={(id) => updateItem(i, { postId: id })}
-                  lang={lang}
-                />
-              </PropField>
-
-              <ImageSlot
-                label={it.postId ? "Obrazek (nadpisuje cover)" : "Obrazek"}
-                icon={<ImageIcon className="w-3 h-3" />}
-                value={it.image || ""}
-                onChange={(v) => updateItem(i, { image: v })}
-              />
-
-              <PropField label={`Tytuł (${lang.toUpperCase()})`}>
-                <Input value={(it[titleKey] as string) || ""}
-                  onChange={(e) => updateItem(i, { [titleKey]: e.target.value })}
-                  className="h-8 text-xs" placeholder="np. Najnowsze wieści" />
-              </PropField>
-              <PropField label={`Podtytuł (${lang.toUpperCase()})`}>
-                <Input value={(it[subKey] as string) || ""}
-                  onChange={(e) => updateItem(i, { [subKey]: e.target.value })}
-                  className="h-8 text-xs" placeholder="krótki opis" />
-              </PropField>
-              <div className="grid grid-cols-2 gap-2">
-                <PropField label="Link">
-                  <Input value={it.href || ""}
-                    onChange={(e) => updateItem(i, { href: e.target.value })}
-                    className="h-8 text-xs" placeholder="/post/..." />
-                </PropField>
-                <PropField label={`CTA (${lang.toUpperCase()})`}>
-                  <Input value={(it[itemCtaKey] as string) || ""}
-                    onChange={(e) => updateItem(i, { [itemCtaKey]: e.target.value })}
-                    className="h-8 text-xs" placeholder="Czytaj więcej" />
-                </PropField>
-              </div>
-              <div className="grid grid-cols-[1fr_auto] gap-2">
-                <PropField label={`Kategoria (${lang.toUpperCase()})`}>
-                  <Input
-                    value={(it[`category_${lang}` as const] as string) || ""}
-                    onChange={(e) => updateItem(i, { [`category_${lang}`]: e.target.value })}
-                    className="h-8 text-xs" placeholder="np. RAPORTY" />
-                </PropField>
-                <PropField label="Kolor">
-                  <input type="color"
-                    value={it.categoryColor || "#ef6c2e"}
-                    onChange={(e) => updateItem(i, { categoryColor: e.target.value })}
-                    className="h-8 w-12 p-0.5 rounded border border-border bg-background cursor-pointer" />
-                </PropField>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <PropField label="Autor">
-                  <Input value={it.author || ""}
-                    onChange={(e) => updateItem(i, { author: e.target.value })}
-                    className="h-8 text-xs" placeholder="np. Jan Kowalski" />
-                </PropField>
-                <PropField label="Czas czytania">
-                  <Input value={it.readTime || ""}
-                    onChange={(e) => updateItem(i, { readTime: e.target.value })}
-                    className="h-8 text-xs" placeholder="np. 18 Min Read" />
-                </PropField>
-              </div>
+          {items.length === 0 && (
+            <div className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border rounded">
+              Brak slajdów. Dodaj pierwszy slajd ↑
             </div>
-          );
-        })}
-
-        {items.length === 0 && (
-          <div className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border rounded">
-            Brak slajdów. Dodaj pierwszy slajd ↑
-          </div>
-        )}
-      </div>
+          )}
+        </div>
       )}
-
     </div>
   );
 }

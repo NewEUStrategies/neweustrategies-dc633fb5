@@ -2,7 +2,10 @@ import type { Block } from "@/lib/blocks/types";
 import { ImagePlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 export function CoverBlock({ block, onChange }: Props) {
   const url = String(block.data.url ?? "");
@@ -25,7 +28,12 @@ export function CoverBlock({ block, onChange }: Props) {
   return (
     <div
       className="relative w-full rounded-lg overflow-hidden flex items-center justify-center text-center"
-      style={{ minHeight, backgroundImage: `url(${url})`, backgroundSize: "cover", backgroundPosition: "center" }}
+      style={{
+        minHeight,
+        backgroundImage: `url(${url})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
     >
       <div className="absolute inset-0 bg-black" style={{ opacity: overlay / 100 }} />
       <input

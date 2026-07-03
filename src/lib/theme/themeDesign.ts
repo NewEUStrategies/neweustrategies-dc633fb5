@@ -13,104 +13,132 @@ import { z } from "zod";
 import { deepMerge } from "@/lib/deepMerge";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
-const PX = z.union([z.number(), z.string()]).transform((v) => (typeof v === "number" ? `${v}px` : v));
+const PX = z
+  .union([z.number(), z.string()])
+  .transform((v) => (typeof v === "number" ? `${v}px` : v));
 const COLOR = z.string().min(1);
 
-export const ThemeDesignSchema = z.object({
-  blockHeading: z.object({
-    fontSize: PX.default("18px"),
-    fontWeight: z.number().min(100).max(900).default(700),
-    color: COLOR.default("var(--foreground)"),
-    textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]).default("none"),
-    letterSpacing: PX.default("0px"),
-    marginBottom: PX.default("16px"),
-    underline: z.enum(["none", "left", "full", "dotted"]).default("none"),
-  }).default({}),
-  thumbnail: z.object({
-    radius: PX.default("8px"),
-    aspectRatio: z.string().default("16/9"),
-    hoverEffect: z.enum(["none", "zoom", "fade", "slide"]).default("zoom"),
-    shadow: z.enum(["none", "sm", "md", "lg"]).default("none"),
-  }).default({}),
-  readMoreButton: z.object({
-    bgColor: COLOR.default("transparent"),
-    color: COLOR.default("var(--brand)"),
-    borderColor: COLOR.default("var(--brand)"),
-    radius: PX.default("9999px"),
-    paddingX: PX.default("16px"),
-    paddingY: PX.default("8px"),
-    fontWeight: z.number().min(100).max(900).default(600),
-    uppercase: z.boolean().default(false),
-    arrow: z.boolean().default(true),
-  }).default({}),
-  metaInfo: z.object({
-    fontSize: PX.default("13px"),
-    color: COLOR.default("var(--muted-foreground)"),
-    uppercase: z.boolean().default(false),
-    gap: PX.default("12px"),
-    separator: z.enum(["dot", "slash", "pipe", "none"]).default("dot"),
-  }).default({}),
-  toolbarButton: z.object({
-    bgColor: COLOR.default("var(--muted)"),
-    color: COLOR.default("var(--foreground)"),
-    hoverBgColor: COLOR.default("color-mix(in oklab, var(--muted) 70%, transparent)"),
-    hoverColor: COLOR.default("var(--foreground)"),
-    activeBgColor: COLOR.default("#fa9346"),
-    activeColor: COLOR.default("#ffffff"),
-    radius: PX.default("6px"),
-    paddingX: PX.default("8px"),
-    paddingY: PX.default("6px"),
-    size: PX.default("16px"),
-  }).default({}),
-  modeSwitcher: z.object({
-    trackBg: COLOR.default("var(--muted)"),
-    trackBorder: COLOR.default("var(--border)"),
-    inactiveColor: COLOR.default("var(--muted-foreground)"),
-    activeBg: COLOR.default("var(--background)"),
-    activeColor: COLOR.default("var(--foreground)"),
-    radius: PX.default("6px"),
-    showLabel: z.boolean().default(true),
-  }).default({}),
-  socialIcons: z.object({
-    color: COLOR.default("var(--foreground)"),
-    hoverColor: COLOR.default("#fa9346"),
-    bgColor: COLOR.default("transparent"),
-    hoverBgColor: COLOR.default("transparent"),
-    size: PX.default("18px"),
-    gap: PX.default("8px"),
-    radius: PX.default("9999px"),
-    paddingX: PX.default("6px"),
-    paddingY: PX.default("6px"),
-  }).default({}),
-  listIndex: z.object({
-    // Global defaults for "numbered" / "ranked" post-list variants.
-    // Used when the individual widget does not override colors.
-    colorLight: COLOR.default("#231f20"),
-    colorDark: COLOR.default("#fa9346"),
-    opacity: z.number().min(0).max(1).default(0.18),
-    weight: z.number().min(100).max(900).default(800),
-  }).default({}),
-  postTitle: z.object({
-    // Unified title styling shared by every post card / list / slider / grid widget.
-    fontFamily: z.string().default('"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif'),
-    fontSize: PX.default("15px"),
-    fontSizeSm: PX.default("14px"),
-    fontWeight: z.number().min(100).max(900).default(600),
-    lineHeight: z.union([z.number(), z.string()]).default(1.3),
-    color: COLOR.default("var(--foreground)"),
-    hoverColor: COLOR.default("var(--brand)"),
-    textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]).default("none"),
-    letterSpacing: PX.default("0px"),
-  }).default({}),
-  postExcerpt: z.object({
-    fontFamily: z.string().default('"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif'),
-    fontSize: PX.default("13px"),
-    fontWeight: z.number().min(100).max(900).default(400),
-    lineHeight: z.union([z.number(), z.string()]).default(1.5),
-    color: COLOR.default("var(--muted-foreground)"),
-    marginTop: PX.default("6px"),
-  }).default({}),
-}).default({});
+export const ThemeDesignSchema = z
+  .object({
+    blockHeading: z
+      .object({
+        fontSize: PX.default("18px"),
+        fontWeight: z.number().min(100).max(900).default(700),
+        color: COLOR.default("var(--foreground)"),
+        textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]).default("none"),
+        letterSpacing: PX.default("0px"),
+        marginBottom: PX.default("16px"),
+        underline: z.enum(["none", "left", "full", "dotted"]).default("none"),
+      })
+      .default({}),
+    thumbnail: z
+      .object({
+        radius: PX.default("8px"),
+        aspectRatio: z.string().default("16/9"),
+        hoverEffect: z.enum(["none", "zoom", "fade", "slide"]).default("zoom"),
+        shadow: z.enum(["none", "sm", "md", "lg"]).default("none"),
+      })
+      .default({}),
+    readMoreButton: z
+      .object({
+        bgColor: COLOR.default("transparent"),
+        color: COLOR.default("var(--brand)"),
+        borderColor: COLOR.default("var(--brand)"),
+        radius: PX.default("9999px"),
+        paddingX: PX.default("16px"),
+        paddingY: PX.default("8px"),
+        fontWeight: z.number().min(100).max(900).default(600),
+        uppercase: z.boolean().default(false),
+        arrow: z.boolean().default(true),
+      })
+      .default({}),
+    metaInfo: z
+      .object({
+        fontSize: PX.default("13px"),
+        color: COLOR.default("var(--muted-foreground)"),
+        uppercase: z.boolean().default(false),
+        gap: PX.default("12px"),
+        separator: z.enum(["dot", "slash", "pipe", "none"]).default("dot"),
+      })
+      .default({}),
+    toolbarButton: z
+      .object({
+        bgColor: COLOR.default("var(--muted)"),
+        color: COLOR.default("var(--foreground)"),
+        hoverBgColor: COLOR.default("color-mix(in oklab, var(--muted) 70%, transparent)"),
+        hoverColor: COLOR.default("var(--foreground)"),
+        activeBgColor: COLOR.default("#fa9346"),
+        activeColor: COLOR.default("#ffffff"),
+        radius: PX.default("6px"),
+        paddingX: PX.default("8px"),
+        paddingY: PX.default("6px"),
+        size: PX.default("16px"),
+      })
+      .default({}),
+    modeSwitcher: z
+      .object({
+        trackBg: COLOR.default("var(--muted)"),
+        trackBorder: COLOR.default("var(--border)"),
+        inactiveColor: COLOR.default("var(--muted-foreground)"),
+        activeBg: COLOR.default("var(--background)"),
+        activeColor: COLOR.default("var(--foreground)"),
+        radius: PX.default("6px"),
+        showLabel: z.boolean().default(true),
+      })
+      .default({}),
+    socialIcons: z
+      .object({
+        color: COLOR.default("var(--foreground)"),
+        hoverColor: COLOR.default("#fa9346"),
+        bgColor: COLOR.default("transparent"),
+        hoverBgColor: COLOR.default("transparent"),
+        size: PX.default("18px"),
+        gap: PX.default("8px"),
+        radius: PX.default("9999px"),
+        paddingX: PX.default("6px"),
+        paddingY: PX.default("6px"),
+      })
+      .default({}),
+    listIndex: z
+      .object({
+        // Global defaults for "numbered" / "ranked" post-list variants.
+        // Used when the individual widget does not override colors.
+        colorLight: COLOR.default("#231f20"),
+        colorDark: COLOR.default("#fa9346"),
+        opacity: z.number().min(0).max(1).default(0.18),
+        weight: z.number().min(100).max(900).default(800),
+      })
+      .default({}),
+    postTitle: z
+      .object({
+        // Unified title styling shared by every post card / list / slider / grid widget.
+        fontFamily: z
+          .string()
+          .default('"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif'),
+        fontSize: PX.default("15px"),
+        fontSizeSm: PX.default("14px"),
+        fontWeight: z.number().min(100).max(900).default(600),
+        lineHeight: z.union([z.number(), z.string()]).default(1.3),
+        color: COLOR.default("var(--foreground)"),
+        hoverColor: COLOR.default("var(--brand)"),
+        textTransform: z.enum(["none", "uppercase", "lowercase", "capitalize"]).default("none"),
+        letterSpacing: PX.default("0px"),
+      })
+      .default({}),
+    postExcerpt: z
+      .object({
+        fontFamily: z
+          .string()
+          .default('"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif'),
+        fontSize: PX.default("13px"),
+        fontWeight: z.number().min(100).max(900).default(400),
+        lineHeight: z.union([z.number(), z.string()]).default(1.5),
+        color: COLOR.default("var(--muted-foreground)"),
+        marginTop: PX.default("6px"),
+      })
+      .default({}),
+  })
+  .default({});
 
 export type ThemeDesign = z.infer<typeof ThemeDesignSchema>;
 
@@ -137,10 +165,9 @@ export function useSaveThemeDesign() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (next: ThemeDesign) => {
-      const { error } = await supabase.from("site_settings").upsert(
-        { key: KEY, value: toJson(next) },
-        { onConflict: "key" },
-      );
+      const { error } = await supabase
+        .from("site_settings")
+        .upsert({ key: KEY, value: toJson(next) }, { onConflict: "key" });
       if (error) throw error;
       return next;
     },
@@ -245,9 +272,13 @@ export function themeDesignToCss(t: ThemeDesign): string {
 
 function shadow(level: "none" | "sm" | "md" | "lg"): string {
   switch (level) {
-    case "sm": return "0 1px 2px 0 rgb(0 0 0 / .06)";
-    case "md": return "0 4px 12px -2px rgb(0 0 0 / .12)";
-    case "lg": return "0 12px 32px -6px rgb(0 0 0 / .18)";
-    default:   return "none";
+    case "sm":
+      return "0 1px 2px 0 rgb(0 0 0 / .06)";
+    case "md":
+      return "0 4px 12px -2px rgb(0 0 0 / .12)";
+    case "lg":
+      return "0 12px 32px -6px rgb(0 0 0 / .18)";
+    default:
+      return "none";
   }
 }

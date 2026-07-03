@@ -2,7 +2,10 @@ import type { Block } from "@/lib/blocks/types";
 import { FileDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 export function FileBlock({ block, onChange }: Props) {
   const url = String(block.data.url ?? "");
@@ -28,7 +31,9 @@ export function FileBlock({ block, onChange }: Props) {
         <input
           type="checkbox"
           checked={showButton}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, showButton: e.target.checked } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, showButton: e.target.checked } })
+          }
         />
         Pokaż przycisk „Pobierz"
       </label>

@@ -43,7 +43,9 @@ export function CustomMetaValuesEditor({ tenantId, lang, values, onChange }: Pro
     <div className="space-y-2">
       {defs.map((d) => (
         <div key={d.id} className="grid grid-cols-[140px_minmax(0,1fr)] items-center gap-2">
-          <Label className="text-xs text-muted-foreground truncate" title={d.key}>{metaLabel(d, lang)}</Label>
+          <Label className="text-xs text-muted-foreground truncate" title={d.key}>
+            {metaLabel(d, lang)}
+          </Label>
           <Input
             value={values?.[d.key] ?? ""}
             onChange={(e) => setKey(d.key, e.target.value)}

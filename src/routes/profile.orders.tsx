@@ -5,7 +5,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { fetchMyOrders } from "@/lib/billing/queries";
 import { formatMoney } from "@/lib/billing/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/profile/orders")({
@@ -57,16 +64,29 @@ function OrdersPage() {
               {data.map((o) => {
                 const label =
                   (o.metadata && typeof o.metadata.label === "string" ? o.metadata.label : null) ??
-                  (o.kind === "subscription" ? t("profile.orders.kindSubscription") : t("profile.orders.kindOneTime"));
+                  (o.kind === "subscription"
+                    ? t("profile.orders.kindSubscription")
+                    : t("profile.orders.kindOneTime"));
                 return (
                   <TableRow key={o.id}>
                     <TableCell>{fmtDate(o.created_at)}</TableCell>
                     <TableCell>{label}</TableCell>
-                    <TableCell className="text-right">{formatMoney(o.amount_cents, o.currency, i18n.language)}</TableCell>
-                    <TableCell><Badge variant={statusVariant(o.status)}>{t(`profile.status.${o.status}`)}</Badge></TableCell>
+                    <TableCell className="text-right">
+                      {formatMoney(o.amount_cents, o.currency, i18n.language)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant(o.status)}>
+                        {t(`profile.status.${o.status}`)}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       {o.invoice_url ? (
-                        <a href={o.invoice_url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                        <a
+                          href={o.invoice_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary hover:underline"
+                        >
                           {t("profile.orders.invoice")}
                         </a>
                       ) : (

@@ -6,7 +6,10 @@ import { Check, X as XIcon } from "lucide-react";
 
 // ===== Step List =====
 
-interface StepLite { title: string; description: string }
+interface StepLite {
+  title: string;
+  description: string;
+}
 
 type StepOrientation = "vertical" | "horizontal";
 type StepNumberStyle = "circle" | "square" | "plain";
@@ -26,12 +29,18 @@ const NUMBER_STYLE_CLS: Record<StepNumberStyle, string> = {
 };
 
 export function StepListView({
-  title, items, orientation = "vertical", numberStyle = "circle", cls,
+  title,
+  items,
+  orientation = "vertical",
+  numberStyle = "circle",
+  cls,
 }: StepProps) {
-  const list: StepLite[] = (Array.isArray(items) ? items : []).map((i) => {
-    const o = (i ?? {}) as Record<string, Json>;
-    return { title: String(o.title ?? ""), description: String(o.description ?? "") };
-  }).filter((s) => s.title);
+  const list: StepLite[] = (Array.isArray(items) ? items : [])
+    .map((i) => {
+      const o = (i ?? {}) as Record<string, Json>;
+      return { title: String(o.title ?? ""), description: String(o.description ?? "") };
+    })
+    .filter((s) => s.title);
   if (list.length === 0) return null;
   const numCls = [
     "inline-flex items-center justify-center w-10 h-10 shrink-0 font-bold text-sm",
@@ -43,7 +52,9 @@ export function StepListView({
     return (
       <section className={`space-y-6 ${cls ?? ""}`}>
         {title ? (
-          <h2 className="font-serif text-2xl md:text-3xl font-bold text-center text-foreground">{title}</h2>
+          <h2 className="font-serif text-2xl md:text-3xl font-bold text-center text-foreground">
+            {title}
+          </h2>
         ) : null}
         <ol className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {list.map((s, idx) => (
@@ -115,7 +126,9 @@ export function ComparisonTableView({ title, columns, rows, featuredIndex = -1, 
   return (
     <section className={`space-y-4 ${cls ?? ""}`}>
       {title ? (
-        <h2 className="font-serif text-2xl md:text-3xl font-bold text-center text-foreground">{title}</h2>
+        <h2 className="font-serif text-2xl md:text-3xl font-bold text-center text-foreground">
+          {title}
+        </h2>
       ) : null}
       <div className="overflow-x-auto rounded-2xl border border-border bg-card">
         <table className="w-full text-sm">
@@ -139,14 +152,15 @@ export function ComparisonTableView({ title, columns, rows, featuredIndex = -1, 
           <tbody>
             {rowList.map((r, ri) => (
               <tr key={ri} className="border-b border-border last:border-0">
-                <th className="text-left p-4 font-medium text-foreground" scope="row">{r.feature}</th>
+                <th className="text-left p-4 font-medium text-foreground" scope="row">
+                  {r.feature}
+                </th>
                 {cols.map((_, ci) => (
                   <td
                     key={ci}
-                    className={[
-                      "p-4 text-center",
-                      ci === featuredIndex ? "bg-primary/5" : "",
-                    ].join(" ")}
+                    className={["p-4 text-center", ci === featuredIndex ? "bg-primary/5" : ""].join(
+                      " ",
+                    )}
                   >
                     {renderCellValue(r.values[ci] ?? "")}
                   </td>
@@ -190,8 +204,17 @@ interface BannerImageProps {
 }
 
 export function BannerImageView({
-  image, alt, title, description, ctaLabel, ctaHref,
-  position = "left", theme = "dark", aspect = "21:9", overlay = 35, cls,
+  image,
+  alt,
+  title,
+  description,
+  ctaLabel,
+  ctaHref,
+  position = "left",
+  theme = "dark",
+  aspect = "21:9",
+  overlay = 35,
+  cls,
 }: BannerImageProps) {
   const aspectCls = BANNER_ASPECT[aspect] ?? BANNER_ASPECT["21:9"];
   const posCls = BANNER_POS[position] ?? BANNER_POS.left;
@@ -202,19 +225,29 @@ export function BannerImageView({
   return (
     <section className={`relative overflow-hidden rounded-2xl ${aspectCls} ${cls ?? ""}`}>
       {image ? (
-        <img src={image} alt={alt || ""} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+        <img
+          src={image}
+          alt={alt || ""}
+          className="absolute inset-0 w-full h-full object-cover"
+          loading="lazy"
+        />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-muted" aria-hidden />
       )}
       <div
         className="absolute inset-0"
-        style={{ backgroundColor: theme === "light" ? `rgba(255,255,255,${ov / 100})` : `rgba(0,0,0,${ov / 100})` }}
+        style={{
+          backgroundColor:
+            theme === "light" ? `rgba(255,255,255,${ov / 100})` : `rgba(0,0,0,${ov / 100})`,
+        }}
         aria-hidden
       />
       <div className={`relative h-full w-full p-6 md:p-10 flex flex-col justify-center ${posCls}`}>
         <div className="max-w-xl space-y-3">
           {title ? (
-            <h2 className={`font-serif text-2xl md:text-4xl font-bold leading-tight ${textCls}`}>{title}</h2>
+            <h2 className={`font-serif text-2xl md:text-4xl font-bold leading-tight ${textCls}`}>
+              {title}
+            </h2>
           ) : null}
           {description ? (
             <p className={`text-sm md:text-base leading-relaxed ${subCls}`}>{description}</p>
@@ -262,9 +295,18 @@ interface VideoHeroProps {
 }
 
 export function VideoHeroView({
-  src, poster, title, subtitle, ctaLabel, ctaHref,
-  height = "lg", align = "center", overlay = 45,
-  autoplay = true, loop = true, cls,
+  src,
+  poster,
+  title,
+  subtitle,
+  ctaLabel,
+  ctaHref,
+  height = "lg",
+  align = "center",
+  overlay = 45,
+  autoplay = true,
+  loop = true,
+  cls,
 }: VideoHeroProps) {
   const heightCls = VIDEO_HERO_HEIGHT[height] ?? VIDEO_HERO_HEIGHT.lg;
   const isCenter = align === "center";
@@ -285,9 +327,17 @@ export function VideoHeroView({
           aria-hidden
         />
       ) : poster ? (
-        <img src={poster} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+        <img
+          src={poster}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+          loading="lazy"
+        />
       ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/40 via-background to-muted" aria-hidden />
+        <div
+          className="absolute inset-0 bg-gradient-to-br from-primary/40 via-background to-muted"
+          aria-hidden
+        />
       )}
       <div className="absolute inset-0 bg-black" style={{ opacity: ov / 100 }} aria-hidden />
       <div

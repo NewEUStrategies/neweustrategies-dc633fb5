@@ -11,11 +11,9 @@ import type { Database } from "@/integrations/supabase/types";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
 function client() {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { storage: undefined, persistSession: false, autoRefreshToken: false } },
-  );
+  return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
+    auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+  });
 }
 
 const recordSchema = z.object({
@@ -69,7 +67,11 @@ async function resolveParentPaths(
   return new Map(entries);
 }
 
-function postHref(paths: Map<string, string>, parentPageId: string | null | undefined, slug: string): string {
+function postHref(
+  paths: Map<string, string>,
+  parentPageId: string | null | undefined,
+  slug: string,
+): string {
   const path = parentPageId ? paths.get(parentPageId) : "";
   return path ? `/${path}/${slug}` : `/post/${slug}`;
 }
@@ -86,30 +88,34 @@ const trendingSchema = z.object({
 
 export const getTrendingPosts = createServerFn({ method: "GET" })
   .inputValidator((d) => trendingSchema.parse(d))
-  .handler(async ({ data }): Promise<TrendingPost[]> =>
-    edgeTtlCache(`trending_posts:${data.days}:${data.limit}`, TICKER_TTL_MS, async () => {
-      const sb = client();
-      const { data: rows, error } = await sb.rpc("trending_posts", {
-        _days: data.days,
-        _limit: data.limit,
-      });
-      if (error) {
-        console.warn("trending_posts failed:", error.message);
-        return [];
-      }
-      const paths = await resolveParentPaths(sb, (rows ?? []).map((r) => r.parent_page_id));
-      return (rows ?? []).map((r) => ({
-        id: r.id,
-        slug: r.slug,
-        title_pl: r.title_pl,
-        title_en: r.title_en,
-        cover_image_url: r.cover_image_url,
-        published_at: r.published_at,
-        parent_page_id: r.parent_page_id,
-        views_count: Number(r.views_count ?? 0),
-        href: postHref(paths, r.parent_page_id, r.slug),
-      }));
-    }),
+  .handler(
+    async ({ data }): Promise<TrendingPost[]> =>
+      edgeTtlCache(`trending_posts:${data.days}:${data.limit}`, TICKER_TTL_MS, async () => {
+        const sb = client();
+        const { data: rows, error } = await sb.rpc("trending_posts", {
+          _days: data.days,
+          _limit: data.limit,
+        });
+        if (error) {
+          console.warn("trending_posts failed:", error.message);
+          return [];
+        }
+        const paths = await resolveParentPaths(
+          sb,
+          (rows ?? []).map((r) => r.parent_page_id),
+        );
+        return (rows ?? []).map((r) => ({
+          id: r.id,
+          slug: r.slug,
+          title_pl: r.title_pl,
+          title_en: r.title_en,
+          cover_image_url: r.cover_image_url,
+          published_at: r.published_at,
+          parent_page_id: r.parent_page_id,
+          views_count: Number(r.views_count ?? 0),
+          href: postHref(paths, r.parent_page_id, r.slug),
+        }));
+      }),
   );
 
 // Latest / pinned posts for the header ticker. Reuses TrendingPost shape so
@@ -122,39 +128,43 @@ const tickerSchema = z.object({
 
 export const getTickerPosts = createServerFn({ method: "GET" })
   .inputValidator((d) => tickerSchema.parse(d))
-  .handler(async ({ data }): Promise<TrendingPost[]> =>
-    edgeTtlCache(
-      `ticker_posts:${data.source}:${data.limit}:${data.pinnedPostId ?? ""}`,
-      TICKER_TTL_MS,
-      async () => {
-        const sb = client();
-        let q = sb
-          .from("posts")
-          .select("id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id")
-          .eq("status", "published")
-          .is("deleted_at", null);
-        if (data.source === "pinned" && data.pinnedPostId) {
-          q = q.eq("id", data.pinnedPostId).limit(1);
-        } else {
-          q = q.order("published_at", { ascending: false }).limit(data.limit);
-        }
-        const { data: rows, error } = await q;
-        if (error) {
-          console.warn("getTickerPosts failed:", error.message);
-          return [];
-        }
-        const paths = await resolveParentPaths(sb, (rows ?? []).map((r) => r.parent_page_id));
-        return (rows ?? []).map((r) => ({
-          id: r.id,
-          slug: r.slug,
-          title_pl: r.title_pl ?? "",
-          title_en: r.title_en ?? "",
-          cover_image_url: r.cover_image_url,
-          published_at: r.published_at,
-          parent_page_id: r.parent_page_id,
-          views_count: 0,
-          href: postHref(paths, r.parent_page_id, r.slug),
-        }));
-      },
-    ),
+  .handler(
+    async ({ data }): Promise<TrendingPost[]> =>
+      edgeTtlCache(
+        `ticker_posts:${data.source}:${data.limit}:${data.pinnedPostId ?? ""}`,
+        TICKER_TTL_MS,
+        async () => {
+          const sb = client();
+          let q = sb
+            .from("posts")
+            .select("id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id")
+            .eq("status", "published")
+            .is("deleted_at", null);
+          if (data.source === "pinned" && data.pinnedPostId) {
+            q = q.eq("id", data.pinnedPostId).limit(1);
+          } else {
+            q = q.order("published_at", { ascending: false }).limit(data.limit);
+          }
+          const { data: rows, error } = await q;
+          if (error) {
+            console.warn("getTickerPosts failed:", error.message);
+            return [];
+          }
+          const paths = await resolveParentPaths(
+            sb,
+            (rows ?? []).map((r) => r.parent_page_id),
+          );
+          return (rows ?? []).map((r) => ({
+            id: r.id,
+            slug: r.slug,
+            title_pl: r.title_pl ?? "",
+            title_en: r.title_en ?? "",
+            cover_image_url: r.cover_image_url,
+            published_at: r.published_at,
+            parent_page_id: r.parent_page_id,
+            views_count: 0,
+            href: postHref(paths, r.parent_page_id, r.slug),
+          }));
+        },
+      ),
   );

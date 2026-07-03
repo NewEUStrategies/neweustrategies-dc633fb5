@@ -28,30 +28,122 @@ export interface LayoutPreset {
 }
 
 export const STANDARD_LAYOUTS: LayoutPreset[] = [
-  { id: "layout-1", label: "Layout 1 - klasyczny", header: "above-cover", cover: "wide", hasSidebar: false },
-  { id: "layout-1a", label: "Layout 1(a) - bez excerpt", header: "above-cover", cover: "wide", hasSidebar: false },
-  { id: "layout-2", label: "Layout 2 - wąski", header: "above-cover", cover: "boxed", hasSidebar: false, centerHeaderDefault: true },
-  { id: "layout-3", label: "Layout 3 - z sidebar", header: "above-cover", cover: "wide", hasSidebar: true },
-  { id: "layout-4", label: "Layout 4 - overlay", header: "overlay", cover: "full-bleed", hasSidebar: false, centerHeaderDefault: true },
-  { id: "layout-5", label: "Layout 5 - overlay narrow", header: "overlay", cover: "wide", hasSidebar: false, centerHeaderDefault: true },
-  { id: "layout-6", label: "Layout 6 - duży cover", header: "above-cover", cover: "ratio", hasSidebar: false, featuredRatioKey: "featured_ratio_l6" },
-  { id: "layout-7", label: "Layout 7 - split", header: "side-by-side", cover: "side", hasSidebar: false },
-  { id: "layout-8", label: "Layout 8 - magazine", header: "below-cover", cover: "wide", hasSidebar: true },
-  { id: "layout-9", label: "Layout 9 - bez featured", header: "no-cover", cover: "none", hasSidebar: false, centerHeaderDefault: true },
-  { id: "layout-10", label: "Layout 10 - niski hero", header: "above-cover", cover: "ratio", hasSidebar: false, featuredRatioKey: "featured_ratio_l10" },
-  { id: "layout-11", label: "Layout 11 - niski hero + sidebar", header: "above-cover", cover: "ratio", hasSidebar: true, featuredRatioKey: "featured_ratio_l11" },
+  {
+    id: "layout-1",
+    label: "Layout 1 - klasyczny",
+    header: "above-cover",
+    cover: "wide",
+    hasSidebar: false,
+  },
+  {
+    id: "layout-1a",
+    label: "Layout 1(a) - bez excerpt",
+    header: "above-cover",
+    cover: "wide",
+    hasSidebar: false,
+  },
+  {
+    id: "layout-2",
+    label: "Layout 2 - wąski",
+    header: "above-cover",
+    cover: "boxed",
+    hasSidebar: false,
+    centerHeaderDefault: true,
+  },
+  {
+    id: "layout-3",
+    label: "Layout 3 - z sidebar",
+    header: "above-cover",
+    cover: "wide",
+    hasSidebar: true,
+  },
+  {
+    id: "layout-4",
+    label: "Layout 4 - overlay",
+    header: "overlay",
+    cover: "full-bleed",
+    hasSidebar: false,
+    centerHeaderDefault: true,
+  },
+  {
+    id: "layout-5",
+    label: "Layout 5 - overlay narrow",
+    header: "overlay",
+    cover: "wide",
+    hasSidebar: false,
+    centerHeaderDefault: true,
+  },
+  {
+    id: "layout-6",
+    label: "Layout 6 - duży cover",
+    header: "above-cover",
+    cover: "ratio",
+    hasSidebar: false,
+    featuredRatioKey: "featured_ratio_l6",
+  },
+  {
+    id: "layout-7",
+    label: "Layout 7 - split",
+    header: "side-by-side",
+    cover: "side",
+    hasSidebar: false,
+  },
+  {
+    id: "layout-8",
+    label: "Layout 8 - magazine",
+    header: "below-cover",
+    cover: "wide",
+    hasSidebar: true,
+  },
+  {
+    id: "layout-9",
+    label: "Layout 9 - bez featured",
+    header: "no-cover",
+    cover: "none",
+    hasSidebar: false,
+    centerHeaderDefault: true,
+  },
+  {
+    id: "layout-10",
+    label: "Layout 10 - niski hero",
+    header: "above-cover",
+    cover: "ratio",
+    hasSidebar: false,
+    featuredRatioKey: "featured_ratio_l10",
+  },
+  {
+    id: "layout-11",
+    label: "Layout 11 - niski hero + sidebar",
+    header: "above-cover",
+    cover: "ratio",
+    hasSidebar: true,
+    featuredRatioKey: "featured_ratio_l11",
+  },
 ];
 
-export const VIDEO_LAYOUTS: LayoutPreset[] = STANDARD_LAYOUTS.slice(0, 5).map((l) => ({ ...l, id: l.id.replace("layout-", "video-") }));
-export const AUDIO_LAYOUTS: LayoutPreset[] = STANDARD_LAYOUTS.slice(0, 5).map((l) => ({ ...l, id: l.id.replace("layout-", "audio-") }));
-export const GALLERY_LAYOUTS: LayoutPreset[] = STANDARD_LAYOUTS.slice(0, 3).map((l) => ({ ...l, id: l.id.replace("layout-", "gallery-") }));
+export const VIDEO_LAYOUTS: LayoutPreset[] = STANDARD_LAYOUTS.slice(0, 5).map((l) => ({
+  ...l,
+  id: l.id.replace("layout-", "video-"),
+}));
+export const AUDIO_LAYOUTS: LayoutPreset[] = STANDARD_LAYOUTS.slice(0, 5).map((l) => ({
+  ...l,
+  id: l.id.replace("layout-", "audio-"),
+}));
+export const GALLERY_LAYOUTS: LayoutPreset[] = STANDARD_LAYOUTS.slice(0, 3).map((l) => ({
+  ...l,
+  id: l.id.replace("layout-", "gallery-"),
+}));
 
 export function getLayoutSet(format: PostFormat): LayoutPreset[] {
   switch (format) {
-    case "video": return VIDEO_LAYOUTS;
-    case "audio": return AUDIO_LAYOUTS;
-    case "gallery": return GALLERY_LAYOUTS;
-    default: return STANDARD_LAYOUTS;
+    case "video":
+      return VIDEO_LAYOUTS;
+    case "audio":
+      return AUDIO_LAYOUTS;
+    case "gallery":
+      return GALLERY_LAYOUTS;
+    default:
+      return STANDARD_LAYOUTS;
   }
 }
 
@@ -167,7 +259,10 @@ export function defaultPostLayoutSettings(): PostLayoutSettings {
 }
 
 /** Łączy globalne ustawienia z overridem konkretnego wpisu. */
-export function mergeOverrides(global: PostLayoutSettings, overrides: LayoutOverrides | null | undefined) {
+export function mergeOverrides(
+  global: PostLayoutSettings,
+  overrides: LayoutOverrides | null | undefined,
+) {
   if (!overrides) return global;
   return {
     ...global,
@@ -184,12 +279,20 @@ export function mergeOverrides(global: PostLayoutSettings, overrides: LayoutOver
 }
 
 /** Wybiera aktywny layout (override > globalny dla formatu). */
-export function pickLayoutId(global: PostLayoutSettings, format: PostFormat, override?: string | null): string {
+export function pickLayoutId(
+  global: PostLayoutSettings,
+  format: PostFormat,
+  override?: string | null,
+): string {
   if (override) return override;
   switch (format) {
-    case "video": return global.video_layout;
-    case "audio": return global.audio_layout;
-    case "gallery": return global.gallery_layout;
-    default: return global.standard_layout;
+    case "video":
+      return global.video_layout;
+    case "audio":
+      return global.audio_layout;
+    case "gallery":
+      return global.gallery_layout;
+    default:
+      return global.standard_layout;
   }
 }

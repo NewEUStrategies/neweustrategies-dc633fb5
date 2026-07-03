@@ -79,11 +79,18 @@ const Row = ({
       aria-label={`Podgląd nagłówka - tryb ${label}`}
     >
       <div className="text-[10px] uppercase tracking-wider opacity-60">{label}</div>
-      <div className="font-display" style={titleStyle}>{titleSample}</div>
+      <div className="font-display" style={titleStyle}>
+        {titleSample}
+      </div>
       <div style={subtitleStyle}>{subtitleSample}</div>
       <div className="text-[10px] opacity-60 pt-1 border-t border-current/10 leading-snug">
         {weightFallbackNote}
-        {lhFallbackNote ? <><br />{lhFallbackNote}</> : null}
+        {lhFallbackNote ? (
+          <>
+            <br />
+            {lhFallbackNote}
+          </>
+        ) : null}
       </div>
     </div>
   );

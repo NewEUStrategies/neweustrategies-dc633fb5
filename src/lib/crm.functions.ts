@@ -6,18 +6,26 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 async function hmacSha256Hex(secret: string, body: string): Promise<string> {
   const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
   const sig = await crypto.subtle.sign("HMAC", key, enc.encode(body));
-  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
-const STAGE_ENUM = z.enum(["new","contacted","qualified","proposal","won","lost","archived"]);
+const STAGE_ENUM = z.enum(["new", "contacted", "qualified", "proposal", "won", "lost", "archived"]);
 type Stage = z.infer<typeof STAGE_ENUM>;
 
 const ListInput = z.object({
   search: z.string().trim().max(200).optional(),
   stage: STAGE_ENUM.optional(),
-  scope: z.enum(["tenant","all"]).default("tenant"),
+  scope: z.enum(["tenant", "all"]).default("tenant"),
   limit: z.number().int().min(1).max(500).default(200),
 });
 
@@ -44,13 +52,19 @@ export const listCrmLeads = createServerFn({ method: "POST" })
   .inputValidator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
-    let q = tbl(context, view).select("*").order("last_activity_at", { ascending: false }).limit(data.limit);
+    let q = tbl(context, view)
+      .select("*")
+      .order("last_activity_at", { ascending: false })
+      .limit(data.limit);
     if (data.stage) q = q.eq("stage", data.stage);
     if (data.search) {
       const s = `%${data.search.toLowerCase()}%`;
       q = q.or(`email.ilike.${s},first_name.ilike.${s},last_name.ilike.${s},company.ilike.${s}`);
     }
-    const { data: leads, error } = await (q as unknown as Promise<{ data: unknown[]; error: { message: string } | null }>);
+    const { data: leads, error } = await (q as unknown as Promise<{
+      data: unknown[];
+      error: { message: string } | null;
+    }>);
     if (error) throw new Error(error.message);
     return { json: j(leads ?? []) };
   });
@@ -62,7 +76,9 @@ export const getCrmLead = createServerFn({ method: "POST" })
   .inputValidator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
     const { data: lead, error } = await tbl(context, "crm_leads")
-      .select("*").eq("id", data.id).maybeSingle();
+      .select("*")
+      .eq("id", data.id)
+      .maybeSingle();
     if (error) throw new Error(error.message);
     if (!lead) throw new Error("Lead not found");
     const L = lead as { email: string; tenant_id: string; id: string };
@@ -71,20 +87,40 @@ export const getCrmLead = createServerFn({ method: "POST" })
       ((await p).data ?? []) as T;
 
     const [messages, subs, consents, notes] = await Promise.all([
-      fetchAll(tbl(context, "contact_messages")
-        .select("id, form_type, form_name, subject, message, lang, source, page_url, referer, ip, consents, newsletter_opt_in, consent, created_at")
-        .ilike("email", L.email).eq("tenant_id", L.tenant_id)
-        .order("created_at", { ascending: false }).limit(100) as unknown as Promise<{ data: unknown }>),
-      fetchAll(tbl(context, "newsletter_subscribers")
-        .select("id, status, source, source_form_id, source_form_name, language, ip, consents, confirmed_at, created_at, updated_at")
-        .ilike("email", L.email).eq("tenant_id", L.tenant_id)
-        .order("created_at", { ascending: false }).limit(50) as unknown as Promise<{ data: unknown }>),
-      fetchAll(tbl(context, "crm_consent_log").select("*")
-        .ilike("email", L.email).eq("tenant_id", L.tenant_id)
-        .order("created_at", { ascending: false }).limit(200) as unknown as Promise<{ data: unknown }>),
-      fetchAll(tbl(context, "crm_lead_notes")
-        .select("id, body, author_id, created_at").eq("lead_id", L.id)
-        .order("created_at", { ascending: false }) as unknown as Promise<{ data: unknown }>),
+      fetchAll(
+        tbl(context, "contact_messages")
+          .select(
+            "id, form_type, form_name, subject, message, lang, source, page_url, referer, ip, consents, newsletter_opt_in, consent, created_at",
+          )
+          .ilike("email", L.email)
+          .eq("tenant_id", L.tenant_id)
+          .order("created_at", { ascending: false })
+          .limit(100) as unknown as Promise<{ data: unknown }>,
+      ),
+      fetchAll(
+        tbl(context, "newsletter_subscribers")
+          .select(
+            "id, status, source, source_form_id, source_form_name, language, ip, consents, confirmed_at, created_at, updated_at",
+          )
+          .ilike("email", L.email)
+          .eq("tenant_id", L.tenant_id)
+          .order("created_at", { ascending: false })
+          .limit(50) as unknown as Promise<{ data: unknown }>,
+      ),
+      fetchAll(
+        tbl(context, "crm_consent_log")
+          .select("*")
+          .ilike("email", L.email)
+          .eq("tenant_id", L.tenant_id)
+          .order("created_at", { ascending: false })
+          .limit(200) as unknown as Promise<{ data: unknown }>,
+      ),
+      fetchAll(
+        tbl(context, "crm_lead_notes")
+          .select("id, body, author_id, created_at")
+          .eq("lead_id", L.id)
+          .order("created_at", { ascending: false }) as unknown as Promise<{ data: unknown }>,
+      ),
     ]);
 
     return { json: j({ lead, messages, subscriptions: subs, consents, notes }) };
@@ -107,12 +143,17 @@ export const updateCrmLead = createServerFn({ method: "POST" })
   .inputValidator((d) => UpdateInput.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...patch } = data;
-    const res = await (tbl(context, "crm_leads").update(patch).eq("id", id) as unknown as Promise<{ error: { message: string } | null }>);
+    const res = await (tbl(context, "crm_leads").update(patch).eq("id", id) as unknown as Promise<{
+      error: { message: string } | null;
+    }>);
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
   });
 
-const NoteInput = z.object({ lead_id: z.string().uuid(), body: z.string().trim().min(1).max(4000) });
+const NoteInput = z.object({
+  lead_id: z.string().uuid(),
+  body: z.string().trim().min(1).max(4000),
+});
 
 export const addCrmNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -120,7 +161,9 @@ export const addCrmNote = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
     const { error } = await tbl(context, "crm_lead_notes").insert({
-      lead_id: data.lead_id, body: data.body, author_id: userId,
+      lead_id: data.lead_id,
+      body: data.body,
+      author_id: userId,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -130,7 +173,9 @@ export const deleteCrmNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => IdInput.parse(d))
   .handler(async ({ data, context }) => {
-    const res = await (tbl(context, "crm_lead_notes").delete().eq("id", data.id) as unknown as Promise<{ error: { message: string } | null }>);
+    const res = await (tbl(context, "crm_lead_notes")
+      .delete()
+      .eq("id", data.id) as unknown as Promise<{ error: { message: string } | null }>);
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
   });
@@ -140,11 +185,31 @@ export const exportCrmLeadsCsv = createServerFn({ method: "POST" })
   .inputValidator((d) => ListInput.parse(d))
   .handler(async ({ data, context }) => {
     const view = data.scope === "all" ? "crm_leads_all" : "crm_leads";
-    let q = tbl(context, view).select("*").order("last_activity_at", { ascending: false }).limit(5000);
+    let q = tbl(context, view)
+      .select("*")
+      .order("last_activity_at", { ascending: false })
+      .limit(5000);
     if (data.stage) q = q.eq("stage", data.stage);
-    const { data: rows, error } = await (q as unknown as Promise<{ data: Record<string, unknown>[]; error: { message: string } | null }>);
+    const { data: rows, error } = await (q as unknown as Promise<{
+      data: Record<string, unknown>[];
+      error: { message: string } | null;
+    }>);
     if (error) throw new Error(error.message);
-    const cols = ["email","first_name","last_name","phone","company","stage","tags","newsletter_status","marketing_consent","source_count","follow_up_at","last_activity_at","created_at"];
+    const cols = [
+      "email",
+      "first_name",
+      "last_name",
+      "phone",
+      "company",
+      "stage",
+      "tags",
+      "newsletter_status",
+      "marketing_consent",
+      "source_count",
+      "follow_up_at",
+      "last_activity_at",
+      "created_at",
+    ];
     const esc = (v: unknown): string => {
       if (v == null) return "";
       const s = Array.isArray(v) ? v.join("|") : String(v);
@@ -167,7 +232,7 @@ const ConsentMappingItem = z.object({
 
 const IntegrationsInput = z.object({
   merydian_enabled: z.boolean(),
-  merydian_mode: z.enum(["webhook","api","both"]).default("webhook"),
+  merydian_mode: z.enum(["webhook", "api", "both"]).default("webhook"),
   merydian_webhook_url: z.string().url().nullable().optional(),
   merydian_webhook_secret: z.string().max(200).nullable().optional(),
   merydian_api_base: z.string().url().nullable().optional(),
@@ -176,7 +241,6 @@ const IntegrationsInput = z.object({
   forward_stages: z.array(STAGE_ENUM).default(["new"]),
   consent_mapping: z.array(ConsentMappingItem).max(50).default([]),
 });
-
 
 export const getCrmIntegrations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -191,13 +255,21 @@ export const upsertCrmIntegrations = createServerFn({ method: "POST" })
   .inputValidator((d) => IntegrationsInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
-    const supabase = (context as unknown as { supabase: { rpc: (n: string, a: Record<string, unknown>) => Promise<{ data: boolean | null }> } }).supabase;
+    const supabase = (
+      context as unknown as {
+        supabase: {
+          rpc: (n: string, a: Record<string, unknown>) => Promise<{ data: boolean | null }>;
+        };
+      }
+    ).supabase;
     const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
     if (!isAdmin) throw new Error("Forbidden");
     const { data: existing } = await tbl(context, "crm_integrations").select("id").maybeSingle();
     const E = existing as { id: string } | null;
     const res = E
-      ? await (tbl(context, "crm_integrations").update(data).eq("id", E.id) as unknown as Promise<{ error: { message: string } | null }>)
+      ? await (tbl(context, "crm_integrations").update(data).eq("id", E.id) as unknown as Promise<{
+          error: { message: string } | null;
+        }>)
       : await tbl(context, "crm_integrations").insert(data);
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
@@ -210,22 +282,37 @@ export const pushLeadToMerydian = createServerFn({ method: "POST" })
   .inputValidator((d) => PushInput.parse(d))
   .handler(async ({ data, context }) => {
     const userId = (context as { userId: string }).userId;
-    const { data: lead, error } = await tbl(context, "crm_leads").select("*").eq("id", data.lead_id).maybeSingle();
+    const { data: lead, error } = await tbl(context, "crm_leads")
+      .select("*")
+      .eq("id", data.lead_id)
+      .maybeSingle();
     if (error || !lead) throw new Error(error?.message ?? "Lead not found");
     const L = lead as LeadRow;
-    const { data: cfg } = await tbl(context, "crm_integrations").select("*").eq("tenant_id", L.tenant_id).maybeSingle();
-    if (!cfg || !(cfg as { merydian_enabled: boolean }).merydian_enabled) throw new Error("Merydian integration is disabled");
+    const { data: cfg } = await tbl(context, "crm_integrations")
+      .select("*")
+      .eq("tenant_id", L.tenant_id)
+      .maybeSingle();
+    if (!cfg || !(cfg as { merydian_enabled: boolean }).merydian_enabled)
+      throw new Error("Merydian integration is disabled");
     const result = await dispatchMerydian(L, cfg as Record<string, unknown>);
-    await (tbl(context, "crm_integrations").update({
-      last_sync_at: new Date().toISOString(),
-      last_sync_status: result.ok ? "ok" : "error",
-      last_sync_error: result.ok ? null : (result.error ?? "unknown"),
-    }).eq("tenant_id", L.tenant_id) as unknown as Promise<unknown>);
+    await (tbl(context, "crm_integrations")
+      .update({
+        last_sync_at: new Date().toISOString(),
+        last_sync_status: result.ok ? "ok" : "error",
+        last_sync_error: result.ok ? null : (result.error ?? "unknown"),
+      })
+      .eq("tenant_id", L.tenant_id) as unknown as Promise<unknown>);
     await tbl(context, "audit_log").insert({
-      tenant_id: L.tenant_id, actor_id: userId,
+      tenant_id: L.tenant_id,
+      actor_id: userId,
       action: result.ok ? "crm_lead.webhook_ok" : "crm_lead.webhook_error",
-      entity_type: "crm_lead", entity_id: L.id,
-      metadata: { via: result.via ?? null, status: result.ok ? "ok" : "error", error: result.error ?? null },
+      entity_type: "crm_lead",
+      entity_id: L.id,
+      metadata: {
+        via: result.via ?? null,
+        status: result.ok ? "ok" : "error",
+        error: result.error ?? null,
+      },
     });
     return result;
   });
@@ -241,9 +328,14 @@ export type TimelineEvent = {
   meta: Record<string, unknown> | null;
 };
 
-async function buildLeadTimeline(context: { supabase: unknown }, leadId: string): Promise<{ lead: Record<string, unknown>; events: TimelineEvent[] }> {
+async function buildLeadTimeline(
+  context: { supabase: unknown },
+  leadId: string,
+): Promise<{ lead: Record<string, unknown>; events: TimelineEvent[] }> {
   const { data: lead, error } = await tbl(context, "crm_leads")
-    .select("*").eq("id", leadId).maybeSingle();
+    .select("*")
+    .eq("id", leadId)
+    .maybeSingle();
   if (error || !lead) throw new Error(error?.message ?? "Lead not found");
   const L = lead as { id: string; tenant_id: string; email: string };
 
@@ -251,62 +343,139 @@ async function buildLeadTimeline(context: { supabase: unknown }, leadId: string)
     ((await p).data ?? []) as T;
 
   const [messages, subs, consents, notes, audits] = await Promise.all([
-    fetchAll<Array<{ id: string; form_name: string | null; form_type: string | null; subject: string | null; message: string; created_at: string; page_url: string | null; lang: string }>>(
+    fetchAll<
+      Array<{
+        id: string;
+        form_name: string | null;
+        form_type: string | null;
+        subject: string | null;
+        message: string;
+        created_at: string;
+        page_url: string | null;
+        lang: string;
+      }>
+    >(
       tbl(context, "contact_messages")
         .select("id, form_name, form_type, subject, message, page_url, lang, created_at")
-        .ilike("email", L.email).eq("tenant_id", L.tenant_id)
-        .order("created_at", { ascending: false }).limit(200) as unknown as Promise<{ data: unknown }>),
-    fetchAll<Array<{ id: string; status: string; source_form_name: string | null; confirmed_at: string | null; created_at: string }>>(
+        .ilike("email", L.email)
+        .eq("tenant_id", L.tenant_id)
+        .order("created_at", { ascending: false })
+        .limit(200) as unknown as Promise<{ data: unknown }>,
+    ),
+    fetchAll<
+      Array<{
+        id: string;
+        status: string;
+        source_form_name: string | null;
+        confirmed_at: string | null;
+        created_at: string;
+      }>
+    >(
       tbl(context, "newsletter_subscribers")
         .select("id, status, source_form_name, confirmed_at, created_at")
-        .ilike("email", L.email).eq("tenant_id", L.tenant_id)
-        .order("created_at", { ascending: false }).limit(50) as unknown as Promise<{ data: unknown }>),
-    fetchAll<Array<{ id: string; consent_key: string; granted: boolean; version: string | null; form_name: string | null; text_excerpt: string | null; created_at: string }>>(
+        .ilike("email", L.email)
+        .eq("tenant_id", L.tenant_id)
+        .order("created_at", { ascending: false })
+        .limit(50) as unknown as Promise<{ data: unknown }>,
+    ),
+    fetchAll<
+      Array<{
+        id: string;
+        consent_key: string;
+        granted: boolean;
+        version: string | null;
+        form_name: string | null;
+        text_excerpt: string | null;
+        created_at: string;
+      }>
+    >(
       tbl(context, "crm_consent_log")
         .select("id, consent_key, granted, version, form_name, text_excerpt, created_at")
-        .ilike("email", L.email).eq("tenant_id", L.tenant_id)
-        .order("created_at", { ascending: false }).limit(500) as unknown as Promise<{ data: unknown }>),
+        .ilike("email", L.email)
+        .eq("tenant_id", L.tenant_id)
+        .order("created_at", { ascending: false })
+        .limit(500) as unknown as Promise<{ data: unknown }>,
+    ),
     fetchAll<Array<{ id: string; body: string; author_id: string | null; created_at: string }>>(
       tbl(context, "crm_lead_notes")
-        .select("id, body, author_id, created_at").eq("lead_id", L.id)
-        .order("created_at", { ascending: false }) as unknown as Promise<{ data: unknown }>),
-    fetchAll<Array<{ id: string; action: string; actor_id: string | null; metadata: Record<string, unknown> | null; created_at: string }>>(
+        .select("id, body, author_id, created_at")
+        .eq("lead_id", L.id)
+        .order("created_at", { ascending: false }) as unknown as Promise<{ data: unknown }>,
+    ),
+    fetchAll<
+      Array<{
+        id: string;
+        action: string;
+        actor_id: string | null;
+        metadata: Record<string, unknown> | null;
+        created_at: string;
+      }>
+    >(
       tbl(context, "audit_log")
         .select("id, action, actor_id, metadata, created_at")
-        .eq("entity_type", "crm_lead").eq("entity_id", L.id)
-        .order("created_at", { ascending: false }).limit(500) as unknown as Promise<{ data: unknown }>),
+        .eq("entity_type", "crm_lead")
+        .eq("entity_id", L.id)
+        .order("created_at", { ascending: false })
+        .limit(500) as unknown as Promise<{ data: unknown }>,
+    ),
   ]);
 
   const ev: TimelineEvent[] = [];
-  for (const m of messages) ev.push({
-    id: `msg:${m.id}`, type: "submit", at: m.created_at,
-    title: m.form_name ?? m.form_type ?? "contact form",
-    detail: (m.subject ? `${m.subject} - ` : "") + m.message.slice(0, 280),
-    meta: { lang: m.lang, page_url: m.page_url ?? null },
-  });
-  for (const s of subs) {
-    ev.push({ id: `sub:${s.id}`, type: "newsletter", at: s.created_at,
-      title: `Newsletter: ${s.status}`, detail: s.source_form_name ?? null, meta: { status: s.status } });
-    if (s.confirmed_at) ev.push({
-      id: `sub-doi:${s.id}`, type: "newsletter", at: s.confirmed_at,
-      title: "Newsletter: confirmed (DOI)", detail: s.source_form_name ?? null, meta: { status: "confirmed" },
+  for (const m of messages)
+    ev.push({
+      id: `msg:${m.id}`,
+      type: "submit",
+      at: m.created_at,
+      title: m.form_name ?? m.form_type ?? "contact form",
+      detail: (m.subject ? `${m.subject} - ` : "") + m.message.slice(0, 280),
+      meta: { lang: m.lang, page_url: m.page_url ?? null },
     });
+  for (const s of subs) {
+    ev.push({
+      id: `sub:${s.id}`,
+      type: "newsletter",
+      at: s.created_at,
+      title: `Newsletter: ${s.status}`,
+      detail: s.source_form_name ?? null,
+      meta: { status: s.status },
+    });
+    if (s.confirmed_at)
+      ev.push({
+        id: `sub-doi:${s.id}`,
+        type: "newsletter",
+        at: s.confirmed_at,
+        title: "Newsletter: confirmed (DOI)",
+        detail: s.source_form_name ?? null,
+        meta: { status: "confirmed" },
+      });
   }
-  for (const c of consents) ev.push({
-    id: `cns:${c.id}`, type: "consent", at: c.created_at,
-    title: `${c.consent_key}: ${c.granted ? "granted" : "revoked"}`,
-    detail: c.text_excerpt ?? null,
-    meta: { form: c.form_name, version: c.version, granted: c.granted },
-  });
-  for (const n of notes) ev.push({
-    id: `nt:${n.id}`, type: "note", at: n.created_at,
-    title: "Note", detail: n.body, meta: { author_id: n.author_id },
-  });
+  for (const c of consents)
+    ev.push({
+      id: `cns:${c.id}`,
+      type: "consent",
+      at: c.created_at,
+      title: `${c.consent_key}: ${c.granted ? "granted" : "revoked"}`,
+      detail: c.text_excerpt ?? null,
+      meta: { form: c.form_name, version: c.version, granted: c.granted },
+    });
+  for (const n of notes)
+    ev.push({
+      id: `nt:${n.id}`,
+      type: "note",
+      at: n.created_at,
+      title: "Note",
+      detail: n.body,
+      meta: { author_id: n.author_id },
+    });
   for (const a of audits) {
     const t: TimelineEvent["type"] = a.action.includes("webhook") ? "webhook" : "stage_change";
     ev.push({
-      id: `au:${a.id}`, type: t, at: a.created_at,
-      title: a.action, detail: null, meta: a.metadata ?? null,
+      id: `au:${a.id}`,
+      type: t,
+      at: a.created_at,
+      title: a.action,
+      detail: null,
+      meta: a.metadata ?? null,
     });
   }
   ev.sort((a, b) => (a.at < b.at ? 1 : -1));
@@ -336,13 +505,27 @@ export const exportCrmLeadTimelineCsv = createServerFn({ method: "POST" })
     for (const e of events) {
       lines.push([e.at, e.type, e.title, e.detail ?? "", e.meta ?? ""].map(esc).join(","));
     }
-    return { csv: lines.join("\n"), email: (lead as { email: string }).email, count: events.length };
+    return {
+      csv: lines.join("\n"),
+      email: (lead as { email: string }).email,
+      count: events.length,
+    };
   });
 
 export type LeadRow = {
-  id: string; tenant_id: string; email: string; first_name: string | null; last_name: string | null;
-  phone: string | null; company: string | null; stage: Stage; tags: string[] | null;
-  marketing_consent: boolean; newsletter_status: string | null; created_at: string; last_activity_at: string;
+  id: string;
+  tenant_id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  company: string | null;
+  stage: Stage;
+  tags: string[] | null;
+  marketing_consent: boolean;
+  newsletter_status: string | null;
+  created_at: string;
+  last_activity_at: string;
 };
 
 export async function dispatchMerydian(
@@ -353,46 +536,76 @@ export async function dispatchMerydian(
   const stages = (cfg.forward_stages as Stage[] | null) ?? ["new"];
   if (!stages.includes(lead.stage)) return { ok: true, via: "skipped_stage" };
 
-  const mapping = (cfg.consent_mapping as Array<{ source_key: string; source_label?: string; merydian_field?: string; merydian_category?: string; required?: boolean }> | null) ?? [];
+  const mapping =
+    (cfg.consent_mapping as Array<{
+      source_key: string;
+      source_label?: string;
+      merydian_field?: string;
+      merydian_category?: string;
+      required?: boolean;
+    }> | null) ?? [];
   const consents = mapping.map((m) => ({
     source_key: m.source_key,
     source_label: m.source_label ?? "",
     merydian_field: m.merydian_field ?? "",
     merydian_category: m.merydian_category ?? "",
     required: !!m.required,
-    granted: m.source_key === "newsletter_opt_in"
-      ? lead.newsletter_status != null
-      : m.source_key === "marketing_consent"
-        ? lead.marketing_consent
-        : false,
+    granted:
+      m.source_key === "newsletter_opt_in"
+        ? lead.newsletter_status != null
+        : m.source_key === "marketing_consent"
+          ? lead.marketing_consent
+          : false,
   }));
 
   const payload = {
-    id: lead.id, email: lead.email,
-    first_name: lead.first_name, last_name: lead.last_name,
-    phone: lead.phone, company: lead.company,
-    stage: lead.stage, tags: lead.tags ?? [],
+    id: lead.id,
+    email: lead.email,
+    first_name: lead.first_name,
+    last_name: lead.last_name,
+    phone: lead.phone,
+    company: lead.company,
+    stage: lead.stage,
+    tags: lead.tags ?? [],
     marketing_consent: lead.marketing_consent,
     newsletter_status: lead.newsletter_status,
     workspace_id: cfg.merydian_workspace_id ?? null,
     consents,
-    created_at: lead.created_at, last_activity_at: lead.last_activity_at,
+    created_at: lead.created_at,
+    last_activity_at: lead.last_activity_at,
   };
   const body = JSON.stringify(payload);
 
-  const out: { webhook?: { ok: boolean; status?: number; error?: string }; api?: { ok: boolean; status?: number; error?: string } } = {};
+  const out: {
+    webhook?: { ok: boolean; status?: number; error?: string };
+    api?: { ok: boolean; status?: number; error?: string };
+  } = {};
 
   if (mode === "webhook" || mode === "both") {
     const url = String(cfg.merydian_webhook_url ?? "");
     if (!url) out.webhook = { ok: false, error: "missing_webhook_url" };
     else {
-      const headers: Record<string, string> = { "Content-Type": "application/json", "User-Agent": "NES-CRM/1.0" };
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "User-Agent": "NES-CRM/1.0",
+      };
       const secret = (cfg.merydian_webhook_secret as string | null) ?? "";
       if (secret) headers["X-Signature"] = await hmacSha256Hex(secret, body);
       try {
         const r = await fetch(url, { method: "POST", headers, body });
-        out.webhook = { ok: r.ok, status: r.status, error: r.ok ? undefined : await r.text().then((t) => t.slice(0, 200)).catch(() => "") };
-      } catch (e) { out.webhook = { ok: false, error: String(e).slice(0, 200) }; }
+        out.webhook = {
+          ok: r.ok,
+          status: r.status,
+          error: r.ok
+            ? undefined
+            : await r
+                .text()
+                .then((t) => t.slice(0, 200))
+                .catch(() => ""),
+        };
+      } catch (e) {
+        out.webhook = { ok: false, error: String(e).slice(0, 200) };
+      }
     }
   }
 
@@ -404,11 +617,26 @@ export async function dispatchMerydian(
       try {
         const r = await fetch(`${base.replace(/\/$/, "")}/leads`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}`, "User-Agent": "NES-CRM/1.0" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+            "User-Agent": "NES-CRM/1.0",
+          },
           body,
         });
-        out.api = { ok: r.ok, status: r.status, error: r.ok ? undefined : await r.text().then((t) => t.slice(0, 200)).catch(() => "") };
-      } catch (e) { out.api = { ok: false, error: String(e).slice(0, 200) }; }
+        out.api = {
+          ok: r.ok,
+          status: r.status,
+          error: r.ok
+            ? undefined
+            : await r
+                .text()
+                .then((t) => t.slice(0, 200))
+                .catch(() => ""),
+        };
+      } catch (e) {
+        out.api = { ok: false, error: String(e).slice(0, 200) };
+      }
     }
   }
 

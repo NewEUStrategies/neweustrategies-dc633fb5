@@ -18,12 +18,5 @@ export const IconButton = forwardRef<HTMLButtonElement, Props>(function IconButt
     : active
       ? "bg-accent text-accent-foreground border-border"
       : "hover:bg-accent";
-  return (
-    <button
-      ref={ref}
-      type="button"
-      className={`${base} ${tone} ${className}`}
-      {...rest}
-    />
-  );
+  return <button ref={ref} type="button" className={`${base} ${tone} ${className}`} {...rest} />;
 });

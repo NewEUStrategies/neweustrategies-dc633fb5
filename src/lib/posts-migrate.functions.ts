@@ -15,7 +15,10 @@ async function resolveTenant(
   userId: string,
 ): Promise<string> {
   const { data, error } = await supabase
-    .from("profiles").select("tenant_id").eq("id", userId).maybeSingle();
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", userId)
+    .maybeSingle();
   if (error || !data?.tenant_id) throw new Error("No tenant for current user");
   return data.tenant_id as string;
 }
@@ -71,9 +74,13 @@ export const migratePostToBlocks = createServerFn({ method: "POST" })
 
 export const bulkMigratePostsToBlocks = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({
-    ids: z.array(UUID).max(500).optional(),
-  }).parse(i ?? {}))
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        ids: z.array(UUID).max(500).optional(),
+      })
+      .parse(i ?? {}),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     // Legacy body columns are revoked from the authenticated role, so read them
@@ -95,7 +102,12 @@ export const bulkMigratePostsToBlocks = createServerFn({ method: "POST" })
       try {
         results.push(await migrateOne(supabase, row));
       } catch (e) {
-        results.push({ id: row.id, source: "error", skipped: true, error: e instanceof Error ? e.message : String(e) });
+        results.push({
+          id: row.id,
+          source: "error",
+          skipped: true,
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     }
     return { total: results.length, migrated: results.filter((r) => !r.skipped).length, results };

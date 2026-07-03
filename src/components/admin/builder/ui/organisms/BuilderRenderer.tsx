@@ -1,16 +1,46 @@
 // Read-only renderer for public pages. Applies all Section settings
 // (layout, background layers, overlay, border, shape dividers, typography).
-import { Fragment, memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ElementType } from "react";
-import type { BuilderDocument, SectionNode, ColumnNode, InnerSectionNode, Device, ResponsiveValue } from "@/lib/builder/types";
-import { WidgetView, getWidgetFrameStyle, hiddenOnDevice } from "@/components/admin/builder/WidgetView";
-import { AUTO_SIZE_WIDGETS, COMPACT_WIDGET_TYPES } from "@/components/admin/builder/ui/organisms/widget-view/frame";
+import {
+  Fragment,
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ElementType,
+} from "react";
+import type {
+  BuilderDocument,
+  SectionNode,
+  ColumnNode,
+  InnerSectionNode,
+  Device,
+  ResponsiveValue,
+} from "@/lib/builder/types";
+import {
+  WidgetView,
+  getWidgetFrameStyle,
+  hiddenOnDevice,
+} from "@/components/admin/builder/WidgetView";
+import {
+  AUTO_SIZE_WIDGETS,
+  COMPACT_WIDGET_TYPES,
+} from "@/components/admin/builder/ui/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/admin/builder/ui/organisms/widget-view/RenderErrorBoundary";
 import { sanitizeHtmlId, sanitizeCssClass, safeImageUrl } from "@/lib/sanitize";
 import {
-  sectionWrapperStyle, sectionContainerStyle, columnsRowStyle,
-  backgroundLayerStyle, overlayLayerStyle, borderStyle,
-  ShapeDivider, typographyCss, typographyAlign,
-  INNER_SECTION_SAFE_AREA_PX, COLUMN_SAFE_AREA_PX,
+  sectionWrapperStyle,
+  sectionContainerStyle,
+  columnsRowStyle,
+  backgroundLayerStyle,
+  overlayLayerStyle,
+  borderStyle,
+  ShapeDivider,
+  typographyCss,
+  typographyAlign,
+  INNER_SECTION_SAFE_AREA_PX,
+  COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
 import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
 import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
@@ -20,7 +50,9 @@ import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
 import { StreamingSection } from "@/lib/builder/sectionStreaming";
 import {
-  isSectionVisibleForAssignments, recordExperimentEvent, useExperimentAssignments,
+  isSectionVisibleForAssignments,
+  recordExperimentEvent,
+  useExperimentAssignments,
   type AbVariant,
 } from "@/lib/builder/experiments";
 
@@ -32,12 +64,15 @@ import {
 // runs on the server anyway).
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
-function resolveSpan(span: ResponsiveValue<number> | undefined, device: Device, deskDefault: number): number {
+function resolveSpan(
+  span: ResponsiveValue<number> | undefined,
+  device: Device,
+  deskDefault: number,
+): number {
   if (device === "mobile") return span?.mobile ?? 12;
   if (device === "tablet") return span?.tablet ?? span?.desktop ?? deskDefault;
   return span?.desktop ?? deskDefault;
 }
-
 
 interface Props {
   doc: BuilderDocument;
@@ -96,7 +131,9 @@ export function BuilderRenderer({
   editorPreview = false,
 }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? detectViewportDevice());
+  const [viewportDevice, setViewportDevice] = useState<Device>(
+    () => device ?? detectViewportDevice(),
+  );
   const safeDoc = safeParseBuilderDoc(doc);
   // Debug state is shared across every BuilderRenderer on the page; only the
   // "primary" instance renders the overlay (toggle + debug CSS) - see builderDebug.
@@ -131,7 +168,12 @@ export function BuilderRenderer({
 
   return (
     <UsedPostIdsProvider>
-      <div ref={rootRef} data-builder-renderer data-debug={debug ? "1" : "0"} data-device={effectiveDevice}>
+      <div
+        ref={rootRef}
+        data-builder-renderer
+        data-debug={debug ? "1" : "0"}
+        data-device={effectiveDevice}
+      >
         <SectionsList
           sections={safeDoc.sections}
           lang={lang}
@@ -154,16 +196,21 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
   useEffect(() => {
     if (!import.meta.env.DEV || !debug || typeof window === "undefined") return;
     const annotate = () => {
-      document.querySelectorAll<HTMLElement>(
-        "[data-builder-renderer] [data-sec-id], [data-builder-renderer] [data-col-id], [data-builder-renderer] [data-widget-id]",
-      ).forEach((el) => {
-        el.setAttribute("data-debug-h", String(Math.round(el.getBoundingClientRect().height)));
-      });
+      document
+        .querySelectorAll<HTMLElement>(
+          "[data-builder-renderer] [data-sec-id], [data-builder-renderer] [data-col-id], [data-builder-renderer] [data-widget-id]",
+        )
+        .forEach((el) => {
+          el.setAttribute("data-debug-h", String(Math.round(el.getBoundingClientRect().height)));
+        });
     };
     annotate();
     const id = window.setInterval(annotate, 500);
     window.addEventListener("resize", annotate);
-    return () => { window.clearInterval(id); window.removeEventListener("resize", annotate); };
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("resize", annotate);
+    };
   }, [debug, doc]);
 
   // The debug overlay (CSS + toggle) is a DEV-only affordance. Gating the whole
@@ -187,7 +234,21 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
   );
 }
 
-const SectionsList = memo(function SectionsList({ sections, lang, device, stream, aboveFoldCount, editorPreview }: { sections: SectionNode[]; lang: "pl"|"en"; device: Device; stream: boolean; aboveFoldCount: number; editorPreview: boolean }) {
+const SectionsList = memo(function SectionsList({
+  sections,
+  lang,
+  device,
+  stream,
+  aboveFoldCount,
+  editorPreview,
+}: {
+  sections: SectionNode[];
+  lang: "pl" | "en";
+  device: Device;
+  stream: boolean;
+  aboveFoldCount: number;
+  editorPreview: boolean;
+}) {
   const accessCtx = useAccessContext();
   const safeSections = Array.isArray(sections) ? sections : [];
   // A/B: bucket the visitor deterministically per experiment (client-side, so
@@ -222,7 +283,9 @@ const SectionsList = memo(function SectionsList({ sections, lang, device, stream
               <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
                 {rendered}
               </ExperimentSection>
-            ) : rendered}
+            ) : (
+              rendered
+            )}
           </StreamingSection>
         );
       })}
@@ -237,7 +300,11 @@ SectionsList.displayName = "SectionsList";
  * exposure once per session on mount, conversion once per session on any
  * click inside the variant. `display: contents` keeps it out of layout.
  */
-function ExperimentSection({ experimentId, variant, children }: {
+function ExperimentSection({
+  experimentId,
+  variant,
+  children,
+}: {
   experimentId: string;
   variant: AbVariant;
   children: React.ReactNode;
@@ -255,10 +322,24 @@ function ExperimentSection({ experimentId, variant, children }: {
   );
 }
 
-const RenderSection = memo(function RenderSection({ section, lang, device }: { section: SectionNode; lang: "pl"|"en"; device: Device }) {
+const RenderSection = memo(function RenderSection({
+  section,
+  lang,
+  device,
+}: {
+  section: SectionNode;
+  lang: "pl" | "en";
+  device: Device;
+}) {
   const accessCtx = useAccessContext();
-  const visibleCols = (Array.isArray(section.children) ? section.children : []).filter((c): c is ColumnNode | InnerSectionNode => !!c && evaluateAccess(c.advanced?.access, accessCtx));
-  const colsSum = visibleCols.reduce((a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12), 0) || 12;
+  const visibleCols = (Array.isArray(section.children) ? section.children : []).filter(
+    (c): c is ColumnNode | InnerSectionNode => !!c && evaluateAccess(c.advanced?.access, accessCtx),
+  );
+  const colsSum =
+    visibleCols.reduce(
+      (a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12),
+      0,
+    ) || 12;
   const Tag = (section.layout?.htmlTag ?? "section") as ElementType;
   const bgStyle = backgroundLayerStyle(section.background);
   const wrapStyle: CSSProperties = {
@@ -268,7 +349,10 @@ const RenderSection = memo(function RenderSection({ section, lang, device }: { s
     ...typographyAlign(section.typography, device),
   };
   const typoCss = typographyCss(section.id, section.typography);
-  const videoUrl = section.background?.type === "video" ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl : "";
+  const videoUrl =
+    section.background?.type === "video"
+      ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl
+      : "";
   const preloadRef = useSectionPreload(section, lang);
 
   return (
@@ -283,27 +367,54 @@ const RenderSection = memo(function RenderSection({ section, lang, device }: { s
     >
       {section.background?.type === "video" && videoUrl && (
         <video
-          src={videoUrl} autoPlay muted loop playsInline
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }}
+          src={videoUrl}
+          autoPlay
+          muted
+          loop
+          playsInline
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            zIndex: 0,
+          }}
         />
       )}
       <div style={overlayLayerStyle(section.overlay)} aria-hidden />
       <ShapeDivider s={section.shapeDividerTop} position="top" />
       <ShapeDivider s={section.shapeDividerBottom} position="bottom" />
       <div style={sectionContainerStyle(section)}>
-        <div data-columns-row className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(section, colsSum), gridTemplateColumns: device === "mobile" ? "minmax(0, 1fr)" : columnsRowStyle(section, colsSum).gridTemplateColumns }}>
+        <div
+          data-columns-row
+          className="min-w-0 max-w-full overflow-hidden"
+          style={{
+            ...columnsRowStyle(section, colsSum),
+            gridTemplateColumns:
+              device === "mobile"
+                ? "minmax(0, 1fr)"
+                : columnsRowStyle(section, colsSum).gridTemplateColumns,
+          }}
+        >
           {visibleCols.map((c) => {
             const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
             const gridColumn = device === "mobile" ? "1 / -1" : `span ${span}`;
             return (
-              <div key={c.id} data-column-slot className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn }}>
-                {c.kind === "inner-section"
-                  ? <RenderInner inner={c} lang={lang} device={device} />
-                  : <RenderColumn column={c} lang={lang} device={device} />}
+              <div
+                key={c.id}
+                data-column-slot
+                className="min-w-0 max-w-full overflow-hidden"
+                style={{ gridColumn }}
+              >
+                {c.kind === "inner-section" ? (
+                  <RenderInner inner={c} lang={lang} device={device} />
+                ) : (
+                  <RenderColumn column={c} lang={lang} device={device} />
+                )}
               </div>
             );
           })}
-
         </div>
       </div>
       {typoCss && <style dangerouslySetInnerHTML={{ __html: typoCss }} />}
@@ -313,15 +424,49 @@ const RenderSection = memo(function RenderSection({ section, lang, device }: { s
 
 RenderSection.displayName = "RenderSection";
 
-const RenderInner = memo(function RenderInner({ inner, lang, device }: { inner: InnerSectionNode; lang: "pl"|"en"; device: Device }) {
-  const columns = (Array.isArray(inner.columns) ? inner.columns : []).filter((c): c is ColumnNode => !!c);
-  const colsSum =  columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
+const RenderInner = memo(function RenderInner({
+  inner,
+  lang,
+  device,
+}: {
+  inner: InnerSectionNode;
+  lang: "pl" | "en";
+  device: Device;
+}) {
+  const columns = (Array.isArray(inner.columns) ? inner.columns : []).filter(
+    (c): c is ColumnNode => !!c,
+  );
+  const colsSum = columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
   return (
-    <div className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()} style={{ ...sectionWrapperStyle(inner), ...backgroundLayerStyle(inner.background), ...borderStyle(inner.border), padding: `${INNER_SECTION_SAFE_AREA_PX}px` }}>
-      <div data-columns-row className="min-w-0 max-w-full overflow-hidden" style={{ ...columnsRowStyle(inner, colsSum), gridTemplateColumns: device === "mobile" ? "minmax(0, 1fr)" : columnsRowStyle(inner, colsSum).gridTemplateColumns }}>
+    <div
+      className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()}
+      style={{
+        ...sectionWrapperStyle(inner),
+        ...backgroundLayerStyle(inner.background),
+        ...borderStyle(inner.border),
+        padding: `${INNER_SECTION_SAFE_AREA_PX}px`,
+      }}
+    >
+      <div
+        data-columns-row
+        className="min-w-0 max-w-full overflow-hidden"
+        style={{
+          ...columnsRowStyle(inner, colsSum),
+          gridTemplateColumns:
+            device === "mobile"
+              ? "minmax(0, 1fr)"
+              : columnsRowStyle(inner, colsSum).gridTemplateColumns,
+        }}
+      >
         {columns.map((c) => (
-          <div key={c.id} data-column-slot className="min-w-0 max-w-full overflow-hidden" style={{ gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}` }}>
-
+          <div
+            key={c.id}
+            data-column-slot
+            className="min-w-0 max-w-full overflow-hidden"
+            style={{
+              gridColumn: device === "mobile" ? "1 / -1" : `span ${resolveSpan(c.span, device, 6)}`,
+            }}
+          >
             <RenderColumn column={c} lang={lang} device={device} />
           </div>
         ))}
@@ -332,21 +477,57 @@ const RenderInner = memo(function RenderInner({ inner, lang, device }: { inner: 
 
 RenderInner.displayName = "RenderInner";
 
-const RenderColumn = memo(function RenderColumn({ column, lang, device }: { column: ColumnNode; lang: "pl"|"en"; device: Device }) {
+const RenderColumn = memo(function RenderColumn({
+  column,
+  lang,
+  device,
+}: {
+  column: ColumnNode;
+  lang: "pl" | "en";
+  device: Device;
+}) {
   const va = column.verticalAlign ?? "start";
   const accessCtx = useAccessContext();
   const visibleChildren = (Array.isArray(column.children) ? column.children : []).filter(
-    (w): w is NonNullable<typeof w> => !!w && isKnownWidgetType(w.type) && !hiddenOnDevice(w.advanced, device) && evaluateAccess(w.advanced?.access, accessCtx),
+    (w): w is NonNullable<typeof w> =>
+      !!w &&
+      isKnownWidgetType(w.type) &&
+      !hiddenOnDevice(w.advanced, device) &&
+      evaluateAccess(w.advanced?.access, accessCtx),
   );
   const isToolbar =
     visibleChildren.length > 1 &&
     visibleChildren.every((w) => COMPACT_WIDGET_TYPES.has(w.type) || AUTO_SIZE_WIDGETS.has(w.type));
   const axisClass = isToolbar
-    ? (column.contentAlign === "center" ? "justify-center" : column.contentAlign === "end" ? "justify-end" : column.contentAlign === "start" ? "justify-start" : "justify-between")
-    : (column.contentAlign === "center" ? "items-center" : column.contentAlign === "end" ? "items-end" : column.contentAlign === "start" ? "items-start" : "items-stretch");
+    ? column.contentAlign === "center"
+      ? "justify-center"
+      : column.contentAlign === "end"
+        ? "justify-end"
+        : column.contentAlign === "start"
+          ? "justify-start"
+          : "justify-between"
+    : column.contentAlign === "center"
+      ? "items-center"
+      : column.contentAlign === "end"
+        ? "items-end"
+        : column.contentAlign === "start"
+          ? "items-start"
+          : "items-stretch";
   const vClass = isToolbar
-    ? (va === "center" ? "content-center items-center" : va === "end" ? "content-end items-end" : va === "stretch" ? "content-stretch items-stretch" : "content-start items-center")
-    : (va === "center" ? "justify-center" : va === "end" ? "justify-end" : va === "stretch" ? "justify-stretch" : "justify-start");
+    ? va === "center"
+      ? "content-center items-center"
+      : va === "end"
+        ? "content-end items-end"
+        : va === "stretch"
+          ? "content-stretch items-stretch"
+          : "content-start items-center"
+    : va === "center"
+      ? "justify-center"
+      : va === "end"
+        ? "justify-end"
+        : va === "stretch"
+          ? "justify-stretch"
+          : "justify-start";
 
   // Group consecutive widgets sharing inline flow into one row.
   const groups: Array<{ inline: boolean; items: typeof visibleChildren }> = [];
@@ -360,16 +541,36 @@ const RenderColumn = memo(function RenderColumn({ column, lang, device }: { colu
       else groups.push({ inline, items: [w] });
     }
   }
-  const onlyOneBlock = !isToolbar && groups.length === 1 && !groups[0].inline && groups[0].items.length === 1;
+  const onlyOneBlock =
+    !isToolbar && groups.length === 1 && !groups[0].inline && groups[0].items.length === 1;
 
   return (
-    <div data-col-id={column.id} className={`flex flex-col gap-2 min-w-0 max-w-full overflow-visible ${axisClass} ${vClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()} style={{ padding: `${COLUMN_SAFE_AREA_PX}px`, boxSizing: "border-box", minHeight: column.style?.minHeight, background: column.style?.bgColor, color: column.style?.textColor, borderRadius: column.style?.borderRadius }}>
+    <div
+      data-col-id={column.id}
+      className={`flex flex-col gap-2 min-w-0 max-w-full overflow-visible ${axisClass} ${vClass} ${sanitizeCssClass(column.advanced?.cssClass) ?? ""}`.trim()}
+      style={{
+        padding: `${COLUMN_SAFE_AREA_PX}px`,
+        boxSizing: "border-box",
+        minHeight: column.style?.minHeight,
+        background: column.style?.bgColor,
+        color: column.style?.textColor,
+        borderRadius: column.style?.borderRadius,
+      }}
+    >
       {groups.map((g, gi) => {
-        const renderItem = (w: typeof visibleChildren[number], inRow: boolean) => {
-          const adv = w.advanced as { height?: { desktop?: unknown; tablet?: unknown; mobile?: unknown } } | undefined;
-          const hasExplicitHeight = !!(adv?.height && (adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile));
+        const renderItem = (w: (typeof visibleChildren)[number], inRow: boolean) => {
+          const adv = w.advanced as
+            | { height?: { desktop?: unknown; tablet?: unknown; mobile?: unknown } }
+            | undefined;
+          const hasExplicitHeight = !!(
+            adv?.height &&
+            (adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile)
+          );
           const shouldFillHeight =
-            onlyOneBlock && !hasExplicitHeight && !AUTO_SIZE_WIDGETS.has(w.type) && !COMPACT_WIDGET_TYPES.has(w.type);
+            onlyOneBlock &&
+            !hasExplicitHeight &&
+            !AUTO_SIZE_WIDGETS.has(w.type) &&
+            !COMPACT_WIDGET_TYPES.has(w.type);
           const frameStyle = getWidgetFrameStyle(w, device);
           // Section labels must visually sit ABOVE neighbouring widgets so their
           // accent lines / ribbons are never covered by adjacent backgrounds.
@@ -412,7 +613,10 @@ const RenderColumn = memo(function RenderColumn({ column, lang, device }: { colu
         };
         if (g.inline) {
           return (
-            <div key={gi} className={`flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full ${axisClass}`}>
+            <div
+              key={gi}
+              className={`flex flex-row flex-wrap items-center gap-2 min-w-0 max-w-full ${axisClass}`}
+            >
               {g.items.map((w) => renderItem(w, true))}
             </div>
           );
@@ -424,5 +628,3 @@ const RenderColumn = memo(function RenderColumn({ column, lang, device }: { colu
 });
 
 RenderColumn.displayName = "RenderColumn";
-
-

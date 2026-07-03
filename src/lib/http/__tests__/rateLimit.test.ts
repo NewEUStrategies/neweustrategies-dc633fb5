@@ -12,7 +12,7 @@ describe("tickBucket", () => {
   });
 
   it("denies once the bucket is empty within the same instant", () => {
-    let b = tickBucket(undefined, 0, { capacity: 1, refillPerSec: 1 }).bucket; // tokens 0
+    const b = tickBucket(undefined, 0, { capacity: 1, refillPerSec: 1 }).bucket; // tokens 0
     const second = tickBucket(b, 0, { capacity: 1, refillPerSec: 1 });
     expect(second.allowed).toBe(false);
     expect(second.bucket.tokens).toBeLessThan(1);

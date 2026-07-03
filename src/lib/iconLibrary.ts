@@ -42,7 +42,10 @@ export async function listIcons(kind?: IconKind): Promise<IconRow[]> {
   return (data ?? []) as IconRow[];
 }
 
-export async function upsertIcon(tenantId: string, draft: IconDraft & { id?: string }): Promise<IconRow> {
+export async function upsertIcon(
+  tenantId: string,
+  draft: IconDraft & { id?: string },
+): Promise<IconRow> {
   const payload = {
     tenant_id: tenantId,
     kind: draft.kind,

@@ -4,16 +4,39 @@ import { useState } from "react";
 import type { Json } from "@/lib/blocks/types";
 import { AppLink } from "@/components/atoms/AppLink";
 import {
-  Star, Zap, Shield, Rocket, Heart, Check,
-  Trophy, Target, Globe, Lightbulb, Sparkles, Gauge,
-  Info, CheckCircle2, AlertTriangle, XCircle, X,
+  Star,
+  Zap,
+  Shield,
+  Rocket,
+  Heart,
+  Check,
+  Trophy,
+  Target,
+  Globe,
+  Lightbulb,
+  Sparkles,
+  Gauge,
+  Info,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
 const FEATURE_ICON_MAP: Record<string, LucideIcon> = {
-  star: Star, zap: Zap, shield: Shield, rocket: Rocket, heart: Heart, check: Check,
-  trophy: Trophy, target: Target, globe: Globe, lightbulb: Lightbulb,
-  sparkles: Sparkles, gauge: Gauge,
+  star: Star,
+  zap: Zap,
+  shield: Shield,
+  rocket: Rocket,
+  heart: Heart,
+  check: Check,
+  trophy: Trophy,
+  target: Target,
+  globe: Globe,
+  lightbulb: Lightbulb,
+  sparkles: Sparkles,
+  gauge: Gauge,
 };
 
 const COLS_CLS: Record<number, string> = {
@@ -26,7 +49,14 @@ const COLS_CLS: Record<number, string> = {
 
 // ===== Team Grid =====
 
-interface TeamLite { name: string; role: string; bio: string; avatar: string; href: string; social: string }
+interface TeamLite {
+  name: string;
+  role: string;
+  bio: string;
+  avatar: string;
+  href: string;
+  social: string;
+}
 
 interface TeamProps {
   title?: string;
@@ -37,21 +67,28 @@ interface TeamProps {
 }
 
 export function TeamGridView({ title, items, columns = 3, shape = "circle", cls }: TeamProps) {
-  const list: TeamLite[] = (Array.isArray(items) ? items : []).map((i) => {
-    const o = (i ?? {}) as Record<string, Json>;
-    return {
-      name: String(o.name ?? ""), role: String(o.role ?? ""),
-      bio: String(o.bio ?? ""), avatar: String(o.avatar ?? ""),
-      href: String(o.href ?? ""), social: String(o.social ?? ""),
-    };
-  }).filter((m) => m.name);
+  const list: TeamLite[] = (Array.isArray(items) ? items : [])
+    .map((i) => {
+      const o = (i ?? {}) as Record<string, Json>;
+      return {
+        name: String(o.name ?? ""),
+        role: String(o.role ?? ""),
+        bio: String(o.bio ?? ""),
+        avatar: String(o.avatar ?? ""),
+        href: String(o.href ?? ""),
+        social: String(o.social ?? ""),
+      };
+    })
+    .filter((m) => m.name);
   if (list.length === 0) return null;
   const gridCls = COLS_CLS[columns] ?? COLS_CLS[3];
 
   return (
     <section className={`space-y-6 ${cls ?? ""}`}>
       {title ? (
-        <h2 className="font-serif text-2xl md:text-3xl font-bold text-center text-foreground">{title}</h2>
+        <h2 className="font-serif text-2xl md:text-3xl font-bold text-center text-foreground">
+          {title}
+        </h2>
       ) : null}
       <ul className={`grid gap-6 ${gridCls}`}>
         {list.map((m, idx) => {
@@ -64,7 +101,9 @@ export function TeamGridView({ title, items, columns = 3, shape = "circle", cls 
                   loading="lazy"
                   className={[
                     "object-cover w-full",
-                    shape === "circle" ? "rounded-full aspect-square max-w-[160px] mx-auto" : "rounded-xl aspect-[4/5]",
+                    shape === "circle"
+                      ? "rounded-full aspect-square max-w-[160px] mx-auto"
+                      : "rounded-xl aspect-[4/5]",
                   ].join(" ")}
                 />
               ) : (
@@ -72,14 +111,20 @@ export function TeamGridView({ title, items, columns = 3, shape = "circle", cls 
                   aria-hidden
                   className={[
                     "bg-muted",
-                    shape === "circle" ? "rounded-full aspect-square max-w-[160px] mx-auto" : "rounded-xl aspect-[4/5]",
+                    shape === "circle"
+                      ? "rounded-full aspect-square max-w-[160px] mx-auto"
+                      : "rounded-xl aspect-[4/5]",
                   ].join(" ")}
                 />
               )}
               <div className="mt-4 text-center space-y-1">
                 <div className="font-serif text-lg font-semibold text-foreground">{m.name}</div>
-                {m.role ? <div className="text-xs uppercase tracking-wide text-primary">{m.role}</div> : null}
-                {m.bio ? <p className="text-sm text-muted-foreground leading-relaxed mt-2">{m.bio}</p> : null}
+                {m.role ? (
+                  <div className="text-xs uppercase tracking-wide text-primary">{m.role}</div>
+                ) : null}
+                {m.bio ? (
+                  <p className="text-sm text-muted-foreground leading-relaxed mt-2">{m.bio}</p>
+                ) : null}
                 {m.social ? (
                   <a
                     href={m.social}
@@ -95,7 +140,13 @@ export function TeamGridView({ title, items, columns = 3, shape = "circle", cls 
           );
           return (
             <li key={idx} className="rounded-2xl border border-border bg-card p-4">
-              {m.href ? <AppLink href={m.href} className="block group">{card}</AppLink> : card}
+              {m.href ? (
+                <AppLink href={m.href} className="block group">
+                  {card}
+                </AppLink>
+              ) : (
+                card
+              )}
             </li>
           );
         })}
@@ -106,7 +157,11 @@ export function TeamGridView({ title, items, columns = 3, shape = "circle", cls 
 
 // ===== Logo Grid =====
 
-interface LogoLite { url: string; alt: string; href: string }
+interface LogoLite {
+  url: string;
+  alt: string;
+  href: string;
+}
 
 interface LogoProps {
   title?: string;
@@ -117,18 +172,29 @@ interface LogoProps {
   cls?: string;
 }
 
-export function LogoGridView({ title, items, columns = 5, grayscale = true, bordered = false, cls }: LogoProps) {
-  const list: LogoLite[] = (Array.isArray(items) ? items : []).map((i) => {
-    const o = (i ?? {}) as Record<string, Json>;
-    return { url: String(o.url ?? ""), alt: String(o.alt ?? ""), href: String(o.href ?? "") };
-  }).filter((l) => l.url);
+export function LogoGridView({
+  title,
+  items,
+  columns = 5,
+  grayscale = true,
+  bordered = false,
+  cls,
+}: LogoProps) {
+  const list: LogoLite[] = (Array.isArray(items) ? items : [])
+    .map((i) => {
+      const o = (i ?? {}) as Record<string, Json>;
+      return { url: String(o.url ?? ""), alt: String(o.alt ?? ""), href: String(o.href ?? "") };
+    })
+    .filter((l) => l.url);
   if (list.length === 0) return null;
   const gridCls = COLS_CLS[columns] ?? COLS_CLS[5];
 
   return (
     <section className={`space-y-4 ${cls ?? ""}`}>
       {title ? (
-        <h2 className="font-serif text-xl md:text-2xl font-bold text-center text-muted-foreground">{title}</h2>
+        <h2 className="font-serif text-xl md:text-2xl font-bold text-center text-muted-foreground">
+          {title}
+        </h2>
       ) : null}
       <ul className={`grid items-center gap-4 ${gridCls}`}>
         {list.map((l, idx) => {
@@ -139,7 +205,9 @@ export function LogoGridView({ title, items, columns = 5, grayscale = true, bord
               loading="lazy"
               className={[
                 "max-h-12 w-auto mx-auto object-contain",
-                grayscale ? "grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition" : "",
+                grayscale
+                  ? "grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition"
+                  : "",
               ].join(" ")}
             />
           );
@@ -151,7 +219,13 @@ export function LogoGridView({ title, items, columns = 5, grayscale = true, bord
                 bordered ? "rounded-xl border border-border bg-card" : "",
               ].join(" ")}
             >
-              {l.href ? <a href={l.href} target="_blank" rel="noopener noreferrer">{img}</a> : img}
+              {l.href ? (
+                <a href={l.href} target="_blank" rel="noopener noreferrer">
+                  {img}
+                </a>
+              ) : (
+                img
+              )}
             </li>
           );
         })}
@@ -162,7 +236,12 @@ export function LogoGridView({ title, items, columns = 5, grayscale = true, bord
 
 // ===== Feature Grid =====
 
-interface FeatureLite { icon: string; title: string; description: string; href: string }
+interface FeatureLite {
+  icon: string;
+  title: string;
+  description: string;
+  href: string;
+}
 
 type FeatureStyle = "card" | "minimal" | "bordered";
 
@@ -175,30 +254,44 @@ interface FeatureProps {
   cls?: string;
 }
 
-export function FeatureGridView({ title, subtitle, items, columns = 3, style = "card", cls }: FeatureProps) {
-  const list: FeatureLite[] = (Array.isArray(items) ? items : []).map((i) => {
-    const o = (i ?? {}) as Record<string, Json>;
-    return {
-      icon: String(o.icon ?? "star"),
-      title: String(o.title ?? ""),
-      description: String(o.description ?? ""),
-      href: String(o.href ?? ""),
-    };
-  }).filter((f) => f.title);
+export function FeatureGridView({
+  title,
+  subtitle,
+  items,
+  columns = 3,
+  style = "card",
+  cls,
+}: FeatureProps) {
+  const list: FeatureLite[] = (Array.isArray(items) ? items : [])
+    .map((i) => {
+      const o = (i ?? {}) as Record<string, Json>;
+      return {
+        icon: String(o.icon ?? "star"),
+        title: String(o.title ?? ""),
+        description: String(o.description ?? ""),
+        href: String(o.href ?? ""),
+      };
+    })
+    .filter((f) => f.title);
   if (list.length === 0) return null;
   const gridCls = COLS_CLS[columns] ?? COLS_CLS[3];
-  const itemCls = style === "card"
-    ? "rounded-2xl border border-border bg-card p-6"
-    : style === "bordered"
-      ? "rounded-2xl border-2 border-border p-6"
-      : "p-2";
+  const itemCls =
+    style === "card"
+      ? "rounded-2xl border border-border bg-card p-6"
+      : style === "bordered"
+        ? "rounded-2xl border-2 border-border p-6"
+        : "p-2";
 
   return (
     <section className={`space-y-6 ${cls ?? ""}`}>
-      {(title || subtitle) ? (
+      {title || subtitle ? (
         <header className="text-center space-y-2 max-w-2xl mx-auto">
-          {title ? <h2 className="font-serif text-2xl md:text-3xl font-bold text-foreground">{title}</h2> : null}
-          {subtitle ? <p className="text-sm md:text-base text-muted-foreground">{subtitle}</p> : null}
+          {title ? (
+            <h2 className="font-serif text-2xl md:text-3xl font-bold text-foreground">{title}</h2>
+          ) : null}
+          {subtitle ? (
+            <p className="text-sm md:text-base text-muted-foreground">{subtitle}</p>
+          ) : null}
         </header>
       ) : null}
       <ul className={`grid gap-6 ${gridCls}`}>
@@ -222,7 +315,13 @@ export function FeatureGridView({ title, subtitle, items, columns = 3, style = "
           );
           return (
             <li key={idx}>
-              {f.href ? <AppLink href={f.href} className="block group h-full">{inner}</AppLink> : inner}
+              {f.href ? (
+                <AppLink href={f.href} className="block group h-full">
+                  {inner}
+                </AppLink>
+              ) : (
+                inner
+              )}
             </li>
           );
         })}
@@ -235,12 +334,35 @@ export function FeatureGridView({ title, subtitle, items, columns = 3, style = "
 
 type AlertVariant = "info" | "success" | "warning" | "danger" | "neutral";
 
-const ALERT_STYLES: Record<AlertVariant, { bg: string; text: string; border: string; icon: LucideIcon }> = {
-  info:    { bg: "bg-sky-50 dark:bg-sky-950/30",     text: "text-sky-900 dark:text-sky-100",     border: "border-sky-200 dark:border-sky-900",     icon: Info },
-  success: { bg: "bg-emerald-50 dark:bg-emerald-950/30", text: "text-emerald-900 dark:text-emerald-100", border: "border-emerald-200 dark:border-emerald-900", icon: CheckCircle2 },
-  warning: { bg: "bg-amber-50 dark:bg-amber-950/30", text: "text-amber-900 dark:text-amber-100", border: "border-amber-200 dark:border-amber-900", icon: AlertTriangle },
-  danger:  { bg: "bg-red-50 dark:bg-red-950/30",     text: "text-red-900 dark:text-red-100",     border: "border-red-200 dark:border-red-900",     icon: XCircle },
-  neutral: { bg: "bg-muted",                          text: "text-foreground",                     border: "border-border",                           icon: Info },
+const ALERT_STYLES: Record<
+  AlertVariant,
+  { bg: string; text: string; border: string; icon: LucideIcon }
+> = {
+  info: {
+    bg: "bg-sky-50 dark:bg-sky-950/30",
+    text: "text-sky-900 dark:text-sky-100",
+    border: "border-sky-200 dark:border-sky-900",
+    icon: Info,
+  },
+  success: {
+    bg: "bg-emerald-50 dark:bg-emerald-950/30",
+    text: "text-emerald-900 dark:text-emerald-100",
+    border: "border-emerald-200 dark:border-emerald-900",
+    icon: CheckCircle2,
+  },
+  warning: {
+    bg: "bg-amber-50 dark:bg-amber-950/30",
+    text: "text-amber-900 dark:text-amber-100",
+    border: "border-amber-200 dark:border-amber-900",
+    icon: AlertTriangle,
+  },
+  danger: {
+    bg: "bg-red-50 dark:bg-red-950/30",
+    text: "text-red-900 dark:text-red-100",
+    border: "border-red-200 dark:border-red-900",
+    icon: XCircle,
+  },
+  neutral: { bg: "bg-muted", text: "text-foreground", border: "border-border", icon: Info },
 };
 
 interface AlertProps {
@@ -255,8 +377,14 @@ interface AlertProps {
 }
 
 export function AlertBannerView({
-  variant = "info", title, message, ctaLabel, ctaHref,
-  dismissible = false, showIcon = true, cls,
+  variant = "info",
+  title,
+  message,
+  ctaLabel,
+  ctaHref,
+  dismissible = false,
+  showIcon = true,
+  cls,
 }: AlertProps) {
   const [hidden, setHidden] = useState(false);
   if (hidden) return null;
@@ -268,7 +396,10 @@ export function AlertBannerView({
       role="alert"
       className={[
         "relative rounded-xl border p-4 flex items-start gap-3",
-        s.bg, s.text, s.border, cls ?? "",
+        s.bg,
+        s.text,
+        s.border,
+        cls ?? "",
       ].join(" ")}
     >
       {showIcon ? (
@@ -314,20 +445,34 @@ interface DividerProps {
   cls?: string;
 }
 
-export function DividerTextView({ text, align = "center", lineStyle = "solid", cls }: DividerProps) {
+export function DividerTextView({
+  text,
+  align = "center",
+  lineStyle = "solid",
+  cls,
+}: DividerProps) {
   const lineCls = `flex-1 border-t border-border ${lineStyle === "dashed" ? "border-dashed" : lineStyle === "dotted" ? "border-dotted" : ""}`;
   if (!text) {
-    return <hr className={`border-0 border-t border-border my-6 ${lineStyle === "dashed" ? "border-dashed" : lineStyle === "dotted" ? "border-dotted" : ""} ${cls ?? ""}`} />;
+    return (
+      <hr
+        className={`border-0 border-t border-border my-6 ${lineStyle === "dashed" ? "border-dashed" : lineStyle === "dotted" ? "border-dotted" : ""} ${cls ?? ""}`}
+      />
+    );
   }
   const label = (
-    <span className="px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium whitespace-nowrap">{text}</span>
+    <span className="px-3 text-xs uppercase tracking-wider text-muted-foreground font-medium whitespace-nowrap">
+      {text}
+    </span>
   );
   return (
-    <div className={`flex items-center w-full my-6 ${cls ?? ""}`} role="separator" aria-label={text}>
+    <div
+      className={`flex items-center w-full my-6 ${cls ?? ""}`}
+      role="separator"
+      aria-label={text}
+    >
       {align !== "left" ? <span className={lineCls} aria-hidden /> : null}
       {label}
       {align !== "right" ? <span className={lineCls} aria-hidden /> : null}
     </div>
   );
 }
-

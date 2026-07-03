@@ -64,11 +64,11 @@ export function RelatedOverrideEditor({ value, onChange }: Props) {
             <Label className="text-xs">Pokaż sekcję</Label>
             <Select
               value={override.enabled === undefined ? "_" : override.enabled ? "yes" : "no"}
-              onValueChange={(v) =>
-                setKey("enabled", v === "_" ? undefined : v === "yes")
-              }
+              onValueChange={(v) => setKey("enabled", v === "_" ? undefined : v === "yes")}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="_">(globalnie)</SelectItem>
                 <SelectItem value="yes">Tak</SelectItem>
@@ -84,7 +84,9 @@ export function RelatedOverrideEditor({ value, onChange }: Props) {
                 setKey("position", v === "_" ? undefined : (v as RelatedPosition))
               }
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="_">(globalnie)</SelectItem>
                 <SelectItem value="end">Na końcu</SelectItem>
@@ -97,11 +99,11 @@ export function RelatedOverrideEditor({ value, onChange }: Props) {
             <Label className="text-xs">Layout</Label>
             <Select
               value={(override.layout ?? "_") as string}
-              onValueChange={(v) =>
-                setKey("layout", v === "_" ? undefined : (v as RelatedLayout))
-              }
+              onValueChange={(v) => setKey("layout", v === "_" ? undefined : (v as RelatedLayout))}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="_">(globalnie)</SelectItem>
                 <SelectItem value="grid">Grid</SelectItem>
@@ -118,7 +120,9 @@ export function RelatedOverrideEditor({ value, onChange }: Props) {
                 setKey("source_strategy", v === "_" ? undefined : (v as RelatedSource))
               }
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="_">(globalnie)</SelectItem>
                 <SelectItem value="both">Kat + Tagi</SelectItem>

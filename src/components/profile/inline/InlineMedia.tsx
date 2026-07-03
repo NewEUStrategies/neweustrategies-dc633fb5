@@ -101,7 +101,11 @@ export function InlineMedia({
               hoverAvatar || upAvatar ? "opacity-100" : "opacity-0",
             )}
           >
-            {upAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+            {upAvatar ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Camera className="h-4 w-4" />
+            )}
           </button>
           {upAvatar && (
             <div className="absolute -bottom-2 left-0 right-0">
@@ -110,7 +114,6 @@ export function InlineMedia({
           )}
         </div>
       </div>
-
 
       {/* Hidden inputs */}
       <input

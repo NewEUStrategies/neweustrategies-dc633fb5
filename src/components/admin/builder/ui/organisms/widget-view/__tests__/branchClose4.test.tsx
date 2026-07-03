@@ -169,6 +169,20 @@ describe("SearchButton null-excerpt result", () => {
     fireEvent.change(input, { target: { value: "ty" } });
     expect(await screen.findByText("Tytuł wyniku")).toBeTruthy();
   });
+
+  it("clears results when the query drops below two characters", async () => {
+    db.tables.posts = [{ id: "1", slug: "r", title_pl: "Tytuł wyniku", excerpt_pl: null }];
+    const { container } = widget("search-button", { label_pl: "Szukaj", liveResults: "on" });
+    const input = container.querySelector("input")!;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "ty" } });
+    expect(await screen.findByText("Tytuł wyniku")).toBeTruthy();
+    // Krótkie zapytanie (< 2 znaki) czyści listę wyników zamiast szukać.
+    fireEvent.change(input, { target: { value: "t" } });
+    await vi.waitFor(() => {
+      expect(screen.queryByText("Tytuł wyniku")).toBeNull();
+    });
+  });
 });
 
 describe("animated-heading EN fallbacks", () => {

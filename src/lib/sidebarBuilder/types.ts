@@ -31,9 +31,7 @@ export interface ReadingPanelSettings {
   social: Record<SocialKey, boolean>;
 }
 
-export type WidgetSettings =
-  | ReadingPanelSettings
-  | Record<string, unknown>;
+export type WidgetSettings = ReadingPanelSettings | Record<string, unknown>;
 
 export interface SidebarWidget {
   id: string;
@@ -75,14 +73,7 @@ export const readingPanelSettingsSchema = z.object({
 
 export const widgetSchema = z.object({
   id: z.string().min(1),
-  type: z.enum([
-    "reading-panel",
-    "tags",
-    "author-card",
-    "related-posts",
-    "newsletter",
-    "ad-slot",
-  ]),
+  type: z.enum(["reading-panel", "tags", "author-card", "related-posts", "newsletter", "ad-slot"]),
   hidden: z.boolean().optional(),
   settings: z.record(z.unknown()).default({}),
 });

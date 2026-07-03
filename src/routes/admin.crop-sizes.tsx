@@ -12,19 +12,31 @@ import { useRequiredTenant } from "@/hooks/useAuth";
 import { useServerFn } from "@tanstack/react-start";
 import { regenerateThumbnails } from "@/lib/media.functions";
 import {
-  listCropSizes, upsertCropSize, deleteCropSize,
-  type CropSize, type CropSizeDraft,
+  listCropSizes,
+  upsertCropSize,
+  deleteCropSize,
+  type CropSize,
+  type CropSizeDraft,
 } from "@/lib/cropSizes";
 
 export const Route = createFileRoute("/admin/crop-sizes")({
   component: CropSizesAdmin,
   head: () => ({ meta: [{ title: "Crop sizes - Admin" }] }),
-  errorComponent: ({ error }) => <div role="alert" className="p-6">{error.message}</div>,
+  errorComponent: ({ error }) => (
+    <div role="alert" className="p-6">
+      {error.message}
+    </div>
+  ),
   notFoundComponent: () => <div className="p-6">404</div>,
 });
 
 const DEFAULT_DRAFT: CropSizeDraft = {
-  name: "", ratio_w: 16, ratio_h: 9, width: 1280, height: 720, position: 10,
+  name: "",
+  ratio_w: 16,
+  ratio_h: 9,
+  width: 1280,
+  height: 720,
+  position: 10,
 };
 
 function CropSizesAdmin() {
@@ -53,7 +65,10 @@ function CropSizesAdmin() {
   };
 
   const save = async () => {
-    if (!draft.name.trim()) { toast.error("Nazwa wymagana"); return; }
+    if (!draft.name.trim()) {
+      toast.error("Nazwa wymagana");
+      return;
+    }
     try {
       await upsertCropSize(tenantId, draft);
       toast.success("Zapisano");
@@ -64,10 +79,16 @@ function CropSizesAdmin() {
     }
   };
 
-  const edit = (s: CropSize) => setDraft({
-    id: s.id, name: s.name, ratio_w: s.ratio_w, ratio_h: s.ratio_h,
-    width: s.width, height: s.height, position: s.position,
-  });
+  const edit = (s: CropSize) =>
+    setDraft({
+      id: s.id,
+      name: s.name,
+      ratio_w: s.ratio_w,
+      ratio_h: s.ratio_h,
+      width: s.width,
+      height: s.height,
+      position: s.position,
+    });
 
   const remove = async (id: string) => {
     if (!confirm("Usunąć preset?")) return;
@@ -80,8 +101,8 @@ function CropSizesAdmin() {
       <header>
         <h1 className="font-display text-2xl">Custom crop sizes</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Globalne presety kadrów obrazków (ratio + rozmiar w px). Generują wariantowe URL-e
-          przez Supabase Storage image transforms.
+          Globalne presety kadrów obrazków (ratio + rozmiar w px). Generują wariantowe URL-e przez
+          Supabase Storage image transforms.
         </p>
       </header>
 
@@ -90,32 +111,74 @@ function CropSizesAdmin() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2">
             <Label>Nazwa</Label>
-            <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="np. card-4-3" />
+            <Input
+              value={draft.name}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              placeholder="np. card-4-3"
+            />
           </div>
           <div>
             <Label>Ratio W</Label>
-            <Input type="number" min={1} value={draft.ratio_w} onChange={(e) => setDraft({ ...draft, ratio_w: Math.max(1, Number(e.target.value) || 1) })} />
+            <Input
+              type="number"
+              min={1}
+              value={draft.ratio_w}
+              onChange={(e) =>
+                setDraft({ ...draft, ratio_w: Math.max(1, Number(e.target.value) || 1) })
+              }
+            />
           </div>
           <div>
             <Label>Ratio H</Label>
-            <Input type="number" min={1} value={draft.ratio_h} onChange={(e) => setDraft({ ...draft, ratio_h: Math.max(1, Number(e.target.value) || 1) })} />
+            <Input
+              type="number"
+              min={1}
+              value={draft.ratio_h}
+              onChange={(e) =>
+                setDraft({ ...draft, ratio_h: Math.max(1, Number(e.target.value) || 1) })
+              }
+            />
           </div>
           <div>
             <Label>Width (px)</Label>
-            <Input type="number" min={16} max={4096} value={draft.width} onChange={(e) => setDraft({ ...draft, width: Math.max(16, Number(e.target.value) || 16) })} />
+            <Input
+              type="number"
+              min={16}
+              max={4096}
+              value={draft.width}
+              onChange={(e) =>
+                setDraft({ ...draft, width: Math.max(16, Number(e.target.value) || 16) })
+              }
+            />
           </div>
           <div>
             <Label>Height (px)</Label>
-            <Input type="number" min={16} max={4096} value={draft.height} onChange={(e) => setDraft({ ...draft, height: Math.max(16, Number(e.target.value) || 16) })} />
+            <Input
+              type="number"
+              min={16}
+              max={4096}
+              value={draft.height}
+              onChange={(e) =>
+                setDraft({ ...draft, height: Math.max(16, Number(e.target.value) || 16) })
+              }
+            />
           </div>
           <div>
             <Label>Kolejność</Label>
-            <Input type="number" value={draft.position} onChange={(e) => setDraft({ ...draft, position: Number(e.target.value) || 0 })} />
+            <Input
+              type="number"
+              value={draft.position}
+              onChange={(e) => setDraft({ ...draft, position: Number(e.target.value) || 0 })}
+            />
           </div>
         </div>
         <div className="flex gap-2">
           <Button onClick={save}>Zapisz</Button>
-          {draft.id && <Button variant="outline" onClick={() => setDraft(DEFAULT_DRAFT)}>Anuluj</Button>}
+          {draft.id && (
+            <Button variant="outline" onClick={() => setDraft(DEFAULT_DRAFT)}>
+              Anuluj
+            </Button>
+          )}
         </div>
       </section>
 
@@ -139,8 +202,12 @@ function CropSizesAdmin() {
                 </span>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => edit(s)}>Edytuj</Button>
-                <Button size="sm" variant="destructive" onClick={() => remove(s.id)}>Usuń</Button>
+                <Button size="sm" variant="outline" onClick={() => edit(s)}>
+                  Edytuj
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => remove(s.id)}>
+                  Usuń
+                </Button>
               </div>
             </li>
           ))}

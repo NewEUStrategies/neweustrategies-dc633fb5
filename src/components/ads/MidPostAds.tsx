@@ -46,12 +46,16 @@ export function MidPostAds({ articleRef, pageType, pageId, scanKey }: Props) {
     // Sprzątanie poprzednich hostów (gdyby były).
     root.querySelectorAll(`[${HOST_ATTR}]`).forEach((n) => n.remove());
 
-    const paragraphs = Array.from(root.querySelectorAll<HTMLParagraphElement>("p"))
-      .filter((p) => p.closest(`[${HOST_ATTR}]`) === null);
+    const paragraphs = Array.from(root.querySelectorAll<HTMLParagraphElement>("p")).filter(
+      (p) => p.closest(`[${HOST_ATTR}]`) === null,
+    );
 
     const next: Mount[] = [];
     sorted.forEach((placement) => {
-      const after = Math.max(1, Number((placement.config as { paragraph?: number }).paragraph ?? 4));
+      const after = Math.max(
+        1,
+        Number((placement.config as { paragraph?: number }).paragraph ?? 4),
+      );
       const target = paragraphs[Math.min(after - 1, paragraphs.length - 1)];
       if (!target || !target.parentNode) return;
       const host = document.createElement("div");
@@ -69,9 +73,5 @@ export function MidPostAds({ articleRef, pageType, pageId, scanKey }: Props) {
 
   if (mounts.length === 0) return null;
 
-  return (
-    <>
-      {mounts.map((m) => createPortal(<AdSlotView placement={m.placement} />, m.el))}
-    </>
-  );
+  return <>{mounts.map((m) => createPortal(<AdSlotView placement={m.placement} />, m.el))}</>;
 }

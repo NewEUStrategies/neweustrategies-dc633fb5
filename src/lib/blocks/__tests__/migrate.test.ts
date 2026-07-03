@@ -11,20 +11,20 @@ describe("htmlToBlocks", () => {
 
   it("maps headings, paragraphs, lists, blockquote, hr, img", () => {
     const html = [
-      "<h2 id=\"intro\">Intro</h2>",
+      '<h2 id="intro">Intro</h2>',
       "<p>Hello <strong>world</strong></p>",
       "<ul><li>A</li><li>B</li></ul>",
       "<ol><li>1st</li></ol>",
       "<blockquote>Quote</blockquote>",
       "<hr>",
-      "<p><img src=\"/a.jpg\" alt=\"x\"></p>",
-      "<pre><code class=\"language-ts\">const a = 1</code></pre>",
+      '<p><img src="/a.jpg" alt="x"></p>',
+      '<pre><code class="language-ts">const a = 1</code></pre>',
     ].join("");
     const d = htmlToBlocks(html);
     const types = d.blocks.map((b) => b.type);
-    expect(types).toEqual(expect.arrayContaining([
-      "heading", "paragraph", "list", "quote", "separator", "code",
-    ]));
+    expect(types).toEqual(
+      expect.arrayContaining(["heading", "paragraph", "list", "quote", "separator", "code"]),
+    );
     const heading = d.blocks.find((b) => b.type === "heading");
     expect(heading?.data.anchor).toBe("intro");
     expect(heading?.data.level).toBe(2);

@@ -18,6 +18,9 @@ export function splatToSegments(splat: string): string[] {
  * provided fallback (typically the title) when nothing usable remains.
  */
 export function metaDescription(raw: string | null | undefined, fallback: string): string {
-  const clean = (raw ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const clean = (raw ?? "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   return clean ? clean.slice(0, 160) : fallback;
 }

@@ -42,7 +42,11 @@ export function ConfirmDialog({
               await state?.onConfirm();
               onOpenChange(false);
             }}
-            className={state?.destructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+            className={
+              state?.destructive
+                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                : ""
+            }
           >
             {state?.confirmLabel ?? "Potwierdź"}
           </AlertDialogAction>

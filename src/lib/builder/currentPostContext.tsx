@@ -48,7 +48,13 @@ export interface CurrentPostCtx {
 
 const Ctx = createContext<CurrentPostCtx | null>(null);
 
-export function CurrentPostProvider({ value, children }: { value: CurrentPostCtx | null; children: ReactNode }) {
+export function CurrentPostProvider({
+  value,
+  children,
+}: {
+  value: CurrentPostCtx | null;
+  children: ReactNode;
+}) {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -69,7 +75,12 @@ export const PLACEHOLDER_POST_CTX: CurrentPostCtx = {
   publishedAt: new Date().toISOString(),
   readingTimeMin: 5,
   viewCount: 1234,
-  author: { name: "Jan Kowalski", slug: "jan-kowalski", bio_pl: "Redaktor naczelny.", bio_en: "Editor in chief." },
+  author: {
+    name: "Jan Kowalski",
+    slug: "jan-kowalski",
+    bio_pl: "Redaktor naczelny.",
+    bio_en: "Editor in chief.",
+  },
   categories: [{ slug: "wiadomosci", name: "Wiadomości" }],
   tags: [
     { slug: "lovable", name: "Lovable" },

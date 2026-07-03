@@ -66,7 +66,10 @@ function getNum(c: WidgetContent, key: string, fallback: number): number {
 }
 
 function csv(c: WidgetContent, key: string): string[] {
-  return getStr(c, key).split(",").map((s) => s.trim()).filter(Boolean);
+  return getStr(c, key)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function safeOrderBy(raw: string): PostListInput["orderByRaw"] {
@@ -141,13 +144,22 @@ async function fetchPostIdsBySlugs(
 ): Promise<Set<string>> {
   if (!slugs.length) return new Set();
   if (table === "post_categories") {
-    const { data: cats } = await supabase.from("categories").select("id").in("slug", [...slugs]);
+    const { data: cats } = await supabase
+      .from("categories")
+      .select("id")
+      .in("slug", [...slugs]);
     const ids = (cats ?? []).map((r: { id: string }) => r.id);
     if (!ids.length) return new Set();
-    const { data: links } = await supabase.from("post_categories").select("post_id").in("category_id", ids);
+    const { data: links } = await supabase
+      .from("post_categories")
+      .select("post_id")
+      .in("category_id", ids);
     return new Set((links ?? []).map((r: { post_id: string }) => r.post_id));
   }
-  const { data: tags } = await supabase.from("tags").select("id").in("slug", [...slugs]);
+  const { data: tags } = await supabase
+    .from("tags")
+    .select("id")
+    .in("slug", [...slugs]);
   const ids = (tags ?? []).map((r: { id: string }) => r.id);
   if (!ids.length) return new Set();
   const { data: links } = await supabase.from("post_tags").select("post_id").in("tag_id", ids);
@@ -169,8 +181,7 @@ export function rankAndSlicePopular<T extends { id: string }>(
   const order = new Map(rankedIds.map((id, i) => [id, i] as const));
   const sorted = [...rows].sort(
     (a, b) =>
-      (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
-      (order.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+      (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.id) ?? Number.MAX_SAFE_INTEGER),
   );
   const start = Math.max(0, offset);
   return sorted.slice(start, start + Math.max(0, limit));
@@ -202,7 +213,6 @@ async function fetchPopularPostIds(
   });
   if (error) {
     if (typeof console !== "undefined") {
-      // eslint-disable-next-line no-console
       console.warn(
         "[postList] popular_post_ids RPC unavailable; falling back to recency:",
         error.message,
@@ -230,18 +240,16 @@ async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
   if (input.includeTags.length) includeSets.push(incTagIds);
   if (input.includeIds.length) includeSets.push(new Set(input.includeIds));
   let includeSet: Set<string> | null = includeSets.length
-    ? includeSets.slice(1).reduce(
-        (acc, set) => new Set([...acc].filter((id) => set.has(id))),
-        new Set(includeSets[0]),
-      )
+    ? includeSets
+        .slice(1)
+        .reduce(
+          (acc, set) => new Set([...acc].filter((id) => set.has(id))),
+          new Set(includeSets[0]),
+        )
     : null;
   if (includeSet && includeSet.size === 0) return [];
 
-  const excludeSet = new Set<string>([
-    ...excCatIds,
-    ...excTagIds,
-    ...input.excludeIds,
-  ]);
+  const excludeSet = new Set<string>([...excCatIds, ...excTagIds, ...input.excludeIds]);
 
   // "popular" ranking comes from the tenant-scoped popular_post_ids RPC, which
   // aggregates post_views server-side behind a hard LIMIT - no full-table scan
@@ -264,7 +272,9 @@ async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
 
   let q = supabase
     .from("posts")
-    .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id")
+    .select(
+      "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id",
+    )
     .eq("status", "published")
     .is("deleted_at", null);
 
@@ -276,9 +286,11 @@ async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
   if (excludeSet.size) q = q.not("id", "in", `(${Array.from(excludeSet).join(",")})`);
 
   const orderCol =
-    effectiveOrderBy === "title" ? `title_${input.lang}`
-    : effectiveOrderBy === "random" || effectiveOrderBy === "popular" ? "published_at"
-    : effectiveOrderBy;
+    effectiveOrderBy === "title"
+      ? `title_${input.lang}`
+      : effectiveOrderBy === "random" || effectiveOrderBy === "popular"
+        ? "published_at"
+        : effectiveOrderBy;
   if (effectiveOrderBy !== "random" && effectiveOrderBy !== "popular") {
     q = q.order(orderCol, { ascending: input.orderDir === "asc" });
   }

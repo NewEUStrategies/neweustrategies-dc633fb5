@@ -29,7 +29,10 @@ export function FollowButton({
 
   const handleClick = () => {
     if (!user) {
-      openLoginPopup({ title: settings.restrictedTitle, description: settings.restrictedDescription });
+      openLoginPopup({
+        title: settings.restrictedTitle,
+        description: settings.restrictedDescription,
+      });
       return;
     }
     toggle.mutate({ targetType, targetId, on: !isOn });

@@ -20,11 +20,7 @@ describe("splatToSegments", () => {
   });
 
   it("preserves segment order and casing", () => {
-    expect(splatToSegments("Parent/Child-Slug/post_1")).toEqual([
-      "Parent",
-      "Child-Slug",
-      "post_1",
-    ]);
+    expect(splatToSegments("Parent/Child-Slug/post_1")).toEqual(["Parent", "Child-Slug", "post_1"]);
   });
 });
 

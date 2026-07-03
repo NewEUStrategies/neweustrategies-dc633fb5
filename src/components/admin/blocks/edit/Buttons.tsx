@@ -4,8 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
-interface Item { label: string; href: string; variant?: string }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
+interface Item {
+  label: string;
+  href: string;
+  variant?: string;
+}
 
 /** Grupa przycisków (Gutenberg "Buttons"). */
 export function ButtonsBlock({ block, onChange }: Props) {
@@ -16,7 +23,10 @@ export function ButtonsBlock({ block, onChange }: Props) {
   const align = String(block.data.align ?? "left");
 
   const update = (next: Item[]) =>
-    onChange({ ...block, data: { ...block.data, items: next as unknown as Block["data"][string] } });
+    onChange({
+      ...block,
+      data: { ...block.data, items: next as unknown as Block["data"][string] },
+    });
 
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">

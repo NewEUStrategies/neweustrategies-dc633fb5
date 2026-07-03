@@ -26,7 +26,13 @@ describe("buildErrorPayload", () => {
   it("maps an Error with its stack", () => {
     const err = new Error("boom");
     const p = buildErrorPayload(err, "onerror", "/x", 123);
-    expect(p).toMatchObject({ type: "error", message: "boom", source: "onerror", path: "/x", ts: 123 });
+    expect(p).toMatchObject({
+      type: "error",
+      message: "boom",
+      source: "onerror",
+      path: "/x",
+      ts: 123,
+    });
     expect(p.stack).toBeTypeOf("string");
   });
 
@@ -37,7 +43,9 @@ describe("buildErrorPayload", () => {
   });
 
   it("coerces a non-error object to a generic message", () => {
-    expect(buildErrorPayload({ weird: true }, "onerror", "/z", 1).message).toBe("Unknown client error");
+    expect(buildErrorPayload({ weird: true }, "onerror", "/z", 1).message).toBe(
+      "Unknown client error",
+    );
   });
 
   it("attaches structured meta when provided", () => {
@@ -57,17 +65,29 @@ describe("buildErrorPayload", () => {
 describe("sendBeaconPayload", () => {
   const original = navigator.sendBeacon;
   afterEach(() => {
-    Object.defineProperty(navigator, "sendBeacon", { value: original, configurable: true, writable: true });
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: original,
+      configurable: true,
+      writable: true,
+    });
   });
 
   it("returns false when sendBeacon is unavailable", () => {
-    Object.defineProperty(navigator, "sendBeacon", { value: undefined, configurable: true, writable: true });
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: undefined,
+      configurable: true,
+      writable: true,
+    });
     expect(sendBeaconPayload("https://x", { a: 1 })).toBe(false);
   });
 
   it("sends a JSON blob and returns the beacon result", () => {
     const beacon = vi.fn((_url: string, _body?: BodyInit) => true);
-    Object.defineProperty(navigator, "sendBeacon", { value: beacon, configurable: true, writable: true });
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: beacon,
+      configurable: true,
+      writable: true,
+    });
     expect(sendBeaconPayload("https://x", { a: 1 })).toBe(true);
     expect(beacon).toHaveBeenCalledTimes(1);
     expect(beacon.mock.calls[0][0]).toBe("https://x");
@@ -89,17 +109,29 @@ describe("sendBeaconPayload", () => {
 describe("reportClientError", () => {
   const original = navigator.sendBeacon;
   beforeEach(() => {
-    Object.defineProperty(navigator, "sendBeacon", { value: vi.fn(() => true), configurable: true, writable: true });
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: vi.fn(() => true),
+      configurable: true,
+      writable: true,
+    });
   });
   afterEach(() => {
     vi.unstubAllEnvs();
-    Object.defineProperty(navigator, "sendBeacon", { value: original, configurable: true, writable: true });
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: original,
+      configurable: true,
+      writable: true,
+    });
   });
 
   it("beacons to the internal endpoint when no external endpoint is configured", () => {
     vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
     const beacon = vi.fn((_url: string, _body?: BodyInit) => true);
-    Object.defineProperty(navigator, "sendBeacon", { value: beacon, configurable: true, writable: true });
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: beacon,
+      configurable: true,
+      writable: true,
+    });
     expect(reportClientError(new Error("x"), "onerror")).toBe(true);
     expect(beacon).toHaveBeenCalledTimes(1);
     expect(beacon.mock.calls[0][0]).toBe(INTERNAL_ERROR_ENDPOINT);
@@ -115,17 +147,29 @@ describe("reportClientError", () => {
 describe("reportBoundaryError", () => {
   const original = navigator.sendBeacon;
   beforeEach(() => {
-    Object.defineProperty(navigator, "sendBeacon", { value: vi.fn(() => true), configurable: true, writable: true });
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: vi.fn(() => true),
+      configurable: true,
+      writable: true,
+    });
   });
   afterEach(() => {
     vi.unstubAllEnvs();
-    Object.defineProperty(navigator, "sendBeacon", { value: original, configurable: true, writable: true });
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: original,
+      configurable: true,
+      writable: true,
+    });
   });
 
   it("beacons to the internal endpoint by default (no external config)", () => {
     vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
     const beacon = vi.fn((_url: string, _body?: BodyInit) => true);
-    Object.defineProperty(navigator, "sendBeacon", { value: beacon, configurable: true, writable: true });
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: beacon,
+      configurable: true,
+      writable: true,
+    });
     expect(reportBoundaryError(new Error("x"), { label: "section:s1" })).toBe(true);
     expect(beacon.mock.calls[0][0]).toBe(INTERNAL_ERROR_ENDPOINT);
   });
@@ -133,10 +177,17 @@ describe("reportBoundaryError", () => {
   it("beacons a react_error_boundary payload with structured meta", () => {
     vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "https://rum.example.com");
     const beacon = vi.fn((_url: string, _body?: BodyInit) => true);
-    Object.defineProperty(navigator, "sendBeacon", { value: beacon, configurable: true, writable: true });
-    expect(reportBoundaryError(new Error("crash"), { boundary: "builder_render_boundary", label: "widget:w1" })).toBe(
-      true,
-    );
+    Object.defineProperty(navigator, "sendBeacon", {
+      value: beacon,
+      configurable: true,
+      writable: true,
+    });
+    expect(
+      reportBoundaryError(new Error("crash"), {
+        boundary: "builder_render_boundary",
+        label: "widget:w1",
+      }),
+    ).toBe(true);
     expect(beacon).toHaveBeenCalledTimes(1);
     expect(beacon.mock.calls[0][0]).toBe("https://rum.example.com");
     expect(beacon.mock.calls[0][1]).toBeInstanceOf(Blob);

@@ -20,20 +20,33 @@ export function PostContentStyle() {
     const lightLink = s.hyperlink_color ? `color: ${s.hyperlink_color};` : "";
     const darkLink = s.hyperlink_color_dark ? `color: ${s.hyperlink_color_dark};` : "";
     const lightUl = s.underline_color ? `text-decoration-color: ${s.underline_color};` : "";
-    const darkUl = s.underline_color_dark ? `text-decoration-color: ${s.underline_color_dark};` : "";
+    const darkUl = s.underline_color_dark
+      ? `text-decoration-color: ${s.underline_color_dark};`
+      : "";
 
     const fontStyle =
-      s.hyperlink_style === "bold" ? "font-weight:600;" :
-      s.hyperlink_style === "italic" ? "font-style:italic;" :
-      s.hyperlink_style === "bold-italic" ? "font-weight:600;font-style:italic;" : "";
+      s.hyperlink_style === "bold"
+        ? "font-weight:600;"
+        : s.hyperlink_style === "italic"
+          ? "font-style:italic;"
+          : s.hyperlink_style === "bold-italic"
+            ? "font-weight:600;font-style:italic;"
+            : "";
 
-    const underline = s.hyperlink_underline ? "text-decoration: underline;" : "text-decoration: none;";
+    const underline = s.hyperlink_underline
+      ? "text-decoration: underline;"
+      : "text-decoration: none;";
 
     const listStyleVal =
-      s.list_style === "circle" ? "circle" :
-      s.list_style === "square" ? "square" :
-      s.list_style === "disc" ? "disc" :
-      s.list_style === "none" ? "none" : "disc";
+      s.list_style === "circle"
+        ? "circle"
+        : s.list_style === "square"
+          ? "square"
+          : s.list_style === "disc"
+            ? "disc"
+            : s.list_style === "none"
+              ? "none"
+              : "disc";
 
     el.textContent = `
       .single-post-content p { margin-bottom: ${s.paragraph_spacing_rem}rem; }

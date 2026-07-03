@@ -33,7 +33,6 @@ function uid(): string {
 
 function report(metric: VitalMetric): void {
   if (import.meta.env.DEV) {
-    // eslint-disable-next-line no-console
     console.debug("[web-vitals]", metric);
     return;
   }
@@ -46,8 +45,8 @@ function report(metric: VitalMetric): void {
     // Route to a configurable APM/RUM sink when set (VITE_OBSERVABILITY_ENDPOINT),
     // else the built-in vitals collector endpoint.
     const endpoint =
-      (import.meta.env as unknown as Record<string, string | undefined>).VITE_OBSERVABILITY_ENDPOINT ||
-      "/api/public/vitals";
+      (import.meta.env as unknown as Record<string, string | undefined>)
+        .VITE_OBSERVABILITY_ENDPOINT || "/api/public/vitals";
     if (typeof navigator.sendBeacon === "function") {
       navigator.sendBeacon(endpoint, body);
     }
@@ -124,7 +123,11 @@ export function initWebVitals(): void {
         if (e.interactionId && e.duration > maxDur) maxDur = e.duration;
       }
     });
-    inpObs.observe({ type: "event", buffered: true, durationThreshold: 40 } as PerformanceObserverInit);
+    inpObs.observe({
+      type: "event",
+      buffered: true,
+      durationThreshold: 40,
+    } as PerformanceObserverInit);
     addEventListener(
       "visibilitychange",
       () => {
@@ -142,8 +145,11 @@ export function initWebVitals(): void {
   // FCP + TTFB from Paint / Navigation Timing
   try {
     const fcp = performance.getEntriesByName("first-contentful-paint")[0];
-    if (fcp) report({ name: "FCP", value: fcp.startTime, rating: rate("FCP", fcp.startTime), id: uid() });
-    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    if (fcp)
+      report({ name: "FCP", value: fcp.startTime, rating: rate("FCP", fcp.startTime), id: uid() });
+    const nav = performance.getEntriesByType("navigation")[0] as
+      | PerformanceNavigationTiming
+      | undefined;
     if (nav) {
       const ttfb = nav.responseStart;
       report({ name: "TTFB", value: ttfb, rating: rate("TTFB", ttfb), id: uid() });

@@ -19,7 +19,9 @@ export const Route = createFileRoute("/podcast/$slug")({
     <div className="container mx-auto p-8 text-sm">{error.message}</div>
   ),
   notFoundComponent: () => (
-    <div className="container mx-auto p-8 text-sm text-muted-foreground">Nie znaleziono odcinka.</div>
+    <div className="container mx-auto p-8 text-sm text-muted-foreground">
+      Nie znaleziono odcinka.
+    </div>
   ),
   component: PodcastSinglePage,
 });
@@ -37,8 +39,10 @@ function PodcastSinglePage() {
 
   const title = podcastTitle(p, lang);
   const ep = podcastEpisodeLabel(p, lang);
-  const notes = lang === "en" ? p.show_notes_en || p.show_notes_pl : p.show_notes_pl || p.show_notes_en;
-  const transcript = lang === "en" ? p.transcript_en || p.transcript_pl : p.transcript_pl || p.transcript_en;
+  const notes =
+    lang === "en" ? p.show_notes_en || p.show_notes_pl : p.show_notes_pl || p.show_notes_en;
+  const transcript =
+    lang === "en" ? p.transcript_en || p.transcript_pl : p.transcript_pl || p.transcript_en;
   const excerpt = lang === "en" ? p.excerpt_en || p.excerpt_pl : p.excerpt_pl || p.excerpt_en;
 
   return (
@@ -59,12 +63,51 @@ function PodcastSinglePage() {
         lang={lang}
       />
 
-      {(settings?.spotify_url || settings?.apple_url || settings?.google_url || settings?.rss_url) && (
+      {(settings?.spotify_url ||
+        settings?.apple_url ||
+        settings?.google_url ||
+        settings?.rss_url) && (
         <nav className="flex flex-wrap gap-2 text-xs">
-          {settings.spotify_url && <a href={settings.spotify_url} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-full border border-border hover:bg-muted">Spotify</a>}
-          {settings.apple_url && <a href={settings.apple_url} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-full border border-border hover:bg-muted">Apple Podcasts</a>}
-          {settings.google_url && <a href={settings.google_url} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-full border border-border hover:bg-muted">Google</a>}
-          {settings.rss_url && <a href={settings.rss_url} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-full border border-border hover:bg-muted">RSS</a>}
+          {settings.spotify_url && (
+            <a
+              href={settings.spotify_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-full border border-border hover:bg-muted"
+            >
+              Spotify
+            </a>
+          )}
+          {settings.apple_url && (
+            <a
+              href={settings.apple_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-full border border-border hover:bg-muted"
+            >
+              Apple Podcasts
+            </a>
+          )}
+          {settings.google_url && (
+            <a
+              href={settings.google_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-full border border-border hover:bg-muted"
+            >
+              Google
+            </a>
+          )}
+          {settings.rss_url && (
+            <a
+              href={settings.rss_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-full border border-border hover:bg-muted"
+            >
+              RSS
+            </a>
+          )}
         </nav>
       )}
 
@@ -77,8 +120,13 @@ function PodcastSinglePage() {
 
       {transcript && (
         <details className="border border-border rounded-lg p-4">
-          <summary className="cursor-pointer font-medium">{lang === "en" ? "Transcript" : "Transkrypcja"}</summary>
-          <div className="mt-3 prose prose-sm max-w-none whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: sanitizeHtml(transcript) }} />
+          <summary className="cursor-pointer font-medium">
+            {lang === "en" ? "Transcript" : "Transkrypcja"}
+          </summary>
+          <div
+            className="mt-3 prose prose-sm max-w-none whitespace-pre-wrap"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(transcript) }}
+          />
         </details>
       )}
     </article>

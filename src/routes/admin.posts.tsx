@@ -19,6 +19,7 @@ import {
   purgePosts,
 } from "@/lib/content.functions";
 import { bulkMigratePostsToBlocks } from "@/lib/posts-migrate.functions";
+import { toastBulkResult } from "@/lib/admin/bulkToast";
 import { toast } from "sonner";
 import { BulkActionsBar, type BulkStatus } from "@/components/admin/BulkActionsBar";
 import { ConfirmDialog, type ConfirmState } from "@/components/admin/ConfirmDialog";
@@ -153,14 +154,17 @@ function PostsList() {
     return filteredPosts.slice(startIdx, startIdx + pageSize);
   }, [filteredPosts, page, pageSize]);
   const allIds = useMemo(() => pagedPosts.map((p) => p.id), [pagedPosts]);
-  useEffect(() => { setPage(1); }, [view, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo, pageSize]);
+  useEffect(() => {
+    setPage(1);
+  }, [view, search, statusFilter, langFilter, authorFilter, trashFrom, trashTo, pageSize]);
   const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0 && !allSelected;
 
   const toggleOne = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -184,7 +188,9 @@ function PostsList() {
       onConfirm: async () => {
         try {
           await del$({ data: { id } });
-          toast.success("Przeniesiono do kosza");
+          toast.success(
+            t("admin.bulkResult.trashedOne", { defaultValue: "Przeniesiono do kosza" }),
+          );
           invalidate();
         } catch (e) {
           toast.error(e instanceof Error ? e.message : String(e));
@@ -202,8 +208,8 @@ function PostsList() {
       destructive: true,
       onConfirm: async () => {
         try {
-          await bulkDel$({ data: { ids } });
-          toast.success(`Przeniesiono do kosza: ${ids.length}`);
+          const res = await bulkDel$({ data: { ids } });
+          toastBulkResult(t, res, "admin.bulkResult.trashed");
           clear();
           invalidate();
         } catch (e) {
@@ -216,8 +222,8 @@ function PostsList() {
   const onBulkStatus = async (status: BulkStatus) => {
     try {
       const ids = [...selected];
-      await bulkUpd$({ data: { ids, status } });
-      toast.success(`Zaktualizowano ${ids.length}`);
+      const res = await bulkUpd$({ data: { ids, status } });
+      toastBulkResult(t, res, "admin.bulkResult.updated");
       clear();
       invalidate();
     } catch (e) {
@@ -232,8 +238,8 @@ function PostsList() {
       confirmLabel: "Przywróć",
       onConfirm: async () => {
         try {
-          await restore$({ data: { ids: [id] } });
-          toast.success("Przywrócono");
+          const res = await restore$({ data: { ids: [id] } });
+          toastBulkResult(t, res, "admin.bulkResult.restoredOne");
           invalidate();
         } catch (e) {
           toast.error(e instanceof Error ? e.message : String(e));
@@ -249,8 +255,8 @@ function PostsList() {
       destructive: true,
       onConfirm: async () => {
         try {
-          await purge$({ data: { ids: [id] } });
-          toast.success("Usunięto trwale");
+          const res = await purge$({ data: { ids: [id] } });
+          toastBulkResult(t, res, "admin.bulkResult.purgedOne");
           invalidate();
         } catch (e) {
           toast.error(e instanceof Error ? e.message : String(e));
@@ -266,8 +272,8 @@ function PostsList() {
       confirmLabel: "Przywróć",
       onConfirm: async () => {
         try {
-          await restore$({ data: { ids } });
-          toast.success(`Przywrócono: ${ids.length}`);
+          const res = await restore$({ data: { ids } });
+          toastBulkResult(t, res, "admin.bulkResult.restored");
           clear();
           invalidate();
         } catch (e) {
@@ -292,13 +298,14 @@ function PostsList() {
     const ids = [...selected];
     setConfirmState({
       title: `Usunąć trwale ${ids.length} wpisów?`,
-      description: "Zaznaczone wpisy zostaną nieodwracalnie usunięte. Tej operacji nie można cofnąć.",
+      description:
+        "Zaznaczone wpisy zostaną nieodwracalnie usunięte. Tej operacji nie można cofnąć.",
       confirmLabel: "Usuń trwale",
       destructive: true,
       onConfirm: async () => {
         try {
-          await purge$({ data: { ids } });
-          toast.success(`Usunięto trwale: ${ids.length}`);
+          const res = await purge$({ data: { ids } });
+          toastBulkResult(t, res, "admin.bulkResult.purged");
           clear();
           invalidate();
         } catch (e) {
@@ -313,25 +320,43 @@ function PostsList() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="font-display text-2xl font-bold">{t("admin.posts.title")}</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">{filteredPosts.length} {t("admin.posts.count")}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {filteredPosts.length} {t("admin.posts.count")}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Link to="/admin/import-wordpress">
             <Button size="sm" variant="outline" className="h-8 text-xs">
-              {t("admin.posts.import_wp", { defaultValue: i18n.language.startsWith("pl") ? "Import z WordPress" : "Import from WordPress" })}
+              {t("admin.posts.import_wp", {
+                defaultValue: i18n.language.startsWith("pl")
+                  ? "Import z WordPress"
+                  : "Import from WordPress",
+              })}
             </Button>
           </Link>
           <Link to="/admin/posts/new">
-            <Button size="sm"><Plus className="w-4 h-4 mr-1.5" /> {t("admin.posts.new")}</Button>
+            <Button size="sm">
+              <Plus className="w-4 h-4 mr-1.5" /> {t("admin.posts.new")}
+            </Button>
           </Link>
         </div>
       </div>
 
-      <Tabs value={view} onValueChange={(v) => { setView(v as View); clear(); }} className="mb-3">
+      <Tabs
+        value={view}
+        onValueChange={(v) => {
+          setView(v as View);
+          clear();
+        }}
+        className="mb-3"
+      >
         <TabsList className="h-8">
-          <TabsTrigger value="active" className="text-xs h-7">{t("admin.list.tabs.all", { defaultValue: "Wszystkie" })}</TabsTrigger>
+          <TabsTrigger value="active" className="text-xs h-7">
+            {t("admin.list.tabs.all", { defaultValue: "Wszystkie" })}
+          </TabsTrigger>
           <TabsTrigger value="trash" className="text-xs h-7">
-            {t("admin.list.tabs.trash", { defaultValue: "Kosz" })}{typeof trashCount === "number" && trashCount > 0 ? ` (${trashCount})` : ""}
+            {t("admin.list.tabs.trash", { defaultValue: "Kosz" })}
+            {typeof trashCount === "number" && trashCount > 0 ? ` (${trashCount})` : ""}
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -355,12 +380,26 @@ function PostsList() {
       {isTrash && (
         <div className="flex flex-wrap items-end gap-2 mb-3">
           <div className="flex flex-col">
-            <label className="text-[10px] uppercase text-muted-foreground mb-1">{t("admin.list.deletedFrom", { defaultValue: "Usunięto od" })}</label>
-            <Input type="date" value={trashFrom} onChange={(e) => setTrashFrom(e.target.value)} className="h-8 text-xs" />
+            <label className="text-[10px] uppercase text-muted-foreground mb-1">
+              {t("admin.list.deletedFrom", { defaultValue: "Usunięto od" })}
+            </label>
+            <Input
+              type="date"
+              value={trashFrom}
+              onChange={(e) => setTrashFrom(e.target.value)}
+              className="h-8 text-xs"
+            />
           </div>
           <div className="flex flex-col">
-            <label className="text-[10px] uppercase text-muted-foreground mb-1">{t("admin.list.deletedTo", { defaultValue: "Usunięto do" })}</label>
-            <Input type="date" value={trashTo} onChange={(e) => setTrashTo(e.target.value)} className="h-8 text-xs" />
+            <label className="text-[10px] uppercase text-muted-foreground mb-1">
+              {t("admin.list.deletedTo", { defaultValue: "Usunięto do" })}
+            </label>
+            <Input
+              type="date"
+              value={trashTo}
+              onChange={(e) => setTrashTo(e.target.value)}
+              className="h-8 text-xs"
+            />
           </div>
         </div>
       )}
@@ -369,12 +408,16 @@ function PostsList() {
         {isTrash ? (
           selected.size > 0 ? (
             <div className="flex items-center gap-2 p-2 border-b border-border bg-muted/30 text-xs">
-              <span className="px-2">{t("admin.list.selected", { defaultValue: "Zaznaczono" })}: {selected.size}</span>
+              <span className="px-2">
+                {t("admin.list.selected", { defaultValue: "Zaznaczono" })}: {selected.size}
+              </span>
               <Button size="sm" variant="outline" onClick={onBulkRestore} className="h-7 text-xs">
-                <Undo2 className="w-3.5 h-3.5 mr-1.5" /> {t("admin.list.restore", { defaultValue: "Przywróć" })}
+                <Undo2 className="w-3.5 h-3.5 mr-1.5" />{" "}
+                {t("admin.list.restore", { defaultValue: "Przywróć" })}
               </Button>
               <Button size="sm" variant="destructive" onClick={onBulkPurge} className="h-7 text-xs">
-                <Trash2 className="w-3.5 h-3.5 mr-1.5" /> {t("admin.list.purge", { defaultValue: "Usuń trwale" })}
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" />{" "}
+                {t("admin.list.purge", { defaultValue: "Usuń trwale" })}
               </Button>
               <Button size="sm" variant="ghost" onClick={clear} className="ml-auto h-7">
                 <X className="w-3.5 h-3.5" />
@@ -402,8 +445,12 @@ function PostsList() {
         ) : !filteredPosts.length ? (
           <div className="p-10 text-center text-muted-foreground text-sm">
             {isTrash
-              ? (posts?.length ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" }) : t("admin.list.trashEmpty", { defaultValue: "Kosz jest pusty" }))
-              : (posts?.length ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" }) : t("admin.posts.empty"))}
+              ? posts?.length
+                ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" })
+                : t("admin.list.trashEmpty", { defaultValue: "Kosz jest pusty" })
+              : posts?.length
+                ? t("admin.list.noResults", { defaultValue: "Brak wyników dla filtrów" })
+                : t("admin.posts.empty")}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -418,11 +465,17 @@ function PostsList() {
                     />
                   </th>
                   <th className="text-left p-2">{t("admin.posts.titleCol")}</th>
-                  <th className="text-left p-2 w-[110px]">{t("admin.list.lang.col", { defaultValue: "Języki" })}</th>
-                  <th className="text-left p-2 w-[120px]">{t("admin.list.author.col", { defaultValue: "Autor" })}</th>
+                  <th className="text-left p-2 w-[110px]">
+                    {t("admin.list.lang.col", { defaultValue: "Języki" })}
+                  </th>
+                  <th className="text-left p-2 w-[120px]">
+                    {t("admin.list.author.col", { defaultValue: "Autor" })}
+                  </th>
                   <th className="text-left p-2 w-[110px]">{t("admin.posts.status")}</th>
                   <th className="text-left p-2 w-[150px] hidden md:table-cell">
-                    {isTrash ? t("admin.list.deletedAt", { defaultValue: "Usunięto" }) : t("admin.posts.updated")}
+                    {isTrash
+                      ? t("admin.list.deletedAt", { defaultValue: "Usunięto" })
+                      : t("admin.posts.updated")}
                   </th>
                   <th className="p-2 w-[90px]" />
                 </tr>
@@ -432,7 +485,10 @@ function PostsList() {
                   const cov = coverageOf(p);
                   const author = p.author_id ? authorMap.get(p.author_id) : null;
                   return (
-                    <tr key={p.id} className={`border-t border-border hover:bg-muted/20 ${selected.has(p.id) ? "bg-muted/30" : ""}`}>
+                    <tr
+                      key={p.id}
+                      className={`border-t border-border hover:bg-muted/20 ${selected.has(p.id) ? "bg-muted/30" : ""}`}
+                    >
                       <td className="p-2">
                         <Checkbox
                           checked={selected.has(p.id)}
@@ -444,16 +500,34 @@ function PostsList() {
                         {isTrash ? (
                           <>
                             <div className="font-medium text-[13px] truncate max-w-[420px]">
-                              {(lang === "en" ? p.title_en : p.title_pl) || (lang === "en" ? p.title_pl : p.title_en) || <span className="italic text-muted-foreground">- {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -</span>}
+                              {(lang === "en" ? p.title_en : p.title_pl) ||
+                                (lang === "en" ? p.title_pl : p.title_en) || (
+                                  <span className="italic text-muted-foreground">
+                                    - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
+                                  </span>
+                                )}
                             </div>
-                            <div className="text-[10px] text-muted-foreground truncate max-w-[420px]">/{p.slug}</div>
+                            <div className="text-[10px] text-muted-foreground truncate max-w-[420px]">
+                              /{p.slug}
+                            </div>
                           </>
                         ) : (
-                          <Link to="/admin/posts/$slug" params={{ slug: p.slug }} className="block group">
+                          <Link
+                            to="/admin/posts/$slug"
+                            params={{ slug: p.slug }}
+                            className="block group"
+                          >
                             <div className="font-medium text-[13px] truncate max-w-[420px] text-[#231f20] dark:text-[#F8F6F4] group-hover:text-[#FDB078] group-hover:underline underline-offset-2">
-                              {(lang === "en" ? p.title_en : p.title_pl) || (lang === "en" ? p.title_pl : p.title_en) || <span className="italic text-muted-foreground">- {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -</span>}
+                              {(lang === "en" ? p.title_en : p.title_pl) ||
+                                (lang === "en" ? p.title_pl : p.title_en) || (
+                                  <span className="italic text-muted-foreground">
+                                    - {t("admin.list.untitled", { defaultValue: "bez tytułu" })} -
+                                  </span>
+                                )}
                             </div>
-                            <div className="text-[10px] text-[#231f20] dark:text-[#F8F6F4] truncate max-w-[420px] group-hover:text-[#FDB078] group-hover:underline">/{p.slug}</div>
+                            <div className="text-[10px] text-[#231f20] dark:text-[#F8F6F4] truncate max-w-[420px] group-hover:text-[#FDB078] group-hover:underline">
+                              /{p.slug}
+                            </div>
                           </Link>
                         )}
                       </td>
@@ -461,11 +535,18 @@ function PostsList() {
                         <LangCoverageBadges
                           pl={cov.pl}
                           en={cov.en}
-                          missingTitlePl={t("admin.list.lang.missingPl", { defaultValue: "Brak wersji PL" })}
-                          missingTitleEn={t("admin.list.lang.missingEn", { defaultValue: "Brak wersji EN" })}
+                          missingTitlePl={t("admin.list.lang.missingPl", {
+                            defaultValue: "Brak wersji PL",
+                          })}
+                          missingTitleEn={t("admin.list.lang.missingEn", {
+                            defaultValue: "Brak wersji EN",
+                          })}
                         />
                       </td>
-                      <td className="p-2 text-muted-foreground truncate max-w-[140px]" title={authorLabel(author)}>
+                      <td
+                        className="p-2 text-muted-foreground truncate max-w-[140px]"
+                        title={authorLabel(author)}
+                      >
                         {authorLabel(author)}
                       </td>
                       <td className="p-2">
@@ -488,25 +569,47 @@ function PostsList() {
                         ) : null}
                       </td>
                       <td className="p-2 hidden md:table-cell text-muted-foreground text-[11px] tabular-nums">
-                        {new Date((isTrash && p.deleted_at) ? p.deleted_at : p.updated_at).toLocaleString(lang)}
+                        {new Date(
+                          isTrash && p.deleted_at ? p.deleted_at : p.updated_at,
+                        ).toLocaleString(lang)}
                       </td>
                       <td className="p-2 text-right">
                         <div className="flex justify-end gap-0.5">
                           {isTrash ? (
                             <>
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title={t("admin.list.restore", { defaultValue: "Przywróć" })} onClick={() => restoreOne(p.id, titleOf(p))}>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                title={t("admin.list.restore", { defaultValue: "Przywróć" })}
+                                onClick={() => restoreOne(p.id, titleOf(p))}
+                              >
                                 <Undo2 className="w-3.5 h-3.5" />
                               </Button>
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title={t("admin.list.purge", { defaultValue: "Usuń trwale" })} onClick={() => purgeOne(p.id, titleOf(p))}>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                title={t("admin.list.purge", { defaultValue: "Usuń trwale" })}
+                                onClick={() => purgeOne(p.id, titleOf(p))}
+                              >
                                 <Trash2 className="w-3.5 h-3.5 text-destructive" />
                               </Button>
                             </>
                           ) : (
                             <>
                               <Link to="/admin/posts/$slug" params={{ slug: p.slug }}>
-                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0"><Pencil className="w-3.5 h-3.5" /></Button>
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </Button>
                               </Link>
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title={t("admin.list.toTrash", { defaultValue: "Do kosza" })} onClick={() => del(p.id, titleOf(p))}>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                title={t("admin.list.toTrash", { defaultValue: "Do kosza" })}
+                                onClick={() => del(p.id, titleOf(p))}
+                              >
                                 <Trash2 className="w-3.5 h-3.5 text-destructive" />
                               </Button>
                             </>
@@ -529,8 +632,12 @@ function PostsList() {
         )}
       </div>
 
-
-      <ConfirmDialog state={confirmState} onOpenChange={(o) => { if (!o) setConfirmState(null); }} />
+      <ConfirmDialog
+        state={confirmState}
+        onOpenChange={(o) => {
+          if (!o) setConfirmState(null);
+        }}
+      />
     </div>
   );
 }

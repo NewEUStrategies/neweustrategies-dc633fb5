@@ -13,8 +13,7 @@ export function XQuoteBlock({ block, onChange }: Props) {
   const text = String(block.data.text ?? "");
   const via = String(block.data.via ?? "");
   const hashtags = String(block.data.hashtags ?? "");
-  const patch = (k: string, v: string) =>
-    onChange({ ...block, data: { ...block.data, [k]: v } });
+  const patch = (k: string, v: string) => onChange({ ...block, data: { ...block.data, [k]: v } });
 
   return (
     <div className="not-prose rounded-md border border-border bg-card p-3 space-y-2">
@@ -23,7 +22,7 @@ export function XQuoteBlock({ block, onChange }: Props) {
         <span className="ml-auto text-[10px] normal-case tracking-normal">{text.length} / 280</span>
       </div>
       <textarea
-        placeholder={i18n.editor("xquote","textPh")}
+        placeholder={i18n.editor("xquote", "textPh")}
         value={text}
         maxLength={280}
         onChange={(e) => patch("text", e.target.value)}

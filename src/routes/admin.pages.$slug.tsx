@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -96,6 +96,7 @@ function EditPage() {
   const tenantId = useRequiredTenant();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const router = useRouter();
   const qc = useQueryClient();
   const update$ = useServerFn(updatePage);
   const delete$ = useServerFn(deletePage);
@@ -121,6 +122,9 @@ function EditPage() {
 
   const history = useUndoRedo<PageForm | null>(null);
   const form = history.state;
+  // Stabilna referencja do history.set dla saveFn (obiekt `history` zmienia
+  // tozsamość co render, sam setter jest useCallback-owo stały).
+  const setForm = history.set;
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState<"details" | "content">("details");
   const [seoIssues, setSeoIssues] = useState<SeoIssue[]>([]);
@@ -149,7 +153,7 @@ function EditPage() {
   const saveFn = useCallback(
     async (snapshot: PageForm | null) => {
       if (!snapshot || !id) return;
-      await update$({
+      const result = await update$({
         data: {
           id,
           fields: {
@@ -179,24 +183,34 @@ function EditPage() {
           },
         },
       });
-      // The server may normalize the slug (uniqueSlug). Read back the canonical
-      // slug and, if it changed, update the URL so the address bar always
-      // reflects the current page name.
-      const { data: row } = await supabase.from("pages").select("slug").eq("id", id).maybeSingle();
-      const canonical = row?.slug as string | undefined;
+      // The server returns the canonical slug (uniqueSlug may have suffixed it
+      // on collision). Navigate only to the persisted slug so the address bar
+      // and the loaded record always match what is really in the database.
+      const canonical = result?.slug ?? snapshot.slug;
       qc.invalidateQueries({ queryKey: ["admin-pages"] });
       invalidateWidgetCaches(qc);
       emitWidgetCacheInvalidate();
       // Odswiez publiczne surface'y SEO (mapa strony HTML, /admin/seo).
-      invalidateSeoCaches(qc);
-      if (canonical && canonical !== routeSlug) {
+      invalidateSeoCaches(qc, router);
+      if (canonical !== snapshot.slug) {
+        // Kolizja sluga nie może być cicha - pokaz ostrzeżenie i zsynchronizuj
+        // formularz z wartością faktycznie zapisaną.
+        toast.warning(
+          t("admin.slugTaken", {
+            defaultValue: 'Slug był zajęty - zapisano jako "{{slug}}"',
+            slug: canonical,
+          }),
+        );
+        setForm((f) => (f && f.slug === snapshot.slug ? { ...f, slug: canonical } : f));
+      }
+      if (canonical !== routeSlug) {
         qc.setQueryData(["page-by-slug", tenantId, canonical], { ...snapshot, slug: canonical });
         navigate({ to: "/admin/pages/$slug", params: { slug: canonical }, replace: true });
       } else {
         qc.invalidateQueries({ queryKey: ["page-by-slug", tenantId, routeSlug] });
       }
     },
-    [id, update$, qc, navigate, routeSlug, tenantId],
+    [id, update$, qc, navigate, routeSlug, tenantId, router, setForm, t],
   );
 
   const autosave = useAutosave({ value: form, enabled: !!form && !!id, save: saveFn });

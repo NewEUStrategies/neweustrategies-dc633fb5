@@ -22,31 +22,66 @@ interface Params {
 
 export function useBuilderShortcuts(p: Params) {
   const {
-    selection, setSelection, undo, redo,
-    copySelection, cutSelection, pasteFromClipboard,
-    duplicateSection, duplicateColumn, duplicateWidget,
-    askRemoveSection, askRemoveColumn, askRemoveWidget,
-    moveSection, onSave, onToggleNavigator,
+    selection,
+    setSelection,
+    undo,
+    redo,
+    copySelection,
+    cutSelection,
+    pasteFromClipboard,
+    duplicateSection,
+    duplicateColumn,
+    duplicateWidget,
+    askRemoveSection,
+    askRemoveColumn,
+    askRemoveWidget,
+    moveSection,
+    onSave,
+    onToggleNavigator,
   } = p;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
-      const isEditable = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
+      const isEditable =
+        tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
 
       // Undo/redo/save always work, even inside property inputs.
-      if (mod && k === "z" && !e.shiftKey) { e.preventDefault(); undo(); return; }
-      if (mod && (k === "y" || (e.shiftKey && k === "z"))) { e.preventDefault(); redo(); return; }
-      if (mod && k === "s" && onSave) { e.preventDefault(); onSave(); return; }
+      if (mod && k === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if (mod && (k === "y" || (e.shiftKey && k === "z"))) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (mod && k === "s" && onSave) {
+        e.preventDefault();
+        onSave();
+        return;
+      }
 
       // Remaining shortcuts must not hijack normal text editing inside inputs.
       if (isEditable) return;
 
-      if (mod && k === "c") { copySelection(); return; }
-      if (mod && k === "x") { e.preventDefault(); cutSelection(); return; }
-      if (mod && k === "v") { e.preventDefault(); pasteFromClipboard(); return; }
+      if (mod && k === "c") {
+        copySelection();
+        return;
+      }
+      if (mod && k === "x") {
+        e.preventDefault();
+        cutSelection();
+        return;
+      }
+      if (mod && k === "v") {
+        e.preventDefault();
+        pasteFromClipboard();
+        return;
+      }
       if (mod && k === "d" && selection.id) {
         e.preventDefault();
         if (selection.kind === "section") duplicateSection(selection.id);
@@ -55,9 +90,16 @@ export function useBuilderShortcuts(p: Params) {
         return;
       }
       if (mod && e.shiftKey && k === "n" && onToggleNavigator) {
-        e.preventDefault(); onToggleNavigator(); return;
+        e.preventDefault();
+        onToggleNavigator();
+        return;
       }
-      if (e.altKey && (k === "arrowup" || k === "arrowdown") && selection.kind === "section" && selection.id) {
+      if (
+        e.altKey &&
+        (k === "arrowup" || k === "arrowdown") &&
+        selection.kind === "section" &&
+        selection.id
+      ) {
         e.preventDefault();
         moveSection(selection.id, k === "arrowup" ? -1 : 1);
         return;
@@ -73,8 +115,22 @@ export function useBuilderShortcuts(p: Params) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [undo, redo, copySelection, cutSelection, pasteFromClipboard, selection, setSelection,
-      duplicateSection, duplicateColumn, duplicateWidget,
-      askRemoveSection, askRemoveColumn, askRemoveWidget,
-      moveSection, onSave, onToggleNavigator]);
+  }, [
+    undo,
+    redo,
+    copySelection,
+    cutSelection,
+    pasteFromClipboard,
+    selection,
+    setSelection,
+    duplicateSection,
+    duplicateColumn,
+    duplicateWidget,
+    askRemoveSection,
+    askRemoveColumn,
+    askRemoveWidget,
+    moveSection,
+    onSave,
+    onToggleNavigator,
+  ]);
 }

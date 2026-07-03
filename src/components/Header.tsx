@@ -252,7 +252,7 @@ export const Header = memo(function Header() {
       className="bg-background border-b border-border"
       style={{ viewTransitionName: "site-header" }}
     >
-      <Suspense fallback={<HeaderSkeleton />}> 
+      <Suspense fallback={<HeaderSkeleton />}>
         <HeaderInner />
       </Suspense>
     </header>

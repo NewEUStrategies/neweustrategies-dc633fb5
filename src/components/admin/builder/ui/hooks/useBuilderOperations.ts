@@ -6,13 +6,22 @@ import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { makeWidget } from "@/lib/builder/registry";
 import type {
-  BuilderDocument, ColumnNode, SectionNode, WidgetNode, WidgetType, Device,
+  BuilderDocument,
+  ColumnNode,
+  SectionNode,
+  WidgetNode,
+  WidgetType,
+  Device,
 } from "@/lib/builder/types";
 import type { History } from "@/lib/builder/useHistory";
 import * as ops from "@/lib/builder/operations";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { useSectionTemplates, type SectionTemplate } from "@/lib/builder/templates";
-import { useGlobalWidgets, makeGlobalInstance, type GlobalWidget } from "@/lib/builder/globalWidgets";
+import {
+  useGlobalWidgets,
+  makeGlobalInstance,
+  type GlobalWidget,
+} from "@/lib/builder/globalWidgets";
 import { useExperimentsAdmin } from "@/lib/builder/experiments";
 import { buildHomepageDocument } from "@/lib/builder/homepageTemplate";
 import type { GlobalDragPayload } from "../organisms/builder/VisualCanvas";
@@ -33,30 +42,39 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
 
   const docRef = useRef(doc);
   docRef.current = doc;
-  const update = useCallback((mut: (d: BuilderDocument) => void) => {
-    const next: BuilderDocument = safeParseBuilderDoc(JSON.parse(JSON.stringify(docRef.current)));
-    mut(next);
-    const normalized = safeParseBuilderDoc(next);
-    docRef.current = normalized;
-    history.setDoc(normalized);
-  }, [history]);
+  const update = useCallback(
+    (mut: (d: BuilderDocument) => void) => {
+      const next: BuilderDocument = safeParseBuilderDoc(JSON.parse(JSON.stringify(docRef.current)));
+      mut(next);
+      const normalized = safeParseBuilderDoc(next);
+      docRef.current = normalized;
+      history.setDoc(normalized);
+    },
+    [history],
+  );
 
   // ---------- focused column / add widget ----------
   const focusedColumn = useMemo<ColumnNode | null>(() => {
     if (selection.kind === "column" && selection.id) return ops.findColumn(doc, selection.id);
-    if (selection.kind === "widget" && selection.id) return ops.findWidget(doc, selection.id)?.column ?? null;
+    if (selection.kind === "widget" && selection.id)
+      return ops.findWidget(doc, selection.id)?.column ?? null;
     const normalized = safeParseBuilderDoc(doc);
-    for (const s of normalized.sections) for (const c of s.children) {
-      if (c.kind === "column") return c;
-      if (c.kind === "inner-section" && c.columns[0]) return c.columns[0];
-    }
+    for (const s of normalized.sections)
+      for (const c of s.children) {
+        if (c.kind === "column") return c;
+        if (c.kind === "inner-section" && c.columns[0]) return c.columns[0];
+      }
     return null;
   }, [doc, selection]);
 
   // ---------- structural ops ----------
-  const addSection = (colsOrSpans: number | number[]) => update((d) => ops.addSection(d, colsOrSpans));
-  const loadHomepage = useCallback(() => { history.setDoc(buildHomepageDocument()); }, [history]);
-  const insertTemplateSection = (tpl: SectionTemplate) => update((d) => ops.insertSectionNode(d, ops.cloneSection(tpl.data)));
+  const addSection = (colsOrSpans: number | number[]) =>
+    update((d) => ops.addSection(d, colsOrSpans));
+  const loadHomepage = useCallback(() => {
+    history.setDoc(buildHomepageDocument());
+  }, [history]);
+  const insertTemplateSection = (tpl: SectionTemplate) =>
+    update((d) => ops.insertSectionNode(d, ops.cloneSection(tpl.data)));
   const saveSectionAsTemplate = (sid: string) => {
     const s = ops.findSection(doc, sid);
     if (!s) return;
@@ -75,18 +93,21 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
   const duplicateColumn = (colId: string) => update((d) => ops.duplicateColumn(d, colId));
   const removeWidget = (wid: string) => update((d) => ops.removeWidget(d, wid));
   const duplicateWidget = (wid: string) => update((d) => ops.duplicateWidget(d, wid));
-  const updateWidget = (wid: string, mut: (w: WidgetNode) => void) => update((d) => {
-    const f = ops.findWidget(d, wid);
-    if (f) mut(f.widget);
-  });
-  const updateSection = (sid: string, mut: (s: SectionNode) => void) => update((d) => {
-    const s = ops.findSection(d, sid);
-    if (s) mut(s);
-  });
-  const updateColumn = (cid: string, mut: (c: ColumnNode) => void) => update((d) => {
-    const c = ops.findColumn(d, cid);
-    if (c) mut(c);
-  });
+  const updateWidget = (wid: string, mut: (w: WidgetNode) => void) =>
+    update((d) => {
+      const f = ops.findWidget(d, wid);
+      if (f) mut(f.widget);
+    });
+  const updateSection = (sid: string, mut: (s: SectionNode) => void) =>
+    update((d) => {
+      const s = ops.findSection(d, sid);
+      if (s) mut(s);
+    });
+  const updateColumn = (cid: string, mut: (c: ColumnNode) => void) =>
+    update((d) => {
+      const c = ops.findColumn(d, cid);
+      if (c) mut(c);
+    });
 
   // New widget nodes: either a fresh widget of `type`, or an instance of a
   // dragged global widget (snapshot + globalId reference).
@@ -110,12 +131,21 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     update((d) => ops.addWidgetToColumn(d, colId, w));
     setSelection({ kind: "widget", id: w.id });
   };
-  const insertWidgetNear = (targetWidgetId: string, pos: "before" | "after", type: WidgetType, global?: GlobalDragPayload) => {
+  const insertWidgetNear = (
+    targetWidgetId: string,
+    pos: "before" | "after",
+    type: WidgetType,
+    global?: GlobalDragPayload,
+  ) => {
     const w = makeNode(type, global);
     update((d) => ops.insertWidgetNear(d, targetWidgetId, pos, w));
     setSelection({ kind: "widget", id: w.id });
   };
-  const appendWidgetToSection = (sectionId: string, type: WidgetType, global?: GlobalDragPayload) => {
+  const appendWidgetToSection = (
+    sectionId: string,
+    type: WidgetType,
+    global?: GlobalDragPayload,
+  ) => {
     const w = makeNode(type, global);
     update((d) => ops.appendWidgetToSection(d, sectionId, w));
     setSelection({ kind: "widget", id: w.id });
@@ -128,7 +158,10 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     const name = window.prompt("Nazwa widgetu globalnego:");
     if (!name?.trim()) return;
     const id = await globals.save(name.trim(), f.widget);
-    if (!id) { toast.error("Nie udało się zapisać widgetu globalnego"); return; }
+    if (!id) {
+      toast.error("Nie udało się zapisać widgetu globalnego");
+      return;
+    }
     update((d) => {
       const found = ops.findWidget(d, wid);
       if (found) found.widget.globalId = id;
@@ -147,7 +180,10 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     const name = window.prompt("Nazwa testu A/B:");
     if (!name?.trim()) return;
     const experimentId = await experiments.create(name.trim());
-    if (!experimentId) { toast.error("Nie udało się utworzyć testu A/B"); return; }
+    if (!experimentId) {
+      toast.error("Nie udało się utworzyć testu A/B");
+      return;
+    }
     update((d) => ops.startAbTest(d, sectionId, experimentId));
     toast.success("Utworzono test A/B - edytuj wariant B poniżej oryginału");
   };
@@ -170,15 +206,38 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
     update((d) => ops.toggleHidden(d, id, kind, device));
 
   return {
-    update, focusedColumn,
-    addSection, loadHomepage, insertTemplateSection, saveSectionAsTemplate,
-    removeSection, moveSection, duplicateSection, insertSectionAt,
-    addInnerSection, addColumn, removeColumn, duplicateColumn,
-    removeWidget, duplicateWidget, updateWidget, updateSection, updateColumn,
-    addWidgetToFocused, addWidgetToColumn, insertWidgetNear, appendWidgetToSection,
-    addGlobalWidgetToFocused, saveWidgetAsGlobal, unlinkGlobalWidget,
-    startAbTest, endAbTest,
-    moveWidgetTo, moveWidgetToColumn, moveWidgetToSection, moveSectionTo,
+    update,
+    focusedColumn,
+    addSection,
+    loadHomepage,
+    insertTemplateSection,
+    saveSectionAsTemplate,
+    removeSection,
+    moveSection,
+    duplicateSection,
+    insertSectionAt,
+    addInnerSection,
+    addColumn,
+    removeColumn,
+    duplicateColumn,
+    removeWidget,
+    duplicateWidget,
+    updateWidget,
+    updateSection,
+    updateColumn,
+    addWidgetToFocused,
+    addWidgetToColumn,
+    insertWidgetNear,
+    appendWidgetToSection,
+    addGlobalWidgetToFocused,
+    saveWidgetAsGlobal,
+    unlinkGlobalWidget,
+    startAbTest,
+    endAbTest,
+    moveWidgetTo,
+    moveWidgetToColumn,
+    moveWidgetToSection,
+    moveSectionTo,
     toggleHidden,
   };
 }

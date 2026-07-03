@@ -5,7 +5,13 @@ import type { Json } from "@/lib/builder/types";
 import type { SchemaField as SchemaFieldDef } from "@/lib/builder/schemas";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { PropField } from "../atoms/PropField";
 import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
 import { Image as ImageIcon } from "lucide-react";
@@ -92,7 +98,11 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
     case "number": {
       const raw = content[field.key];
       const hasValue = typeof raw === "number" && Number.isFinite(raw);
-      const display = hasValue ? String(raw) : (typeof field.default === "number" ? String(field.default) : "");
+      const display = hasValue
+        ? String(raw)
+        : typeof field.default === "number"
+          ? String(field.default)
+          : "";
       return (
         <PropField label={field.label} hint={field.hint}>
           <Input
@@ -104,7 +114,10 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
             placeholder={typeof field.default === "number" ? String(field.default) : undefined}
             onChange={(e) => {
               const s = e.target.value;
-              if (s === "") { setContent(field.key, toJson(null)); return; }
+              if (s === "") {
+                setContent(field.key, toJson(null));
+                return;
+              }
               const n = Number(s);
               if (Number.isFinite(n)) setContent(field.key, n);
             }}
@@ -117,14 +130,16 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
     case "select": {
       const EMPTY = "__default__";
       const raw = asString(content[field.key]);
-      const current = raw === "" ? EMPTY : (raw || (field.options?.[0]?.value || EMPTY));
+      const current = raw === "" ? EMPTY : raw || field.options?.[0]?.value || EMPTY;
       return (
         <PropField label={field.label} hint={field.hint}>
           <Select
             value={current}
             onValueChange={(v) => setContent(field.key, v === EMPTY ? "" : v)}
           >
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {field.options?.map((o) => (
                 <SelectItem key={o.value || EMPTY} value={o.value === "" ? EMPTY : o.value}>
@@ -177,10 +192,15 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
           <Textarea
             rows={field.rows ?? 4}
             value={asStringArray(content[field.key]).join("\n")}
-            onChange={(e) => setContent(
-              field.key,
-              e.target.value.split("\n").map((s) => s.trim()).filter(Boolean),
-            )}
+            onChange={(e) =>
+              setContent(
+                field.key,
+                e.target.value
+                  .split("\n")
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              )
+            }
             className="text-xs font-mono"
           />
         </PropField>

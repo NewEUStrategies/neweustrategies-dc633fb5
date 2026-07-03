@@ -1,6 +1,9 @@
 import type { Block } from "@/lib/blocks/types";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 export function ReadMoreBlock({ block, onChange }: Props) {
   const text = String(block.data.text ?? "Czytaj dalej");

@@ -63,8 +63,6 @@ test.describe("SEO surfaces", () => {
     // Auth gate w _authenticated/route.tsx robi redirect na /auth; niektore
     // starsze setupy uzywają /login. Akceptujemy oba - kluczowe jest, ze
     // niezalogowany uzytkownik NIE widzi surowego dashboardu.
-    await expect
-      .poll(() => page.url(), { timeout: 5_000 })
-      .toMatch(/\/(auth|login)/);
+    await expect.poll(() => page.url(), { timeout: 5_000 }).toMatch(/\/(auth|login)/);
   });
 });

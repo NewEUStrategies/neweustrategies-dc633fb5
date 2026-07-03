@@ -88,9 +88,7 @@ const WebStoriesCarouselViewImpl = lazy(() =>
     (m) => ({ default: m.WebStoriesCarouselView }),
   ),
 );
-export function WebStoriesCarouselView(
-  props: ComponentProps<typeof WebStoriesCarouselViewImpl>,
-) {
+export function WebStoriesCarouselView(props: ComponentProps<typeof WebStoriesCarouselViewImpl>) {
   return (
     <Suspense fallback={FALLBACK}>
       <WebStoriesCarouselViewImpl {...props} />

@@ -10,7 +10,12 @@ import { rateLimit } from "./server/rate-limit.server";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ALLOWED_MIME = new Set([
-  "image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "image/avif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/svg+xml",
+  "image/avif",
   "application/pdf",
 ]);
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -38,7 +43,10 @@ export const registerMediaUpload = createServerFn({ method: "POST" })
 
     // Resolve tenant from profiles (authoritative; never trust client).
     const { data: profile, error: profileErr } = await supabase
-      .from("profiles").select("tenant_id").eq("id", userId).maybeSingle();
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", userId)
+      .maybeSingle();
     if (profileErr || !profile?.tenant_id) throw new Error("No tenant for current user");
     const tenantId = profile.tenant_id;
 
@@ -76,7 +84,10 @@ export const registerMediaUpload = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     await recordAudit(supabase, {
-      tenantId, action: "media.upload", entityType: "media", entityId: row.id,
+      tenantId,
+      action: "media.upload",
+      entityType: "media",
+      entityId: row.id,
       metadata: { filename: data.filename, mime: data.mimeType, size: data.sizeBytes },
     });
 
@@ -110,7 +121,10 @@ export const deleteMedia = createServerFn({ method: "POST" })
     if (delErr) throw new Error(delErr.message);
 
     await recordAudit(supabase, {
-      tenantId: row.tenant_id, action: "media.delete", entityType: "media", entityId: row.id,
+      tenantId: row.tenant_id,
+      action: "media.delete",
+      entityType: "media",
+      entityId: row.id,
       metadata: { storage_path: row.storage_path },
     });
 
@@ -179,7 +193,9 @@ export const getMediaUsage = createServerFn({ method: "POST" })
     // POSTS
     const { data: posts, error: pErr } = await supabase
       .from("posts")
-      .select("id, slug, title_pl, title_en, cover_image_url, excerpt_pl, excerpt_en, content_pl, content_en, builder_data, blocks_data, layout_overrides")
+      .select(
+        "id, slug, title_pl, title_en, cover_image_url, excerpt_pl, excerpt_en, content_pl, content_en, builder_data, blocks_data, layout_overrides",
+      )
       .is("deleted_at", null);
     if (pErr) throw new Error(pErr.message);
     for (const p of posts ?? []) {
@@ -204,7 +220,9 @@ export const getMediaUsage = createServerFn({ method: "POST" })
     // PAGES
     const { data: pages, error: gErr } = await supabase
       .from("pages")
-      .select("id, slug, title_pl, title_en, cover_image_url, excerpt_pl, excerpt_en, content_pl, content_en, builder_data, layout_overrides")
+      .select(
+        "id, slug, title_pl, title_en, cover_image_url, excerpt_pl, excerpt_en, content_pl, content_en, builder_data, layout_overrides",
+      )
       .is("deleted_at", null);
     if (gErr) throw new Error(gErr.message);
     for (const p of pages ?? []) {
@@ -247,13 +265,20 @@ export interface ThumbnailRegenResult {
  */
 export const regenerateThumbnails = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({
-    limit: z.number().int().min(1).max(500).default(100),
-  }).parse(i ?? {}))
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        limit: z.number().int().min(1).max(500).default(100),
+      })
+      .parse(i ?? {}),
+  )
   .handler(async ({ data, context }): Promise<ThumbnailRegenResult> => {
     const { supabase, userId } = context;
     const { data: profile } = await supabase
-      .from("profiles").select("tenant_id").eq("id", userId).maybeSingle();
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", userId)
+      .maybeSingle();
     const tenantId = profile?.tenant_id as string | undefined;
     if (!tenantId) throw new Error("No tenant");
 
@@ -264,10 +289,7 @@ export const regenerateThumbnails = createServerFn({ method: "POST" })
         .eq("tenant_id", tenantId)
         .not("public_url", "is", null)
         .limit(data.limit),
-      supabase
-        .from("custom_crop_sizes")
-        .select("name, width, height")
-        .eq("tenant_id", tenantId),
+      supabase.from("custom_crop_sizes").select("name, width, height").eq("tenant_id", tenantId),
     ]);
 
     const mediaRows = (media ?? []) as Array<{ public_url: string | null }>;
@@ -285,7 +307,8 @@ export const regenerateThumbnails = createServerFn({ method: "POST" })
         try {
           const res = await fetch(url, { method: "HEAD" });
           const success = res.ok;
-          if (success) ok++; else failed++;
+          if (success) ok++;
+          else failed++;
           details.push({ url, size: s.name, ok: success, status: res.status });
         } catch {
           failed++;

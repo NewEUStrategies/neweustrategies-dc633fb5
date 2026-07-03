@@ -95,7 +95,9 @@ async function verifyTable(table: string): Promise<TableReport> {
     }
     rowsWithWarnings++;
     totalWarnings += audit.warnings.length;
-    console.log(`  ⚠ ${table}/${ref}: ${audit.warnings.length} warning(s) across ${audit.htmlBodies} text body(ies)`);
+    console.log(
+      `  ⚠ ${table}/${ref}: ${audit.warnings.length} warning(s) across ${audit.htmlBodies} text body(ies)`,
+    );
     for (const w of audit.warnings) console.log(`      - ${w}`);
   }
 
@@ -123,7 +125,9 @@ async function main(): Promise<void> {
       `${rowsWithWarnings} row(s) with warnings · ${totalWarnings} warning(s) total.`,
   );
   if (totalWarnings > 0) {
-    console.log("Review the warnings above. Revert a row if needed: UPDATE <table> SET editor='<blocks|richtext|markdown>' WHERE id='<id>';");
+    console.log(
+      "Review the warnings above. Revert a row if needed: UPDATE <table> SET editor='<blocks|richtext|markdown>' WHERE id='<id>';",
+    );
     process.exit(2);
   }
   console.log("All migrated builder content passed verification. ✓");

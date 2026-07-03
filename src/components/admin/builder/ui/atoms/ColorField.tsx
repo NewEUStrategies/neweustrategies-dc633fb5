@@ -15,7 +15,9 @@ interface Props {
 
 const isHex = (v: string): v is `#${string}` => /^#[0-9a-fA-F]{3,8}$/.test(v);
 const isTransparent = (v: string) =>
-  v.trim().toLowerCase() === "transparent" || v.trim() === "rgba(0,0,0,0)" || v.trim() === "#00000000";
+  v.trim().toLowerCase() === "transparent" ||
+  v.trim() === "rgba(0,0,0,0)" ||
+  v.trim() === "#00000000";
 
 export function ColorField({ value, onChange, placeholder, inheritedValue }: Props) {
   const v = value ?? "";
@@ -70,9 +72,7 @@ export function ColorField({ value, onChange, placeholder, inheritedValue }: Pro
         aria-pressed={transparent}
         title={transparent ? "Wyłącz przezroczystość" : "Ustaw przezroczyste"}
         className={`h-8 w-8 shrink-0 rounded border text-[10px] font-medium transition ${
-          transparent
-            ? ""
-            : "border-border text-muted-foreground hover:bg-muted"
+          transparent ? "" : "border-border text-muted-foreground hover:bg-muted"
         }`}
         style={
           transparent

@@ -16,9 +16,26 @@ export interface I18nField {
 }
 
 const I18N_BASE_KEYS = new Set<string>([
-  "text", "subtitle", "label", "title", "subtitle", "html", "alt",
-  "excerpt", "cta", "badge", "name", "trigger", "placeholder", "action",
-  "quote", "role", "period", "signin", "signup", "panel",
+  "text",
+  "subtitle",
+  "label",
+  "title",
+  "subtitle",
+  "html",
+  "alt",
+  "excerpt",
+  "cta",
+  "badge",
+  "name",
+  "trigger",
+  "placeholder",
+  "action",
+  "quote",
+  "role",
+  "period",
+  "signin",
+  "signup",
+  "panel",
 ]);
 
 type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
@@ -49,11 +66,7 @@ function walkSectionChildren(
     if (kind === "column" && Array.isArray(node.children)) {
       (node.children as unknown[]).forEach((widget, wi) => {
         if (!isObj(widget) || widget.kind !== "widget") return;
-        collectFromWidget(
-          widget as unknown as WidgetNode,
-          [...path, "children", wi],
-          out,
-        );
+        collectFromWidget(widget as unknown as WidgetNode, [...path, "children", wi], out);
       });
     } else if (kind === "inner-section" && Array.isArray(node.columns)) {
       walkSectionChildren(node.columns as unknown[], [...path, "columns"], out);
@@ -75,8 +88,10 @@ function collectFromWidget(
     if (seen.has(baseKey)) continue;
     if (!I18N_BASE_KEYS.has(baseKey)) continue;
     seen.add(baseKey);
-    const pl = typeof content[`${baseKey}_pl`] === "string" ? (content[`${baseKey}_pl`] as string) : "";
-    const en = typeof content[`${baseKey}_en`] === "string" ? (content[`${baseKey}_en`] as string) : "";
+    const pl =
+      typeof content[`${baseKey}_pl`] === "string" ? (content[`${baseKey}_pl`] as string) : "";
+    const en =
+      typeof content[`${baseKey}_en`] === "string" ? (content[`${baseKey}_en`] as string) : "";
     out.push({
       path: [...path, "content"],
       baseKey,

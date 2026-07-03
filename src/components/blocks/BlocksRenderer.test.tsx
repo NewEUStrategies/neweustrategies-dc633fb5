@@ -36,7 +36,9 @@ describe("BlocksRenderer", () => {
   it("sanitizes dangerous markup out of HTML blocks", () => {
     const { container } = render(
       <BlocksRenderer
-        doc={doc([{ id: "p1", type: "paragraph", data: { html: "<p>safe</p><script>alert(1)</script>" } }])}
+        doc={doc([
+          { id: "p1", type: "paragraph", data: { html: "<p>safe</p><script>alert(1)</script>" } },
+        ])}
       />,
     );
     expect(container.querySelector("script")).toBeNull();
@@ -46,7 +48,9 @@ describe("BlocksRenderer", () => {
   it("turns [fn]…[/fn] markers into a ref AND renders the footnotes section on first paint", () => {
     const { container } = render(
       <BlocksRenderer
-        doc={doc([{ id: "p1", type: "paragraph", data: { html: "<p>Claim[fn]the source[/fn].</p>" } }])}
+        doc={doc([
+          { id: "p1", type: "paragraph", data: { html: "<p>Claim[fn]the source[/fn].</p>" } },
+        ])}
         lang="en"
       />,
     );
@@ -71,7 +75,9 @@ describe("BlocksRenderer", () => {
             type: "columns",
             data: {
               left: [{ id: "l1", type: "paragraph", data: { html: "<p>Left[fn]first[/fn]</p>" } }],
-              right: [{ id: "r1", type: "paragraph", data: { html: "<p>Right[fn]second[/fn]</p>" } }],
+              right: [
+                { id: "r1", type: "paragraph", data: { html: "<p>Right[fn]second[/fn]</p>" } },
+              ],
             },
           },
         ])}
@@ -90,7 +96,17 @@ describe("BlocksRenderer", () => {
     const { container } = render(
       <BlocksRenderer
         doc={doc([
-          { id: "t1", type: "table", data: { header: true, rows: [["A", "B"], ["1", "2"]] } },
+          {
+            id: "t1",
+            type: "table",
+            data: {
+              header: true,
+              rows: [
+                ["A", "B"],
+                ["1", "2"],
+              ],
+            },
+          },
         ])}
       />,
     );

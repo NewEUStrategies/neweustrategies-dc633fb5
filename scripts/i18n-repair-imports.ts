@@ -9,7 +9,7 @@ const DIR = "src/components/admin/blocks/edit";
 const NEEDLE = `import { useBlocksI18n } from "@/lib/blocks/i18n";`;
 
 let fixed = 0;
-for (const file of readdirSync(DIR).filter(f => f.endsWith(".tsx"))) {
+for (const file of readdirSync(DIR).filter((f) => f.endsWith(".tsx"))) {
   const path = join(DIR, file);
   let src = readFileSync(path, "utf8");
   // Find all occurrences; if the needle was injected mid-token (not at start of a line),

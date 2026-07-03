@@ -9,36 +9,110 @@
  */
 import { forwardRef, lazy, Suspense, type SVGAttributes } from "react";
 import {
-  ArrowLeft as LArrowLeft, ArrowRight as LArrowRight, Bold as LBold, Check as LCheck,
-  ChevronDown as LChevronDown, ChevronLeft as LChevronLeft, ChevronRight as LChevronRight,
-  ChevronUp as LChevronUp, Circle as LCircle, Clock as LClock, Columns2 as LColumns2,
-  Copy as LCopy, Eye as LEye, File as LFile, FileText as LFileText, Flame as LFlame,
-  FolderTree as LFolderTree, GalleryHorizontal as LGalleryHorizontal, Globe as LGlobe,
-  GripVertical as LGripVertical, Heading1 as LHeading1, Heading2 as LHeading2,
-  Heading3 as LHeading3, Home as LHome, Image as LImage, Italic as LItalic,
-  Layers as LLayers, LayoutDashboard as LLayoutDashboard, Link as LLink, List as LList,
-  ListOrdered as LListOrdered, LogIn as LLogIn, LogOut as LLogOut, Mail as LMail,
-  MapPin as LMapPin, Megaphone as LMegaphone, Menu as LMenu, Minus as LMinus,
-  Monitor as LMonitor, Moon as LMoon, MoreHorizontal as LMoreHorizontal,
-  MousePointerClick as LMousePointerClick, MoveVertical as LMoveVertical,
-  Newspaper as LNewspaper, PanelLeft as LPanelLeft, Pencil as LPencil, Plus as LPlus,
-  Bookmark as LBookmark, BookmarkCheck as LBookmarkCheck, BookOpen as LBookOpen,
-  Quote as LQuote, Redo as LRedo, Loader2 as LLoader2, AlertTriangle as LAlertTriangle,
-  Rows as LRows, Save as LSave, Search as LSearch, Send as LSend, Settings as LSettings,
-  Smartphone as LSmartphone, Star as LStar, Sun as LSun, Tablet as LTablet, Tags as LTags,
-  Trash2 as LTrash2, Type as LType, Undo as LUndo, Upload as LUpload, User as LUser,
-  Users as LUsers, Video as LVideo, X as LX,
-  Lock as LLock, Palette as LPalette, LayoutGrid as LLayoutGrid, Sparkles as LSparkles, Shapes as LShapes,
-  SlidersHorizontal as LSlidersHorizontal, UserPlus as LUserPlus,
-
-  PanelsTopLeft as LPanelsTopLeft, CreditCard as LCreditCard, Play as LPlay, Pause as LPause,
-  Bell as LBell, Info as LInfo,
-  Mic as LMic, Film as LFilm, Brush as LBrush, Rss as LRss, ShieldCheck as LShieldCheck,
-  Cog as LCog, Wand2 as LWand2, Share2 as LShare2, Gauge as LGauge,
-  Link2Off as LLink2Off, FlaskConical as LFlaskConical,
-  Printer as LPrinter, Download as LDownload, RotateCcw as LRotateCcw,
-  Facebook as LFacebook, Instagram as LInstagram, Linkedin as LLinkedin,
-  Twitter as LTwitter, Youtube as LYoutube,
+  ArrowLeft as LArrowLeft,
+  ArrowRight as LArrowRight,
+  Bold as LBold,
+  Check as LCheck,
+  ChevronDown as LChevronDown,
+  ChevronLeft as LChevronLeft,
+  ChevronRight as LChevronRight,
+  ChevronUp as LChevronUp,
+  Circle as LCircle,
+  Clock as LClock,
+  Columns2 as LColumns2,
+  Copy as LCopy,
+  Eye as LEye,
+  File as LFile,
+  FileText as LFileText,
+  Flame as LFlame,
+  FolderTree as LFolderTree,
+  GalleryHorizontal as LGalleryHorizontal,
+  Globe as LGlobe,
+  GripVertical as LGripVertical,
+  Heading1 as LHeading1,
+  Heading2 as LHeading2,
+  Heading3 as LHeading3,
+  Home as LHome,
+  Image as LImage,
+  Italic as LItalic,
+  Layers as LLayers,
+  LayoutDashboard as LLayoutDashboard,
+  Link as LLink,
+  List as LList,
+  ListOrdered as LListOrdered,
+  LogIn as LLogIn,
+  LogOut as LLogOut,
+  Mail as LMail,
+  MapPin as LMapPin,
+  Megaphone as LMegaphone,
+  Menu as LMenu,
+  Minus as LMinus,
+  Monitor as LMonitor,
+  Moon as LMoon,
+  MoreHorizontal as LMoreHorizontal,
+  MousePointerClick as LMousePointerClick,
+  MoveVertical as LMoveVertical,
+  Newspaper as LNewspaper,
+  PanelLeft as LPanelLeft,
+  Pencil as LPencil,
+  Plus as LPlus,
+  Bookmark as LBookmark,
+  BookmarkCheck as LBookmarkCheck,
+  BookOpen as LBookOpen,
+  Quote as LQuote,
+  Redo as LRedo,
+  Loader2 as LLoader2,
+  AlertTriangle as LAlertTriangle,
+  Rows as LRows,
+  Save as LSave,
+  Search as LSearch,
+  Send as LSend,
+  Settings as LSettings,
+  Smartphone as LSmartphone,
+  Star as LStar,
+  Sun as LSun,
+  Tablet as LTablet,
+  Tags as LTags,
+  Trash2 as LTrash2,
+  Type as LType,
+  Undo as LUndo,
+  Upload as LUpload,
+  User as LUser,
+  Users as LUsers,
+  Video as LVideo,
+  X as LX,
+  Lock as LLock,
+  Palette as LPalette,
+  LayoutGrid as LLayoutGrid,
+  Sparkles as LSparkles,
+  Shapes as LShapes,
+  SlidersHorizontal as LSlidersHorizontal,
+  UserPlus as LUserPlus,
+  PanelsTopLeft as LPanelsTopLeft,
+  CreditCard as LCreditCard,
+  Play as LPlay,
+  Pause as LPause,
+  Bell as LBell,
+  Info as LInfo,
+  Mic as LMic,
+  Film as LFilm,
+  Brush as LBrush,
+  Rss as LRss,
+  ShieldCheck as LShieldCheck,
+  Cog as LCog,
+  Wand2 as LWand2,
+  Share2 as LShare2,
+  Gauge as LGauge,
+  Link2Off as LLink2Off,
+  FlaskConical as LFlaskConical,
+  Printer as LPrinter,
+  Download as LDownload,
+  RotateCcw as LRotateCcw,
+  Facebook as LFacebook,
+  Instagram as LInstagram,
+  Linkedin as LLinkedin,
+  Twitter as LTwitter,
+  Youtube as LYoutube,
   type LucideIcon as LucideIconImpl,
 } from "lucide-react";
 import { useIconPack } from "@/lib/iconPack";
@@ -58,7 +132,10 @@ export interface IconProps extends Omit<SVGAttributes<SVGSVGElement>, "color"> {
 
 function makeIcon(faName: string, LucideComp: LucideIconImpl): LucideIcon {
   const Comp = forwardRef<SVGSVGElement, IconProps>(
-    ({ size = 24, color, className, style, strokeWidth, absoluteStrokeWidth: _abs, ...rest }, ref) => {
+    (
+      { size = 24, color, className, style, strokeWidth, absoluteStrokeWidth: _abs, ...rest },
+      ref,
+    ) => {
       const pack = useIconPack();
       if (pack === "lucide") {
         return (
@@ -77,7 +154,14 @@ function makeIcon(faName: string, LucideComp: LucideIconImpl): LucideIcon {
       // fetched on demand; until then nothing renders (icons are non-blocking).
       return (
         <Suspense fallback={null}>
-          <FaGlyph name={faName} size={size} color={color} className={className} style={style} {...(rest as Record<string, unknown>)} />
+          <FaGlyph
+            name={faName}
+            size={size}
+            color={color}
+            className={className}
+            style={style}
+            {...(rest as Record<string, unknown>)}
+          />
         </Suspense>
       );
     },
@@ -193,7 +277,6 @@ export const Share2 = makeIcon("Share2", LShare2);
 export const Gauge = makeIcon("Gauge", LGauge);
 export const Printer = makeIcon("Printer", LPrinter);
 export const Download = makeIcon("Download", LDownload);
-
 
 // Brands
 export const Facebook = makeIcon("Facebook", LFacebook);

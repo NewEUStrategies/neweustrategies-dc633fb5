@@ -37,7 +37,15 @@ export function useToggleBookmark() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async ({ entityType, entityId, on }: { entityType: BookmarkEntityType; entityId: string; on: boolean }) => {
+    mutationFn: async ({
+      entityType,
+      entityId,
+      on,
+    }: {
+      entityType: BookmarkEntityType;
+      entityId: string;
+      on: boolean;
+    }) => {
       if (!user) throw new Error("Not authenticated");
       if (on) {
         const { error } = await supabase

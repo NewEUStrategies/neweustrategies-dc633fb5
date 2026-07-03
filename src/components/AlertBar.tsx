@@ -6,7 +6,16 @@ import * as Icons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
 
 type AlertStyle = "info" | "warning" | "success" | "brand";
-export const ALERT_ICONS = ["Megaphone", "Bell", "Info", "AlertTriangle", "Check", "Sparkles", "Flame", "Mail"] as const;
+export const ALERT_ICONS = [
+  "Megaphone",
+  "Bell",
+  "Info",
+  "AlertTriangle",
+  "Check",
+  "Sparkles",
+  "Flame",
+  "Mail",
+] as const;
 export type AlertIconName = (typeof ALERT_ICONS)[number] | "auto" | "none";
 
 type AlertBarCfg = {
@@ -28,8 +37,15 @@ type AlertBarCfg = {
 const DEFAULTS: AlertBarCfg = {
   header: {
     alert_bar: {
-      enabled: false, message_pl: "", message_en: "", link_url: "",
-      style: "brand", dismissible: true, icon: "auto", cta_label_pl: "", cta_label_en: "",
+      enabled: false,
+      message_pl: "",
+      message_en: "",
+      link_url: "",
+      style: "brand",
+      dismissible: true,
+      icon: "auto",
+      cta_label_pl: "",
+      cta_label_en: "",
     },
   },
 };
@@ -49,7 +65,10 @@ const STYLE_BTN: Record<AlertStyle, string> = {
 };
 
 const AUTO_ICON: Record<AlertStyle, AlertIconName> = {
-  brand: "Megaphone", info: "Info", warning: "AlertTriangle", success: "Check",
+  brand: "Megaphone",
+  info: "Info",
+  warning: "AlertTriangle",
+  success: "Check",
 };
 
 const STORAGE_KEY = "alert-bar-dismissed-v1";
@@ -63,14 +82,17 @@ export function AlertBar() {
   const lang = i18n.language ?? "pl";
   const isPl = lang.startsWith("pl");
   const msg = (isPl ? bar.message_pl : bar.message_en) || bar.message_pl || bar.message_en;
-  const cta = (isPl ? bar.cta_label_pl : bar.cta_label_en) || bar.cta_label_pl || bar.cta_label_en || "";
+  const cta =
+    (isPl ? bar.cta_label_pl : bar.cta_label_en) || bar.cta_label_pl || bar.cta_label_en || "";
   const fingerprint = `${bar.message_pl}|${bar.message_en}|${bar.link_url}|${bar.style}`;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       setDismissed(window.localStorage.getItem(STORAGE_KEY) === fingerprint);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [fingerprint]);
 
   const IconCmp = useMemo(() => {
@@ -95,10 +117,19 @@ export function AlertBar() {
   );
 
   return (
-    <div className={`w-full text-xs ${styleCls}`} role="region" aria-label={isPl ? "Pasek alertu" : "Alert bar"}>
+    <div
+      className={`w-full text-xs ${styleCls}`}
+      role="region"
+      aria-label={isPl ? "Pasek alertu" : "Alert bar"}
+    >
       <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-2 flex items-center gap-3">
         {hasLink && !cta ? (
-          <AppLink href={bar.link_url} className="flex-1 min-w-0 flex justify-center hover:underline">{Message}</AppLink>
+          <AppLink
+            href={bar.link_url}
+            className="flex-1 min-w-0 flex justify-center hover:underline"
+          >
+            {Message}
+          </AppLink>
         ) : (
           <div className="flex-1 min-w-0 flex justify-center">{Message}</div>
         )}
@@ -117,7 +148,11 @@ export function AlertBar() {
             type="button"
             onClick={() => {
               setDismissed(true);
-              try { window.localStorage.setItem(STORAGE_KEY, fingerprint); } catch { /* ignore */ }
+              try {
+                window.localStorage.setItem(STORAGE_KEY, fingerprint);
+              } catch {
+                /* ignore */
+              }
             }}
             aria-label={isPl ? "Zamknij pasek alertu" : "Dismiss alert bar"}
             className="shrink-0 p-1 rounded hover:bg-black/10 transition"

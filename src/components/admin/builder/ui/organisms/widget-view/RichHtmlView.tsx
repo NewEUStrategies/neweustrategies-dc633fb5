@@ -37,7 +37,12 @@ export function RichHtmlView({ html, className, style }: Props) {
 
   return (
     <>
-      <div ref={ref} className={className} style={style} dangerouslySetInnerHTML={{ __html: safe }} />
+      <div
+        ref={ref}
+        className={className}
+        style={style}
+        dangerouslySetInnerHTML={{ __html: safe }}
+      />
       {notes.length > 0 && <FootnoteTooltips notes={notes} containerRef={ref} />}
     </>
   );

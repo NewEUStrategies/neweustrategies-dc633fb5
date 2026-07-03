@@ -9,9 +9,7 @@ const TTL = 2 * 60_000;
 
 // ---------- helpers --------------------------------------------------------
 
-async function hydrateHref(
-  rows: Array<Omit<BlogListItem, "href">>,
-): Promise<BlogListItem[]> {
+async function hydrateHref(rows: Array<Omit<BlogListItem, "href">>): Promise<BlogListItem[]> {
   if (rows.length === 0) return [];
   const parentIds = Array.from(new Set(rows.map((r) => r.parent_page_id)));
   const paths = new Map<string, string>();
@@ -129,7 +127,9 @@ export const taxonomyArchiveQueryOptions = (kind: TaxonomyKind, slug: string) =>
       if (kind === "category") {
         const { data: tax } = await supabase
           .from("categories")
-          .select("id, slug, name_pl, name_en, description_pl, description_en, featured_template_id")
+          .select(
+            "id, slug, name_pl, name_en, description_pl, description_en, featured_template_id",
+          )
           .eq("slug", slug)
           .maybeSingle();
         if (!tax) return null;
@@ -253,7 +253,10 @@ export const searchQueryOptions = (filters: SearchFilters) =>
 
       // Facets: derived from the (pre-category-filter) match set so users can
       // discover other matching categories.
-      const facets = await computeFacets(rows.map((r) => r.id), rows);
+      const facets = await computeFacets(
+        rows.map((r) => r.id),
+        rows,
+      );
       return { posts, facets };
     },
     staleTime: 30_000,

@@ -48,17 +48,28 @@ export function ContentAreaStyle() {
   text-underline-offset: 3px;
 }
 .post-content a:hover { opacity: .8; }
-${s.image_caption_left_border ? `
+${
+  s.image_caption_left_border
+    ? `
 .post-content figcaption {
   border-left: 3px solid var(--pc-link);
   padding-left: .75rem;
-}` : ""}
-${s.center_header ? `
-.post-header { text-align: center; }` : ""}
-${s.center_entry_meta ? `
-.post-meta { justify-content: center; }` : ""}
+}`
+    : ""
+}
+${
+  s.center_header
+    ? `
+.post-header { text-align: center; }`
+    : ""
+}
+${
+  s.center_entry_meta
+    ? `
+.post-meta { justify-content: center; }`
+    : ""
+}
 `.replace(/\s+\n/g, "\n");
 
-  // eslint-disable-next-line react/no-danger
   return <style data-content-area dangerouslySetInnerHTML={{ __html: css }} />;
 }

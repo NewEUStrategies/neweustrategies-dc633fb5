@@ -143,9 +143,12 @@ export function InlineText({
           isEmpty && "italic text-muted-foreground/70",
         )}
       >
-        {isEmpty ? emptyLabel ?? placeholder ?? "" : display}
+        {isEmpty ? (emptyLabel ?? placeholder ?? "") : display}
       </span>
-      <Pencil className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60" aria-hidden />
+      <Pencil
+        className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60"
+        aria-hidden
+      />
     </button>
   );
 }

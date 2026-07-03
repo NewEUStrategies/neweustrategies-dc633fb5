@@ -16,11 +16,16 @@ import { cn } from "@/lib/utils";
 
 function intervalLabel(interval: AccessPlan["interval"], t: (key: string) => string): string {
   switch (interval) {
-    case "day": return t("pricing.perDay");
-    case "week": return t("pricing.perWeek");
-    case "month": return t("pricing.perMonth");
-    case "year": return t("pricing.perYear");
-    case "once": return t("pricing.perOnce");
+    case "day":
+      return t("pricing.perDay");
+    case "week":
+      return t("pricing.perWeek");
+    case "month":
+      return t("pricing.perMonth");
+    case "year":
+      return t("pricing.perYear");
+    case "once":
+      return t("pricing.perOnce");
   }
 }
 
@@ -51,7 +56,9 @@ export function PlanCard({ plan, isCurrent }: { plan: AccessPlan; isCurrent?: bo
           <span className="text-4xl font-bold tracking-tight">
             {formatMoney(plan.price_cents, plan.currency, lang)}
           </span>
-          <span className="ml-1 text-sm text-muted-foreground">{intervalLabel(plan.interval, t)}</span>
+          <span className="ml-1 text-sm text-muted-foreground">
+            {intervalLabel(plan.interval, t)}
+          </span>
         </div>
         {plan.trial_days > 0 && (
           <p className="text-xs text-primary">{t("pricing.trial", { days: plan.trial_days })}</p>

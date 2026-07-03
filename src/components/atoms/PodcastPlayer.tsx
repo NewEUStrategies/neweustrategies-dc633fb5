@@ -53,19 +53,29 @@ export function PodcastPlayer({
     };
   }, [initialDuration]);
 
-  useEffect(() => { if (audioRef.current) audioRef.current.playbackRate = speed; }, [speed]);
-  useEffect(() => { if (audioRef.current) audioRef.current.muted = muted; }, [muted]);
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = speed;
+  }, [speed]);
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.muted = muted;
+  }, [muted]);
 
   const toggle = () => {
     const a = audioRef.current;
     if (!a) return;
-    if (a.paused) { void a.play(); setPlaying(true); } else { a.pause(); setPlaying(false); }
+    if (a.paused) {
+      void a.play();
+      setPlaying(true);
+    } else {
+      a.pause();
+      setPlaying(false);
+    }
   };
 
   const skip = (delta: number) => {
     const a = audioRef.current;
     if (!a) return;
-    a.currentTime = Math.max(0, Math.min((a.duration || duration), a.currentTime + delta));
+    a.currentTime = Math.max(0, Math.min(a.duration || duration, a.currentTime + delta));
   };
 
   const onSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,8 +85,22 @@ export function PodcastPlayer({
   };
 
   const t = (k: "play" | "pause" | "back" | "fwd" | "speed" | "mute") => {
-    const pl = { play: "Odtwórz", pause: "Pauza", back: "−15s", fwd: "+15s", speed: "Tempo", mute: "Wycisz" };
-    const en = { play: "Play", pause: "Pause", back: "−15s", fwd: "+15s", speed: "Speed", mute: "Mute" };
+    const pl = {
+      play: "Odtwórz",
+      pause: "Pauza",
+      back: "−15s",
+      fwd: "+15s",
+      speed: "Tempo",
+      mute: "Wycisz",
+    };
+    const en = {
+      play: "Play",
+      pause: "Pause",
+      back: "−15s",
+      fwd: "+15s",
+      speed: "Speed",
+      mute: "Mute",
+    };
     return (lang === "en" ? en : pl)[k];
   };
 
@@ -88,7 +112,9 @@ export function PodcastPlayer({
       data-variant={variant}
       className={[
         "flex items-center gap-3 rounded-lg border border-border bg-card text-foreground p-3",
-        variant === "sticky" ? "fixed bottom-0 left-0 right-0 z-30 rounded-none border-x-0 border-b-0 shadow-2xl" : "",
+        variant === "sticky"
+          ? "fixed bottom-0 left-0 right-0 z-30 rounded-none border-x-0 border-b-0 shadow-2xl"
+          : "",
         className ?? "",
       ].join(" ")}
       role="region"
@@ -97,7 +123,8 @@ export function PodcastPlayer({
       <audio ref={audioRef} src={src} preload="metadata" autoPlay={autoPlay} />
 
       <button
-        type="button" onClick={toggle}
+        type="button"
+        onClick={toggle}
         aria-label={playing ? t("pause") : t("play")}
         className="h-11 w-11 shrink-0 rounded-full bg-brand text-brand-foreground flex items-center justify-center hover:scale-105 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
@@ -106,10 +133,20 @@ export function PodcastPlayer({
 
       {!compact && (
         <>
-          <button type="button" onClick={() => skip(-15)} aria-label={t("back")} className="h-9 w-9 rounded-full border border-border flex items-center justify-center text-xs hover:bg-muted">
+          <button
+            type="button"
+            onClick={() => skip(-15)}
+            aria-label={t("back")}
+            className="h-9 w-9 rounded-full border border-border flex items-center justify-center text-xs hover:bg-muted"
+          >
             <Rewind className="w-4 h-4" />
           </button>
-          <button type="button" onClick={() => skip(15)} aria-label={t("fwd")} className="h-9 w-9 rounded-full border border-border flex items-center justify-center text-xs hover:bg-muted">
+          <button
+            type="button"
+            onClick={() => skip(15)}
+            aria-label={t("fwd")}
+            className="h-9 w-9 rounded-full border border-border flex items-center justify-center text-xs hover:bg-muted"
+          >
             <FastForward className="w-4 h-4" />
           </button>
         </>
@@ -118,13 +155,22 @@ export function PodcastPlayer({
       <div className="flex-1 min-w-0">
         {title && !compact && <div className="text-xs font-medium truncate mb-1">{title}</div>}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] tabular-nums text-muted-foreground w-10">{formatDuration(time)}</span>
+          <span className="text-[11px] tabular-nums text-muted-foreground w-10">
+            {formatDuration(time)}
+          </span>
           <input
-            type="range" min={0} max={duration || 0} step={1} value={time} onChange={onSeek}
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={1}
+            value={time}
+            onChange={onSeek}
             aria-label="Seek"
             className="flex-1 h-1 accent-brand"
           />
-          <span className="text-[11px] tabular-nums text-muted-foreground w-12 text-right">{formatDuration(duration)}</span>
+          <span className="text-[11px] tabular-nums text-muted-foreground w-12 text-right">
+            {formatDuration(duration)}
+          </span>
         </div>
       </div>
 
@@ -135,12 +181,21 @@ export function PodcastPlayer({
           onChange={(e) => setSpeed(Number(e.target.value))}
           className="text-xs bg-background border border-border rounded px-1.5 py-1"
         >
-          {SPEEDS.map((s) => <option key={s} value={s}>{s}×</option>)}
+          {SPEEDS.map((s) => (
+            <option key={s} value={s}>
+              {s}×
+            </option>
+          ))}
         </select>
       )}
 
       {!compact && (
-        <button type="button" onClick={() => setMuted((m) => !m)} aria-label={t("mute")} className="h-9 w-9 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted">
+        <button
+          type="button"
+          onClick={() => setMuted((m) => !m)}
+          aria-label={t("mute")}
+          className="h-9 w-9 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted"
+        >
           {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
         </button>
       )}

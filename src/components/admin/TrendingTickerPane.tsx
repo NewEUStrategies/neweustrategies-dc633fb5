@@ -87,7 +87,10 @@ const COPY = {
   },
 } as const;
 
-interface PostOption { id: string; title: string }
+interface PostOption {
+  id: string;
+  title: string;
+}
 
 export function TrendingTickerPane() {
   const qc = useQueryClient();
@@ -153,7 +156,8 @@ export function TrendingTickerPane() {
     setCfg((c) => ({ ...c, [k]: v }));
 
   const previewKey = useMemo(
-    () => `${cfg.source}-${cfg.mode}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}`,
+    () =>
+      `${cfg.source}-${cfg.mode}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}`,
     [cfg],
   );
 
@@ -166,8 +170,14 @@ export function TrendingTickerPane() {
 
       <div className="rounded-[5px] border border-border p-4 space-y-4 bg-card">
         <div className="flex items-center justify-between">
-          <Label htmlFor="tt-enabled" className="font-medium">{t.enabled}</Label>
-          <Switch id="tt-enabled" checked={cfg.enabled} onCheckedChange={(v) => set("enabled", v)} />
+          <Label htmlFor="tt-enabled" className="font-medium">
+            {t.enabled}
+          </Label>
+          <Switch
+            id="tt-enabled"
+            checked={cfg.enabled}
+            onCheckedChange={(v) => set("enabled", v)}
+          />
         </div>
 
         <div className="space-y-1.5">
@@ -214,22 +224,40 @@ export function TrendingTickerPane() {
           {cfg.source === "trending" && (
             <div className="space-y-1.5">
               <Label htmlFor="tt-days">{t.days}</Label>
-              <Input id="tt-days" type="number" min={1} max={90} value={cfg.days}
-                onChange={(e) => set("days", Math.max(1, Number(e.target.value) || 1))} />
+              <Input
+                id="tt-days"
+                type="number"
+                min={1}
+                max={90}
+                value={cfg.days}
+                onChange={(e) => set("days", Math.max(1, Number(e.target.value) || 1))}
+              />
             </div>
           )}
           {cfg.source !== "pinned" && (
             <div className="space-y-1.5">
               <Label htmlFor="tt-limit">{t.limit}</Label>
-              <Input id="tt-limit" type="number" min={1} max={30} value={cfg.limit}
-                onChange={(e) => set("limit", Math.max(1, Number(e.target.value) || 1))} />
+              <Input
+                id="tt-limit"
+                type="number"
+                min={1}
+                max={30}
+                value={cfg.limit}
+                onChange={(e) => set("limit", Math.max(1, Number(e.target.value) || 1))}
+              />
             </div>
           )}
           {cfg.mode === "rotate" && (
             <div className="space-y-1.5">
               <Label htmlFor="tt-int">{t.interval}</Label>
-              <Input id="tt-int" type="number" min={2} max={120} value={cfg.intervalSec}
-                onChange={(e) => set("intervalSec", Math.max(2, Number(e.target.value) || 2))} />
+              <Input
+                id="tt-int"
+                type="number"
+                min={2}
+                max={120}
+                value={cfg.intervalSec}
+                onChange={(e) => set("intervalSec", Math.max(2, Number(e.target.value) || 2))}
+              />
             </div>
           )}
         </div>
@@ -246,26 +274,42 @@ export function TrendingTickerPane() {
               >
                 <option value="">-</option>
                 {posts?.map((p) => (
-                  <option key={p.id} value={p.id}>{p.title}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
                 ))}
               </select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tt-pid">{t.pinnedId}</Label>
-              <Input id="tt-pid" value={cfg.pinnedPostId}
-                onChange={(e) => set("pinnedPostId", e.target.value.trim())} placeholder="00000000-0000-0000-0000-000000000000" />
+              <Input
+                id="tt-pid"
+                value={cfg.pinnedPostId}
+                onChange={(e) => set("pinnedPostId", e.target.value.trim())}
+                placeholder="00000000-0000-0000-0000-000000000000"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tt-until">{t.pinnedUntil}</Label>
-              <Input id="tt-until" type="datetime-local" value={cfg.pinnedUntil}
-                onChange={(e) => set("pinnedUntil", e.target.value)} />
+              <Input
+                id="tt-until"
+                type="datetime-local"
+                value={cfg.pinnedUntil}
+                onChange={(e) => set("pinnedUntil", e.target.value)}
+              />
             </div>
           </div>
         )}
 
         <div className="flex items-center justify-between pt-1">
-          <Label htmlFor="tt-full" className="font-medium">{t.full}</Label>
-          <Switch id="tt-full" checked={cfg.fullWidth} onCheckedChange={(v) => set("fullWidth", v)} />
+          <Label htmlFor="tt-full" className="font-medium">
+            {t.full}
+          </Label>
+          <Switch
+            id="tt-full"
+            checked={cfg.fullWidth}
+            onCheckedChange={(v) => set("fullWidth", v)}
+          />
         </div>
       </div>
 
