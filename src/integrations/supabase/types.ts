@@ -3728,6 +3728,10 @@ export type Database = {
           website_url: string
         }[]
       }
+      admin_update_user_avatar: {
+        Args: { _avatar_url: string; _user_id: string }
+        Returns: undefined
+      }
       can_publish_content: { Args: { _user_id?: string }; Returns: boolean }
       change_user_role: {
         Args: {

@@ -1,6 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,8 +29,11 @@ import {
   Facebook,
   Instagram,
   Music2,
+  Camera,
+  Loader2,
 } from "lucide-react";
 import { impersonateUser } from "@/lib/admin/impersonation";
+
 
 export const Route = createFileRoute("/admin/users/$id")({
   component: UserDetail,
@@ -42,7 +47,7 @@ function UserDetail() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, tenantId } = useAuth();
   const locale = i18n.language === "pl" ? "pl-PL" : "en-US";
   const isPL = i18n.language === "pl";
   const L = (pl: string, en: string) => (isPL ? pl : en);
@@ -139,15 +144,16 @@ function UserDetail() {
           <div className="w-full h-24 bg-gradient-to-r from-muted/40 to-muted/20" />
         )}
         <div className="p-5 md:p-6 flex flex-col md:flex-row md:items-end gap-4 md:gap-6 -mt-12 md:-mt-16">
-          {data.avatar_url ? (
-            <img
-              src={data.avatar_url}
-              alt=""
-              className="w-24 h-24 md:w-28 md:h-28 rounded-full object-cover border-4 border-card shadow-sm"
-            />
-          ) : (
-            <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-muted border-4 border-card" />
-          )}
+          <AvatarEditor
+            userId={data.id}
+            tenantId={tenantId}
+            avatarUrl={data.avatar_url}
+            canEdit={isSuperAdmin}
+            onUpdated={() => qc.invalidateQueries({ queryKey: ["admin-user", id] })}
+            label={L("Zmień zdjęcie", "Change photo")}
+          />
+
+
           <div className="flex-1 min-w-0">
             <h1 className="font-display text-2xl md:text-3xl font-bold truncate">{fullName}</h1>
             {data.display_name && data.display_name !== fullName && (
@@ -362,6 +368,77 @@ function Field({
       >
         {value}
       </div>
+    </div>
+  );
+}
+
+function AvatarEditor({
+  userId,
+  tenantId,
+  avatarUrl,
+  canEdit,
+  onUpdated,
+  label,
+}: {
+  userId: string;
+  tenantId: string | null;
+  avatarUrl: string | null;
+  canEdit: boolean;
+  onUpdated: () => void;
+  label: string;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const handlePick = async (file: File) => {
+    if (!tenantId) { toast.error("Brak kontekstu tenanta"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Plik za duży (max 5 MB)"); return; }
+    setBusy(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = tenantId + "/users/" + userId + "/avatar-" + Date.now() + "." + ext;
+      const { data: signed, error: signErr } = await supabase.storage
+        .from("media").createSignedUploadUrl(path);
+      if (signErr || !signed) throw signErr ?? new Error("sign failed");
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", signed.signedUrl);
+        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        xhr.setRequestHeader("x-upsert", "true");
+        xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error("HTTP " + xhr.status));
+        xhr.onerror = () => reject(new Error("network"));
+        xhr.send(file);
+      });
+      const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
+      const { error: updErr } = await supabase.rpc("admin_update_user_avatar", {
+        _user_id: userId, _avatar_url: pub.publicUrl,
+      });
+      if (updErr) throw updErr;
+      toast.success("Zapisano");
+      onUpdated();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="relative group">
+      {avatarUrl ? (
+        <img src={avatarUrl} alt="" className="w-24 h-24 md:w-28 md:h-28 rounded-md object-cover border-4 border-card shadow-sm" />
+      ) : (
+        <div className="w-24 h-24 md:w-28 md:h-28 rounded-md bg-muted border-4 border-card" />
+      )}
+      {canEdit && (
+        <>
+          <input ref={inputRef} type="file" accept="image/*" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void handlePick(f); e.currentTarget.value = ""; }} />
+          <button type="button" disabled={busy} onClick={() => inputRef.current?.click()}
+            className="absolute inset-0 rounded-md flex items-center justify-center bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-100"
+            aria-label={label} title={label}>
+            {busy ? <Loader2 className="w-6 h-6 animate-spin" /> : <Camera className="w-6 h-6" />}
+          </button>
+        </>
+      )}
     </div>
   );
 }
