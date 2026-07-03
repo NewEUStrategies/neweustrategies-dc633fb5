@@ -144,14 +144,14 @@ export function AdminColorPicker({
             style={swatchStyle}
           />
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-64 p-3 space-y-3">
-          <div className="[&_.react-colorful]:w-full [&_.react-colorful]:h-40 [&_.react-colorful\\_\\_saturation]:rounded-md [&_.react-colorful\\_\\_hue]:h-3 [&_.react-colorful\\_\\_hue]:mt-2 [&_.react-colorful\\_\\_hue]:rounded-full">
+        <PopoverContent align="start" className="w-[228px] p-2.5 space-y-2">
+          <div className="admin-color-picker-canvas">
             <HexColorPicker color={hexForPicker} onChange={commitHex} />
           </div>
 
           {/* HEX first — most important */}
-          <div className="space-y-1">
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">HEX</label>
+          <div className="space-y-0.5">
+            <label className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">HEX</label>
             <Input
               value={hexDraft.toUpperCase()}
               onChange={(e) => {
@@ -159,15 +159,15 @@ export function AdminColorPicker({
                 setHexDraft(next);
                 if (isHex(next)) onChange(expandHex(next));
               }}
-              className="h-8 text-xs font-mono uppercase"
+              className="h-7 text-[11px] font-mono uppercase px-2"
               spellCheck={false}
             />
           </div>
 
           {/* RGB */}
-          <div className="space-y-1">
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">RGB</label>
-            <div className="grid grid-cols-3 gap-1.5">
+          <div className="space-y-0.5">
+            <label className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">RGB</label>
+            <div className="grid grid-cols-3 gap-1">
               {(["r", "g", "b"] as const).map((k) => (
                 <div key={k} className="relative">
                   <Input
@@ -180,9 +180,9 @@ export function AdminColorPicker({
                       const next = { ...rgb, [k]: n };
                       commitHex(rgbToHex(next.r, next.g, next.b));
                     }}
-                    className="h-8 text-xs pr-5 font-mono"
+                    className="h-7 text-[11px] pl-1.5 pr-4 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] uppercase text-muted-foreground pointer-events-none">
+                  <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] uppercase text-muted-foreground pointer-events-none font-semibold">
                     {k}
                   </span>
                 </div>
@@ -191,9 +191,9 @@ export function AdminColorPicker({
           </div>
 
           {/* HSL */}
-          <div className="space-y-1">
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">HSL</label>
-            <div className="grid grid-cols-3 gap-1.5">
+          <div className="space-y-0.5">
+            <label className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">HSL</label>
+            <div className="grid grid-cols-3 gap-1">
               {(["h", "s", "l"] as const).map((k) => (
                 <div key={k} className="relative">
                   <Input
@@ -207,9 +207,9 @@ export function AdminColorPicker({
                       const c = hslToRgb(next.h, next.s, next.l);
                       commitHex(rgbToHex(c.r, c.g, c.b));
                     }}
-                    className="h-8 text-xs pr-5 font-mono"
+                    className="h-7 text-[11px] pl-1.5 pr-4 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] uppercase text-muted-foreground pointer-events-none">
+                  <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] uppercase text-muted-foreground pointer-events-none font-semibold">
                     {k}
                   </span>
                 </div>
