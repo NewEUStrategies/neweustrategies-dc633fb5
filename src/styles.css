@@ -1668,7 +1668,56 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     max-width: 100% !important;
     flex-wrap: wrap;
   }
+  /* Mobile compactness: post-list card variant becomes a shorter, dense card.
+     On narrow screens a full-column 4/3 cover + long title + full excerpt can
+     stack to 700px+ per post; clamp cover ratio, excerpt lines, and paddings
+     so a single card fits comfortably above the fold. */
+  [data-builder-renderer] [data-debug-type="post-list"] .aspect-\[4\/3\],
+  [data-builder-renderer] [data-debug-type="post-list"] .aspect-\[3\/4\],
+  [data-builder-renderer] [data-debug-type="post-list"] .aspect-square {
+    aspect-ratio: 16 / 9 !important;
+  }
+  [data-builder-renderer] [data-debug-type="post-list"] .cms-post-excerpt,
+  [data-builder-renderer] [data-debug-type="rated-list"] .cms-post-excerpt {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+  [data-builder-renderer] [data-debug-type="post-list"] .cms-post-title,
+  [data-builder-renderer] [data-debug-type="rated-list"] .cms-post-title {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 3 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+  /* Remove any vertical fillers that push content-alignment on mobile. */
+  [data-builder-renderer] [data-col-id] {
+    justify-content: flex-start !important;
+    align-content: flex-start !important;
+    min-height: 0 !important;
+  }
+  [data-builder-renderer] [data-col-id] > .flex-1 {
+    flex: 0 0 auto !important;
+  }
+  /* Widget items in a column must NOT claim 100% of column height on mobile -
+     desktop uses flex-basis:100% + height:100% to make a hero widget fill
+     the column, which on a narrow mobile column stretches every widget to
+     the tallest sibling and creates huge empty gaps. */
+  [data-builder-renderer] [data-col-id] > [data-widget-id] {
+    flex: 0 0 auto !important;
+    flex-basis: auto !important;
+    align-self: stretch !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+  [data-builder-renderer] [data-col-id] > [data-widget-id] > * {
+    height: auto !important;
+    min-height: 0 !important;
+  }
 }
+
+
 @media (min-width: 768px) and (max-width: 1023px) {
   [data-builder-renderer] [data-columns-row] {
     gap: 14px !important;
