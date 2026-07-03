@@ -129,8 +129,8 @@ export function PostLayoutRenderer({
         <ReadingHeader title={title} />
         <div className={`relative ${preset.cover === "full-bleed" ? "-mx-4 lg:-mx-8" : ""}`}>
           <div className="relative mb-8">
-            {/* Cover image */}
-            <div className="relative h-[62vh] min-h-[420px] rounded-lg overflow-hidden">
+            {/* Cover image - wysokie, dominujące */}
+            <div className="relative h-[70vh] min-h-[520px] rounded-lg overflow-hidden">
               <OptimizedImage
                 src={coverImageUrl}
                 alt={title}
@@ -139,33 +139,37 @@ export function PostLayoutRenderer({
                 responsive
                 sizes={coverImageSizes(preset)}
               />
-              {/* Delikatny gradient dla czytelności krawędzi obrazu */}
-              <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/40" />
+              {/* Ciemny gradient dla czytelności */}
+              <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/10 to-black/60" />
             </div>
 
-            {/* Meta-blok nachodzący na centralną część zdjęcia (nie na pełną szerokość).
-                Kategorie "wystają" ponad krawędź, dając charakterystyczny akcent. */}
-            <div className="relative -mt-24 lg:-mt-32 mx-4 lg:mx-auto lg:max-w-3xl px-4">
-              <div className={`relative bg-[#0b0b0d] text-white rounded-lg shadow-2xl ${center ? "text-center" : ""}`}>
-                {categoryBadges && (
-                  <div
-                    className={`absolute -top-4 left-0 right-0 px-6 lg:px-10 flex flex-wrap gap-2 ${
-                      center ? "justify-center" : ""
-                    }`}
+            {/* Meta-karta nachodzi na centralną-dolną część zdjęcia (zawężona szerokość). */}
+            <div className="relative -mt-40 lg:-mt-56 mx-4 lg:mx-auto lg:max-w-4xl px-2 lg:px-6">
+              <div className={`relative bg-[#0b0b0d] text-white rounded-sm shadow-2xl ${center ? "text-center" : ""}`}>
+                <div className="px-6 lg:px-12 pt-8 pb-7 lg:pt-10 lg:pb-9">
+                  {categoryBadges && (
+                    <div
+                      className={`mb-5 flex flex-wrap gap-2 ${
+                        center ? "justify-center" : ""
+                      }`}
+                    >
+                      {categoryBadges}
+                    </div>
+                  )}
+                  <h1
+                    className="font-display font-bold text-white text-3xl lg:text-[2.75rem] leading-[1.15] mb-4"
+                    style={{ fontFamily: 'var(--font-display, "Red Hat Display")' }}
                   >
-                    {categoryBadges}
-                  </div>
-                )}
-                <div className="px-6 lg:px-10 pt-10 pb-8 lg:pt-12 lg:pb-10">
-                  <h1 className="font-display text-3xl lg:text-5xl leading-tight mb-3 text-white">{title}</h1>
+                    {title}
+                  </h1>
                   {excerpt && (
-                    <p className="text-base lg:text-lg text-white/85 mb-4 max-w-2xl mx-auto">
+                    <p className="text-base lg:text-lg text-white/85 mb-5 max-w-3xl mx-auto leading-relaxed">
                       {excerpt}
                     </p>
                   )}
                   {meta && (
                     <div
-                      className={`text-sm flex flex-wrap items-center gap-x-4 gap-y-1 text-white/75 pt-4 border-t border-white/10 ${
+                      className={`text-sm flex flex-wrap items-center gap-x-4 gap-y-1 text-white/70 pt-4 border-t border-white/10 ${
                         center ? "justify-center" : ""
                       }`}
                     >
@@ -176,6 +180,7 @@ export function PostLayoutRenderer({
               </div>
             </div>
           </div>
+
 
           <LayoutBody
             contentMaxW={contentMaxW}
