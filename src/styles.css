@@ -2339,3 +2339,29 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   color: hsl(var(--foreground)) !important;
   border-color: #FDB078 !important;
 }
+
+/* ==========================================================================
+   AdminColorPicker — kompaktowy popover z react-colorful
+   ========================================================================== */
+.admin-color-picker-canvas .react-colorful {
+  width: 100% !important;
+  height: 180px !important;
+  gap: 8px;
+}
+.admin-color-picker-canvas .react-colorful__saturation {
+  border-radius: 6px;
+  border-bottom: none;
+}
+.admin-color-picker-canvas .react-colorful__hue {
+  height: 10px !important;
+  border-radius: 999px;
+}
+.admin-color-picker-canvas .react-colorful__pointer {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+.admin-color-picker-canvas .react-colorful__saturation-pointer {
+  width: 14px;
+  height: 14px;
+}
