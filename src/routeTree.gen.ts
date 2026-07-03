@@ -34,6 +34,7 @@ import { Route as ProfileSocialRouteImport } from './routes/profile.social'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
 import { Route as ProfilePersonalityRouteImport } from './routes/profile.personality'
 import { Route as ProfileOrdersRouteImport } from './routes/profile.orders'
+import { Route as ProfileNotificationsRouteImport } from './routes/profile.notifications'
 import { Route as ProfileInterestsRouteImport } from './routes/profile.interests'
 import { Route as ProfileFollowsRouteImport } from './routes/profile.follows'
 import { Route as ProfileBookmarksRouteImport } from './routes/profile.bookmarks'
@@ -234,6 +235,11 @@ const ProfilePersonalityRoute = ProfilePersonalityRouteImport.update({
 const ProfileOrdersRoute = ProfileOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
+  getParentRoute: () => ProfileRoute,
+} as any)
+const ProfileNotificationsRoute = ProfileNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => ProfileRoute,
 } as any)
 const ProfileInterestsRoute = ProfileInterestsRouteImport.update({
@@ -686,6 +692,7 @@ export interface FileRoutesByFullPath {
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
+  '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/security': typeof ProfileSecurityRoute
@@ -785,6 +792,7 @@ export interface FileRoutesByTo {
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
+  '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/security': typeof ProfileSecurityRoute
@@ -889,6 +897,7 @@ export interface FileRoutesById {
   '/profile/bookmarks': typeof ProfileBookmarksRoute
   '/profile/follows': typeof ProfileFollowsRoute
   '/profile/interests': typeof ProfileInterestsRoute
+  '/profile/notifications': typeof ProfileNotificationsRoute
   '/profile/orders': typeof ProfileOrdersRoute
   '/profile/personality': typeof ProfilePersonalityRoute
   '/profile/security': typeof ProfileSecurityRoute
@@ -994,6 +1003,7 @@ export interface FileRouteTypes {
     | '/profile/bookmarks'
     | '/profile/follows'
     | '/profile/interests'
+    | '/profile/notifications'
     | '/profile/orders'
     | '/profile/personality'
     | '/profile/security'
@@ -1093,6 +1103,7 @@ export interface FileRouteTypes {
     | '/profile/bookmarks'
     | '/profile/follows'
     | '/profile/interests'
+    | '/profile/notifications'
     | '/profile/orders'
     | '/profile/personality'
     | '/profile/security'
@@ -1196,6 +1207,7 @@ export interface FileRouteTypes {
     | '/profile/bookmarks'
     | '/profile/follows'
     | '/profile/interests'
+    | '/profile/notifications'
     | '/profile/orders'
     | '/profile/personality'
     | '/profile/security'
@@ -1443,6 +1455,13 @@ declare module '@tanstack/react-router' {
       path: '/orders'
       fullPath: '/profile/orders'
       preLoaderRoute: typeof ProfileOrdersRouteImport
+      parentRoute: typeof ProfileRoute
+    }
+    '/profile/notifications': {
+      id: '/profile/notifications'
+      path: '/notifications'
+      fullPath: '/profile/notifications'
+      preLoaderRoute: typeof ProfileNotificationsRouteImport
       parentRoute: typeof ProfileRoute
     }
     '/profile/interests': {
@@ -2172,6 +2191,7 @@ interface ProfileRouteChildren {
   ProfileBookmarksRoute: typeof ProfileBookmarksRoute
   ProfileFollowsRoute: typeof ProfileFollowsRoute
   ProfileInterestsRoute: typeof ProfileInterestsRoute
+  ProfileNotificationsRoute: typeof ProfileNotificationsRoute
   ProfileOrdersRoute: typeof ProfileOrdersRoute
   ProfilePersonalityRoute: typeof ProfilePersonalityRoute
   ProfileSecurityRoute: typeof ProfileSecurityRoute
@@ -2186,6 +2206,7 @@ const ProfileRouteChildren: ProfileRouteChildren = {
   ProfileBookmarksRoute: ProfileBookmarksRoute,
   ProfileFollowsRoute: ProfileFollowsRoute,
   ProfileInterestsRoute: ProfileInterestsRoute,
+  ProfileNotificationsRoute: ProfileNotificationsRoute,
   ProfileOrdersRoute: ProfileOrdersRoute,
   ProfilePersonalityRoute: ProfilePersonalityRoute,
   ProfileSecurityRoute: ProfileSecurityRoute,

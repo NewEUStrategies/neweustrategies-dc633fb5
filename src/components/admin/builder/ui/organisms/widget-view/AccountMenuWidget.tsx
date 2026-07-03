@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/lib/builder/types";
+import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 
 type Lang = "pl" | "en";
 
@@ -465,7 +466,9 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       ];
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <div className="inline-flex items-center gap-1">
+      {session ? <NotificationsBell /> : null}
+      <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         align="end"
@@ -565,6 +568,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
         )}
         <span className="sr-only">{t("nav.account", { defaultValue: "Account menu" })}</span>
       </PopoverContent>
-    </Popover>
+      </Popover>
+    </div>
   );
 }
