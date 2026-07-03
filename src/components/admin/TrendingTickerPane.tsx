@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Save, Plus, Copy, Trash2, Check } from "@/lib/lucide-shim";
+import { Save, Plus, Copy, Trash2, Check, Undo2, Redo2, X } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
