@@ -130,7 +130,7 @@ export function TrendingTicker({
           className="inline-flex items-center gap-1.5 text-[12px] leading-none font-bold uppercase tracking-[0.14em] shrink-0 whitespace-nowrap"
           style={{ color: "var(--tt-label)" }}
         >
-          <Flame className={`w-4 h-4 shrink-0 ${iconClass}`} aria-hidden />
+          <Flame className={`w-4 h-4 shrink-0 ${iconClass}`} style={{ color: "var(--tt-label)" }} aria-hidden />
           <span className="leading-none">{label}</span>
         </span>
         <span
