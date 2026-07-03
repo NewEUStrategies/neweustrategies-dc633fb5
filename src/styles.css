@@ -167,6 +167,71 @@
   color: inherit;
 }
 
+/* Admin scope — ujednolicone stylowanie natywnych kontrolek formularza
+   (select, input, textarea) w edytorze bloków (Gutenberg-like), żeby
+   dropdowny, popupy i pola wejściowe pasowały do design systemu zamiast
+   pokazywać domyślne, natywne UI przeglądarki. */
+.admin-compact .block-canvas select,
+.admin-compact .block-canvas input:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact .block-canvas textarea,
+.admin-compact [data-admin-form] select,
+.admin-compact [data-admin-form] input:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact [data-admin-form] textarea {
+  background: hsl(var(--card, 0 0% 100%));
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.admin-compact .block-canvas select,
+.admin-compact [data-admin-form] select {
+  padding-right: 1.75rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 0.75rem;
+  cursor: pointer;
+}
+.admin-compact .block-canvas select:hover,
+.admin-compact [data-admin-form] select:hover,
+.admin-compact .block-canvas input:hover:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact [data-admin-form] input:hover:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact .block-canvas textarea:hover,
+.admin-compact [data-admin-form] textarea:hover {
+  border-color: color-mix(in oklab, var(--foreground) 30%, transparent);
+}
+.admin-compact .block-canvas select:focus,
+.admin-compact [data-admin-form] select:focus,
+.admin-compact .block-canvas input:focus:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact [data-admin-form] input:focus:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact .block-canvas textarea:focus,
+.admin-compact [data-admin-form] textarea:focus {
+  outline: none;
+  border-color: #FDB078;
+  box-shadow: 0 0 0 2px color-mix(in oklab, #FDB078 30%, transparent);
+}
+/* Native <option> tuning — most browsers restrict styling, ale te reguły
+   działają w Firefox/Chromium na Windows/Linux dla popupu wyboru. */
+.admin-compact .block-canvas select option,
+.admin-compact [data-admin-form] select option {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 0.25rem 0.5rem;
+}
+/* Neutralizacja tła edytora bloków dla input/textarea (jak dotychczas transparentne
+   inside inline TipTap fields) — te reguły są precyzyjniejsze i wygrywają. */
+.block-canvas :is(input, textarea, [contenteditable="true"])[data-inline="true"] {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
 /* Dual-source images (light/dark variants) - toggled via .dark on <html>.
    Selectors are chained through the OptimizedImage wrapper (.oi-wrap) so
    specificity beats `.oi-wrap .oi-img { display: block }` defined below,
