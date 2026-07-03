@@ -7,6 +7,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
+// SECURITY: `recipient` is intentionally NOT part of the public input.
+// The admin notification address must come from the trusted server-side
+// contact_form_settings.default_recipient - never from user input - otherwise
+// this endpoint can be abused as an open email relay.
 const ContactInput = z.object({
   name: z.string().trim().min(1).max(200),
   firstName: z.string().trim().max(100).optional(),
@@ -19,7 +23,6 @@ const ContactInput = z.object({
   consent: z.boolean(),
   newsletterOptIn: z.boolean().optional(),
   lang: z.enum(["pl", "en"]),
-  recipient: z.string().trim().email().max(320).optional(),
   source: z.string().trim().max(500).optional(),
 });
 
