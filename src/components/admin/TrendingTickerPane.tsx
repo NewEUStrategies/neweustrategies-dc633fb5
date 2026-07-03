@@ -8,6 +8,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { pl as plLocale, enUS as enLocale } from "date-fns/locale";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { Save, Plus, Copy, Trash2, Check, Undo2, Redo2, X } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
@@ -671,19 +684,21 @@ export function TrendingTickerPane() {
           <div className="space-y-3 rounded-[5px] border border-dashed border-border p-3">
             <div className="space-y-1.5">
               <Label htmlFor="tt-pick">{t.pickPost}</Label>
-              <select
-                id="tt-pick"
+              <Select
                 value={cfg.pinnedPostId ?? ""}
-                onChange={(e) => set("pinnedPostId", e.target.value || undefined)}
-                className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm"
+                onValueChange={(v) => set("pinnedPostId", v || undefined)}
               >
-                <option value="">-</option>
-                {posts?.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="tt-pick" className="w-full">
+                  <SelectValue placeholder="-" />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {posts?.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span className="truncate">{p.title}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tt-pid">{t.pinnedId}</Label>
@@ -696,12 +711,11 @@ export function TrendingTickerPane() {
             </div>
             {currentSource === "pinned" && (
               <div className="space-y-1.5">
-                <Label htmlFor="tt-until">{t.pinnedUntil}</Label>
-                <Input
-                  id="tt-until"
-                  type="datetime-local"
-                  value={cfg.pinnedUntil ?? ""}
-                  onChange={(e) => set("pinnedUntil", e.target.value || null)}
+                <Label>{t.pinnedUntil}</Label>
+                <PinnedUntilPicker
+                  value={cfg.pinnedUntil ?? null}
+                  onChange={(v) => set("pinnedUntil", v)}
+                  lang={lang}
                 />
               </div>
             )}
@@ -761,26 +775,27 @@ export function TrendingTickerPane() {
 
             <div className="space-y-1.5">
               <Label htmlFor="tt-add">{t.selectedAdd}</Label>
-              <select
-                id="tt-add"
+              <Select
+                key={selectedIds.join(",")}
                 value=""
                 disabled={selectedIds.length >= MAX_SELECTED}
-                onChange={(e) => {
-                  if (e.target.value) toggleSelected(e.target.value);
-                }}
-                className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+                onValueChange={(v) => v && toggleSelected(v)}
               >
-                <option value="">
-                  {selectedIds.length >= MAX_SELECTED ? "-" : t.pickPost}
-                </option>
-                {posts
-                  ?.filter((p) => !selectedIds.includes(p.id))
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title}
-                    </option>
-                  ))}
-              </select>
+                <SelectTrigger id="tt-add" className="w-full">
+                  <SelectValue
+                    placeholder={selectedIds.length >= MAX_SELECTED ? "-" : t.pickPost}
+                  />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {posts
+                    ?.filter((p) => !selectedIds.includes(p.id))
+                    .map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <span className="truncate">{p.title}</span>
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         )}
@@ -972,4 +987,114 @@ function ColorField({
       />
     </div>
   );
+}
+
+/** Combined date + time picker for the "pinned until" field.
+ *  Stores the value as a local ISO string "YYYY-MM-DDTHH:mm" to stay
+ *  compatible with the previous `<input type="datetime-local">` payload. */
+function PinnedUntilPicker({
+  value,
+  onChange,
+  lang,
+}: {
+  value: string | null;
+  onChange: (v: string | null) => void;
+  lang: "pl" | "en";
+}) {
+  const locale = lang === "en" ? enLocale : plLocale;
+  const parsed = value ? parseLocalIso(value) : null;
+  const [open, setOpen] = useState(false);
+  const timeValue = parsed ? format(parsed, "HH:mm") : "";
+  const dateLabel = parsed
+    ? format(parsed, lang === "en" ? "MMM d, yyyy" : "d MMM yyyy", { locale })
+    : lang === "en"
+      ? "Pick a date"
+      : "Wybierz datę";
+
+  const commit = (date: Date | null, time: string): void => {
+    if (!date) {
+      onChange(null);
+      return;
+    }
+    const [h = "00", m = "00"] = (time || "00:00").split(":");
+    const d = new Date(date);
+    d.setHours(Number(h) || 0, Number(m) || 0, 0, 0);
+    onChange(toLocalIso(d));
+  };
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className={cn(
+              "w-full justify-start font-normal",
+              !parsed && "text-muted-foreground",
+            )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {dateLabel}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto p-0">
+          <Calendar
+            mode="single"
+            selected={parsed ?? undefined}
+            onSelect={(d) => {
+              commit(d ?? null, timeValue || "00:00");
+              setOpen(false);
+            }}
+            initialFocus
+            locale={locale}
+          />
+        </PopoverContent>
+      </Popover>
+      <Input
+        type="time"
+        value={timeValue}
+        onChange={(e) => commit(parsed, e.target.value)}
+        disabled={!parsed}
+        className="w-[7.5rem]"
+        aria-label={lang === "en" ? "Time" : "Godzina"}
+      />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        onClick={() => onChange(null)}
+        disabled={!parsed}
+        aria-label={lang === "en" ? "Clear" : "Wyczyść"}
+      >
+        <X className="w-4 h-4" />
+      </Button>
+    </div>
+  );
+}
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function toLocalIso(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function parseLocalIso(v: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(v);
+  if (!m) {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    Number(m[4] ?? "0"),
+    Number(m[5] ?? "0"),
+    0,
+    0,
+  );
+  return isNaN(d.getTime()) ? null : d;
 }
