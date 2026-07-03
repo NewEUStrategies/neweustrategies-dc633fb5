@@ -49,6 +49,7 @@ import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as AuthorSlugRouteImport } from './routes/author.$slug'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as AdminWebStoriesRouteImport } from './routes/admin.web-stories'
+import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminThemeOptionsRouteImport } from './routes/admin.theme-options'
 import { Route as AdminThemeDesignRouteImport } from './routes/admin.theme-design'
 import { Route as AdminTagsRouteImport } from './routes/admin.tags'
@@ -310,6 +311,11 @@ const AdminWebStoriesRoute = AdminWebStoriesRouteImport.update({
   path: '/web-stories',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminThemeOptionsRoute = AdminThemeOptionsRouteImport.update({
   id: '/theme-options',
   path: '/theme-options',
@@ -481,9 +487,9 @@ const AdminAdsRoute = AdminAdsRouteImport.update({
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminUsersIndexRoute = AdminUsersIndexRouteImport.update({
-  id: '/users/',
-  path: '/users/',
-  getParentRoute: () => AdminRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminUsersRoute,
 } as any)
 const AdminSettingsIndexRoute = AdminSettingsIndexRouteImport.update({
   id: '/',
@@ -501,9 +507,9 @@ const ApiPublicClientErrorsRoute = ApiPublicClientErrorsRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminUsersIdRoute = AdminUsersIdRouteImport.update({
-  id: '/users/$id',
-  path: '/users/$id',
-  getParentRoute: () => AdminRoute,
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AdminUsersRoute,
 } as any)
 const AdminSuperMobileDrawerRoute = AdminSuperMobileDrawerRouteImport.update({
   id: '/super/mobile-drawer',
@@ -664,6 +670,7 @@ export interface FileRoutesByFullPath {
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
+  '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
@@ -866,6 +873,7 @@ export interface FileRoutesById {
   '/admin/tags': typeof AdminTagsRoute
   '/admin/theme-design': typeof AdminThemeDesignRoute
   '/admin/theme-options': typeof AdminThemeOptionsRoute
+  '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/web-stories': typeof AdminWebStoriesRoute
   '/api/tts': typeof ApiTtsRoute
   '/author/$slug': typeof AuthorSlugRoute
@@ -970,6 +978,7 @@ export interface FileRouteTypes {
     | '/admin/tags'
     | '/admin/theme-design'
     | '/admin/theme-options'
+    | '/admin/users'
     | '/admin/web-stories'
     | '/api/tts'
     | '/author/$slug'
@@ -1171,6 +1180,7 @@ export interface FileRouteTypes {
     | '/admin/tags'
     | '/admin/theme-design'
     | '/admin/theme-options'
+    | '/admin/users'
     | '/admin/web-stories'
     | '/api/tts'
     | '/author/$slug'
@@ -1540,6 +1550,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminWebStoriesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/theme-options': {
       id: '/admin/theme-options'
       path: '/theme-options'
@@ -1780,10 +1797,10 @@ declare module '@tanstack/react-router' {
     }
     '/admin/users/': {
       id: '/admin/users/'
-      path: '/users'
+      path: '/'
       fullPath: '/admin/users/'
       preLoaderRoute: typeof AdminUsersIndexRouteImport
-      parentRoute: typeof AdminRoute
+      parentRoute: typeof AdminUsersRoute
     }
     '/admin/settings/': {
       id: '/admin/settings/'
@@ -1808,10 +1825,10 @@ declare module '@tanstack/react-router' {
     }
     '/admin/users/$id': {
       id: '/admin/users/$id'
-      path: '/users/$id'
+      path: '/$id'
       fullPath: '/admin/users/$id'
       preLoaderRoute: typeof AdminUsersIdRouteImport
-      parentRoute: typeof AdminRoute
+      parentRoute: typeof AdminUsersRoute
     }
     '/admin/super/mobile-drawer': {
       id: '/admin/super/mobile-drawer'
@@ -2051,6 +2068,20 @@ const AdminSettingsRouteWithChildren = AdminSettingsRoute._addFileChildren(
   AdminSettingsRouteChildren,
 )
 
+interface AdminUsersRouteChildren {
+  AdminUsersIdRoute: typeof AdminUsersIdRoute
+  AdminUsersIndexRoute: typeof AdminUsersIndexRoute
+}
+
+const AdminUsersRouteChildren: AdminUsersRouteChildren = {
+  AdminUsersIdRoute: AdminUsersIdRoute,
+  AdminUsersIndexRoute: AdminUsersIndexRoute,
+}
+
+const AdminUsersRouteWithChildren = AdminUsersRoute._addFileChildren(
+  AdminUsersRouteChildren,
+)
+
 interface AdminRouteChildren {
   AdminAdsRoute: typeof AdminAdsRoute
   AdminAppearanceRoute: typeof AdminAppearanceRouteWithChildren
@@ -2086,11 +2117,10 @@ interface AdminRouteChildren {
   AdminTagsRoute: typeof AdminTagsRoute
   AdminThemeDesignRoute: typeof AdminThemeDesignRoute
   AdminThemeOptionsRoute: typeof AdminThemeOptionsRoute
+  AdminUsersRoute: typeof AdminUsersRouteWithChildren
   AdminWebStoriesRoute: typeof AdminWebStoriesRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminSuperMobileDrawerRoute: typeof AdminSuperMobileDrawerRoute
-  AdminUsersIdRoute: typeof AdminUsersIdRoute
-  AdminUsersIndexRoute: typeof AdminUsersIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
@@ -2128,11 +2158,10 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminTagsRoute: AdminTagsRoute,
   AdminThemeDesignRoute: AdminThemeDesignRoute,
   AdminThemeOptionsRoute: AdminThemeOptionsRoute,
+  AdminUsersRoute: AdminUsersRouteWithChildren,
   AdminWebStoriesRoute: AdminWebStoriesRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminSuperMobileDrawerRoute: AdminSuperMobileDrawerRoute,
-  AdminUsersIdRoute: AdminUsersIdRoute,
-  AdminUsersIndexRoute: AdminUsersIndexRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
@@ -2204,3 +2233,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
