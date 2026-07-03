@@ -138,7 +138,7 @@ function HeaderInner() {
                 <X className="w-5 h-5" aria-hidden />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto overscroll-contain">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [&_*]:max-w-full">
               {/* Force mobile-device rendering inside the drawer so widgets
                   stack vertically (columns collapse to single column). */}
               <BuilderRenderer
