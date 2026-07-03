@@ -849,10 +849,45 @@ export function TrendingTickerPane() {
         </div>
       )}
 
-      <div className="flex justify-end">
-        <Button onClick={() => save.mutate(settings)} disabled={save.isPending}>
-          <Save className="w-4 h-4 mr-2" /> {save.isPending ? "..." : t.save}
-        </Button>
+      <div className="sticky bottom-0 -mx-1 flex flex-wrap items-center justify-between gap-2 border-t border-border bg-background/95 px-1 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <div className="flex items-center gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={undo}
+            disabled={past.length === 0}
+            title={`${t.undo} (Ctrl+Z)`}
+            aria-label={t.undo}
+          >
+            <Undo2 className="w-4 h-4 mr-1" /> {t.undo}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={redo}
+            disabled={future.length === 0}
+            title={`${t.redo} (Ctrl+Shift+Z)`}
+            aria-label={t.redo}
+          >
+            <Redo2 className="w-4 h-4 mr-1" /> {t.redo}
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={cancelChanges}
+            disabled={past.length === 0 && future.length === 0}
+          >
+            <X className="w-4 h-4 mr-1" /> {t.cancel}
+          </Button>
+          <Button onClick={() => save.mutate(settings)} disabled={save.isPending}>
+            <Save className="w-4 h-4 mr-2" /> {save.isPending ? "..." : t.save}
+          </Button>
+        </div>
       </div>
     </div>
   );
