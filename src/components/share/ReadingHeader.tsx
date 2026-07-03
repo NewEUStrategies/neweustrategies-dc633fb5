@@ -26,8 +26,12 @@ const COPY = {
     login: "Zaloguj",
     register: "Zarejestruj",
     profile: "Profil",
+    account: "Konto",
+    bookmarks: "Zapisane",
+    settings: "Ustawienia",
     logout: "Wyloguj",
     lang: "Język",
+    menu: "Menu konta",
   },
   en: {
     reading: "READING",
@@ -35,8 +39,12 @@ const COPY = {
     login: "Sign in",
     register: "Sign up",
     profile: "Profile",
+    account: "Account",
+    bookmarks: "Bookmarks",
+    settings: "Settings",
     logout: "Sign out",
     lang: "Language",
+    menu: "Account menu",
   },
 } as const;
 
