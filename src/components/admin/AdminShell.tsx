@@ -183,6 +183,17 @@ function AdminShellInner({
         { to: "/admin/post-layouts", icon: LayoutGrid, label: t("admin.nav.postLayouts") },
         { to: "/admin/icons", icon: Shapes, label: t("admin.nav.icons") },
         ...(isSuperAdmin ? [{ to: "/admin/names", icon: Users, label: t("admin.nav.names") }] : []),
+        ...(isSuperAdmin
+          ? [
+              {
+                to: "/admin/super/mobile-drawer",
+                icon: PanelLeft,
+                label: t("admin.nav.mobileDrawer", {
+                  defaultValue: lang === "pl" ? "Mobilne menu" : "Mobile menu",
+                }),
+              },
+            ]
+          : []),
         ...(isAdmin
           ? [
               {
