@@ -452,15 +452,18 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     excerpt_en: post?.excerpt_en ?? undefined,
     coverUrl: it.cover_image_url ?? undefined,
     publishedAt: it.published_at ?? undefined,
-    readingTimeMin:
-      post?.read_minutes ??
-      (isPost
-        ? estimateReadingMinutes({
+    readingTimeMin: isPost
+      ? estimateReadingMinutes(
+          {
             html: processedHtml,
             docs: [doc, blocksDoc],
             extraText: post?.excerpt_pl || post?.excerpt_en || undefined,
-          }) || undefined
-        : undefined),
+          },
+          { lang },
+        ) ||
+        post?.read_minutes ||
+        undefined
+      : undefined,
     author: postAuthor
       ? {
           id: postAuthor.id,
