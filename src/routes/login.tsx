@@ -134,6 +134,9 @@ function LoginPage() {
               first_name: firstName,
               last_name: lastName,
               full_name: trimmed || displayName,
+              // Explicit reader signup - staff/tenant provisioning happens only
+              // server-side via app_metadata (see handle_new_user).
+              signup_type: "reader",
             },
           },
         });

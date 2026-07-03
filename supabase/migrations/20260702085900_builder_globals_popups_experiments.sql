@@ -19,6 +19,22 @@
 --    Variant tagging lives in the page document (advanced.abTest); the tables
 --    hold the experiment registry and exposure/conversion events.
 
+-- NOTE (from-zero type repair): status columns are typed with the SAME enums
+-- the re-deploy bundle 20260702114108 creates on live environments. The
+-- original text + CHECK version made every from-zero replay (supabase db
+-- reset / db test) diverge from production and then fail at
+-- 20260703052115 ("popups public read active" casts to the enum). Live
+-- environments have this file marked applied-without-running (see the repair
+-- note above), so changing it affects only fresh replays - and makes them
+-- byte-compatible with production.
+DO $$ BEGIN
+  CREATE TYPE public.builder_popup_status AS ENUM ('draft','active','archived');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE public.builder_experiment_status AS ENUM ('running','paused','completed');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 -- ---------------------------------------------------------------------------
 -- 1) Global widgets
 -- ---------------------------------------------------------------------------
@@ -87,7 +103,7 @@ CREATE TABLE public.builder_popups (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   tenant_id uuid NOT NULL DEFAULT current_tenant_id(),
   name text NOT NULL,
-  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'archived')),
+  status public.builder_popup_status NOT NULL DEFAULT 'draft',
   builder_data jsonb NOT NULL DEFAULT '{"version":1,"sections":[]}'::jsonb,
   settings jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_by uuid,
@@ -156,7 +172,7 @@ CREATE TABLE public.builder_experiments (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   tenant_id uuid NOT NULL DEFAULT current_tenant_id(),
   name text NOT NULL,
-  status text NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'paused', 'completed')),
+  status public.builder_experiment_status NOT NULL DEFAULT 'running',
   created_by uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()

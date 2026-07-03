@@ -142,9 +142,21 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const email = data.email.toLowerCase();
 
+    // Service-role read bypasses RLS, so the settings lookup MUST be pinned to
+    // the tenant owning the request host - an unfiltered maybeSingle() breaks
+    // the moment a second tenant configures its newsletter, and would attribute
+    // the signup to whichever tenant's row happened to match.
+    const [{ resolveTenantIdForHost }, { currentTenantHost }] = await Promise.all([
+      import("@/lib/server/tenant.server"),
+      import("@/lib/http/requestHost"),
+    ]);
+    const hostTenantId = await resolveTenantIdForHost(await currentTenantHost());
+    if (!hostTenantId) return { ok: false, error: "not_configured" };
+
     const { data: settings } = await supabaseAdmin
       .from("newsletter_settings")
       .select("tenant_id, enabled, double_opt_in")
+      .eq("tenant_id", hostTenantId)
       .maybeSingle();
     if (!settings?.tenant_id) return { ok: false, error: "not_configured" };
     if (settings.enabled === false) return { ok: false, error: "disabled" };

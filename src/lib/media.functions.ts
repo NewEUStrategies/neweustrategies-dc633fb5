@@ -7,6 +7,7 @@ import { requireStaff } from "@/integrations/supabase/require-staff";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { recordAudit } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
+import { resolveUserTenantId } from "./server/userTenant.server";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ALLOWED_MIME = new Set([
@@ -134,22 +135,35 @@ export const deleteMedia = createServerFn({ method: "POST" })
 // ---------- Media usage lookup ----------
 // Finds posts/pages that reference a given media item (by id, public URL, or
 // storage path). Scans cover_image_url, content (HTML), builder_data and
-// blocks_data (JSON). Scoped to the user's tenant by RLS.
+// blocks_data (JSON).
+//
+// The body columns (content_pl/en, builder_data, blocks_data) are REVOKED
+// from the authenticated role (20260702200000 - the C1 hardening), so the
+// scan reads them via the service role, explicitly pinned to the caller's
+// tenant resolved from profiles - same doctrine as posts-migrate. The media
+// row lookups stay on the user client (RLS proves the caller may see them).
 const UsageSchema = z.object({ mediaId: z.string().uuid() });
+
+/**
+ * Stable, language-neutral usage areas. The UI translates them (PL/EN in
+ * MediaPreviewDialog) - the server must not bake one language into data.
+ */
+export type MediaUsageArea = "cover" | "excerpt" | "content" | "builder" | "blocks" | "layout";
 
 export type MediaUsageItem = {
   kind: "post" | "page";
   id: string;
   slug: string;
   title: string;
-  where: string[];
+  where: MediaUsageArea[];
 };
 
 export const getMediaUsage = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .inputValidator((input: unknown) => UsageSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ items: MediaUsageItem[] }> => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
+    const tenantId = await resolveUserTenantId(supabaseAdmin, userId);
 
     const { data: media, error: mErr } = await supabase
       .from("media")
@@ -190,8 +204,9 @@ export const getMediaUsage = createServerFn({ method: "POST" })
 
     const out: MediaUsageItem[] = [];
 
-    // POSTS
-    const { data: posts, error: pErr } = await supabase
+    // POSTS - service-role read (body columns are revoked from authenticated),
+    // hard-pinned to the caller's tenant.
+    const { data: posts, error: pErr } = await supabaseAdmin
       .from("posts")
       .select(
         "id, slug, title_pl, title_en, cover_image_url, excerpt_pl, excerpt_en, content_pl, content_en, builder_data, blocks_data, layout_overrides",
@@ -199,13 +214,13 @@ export const getMediaUsage = createServerFn({ method: "POST" })
       .is("deleted_at", null);
     if (pErr) throw new Error(pErr.message);
     for (const p of posts ?? []) {
-      const where: string[] = [];
-      if (matchesUrl(p.cover_image_url)) where.push("Okładka");
-      if (matches(p.excerpt_pl) || matches(p.excerpt_en)) where.push("Zajawka");
-      if (matches(p.content_pl) || matches(p.content_en)) where.push("Treść");
-      if (matches(p.builder_data)) where.push("Builder");
-      if (matches(p.blocks_data)) where.push("Bloki");
-      if (matches(p.layout_overrides)) where.push("Layout");
+      const where: MediaUsageArea[] = [];
+      if (matchesUrl(p.cover_image_url)) where.push("cover");
+      if (matches(p.excerpt_pl) || matches(p.excerpt_en)) where.push("excerpt");
+      if (matches(p.content_pl) || matches(p.content_en)) where.push("content");
+      if (matches(p.builder_data)) where.push("builder");
+      if (matches(p.blocks_data)) where.push("blocks");
+      if (matches(p.layout_overrides)) where.push("layout");
       if (where.length) {
         out.push({
           kind: "post",
@@ -217,8 +232,8 @@ export const getMediaUsage = createServerFn({ method: "POST" })
       }
     }
 
-    // PAGES
-    const { data: pages, error: gErr } = await supabase
+    // PAGES - same service-role + tenant-pinned read as posts.
+    const { data: pages, error: gErr } = await supabaseAdmin
       .from("pages")
       .select(
         "id, slug, title_pl, title_en, cover_image_url, excerpt_pl, excerpt_en, content_pl, content_en, builder_data, layout_overrides",
@@ -226,12 +241,12 @@ export const getMediaUsage = createServerFn({ method: "POST" })
       .is("deleted_at", null);
     if (gErr) throw new Error(gErr.message);
     for (const p of pages ?? []) {
-      const where: string[] = [];
-      if (matchesUrl(p.cover_image_url)) where.push("Okładka");
-      if (matches(p.excerpt_pl) || matches(p.excerpt_en)) where.push("Zajawka");
-      if (matches(p.content_pl) || matches(p.content_en)) where.push("Treść");
-      if (matches(p.builder_data)) where.push("Builder");
-      if (matches(p.layout_overrides)) where.push("Layout");
+      const where: MediaUsageArea[] = [];
+      if (matchesUrl(p.cover_image_url)) where.push("cover");
+      if (matches(p.excerpt_pl) || matches(p.excerpt_en)) where.push("excerpt");
+      if (matches(p.content_pl) || matches(p.content_en)) where.push("content");
+      if (matches(p.builder_data)) where.push("builder");
+      if (matches(p.layout_overrides)) where.push("layout");
       if (where.length) {
         out.push({
           kind: "page",

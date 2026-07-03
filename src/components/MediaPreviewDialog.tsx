@@ -7,8 +7,28 @@ import { Paywall } from "@/components/Paywall";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getMediaUsage } from "@/lib/media.functions";
+import { getMediaUsage, type MediaUsageArea } from "@/lib/media.functions";
 import { Link } from "@tanstack/react-router";
+
+// Usage areas arrive from the server as stable keys - the UI owns the words.
+const USAGE_AREA_LABELS: Record<"pl" | "en", Record<MediaUsageArea, string>> = {
+  pl: {
+    cover: "Okładka",
+    excerpt: "Zajawka",
+    content: "Treść",
+    builder: "Builder",
+    blocks: "Bloki",
+    layout: "Layout",
+  },
+  en: {
+    cover: "Cover",
+    excerpt: "Excerpt",
+    content: "Content",
+    builder: "Builder",
+    blocks: "Blocks",
+    layout: "Layout",
+  },
+};
 
 const DownloadIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -224,7 +244,9 @@ function UsagePanel({ mediaId, lang }: { mediaId: string; lang: "pl" | "en" }) {
                   <span>·</span>
                   <span className="truncate">/{it.slug}</span>
                   <span>·</span>
-                  <span className="truncate">{it.where.join(", ")}</span>
+                  <span className="truncate">
+                    {it.where.map((area) => USAGE_AREA_LABELS[lang][area]).join(", ")}
+                  </span>
                 </div>
               </div>
               <Link

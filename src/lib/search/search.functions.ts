@@ -3,6 +3,7 @@
 // Returned shape is a small DTO consumable by the command palette.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import type { Database } from "@/integrations/supabase/types";
 
 export type SearchHitKind = "post" | "page";
@@ -29,7 +30,12 @@ export const globalSearch = createServerFn({ method: "GET" })
     const key = process.env.SUPABASE_PUBLISHABLE_KEY;
     if (!url || !key) return { hits: [] };
     const { createClient } = await import("@supabase/supabase-js");
-    const sb = createClient<Database>(url, key, { auth: { persistSession: false } });
+    // Anon client under RLS; the tenant-host fetch pins search_quick's
+    // coalesce(current_tenant_id(), public_tenant_id()) to the browsed site.
+    const sb = createClient<Database>(url, key, {
+      auth: { persistSession: false },
+      global: { fetch: fetchWithTenantHost },
+    });
 
     const limit = data.limit ?? 12;
 

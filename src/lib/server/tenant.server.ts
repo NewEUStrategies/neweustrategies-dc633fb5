@@ -5,14 +5,27 @@
 // the tenant that owns the request host - the service role bypasses RLS, so
 // without this filter a second tenant's content leaks across sites.
 //
-// Resolution order:
-//   1. exact match on tenants.domain (lowercased, port stripped),
-//   2. the tenant marked is_default (the fallback for previews / localhost).
+// Two resolution contracts, matching two very different failure costs:
+//
+//   * CONTENT plane (resolveTenantForHost): unknown host -> DEFAULT tenant.
+//     Previews and not-yet-claimed domains must still render a site; the anon
+//     database plane (public.public_tenant_id()) applies the same fallback,
+//     so HTML and data always agree.
+//
+//   * CRAWLER plane (resolveCrawlerTenantForHost): FAIL-CLOSED. The fallback
+//     is allowed only for local/platform preview hosts, or while no tenant
+//     has claimed any custom domain yet (single-tenant bootstrap - there is
+//     nothing to cross-leak). Any other unknown host resolves to null and the
+//     surface answers 404 / "Disallow: /" - an unclaimed domain must never
+//     advertise, serve or index a tenant's content to crawlers.
 //
 // The full tenant directory is tiny and changes rarely, so it is cached per
 // isolate with a short TTL (same pattern as the redirect rules cache) and
 // resolution never adds a per-request round-trip in steady state.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { isPreviewHost, normalizeHost, wwwToggledHost } from "@/lib/http/host";
+
+export { normalizeHost } from "@/lib/http/host";
 
 export interface TenantDirectoryEntry {
   id: string;
@@ -40,17 +53,6 @@ const EMPTY_DIRECTORY: TenantDirectory = {
   byDomain: new Map<string, TenantDirectoryEntry>(),
   defaultTenant: null,
 };
-
-/** Normalize a Host header / URL host: lowercase, strip port and brackets. */
-export function normalizeHost(rawHost: string | null | undefined): string | null {
-  if (!rawHost) return null;
-  const host = rawHost.trim().toLowerCase();
-  if (!host) return null;
-  // IPv6 literals ("[::1]:8080") - keep the bracket content only.
-  const bracketMatch = host.match(/^\[([^\]]+)\]/);
-  if (bracketMatch) return bracketMatch[1];
-  return host.split(":")[0] || null;
-}
 
 function buildDirectory(rows: readonly TenantDirectoryEntry[]): TenantDirectory {
   const byDomain = new Map<string, TenantDirectoryEntry>();
@@ -106,32 +108,61 @@ export function invalidateTenantDirectoryCache(): void {
   inflight = null;
 }
 
+/** Exact domain match, then the "www." alias of the apex (and vice versa). */
+function matchDomain(directory: TenantDirectory, host: string | null): TenantDirectoryEntry | null {
+  if (!host) return null;
+  return directory.byDomain.get(host) ?? directory.byDomain.get(wwwToggledHost(host)) ?? null;
+}
+
 /**
- * Resolve the tenant owning a request host. Unknown hosts fall back to the
- * default tenant; null only when the directory is empty/unavailable (callers
- * then skip tenant-scoped side effects rather than mixing tenants).
+ * CONTENT plane: resolve the tenant owning a request host. Unknown hosts fall
+ * back to the default tenant (previews / unclaimed domains still render a
+ * site); null only when the directory is empty/unavailable (callers then skip
+ * tenant-scoped side effects rather than mixing tenants).
  */
 export async function resolveTenantForHost(
   rawHost: string | null | undefined,
 ): Promise<TenantDirectoryEntry | null> {
   const directory = await getTenantDirectory();
-  const host = normalizeHost(rawHost);
-  if (host) {
-    const exact = directory.byDomain.get(host);
-    if (exact) return exact;
-    // "www." is treated as an alias of the apex domain (and vice versa).
-    const aliased = host.startsWith("www.")
-      ? directory.byDomain.get(host.slice(4))
-      : directory.byDomain.get(`www.${host}`);
-    if (aliased) return aliased;
-  }
-  return directory.defaultTenant;
+  return matchDomain(directory, normalizeHost(rawHost)) ?? directory.defaultTenant;
 }
 
-/** Convenience: tenant id for a host (null when unresolvable). */
+/** Convenience: content-plane tenant id for a host (null when unresolvable). */
 export async function resolveTenantIdForHost(
   rawHost: string | null | undefined,
 ): Promise<string | null> {
   const tenant = await resolveTenantForHost(rawHost);
+  return tenant?.id ?? null;
+}
+
+/**
+ * CRAWLER plane: fail-closed host -> tenant resolution for the surfaces
+ * crawlers consume and cache (sitemap.xml, rss.xml, news-sitemap.xml,
+ * llms.txt, robots.txt) and for the redirect/404 middleware.
+ *
+ * The default-tenant fallback applies ONLY when the ambiguity is harmless:
+ *   * the host is a local/platform preview (admins test the default site), or
+ *   * no tenant has claimed any custom domain yet (pre-multi-domain install -
+ *     routing cannot distinguish tenants, so there is nothing to leak).
+ * Every other unknown host returns null and the caller must answer 404 /
+ * "Disallow: /" instead of exposing the default tenant's content on an
+ * unclaimed domain.
+ */
+export async function resolveCrawlerTenantForHost(
+  rawHost: string | null | undefined,
+): Promise<TenantDirectoryEntry | null> {
+  const directory = await getTenantDirectory();
+  const host = normalizeHost(rawHost);
+  const matched = matchDomain(directory, host);
+  if (matched) return matched;
+  const fallbackIsSafe = isPreviewHost(host) || directory.byDomain.size === 0;
+  return fallbackIsSafe ? directory.defaultTenant : null;
+}
+
+/** Convenience: crawler-plane tenant id for a host (null = fail closed). */
+export async function resolveCrawlerTenantIdForHost(
+  rawHost: string | null | undefined,
+): Promise<string | null> {
+  const tenant = await resolveCrawlerTenantForHost(rawHost);
   return tenant?.id ?? null;
 }

@@ -5,6 +5,7 @@
 // (zero-click brand visibility).
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
+import { requestPublicHost } from "@/lib/http/requestHost";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { SITE_DEFAULT_DESCRIPTION, SITE_NAME } from "@/lib/seo/meta";
 import { buildLlmsTxt, type LlmsTxtArticle } from "@/lib/seo/llms";
@@ -14,12 +15,12 @@ import {
   fetchPublishedPosts,
   fetchSeoSettingsValue,
 } from "@/lib/server/publishedContent.server";
-import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
+import { resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
 function requestContext(): { origin: string; host: string } {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
-  const host = req.headers.get("host") ?? "";
+  const host = requestPublicHost(req) ?? "";
   return { origin: host ? `${proto}://${host}` : "", host };
 }
 
@@ -31,20 +32,22 @@ export const Route = createFileRoute("/llms.txt")({
       GET: async () => {
         const { origin, host } = requestContext();
         // Service-role reads below bypass RLS - scope them to the host's
-        // tenant. Unresolvable tenant -> guide without lists (crawler surfaces
-        // never 500 and never serve unscoped data).
-        const tenantId = await resolveTenantIdForHost(host);
-        const settings = parseSeoSettings(tenantId ? await fetchSeoSettingsValue(tenantId) : null);
+        // tenant. FAIL-CLOSED: a host no tenant has claimed (and that is not
+        // a preview host) gets a 404 instead of the default tenant's guide on
+        // a foreign domain.
+        const tenantId = await resolveCrawlerTenantIdForHost(host);
+        if (!tenantId) {
+          return new Response("Unknown host", { status: 404 });
+        }
+        const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
         if (!settings.llms_txt_enabled) {
           return new Response("llms.txt disabled", { status: 404 });
         }
 
-        const [posts, categories] = tenantId
-          ? await Promise.all([
-              fetchPublishedPosts(tenantId, LATEST_COUNT * 2),
-              fetchPublicCategories(tenantId),
-            ])
-          : [[], []];
+        const [posts, categories] = await Promise.all([
+          fetchPublishedPosts(tenantId, LATEST_COUNT * 2),
+          fetchPublicCategories(tenantId),
+        ]);
 
         const toArticle = (lang: "pl" | "en") =>
           posts

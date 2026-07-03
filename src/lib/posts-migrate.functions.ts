@@ -7,6 +7,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireStaff } from "@/integrations/supabase/require-staff";
 import { migratePostContent } from "@/lib/blocks/migrate";
+import { resolveUserTenantId } from "@/lib/server/userTenant.server";
 
 const UUID = z.string().uuid();
 
@@ -60,7 +61,7 @@ export const migratePostToBlocks = createServerFn({ method: "POST" })
     // Legacy body columns are revoked from the authenticated role, so read them
     // via service_role scoped by tenant; the write stays under the caller's RLS.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const tenantId = await resolveTenant(supabaseAdmin, userId);
+    const tenantId = await resolveUserTenantId(supabaseAdmin, userId);
     const { data: row, error } = await supabaseAdmin
       .from("posts")
       .select("id, editor, content_pl, content_en, builder_data")
@@ -86,7 +87,7 @@ export const bulkMigratePostsToBlocks = createServerFn({ method: "POST" })
     // Legacy body columns are revoked from the authenticated role, so read them
     // via service_role scoped by tenant; writes stay under the caller's RLS.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const tenantId = await resolveTenant(supabaseAdmin, userId);
+    const tenantId = await resolveUserTenantId(supabaseAdmin, userId);
     let query = supabaseAdmin
       .from("posts")
       .select("id, editor, content_pl, content_en, builder_data")
