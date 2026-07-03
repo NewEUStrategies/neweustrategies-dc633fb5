@@ -229,8 +229,8 @@ export function TrendingTickerPane() {
 
         <div className="space-y-1.5">
           <Label>{t.source}</Label>
-          <div className="grid grid-cols-3 gap-2">
-            {(["trending", "latest", "pinned"] as const).map((s) => (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {(["trending", "latest", "pinned", "selected"] as const).map((s) => (
               <button
                 key={s}
                 type="button"
