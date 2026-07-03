@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { memo, Suspense, useEffect, useState } from "react";
+import { memo, Suspense, useEffect, useState, type ComponentType } from "react";
 import { Menu, X, LogIn, UserPlus, User, LayoutDashboard, LogOut, Home, Newspaper, Tag, Mic, Mail, DollarSign } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
@@ -140,15 +140,19 @@ function HeaderInner() {
                 <X className="w-5 h-5" aria-hidden />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [&_*]:max-w-full">
-              <MobileAccountNav isPl={isPl} onNavigate={() => setOpen(false)} />
+            <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain isolate [&_*]:max-w-full">
+              <div className="relative z-50 isolate">
+                <MobileAccountNav isPl={isPl} onNavigate={() => setOpen(false)} />
+              </div>
               {/* Force mobile-device rendering inside the drawer so widgets
                   stack vertically (columns collapse to single column). */}
-              <BuilderRenderer
-                doc={cfg.builder_data}
-                lang={isPl ? "pl" : "en"}
-                device="mobile"
-              />
+              <div className="relative z-0 isolate">
+                <BuilderRenderer
+                  doc={cfg.builder_data}
+                  lang={isPl ? "pl" : "en"}
+                  device="mobile"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -161,7 +165,7 @@ function MobileAccountNav({ isPl, onNavigate }: { isPl: boolean; onNavigate: () 
   const { session, isStaff, signOut } = useAuth();
   const t = (pl: string, en: string) => (isPl ? pl : en);
 
-  const navItems: Array<{ to: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+  const navItems: Array<{ to: string; label: string; icon: ComponentType<{ className?: string }> }> = [
     { to: "/", label: t("Strona główna", "Home"), icon: Home },
     { to: "/blog", label: t("Aktualności", "News"), icon: Newspaper },
     { to: "/pricing", label: t("Cennik", "Pricing"), icon: DollarSign },
