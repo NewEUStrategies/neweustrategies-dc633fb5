@@ -793,7 +793,7 @@ function ColorGroup({
   onChange,
 }: {
   title: string;
-  labels: (typeof COPY)["pl"];
+  labels: Record<string, string>;
   values: TickerColors;
   onChange: (k: keyof TickerColors, v: string) => void;
 }) {
