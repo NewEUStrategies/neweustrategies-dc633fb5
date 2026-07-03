@@ -73,10 +73,10 @@ Nothing here removes any way of creating content. Concretely:
 
 The two editors optimize for different things, and both are wanted:
 
-| Editor | Shape | Best for |
-| --- | --- | --- |
-| **Blocks** (Gutenberg-style) | linear list of typed blocks | article bodies — focused long-form writing dropped into a fixed post layout |
-| **Builder** (Elementor-style) | section → column → widget tree | pages, landing / standalone bespoke layouts |
+| Editor                        | Shape                          | Best for                                                                    |
+| ----------------------------- | ------------------------------ | --------------------------------------------------------------------------- |
+| **Blocks** (Gutenberg-style)  | linear list of typed blocks    | article bodies — focused long-form writing dropped into a fixed post layout |
+| **Builder** (Elementor-style) | section → column → widget tree | pages, landing / standalone bespoke layouts                                 |
 
 Posts are overwhelmingly article-shaped, so blocks is the right default and the
 post layout (`/admin/post-layouts`) supplies the surrounding chrome; routing
@@ -91,10 +91,10 @@ first-class.
 A post/page row carries an `editor` discriminator plus parallel content columns;
 only the column matching `editor` is authoritative:
 
-| `editor` value | Authoritative column | Renders via |
-| --- | --- | --- |
-| `"builder"` | `builder_data` (jsonb) | `BuilderRenderer` |
-| `"blocks"` | `blocks_data` (jsonb) | `BlocksRenderer` |
+| `editor` value              | Authoritative column        | Renders via        |
+| --------------------------- | --------------------------- | ------------------ |
+| `"builder"`                 | `builder_data` (jsonb)      | `BuilderRenderer`  |
+| `"blocks"`                  | `blocks_data` (jsonb)       | `BlocksRenderer`   |
 | `"richtext"` / `"markdown"` | `content_pl` / `content_en` | HTML/markdown path |
 
 - Posts: `type EditorType = "blocks" | "richtext" | "markdown" | "builder"`
@@ -214,9 +214,19 @@ public npm at install time, so the exact pinned versions install in CI.
 
 `CI` is the real gate between a merge and production. Because **`vite build` does
 NOT typecheck** (esbuild strips types), the pipeline runs an explicit
-`tsc --noEmit` step *before* the build - that is the type gate, not the build.
-Order: **typecheck -> test + coverage gate -> build -> bundle budget**, then a
-non-blocking lint (Prettier backlog).
+`tsc --noEmit` step _before_ the build - that is the type gate, not the build.
+Order: **typecheck -> test + coverage gate -> build -> bundle budget -> lint**
+(all blocking; the Prettier backlog was cleared in a repo-wide format commit).
+A separate `pgtap` job starts a local Supabase database (migrations + seed) and
+runs the pgTAP suite (`supabase test db`): RLS tenant isolation, role
+management, full-text search - the policies Vitest can never exercise.
+
+The `E2E` workflow runs two jobs: the backend-agnostic Playwright smoke
+(placeholder Supabase creds) and `e2e-seeded`, which boots a full local
+Supabase stack (migrations + `supabase/seed.sql`) and sets `E2E_SEEDED=1` so
+`e2e/user-paths.spec.ts` - article reading, language switch, search, staff
+sign-in, crawler feeds, the 301 from `/post/<slug>` - actually executes instead
+of skipping.
 
 **Run the same gates locally before opening a PR for fast feedback:**
 
@@ -225,10 +235,11 @@ bunx tsc --noEmit        # types (the build will NOT catch these)
 bun run test:coverage    # tests + the coverage gate
 bun run build            # production build
 bun run check:bundle     # gzipped bundle budget
-bun run lint             # non-blocking (Prettier backlog)
+bun run lint             # blocking - zero errors expected
+bun run db:test          # pgTAP (needs a running local Supabase)
 ```
 
-A change is "green" only when the first four pass - the same bar CI enforces.
+A change is "green" only when all of the above pass - the same bar CI enforces.
 
 ### Bundle budget: public vs overall
 
@@ -239,7 +250,7 @@ different costs:
 - **PUBLIC** (≤ 1000 KB; ~930 KB today) - every chunk a public visitor can ever
   download (first load + in-session navigation). This is the perf-meaningful
   budget: what real readers pay for.
-- **OVERALL** (≤ 1300 KB; ~1200 KB today) - every chunk, *including* admin/editor
+- **OVERALL** (≤ 1300 KB; ~1200 KB today) - every chunk, _including_ admin/editor
   -only code (visual builder, block editor, theme panes, `/admin` routes, builder
   drag-and-drop). A coarser backstop so the CMS surface can't balloon unnoticed,
   even though it is code-split behind the auth-gated `/admin` routes and is never
