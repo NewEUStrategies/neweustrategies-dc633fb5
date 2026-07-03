@@ -37,9 +37,10 @@ export function PostLayoutRenderer({
   footer,
 }: Props) {
   const preset = findLayout(format, layoutId);
+  const hasSidebar = effectiveHasSidebar(preset, settings);
   const center = settings.center_header ?? preset.centerHeaderDefault ?? false;
   const ratioPct = preset.featuredRatioKey ? settings[preset.featuredRatioKey] : null;
-  const contentMaxW = preset.hasSidebar
+  const contentMaxW = hasSidebar
     ? settings.has_sidebar_max_width
     : settings.no_sidebar_max_width;
 
