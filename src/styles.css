@@ -2345,23 +2345,23 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
    ========================================================================== */
 .admin-color-picker-canvas .react-colorful {
   width: 100% !important;
-  height: 180px !important;
-  gap: 8px;
+  height: 148px !important;
+  gap: 6px;
 }
 .admin-color-picker-canvas .react-colorful__saturation {
-  border-radius: 6px;
+  border-radius: 5px;
   border-bottom: none;
 }
 .admin-color-picker-canvas .react-colorful__hue {
-  height: 10px !important;
+  height: 8px !important;
   border-radius: 999px;
 }
 .admin-color-picker-canvas .react-colorful__pointer {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-width: 2px;
 }
 .admin-color-picker-canvas .react-colorful__saturation-pointer {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
