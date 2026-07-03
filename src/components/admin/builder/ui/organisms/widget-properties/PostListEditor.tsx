@@ -15,6 +15,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { PropField, CollapsibleSection as Collapsible, ColorField } from "../../atoms";
+import { AdminDatePicker } from "@/components/admin/blocks/AdminDatePicker";
 import { IndexColorPreview } from "./IndexColorPreview";
 import { TaxonomyPicker } from "./TaxonomyPicker";
 import { ImageSlot } from "./ImageSlot";
@@ -312,19 +313,15 @@ export function PostListEditor({ c, lang, setContent }: Props) {
 
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Data od">
-              <Input
-                type="date"
+              <AdminDatePicker
                 value={dateFrom}
-                onChange={(e) => setContent("dateFrom", e.target.value)}
-                className="h-8 text-xs"
+                onChange={(v) => setContent("dateFrom", v ?? "")}
               />
             </PropField>
             <PropField label="Data do">
-              <Input
-                type="date"
+              <AdminDatePicker
                 value={dateTo}
-                onChange={(e) => setContent("dateTo", e.target.value)}
-                className="h-8 text-xs"
+                onChange={(v) => setContent("dateTo", v ?? "")}
               />
             </PropField>
           </div>
