@@ -159,7 +159,7 @@ export function AdminColorPicker({
                 setHexDraft(next);
                 if (isHex(next)) onChange(expandHex(next));
               }}
-              className="h-7 text-[11px] font-mono uppercase px-2"
+              className="h-5 text-[10px] font-mono uppercase px-2"
               spellCheck={false}
             />
           </div>
@@ -180,7 +180,7 @@ export function AdminColorPicker({
                       const next = { ...rgb, [k]: n };
                       commitHex(rgbToHex(next.r, next.g, next.b));
                     }}
-                    className="h-7 text-[11px] pl-1.5 pr-4 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="h-5 text-[10px] pl-1.5 pr-4 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] uppercase text-muted-foreground pointer-events-none font-semibold">
                     {k}
@@ -207,7 +207,7 @@ export function AdminColorPicker({
                       const c = hslToRgb(next.h, next.s, next.l);
                       commitHex(rgbToHex(c.r, c.g, c.b));
                     }}
-                    className="h-7 text-[11px] pl-1.5 pr-4 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="h-5 text-[10px] pl-1.5 pr-4 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] uppercase text-muted-foreground pointer-events-none font-semibold">
                     {k}
