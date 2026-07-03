@@ -3,7 +3,7 @@
 // idzie przez react-query (blocks.ts), więc prefetch SSR w loaderze $.tsx
 // renderuje powiązane wpisy również dla crawlerów.
 
-import { useMemo } from "react";
+import { useMemo, type ComponentType, type SVGProps } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   authorPostsCountQueryOptions,
@@ -13,7 +13,16 @@ import {
 import { useCurrentPostCtx, type CurrentPostAuthor } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
-import { User } from "lucide-react";
+import {
+  User,
+  Mail,
+  Globe,
+  Twitter,
+  Linkedin,
+  Facebook,
+  Instagram,
+  Music,
+} from "lucide-react";
 
 type Lang = "pl" | "en";
 
