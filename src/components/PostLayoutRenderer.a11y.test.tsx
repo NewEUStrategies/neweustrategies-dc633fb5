@@ -1,5 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
+
+// ReadingHeader (rendered by every layout) contains TanStack <Link>, which
+// throws without a RouterProvider - swap it for the shared plain-anchor stub.
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
+}));
+
 import { PostLayoutRenderer } from "./PostLayoutRenderer";
 import { STANDARD_LAYOUTS, defaultPostLayoutSettings } from "@/lib/postLayouts";
 import { axeViolations, summarize } from "@/test/axe";
@@ -21,7 +29,9 @@ function renderLayout(layoutId: string) {
         content={
           <article>
             <h2>Sekcja</h2>
-            <p>Treść artykułu z <a href="https://example.com">odnośnikiem</a>.</p>
+            <p>
+              Treść artykułu z <a href="https://example.com">odnośnikiem</a>.
+            </p>
           </article>
         }
       />

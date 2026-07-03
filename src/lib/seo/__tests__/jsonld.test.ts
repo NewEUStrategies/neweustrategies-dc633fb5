@@ -1,6 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { breadcrumbListJsonLd, organizationJsonLd, webSiteJsonLd } from "@/lib/seo/jsonld";
+import {
+  breadcrumbListJsonLd,
+  organizationJsonLd,
+  safeJsonLd,
+  webSiteJsonLd,
+} from "@/lib/seo/jsonld";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
+
+describe("safeJsonLd", () => {
+  it("neutralizes </script> breakout attempts (stored XSS guard)", () => {
+    const payload = { name: `</script><script>alert(1)</script>`, reviewBody: "ok" };
+    const out = safeJsonLd(payload);
+    expect(out).not.toContain("</script>");
+    expect(out).not.toContain("<script>");
+    expect(out).toContain("\\u003C/script\\u003E");
+  });
+
+  it("escapes HTML comment and CDATA openers", () => {
+    const out = safeJsonLd({ a: "<!-- --> & <![CDATA[" });
+    expect(out).not.toContain("<!--");
+    expect(out).not.toContain("&");
+    expect(out).not.toContain("<![CDATA[");
+  });
+
+  it("round-trips to the identical value via JSON.parse", () => {
+    const value = {
+      title: `Recenzja </script> "specjalna" & <b>ważna</b>`,
+      score: 8.5,
+      nested: { tags: ["a&b", "<c>"] },
+    };
+    expect(JSON.parse(safeJsonLd(value))).toEqual(value);
+  });
+});
 
 const ORIGIN = "https://nes.example";
 

@@ -7,18 +7,34 @@ import { supabase } from "@/integrations/supabase/client";
 import { updatePage, deletePage } from "@/lib/content.functions";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import { useAutosave } from "@/hooks/useAutosave";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { AutosaveBar } from "@/components/admin/AutosaveBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { PostEditor } from "@/components/admin/PostEditor";
 import { PageParentSelect } from "@/components/admin/PageParentSelect";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { Builder } from "@/components/admin/builder/Builder";
 import type { BuilderDocument } from "@/lib/builder/types";
-import { ArrowLeft, Save, Trash2, ArrowRight, FileText, Settings as SettingsIcon, Eye, Home as HomeIcon } from "@/lib/lucide-shim";
+import {
+  ArrowLeft,
+  Save,
+  Trash2,
+  ArrowRight,
+  FileText,
+  Settings as SettingsIcon,
+  Eye,
+  Home as HomeIcon,
+} from "@/lib/lucide-shim";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -32,7 +48,10 @@ import { ImageSlot } from "@/components/admin/ImageSlot";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { invalidateWidgetCaches, emitWidgetCacheInvalidate } from "@/lib/builder/widgetCacheInvalidation";
+import {
+  invalidateWidgetCaches,
+  emitWidgetCacheInvalidate,
+} from "@/lib/builder/widgetCacheInvalidation";
 import { invalidateSeoCaches } from "@/lib/seo/invalidate";
 import { hasBlockingSeoIssues, type SeoIssue } from "@/lib/seo/validation";
 import { PAGE_TEMPLATES, type PageTemplateType } from "@/lib/pageTemplates";
@@ -72,7 +91,6 @@ interface PageForm {
   og_image_generated_url: string | null;
 }
 
-
 function EditPage() {
   const { slug: routeSlug } = Route.useParams();
   const tenantId = useRequiredTenant();
@@ -107,72 +125,83 @@ function EditPage() {
   const [step, setStep] = useState<"details" | "content">("details");
   const [seoIssues, setSeoIssues] = useState<SeoIssue[]>([]);
 
-  useEffect(() => { if (page) history.reset(page); }, [page, history.reset]);
+  useEffect(() => {
+    if (page) history.reset(page);
+  }, [page, history.reset]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const meta = e.ctrlKey || e.metaKey;
       if (!meta) return;
       const k = e.key.toLowerCase();
-      if (k === "z" && !e.shiftKey) { e.preventDefault(); history.undo(); }
-      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); history.redo(); }
+      if (k === "z" && !e.shiftKey) {
+        e.preventDefault();
+        history.undo();
+      } else if ((k === "z" && e.shiftKey) || k === "y") {
+        e.preventDefault();
+        history.redo();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [history.undo, history.redo]);
 
-  const saveFn = useCallback(async (snapshot: PageForm | null) => {
-    if (!snapshot || !id) return;
-    await update$({
-      data: {
-        id,
-        fields: {
-          slug: snapshot.slug,
-          status: snapshot.status,
-          editor: snapshot.editor,
-          title_pl: snapshot.title_pl,
-          title_en: snapshot.title_en,
-          content_pl: snapshot.content_pl,
-          content_en: snapshot.content_en,
-          excerpt_pl: snapshot.excerpt_pl,
-          excerpt_en: snapshot.excerpt_en,
-          cover_image_url: snapshot.cover_image_url,
-          builder_data: snapshot.builder_data,
-          parent_id: snapshot.parent_id,
-          menu_order: snapshot.menu_order,
-          template_type: snapshot.template_type,
-          header_override: snapshot.header_override,
-          seo_title_pl: snapshot.seo_title_pl,
-          seo_title_en: snapshot.seo_title_en,
-          seo_description_pl: snapshot.seo_description_pl,
-          seo_description_en: snapshot.seo_description_en,
-          seo_canonical_url: snapshot.seo_canonical_url,
-          seo_noindex: snapshot.seo_noindex ?? false,
-          seo_og_image_url: snapshot.seo_og_image_url,
-          og_image_generated_url: snapshot.og_image_generated_url,
+  const saveFn = useCallback(
+    async (snapshot: PageForm | null) => {
+      if (!snapshot || !id) return;
+      await update$({
+        data: {
+          id,
+          fields: {
+            slug: snapshot.slug,
+            status: snapshot.status,
+            editor: snapshot.editor,
+            title_pl: snapshot.title_pl,
+            title_en: snapshot.title_en,
+            content_pl: snapshot.content_pl,
+            content_en: snapshot.content_en,
+            excerpt_pl: snapshot.excerpt_pl,
+            excerpt_en: snapshot.excerpt_en,
+            cover_image_url: snapshot.cover_image_url,
+            builder_data: snapshot.builder_data,
+            parent_id: snapshot.parent_id,
+            menu_order: snapshot.menu_order,
+            template_type: snapshot.template_type,
+            header_override: snapshot.header_override,
+            seo_title_pl: snapshot.seo_title_pl,
+            seo_title_en: snapshot.seo_title_en,
+            seo_description_pl: snapshot.seo_description_pl,
+            seo_description_en: snapshot.seo_description_en,
+            seo_canonical_url: snapshot.seo_canonical_url,
+            seo_noindex: snapshot.seo_noindex ?? false,
+            seo_og_image_url: snapshot.seo_og_image_url,
+            og_image_generated_url: snapshot.og_image_generated_url,
+          },
         },
-      },
-    });
-    // The server may normalize the slug (uniqueSlug). Read back the canonical
-    // slug and, if it changed, update the URL so the address bar always
-    // reflects the current page name.
-    const { data: row } = await supabase
-      .from("pages").select("slug").eq("id", id).maybeSingle();
-    const canonical = row?.slug as string | undefined;
-    qc.invalidateQueries({ queryKey: ["admin-pages"] });
-    invalidateWidgetCaches(qc);
-    emitWidgetCacheInvalidate();
-    // Odswiez publiczne surface'y SEO (mapa strony HTML, /admin/seo).
-    invalidateSeoCaches(qc);
-    if (canonical && canonical !== routeSlug) {
-      qc.setQueryData(["page-by-slug", tenantId, canonical], { ...snapshot, slug: canonical });
-      navigate({ to: "/admin/pages/$slug", params: { slug: canonical }, replace: true });
-    } else {
-      qc.invalidateQueries({ queryKey: ["page-by-slug", tenantId, routeSlug] });
-    }
-  }, [id, update$, qc, navigate, routeSlug, tenantId]);
+      });
+      // The server may normalize the slug (uniqueSlug). Read back the canonical
+      // slug and, if it changed, update the URL so the address bar always
+      // reflects the current page name.
+      const { data: row } = await supabase.from("pages").select("slug").eq("id", id).maybeSingle();
+      const canonical = row?.slug as string | undefined;
+      qc.invalidateQueries({ queryKey: ["admin-pages"] });
+      invalidateWidgetCaches(qc);
+      emitWidgetCacheInvalidate();
+      // Odswiez publiczne surface'y SEO (mapa strony HTML, /admin/seo).
+      invalidateSeoCaches(qc);
+      if (canonical && canonical !== routeSlug) {
+        qc.setQueryData(["page-by-slug", tenantId, canonical], { ...snapshot, slug: canonical });
+        navigate({ to: "/admin/pages/$slug", params: { slug: canonical }, replace: true });
+      } else {
+        qc.invalidateQueries({ queryKey: ["page-by-slug", tenantId, routeSlug] });
+      }
+    },
+    [id, update$, qc, navigate, routeSlug, tenantId],
+  );
 
   const autosave = useAutosave({ value: form, enabled: !!form && !!id, save: saveFn });
+  // Tab close / route change with unsaved edits -> confirmation prompt.
+  useUnsavedChangesGuard(autosave.isDirty || autosave.status === "saving");
 
   if (isLoading || !form || !id) return <div className="text-sm text-muted-foreground">...</div>;
 
@@ -229,7 +258,9 @@ function EditPage() {
       <div>
         <Label>{t("admin.posts.status")}</Label>
         <Select value={form.status} onValueChange={(v) => set("status", v as PageStatus)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="draft">{t("admin.status.draft")}</SelectItem>
             <SelectItem value="published">{t("admin.status.published")}</SelectItem>
@@ -240,7 +271,9 @@ function EditPage() {
       <div>
         <Label>{t("admin.posts.editor")}</Label>
         <Select value={form.editor} onValueChange={(v) => set("editor", v as EditorType)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="builder">Visual Builder (Elementor)</SelectItem>
             <SelectItem value="richtext">Rich text (legacy)</SelectItem>
@@ -263,7 +296,11 @@ function EditPage() {
       />
       <div>
         <Label>Kolejność w menu</Label>
-        <Input type="number" value={form.menu_order} onChange={(e) => set("menu_order", Number(e.target.value) || 0)} />
+        <Input
+          type="number"
+          value={form.menu_order}
+          onChange={(e) => set("menu_order", Number(e.target.value) || 0)}
+        />
       </div>
       <div>
         <Label>Template strony</Label>
@@ -271,10 +308,14 @@ function EditPage() {
           value={form.template_type}
           onValueChange={(v) => set("template_type", v as PageTemplateType)}
         >
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             {PAGE_TEMPLATES.map((t) => (
-              <SelectItem key={t.id} value={t.id}>{t.label_pl}</SelectItem>
+              <SelectItem key={t.id} value={t.id}>
+                {t.label_pl}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -288,7 +329,9 @@ function EditPage() {
           value={form.header_override ?? "default"}
           onValueChange={(v) => set("header_override", v === "default" ? null : v)}
         >
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="default">Domyślny</SelectItem>
             <SelectItem value="transparent">Przezroczysty</SelectItem>
@@ -311,8 +354,12 @@ function EditPage() {
     </div>
   );
 
-  const displayTitle =
-    (form.title_pl || form.title_en || form.slug || t("admin.list.untitled", { defaultValue: "bez tytułu" })).toString();
+  const displayTitle = (
+    form.title_pl ||
+    form.title_en ||
+    form.slug ||
+    t("admin.list.untitled", { defaultValue: "bez tytułu" })
+  ).toString();
   const previewHref = `/${form.slug}`;
 
   return (
@@ -340,9 +387,15 @@ function EditPage() {
           <BreadcrumbItem>
             <BreadcrumbPage className="text-xs text-muted-foreground inline-flex items-center gap-1">
               {step === "details" ? (
-                <><SettingsIcon className="w-3 h-3" /> {t("admin.pages.step.details", { defaultValue: "Szczegóły" })}</>
+                <>
+                  <SettingsIcon className="w-3 h-3" />{" "}
+                  {t("admin.pages.step.details", { defaultValue: "Szczegóły" })}
+                </>
               ) : (
-                <><FileText className="w-3 h-3" /> {t("admin.pages.step.content", { defaultValue: "Treść" })}</>
+                <>
+                  <FileText className="w-3 h-3" />{" "}
+                  {t("admin.pages.step.content", { defaultValue: "Treść" })}
+                </>
               )}
             </BreadcrumbPage>
           </BreadcrumbItem>
@@ -351,12 +404,19 @@ function EditPage() {
 
       <div className="flex items-center justify-between gap-4 flex-wrap">
         {step === "details" ? (
-          <Link to="/admin/pages" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+          <Link
+            to="/admin/pages"
+            className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+          >
             <ArrowLeft className="w-4 h-4" /> {t("admin.back")}
           </Link>
         ) : (
-          <button onClick={() => setStep("details")} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-            <ArrowLeft className="w-4 h-4" /> {t("admin.pages.step.details", { defaultValue: "Szczegóły strony" })}
+          <button
+            onClick={() => setStep("details")}
+            className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+          >
+            <ArrowLeft className="w-4 h-4" />{" "}
+            {t("admin.pages.step.details", { defaultValue: "Szczegóły strony" })}
           </button>
         )}
         <div className="flex items-center gap-2">
@@ -365,33 +425,46 @@ function EditPage() {
               onClick={() => setStep("details")}
               className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "details" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
             >
-              <SettingsIcon className="w-3.5 h-3.5" /> 1. {t("admin.pages.step.details", { defaultValue: "Szczegóły" })}
+              <SettingsIcon className="w-3.5 h-3.5" /> 1.{" "}
+              {t("admin.pages.step.details", { defaultValue: "Szczegóły" })}
             </button>
             <span className="text-muted-foreground">→</span>
             <button
               onClick={() => setStep("content")}
               className={`px-2 py-1 rounded inline-flex items-center gap-1 ${step === "content" ? "bg-brand text-brand-foreground" : "bg-muted hover:bg-muted/70"}`}
             >
-              <FileText className="w-3.5 h-3.5" /> 2. {t("admin.pages.step.content", { defaultValue: "Treść" })}
+              <FileText className="w-3.5 h-3.5" /> 2.{" "}
+              {t("admin.pages.step.content", { defaultValue: "Treść" })}
             </button>
           </div>
           <AutosaveBar
-            status={autosave.status} error={autosave.error}
-            canUndo={history.canUndo} canRedo={history.canRedo}
-            onUndo={history.undo} onRedo={history.redo}
+            status={autosave.status}
+            error={autosave.error}
+            canUndo={history.canUndo}
+            canRedo={history.canRedo}
+            onUndo={history.undo}
+            onRedo={history.redo}
             onDiscard={page ? () => history.reset(page) : undefined}
           />
 
-          <Button asChild variant="outline" size="sm" title={t("admin.pages.preview", { defaultValue: "Podgląd strony w nowej karcie" })}>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            title={t("admin.pages.preview", { defaultValue: "Podgląd strony w nowej karcie" })}
+          >
             <a href={previewHref} target="_blank" rel="noopener noreferrer">
               <Eye className="w-4 h-4 mr-1" /> {t("admin.preview", { defaultValue: "Podgląd" })}
             </a>
           </Button>
-          <Button variant="ghost" size="sm" onClick={del}><Trash2 className="w-4 h-4 mr-1 text-destructive" /> {t("admin.delete")}</Button>
-          <Button onClick={save} disabled={busy}><Save className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.save")}</Button>
+          <Button variant="ghost" size="sm" onClick={del}>
+            <Trash2 className="w-4 h-4 mr-1 text-destructive" /> {t("admin.delete")}
+          </Button>
+          <Button onClick={save} disabled={busy}>
+            <Save className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.save")}
+          </Button>
         </div>
       </div>
-
 
       {step === "details" ? (
         <div className="grid lg:grid-cols-3 gap-6">
@@ -400,17 +473,34 @@ function EditPage() {
               <div>
                 <h2 className="text-lg font-display font-semibold mb-1">Szczegóły strony</h2>
                 <p className="text-xs text-muted-foreground">
-                  Uzupełnij tytuł strony w obu językach. Po zapisaniu przejdź do kroku „Treść”, by edytować zawartość.
+                  Uzupełnij tytuł strony w obu językach. Po zapisaniu przejdź do kroku „Treść”, by
+                  edytować zawartość.
                 </p>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <Label>{t("admin.posts.titleCol")} <span className="text-[10px] text-muted-foreground">(PL)</span></Label>
-                  <Input value={form.title_pl} onChange={(e) => set("title_pl", e.target.value)} className="text-lg font-display" placeholder="Tytuł po polsku" />
+                  <Label>
+                    {t("admin.posts.titleCol")}{" "}
+                    <span className="text-[10px] text-muted-foreground">(PL)</span>
+                  </Label>
+                  <Input
+                    value={form.title_pl}
+                    onChange={(e) => set("title_pl", e.target.value)}
+                    className="text-lg font-display"
+                    placeholder="Tytuł po polsku"
+                  />
                 </div>
                 <div>
-                  <Label>{t("admin.posts.titleCol")} <span className="text-[10px] text-muted-foreground">(EN)</span></Label>
-                  <Input value={form.title_en} onChange={(e) => set("title_en", e.target.value)} className="text-lg font-display" placeholder="Title in English" />
+                  <Label>
+                    {t("admin.posts.titleCol")}{" "}
+                    <span className="text-[10px] text-muted-foreground">(EN)</span>
+                  </Label>
+                  <Input
+                    value={form.title_en}
+                    onChange={(e) => set("title_en", e.target.value)}
+                    className="text-lg font-display"
+                    placeholder="Title in English"
+                  />
                 </div>
               </div>
 
@@ -451,7 +541,10 @@ function EditPage() {
               />
 
               <div className="flex justify-end pt-2 border-t border-border">
-                <Button onClick={() => setStep("content")} disabled={!form.title_pl.trim() && !form.title_en.trim()}>
+                <Button
+                  onClick={() => setStep("content")}
+                  disabled={!form.title_pl.trim() && !form.title_en.trim()}
+                >
                   Przejdź do edycji treści <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>
@@ -475,13 +568,23 @@ function EditPage() {
               <TabsContent value="pl" className="space-y-4 mt-4">
                 <div>
                   <Label>{t("admin.posts.content")} (PL)</Label>
-                  <PostEditor mode={form.editor === "markdown" ? "markdown" : "richtext"} value={form.content_pl ?? ""} onChange={(v) => set("content_pl", v)} onPickImage={pickImage} />
+                  <PostEditor
+                    mode={form.editor === "markdown" ? "markdown" : "richtext"}
+                    value={form.content_pl ?? ""}
+                    onChange={(v) => set("content_pl", v)}
+                    onPickImage={pickImage}
+                  />
                 </div>
               </TabsContent>
               <TabsContent value="en" className="space-y-4 mt-4">
                 <div>
                   <Label>{t("admin.posts.content")} (EN)</Label>
-                  <PostEditor mode={form.editor === "markdown" ? "markdown" : "richtext"} value={form.content_en ?? ""} onChange={(v) => set("content_en", v)} onPickImage={pickImage} />
+                  <PostEditor
+                    mode={form.editor === "markdown" ? "markdown" : "richtext"}
+                    value={form.content_en ?? ""}
+                    onChange={(v) => set("content_en", v)}
+                    onPickImage={pickImage}
+                  />
                 </div>
               </TabsContent>
             </Tabs>
@@ -492,9 +595,22 @@ function EditPage() {
   );
 }
 
-function PageBuilderPane({ form, set }: { form: { builder_data: BuilderDocument | null }; set: (k: "builder_data", v: BuilderDocument) => void }) {
+function PageBuilderPane({
+  form,
+  set,
+}: {
+  form: { builder_data: BuilderDocument | null };
+  set: (k: "builder_data", v: BuilderDocument) => void;
+}) {
   const [lang, setLang] = useState<"pl" | "en">("pl");
-  return <Builder value={form.builder_data} onChange={(v) => set("builder_data", v)} lang={lang} onLangChange={setLang} />;
+  return (
+    <Builder
+      value={form.builder_data}
+      onChange={(v) => set("builder_data", v)}
+      lang={lang}
+      onLangChange={setLang}
+    />
+  );
 }
 
 /**
@@ -535,8 +651,20 @@ function SeoDescriptionField({
   }[tone];
 
   const toneLabel = {
-    pl: { empty: "Brak opisu", short: "Za krótki", good: "Optymalna długość", long: "Trochę za długi", tooLong: "Zdecydowanie za długi" },
-    en: { empty: "No description", short: "Too short", good: "Optimal length", long: "A bit long", tooLong: "Too long" },
+    pl: {
+      empty: "Brak opisu",
+      short: "Za krótki",
+      good: "Optymalna długość",
+      long: "Trochę za długi",
+      tooLong: "Zdecydowanie za długi",
+    },
+    en: {
+      empty: "No description",
+      short: "Too short",
+      good: "Optimal length",
+      long: "A bit long",
+      tooLong: "Too long",
+    },
   }[lang][tone];
 
   const langLabel = lang === "pl" ? "Polski" : "English";
@@ -550,7 +678,9 @@ function SeoDescriptionField({
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
         <Label className="flex items-center gap-2">
           {lang === "pl" ? "Opis strony" : "Page description"}
-          <span className="text-[10px] text-muted-foreground font-normal">({langLabel} · meta description / og:description)</span>
+          <span className="text-[10px] text-muted-foreground font-normal">
+            ({langLabel} · meta description / og:description)
+          </span>
         </Label>
         <span className={`text-[11px] font-medium ${toneColor}`}>
           {len} / {SWEET_MAX} · {toneLabel}
@@ -567,11 +697,20 @@ function SeoDescriptionField({
       <div className="relative h-1.5 bg-muted rounded-full overflow-hidden">
         <div
           className="absolute top-0 bottom-0 bg-emerald-500/30"
-          style={{ left: `${(SWEET_MIN / MAX) * 100}%`, width: `${((SWEET_MAX - SWEET_MIN) / MAX) * 100}%` }}
+          style={{
+            left: `${(SWEET_MIN / MAX) * 100}%`,
+            width: `${((SWEET_MAX - SWEET_MIN) / MAX) * 100}%`,
+          }}
         />
         <div
           className={`absolute top-0 bottom-0 left-0 transition-all ${
-            tone === "good" ? "bg-emerald-500" : tone === "tooLong" ? "bg-destructive" : tone === "empty" ? "bg-transparent" : "bg-amber-500"
+            tone === "good"
+              ? "bg-emerald-500"
+              : tone === "tooLong"
+                ? "bg-destructive"
+                : tone === "empty"
+                  ? "bg-transparent"
+                  : "bg-amber-500"
           }`}
           style={{ width: `${Math.min(100, (len / MAX) * 100)}%` }}
         />
@@ -579,19 +718,40 @@ function SeoDescriptionField({
       <ul className="text-[11px] text-muted-foreground space-y-0.5 pl-4 list-disc">
         {lang === "pl" ? (
           <>
-            <li><strong>Długość:</strong> 120–160 znaków (Google ucina dłuższe opisy w SERP).</li>
-            <li><strong>Słowo kluczowe:</strong> umieść najważniejsze słowo na początku zdania.</li>
-            <li><strong>Wartość:</strong> opisz konkretną korzyść lub czego użytkownik się dowie.</li>
-            <li><strong>Akcja:</strong> dodaj zachętę (np. „Zobacz", „Sprawdź", „Dowiedz się").</li>
-            <li><strong>Unikalność:</strong> każda strona powinna mieć inny opis - nie powielaj.</li>
+            <li>
+              <strong>Długość:</strong> 120–160 znaków (Google ucina dłuższe opisy w SERP).
+            </li>
+            <li>
+              <strong>Słowo kluczowe:</strong> umieść najważniejsze słowo na początku zdania.
+            </li>
+            <li>
+              <strong>Wartość:</strong> opisz konkretną korzyść lub czego użytkownik się dowie.
+            </li>
+            <li>
+              <strong>Akcja:</strong> dodaj zachętę (np. „Zobacz", „Sprawdź", „Dowiedz się").
+            </li>
+            <li>
+              <strong>Unikalność:</strong> każda strona powinna mieć inny opis - nie powielaj.
+            </li>
           </>
         ) : (
           <>
-            <li><strong>Length:</strong> 120–160 chars (Google truncates longer snippets in SERPs).</li>
-            <li><strong>Keyword:</strong> place the primary keyword near the beginning.</li>
-            <li><strong>Value:</strong> describe a concrete benefit or what the user will learn.</li>
-            <li><strong>Action:</strong> include a call-to-action (e.g. "Discover", "Learn", "See").</li>
-            <li><strong>Uniqueness:</strong> every page should have a unique description - don't duplicate.</li>
+            <li>
+              <strong>Length:</strong> 120–160 chars (Google truncates longer snippets in SERPs).
+            </li>
+            <li>
+              <strong>Keyword:</strong> place the primary keyword near the beginning.
+            </li>
+            <li>
+              <strong>Value:</strong> describe a concrete benefit or what the user will learn.
+            </li>
+            <li>
+              <strong>Action:</strong> include a call-to-action (e.g. "Discover", "Learn", "See").
+            </li>
+            <li>
+              <strong>Uniqueness:</strong> every page should have a unique description - don't
+              duplicate.
+            </li>
           </>
         )}
       </ul>

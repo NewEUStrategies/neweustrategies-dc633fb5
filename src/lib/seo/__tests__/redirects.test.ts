@@ -39,9 +39,23 @@ describe("normalizeSourcePath", () => {
 });
 
 describe("normalizeTargetPath", () => {
-  it("passes absolute http(s) URLs and rejects other schemes", () => {
-    expect(normalizeTargetPath("https://x.example/a")).toBe("https://x.example/a");
+  it("rejects absolute URLs without an allowlist (open-redirect guard)", () => {
+    expect(normalizeTargetPath("https://x.example/a")).toBeNull();
+    expect(normalizeTargetPath("https://evil.example/phish", [])).toBeNull();
     expect(normalizeTargetPath("javascript:alert(1)")).toBeNull();
+    expect(normalizeTargetPath("javascript:alert(1)", ["x.example"])).toBeNull();
+  });
+  it("accepts absolute https URLs only for allowlisted hosts (www-aliased)", () => {
+    const allowed = ["neweuropeanstrategies.com"];
+    expect(normalizeTargetPath("https://neweuropeanstrategies.com/a", allowed)).toBe(
+      "https://neweuropeanstrategies.com/a",
+    );
+    expect(normalizeTargetPath("https://www.neweuropeanstrategies.com/a", allowed)).toBe(
+      "https://www.neweuropeanstrategies.com/a",
+    );
+    expect(normalizeTargetPath("https://evil.example/a", allowed)).toBeNull();
+    // http downgrade is never a valid redirect target.
+    expect(normalizeTargetPath("http://neweuropeanstrategies.com/a", allowed)).toBeNull();
   });
   it("normalizes relative targets to absolute paths", () => {
     expect(normalizeTargetPath("nowa-sekcja/wpis/")).toBe("/nowa-sekcja/wpis");

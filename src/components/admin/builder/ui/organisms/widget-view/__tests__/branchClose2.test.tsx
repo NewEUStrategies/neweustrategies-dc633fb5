@@ -117,7 +117,7 @@ describe("dark-mode render paths", () => {
   });
 
   it("renders animated-heading with color invert + dark-featured-card colors in dark theme", () => {
-    widget(
+    const heading = widget(
       "animated-heading",
       {
         mode: "highlight",
@@ -128,11 +128,14 @@ describe("dark-mode render paths", () => {
       },
       { dark: true },
     );
-    widget(
+    expect(heading.container.textContent).toContain("x");
+    const card = widget(
       "dark-featured-card",
       { title_pl: "T", badge_pl: "B", image: "https://cdn.example.com/c.jpg" },
       { dark: true },
     );
+    expect(card.container.textContent).toContain("T");
+    expect(card.container.querySelector("img")).toBeTruthy();
     // Heading with widget-level text/bg colors -> overrideCss resolves for dark.
     const node: WidgetNode = {
       id: "x",
@@ -142,14 +145,21 @@ describe("dark-mode render paths", () => {
       style: { textColor: "#112233", bgColor: "#fff" },
     };
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
+    const { container } = render(
       <QueryClientProvider client={qc}>
         <ThemeProvider>
           <WidgetView node={node} lang="pl" device="desktop" />
         </ThemeProvider>
       </QueryClientProvider>,
     );
-    expect(true).toBe(true);
+    expect(container.textContent).toContain("T");
+    // The per-widget color override materializes as a scoped <style> rule
+    // targeting the widget id; in dark mode the text color is auto-inverted,
+    // so assert the scoped selector + a forced color/background pair.
+    const overrideCss = container.querySelector("style")?.textContent ?? "";
+    expect(overrideCss).toContain('[data-w-id="x"]');
+    expect(overrideCss).toContain("color:");
+    expect(overrideCss).toContain("background: #fff");
   });
 });
 

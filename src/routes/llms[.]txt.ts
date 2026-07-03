@@ -14,12 +14,13 @@ import {
   fetchPublishedPosts,
   fetchSeoSettingsValue,
 } from "@/lib/server/publishedContent.server";
+import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 
-function originFromRequest(): string {
+function requestContext(): { origin: string; host: string } {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = req.headers.get("host") ?? "";
-  return host ? `${proto}://${host}` : "";
+  return { origin: host ? `${proto}://${host}` : "", host };
 }
 
 const LATEST_COUNT = 15;
@@ -28,16 +29,22 @@ export const Route = createFileRoute("/llms.txt")({
   server: {
     handlers: {
       GET: async () => {
-        const origin = originFromRequest();
-        const settings = parseSeoSettings(await fetchSeoSettingsValue());
+        const { origin, host } = requestContext();
+        // Service-role reads below bypass RLS - scope them to the host's
+        // tenant. Unresolvable tenant -> guide without lists (crawler surfaces
+        // never 500 and never serve unscoped data).
+        const tenantId = await resolveTenantIdForHost(host);
+        const settings = parseSeoSettings(tenantId ? await fetchSeoSettingsValue(tenantId) : null);
         if (!settings.llms_txt_enabled) {
           return new Response("llms.txt disabled", { status: 404 });
         }
 
-        const [posts, categories] = await Promise.all([
-          fetchPublishedPosts(LATEST_COUNT * 2),
-          fetchPublicCategories(),
-        ]);
+        const [posts, categories] = tenantId
+          ? await Promise.all([
+              fetchPublishedPosts(tenantId, LATEST_COUNT * 2),
+              fetchPublicCategories(tenantId),
+            ])
+          : [[], []];
 
         const toArticle = (lang: "pl" | "en") =>
           posts
@@ -74,7 +81,8 @@ export const Route = createFileRoute("/llms.txt")({
             "Content-Type": "text/plain; charset=utf-8",
             // Rewalidacja per-request u klienta, CDN cache 60s + SWR - llms.txt
             // odzwierciedla najnowsze wpisy/ustawienia bez ręcznego czyszczenia.
-            "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=1800, must-revalidate",
+            "Cache-Control":
+              "public, max-age=0, s-maxage=60, stale-while-revalidate=1800, must-revalidate",
           },
         });
       },

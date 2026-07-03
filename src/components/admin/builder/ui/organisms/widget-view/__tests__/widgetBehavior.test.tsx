@@ -174,8 +174,10 @@ describe("nav-link", () => {
 
 describe("divider", () => {
   it("renders every divider variant", () => {
+    // The line divider renders as an accessible separator <div> - not <hr>
+    // (deliberate: hr has UA quirks with margin/width interplay).
     const { container: line } = renderNode("divider", { variant: "line", thickness: 2 });
-    expect(line.querySelector("hr")).toBeTruthy();
+    expect(line.querySelector('[role="separator"]')).toBeTruthy();
     for (const variant of ["gradient", "icon", "wave", "dashed", "dotted", "double"]) {
       expect(() =>
         renderNode("divider", { variant, thickness: 2, iconName: "Star" }),

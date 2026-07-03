@@ -39,6 +39,10 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
     <div
       data-reading-header
       aria-hidden={!visible}
+      // `inert` removes the hidden bar's links/inputs from the tab order -
+      // an aria-hidden element must not contain focusable elements (axe:
+      // aria-hidden-focus), otherwise keyboard users tab into invisible UI.
+      inert={!visible}
       className={[
         "fixed inset-x-0 top-0 z-30",
         "border-b border-border/70 bg-background/95 backdrop-blur-xl",
@@ -68,7 +72,10 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
           <span className="hidden sm:inline text-[10px] font-bold tracking-[0.18em] text-brand shrink-0">
             {t.reading}:
           </span>
-          <span className="truncate font-display text-[13.5px] sm:text-[14.5px] font-semibold text-foreground" title={title}>
+          <span
+            className="truncate font-display text-[13.5px] sm:text-[14.5px] font-semibold text-foreground"
+            title={title}
+          >
             {title}
           </span>
         </div>
@@ -78,12 +85,20 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
           <ThemeToggle className="h-8 w-8 grid place-items-center" />
           <span className="hidden sm:block h-4 w-px bg-border" aria-hidden />
           <div className="hidden md:flex items-center gap-2 text-[12px] font-semibold">
-            <Link to="/login" className="inline-flex items-center gap-1 text-foreground hover:text-brand transition">
+            <Link
+              to="/login"
+              className="inline-flex items-center gap-1 text-foreground hover:text-brand transition"
+            >
               <LogIn className="w-3.5 h-3.5" />
               {t.login}
             </Link>
-            <span className="text-muted-foreground/60" aria-hidden>|</span>
-            <Link to="/login" className="inline-flex items-center gap-1 text-brand hover:opacity-80 transition">
+            <span className="text-muted-foreground/60" aria-hidden>
+              |
+            </span>
+            <Link
+              to="/login"
+              className="inline-flex items-center gap-1 text-brand hover:opacity-80 transition"
+            >
               <User className="w-3.5 h-3.5" />
               {t.register}
             </Link>
@@ -95,4 +110,3 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
     </div>
   );
 }
-

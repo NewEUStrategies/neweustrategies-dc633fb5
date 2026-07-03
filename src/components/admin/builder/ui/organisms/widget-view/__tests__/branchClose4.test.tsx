@@ -154,7 +154,7 @@ describe("slider non-string item fields", () => {
     const { container } = widget("slider", {
       items: [
         { image: 123, title_pl: 5, title_en: null, subtitle_pl: {}, href: 7, cta_pl: null },
-      ] as unknown as Record<string, unknown>[ ] as never,
+      ] as unknown as Record<string, unknown>[] as never,
     });
     expect(container).toBeTruthy();
   });
@@ -214,14 +214,15 @@ describe("rich-block + chrome variant arms", () => {
     expect(
       widget("section-label", { label_pl: "L", color: "military" }).container.textContent,
     ).toContain("L");
-    for (const type of [
-      "login-form",
-      "register-form",
-      "lost-password-form",
-      "reset-password-form",
-    ] as const) {
-      widget(type, { variant: "card" }, { lang: "en" });
+    // Every EN auth form must render a working form with an input field.
+    for (const type of ["login-form", "register-form", "lost-password-form"] as const) {
+      const { container } = widget(type, { variant: "card" }, { lang: "en" });
+      expect(container.querySelector("form"), type).toBeTruthy();
+      expect(container.querySelector("input"), type).toBeTruthy();
     }
-    expect(true).toBe(true);
+    // reset-password without a recovery session shows the guidance message
+    // instead of the form (the user must open the e-mail link first).
+    const reset = widget("reset-password-form", { variant: "card" }, { lang: "en" });
+    expect(reset.container.textContent).toContain("password-reset link");
   });
 });

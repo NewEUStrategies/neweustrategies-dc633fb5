@@ -168,10 +168,24 @@ describe("SearchButton edge paths", () => {
   });
 });
 
-describe("slider widget (editable demo + real items)", () => {
-  it("renders demo slides with the overlay hint in editable mode", () => {
-    const { container } = widget("slider", { variant: "editorial-hero" }, { editable: true });
-    expect(container.textContent).toContain("Podgląd");
+describe("slider widget (posts-sourced default + real items)", () => {
+  it("an empty-items slider is posts-sourced and renders published posts", async () => {
+    // sliderUsesPostsSource: no items -> posts source, also in the editor
+    // canvas (legacy placeholder demos were replaced by real published posts).
+    db.tables.posts = [
+      {
+        id: "1",
+        slug: "hero",
+        title_pl: "Wpis hero",
+        title_en: "Hero post",
+        excerpt_pl: "e",
+        excerpt_en: "e",
+        cover_image_url: "https://cdn.example.com/hero.jpg",
+        published_at: "2026-01-01T00:00:00Z",
+      },
+    ];
+    widget("slider", { variant: "editorial-hero" }, { editable: true });
+    expect(await screen.findByText("Wpis hero")).toBeTruthy();
   });
 
   it("renders real items in EN", () => {
@@ -262,9 +276,15 @@ describe("hot-topic-bar icon fallback + account-link EN", () => {
     expect(
       widget("hot-topic-bar", { title_pl: "T", iconName: "NotAnIcon" }).container.textContent,
     ).toContain("T");
-    expect(
-      widget("account-link", { signin_pl: "In", signup_pl: "Up" }, { lang: "en" }).container
-        .textContent,
-    ).toContain("In");
+    // Language-scoped labels: PL-only overrides must NOT leak into the EN
+    // render - it falls back to the EN defaults instead.
+    const en = widget("account-link", { signin_pl: "In", signup_pl: "Up" }, { lang: "en" })
+      .container.textContent;
+    expect(en).toContain("Sign in");
+    expect(en).not.toContain("Up");
+    const pl = widget("account-link", { signin_pl: "In", signup_pl: "Up" }, { lang: "pl" })
+      .container.textContent;
+    expect(pl).toContain("In");
+    expect(pl).toContain("Up");
   });
 });

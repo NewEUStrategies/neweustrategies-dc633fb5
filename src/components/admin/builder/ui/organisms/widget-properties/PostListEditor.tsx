@@ -7,7 +7,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { PropField, CollapsibleSection as Collapsible, ColorField } from "../../atoms";
 import { IndexColorPreview } from "./IndexColorPreview";
 import { TaxonomyPicker } from "./TaxonomyPicker";
@@ -75,7 +81,8 @@ export function PostListEditor({ c, lang, setContent }: Props) {
   const dateTo = str(c, "dateTo", "");
   const popularDays = num(c, "popularDays", 30);
   const uniqueOnPage = c["uniqueOnPage"] === true || c["uniqueOnPage"] === "true";
-  const mobileHScroll = c["mobileHorizontalScroll"] === true || c["mobileHorizontalScroll"] === "true";
+  const mobileHScroll =
+    c["mobileHorizontalScroll"] === true || c["mobileHorizontalScroll"] === "true";
 
   const categoriesCsv = str(c, "categoriesCsv", "");
   const excludeCategoriesCsv = str(c, "excludeCategoriesCsv", "");
@@ -88,25 +95,43 @@ export function PostListEditor({ c, lang, setContent }: Props) {
     queryKey: ["post-list-authors"],
     staleTime: 60_000,
     queryFn: async () => {
+      // No `email` here: the profiles column grant excludes it (PII); the
+      // picker labels fall back to the public author slug.
       const { data } = await supabase
         .from("profiles")
-        .select("id, display_name, email")
+        .select("id, display_name, slug")
         .order("display_name", { ascending: true });
-      return (data ?? []) as { id: string; display_name: string | null; email: string | null }[];
+      return (data ?? []) as { id: string; display_name: string | null; slug: string | null }[];
     },
   });
 
-  const authorLabel = (a: { display_name: string | null; email: string | null }) =>
-    (a.display_name && a.display_name.trim()) || a.email || "-";
+  const authorLabel = (a: { display_name: string | null; slug: string | null }) =>
+    (a.display_name && a.display_name.trim()) || a.slug || "-";
 
   // Live count preview for current query (best-effort, lightweight).
   const countKey = useMemo(
-    () => [
-      "post-list-count",
-      categoriesCsv, excludeCategoriesCsv, tagsCsv, excludeTagsCsv,
-      includeIdsCsv, excludeIdsCsv, postFormat, authorId,
-    ].join("|"),
-    [categoriesCsv, excludeCategoriesCsv, tagsCsv, excludeTagsCsv, includeIdsCsv, excludeIdsCsv, postFormat, authorId],
+    () =>
+      [
+        "post-list-count",
+        categoriesCsv,
+        excludeCategoriesCsv,
+        tagsCsv,
+        excludeTagsCsv,
+        includeIdsCsv,
+        excludeIdsCsv,
+        postFormat,
+        authorId,
+      ].join("|"),
+    [
+      categoriesCsv,
+      excludeCategoriesCsv,
+      tagsCsv,
+      excludeTagsCsv,
+      includeIdsCsv,
+      excludeIdsCsv,
+      postFormat,
+      authorId,
+    ],
   );
   const { data: matchCount } = useQuery({
     queryKey: ["post-list-editor-count", countKey],
@@ -118,9 +143,15 @@ export function PostListEditor({ c, lang, setContent }: Props) {
         .eq("status", "published");
       if (postFormat) q = q.eq("post_format", postFormat);
       if (authorId) q = q.eq("author_id", authorId);
-      const inc = includeIdsCsv.split(",").map((s) => s.trim()).filter(Boolean);
+      const inc = includeIdsCsv
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
       if (inc.length) q = q.in("id", inc);
-      const exc = excludeIdsCsv.split(",").map((s) => s.trim()).filter(Boolean);
+      const exc = excludeIdsCsv
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
       if (exc.length) q = q.not("id", "in", `(${exc.join(",")})`);
       const { count } = await q;
       return count ?? 0;
@@ -134,10 +165,14 @@ export function PostListEditor({ c, lang, setContent }: Props) {
         <div className="grid grid-cols-2 gap-2">
           <PropField label="Wariant">
             <Select value={variant} onValueChange={(v) => setContent("variant", v)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {VARIANTS.map((o) => (
-                  <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>
+                  <SelectItem key={o.v} value={o.v} className="text-xs">
+                    {o.l}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -145,7 +180,9 @@ export function PostListEditor({ c, lang, setContent }: Props) {
           {variant !== "numbered" && variant !== "list" && variant !== "ranked" && (
             <PropField label="Kolumny">
               <Input
-                type="number" min={1} max={6}
+                type="number"
+                min={1}
+                max={6}
                 value={columns}
                 onChange={(e) => setContent("columns", Number(e.target.value) || 1)}
                 className="h-8 text-xs"
@@ -154,19 +191,33 @@ export function PostListEditor({ c, lang, setContent }: Props) {
           )}
           {variant !== "ranked" && (
             <PropField label="Proporcje obrazu">
-              <Select value={str(c, "imageAspect", "4/3")} onValueChange={(v) => setContent("imageAspect", v)}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <Select
+                value={str(c, "imageAspect", "4/3")}
+                onValueChange={(v) => setContent("imageAspect", v)}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="4/3" className="text-xs">Poziome 4:3</SelectItem>
-                  <SelectItem value="3/4" className="text-xs">Pionowe 3:4</SelectItem>
-                  <SelectItem value="1/1" className="text-xs">Kwadrat 1:1</SelectItem>
-                  <SelectItem value="16/9" className="text-xs">Szerokie 16:9</SelectItem>
+                  <SelectItem value="4/3" className="text-xs">
+                    Poziome 4:3
+                  </SelectItem>
+                  <SelectItem value="3/4" className="text-xs">
+                    Pionowe 3:4
+                  </SelectItem>
+                  <SelectItem value="1/1" className="text-xs">
+                    Kwadrat 1:1
+                  </SelectItem>
+                  <SelectItem value="16/9" className="text-xs">
+                    Szerokie 16:9
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </PropField>
           )}
         </div>
-      </Collapsible>{/* anchor */}
+      </Collapsible>
+      {/* anchor */}
 
       {/* ── Query ──────────────────────────────────────────── */}
       <Collapsible title="Filtry zapytania" defaultOpen>
@@ -208,7 +259,9 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                 value={postFormat || "__all__"}
                 onValueChange={(v) => setContent("postFormat", v === "__all__" ? "" : v)}
               >
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {POST_FORMATS.map((o) => (
                     <SelectItem key={o.v || "__all__"} value={o.v || "__all__"} className="text-xs">
@@ -223,9 +276,13 @@ export function PostListEditor({ c, lang, setContent }: Props) {
                 value={authorId || "__all__"}
                 onValueChange={(v) => setContent("authorId", v === "__all__" ? "" : v)}
               >
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="- Wszyscy -" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="- Wszyscy -" />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__" className="text-xs">- Wszyscy -</SelectItem>
+                  <SelectItem value="__all__" className="text-xs">
+                    - Wszyscy -
+                  </SelectItem>
                   {authors.map((a) => (
                     <SelectItem key={a.id} value={a.id} className="text-xs">
                       {authorLabel(a)}
@@ -301,35 +358,43 @@ export function PostListEditor({ c, lang, setContent }: Props) {
         </div>
       </Collapsible>
 
-
       {/* ── Sort / paging ──────────────────────────────────── */}
       <Collapsible title="Sortowanie i ilość" defaultOpen>
         <div className="grid grid-cols-2 gap-2">
           <PropField label="Sortuj wg">
             <Select value={orderBy} onValueChange={(v) => setContent("orderBy", v)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {ORDER_BY.map((o) => (
-                  <SelectItem key={o.v} value={o.v} className="text-xs">{o.l}</SelectItem>
+                  <SelectItem key={o.v} value={o.v} className="text-xs">
+                    {o.l}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </PropField>
           <PropField label="Kierunek">
-            <Select
-              value={orderDir}
-              onValueChange={(v) => setContent("orderDir", v)}
-            >
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <Select value={orderDir} onValueChange={(v) => setContent("orderDir", v)}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="desc" className="text-xs">Malejąco</SelectItem>
-                <SelectItem value="asc" className="text-xs">Rosnąco</SelectItem>
+                <SelectItem value="desc" className="text-xs">
+                  Malejąco
+                </SelectItem>
+                <SelectItem value="asc" className="text-xs">
+                  Rosnąco
+                </SelectItem>
               </SelectContent>
             </Select>
           </PropField>
           <PropField label="Liczba wpisów">
             <Input
-              type="number" min={1} max={100}
+              type="number"
+              min={1}
+              max={100}
               value={limit}
               onChange={(e) => setContent("limit", Math.max(1, Number(e.target.value) || 1))}
               className="h-8 text-xs"
@@ -337,7 +402,9 @@ export function PostListEditor({ c, lang, setContent }: Props) {
           </PropField>
           <PropField label="Offset (pomiń N)">
             <Input
-              type="number" min={0} max={1000}
+              type="number"
+              min={0}
+              max={1000}
               value={offset}
               onChange={(e) => setContent("offset", Math.max(0, Number(e.target.value) || 0))}
               className="h-8 text-xs"
@@ -346,9 +413,13 @@ export function PostListEditor({ c, lang, setContent }: Props) {
           {orderBy === "popular" && (
             <PropField label="Okres popularności (dni)">
               <Input
-                type="number" min={1} max={365}
+                type="number"
+                min={1}
+                max={365}
                 value={popularDays}
-                onChange={(e) => setContent("popularDays", Math.max(1, Number(e.target.value) || 30))}
+                onChange={(e) =>
+                  setContent("popularDays", Math.max(1, Number(e.target.value) || 30))
+                }
                 className="h-8 text-xs"
               />
             </PropField>
@@ -367,31 +438,44 @@ export function PostListEditor({ c, lang, setContent }: Props) {
           „Styl" → Typografia (single source of truth, działa przez
           `.cms-post-title` / `.cms-post-excerpt`). Brak duplikatów tutaj. */}
 
-
       {(variant === "numbered" || variant === "ranked") && (
         <Collapsible title="Numeracja (01, 02, 03…)" defaultOpen>
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Rozmiar (px)">
               <Input
-                type="number" min={12} max={240}
+                type="number"
+                min={12}
+                max={240}
                 value={num(c, "indexSizePx", 52)}
                 onChange={(e) => setContent("indexSizePx", Number(e.target.value) || 0)}
                 className="h-8 text-xs"
               />
             </PropField>
             <PropField label="Grubość">
-              <Select value={str(c, "indexWeight", "800")} onValueChange={(v) => setContent("indexWeight", v)}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <Select
+                value={str(c, "indexWeight", "800")}
+                onValueChange={(v) => setContent("indexWeight", v)}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {["300","400","500","600","700","800","900"].map((w) => (
-                    <SelectItem key={w} value={w}>{w}</SelectItem>
+                  {["300", "400", "500", "600", "700", "800", "900"].map((w) => (
+                    <SelectItem key={w} value={w}>
+                      {w}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </PropField>
             <PropField label="Pozycja pozioma">
-              <Select value={str(c, "indexSide", "right")} onValueChange={(v) => setContent("indexSide", v)}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <Select
+                value={str(c, "indexSide", "right")}
+                onValueChange={(v) => setContent("indexSide", v)}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="left">Lewa</SelectItem>
                   <SelectItem value="right">Prawa</SelectItem>
@@ -399,8 +483,13 @@ export function PostListEditor({ c, lang, setContent }: Props) {
               </Select>
             </PropField>
             <PropField label="Pozycja pionowa">
-              <Select value={str(c, "indexVAlign", "top")} onValueChange={(v) => setContent("indexVAlign", v)}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <Select
+                value={str(c, "indexVAlign", "top")}
+                onValueChange={(v) => setContent("indexVAlign", v)}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="top">Góra (równo z tytułem)</SelectItem>
                   <SelectItem value="middle">Środek</SelectItem>
@@ -410,25 +499,36 @@ export function PostListEditor({ c, lang, setContent }: Props) {
             </PropField>
           </div>
 
-
           <div className="grid grid-cols-1 gap-3 mt-3 p-2.5 rounded-md border border-border/60 bg-muted/30">
             <PropField label="Kolor (light)">
-              <ColorField value={str(c, "indexColor", "")} onChange={(v) => setContent("indexColor", v ?? "")} />
+              <ColorField
+                value={str(c, "indexColor", "")}
+                onChange={(v) => setContent("indexColor", v ?? "")}
+              />
             </PropField>
             <PropField label="Kolor (dark)">
-              <ColorField value={str(c, "indexColorDark", "")} onChange={(v) => setContent("indexColorDark", v ?? "")} />
+              <ColorField
+                value={str(c, "indexColorDark", "")}
+                onChange={(v) => setContent("indexColorDark", v ?? "")}
+              />
             </PropField>
           </div>
-          <PropField label={`Przezroczystość (${Math.round(((num(c, "indexOpacity", -1) < 0 ? 0.05 : num(c, "indexOpacity", 0.05))) * 100)}%) - używana gdy brak własnego koloru`}>
+          <PropField
+            label={`Przezroczystość (${Math.round((num(c, "indexOpacity", -1) < 0 ? 0.05 : num(c, "indexOpacity", 0.05)) * 100)}%) - używana gdy brak własnego koloru`}
+          >
             <Input
-              type="range" min={0} max={1} step={0.01}
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
               value={num(c, "indexOpacity", -1) < 0 ? 0.05 : num(c, "indexOpacity", 0.05)}
               onChange={(e) => setContent("indexOpacity", Number(e.target.value))}
               className="h-6"
             />
           </PropField>
           <div className="mt-1 text-[10px] text-muted-foreground">
-            Puste pole koloru = automatyczne dopasowanie do trybu jasnego/ciemnego z ustawioną przezroczystością.
+            Puste pole koloru = automatyczne dopasowanie do trybu jasnego/ciemnego z ustawioną
+            przezroczystością.
           </div>
           <IndexColorPreview
             indexColor={str(c, "indexColor", "")}
@@ -456,13 +556,19 @@ interface PreviewRow {
   author_id: string | null;
 }
 
-async function resolveTaxonomyIds(table: "post_categories" | "post_tags", slugs: string[]): Promise<Set<string>> {
+async function resolveTaxonomyIds(
+  table: "post_categories" | "post_tags",
+  slugs: string[],
+): Promise<Set<string>> {
   if (!slugs.length) return new Set();
   if (table === "post_categories") {
     const { data: cats } = await supabase.from("categories").select("id").in("slug", slugs);
     const ids = (cats ?? []).map((r: { id: string }) => r.id);
     if (!ids.length) return new Set();
-    const { data: links } = await supabase.from("post_categories").select("post_id").in("category_id", ids);
+    const { data: links } = await supabase
+      .from("post_categories")
+      .select("post_id")
+      .in("category_id", ids);
     return new Set((links ?? []).map((r: { post_id: string }) => r.post_id));
   }
   const { data: tags } = await supabase.from("tags").select("id").in("slug", slugs);
@@ -481,7 +587,11 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
   const authorId = str(c, "authorId", "");
   const dateFrom = str(c, "dateFrom", "");
   const dateTo = str(c, "dateTo", "");
-  const csv = (k: string) => str(c, k, "").split(",").map((s) => s.trim()).filter(Boolean);
+  const csv = (k: string) =>
+    str(c, k, "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
   const includeCats = csv("categoriesCsv");
   const excludeCats = csv("excludeCategoriesCsv");
   const includeTags = csv("tagsCsv");
@@ -492,12 +602,43 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
   const overrides = readThumbnailOverrides(c);
 
   const queryKey = useMemo(
-    () => ["post-list-editor-preview", {
-      limit, offset, orderByRaw, orderDir, postFormat, authorId, dateFrom, dateTo,
-      includeCats, excludeCats, includeTags, excludeTags, includeIds, excludeIds, lang,
-    }],
-    [limit, offset, orderByRaw, orderDir, postFormat, authorId, dateFrom, dateTo,
-     includeCats, excludeCats, includeTags, excludeTags, includeIds, excludeIds, lang],
+    () => [
+      "post-list-editor-preview",
+      {
+        limit,
+        offset,
+        orderByRaw,
+        orderDir,
+        postFormat,
+        authorId,
+        dateFrom,
+        dateTo,
+        includeCats,
+        excludeCats,
+        includeTags,
+        excludeTags,
+        includeIds,
+        excludeIds,
+        lang,
+      },
+    ],
+    [
+      limit,
+      offset,
+      orderByRaw,
+      orderDir,
+      postFormat,
+      authorId,
+      dateFrom,
+      dateTo,
+      includeCats,
+      excludeCats,
+      includeTags,
+      excludeTags,
+      includeIds,
+      excludeIds,
+      lang,
+    ],
   );
 
   const { data: rows = [], isLoading } = useQuery<PreviewRow[]>({
@@ -532,9 +673,11 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
       if (excludeSet.size) q = q.not("id", "in", `(${Array.from(excludeSet).join(",")})`);
 
       const orderCol =
-        orderByRaw === "title" ? `title_${lang}`
-        : orderByRaw === "random" || orderByRaw === "popular" ? "published_at"
-        : orderByRaw;
+        orderByRaw === "title"
+          ? `title_${lang}`
+          : orderByRaw === "random" || orderByRaw === "popular"
+            ? "published_at"
+            : orderByRaw;
       q = q.order(orderCol, { ascending: orderDir === "asc" });
       q = q.range(offset, offset + limit - 1);
       const { data } = await q;
@@ -562,7 +705,10 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
     queryKey: ["post-list-editor-authors", authorIds],
     enabled: isRanked && authorIds.length > 0,
     queryFn: async () => {
-      const { data: profs } = await supabase.from("profiles").select("id, display_name").in("id", authorIds);
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", authorIds);
       const m: Record<string, string> = {};
       for (const r of (profs ?? []) as Array<{ id: string; display_name: string | null }>) {
         if (r.display_name) m[r.id] = r.display_name;
@@ -572,7 +718,10 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
   });
 
   return (
-    <Collapsible title={isRanked ? "Podgląd rankingu" : "Miniatury (override per wpis)"} defaultOpen={false}>
+    <Collapsible
+      title={isRanked ? "Podgląd rankingu" : "Miniatury (override per wpis)"}
+      defaultOpen={false}
+    >
       <div className="space-y-3">
         <div className="text-[10px] text-muted-foreground">
           {isRanked
@@ -584,89 +733,102 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
           <div className="text-xs text-muted-foreground">Brak wpisów.</div>
         )}
 
-        {isRanked && rows.map((p, i) => {
-          const authorName = p.author_id ? authorMap[p.author_id] ?? "" : "";
-          const side = str(c, "indexSide", "right") === "left" ? "left" : "right";
-          const vAlignRaw = str(c, "indexVAlign", "top");
-          const vAlign = vAlignRaw === "middle" || vAlignRaw === "bottom" ? vAlignRaw : "top";
-          const sizePx = (() => {
-            const raw = c["indexSizePx"];
-            const n = typeof raw === "number" ? raw : Number(raw);
-            return Number.isFinite(n) && n > 0 ? n : 96;
-          })();
-          // Cap preview size so it fits the narrow sidebar without clipping.
-          const previewSize = Math.min(sizePx, 64);
-          const vStyle: React.CSSProperties =
-            vAlign === "top"
-              ? { top: "0.5rem", bottom: "auto" }
-              : vAlign === "bottom"
-              ? { top: "auto", bottom: "0.5rem" }
-              : { top: "50%", transform: "translateY(-50%)" };
-          return (
-            <div
-              key={p.id}
-              className="relative isolate overflow-hidden rounded-md border border-border bg-card px-3 py-3"
-            >
-              <span
-                aria-hidden
-                className="pointer-events-none absolute font-display tabular-nums leading-none select-none"
-                style={{
-                  left: side === "left" ? "0.5rem" : "auto",
-                  right: side === "right" ? "0.5rem" : "auto",
-                  ...vStyle,
-                  textAlign: side,
-                  fontSize: `${previewSize}px`,
-                  fontWeight: 800,
-                  color: "rgb(250,147,70)",
-                  opacity: 0.18,
-                  zIndex: 0,
-                } as React.CSSProperties}
+        {isRanked &&
+          rows.map((p, i) => {
+            const authorName = p.author_id ? (authorMap[p.author_id] ?? "") : "";
+            const side = str(c, "indexSide", "right") === "left" ? "left" : "right";
+            const vAlignRaw = str(c, "indexVAlign", "top");
+            const vAlign = vAlignRaw === "middle" || vAlignRaw === "bottom" ? vAlignRaw : "top";
+            const sizePx = (() => {
+              const raw = c["indexSizePx"];
+              const n = typeof raw === "number" ? raw : Number(raw);
+              return Number.isFinite(n) && n > 0 ? n : 96;
+            })();
+            // Cap preview size so it fits the narrow sidebar without clipping.
+            const previewSize = Math.min(sizePx, 64);
+            const vStyle: React.CSSProperties =
+              vAlign === "top"
+                ? { top: "0.5rem", bottom: "auto" }
+                : vAlign === "bottom"
+                  ? { top: "auto", bottom: "0.5rem" }
+                  : { top: "50%", transform: "translateY(-50%)" };
+            return (
+              <div
+                key={p.id}
+                className="relative isolate overflow-hidden rounded-md border border-border bg-card px-3 py-3"
               >
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <div className="relative z-10 w-full">
-                <div className="text-xs font-semibold leading-snug line-clamp-2">{titleOf(p)}</div>
-                {authorName && (
-                  <div className="mt-1.5 text-[11px] text-muted-foreground">
-                    <span className="opacity-70">{byLabel}</span>{" "}
-                    <span className="font-medium text-foreground">{authorName}</span>
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute font-display tabular-nums leading-none select-none"
+                  style={
+                    {
+                      left: side === "left" ? "0.5rem" : "auto",
+                      right: side === "right" ? "0.5rem" : "auto",
+                      ...vStyle,
+                      textAlign: side,
+                      fontSize: `${previewSize}px`,
+                      fontWeight: 800,
+                      color: "rgb(250,147,70)",
+                      opacity: 0.18,
+                      zIndex: 0,
+                    } as React.CSSProperties
+                  }
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <div className="relative z-10 w-full">
+                  <div className="text-xs font-semibold leading-snug line-clamp-2">
+                    {titleOf(p)}
                   </div>
-                )}
-                <div className="mt-1 text-[10px] text-muted-foreground/70 truncate font-mono">{p.slug}</div>
-              </div>
-            </div>
-          );
-        })}
-
-
-
-        {!isRanked && rows.map((p) => {
-          const current = overrides[p.id] || "";
-          const preview = current || p.cover_image_url || "";
-          return (
-            <div key={p.id} className="rounded-md border border-border p-2 space-y-2">
-              <div className="flex items-center gap-2">
-                <div className="relative w-14 aspect-[4/3] shrink-0 overflow-hidden rounded-sm bg-muted">
-                  {preview && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={preview} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                  {authorName && (
+                    <div className="mt-1.5 text-[11px] text-muted-foreground">
+                      <span className="opacity-70">{byLabel}</span>{" "}
+                      <span className="font-medium text-foreground">{authorName}</span>
+                    </div>
                   )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium truncate">{titleOf(p)}</div>
-                  <div className="text-[10px] text-muted-foreground truncate font-mono">{p.slug}</div>
+                  <div className="mt-1 text-[10px] text-muted-foreground/70 truncate font-mono">
+                    {p.slug}
+                  </div>
                 </div>
               </div>
-              <ImageSlot
-                label="Miniatura (override)"
-                icon={<ImageIcon className="w-3 h-3" />}
-                value={current}
-                onChange={(v) => updateOverride(p.id, v)}
-                hint={current ? "Nadpisana miniatura aktywna." : "Puste = oryginalna okładka wpisu."}
-              />
-            </div>
-          );
-        })}
+            );
+          })}
+
+        {!isRanked &&
+          rows.map((p) => {
+            const current = overrides[p.id] || "";
+            const preview = current || p.cover_image_url || "";
+            return (
+              <div key={p.id} className="rounded-md border border-border p-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="relative w-14 aspect-[4/3] shrink-0 overflow-hidden rounded-sm bg-muted">
+                    {preview && (
+                      <img
+                        src={preview}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-medium truncate">{titleOf(p)}</div>
+                    <div className="text-[10px] text-muted-foreground truncate font-mono">
+                      {p.slug}
+                    </div>
+                  </div>
+                </div>
+                <ImageSlot
+                  label="Miniatura (override)"
+                  icon={<ImageIcon className="w-3 h-3" />}
+                  value={current}
+                  onChange={(v) => updateOverride(p.id, v)}
+                  hint={
+                    current ? "Nadpisana miniatura aktywna." : "Puste = oryginalna okładka wpisu."
+                  }
+                />
+              </div>
+            );
+          })}
       </div>
     </Collapsible>
   );

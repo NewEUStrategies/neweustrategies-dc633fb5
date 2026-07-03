@@ -39,7 +39,10 @@ function slugify(input: string): string {
 
 async function resolveTenant(supabase: SupabaseClient, userId: string): Promise<string> {
   const { data, error } = await supabase
-    .from("profiles").select("tenant_id").eq("id", userId).maybeSingle();
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", userId)
+    .maybeSingle();
   if (error || !data?.tenant_id) throw new Error("No tenant for current user");
   return data.tenant_id as string;
 }
@@ -54,7 +57,12 @@ async function uniqueSlug(
   const base = slugify(desired) || "item";
   let candidate = base;
   for (let i = 0; i < 50; i++) {
-    let q = supabase.from(table).select("id").eq("tenant_id", tenantId).eq("slug", candidate).limit(1);
+    let q = supabase
+      .from(table)
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("slug", candidate)
+      .limit(1);
     if (ignoreId) q = q.neq("id", ignoreId);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
@@ -65,7 +73,10 @@ async function uniqueSlug(
 }
 
 async function guard<T>(
-  scope: string, userId: string, max: number, action: () => Promise<T>,
+  scope: string,
+  userId: string,
+  max: number,
+  action: () => Promise<T>,
 ): Promise<T> {
   if (!(await rateLimit({ scope, subjectId: userId, max }))) {
     throw new Error("Rate limit exceeded - please slow down");
@@ -74,8 +85,12 @@ async function guard<T>(
 }
 
 async function audit(
-  supabase: SupabaseClient, tenantId: string, action: AuditAction,
-  entityType: string, entityId: string | null, metadata: Record<string, unknown> = {},
+  supabase: SupabaseClient,
+  tenantId: string,
+  action: AuditAction,
+  entityType: string,
+  entityId: string | null,
+  metadata: Record<string, unknown> = {},
 ) {
   await recordAudit(supabase, { tenantId, action, entityType, entityId, metadata });
 }
@@ -136,13 +151,21 @@ async function pageFullPath(supabase: SupabaseClient, pageId: string): Promise<s
 async function captureAutoRedirect(
   supabase: SupabaseClient,
   userId: string,
+  tenantId: string,
   input: { oldPath: string | null; newPath: string | null; wildcard?: boolean },
 ): Promise<void> {
   try {
     const source = input.oldPath ? normalizeSourcePath(input.oldPath) : null;
+    // Internal path targets only - no allowlist needed here.
     const target = input.newPath ? normalizeTargetPath(input.newPath) : null;
     if (!source || !target || source === target) return;
-    const base = { status_code: 301, source: "slug_change", created_by: userId, is_enabled: true };
+    const base = {
+      tenant_id: tenantId,
+      status_code: 301,
+      source: "slug_change",
+      created_by: userId,
+      is_enabled: true,
+    };
     const rows = [
       { ...base, source_path: source, target_path: target },
       ...(input.wildcard
@@ -150,14 +173,25 @@ async function captureAutoRedirect(
         : []),
     ];
     // A stale rule whose source equals the NEW path would hijack the live URL.
-    await supabase.from("redirects").delete().in("source_path", rows.map((r) => r.target_path));
+    await supabase
+      .from("redirects")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .in(
+        "source_path",
+        rows.map((r) => r.target_path),
+      );
     const { error } = await supabase
       .from("redirects")
-      .upsert(rows, { onConflict: "source_path" });
+      .upsert(rows, { onConflict: "tenant_id,source_path" });
     if (error) throw new Error(error.message);
     // Chain-flattening: anything that redirected TO the old URL now goes
     // straight to the new one (one visible hop for visitors and crawlers).
-    await supabase.from("redirects").update({ target_path: target }).eq("target_path", source);
+    await supabase
+      .from("redirects")
+      .update({ target_path: target })
+      .eq("tenant_id", tenantId)
+      .eq("target_path", source);
   } catch (e) {
     console.warn("[redirects] auto-capture failed:", e);
   }
@@ -200,7 +234,11 @@ const SeoBlock = {
 // We accept it here; JSON.stringify drops such keys at the wire boundary.
 const BuilderJsonValue: z.ZodType<unknown> = z.lazy(() =>
   z.union([
-    z.string(), z.number(), z.boolean(), z.null(), z.undefined(),
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.undefined(),
     z.array(BuilderJsonValue),
     z.record(z.string(), BuilderJsonValue),
   ]),
@@ -235,45 +273,63 @@ const PostCore = z.object({
 });
 
 async function resolveDefaultBlogPage(
-  supabase: SupabaseClient, tenantId: string, authorId: string,
+  supabase: SupabaseClient,
+  tenantId: string,
+  authorId: string,
 ): Promise<string> {
   const { data: existing } = await supabase
-    .from("pages").select("id")
-    .eq("tenant_id", tenantId).eq("slug", "blog").is("parent_id", null)
+    .from("pages")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("slug", "blog")
+    .is("parent_id", null)
     .maybeSingle();
   if (existing?.id) return existing.id as string;
   const { data: created, error } = await supabase
     .from("pages")
     .insert({
-      tenant_id: tenantId, author_id: authorId, slug: "blog",
-      title_pl: "Blog", title_en: "Blog", status: "published",
+      tenant_id: tenantId,
+      author_id: authorId,
+      slug: "blog",
+      title_pl: "Blog",
+      title_en: "Blog",
+      status: "published",
       published_at: new Date().toISOString(),
     })
-    .select("id").single();
+    .select("id")
+    .single();
   if (error || !created) throw new Error(error?.message || "Cannot create default blog page");
   return created.id as string;
 }
 
 export const createPost = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({
-    title_pl: z.string().max(300).optional(),
-    title_en: z.string().max(300).optional(),
-    parent_page_id: UUID.optional(),
-    template_id: UUID.optional(),
-  }).parse(i ?? {}))
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        title_pl: z.string().max(300).optional(),
+        title_en: z.string().max(300).optional(),
+        parent_page_id: UUID.optional(),
+        template_id: UUID.optional(),
+      })
+      .parse(i ?? {}),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("post.create", userId, 30, async () => {
       const tenantId = await resolveTenant(supabase, userId);
       const seed = (data.title_pl || data.title_en || `post-${Date.now().toString(36)}`).trim();
       const slug = await uniqueSlug(supabase, "posts", tenantId, seed);
-      const parentPageId = data.parent_page_id ?? await resolveDefaultBlogPage(supabase, tenantId, userId);
+      const parentPageId =
+        data.parent_page_id ?? (await resolveDefaultBlogPage(supabase, tenantId, userId));
       const { data: row, error } = await supabase
         .from("posts")
         .insert({
-          tenant_id: tenantId, author_id: userId, slug,
-          title_pl: data.title_pl ?? "", title_en: data.title_en ?? "",
+          tenant_id: tenantId,
+          author_id: userId,
+          slug,
+          title_pl: data.title_pl ?? "",
+          title_en: data.title_en ?? "",
           parent_page_id: parentPageId,
           template_id: data.template_id ?? null,
           // Hybrid model: posts default to the Gutenberg-style blocks editor
@@ -283,7 +339,8 @@ export const createPost = createServerFn({ method: "POST" })
           editor: "blocks",
           blocks_data: { pl: { version: 1, blocks: [] }, en: { version: 1, blocks: [] } },
         })
-        .select("id, slug").single();
+        .select("id, slug")
+        .single();
       if (error) throw new Error(error.message);
 
       await audit(supabase, tenantId, "post.create", "post", row.id, { slug });
@@ -349,8 +406,13 @@ async function writeRevisionSnapshot(
       .order("created_at", { ascending: false })
       .range(REVISION_KEEP_LIMIT, REVISION_KEEP_LIMIT + 49);
     if (overflow?.length) {
-      await supabase.from("content_revisions").delete()
-        .in("id", overflow.map((r) => r.id));
+      await supabase
+        .from("content_revisions")
+        .delete()
+        .in(
+          "id",
+          overflow.map((r) => r.id),
+        );
     }
   } catch (e) {
     console.warn("[revisions] snapshot threw:", e);
@@ -359,11 +421,16 @@ async function writeRevisionSnapshot(
 
 export const updatePost = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({
-    id: UUID, fields: PostCore.partial(),
-    categories: z.array(UUID).max(50).optional(),
-    tags: z.array(UUID).max(50).optional(),
-  }).parse(i))
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        id: UUID,
+        fields: PostCore.partial(),
+        categories: z.array(UUID).max(50).optional(),
+        tags: z.array(UUID).max(50).optional(),
+      })
+      .parse(i),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("post.update", userId, 120, async () => {
@@ -376,7 +443,11 @@ export const updatePost = createServerFn({ method: "POST" })
       // to preserve cross-tenant isolation.
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: existing, error: exErr } = await supabaseAdmin
-        .from("posts").select("*").eq("id", data.id).eq("tenant_id", tenantId).maybeSingle();
+        .from("posts")
+        .select("*")
+        .eq("id", data.id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
       if (exErr) throw new Error(exErr.message);
       if (!existing) throw new Error("Post not found or access denied");
 
@@ -416,14 +487,30 @@ export const updatePost = createServerFn({ method: "POST" })
 
       if (revisionTouches(data.fields)) {
         await writeRevisionSnapshot(supabase, {
-          tenantId, userId, entityType: "post", entityId: data.id,
-          row: existing, note: "autosave", force: statusChanges,
+          tenantId,
+          userId,
+          entityType: "post",
+          entityId: data.id,
+          row: existing,
+          note: "autosave",
+          force: statusChanges,
         });
       }
 
       if (Object.keys(updates).length) {
-        const { error } = await supabase.from("posts").update(updates).eq("id", data.id);
+        // `.select()` makes an RLS rejection visible: PostgREST returns 0 rows
+        // with error=null when the policy filters the target out (e.g. an
+        // author "saving" someone else's post). Without this check the client
+        // would show "Saved" while nothing was written - silent data loss.
+        const { data: updated, error } = await supabase
+          .from("posts")
+          .update(updates)
+          .eq("id", data.id)
+          .select("id");
         if (error) throw new Error(error.message);
+        if (!updated?.length) {
+          throw new Error("Save rejected - you do not have permission to edit this post");
+        }
       }
 
       // A published post whose slug or parent changed leaves its old permalink
@@ -437,7 +524,7 @@ export const updatePost = createServerFn({ method: "POST" })
         const newParentId = updates.parent_page_id ?? existing.parent_page_id;
         const newBase = parentChanged ? await pageFullPath(supabase, newParentId) : oldBase;
         const newSlug = updates.slug ?? existing.slug;
-        await captureAutoRedirect(supabase, userId, {
+        await captureAutoRedirect(supabase, userId, tenantId, {
           oldPath: oldBase ? `/${oldBase}/${existing.slug}` : null,
           newPath: newBase ? `/${newBase}/${newSlug}` : null,
         });
@@ -446,7 +533,8 @@ export const updatePost = createServerFn({ method: "POST" })
       if (data.categories) {
         await supabase.from("post_categories").delete().eq("post_id", data.id);
         if (data.categories.length) {
-          const { error } = await supabase.from("post_categories")
+          const { error } = await supabase
+            .from("post_categories")
             .insert(data.categories.map((category_id) => ({ post_id: data.id, category_id })));
           if (error) throw new Error(error.message);
         }
@@ -454,7 +542,8 @@ export const updatePost = createServerFn({ method: "POST" })
       if (data.tags) {
         await supabase.from("post_tags").delete().eq("post_id", data.id);
         if (data.tags.length) {
-          const { error } = await supabase.from("post_tags")
+          const { error } = await supabase
+            .from("post_tags")
             .insert(data.tags.map((tag_id) => ({ post_id: data.id, tag_id })));
           if (error) throw new Error(error.message);
         }
@@ -485,7 +574,8 @@ export const deletePost = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);
-    const { error } = await supabase.from("posts")
+    const { error } = await supabase
+      .from("posts")
       .update({ deleted_at: new Date().toISOString() } as PostUpdateRow)
       .eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -500,11 +590,16 @@ export const bulkDeletePosts = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("post.bulkDelete", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const { error } = await supabase.from("posts")
+      const { error } = await supabase
+        .from("posts")
         .update({ deleted_at: new Date().toISOString() } as PostUpdateRow)
         .in("id", data.ids);
       if (error) throw new Error(error.message);
-      await audit(supabase, tenantId, "post.delete", "post", null, { ids: data.ids, count: data.ids.length, soft: true });
+      await audit(supabase, tenantId, "post.delete", "post", null, {
+        ids: data.ids,
+        count: data.ids.length,
+        soft: true,
+      });
       return { ok: true as const, count: data.ids.length };
     });
   });
@@ -516,11 +611,15 @@ export const restorePosts = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("post.restore", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const { error } = await supabase.from("posts")
+      const { error } = await supabase
+        .from("posts")
         .update({ deleted_at: null } as PostUpdateRow)
         .in("id", data.ids);
       if (error) throw new Error(error.message);
-      await audit(supabase, tenantId, "post.update", "post", null, { ids: data.ids, restored: true });
+      await audit(supabase, tenantId, "post.update", "post", null, {
+        ids: data.ids,
+        restored: true,
+      });
       return { ok: true as const, count: data.ids.length };
     });
   });
@@ -541,24 +640,29 @@ export const purgePosts = createServerFn({ method: "POST" })
 
 export const bulkUpdatePosts = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({
-    ids: z.array(UUID).min(1).max(200),
-    status: BulkPostStatus,
-  }).parse(i))
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        ids: z.array(UUID).min(1).max(200),
+        status: BulkPostStatus,
+      })
+      .parse(i),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("post.bulkUpdate", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
       if (data.status === "published" && !(await resolveCanPublish(supabase))) {
-        throw new Error(
-          "Workflow: only an administrator can publish - submit for review instead",
-        );
+        throw new Error("Workflow: only an administrator can publish - submit for review instead");
       }
       await applyBulkStatus(supabase, "posts", data.ids, data.status);
       await audit(
-        supabase, tenantId,
+        supabase,
+        tenantId,
         data.status === "published" ? "post.publish" : "post.update",
-        "post", null, { ids: data.ids, status: data.status },
+        "post",
+        null,
+        { ids: data.ids, status: data.status },
       );
       return { ok: true as const, count: data.ids.length };
     });
@@ -575,25 +679,36 @@ const PageCore = z.object({
   excerpt_en: NullableStr(1000),
   content_pl: NullableStr(200_000),
   content_en: NullableStr(200_000),
-  cover_image_url: z.string().max(2048).nullable().optional().transform((v) => (v && v.trim() ? v.trim() : null)),
+  cover_image_url: z
+    .string()
+    .max(2048)
+    .nullable()
+    .optional()
+    .transform((v) => (v && v.trim() ? v.trim() : null)),
   builder_data: BuilderJsonValue.nullable().optional(),
   parent_id: UUID.nullable().optional(),
   template_id: UUID.nullable().optional(),
   menu_order: z.number().int().min(0).max(99999).optional(),
-  template_type: z.enum(["default", "full_width", "landing", "archive_listing", "contact"]).optional(),
+  template_type: z
+    .enum(["default", "full_width", "landing", "archive_listing", "contact"])
+    .optional(),
   header_override: z.string().max(64).nullable().optional(),
   ...SeoBlock,
 });
 
 export const createPage = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({
-    title_pl: z.string().max(300).optional(),
-    title_en: z.string().max(300).optional(),
-    parent_id: UUID.nullable().optional(),
-    template_id: UUID.optional(),
-    builder_data: BuilderJsonValue.nullable().optional(),
-  }).parse(i ?? {}))
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        title_pl: z.string().max(300).optional(),
+        title_en: z.string().max(300).optional(),
+        parent_id: UUID.nullable().optional(),
+        template_id: UUID.optional(),
+        builder_data: BuilderJsonValue.nullable().optional(),
+      })
+      .parse(i ?? {}),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("page.create", userId, 30, async () => {
@@ -603,19 +718,22 @@ export const createPage = createServerFn({ method: "POST" })
       const { data: row, error } = await supabase
         .from("pages")
         .insert({
-          tenant_id: tenantId, author_id: userId, slug,
-          title_pl: data.title_pl ?? "", title_en: data.title_en ?? "",
+          tenant_id: tenantId,
+          author_id: userId,
+          slug,
+          title_pl: data.title_pl ?? "",
+          title_en: data.title_en ?? "",
           parent_id: data.parent_id ?? null,
           template_id: data.template_id ?? null,
           builder_data: (data.builder_data ?? null) as Json | null,
         })
-        .select("id, slug").single();
+        .select("id, slug")
+        .single();
       if (error) throw new Error(error.message);
       await audit(supabase, tenantId, "page.create", "page", row.id, { slug });
       return { id: row.id as string, slug: row.slug as string };
     });
   });
-
 
 export const updatePage = createServerFn({ method: "POST" })
   .middleware([requireStaff])
@@ -654,15 +772,24 @@ export const updatePage = createServerFn({ method: "POST" })
       const oldPath = willMove ? await pageFullPath(supabase, data.id) : null;
 
       if (Object.keys(updates).length) {
-        const { error } = await supabase.from("pages").update(updates).eq("id", data.id);
+        // Same silent-RLS-rejection guard as updatePost: 0 updated rows with
+        // error=null means the policy filtered the page out - surface it.
+        const { data: updated, error } = await supabase
+          .from("pages")
+          .update(updates)
+          .eq("id", data.id)
+          .select("id");
         if (error) throw new Error(error.message);
+        if (!updated?.length) {
+          throw new Error("Save rejected - you do not have permission to edit this page");
+        }
       }
 
       if (willMove && oldPath) {
         const newPath = await pageFullPath(supabase, data.id);
         // Wildcard covers the whole moved subtree: child pages and posts under
         // this page redirect via "/old-base/* -> /new-base/*".
-        await captureAutoRedirect(supabase, userId, {
+        await captureAutoRedirect(supabase, userId, tenantId, {
           oldPath: `/${oldPath}`,
           newPath: newPath ? `/${newPath}` : null,
           wildcard: true,
@@ -685,7 +812,8 @@ export const deletePage = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);
-    const { error } = await supabase.from("pages")
+    const { error } = await supabase
+      .from("pages")
       .update({ deleted_at: new Date().toISOString() } as PageUpdateRow)
       .eq("id", data.id);
     if (error) throw new Error(error.message);
@@ -700,11 +828,16 @@ export const bulkDeletePages = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("page.bulkDelete", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const { error } = await supabase.from("pages")
+      const { error } = await supabase
+        .from("pages")
         .update({ deleted_at: new Date().toISOString() } as PageUpdateRow)
         .in("id", data.ids);
       if (error) throw new Error(error.message);
-      await audit(supabase, tenantId, "page.delete", "page", null, { ids: data.ids, count: data.ids.length, soft: true });
+      await audit(supabase, tenantId, "page.delete", "page", null, {
+        ids: data.ids,
+        count: data.ids.length,
+        soft: true,
+      });
       return { ok: true as const, count: data.ids.length };
     });
   });
@@ -716,11 +849,15 @@ export const restorePages = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("page.restore", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const { error } = await supabase.from("pages")
+      const { error } = await supabase
+        .from("pages")
         .update({ deleted_at: null } as PageUpdateRow)
         .in("id", data.ids);
       if (error) throw new Error(error.message);
-      await audit(supabase, tenantId, "page.update", "page", null, { ids: data.ids, restored: true });
+      await audit(supabase, tenantId, "page.update", "page", null, {
+        ids: data.ids,
+        restored: true,
+      });
       return { ok: true as const, count: data.ids.length };
     });
   });
@@ -741,19 +878,26 @@ export const purgePages = createServerFn({ method: "POST" })
 
 export const bulkUpdatePages = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((i: unknown) => z.object({
-    ids: z.array(UUID).min(1).max(200),
-    status: PageStatus,
-  }).parse(i))
+  .inputValidator((i: unknown) =>
+    z
+      .object({
+        ids: z.array(UUID).min(1).max(200),
+        status: PageStatus,
+      })
+      .parse(i),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     return guard("page.bulkUpdate", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
       await applyBulkStatus(supabase, "pages", data.ids, data.status);
       await audit(
-        supabase, tenantId,
+        supabase,
+        tenantId,
         data.status === "published" ? "page.publish" : "page.update",
-        "page", null, { ids: data.ids, status: data.status },
+        "page",
+        null,
+        { ids: data.ids, status: data.status },
       );
       return { ok: true as const, count: data.ids.length };
     });
@@ -777,8 +921,11 @@ export const upsertCategory = createServerFn({ method: "POST" })
     return guard("category.upsert", userId, 60, async () => {
       const tenantId = await resolveTenant(supabase, userId);
       const slug = await uniqueSlug(
-        supabase, "categories", tenantId,
-        data.fields.slug || data.fields.name_pl || data.fields.name_en, data.id,
+        supabase,
+        "categories",
+        tenantId,
+        data.fields.slug || data.fields.name_pl || data.fields.name_en,
+        data.id,
       );
       const payload = { ...data.fields, slug, tenant_id: tenantId };
 
@@ -788,7 +935,11 @@ export const upsertCategory = createServerFn({ method: "POST" })
         await audit(supabase, tenantId, "category.update", "category", data.id, { slug });
         return { id: data.id, slug };
       }
-      const { data: row, error } = await supabase.from("categories").insert(payload).select("id").single();
+      const { data: row, error } = await supabase
+        .from("categories")
+        .insert(payload)
+        .select("id")
+        .single();
       if (error) throw new Error(error.message);
       await audit(supabase, tenantId, "category.create", "category", row.id, { slug });
       return { id: row.id as string, slug };
@@ -818,8 +969,10 @@ export const createTag = createServerFn({ method: "POST" })
       const tenantId = await resolveTenant(supabase, userId);
       const slug = await uniqueSlug(supabase, "tags", tenantId, data.name);
       const { data: row, error } = await supabase
-        .from("tags").insert({ name: data.name.trim(), slug, tenant_id: tenantId })
-        .select("id, slug, name").single();
+        .from("tags")
+        .insert({ name: data.name.trim(), slug, tenant_id: tenantId })
+        .select("id, slug, name")
+        .single();
       if (error) throw new Error(error.message);
       await audit(supabase, tenantId, "tag.create", "tag", row.id, { slug });
       return { id: row.id as string, slug: row.slug as string, name: row.name as string };

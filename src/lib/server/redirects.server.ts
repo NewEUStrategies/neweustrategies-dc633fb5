@@ -1,8 +1,9 @@
-// Server-side redirect engine: caches the enabled redirect rules per isolate
-// (30s TTL, resilient to DB errors), matches incoming requests via the pure
-// core in @/lib/seo/redirects, and records hits / 404s fire-and-forget so the
-// hot path never waits on Supabase. Consumed by the request middleware in
-// src/start.ts.
+// Server-side redirect engine: caches the enabled redirect rules PER TENANT
+// per isolate (30s TTL, resilient to DB errors), matches incoming requests via
+// the pure core in @/lib/seo/redirects, and records hits / 404s fire-and-forget
+// so the hot path never waits on Supabase. Consumed by the request middleware
+// in src/start.ts, which resolves the tenant from the request host first -
+// rules of one tenant can never capture another tenant's traffic.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   buildRedirectIndex,
@@ -19,16 +20,17 @@ interface RulesCache {
   index: RedirectIndex;
 }
 
-let cache: RulesCache | null = null;
-let inflight: Promise<RedirectIndex> | null = null;
+const cacheByTenant = new Map<string, RulesCache>();
+const inflightByTenant = new Map<string, Promise<RedirectIndex>>();
 
 const EMPTY_INDEX = buildRedirectIndex([]);
 
-async function loadIndex(): Promise<RedirectIndex> {
+async function loadIndex(tenantId: string): Promise<RedirectIndex> {
   try {
     const { data, error } = await supabaseAdmin
       .from("redirects")
       .select("id, source_path, target_path, status_code")
+      .eq("tenant_id", tenantId)
       .eq("is_enabled", true)
       .limit(10_000);
     if (error) throw error;
@@ -36,36 +38,40 @@ async function loadIndex(): Promise<RedirectIndex> {
   } catch (e) {
     console.warn("[redirects] rules load failed:", e);
     // Keep serving the previous snapshot on transient failures.
-    return cache?.index ?? EMPTY_INDEX;
+    return cacheByTenant.get(tenantId)?.index ?? EMPTY_INDEX;
   }
 }
 
-/** Cached redirect index; concurrent cold requests share one DB round-trip. */
-export async function getRedirectIndex(): Promise<RedirectIndex> {
+/** Cached redirect index for a tenant; concurrent cold requests share one round-trip. */
+export async function getRedirectIndex(tenantId: string): Promise<RedirectIndex> {
   const now = Date.now();
-  if (cache && now - cache.at < CACHE_TTL_MS) return cache.index;
+  const cached = cacheByTenant.get(tenantId);
+  if (cached && now - cached.at < CACHE_TTL_MS) return cached.index;
+  let inflight = inflightByTenant.get(tenantId);
   if (!inflight) {
-    inflight = loadIndex().then((index) => {
-      cache = { at: Date.now(), index };
-      inflight = null;
+    inflight = loadIndex(tenantId).then((index) => {
+      cacheByTenant.set(tenantId, { at: Date.now(), index });
+      inflightByTenant.delete(tenantId);
       return index;
     });
+    inflightByTenant.set(tenantId, inflight);
   }
   return inflight;
 }
 
 /** Test/admin hook: drop the per-isolate cache after mutations. */
 export function invalidateRedirectCache(): void {
-  cache = null;
-  inflight = null;
+  cacheByTenant.clear();
+  inflightByTenant.clear();
 }
 
-/** Match a request path against the cached rules. */
+/** Match a request path against the tenant's cached rules. */
 export async function resolveRedirect(
+  tenantId: string,
   pathname: string,
   search: string,
 ): Promise<RedirectMatch | null> {
-  const index = await getRedirectIndex();
+  const index = await getRedirectIndex(tenantId);
   return matchRedirect(index, pathname, search);
 }
 
@@ -91,13 +97,18 @@ export function shouldLog404(pathname: string): boolean {
   return true;
 }
 
-/** Fire-and-forget 404 recording for the admin "recent 404s" monitor. */
-export function recordSeo404(pathname: string, search: string, referrer: string | null): void {
+/** Fire-and-forget, tenant-scoped 404 recording for the admin "recent 404s" monitor. */
+export function recordSeo404(
+  tenantId: string,
+  pathname: string,
+  search: string,
+  referrer: string | null,
+): void {
   if (!shouldLog404(pathname)) return;
   if (!log404Limiter.check("global", Date.now())) return;
   const path = `${pathname}${search}`.slice(0, 500);
   void supabaseAdmin
-    .rpc("record_seo_404", { _path: path, _referrer: referrer ?? undefined })
+    .rpc("record_seo_404", { _tenant_id: tenantId, _path: path, _referrer: referrer ?? undefined })
     .then(({ error }) => {
       if (error) console.warn("[redirects] 404 record failed:", error.message);
     });

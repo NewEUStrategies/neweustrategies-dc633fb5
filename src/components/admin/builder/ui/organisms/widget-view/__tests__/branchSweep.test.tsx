@@ -152,12 +152,17 @@ describe("WidgetView typography + motion branch combos", () => {
   });
 
   it("applies font size alone (no description size) and replays animation each view", () => {
-    renderNode(
+    const sized = renderNode(
       "heading",
       { text_pl: "T" },
       { style: { typography: { fontSize: { desktop: "22px" } } } },
     );
-    renderNode(
+    // Title size materializes as a scoped <style> rule with the configured px.
+    const sizedCss = [...sized.container.querySelectorAll("style")]
+      .map((s) => s.textContent ?? "")
+      .join("\n");
+    expect(sizedCss).toContain("22px");
+    const animated = renderNode(
       "heading",
       { text_pl: "T" },
       {
@@ -169,7 +174,10 @@ describe("WidgetView typography + motion branch combos", () => {
         },
       },
     );
-    expect(true).toBe(true);
+    // The motion wrapper drives the reveal via an inline transition with the
+    // configured duration.
+    const wrapper = animated.container.querySelector("[data-w-id]");
+    expect(wrapper?.getAttribute("style") ?? "").toContain("300ms");
   });
 });
 

@@ -1,7 +1,8 @@
 // Publiczny renderer: chmura tagów. Losuje rozmiar fontu deterministycznie po slug-u.
+// Dane przez react-query (blockTagsQueryOptions) - render SSR-kompletny po prefetchu.
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { blockTagsQueryOptions } from "@/lib/queries/blocks";
 import { AppLink } from "@/components/atoms/AppLink";
 
 interface Props {
@@ -9,8 +10,6 @@ interface Props {
   showCount: boolean;
   lang: "pl" | "en";
 }
-
-interface Tag { slug: string; name: string; }
 
 function sizeFor(slug: string): string {
   // 5 stopni: xs/sm/base/lg/xl. Deterministyczne hashowanie nazwy.
@@ -21,17 +20,7 @@ function sizeFor(slug: string): string {
 }
 
 export function TagCloudView({ count, showCount, lang }: Props) {
-  const [tags, setTags] = useState<Tag[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase.from("tags").select("slug, name").order("name").limit(Math.max(1, Math.min(200, count)));
-      if (cancelled) return;
-      setTags((data ?? []) as Tag[]);
-    })();
-    return () => { cancelled = true; };
-  }, [count]);
+  const { data: tags = [] } = useQuery(blockTagsQueryOptions(count));
 
   if (tags.length === 0) return null;
   return (
@@ -42,7 +31,8 @@ export function TagCloudView({ count, showCount, lang }: Props) {
           href={`/tag/${t.slug}`}
           className={`inline-flex items-center px-2 py-1 rounded-md bg-muted hover:bg-primary hover:text-primary-foreground transition-colors ${sizeFor(t.slug)}`}
         >
-          #{t.name}{showCount ? "" : ""}
+          #{t.name}
+          {showCount ? "" : ""}
         </AppLink>
       ))}
     </div>

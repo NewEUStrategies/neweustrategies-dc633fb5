@@ -9,26 +9,31 @@ import { localizedPath } from "@/lib/i18n/localePath";
 import { buildNewsSitemapXml, type NewsSitemapEntry } from "@/lib/seo/newsSitemap";
 import { effectiveNewsPublicationName, parseSeoSettings } from "@/lib/seo/settings";
 import { fetchPublishedPosts, fetchSeoSettingsValue } from "@/lib/server/publishedContent.server";
+import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 
-function originFromRequest(): string {
+function requestContext(): { origin: string; host: string } {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = req.headers.get("host") ?? "";
-  return host ? `${proto}://${host}` : "";
+  return { origin: host ? `${proto}://${host}` : "", host };
 }
 
 export const Route = createFileRoute("/news-sitemap.xml")({
   server: {
     handlers: {
       GET: async () => {
-        const origin = originFromRequest();
-        const settings = parseSeoSettings(await fetchSeoSettingsValue());
+        const { origin, host } = requestContext();
+        // Service-role reads below bypass RLS - scope them to the host's
+        // tenant. Unresolvable tenant -> empty sitemap shell (crawler surfaces
+        // never 500 and never serve unscoped data).
+        const tenantId = await resolveTenantIdForHost(host);
+        const settings = parseSeoSettings(tenantId ? await fetchSeoSettingsValue(tenantId) : null);
         if (!settings.news_sitemap_enabled) {
           return new Response("News sitemap disabled", { status: 404 });
         }
 
         // 200 recent posts comfortably covers any 48h publishing window.
-        const posts = await fetchPublishedPosts(200);
+        const posts = tenantId ? await fetchPublishedPosts(tenantId, 200) : [];
         const entries: NewsSitemapEntry[] = [];
         for (const post of posts) {
           if (!post.published_at) continue;

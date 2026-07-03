@@ -10,61 +10,47 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "html"],
-      // Coverage is scoped to the builder widget rendering surface. The
-      // thresholds below guard this layer against regressions - run with
-      // `bun run test:coverage`. `coverage.all` (default) keeps every file in
-      // this set reported even when no test imports it, so a brand-new widget
-      // with no test lowers the numbers and fails the gate.
-      include: [
-        "src/components/admin/builder/WidgetView.tsx",
-        "src/components/admin/builder/ui/organisms/widget-view/**",
-        "src/lib/builder/registry.tsx",
-        "src/lib/builder/sliderVariants.tsx",
-        "src/lib/builder/sectionLabelVariants.tsx",
-        "src/lib/builder/animatedHeadingVariants.tsx",
-        // Public-pipeline modules guarded beyond the widget surface: content
-        // engine selection, builder-doc validation, cache policy, the
-        // observability transport, SEO meta and access gating. Each carries its
-        // own per-file threshold below, so the widget gate stays independent.
-        "src/lib/content/contentEngine.ts",
-        "src/lib/builder/schema.ts",
-        "src/lib/http/cachePolicy.ts",
-        "src/lib/observability/report.ts",
-        "src/lib/seo/meta.ts",
-        "src/lib/access/gating.ts",
-        // Public critical path: the URL-splat resolver helpers and the single-post
-        // layout renderer (cover LCP optimization + layout presets).
-        "src/lib/routing/publicSegments.ts",
-        "src/components/PostLayoutRenderer.tsx",
-        // RUM analytics: the pure Web Vitals aggregator + shared thresholds that
-        // back the admin performance dashboard.
-        "src/lib/observability/aggregate.ts",
-        "src/lib/observability/vitalsThresholds.ts",
-        // Billing critical path: the Stripe webhook reconciliation handler and
-        // the single entitlement-grant point (what turns payment into access).
-        "src/routes/api/public/webhooks.stripe.ts",
-        "src/lib/billing/grant.server.ts",
-      ],
+      reporter: ["text-summary", "text", "html"],
+      // HONEST measurement scope: the WHOLE application source. The previous
+      // config whitelisted ~38 files (~5% of src/) and presented a 98% number
+      // for that sliver as if it were the project's coverage. Coverage is now
+      // reported over all of src/ (all: true keeps untested files in the
+      // denominator), while the strong per-surface GATES below still protect
+      // the layers that earned them (builder widget rendering, content
+      // pipeline, billing). The global threshold is a ratchet floor for the
+      // repo-wide number - raise it as real coverage grows, never lower it.
+      all: true,
+      include: ["src/**/*.{ts,tsx}"],
       exclude: [
         "**/__tests__/**",
         "**/*.{test,spec}.{ts,tsx}",
+        // Generated artifacts - not hand-written code.
+        "src/routeTree.gen.ts",
+        "src/integrations/supabase/types.ts",
+        // Test-only helpers.
+        "src/test/**",
         // Pure code-splitting glue (React.lazy + Suspense wrappers). The actual
         // widget implementations are covered via their own view components.
         "**/widget-view/lazyWidgets.tsx",
       ],
       thresholds: {
-        // Global bar = the builder widget rendering surface. Files with a
-        // per-glob threshold below are checked against that instead and excluded
-        // from this aggregate.
-        statements: 98,
-        functions: 98,
-        lines: 98,
-        // Branch coverage of the widget layer sits at ~92%. The remaining gap is
-        // a long tail of cosmetic className-ternary arms and defensive guards;
-        // 98% statements/functions/lines already exercise every widget behaviour.
-        // Floored a touch below the achieved level to guard against regressions.
-        branches: 90,
+        // Repo-wide honest floor (ratchet - only ever raise). Measured over
+        // ALL of src/ after removing the coverage-farming test layer:
+        // ~21% statements / ~20% branches / ~15% functions. The old "98%" was
+        // an artifact of a 38-file whitelist plus assertion-free render loops.
+        statements: 20,
+        functions: 13,
+        lines: 20,
+        branches: 19,
+        // The builder widget rendering surface keeps a strong gate - floored
+        // just below the level the suite genuinely achieves WITHOUT the
+        // deleted render-farms (they inflated the layer by ~4pp).
+        "src/components/admin/builder/ui/organisms/widget-view/**": {
+          statements: 93,
+          functions: 90,
+          lines: 95,
+          branches: 83,
+        },
         // Per-file bars for the newly-guarded public-pipeline modules. Floored a
         // touch below the achieved coverage to catch regressions without being
         // brittle.
@@ -89,9 +75,11 @@ export default defineConfig({
           lines: 93,
           branches: 90,
         },
-        // meta.ts: statements/lines/functions are fully covered; the optional
-        // OpenGraph/article/paywall arms keep branch coverage lower.
-        "src/lib/seo/meta.ts": { statements: 100, functions: 100, lines: 100, branches: 70 },
+        // meta.ts: the head builders used by route head() functions are
+        // covered; the root-head/font-preload helpers consumed only by
+        // __root.tsx keep the totals below 100 (honest floor, raise with new
+        // tests rather than trimming the measurement).
+        "src/lib/seo/meta.ts": { statements: 84, functions: 72, lines: 90, branches: 66 },
         "src/lib/access/gating.ts": { statements: 95, functions: 100, lines: 100, branches: 95 },
         // publicSegments: two pure helpers, fully exercised.
         "src/lib/routing/publicSegments.ts": {

@@ -3,6 +3,11 @@
 // implementation of the "post URL = parent page path + slug" rule and one
 // 60-second edge cache, so every surface emits identical canonical URLs
 // without re-querying Supabase per request.
+//
+// TENANT SCOPE: these readers use the service role, which bypasses RLS - so
+// every query filters by the tenant that owns the request host (resolved via
+// resolveTenantForHost). Without the explicit filter a second tenant's
+// content would leak into another site's sitemap/RSS/llms.txt.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
@@ -46,76 +51,91 @@ export interface PublishedCategoryRow {
   description_en: string | null;
 }
 
-/** Full paths of all published pages, keyed by page id. */
-export async function fetchPagePaths(): Promise<Map<string, string>> {
-  return edgeTtlCache("seo:page-paths", CACHE_TTL_MS, () => resilient("page-paths", new Map<string, string>(), async () => {
-    const { data } = await supabaseAdmin
-      .from("pages")
-      .select("id")
-      .eq("status", "published")
-      .is("deleted_at", null);
-    const ids = (data ?? []).map((r) => r.id);
-    const paths = new Map<string, string>();
-    await Promise.all(
-      ids.map(async (id) => {
-        const { data: p } = await supabaseAdmin.rpc("page_full_path", { _page_id: id });
-        if (typeof p === "string" && p) paths.set(id, p);
-      }),
-    );
-    return paths;
-  }));
+/** Full paths of all published pages of a tenant, keyed by page id. */
+export async function fetchPagePaths(tenantId: string): Promise<Map<string, string>> {
+  return edgeTtlCache(`seo:page-paths:${tenantId}`, CACHE_TTL_MS, () =>
+    resilient("page-paths", new Map<string, string>(), async () => {
+      const { data } = await supabaseAdmin
+        .from("pages")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("status", "published")
+        .is("deleted_at", null);
+      const ids = (data ?? []).map((r) => r.id);
+      const paths = new Map<string, string>();
+      await Promise.all(
+        ids.map(async (id) => {
+          const { data: p } = await supabaseAdmin.rpc("page_full_path", { _page_id: id });
+          if (typeof p === "string" && p) paths.set(id, p);
+        }),
+      );
+      return paths;
+    }),
+  );
 }
 
 /**
- * Latest published, indexable posts with resolved canonical paths (newest
- * first). Posts whose parent page is unpublished and posts marked
+ * Latest published, indexable posts of a tenant with resolved canonical paths
+ * (newest first). Posts whose parent page is unpublished and posts marked
  * `seo_noindex` are excluded - a URL we ask crawlers not to index must not be
  * advertised in feeds or sitemaps either.
  */
-export async function fetchPublishedPosts(limit = 50): Promise<PublishedPostRow[]> {
-  return edgeTtlCache(`seo:published-posts:${limit}`, CACHE_TTL_MS, () => resilient("published-posts", [], async () => {
-    const [pagePaths, { data }] = await Promise.all([
-      fetchPagePaths(),
-      supabaseAdmin
-        .from("posts")
-        .select(
-          "id, slug, parent_page_id, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, updated_at, seo_noindex",
-        )
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .eq("seo_noindex", false)
-        .order("published_at", { ascending: false })
-        .limit(limit),
-    ]);
-    const rows: PublishedPostRow[] = [];
-    for (const row of data ?? []) {
-      const parentPath = pagePaths.get(row.parent_page_id);
-      if (!parentPath) continue;
-      rows.push({ ...row, path: `/${parentPath}/${row.slug}` });
-    }
-    return rows;
-  }));
+export async function fetchPublishedPosts(
+  tenantId: string,
+  limit = 50,
+): Promise<PublishedPostRow[]> {
+  return edgeTtlCache(`seo:published-posts:${tenantId}:${limit}`, CACHE_TTL_MS, () =>
+    resilient("published-posts", [], async () => {
+      const [pagePaths, { data }] = await Promise.all([
+        fetchPagePaths(tenantId),
+        supabaseAdmin
+          .from("posts")
+          .select(
+            "id, slug, parent_page_id, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, updated_at, seo_noindex",
+          )
+          .eq("tenant_id", tenantId)
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .eq("seo_noindex", false)
+          .order("published_at", { ascending: false })
+          .limit(limit),
+      ]);
+      const rows: PublishedPostRow[] = [];
+      for (const row of data ?? []) {
+        const parentPath = pagePaths.get(row.parent_page_id);
+        if (!parentPath) continue;
+        rows.push({ ...row, path: `/${parentPath}/${row.slug}` });
+      }
+      return rows;
+    }),
+  );
 }
 
-/** Categories for the llms.txt section list. */
-export async function fetchPublicCategories(): Promise<PublishedCategoryRow[]> {
-  return edgeTtlCache("seo:categories", CACHE_TTL_MS, () => resilient("categories", [], async () => {
-    const { data } = await supabaseAdmin
-      .from("categories")
-      .select("slug, name_pl, name_en, description_pl, description_en")
-      .order("name_pl");
-    return data ?? [];
-  }));
+/** Categories for the llms.txt section list (tenant-scoped). */
+export async function fetchPublicCategories(tenantId: string): Promise<PublishedCategoryRow[]> {
+  return edgeTtlCache(`seo:categories:${tenantId}`, CACHE_TTL_MS, () =>
+    resilient("categories", [], async () => {
+      const { data } = await supabaseAdmin
+        .from("categories")
+        .select("slug, name_pl, name_en, description_pl, description_en")
+        .eq("tenant_id", tenantId)
+        .order("name_pl");
+      return data ?? [];
+    }),
+  );
 }
 
 /** Site-wide SEO settings read server-side (service role, no RLS surprises). */
-export async function fetchSeoSettingsValue(): Promise<unknown> {
-  return edgeTtlCache("seo:settings", CACHE_TTL_MS, () => resilient("settings", null, async () => {
-    const { data } = await supabaseAdmin
-      .from("site_settings")
-      .select("value")
-      .eq("key", "seo")
-      .maybeSingle();
-    return data?.value ?? null;
-  }));
+export async function fetchSeoSettingsValue(tenantId: string): Promise<unknown> {
+  return edgeTtlCache(`seo:settings:${tenantId}`, CACHE_TTL_MS, () =>
+    resilient("settings", null, async () => {
+      const { data } = await supabaseAdmin
+        .from("site_settings")
+        .select("value")
+        .eq("tenant_id", tenantId)
+        .eq("key", "seo")
+        .maybeSingle();
+      return data?.value ?? null;
+    }),
+  );
 }

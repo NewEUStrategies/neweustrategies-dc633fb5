@@ -85,18 +85,31 @@ export function normalizeSourcePath(raw: string): string | null {
   return normalized.length > 2048 ? null : normalized;
 }
 
+/** Lowercased host with any leading "www." stripped - the allowlist unit. */
+function canonicalHost(host: string): string {
+  const h = host.trim().toLowerCase();
+  return h.startsWith("www.") ? h.slice(4) : h;
+}
+
 /**
- * Normalize a target: absolute URLs pass through, anything else becomes an
- * absolute path. Wildcard targets keep their "/*" suffix. Null when empty or
- * not a safe destination (only http/https URLs are allowed).
+ * Normalize a target: anything relative becomes an absolute path; wildcard
+ * targets keep their "/*" suffix. Absolute URLs are an OPEN-REDIRECT vector
+ * (a redirect rule silently forwarding a site's traffic to an arbitrary
+ * host), so they are accepted ONLY when `allowedHosts` is provided and the
+ * https URL's host is on that allowlist (the installation's own tenant
+ * domains; "www." is treated as an alias). Null when empty or unsafe.
  */
-export function normalizeTargetPath(raw: string): string | null {
+export function normalizeTargetPath(raw: string, allowedHosts?: readonly string[]): string | null {
   const input = raw.trim();
   if (!input) return null;
   if (/^[a-z][a-z0-9+.-]*:/i.test(input)) {
-    if (!/^https?:\/\//i.test(input)) return null;
+    if (!/^https:\/\//i.test(input)) return null;
+    if (!allowedHosts?.length) return null;
     try {
-      return new URL(input).toString().slice(0, 2048);
+      const url = new URL(input);
+      const host = canonicalHost(url.hostname);
+      if (!allowedHosts.some((allowed) => canonicalHost(allowed) === host)) return null;
+      return url.toString().slice(0, 2048);
     } catch {
       return null;
     }
@@ -272,9 +285,13 @@ function splitCsvLine(line: string): string[] {
 /**
  * Parse a "source,target,status,note" CSV (status and note optional; header
  * row detected and skipped). Duplicate sources keep the LAST occurrence so a
- * re-exported file round-trips cleanly.
+ * re-exported file round-trips cleanly. `allowedHosts` gates absolute-URL
+ * targets exactly like normalizeTargetPath.
  */
-export function parseRedirectsCsv(text: string): RedirectCsvResult {
+export function parseRedirectsCsv(
+  text: string,
+  allowedHosts?: readonly string[],
+): RedirectCsvResult {
   const rows = new Map<string, RedirectCsvRow>();
   const issues: RedirectCsvIssue[] = [];
   const lines = text.split(/\r?\n/);
@@ -295,8 +312,8 @@ export function parseRedirectsCsv(text: string): RedirectCsvResult {
     }
     const target =
       status === 410
-        ? (normalizeTargetPath(rawTarget ?? "") ?? "/")
-        : normalizeTargetPath(rawTarget ?? "");
+        ? (normalizeTargetPath(rawTarget ?? "", allowedHosts) ?? "/")
+        : normalizeTargetPath(rawTarget ?? "", allowedHosts);
     if (!target) {
       issues.push({ line: i + 1, reason: "invalid_target" });
       return;

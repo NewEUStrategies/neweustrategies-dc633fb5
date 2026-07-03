@@ -55,7 +55,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         .eq("entity_id", data.entity_id)
         .maybeSingle();
       if (ruleErr) throw ruleErr;
-      if (!rule || rule.mode !== "paid" || !rule.one_time_price_cents || rule.one_time_price_cents <= 0) {
+      if (
+        !rule ||
+        rule.mode !== "paid" ||
+        !rule.one_time_price_cents ||
+        rule.one_time_price_cents <= 0
+      ) {
         throw new Error("one_time_not_available");
       }
       amountCents = Number(rule.one_time_price_cents);
@@ -71,13 +76,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     if (amountCents <= 0) throw new Error("zero_amount");
 
-    // Get receipt email
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("email, tenant_id")
-      .eq("id", userId)
-      .maybeSingle();
-    const receiptEmail = profile?.email ?? context.claims.email ?? null;
+    // Receipt e-mail comes from the verified auth claims - profiles.email is
+    // no longer SELECT-able by the authenticated role (column grant excludes
+    // PII) and the JWT e-mail is the authoritative address anyway.
+    const receiptEmail = context.claims.email ?? null;
 
     // Insert pending order
     const { data: order, error: insertError } = await supabase
@@ -101,11 +103,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     // Stripe Checkout Session (best-effort - only if secret configured)
     const stripeSecret = process.env.STRIPE_SECRET_KEY;
-    const origin =
-      process.env.PUBLIC_SITE_URL ??
-      process.env.SITE_URL ??
-      process.env.URL ??
-      "";
+    const origin = process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? process.env.URL ?? "";
 
     if (stripeSecret && origin) {
       try {
@@ -145,12 +143,22 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       } catch (e) {
         // Log server-side; surface generic error to client
         console.error("[checkout] stripe session failed", e);
-        return { ok: false as const, mode: "stripe" as const, error: "stripe_failed", orderId: order.id };
+        return {
+          ok: false as const,
+          mode: "stripe" as const,
+          error: "stripe_failed",
+          orderId: order.id,
+        };
       }
     }
 
     // Mock mode - no Stripe configured. Return success URL directly so devs can test the flow.
-    return { ok: true as const, mode: "mock" as const, url: `${data.success_path}?order=${order.id}&mock=1`, orderId: order.id };
+    return {
+      ok: true as const,
+      mode: "mock" as const,
+      url: `${data.success_path}?order=${order.id}&mock=1`,
+      orderId: order.id,
+    };
   });
 
 // Finalise a mock-mode order (no Stripe configured). Marks the caller's own
@@ -175,7 +183,9 @@ export const finalizeCheckout = createServerFn({ method: "POST" })
       .eq("id", data.order_id)
       .eq("user_id", context.userId)
       .neq("status", "paid")
-      .select("id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, amount_cents, currency")
+      .select(
+        "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, amount_cents, currency",
+      )
       .maybeSingle();
     if (error) throw error;
     if (!order) return { ok: true as const, alreadyFinalized: true as const };

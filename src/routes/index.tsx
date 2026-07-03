@@ -14,7 +14,7 @@ import {
   SITE_DEFAULT_TITLE,
   SITE_DEFAULT_DESCRIPTION,
 } from "@/lib/seo/meta";
-import { organizationJsonLd, webSiteJsonLd } from "@/lib/seo/jsonld";
+import { organizationJsonLd, safeJsonLd, webSiteJsonLd } from "@/lib/seo/jsonld";
 import {
   resolveRobotsMeta,
   resolveSeoText,
@@ -107,8 +107,8 @@ export const Route = createFileRoute("/")({
     return {
       ...head,
       scripts: [
-        { type: "application/ld+json", children: JSON.stringify(organization) },
-        { type: "application/ld+json", children: JSON.stringify(webSiteJsonLd(origin, lang)) },
+        { type: "application/ld+json", children: safeJsonLd(organization) },
+        { type: "application/ld+json", children: safeJsonLd(webSiteJsonLd(origin, lang)) },
       ],
     };
   },

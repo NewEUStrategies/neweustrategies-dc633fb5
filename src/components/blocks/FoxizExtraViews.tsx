@@ -2,10 +2,22 @@
 // post-stats, post-rating, loginout, more-posts.
 
 import { useMemo, useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { supabase } from "@/integrations/supabase/client";
-import { Clock, Eye, User, Calendar, FolderOpen, MessageSquare, Star, LogIn, LogOut } from "lucide-react";
+import { morePostsBlockQueryOptions } from "@/lib/queries/blocks";
+import {
+  Clock,
+  Eye,
+  User,
+  Calendar,
+  FolderOpen,
+  MessageSquare,
+  Star,
+  LogIn,
+  LogOut,
+} from "lucide-react";
 
 type Lang = "pl" | "en";
 
@@ -54,12 +66,15 @@ export function PostStatsView({ items, separator = "•", lang = "pl", cls }: Po
     const d = ctx?.publishedAt ? new Date(ctx.publishedAt) : null;
     if (!d || Number.isNaN(d.getTime())) return null;
     return d.toLocaleDateString(lang === "pl" ? "pl-PL" : "en-US", {
-      year: "numeric", month: "long", day: "numeric",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   }, [ctx?.publishedAt, lang]);
 
   const readingMin = useMemo(() => {
-    if (typeof ctx?.readingTimeMin === "number" && ctx.readingTimeMin > 0) return ctx.readingTimeMin;
+    if (typeof ctx?.readingTimeMin === "number" && ctx.readingTimeMin > 0)
+      return ctx.readingTimeMin;
     const text = lang === "pl" ? ctx?.excerpt_pl : ctx?.excerpt_en;
     const w = (text ?? "").trim().split(/\s+/).filter(Boolean).length;
     return Math.max(1, Math.round(w / 220));
@@ -68,28 +83,53 @@ export function PostStatsView({ items, separator = "•", lang = "pl", cls }: Po
   const parts: { key: string; node: React.ReactNode }[] = [];
   for (const it of list) {
     if (it === "date" && dateStr) {
-      parts.push({ key: "date", node: (
-        <span className="inline-flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" aria-hidden /> {dateStr}</span>
-      ) });
+      parts.push({
+        key: "date",
+        node: (
+          <span className="inline-flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5" aria-hidden /> {dateStr}
+          </span>
+        ),
+      });
     } else if (it === "author" && ctx?.author?.name) {
-      parts.push({ key: "author", node: (
-        <span className="inline-flex items-center gap-1.5"><User className="w-3.5 h-3.5" aria-hidden /> {t.by} {ctx.author.name}</span>
-      ) });
+      parts.push({
+        key: "author",
+        node: (
+          <span className="inline-flex items-center gap-1.5">
+            <User className="w-3.5 h-3.5" aria-hidden /> {t.by} {ctx.author.name}
+          </span>
+        ),
+      });
     } else if (it === "category" && ctx?.categories?.[0]) {
       const c = ctx.categories[0];
-      parts.push({ key: "category", node: (
-        <span className="inline-flex items-center gap-1.5"><FolderOpen className="w-3.5 h-3.5" aria-hidden /> {c.name}</span>
-      ) });
+      parts.push({
+        key: "category",
+        node: (
+          <span className="inline-flex items-center gap-1.5">
+            <FolderOpen className="w-3.5 h-3.5" aria-hidden /> {c.name}
+          </span>
+        ),
+      });
     } else if (it === "reading") {
-      parts.push({ key: "reading", node: (
-        <span className="inline-flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" aria-hidden /> {t.minRead(readingMin)}</span>
-      ) });
+      parts.push({
+        key: "reading",
+        node: (
+          <span className="inline-flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" aria-hidden /> {t.minRead(readingMin)}
+          </span>
+        ),
+      });
     } else if (it === "views") {
       const n = typeof ctx?.viewCount === "number" ? ctx.viewCount : 0;
       const f = new Intl.NumberFormat(lang === "pl" ? "pl-PL" : "en-US").format(n);
-      parts.push({ key: "views", node: (
-        <span className="inline-flex items-center gap-1.5"><Eye className="w-3.5 h-3.5" aria-hidden /> {f} {t.views}</span>
-      ) });
+      parts.push({
+        key: "views",
+        node: (
+          <span className="inline-flex items-center gap-1.5">
+            <Eye className="w-3.5 h-3.5" aria-hidden /> {f} {t.views}
+          </span>
+        ),
+      });
     }
     // "comments" intentionally omitted - no comments aggregate in CurrentPostCtx yet.
   }
@@ -97,10 +137,16 @@ export function PostStatsView({ items, separator = "•", lang = "pl", cls }: Po
   if (parts.length === 0) return null;
 
   return (
-    <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground ${cls ?? ""}`}>
+    <div
+      className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground ${cls ?? ""}`}
+    >
       {parts.map((p, i) => (
         <span key={p.key} className="inline-flex items-center gap-2">
-          {i > 0 && <span aria-hidden className="text-muted-foreground/50">{separator}</span>}
+          {i > 0 && (
+            <span aria-hidden className="text-muted-foreground/50">
+              {separator}
+            </span>
+          )}
           {p.node}
         </span>
       ))}
@@ -117,7 +163,10 @@ interface PostRatingProps {
   cls?: string;
 }
 
-interface AggregatedRating { avg: number; count: number }
+interface AggregatedRating {
+  avg: number;
+  count: number;
+}
 
 export function PostRatingView({ max = 5, label, lang = "pl", cls }: PostRatingProps) {
   const ctx = useCurrentPostCtx();
@@ -133,21 +182,30 @@ export function PostRatingView({ max = 5, label, lang = "pl", cls }: PostRatingP
     try {
       const v = window.localStorage.getItem(storageKey);
       if (v) setMine(Number(v));
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
   }, [storageKey]);
 
-  const rate = useCallback((n: number) => {
-    if (!storageKey) return;
-    setMine(n);
-    try { window.localStorage.setItem(storageKey, String(n)); } catch { /* noop */ }
-    // Local aggregate update for instant feedback; canonical persistence
-    // requires a dedicated reactions table — out of scope for this block.
-    setAgg((a) => {
-      const c = (a?.count ?? 0) + 1;
-      const sum = (a?.avg ?? n) * (a?.count ?? 0) + n;
-      return { avg: sum / c, count: c };
-    });
-  }, [storageKey]);
+  const rate = useCallback(
+    (n: number) => {
+      if (!storageKey) return;
+      setMine(n);
+      try {
+        window.localStorage.setItem(storageKey, String(n));
+      } catch {
+        /* noop */
+      }
+      // Local aggregate update for instant feedback; canonical persistence
+      // requires a dedicated reactions table — out of scope for this block.
+      setAgg((a) => {
+        const c = (a?.count ?? 0) + 1;
+        const sum = (a?.avg ?? n) * (a?.count ?? 0) + n;
+        return { avg: sum / c, count: c };
+      });
+    },
+    [storageKey],
+  );
 
   const stars = Array.from({ length: max }, (_, i) => i + 1);
   const displayed = hover ?? mine ?? Math.round(agg?.avg ?? 0);
@@ -199,7 +257,12 @@ interface LoginOutProps {
   cls?: string;
 }
 
-export function LoginOutView({ loginHref = "/auth", showAvatar = true, lang = "pl", cls }: LoginOutProps) {
+export function LoginOutView({
+  loginHref = "/auth",
+  showAvatar = true,
+  lang = "pl",
+  cls,
+}: LoginOutProps) {
   const t = L[lang];
   const [email, setEmail] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -210,29 +273,49 @@ export function LoginOutView({ loginHref = "/auth", showAvatar = true, lang = "p
     void supabase.auth.getUser().then(({ data }) => {
       if (!mounted) return;
       const u = data.user;
-      if (!u) { setEmail(null); return; }
+      if (!u) {
+        setEmail(null);
+        return;
+      }
       setEmail(u.email ?? null);
-      const meta = (u.user_metadata ?? {}) as { avatar_url?: string; display_name?: string; name?: string };
+      const meta = (u.user_metadata ?? {}) as {
+        avatar_url?: string;
+        display_name?: string;
+        name?: string;
+      };
       setAvatar(meta.avatar_url ?? null);
       setName(meta.display_name ?? meta.name ?? null);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       if (!mounted) return;
       const u = session?.user;
-      if (!u) { setEmail(null); setAvatar(null); setName(null); return; }
+      if (!u) {
+        setEmail(null);
+        setAvatar(null);
+        setName(null);
+        return;
+      }
       setEmail(u.email ?? null);
-      const meta = (u.user_metadata ?? {}) as { avatar_url?: string; display_name?: string; name?: string };
+      const meta = (u.user_metadata ?? {}) as {
+        avatar_url?: string;
+        display_name?: string;
+        name?: string;
+      };
       setAvatar(meta.avatar_url ?? null);
       setName(meta.display_name ?? meta.name ?? null);
     });
-    return () => { mounted = false; sub.subscription.unsubscribe(); };
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const onSignOut = useCallback(async () => {
     await supabase.auth.signOut();
   }, []);
 
-  const baseCls = "inline-flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-md border border-border hover:bg-muted transition-colors";
+  const baseCls =
+    "inline-flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-md border border-border hover:bg-muted transition-colors";
 
   if (!email) {
     return (
@@ -249,14 +332,20 @@ export function LoginOutView({ loginHref = "/auth", showAvatar = true, lang = "p
     <div className={`inline-flex items-center gap-2 ${cls ?? ""}`}>
       {showAvatar ? (
         avatar ? (
-          <img src={avatar} alt={name ?? email} className="w-7 h-7 rounded-full object-cover border border-border" />
+          <img
+            src={avatar}
+            alt={name ?? email}
+            className="w-7 h-7 rounded-full object-cover border border-border"
+          />
         ) : (
           <span className="w-7 h-7 rounded-full bg-muted text-foreground inline-flex items-center justify-center text-xs font-semibold">
             {initial}
           </span>
         )
       ) : null}
-      <span className="text-sm text-foreground hidden sm:inline truncate max-w-[160px]">{name ?? email}</span>
+      <span className="text-sm text-foreground hidden sm:inline truncate max-w-[160px]">
+        {name ?? email}
+      </span>
       <button type="button" onClick={onSignOut} className={baseCls}>
         <LogOut className="w-4 h-4" aria-hidden />
         <span>{t.signOut}</span>
@@ -285,68 +374,42 @@ interface PostLite {
   parent_page_id: string | null;
 }
 
-export function MorePostsView({ limit = 4, strategy = "latest", heading, lang = "pl", cls }: MorePostsProps) {
+export function MorePostsView({
+  limit = 4,
+  strategy = "latest",
+  heading,
+  lang = "pl",
+  cls,
+}: MorePostsProps) {
   const ctx = useCurrentPostCtx();
   const t = L[lang];
-  const [posts, setPosts] = useState<PostLite[]>([]);
+  const lim = Math.min(Math.max(limit, 2), 12);
 
-  useEffect(() => {
-    let mounted = true;
-    const lim = Math.min(Math.max(limit, 2), 12);
-
-    const run = async () => {
-      if (strategy === "trending") {
-        const { data, error } = await supabase.rpc("trending_posts", { _days: 7, _limit: lim + 1 });
-        if (error || !data) return;
-        if (!mounted) return;
-        setPosts((data as PostLite[]).filter((p) => p.id !== ctx?.id).slice(0, lim));
-        return;
-      }
-      let q = supabase
-        .from("posts")
-        .select("id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id")
-        .eq("status", "published")
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false })
-        .limit(lim + 1);
-      if (strategy === "category" && ctx?.categories?.[0]?.slug) {
-        const catSlug = ctx.categories[0].slug;
-        const { data: cat } = await supabase
-          .from("categories")
-          .select("id")
-          .eq("slug", catSlug)
-          .maybeSingle();
-        const catId = cat?.id;
-        if (!catId) { setPosts([]); return; }
-        const { data: rels } = await supabase
-          .from("post_categories")
-          .select("post_id")
-          .eq("category_id", catId)
-          .limit(lim + 5);
-        const ids = (rels ?? []).map((r) => r.post_id).filter((x): x is string => !!x);
-        if (ids.length === 0) { setPosts([]); return; }
-        q = q.in("id", ids);
-      }
-      const { data, error } = await q;
-      if (error || !data) return;
-      if (!mounted) return;
-      setPosts((data as PostLite[]).filter((p) => p.id !== ctx?.id).slice(0, lim));
-    };
-
-    void run();
-    return () => { mounted = false; };
-  }, [limit, strategy, ctx?.id, ctx?.categories]);
+  // react-query z kluczem zależnym tylko od wejść bloku + kontekstu wpisu -
+  // prefetch SSR (blocks.ts) renderuje sekcję również dla crawlerów.
+  const { data } = useQuery(
+    morePostsBlockQueryOptions({
+      strategy,
+      limit,
+      categorySlug: strategy === "category" ? (ctx?.categories?.[0]?.slug ?? null) : null,
+    }),
+  );
+  const posts: PostLite[] = (data ?? []).filter((p) => p.id !== ctx?.id).slice(0, lim);
 
   if (posts.length === 0) return null;
 
   const h = heading && heading.trim() ? heading : t.more;
 
   return (
-    <section className={`rounded-lg border border-border bg-muted/20 p-4 ${cls ?? ""}`} aria-label={h}>
+    <section
+      className={`rounded-lg border border-border bg-muted/20 p-4 ${cls ?? ""}`}
+      aria-label={h}
+    >
       <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground mb-3">{h}</h3>
       <ul className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {posts.map((p) => {
-          const title = (lang === "pl" ? p.title_pl : p.title_en) ?? p.title_pl ?? p.title_en ?? p.slug;
+          const title =
+            (lang === "pl" ? p.title_pl : p.title_en) ?? p.title_pl ?? p.title_en ?? p.slug;
           const href = `/${p.slug}`;
           return (
             <li key={p.id}>
