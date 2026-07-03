@@ -123,7 +123,7 @@ export function TabsBlock({ block, onChange }: Props) {
 
   return (
     <Shell label="Zakładki">
-      <select
+      <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={orientation}
         onChange={(e) =>
@@ -242,7 +242,7 @@ export function ProgressBlock({ block, onChange }: Props) {
         <span className="text-xs tabular-nums text-muted-foreground w-10 text-right">{value}%</span>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={color}
           onChange={(e) => onChange({ ...block, data: { ...block.data, color: e.target.value } })}

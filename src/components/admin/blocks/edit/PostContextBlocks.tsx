@@ -47,7 +47,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
 
   return (
     <Shell label="Bio autora">
-      <select
+      <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={variant}
         onChange={(e) => set({ variant: e.target.value })}
@@ -99,7 +99,7 @@ export function RelatedPostsBlock({ block, onChange }: Props) {
           value={limit}
           onChange={(e) => set({ limit: Number(e.target.value) || 3 })}
         />
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={strategy}
           onChange={(e) => set({ strategy: e.target.value })}
@@ -109,7 +109,7 @@ export function RelatedPostsBlock({ block, onChange }: Props) {
           <option value="author">Wg autora</option>
           <option value="latest">Najnowsze</option>
         </AdminSelect>
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={layout}
           onChange={(e) => set({ layout: e.target.value })}

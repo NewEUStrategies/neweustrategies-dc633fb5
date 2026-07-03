@@ -76,7 +76,7 @@ export function PostRatingBlock({ block, onChange }: Props) {
   return (
     <Shell label="Ocena czytelnika">
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={max}
           onChange={(e) =>
@@ -143,7 +143,7 @@ export function MorePostsBlock({ block, onChange }: Props) {
             onChange({ ...block, data: { ...block.data, limit: Number(e.target.value) || 4 } })
           }
         />
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={strategy}
           onChange={(e) =>

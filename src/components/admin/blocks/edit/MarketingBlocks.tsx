@@ -82,7 +82,7 @@ export function HeroBlock({ block, onChange }: Props) {
         />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={String(d.align ?? "center")}
           onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}
@@ -90,7 +90,7 @@ export function HeroBlock({ block, onChange }: Props) {
           <option value="left">Wyrównaj do lewej</option>
           <option value="center">Wyśrodkuj</option>
         </AdminSelect>
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={String(d.height ?? "md")}
           onChange={(e) => onChange({ ...block, data: { ...d, height: e.target.value } })}
@@ -150,7 +150,7 @@ export function CtaSectionBlock({ block, onChange }: Props) {
           onChange={(e) => onChange({ ...block, data: { ...d, ctaHref: e.target.value } })}
         />
       </div>
-      <select
+      <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={String(d.variant ?? "primary")}
         onChange={(e) => onChange({ ...block, data: { ...d, variant: e.target.value } })}
@@ -195,7 +195,7 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
   return (
     <Shell label="Karuzela obrazów">
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={aspect}
           onChange={(e) => onChange({ ...block, data: { ...block.data, aspect: e.target.value } })}

@@ -32,7 +32,7 @@ export function TocBlock({ block, onChange }: Props) {
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <label className="flex items-center gap-1">
           Głębokość:
-          <select
+          <AdminSelect
             value={maxLevel}
             onChange={(e) =>
               onChange({ ...block, data: { ...block.data, maxLevel: Number(e.target.value) } })

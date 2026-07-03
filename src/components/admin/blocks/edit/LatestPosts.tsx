@@ -30,7 +30,7 @@ export function LatestPostsBlock({ block, onChange }: Props) {
             onChange({ ...block, data: { ...block.data, count: Number(e.target.value || 5) } })
           }
         />
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={layout}
           onChange={(e) => onChange({ ...block, data: { ...block.data, layout: e.target.value } })}

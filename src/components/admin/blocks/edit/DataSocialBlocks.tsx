@@ -65,7 +65,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className={selectCls}
           value={columns}
           onChange={(e) =>
@@ -76,7 +76,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
           <option value={3}>3 kolumny</option>
           <option value={4}>4 kolumny</option>
         </AdminSelect>
-        <select
+        <AdminSelect
           className={selectCls}
           value={shape}
           onChange={(e) => onChange({ ...block, data: { ...block.data, shape: e.target.value } })}
@@ -204,7 +204,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
       <div className="grid grid-cols-3 gap-2">
-        <select
+        <AdminSelect
           className={selectCls}
           value={Number(block.data.columns ?? 5)}
           onChange={(e) =>
@@ -350,7 +350,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
         onChange={(e) => onChange({ ...block, data: { ...block.data, subtitle: e.target.value } })}
       />
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className={selectCls}
           value={Number(block.data.columns ?? 3)}
           onChange={(e) =>
@@ -361,7 +361,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
           <option value={3}>3 kolumny</option>
           <option value={4}>4 kolumny</option>
         </AdminSelect>
-        <select
+        <AdminSelect
           className={selectCls}
           value={String(block.data.style ?? "card")}
           onChange={(e) => onChange({ ...block, data: { ...block.data, style: e.target.value } })}
@@ -375,7 +375,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
         {items.map((it, idx) => (
           <div key={idx} className="rounded border border-border p-2 space-y-1.5">
             <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center">
-              <select
+              <AdminSelect
                 className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
                 value={it.icon}
                 onChange={(e) => {
@@ -450,7 +450,7 @@ export function AlertBannerBlock({ block, onChange }: Props) {
   const d = block.data;
   return (
     <Shell label="Banner alertu">
-      <select
+      <AdminSelect
         className={selectCls}
         value={String(d.variant ?? "info")}
         onChange={(e) => onChange({ ...block, data: { ...d, variant: e.target.value } })}
@@ -523,7 +523,7 @@ export function DividerTextBlock({ block, onChange }: Props) {
         onChange={(e) => onChange({ ...block, data: { ...d, text: e.target.value } })}
       />
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className={selectCls}
           value={String(d.align ?? "center")}
           onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}
@@ -532,7 +532,7 @@ export function DividerTextBlock({ block, onChange }: Props) {
           <option value="center">Tekst pośrodku</option>
           <option value="right">Tekst po prawej</option>
         </AdminSelect>
-        <select
+        <AdminSelect
           className={selectCls}
           value={String(d.lineStyle ?? "solid")}
           onChange={(e) => onChange({ ...block, data: { ...d, lineStyle: e.target.value } })}

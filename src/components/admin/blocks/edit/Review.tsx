@@ -66,7 +66,7 @@ export function ReviewBlock({ block, onChange }: Props) {
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-1">
               Skala:
-              <select
+              <AdminSelect
                 value={scale}
                 onChange={(e) => patch("scale", Number(e.target.value))}
                 className="bg-background border border-border rounded px-1 py-0.5"

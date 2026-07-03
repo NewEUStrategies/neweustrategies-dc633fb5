@@ -24,7 +24,7 @@ export function ResetPasswordFormBlock({ block, onChange }: Props) {
     <div className="not-prose space-y-3 rounded-md border border-border bg-muted/30 p-3">
       <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
         <ShieldCheck className="w-3.5 h-3.5" /> Ustaw nowe hasło
-        <select
+        <AdminSelect
           value={s("variant", "card")}
           onChange={(e) => set("variant", e.target.value)}
           className="ml-auto bg-background border border-border rounded px-1 py-0.5 text-[11px] normal-case tracking-normal"

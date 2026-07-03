@@ -23,7 +23,7 @@ export function PostTitleBlock({ block, onChange }: Props) {
   const level = Number(block.data.level ?? 1);
   return (
     <Shell label="Post · Tytuł">
-      <select
+      <AdminSelect
         className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={level}
         onChange={(e) =>
@@ -46,7 +46,7 @@ export function PostDateBlock({ block, onChange }: Props) {
   return (
     <Shell label="Post · Data">
       <div className="flex gap-2 items-center text-xs">
-        <select
+        <AdminSelect
           className="bg-background border border-border rounded px-2 py-2 h-9"
           value={format}
           onChange={(e) => onChange({ ...block, data: { ...block.data, format: e.target.value } })}
@@ -125,7 +125,7 @@ export function PostFeaturedImageBlock({ block, onChange }: Props) {
   return (
     <Shell label="Post · Obraz wyróżniony">
       <div className="flex gap-2 items-center text-xs">
-        <select
+        <AdminSelect
           className="bg-background border border-border rounded px-2 py-2 h-9"
           value={aspect}
           onChange={(e) => onChange({ ...block, data: { ...block.data, aspect: e.target.value } })}
@@ -154,7 +154,7 @@ export function PostTermsBlock({ block, onChange }: Props) {
   const taxonomy = String(block.data.taxonomy ?? "categories");
   return (
     <Shell label="Post · Taksonomie">
-      <select
+      <AdminSelect
         className="text-xs bg-background border border-border rounded px-2 py-2 h-9 w-full"
         value={taxonomy}
         onChange={(e) => onChange({ ...block, data: { ...block.data, taxonomy: e.target.value } })}
@@ -170,7 +170,7 @@ export function SiteTitleBlock({ block, onChange }: Props) {
   const level = Number(block.data.level ?? 1);
   return (
     <Shell label="Witryna · Tytuł">
-      <select
+      <AdminSelect
         className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={level}
         onChange={(e) =>

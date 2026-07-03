@@ -33,7 +33,7 @@ export function ButtonsBlock({ block, onChange }: Props) {
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium uppercase tracking-wide text-muted-foreground">Buttons</span>
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-1"
           value={align}
           onChange={(e) => onChange({ ...block, data: { ...block.data, align: e.target.value } })}
@@ -64,7 +64,7 @@ export function ButtonsBlock({ block, onChange }: Props) {
                 update(next);
               }}
             />
-            <select
+            <AdminSelect
               className="text-xs bg-background border border-border rounded px-2 py-1"
               value={it.variant ?? "default"}
               onChange={(e) => {

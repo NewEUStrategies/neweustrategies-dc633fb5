@@ -57,7 +57,7 @@ export function StepListBlock({ block, onChange }: Props) {
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className={sel}
           value={String(block.data.orientation ?? "vertical")}
           onChange={(e) =>
@@ -67,7 +67,7 @@ export function StepListBlock({ block, onChange }: Props) {
           <option value="vertical">Pionowo</option>
           <option value="horizontal">Poziomo</option>
         </AdminSelect>
-        <select
+        <AdminSelect
           className={sel}
           value={String(block.data.numberStyle ?? "circle")}
           onChange={(e) =>
@@ -338,7 +338,7 @@ export function BannerImageBlock({ block, onChange }: Props) {
         />
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <select
+        <AdminSelect
           className={sel}
           value={String(d.position ?? "left")}
           onChange={(e) => onChange({ ...block, data: { ...d, position: e.target.value } })}
@@ -347,7 +347,7 @@ export function BannerImageBlock({ block, onChange }: Props) {
           <option value="center">Tekst środek</option>
           <option value="right">Tekst prawo</option>
         </AdminSelect>
-        <select
+        <AdminSelect
           className={sel}
           value={String(d.theme ?? "dark")}
           onChange={(e) => onChange({ ...block, data: { ...d, theme: e.target.value } })}
@@ -355,7 +355,7 @@ export function BannerImageBlock({ block, onChange }: Props) {
           <option value="dark">Tekst jasny</option>
           <option value="light">Tekst ciemny</option>
         </AdminSelect>
-        <select
+        <AdminSelect
           className={sel}
           value={String(d.aspect ?? "21:9")}
           onChange={(e) => onChange({ ...block, data: { ...d, aspect: e.target.value } })}
@@ -428,7 +428,7 @@ export function VideoHeroBlock({ block, onChange }: Props) {
         />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <select
+        <AdminSelect
           className={sel}
           value={String(d.height ?? "lg")}
           onChange={(e) => onChange({ ...block, data: { ...d, height: e.target.value } })}
@@ -437,7 +437,7 @@ export function VideoHeroBlock({ block, onChange }: Props) {
           <option value="lg">Wysoka</option>
           <option value="screen">Pełny ekran</option>
         </AdminSelect>
-        <select
+        <AdminSelect
           className={sel}
           value={String(d.align ?? "center")}
           onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}

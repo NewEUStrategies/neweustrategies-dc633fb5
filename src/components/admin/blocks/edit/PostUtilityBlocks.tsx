@@ -101,7 +101,7 @@ export function ShareButtonsBlock({ block, onChange }: Props) {
 
   return (
     <Shell label="Udostępnij">
-      <select
+      <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
         value={variant}
         onChange={(e) => onChange({ ...block, data: { ...block.data, variant: e.target.value } })}

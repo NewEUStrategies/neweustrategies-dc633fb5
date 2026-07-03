@@ -30,7 +30,7 @@ export function NavigationBlock({ block, onChange }: Props) {
           placeholder="menuKey (np. primary)"
           onChange={(e) => onChange({ ...block, data: { ...block.data, menuKey: e.target.value } })}
         />
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={layout}
           onChange={(e) => onChange({ ...block, data: { ...block.data, layout: e.target.value } })}
@@ -49,7 +49,7 @@ export function PostNavigationLinkBlock({ block, onChange }: Props) {
   return (
     <Shell label="Poprzedni / Następny wpis">
       <div className="grid grid-cols-2 gap-2 items-center">
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={direction}
           onChange={(e) =>
@@ -94,7 +94,7 @@ export function QueryLoopBlock({ block, onChange }: Props) {
           value={Number(d.limit ?? 6)}
           onChange={(e) => set({ limit: Number(e.target.value) || 6 })}
         />
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={String(d.layout ?? "grid")}
           onChange={(e) => set({ layout: e.target.value })}
@@ -102,7 +102,7 @@ export function QueryLoopBlock({ block, onChange }: Props) {
           <option value="grid">Siatka</option>
           <option value="list">Lista</option>
         </AdminSelect>
-        <select
+        <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={String(d.orderBy ?? "date")}
           onChange={(e) => set({ orderBy: e.target.value })}
