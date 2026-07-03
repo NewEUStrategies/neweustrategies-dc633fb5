@@ -167,7 +167,7 @@ export function TrendingTickerPane() {
 
   const previewKey = useMemo(
     () =>
-      `${cfg.source}-${cfg.mode}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}`,
+      `${cfg.source}-${cfg.mode}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}`,
     [cfg],
   );
 
