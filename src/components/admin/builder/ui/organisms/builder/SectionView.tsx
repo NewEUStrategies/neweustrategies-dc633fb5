@@ -24,6 +24,16 @@ function resolveSpan(
   return span?.desktop ?? deskDefault;
 }
 
+function resolveOrder(
+  order: ResponsiveValue<number> | undefined,
+  device: Device,
+): number | undefined {
+  if (!order) return undefined;
+  if (device === "mobile") return order.mobile ?? undefined;
+  if (device === "tablet") return order.tablet ?? order.desktop ?? undefined;
+  return order.desktop ?? undefined;
+}
+
 import {
   sectionWrapperStyle,
   sectionContainerStyle,
