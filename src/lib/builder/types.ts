@@ -420,6 +420,8 @@ export interface ColumnNode {
   id: string;
   kind: "column";
   span: ResponsiveValue<number>;
+  /** Visual order for CSS grid/flex on this breakpoint. Lower = earlier. */
+  order?: ResponsiveValue<number>;
   style?: CommonStyle;
   advanced?: AdvancedSettings;
   /** Horizontal alignment of widgets in the wrap row. Default: "start". */
