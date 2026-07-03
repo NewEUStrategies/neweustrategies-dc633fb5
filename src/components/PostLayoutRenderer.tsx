@@ -104,10 +104,10 @@ export function PostLayoutRenderer({
     const isFullBleed = preset.cover === "full-bleed";
     const useRatio = preset.cover === "ratio" && ratioPct;
     const heightClass = isFullBleed
-      ? "h-[70vh] min-h-[520px]"
+      ? "h-[55vh] md:h-[65vh] lg:h-[70vh] min-h-[380px] md:min-h-[480px] lg:min-h-[520px]"
       : useRatio
         ? ""
-        : "h-[60vh] min-h-[460px]";
+        : "h-[50vh] md:h-[55vh] lg:h-[60vh] min-h-[320px] md:min-h-[400px] lg:min-h-[460px]";
     const style = useRatio ? { aspectRatio: `100 / ${ratioPct}` } : undefined;
     return (
       <div className={`relative ${isFullBleed ? "-mx-4 lg:-mx-8" : ""} ${extraWrapClass}`}>
