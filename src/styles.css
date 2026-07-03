@@ -568,10 +568,24 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   user-select: none;
   color: var(--pl-num-light);
   opacity: var(--pl-num-opacity, 0.18);
-  font-size: var(--pl-num-fs, 52px) !important;
-  line-height: 0.82 !important;
+  /* Scale down proportionally on smaller viewports so the numeral never
+     dwarfs the title or overflows the row on mobile / tablet. Keeps the
+     authored --pl-num-fs as the desktop maximum. */
+  font-size: clamp(28px, calc(var(--pl-num-fs, 52px) * 0.55 + 1.6vw), var(--pl-num-fs, 52px)) !important;
+  /* Keep the glyph inside its own box so `overflow-hidden` wrappers on
+     mobile cards never crop the ascender ("01" / "02" showing only their
+     bottom halves). Slightly airier than 0.82 but still tight enough. */
+  line-height: 0.95 !important;
   letter-spacing: 0;
-  transform: translate(-0.08em, -50%);
+  transform: translate(-0.02em, -50%);
+}
+
+.post-list-numbered-shell.post-list-numbered-shell {
+  min-height: calc(clamp(28px, calc(var(--pl-num-fs, 52px) * 0.55 + 1.6vw), var(--pl-num-fs, 52px)) * 0.95);
+}
+
+.post-list-numbered-row.post-list-numbered-row {
+  min-width: 0;
 }
 
 .dark .post-list-numbered-index.post-list-numbered-index.post-list-numbered-index {
@@ -951,6 +965,13 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
     background-size 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     color 0.2s ease;
   text-decoration: none;
+}
+
+.cms-post-title.cms-post-title[class*="line-clamp-"],
+.cms-post-excerpt.cms-post-excerpt[class*="line-clamp-"] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  white-space: normal;
 }
 .cms-post-title:hover,
 a:hover .cms-post-title,
@@ -1486,12 +1507,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   align-items: center !important;
 }
 [data-builder-renderer][data-device="mobile"] a,
-[data-builder-renderer][data-device="mobile"] button {
-  white-space: nowrap !important;
-  overflow: visible !important;
-  text-overflow: clip !important;
-  max-width: 100% !important;
-}
+[data-builder-renderer][data-device="mobile"] button { white-space: normal !important; overflow-wrap: anywhere; word-break: normal; hyphens: auto; overflow: visible !important; text-overflow: clip !important; max-width: 100% !important; }
 [data-builder-renderer][data-device="mobile"] nav ul,
 [data-builder-renderer][data-device="mobile"] nav ol,
 [data-builder-renderer][data-device="mobile"] [role="menubar"] {
@@ -1603,13 +1619,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     max-width: 100% !important;
   }
   /* Links / buttons: keep words intact but allow wrap, never collapse next to each other */
-  [data-builder-renderer] a,
-  [data-builder-renderer] button {
-    white-space: nowrap !important;
-    overflow: visible !important;
-    text-overflow: clip !important;
-    max-width: 100% !important;
-  }
+  [data-builder-renderer] a, [data-builder-renderer] button { white-space: normal !important; overflow-wrap: anywhere; word-break: normal; hyphens: auto; overflow: visible !important; text-overflow: clip !important; max-width: 100% !important; }
   /* Navigation menus: keep horizontal but wrap to next line */
   [data-builder-renderer] nav ul,
   [data-builder-renderer] nav ol,
