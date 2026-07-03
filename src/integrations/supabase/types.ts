@@ -2130,6 +2130,7 @@ export type Database = {
           hyperlink_style: string
           hyperlink_underline: boolean
           image_caption_left_border: boolean
+          layout_sidebar_overrides: Json
           list_style: string
           no_sidebar_max_width: number
           paragraph_spacing_rem: number
@@ -2166,6 +2167,7 @@ export type Database = {
           hyperlink_style?: string
           hyperlink_underline?: boolean
           image_caption_left_border?: boolean
+          layout_sidebar_overrides?: Json
           list_style?: string
           no_sidebar_max_width?: number
           paragraph_spacing_rem?: number
@@ -2202,6 +2204,7 @@ export type Database = {
           hyperlink_style?: string
           hyperlink_underline?: boolean
           image_caption_left_border?: boolean
+          layout_sidebar_overrides?: Json
           list_style?: string
           no_sidebar_max_width?: number
           paragraph_spacing_rem?: number
