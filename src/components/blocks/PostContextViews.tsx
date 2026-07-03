@@ -41,6 +41,10 @@ interface AuthorBioProps {
   variant?: "card" | "inline" | "minimal";
   lang?: Lang;
   cls?: string;
+  /** Explicit author id — overrides the author from the current post context. */
+  authorId?: string;
+  /** Fully materialized author — used by the admin preview to avoid fetching. */
+  authorOverride?: CurrentPostAuthor | null;
 }
 
 export function AuthorBioView({
@@ -50,10 +54,27 @@ export function AuthorBioView({
   variant = "card",
   lang = "pl",
   cls,
+  authorId,
+  authorOverride,
 }: AuthorBioProps) {
   const ctx = useCurrentPostCtx();
   const t = L[lang];
-  const author = ctx?.author;
+  const { data: fetched } = useQuery({
+    ...authorProfileByIdQueryOptions(authorId ?? ""),
+    enabled: !authorOverride && !!authorId,
+  });
+  const author: CurrentPostAuthor | null = authorOverride
+    ? authorOverride
+    : fetched
+      ? {
+          id: fetched.id,
+          name: fetched.display_name ?? undefined,
+          slug: fetched.slug ?? undefined,
+          avatarUrl: fetched.avatar_url ?? undefined,
+          bio_pl: fetched.bio_pl ?? undefined,
+          bio_en: fetched.bio_en ?? undefined,
+        }
+      : (ctx?.author ?? null);
   const { data: postsCountData } = useQuery({
     ...authorPostsCountQueryOptions(author?.id ?? ""),
     enabled: showPostsCount && !!author?.id,
