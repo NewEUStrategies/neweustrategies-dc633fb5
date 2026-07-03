@@ -349,6 +349,24 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const postTags = isPost
     ? (data as { tags?: Array<{ slug: string; name: string }> }).tags
     : undefined;
+  const postCategories = isPost
+    ? ((data as { categories?: Array<{ slug: string; name_pl: string; name_en: string }> })
+        .categories ?? [])
+    : [];
+  const postAuthor = isPost
+    ? ((
+        data as {
+          author?: {
+            id: string;
+            slug: string | null;
+            display_name: string | null;
+            first_name: string | null;
+            last_name: string | null;
+            avatar_url: string | null;
+          } | null;
+        }
+      ).author ?? null)
+    : null;
 
   // Access rule (mode/teaser/plans/price) is non-sensitive and arrives from the
   // resolver, so the paywall teaser renders correctly even in anonymous SSR.
