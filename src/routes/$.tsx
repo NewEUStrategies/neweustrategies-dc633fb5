@@ -21,6 +21,8 @@ import { FloatingShareBar } from "@/components/share/FloatingShareBar";
 import { PostSidebarRenderer } from "@/components/post/PostSidebarRenderer";
 import { AutoLoadNextPost } from "@/components/post/AutoLoadNextPost";
 import { CustomMetaList } from "@/components/post/CustomMetaList";
+import { PostOverlayMeta } from "@/components/post/PostOverlayMeta";
+import { CategoryBadges } from "@/components/post/CategoryBadges";
 import { RelatedPosts } from "@/components/post/RelatedPosts";
 import { RelatedPostsAfterParagraph } from "@/components/post/RelatedPostsAfterParagraph";
 import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPosts";
@@ -349,6 +351,24 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   const postTags = isPost
     ? (data as { tags?: Array<{ slug: string; name: string }> }).tags
     : undefined;
+  const postCategories = isPost
+    ? ((data as { categories?: Array<{ slug: string; name_pl: string; name_en: string }> })
+        .categories ?? [])
+    : [];
+  const postAuthor = isPost
+    ? ((
+        data as {
+          author?: {
+            id: string;
+            slug: string | null;
+            display_name: string | null;
+            first_name: string | null;
+            last_name: string | null;
+            avatar_url: string | null;
+          } | null;
+        }
+      ).author ?? null)
+    : null;
 
   // Access rule (mode/teaser/plans/price) is non-sensitive and arrives from the
   // resolver, so the paywall teaser renders correctly even in anonymous SSR.
@@ -432,9 +452,22 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
     coverUrl: it.cover_image_url ?? undefined,
     publishedAt: it.published_at ?? undefined,
     readingTimeMin: post?.read_minutes ?? undefined,
-    author: null,
+    author: postAuthor
+      ? {
+          id: postAuthor.id,
+          name:
+            postAuthor.display_name ||
+            [postAuthor.first_name, postAuthor.last_name].filter(Boolean).join(" ") ||
+            undefined,
+          slug: postAuthor.slug ?? undefined,
+          avatarUrl: postAuthor.avatar_url ?? undefined,
+        }
+      : null,
     tags: postTags ?? [],
-    categories: (data as { categories?: Array<{ slug: string; name: string }> }).categories ?? [],
+    categories: postCategories.map((c) => ({
+      slug: c.slug,
+      name: lang === "en" ? c.name_en || c.name_pl : c.name_pl || c.name_en,
+    })),
     breadcrumbs: crumbs.map((b) => ({ label: b.label, href: b.href ?? undefined })),
   };
 
@@ -483,10 +516,18 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             excerpt={excerpt}
             coverImageUrl={it.cover_image_url}
             meta={
-              <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-                {post.read_minutes ? <span>{post.read_minutes} min</span> : null}
-                <CustomMetaList defs={customMetaDefs} values={post.custom_meta} lang={lang} />
-              </span>
+              <PostOverlayMeta
+                lang={lang}
+                author={postAuthor}
+                publishedAt={it.published_at}
+                readMinutes={post.read_minutes}
+                customMeta={
+                  <CustomMetaList defs={customMetaDefs} values={post.custom_meta} lang={lang} />
+                }
+              />
+            }
+            categoryBadges={
+              postCategories.length > 0 ? <CategoryBadges items={postCategories} lang={lang} /> : null
             }
             content={
               <>

@@ -2,7 +2,7 @@
 // "Z tego materiału dowiesz się, że ..." / "From this material you will learn that ..."
 // Max 6 bullet points, bilingual. Atomic-design "molecule".
 import { useTranslation } from "react-i18next";
-import { Check } from "@/lib/lucide-shim";
+
 
 interface KeyTakeawaysProps {
   items: readonly string[];
@@ -22,16 +22,22 @@ export function KeyTakeaways({ items, className }: KeyTakeawaysProps) {
       aria-label={t("post.takeaways.title")}
       // "key-takeaways" is a stable hook referenced by the SpeakableSpecification
       // cssSelector in the article JSON-LD (src/lib/seo/meta.ts) - do not rename.
-      className={`key-takeaways my-8 rounded-xl border border-border bg-card/60 backdrop-blur-sm p-5 lg:p-6 shadow-sm ${className ?? ""}`}
+      className={`key-takeaways my-10 ${className ?? ""}`}
     >
-      <h2 className="font-display text-lg lg:text-xl font-semibold mb-4 text-foreground">
+      <h2 className="font-display text-2xl lg:text-4xl font-semibold mb-5 text-foreground/90">
         {t("post.takeaways.title")}
       </h2>
-      <ul className="space-y-2.5">
+      <ul className="space-y-3.5 border-t border-border/60 pt-5">
         {clean.map((bullet, i) => (
-          <li key={i} className="flex items-start gap-3 text-sm lg:text-base leading-relaxed">
-            <Check className="w-5 h-5 shrink-0 mt-0.5 text-brand" aria-hidden="true" />
-            <span className="text-foreground/90">{bullet}</span>
+          <li
+            key={i}
+            className="flex items-start gap-3 text-base lg:text-lg leading-relaxed text-muted-foreground"
+          >
+            <span
+              className="mt-2.5 inline-block h-2 w-2 shrink-0 rounded-full bg-brand"
+              aria-hidden="true"
+            />
+            <span>{bullet}</span>
           </li>
         ))}
       </ul>
