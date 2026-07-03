@@ -85,9 +85,9 @@ function ToolbarBtn({
       disabled={disabled}
       className={[
         "inline-flex h-7 w-7 items-center justify-center rounded-sm border border-transparent",
-        "text-foreground/80 hover:bg-accent hover:text-foreground",
+        "text-foreground/80 hover:bg-foreground/10 hover:text-foreground",
         "disabled:opacity-40 disabled:pointer-events-none transition-colors",
-        active ? "bg-accent text-accent-foreground border-border" : "",
+        active ? "bg-foreground text-background border-foreground" : "",
       ].join(" ")}
       title={title}
       aria-label={title}
