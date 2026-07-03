@@ -100,6 +100,11 @@ const COPY = {
     color_counter: "Numery",
     resetColors: "Przywróć domyślne",
     cannotDeleteLast: "Musi zostać przynajmniej jeden wariant.",
+    undo: "Cofnij",
+    redo: "Ponów",
+    cancel: "Anuluj zmiany",
+    noChanges: "Brak zmian do cofnięcia.",
+    reverted: "Przywrócono ostatnio zapisany stan.",
   },
   en: {
     title: "Trending widget",
