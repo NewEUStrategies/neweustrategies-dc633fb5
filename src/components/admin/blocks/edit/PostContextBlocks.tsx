@@ -70,6 +70,14 @@ export function AuthorBioBlock({ block, onChange }: Props) {
           label="Licznik wpisów"
         />
       </div>
+      <div className="pt-2 border-t border-border/60">
+        <AuthorBioView
+          showAvatar={showAvatar}
+          showSocial={showSocial}
+          showPostsCount={showPostsCount}
+          variant={variant as "card" | "inline" | "minimal"}
+        />
+      </div>
     </Shell>
   );
 }
