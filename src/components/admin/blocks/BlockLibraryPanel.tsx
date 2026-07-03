@@ -96,7 +96,7 @@ export function BlockLibraryPanel({ open, onClose, onInsert }: Props) {
             }
           }}
           placeholder={t("blocks.search")}
-          className="w-full bg-background border border-border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full bg-background border border-border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-foreground"
         />
       </div>
       <div className="flex-1 overflow-y-auto p-3">
@@ -143,7 +143,7 @@ function renderItem(
       onClick={() => choose(spec)}
       disabled={!impl}
       title={spec.description}
-      className="flex flex-col items-center gap-1 p-2 rounded border border-border hover:border-primary hover:bg-accent text-center disabled:opacity-40 disabled:cursor-not-allowed"
+      className="flex flex-col items-center gap-1 p-2 rounded border border-border hover:border-foreground hover:bg-accent text-center disabled:opacity-40 disabled:cursor-not-allowed"
     >
       <Icon className="w-4 h-4" />
       <span className="text-[11px] leading-tight">{labelFor(spec.type)}</span>

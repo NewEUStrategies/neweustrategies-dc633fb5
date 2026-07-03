@@ -12,7 +12,7 @@ export function QuoteBlock({ block, onChange }: Props) {
   const cite = String(block.data.cite ?? "");
 
   return (
-    <blockquote className="border-l-4 border-primary pl-4 space-y-2">
+    <blockquote className="border-l-4 border-foreground pl-4 space-y-2">
       <textarea
         value={text}
         rows={2}

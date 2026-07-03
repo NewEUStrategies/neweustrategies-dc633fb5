@@ -119,7 +119,7 @@ export function StepListBlock({ block, onChange }: Props) {
         <button
           type="button"
           onClick={() => update([...items, { title: "", description: "", icon: "" }])}
-          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-primary/50"
+          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
           <Plus className="w-3.5 h-3.5" /> Dodaj krok
         </button>
@@ -206,7 +206,7 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
               className={[
                 "text-xs px-2 py-1 rounded border",
                 featuredIdx === i
-                  ? "border-primary text-primary"
+                  ? "border-foreground text-foreground"
                   : "border-border text-muted-foreground",
               ].join(" ")}
               aria-label="Wyróżnij kolumnę"
@@ -226,7 +226,7 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
         <button
           type="button"
           onClick={() => setColumns([...columns, ""])}
-          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-primary/50"
+          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
           <Plus className="w-3.5 h-3.5" /> Dodaj kolumnę
         </button>
@@ -282,7 +282,7 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
         <button
           type="button"
           onClick={() => setRows([...rows, { feature: "", values: columns.map(() => "") }])}
-          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-primary/50"
+          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
         >
           <Plus className="w-3.5 h-3.5" /> Dodaj wiersz
         </button>

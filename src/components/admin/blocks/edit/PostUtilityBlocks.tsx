@@ -120,8 +120,8 @@ export function ShareButtonsBlock({ block, onChange }: Props) {
               className={[
                 "text-[11px] px-2 py-1 rounded border transition-colors capitalize",
                 active
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background text-muted-foreground border-border hover:border-primary/50",
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-background text-muted-foreground border-border hover:border-foreground/50",
               ].join(" ")}
             >
               {n}

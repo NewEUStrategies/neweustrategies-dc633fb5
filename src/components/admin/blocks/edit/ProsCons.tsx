@@ -62,7 +62,7 @@ export function ProsConsBlock({ block, onChange }: Props) {
       <button
         type="button"
         onClick={() => onItems([...items, ""])}
-        className="text-xs flex items-center gap-1 text-primary hover:underline"
+        className="text-xs flex items-center gap-1 text-foreground hover:underline"
       >
         <Plus className="w-3.5 h-3.5" /> Dodaj
       </button>

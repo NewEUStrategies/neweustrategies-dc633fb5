@@ -15,7 +15,7 @@ export function NewsletterBlock({ block, onChange }: Props) {
   const variant = String(block.data.variant ?? "card");
 
   return (
-    <div className="not-prose rounded-md border border-border bg-gradient-to-br from-primary/5 to-transparent p-3 space-y-2">
+    <div className="not-prose rounded-md border border-border bg-gradient-to-br from-foreground/5 to-transparent p-3 space-y-2">
       <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
         <Mail className="w-3.5 h-3.5" /> Newsletter (inline)
         <select

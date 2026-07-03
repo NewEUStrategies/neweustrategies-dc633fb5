@@ -115,7 +115,7 @@ export function ReviewBlock({ block, onChange }: Props) {
         <button
           type="button"
           onClick={() => patchCriteria([...criteria, { label: "", score: 8 }])}
-          className="text-xs flex items-center gap-1 text-primary hover:underline"
+          className="text-xs flex items-center gap-1 text-foreground hover:underline"
         >
           <Plus className="w-3.5 h-3.5" /> Dodaj kryterium
         </button>
