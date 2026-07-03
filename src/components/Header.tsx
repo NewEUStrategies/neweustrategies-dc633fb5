@@ -161,7 +161,7 @@ function MobileAccountNav({ isPl, onNavigate }: { isPl: boolean; onNavigate: () 
   const { session, isStaff, signOut } = useAuth();
   const t = (pl: string, en: string) => (isPl ? pl : en);
 
-  const navItems: Array<{ to: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+  const navItems: Array<{ to: string; label: string; icon: ComponentType<{ className?: string }> }> = [
     { to: "/", label: t("Strona główna", "Home"), icon: Home },
     { to: "/blog", label: t("Aktualności", "News"), icon: Newspaper },
     { to: "/pricing", label: t("Cennik", "Pricing"), icon: DollarSign },
