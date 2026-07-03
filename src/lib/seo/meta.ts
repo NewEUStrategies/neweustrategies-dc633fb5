@@ -35,8 +35,8 @@ export const SITE_DEFAULT_OG_IMAGE = "/og-default.jpg";
  * front page and any route without its own head() stay byte-identical.
  */
 export const SITE_DEFAULT_TITLE: Record<Lang, string> = {
-  pl: "New European Strategies - Strategiczne myślenie, nowe perspektywy",
-  en: "New European Strategies - Strategic thinking, new perspectives",
+  pl: "New European Strategies - Bezpieczeństwo i geopolityka",
+  en: "New European Strategies - Security & Geopolitics",
 };
 
 /** Brand-default meta description per language (see SITE_DEFAULT_TITLE). */
@@ -44,6 +44,11 @@ export const SITE_DEFAULT_DESCRIPTION: Record<Lang, string> = {
   pl: "Think-tank o europejskim bezpieczeństwie, geopolityce i grze mocarstw. Analizy, raporty, wywiady i policy papers.",
   en: "A think-tank on European security, geopolitics and great-power rivalry. Analyses, reports, interviews and policy papers.",
 };
+
+/** Absolute origin for the canonical brand deployment - used to resolve the
+ *  root-head social image to a fully-qualified URL (scrapers ignore relative
+ *  og:image paths). */
+export const SITE_CANONICAL_ORIGIN = "https://neweustrategies.lovable.app";
 
 /** Split a (possibly empty) absolute URL into origin + pathname, dropping the
  * `lang` query param so canonical/hreflang are built from a clean base. */
