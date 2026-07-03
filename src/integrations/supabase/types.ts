@@ -3685,7 +3685,42 @@ export type Database = {
       }
       get_own_profile: {
         Args: never
-        Returns: Database["public"]["Tables"]["profiles"]["Row"][]
+        Returns: {
+          avatar_url: string | null
+          bio: string | null
+          bio_en: string | null
+          bio_pl: string | null
+          contact_email: string | null
+          cover_url: string | null
+          created_at: string
+          current_company: string | null
+          display_name: string | null
+          email: string | null
+          facebook_url: string | null
+          first_name: string | null
+          gender: Database["public"]["Enums"]["name_gender"] | null
+          id: string
+          instagram_url: string | null
+          job_title: string | null
+          last_name: string | null
+          linkedin_url: string | null
+          location: string | null
+          phone: string | null
+          prefs: Json
+          slug: string | null
+          specialization: string | null
+          spotify_url: string | null
+          tenant_id: string
+          twitter_url: string | null
+          updated_at: string
+          website_url: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_page_for_edit: {
         Args: { _slug: string }
