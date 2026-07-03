@@ -179,9 +179,10 @@ export function ImageWidget({
       sizes="(max-width: 767px) 100vw, 50vw"
       className={imgCls}
       style={imgStyle}
-      onError={applyLogoFallback}
-      hoverEffect={hoverEffect}
-    />
+        onError={applyLogoFallback}
+        hoverEffect={hoverEffect}
+        fadeIn={!isLogo}
+      />
   );
   const framedImgEl = isFramed ? (
     <span
