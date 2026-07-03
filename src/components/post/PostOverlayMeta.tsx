@@ -4,7 +4,7 @@
 import type { ReactNode } from "react";
 import { AppLink } from "@/components/atoms/AppLink";
 import { ReadingTimeView } from "@/components/blocks/PostUtilityViews";
-import { Clock, User as UserIcon, Calendar } from "@/lib/lucide-shim";
+import { Clock, User as UserIcon } from "@/lib/lucide-shim";
 
 type Lang = "pl" | "en";
 
