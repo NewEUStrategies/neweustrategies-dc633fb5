@@ -233,10 +233,6 @@ export function buildRootHead(lang: Lang): Array<Record<string, string>> {
     { property: "og:site_name", content: SITE_NAME },
     { property: "og:locale", content: OG_LOCALE[lang] },
     // Brand-default share image. buildRootHead is origin-less (it backs error /
-    // fallback documents), so this stays a root-relative path; the content
-    // surfaces that matter for sharing go through buildContentHead, which emits
-    // an absolute URL.
-    // Brand-default share image. buildRootHead is origin-less (it backs error /
     // fallback documents), so we resolve the URL against the canonical brand
     // origin - social scrapers ignore relative og:image paths.
     { property: "og:image", content: `${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}` },
