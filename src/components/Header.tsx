@@ -44,8 +44,15 @@ function HeaderInner() {
   const { data: settingsMap } = useSuspenseQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<HeaderSettings>(settingsMap, "header", {});
   const general = resolveSetting<GeneralSettings>(settingsMap, "general", {});
+  const theme = resolveSetting<ThemeLogoCfg>(settingsMap, "theme_options", {});
   const trending = cfg.trending ?? { enabled: true };
   const siteName = (general.site_name && general.site_name.trim()) || "Menu";
+  const { theme: mode } = useTheme();
+  const isDark = mode === "dark";
+  const themeLogo = theme.logo ?? {};
+  const mobileLogo = isDark
+    ? themeLogo.mobile_dark || themeLogo.mobile || themeLogo.main_dark || themeLogo.main || ""
+    : themeLogo.mobile || themeLogo.mobile_dark || themeLogo.main || themeLogo.main_dark || "";
 
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
