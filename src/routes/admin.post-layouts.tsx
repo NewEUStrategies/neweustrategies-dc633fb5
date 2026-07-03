@@ -59,67 +59,80 @@ function Page() {
   }) => {
     const selected = presets.find((p) => p.id === value) ?? presets[0];
     const overrides = local.layout_sidebar_overrides ?? {};
-    const toggleSidebar = (presetId: string, next: boolean) => {
-      const nextMap = { ...overrides, [presetId]: next };
-      upd({ layout_sidebar_overrides: nextMap });
-    };
     const selectedHasSidebar = effectiveHasSidebar(selected, local);
+
+    // Każdy preset występuje w DWÓCH wariantach: bez sidebara i z sidebarem.
+    // Wybór karty ustawia jednocześnie layout id oraz override dla sidebara,
+    // więc użytkownik nie musi klikać dodatkowego przełącznika.
+    const pickVariant = (presetId: string, withSidebar: boolean) => {
+      const nextMap = { ...overrides, [presetId]: withSidebar };
+      upd({
+        layout_sidebar_overrides: nextMap,
+        ...(value === presetId ? {} : {}),
+      });
+      onChange(presetId);
+    };
+
     return (
       <section className="space-y-3">
         <div className="flex items-baseline justify-between">
           <h2 className="font-display text-lg">{title}</h2>
           <span className="text-xs text-muted-foreground">
-            Wybrany: <b>{selected.label}</b>
+            Wybrany: <b>{selected.label}</b> ({selectedHasSidebar ? "z sidebarem" : "bez sidebara"})
           </span>
         </div>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
 
-        {/* Duży podgląd wybranego presetu */}
         <div className="grid md:grid-cols-[1fr_280px] gap-4 items-start">
-          <div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {presets.map((p) => {
-                const cardHasSidebar = effectiveHasSidebar(p, local);
-                return (
-                  <div
-                    key={p.id}
-                    className={`p-2 border rounded-lg transition ${value === p.id ? "border-brand ring-2 ring-brand/30" : "border-border"}`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onChange(p.id)}
-                      className="w-full text-left"
-                      aria-label={`Wybierz ${p.label}`}
-                    >
-                      <LayoutPreview
-                        preset={p}
-                        settings={local}
-                        hasSidebarOverride={cardHasSidebar}
-                        className="mb-2"
-                      />
-                      <p className="text-[11px] font-medium truncate">{p.label}</p>
-                    </button>
-                    <label className="mt-2 flex items-center justify-between gap-2 pt-2 border-t border-border/60">
-                      <span className="text-[10px] text-muted-foreground">Sidebar</span>
-                      <button
-                        type="button"
-                        aria-label={`Sidebar w ${p.label}`}
-                        aria-pressed={cardHasSidebar}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSidebar(p.id, !cardHasSidebar);
-                        }}
-                        className={`relative w-8 h-4 rounded-full transition ${cardHasSidebar ? "bg-brand" : "bg-muted"}`}
-                      >
-                        <span
-                          className={`absolute top-0.5 ${cardHasSidebar ? "left-4" : "left-0.5"} w-3 h-3 rounded-full bg-background transition-all`}
-                        />
-                      </button>
-                    </label>
+          <div className="space-y-4">
+            {presets.map((p) => {
+              const isSelected = value === p.id;
+              const currentHasSidebar = isSelected ? selectedHasSidebar : (overrides[p.id] ?? p.hasSidebar);
+              return (
+                <div
+                  key={p.id}
+                  className="border border-border rounded-lg p-3 bg-background/50"
+                >
+                  <div className="flex items-baseline justify-between mb-2">
+                    <p className="text-sm font-medium">{p.label}</p>
+                    {isSelected && (
+                      <span className="text-[10px] uppercase tracking-wider text-brand font-semibold">
+                        Aktywny · {currentHasSidebar ? "z sidebarem" : "bez sidebara"}
+                      </span>
+                    )}
                   </div>
-                );
-              })}
-            </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[false, true].map((withSidebar) => {
+                      const active = isSelected && currentHasSidebar === withSidebar;
+                      return (
+                        <button
+                          key={String(withSidebar)}
+                          type="button"
+                          onClick={() => pickVariant(p.id, withSidebar)}
+                          aria-pressed={active}
+                          aria-label={`${p.label} - ${withSidebar ? "z sidebarem" : "bez sidebara"}`}
+                          className={`text-left p-2 rounded-md border transition ${
+                            active
+                              ? "border-brand ring-2 ring-brand/30 bg-brand/5"
+                              : "border-border hover:border-brand/50"
+                          }`}
+                        >
+                          <LayoutPreview
+                            preset={p}
+                            settings={local}
+                            hasSidebarOverride={withSidebar}
+                            className="mb-2"
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            {withSidebar ? "Z sidebarem" : "Bez sidebara"}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
           <aside className="sticky top-4 space-y-2 border border-border rounded-lg p-3 bg-muted/30">
             <div className="text-xs uppercase tracking-wider text-muted-foreground">
