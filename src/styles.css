@@ -2152,7 +2152,12 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
    on the desktop header. */
 .mobile-drawer-builder [data-w-id="84e44a59-9f0a-4961-b4eb-b370b6b703a2"],
 .mobile-drawer-builder [data-w-id="a7cef829-6cdd-4aac-9a45-44fbc1b56730"],
-.mobile-drawer-builder [data-w-id="fdc43723-7434-4873-8ea3-d78a8ca901d6"] {
+.mobile-drawer-builder [data-w-id="fdc43723-7434-4873-8ea3-d78a8ca901d6"],
+.mobile-drawer-builder [data-w-id="65612f68-57bb-4fc8-a1e5-ca9f4c4bfaf6"],
+.mobile-drawer-builder [data-w-id="87fdbad2-bef8-4ad8-8763-a4f0161c446e"],
+.mobile-drawer-builder [data-w-id="0f0bdac6-d7a9-4ead-a252-d69c70e6ff76"],
+.mobile-drawer-builder [data-w-id="a61e3114-81b3-4a08-a338-e326dfc05189"],
+.mobile-drawer-builder [data-w-id="2c473e5e-3c01-4672-9937-af7ee0d990b7"] {
   display: none !important;
 }
 
