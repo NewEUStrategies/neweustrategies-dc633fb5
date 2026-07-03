@@ -43,11 +43,28 @@ export function NumberInput(props: React.InputHTMLAttributes<HTMLInputElement>) 
 }
 
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  // Delegate to AdminSelect (Radix/shadcn) so every settings dropdown matches
+  // the rest of the admin UI (bg-popover, border, ring, dark mode) instead of
+  // the browser's native gray dropdown.
+  const { value, defaultValue, onChange, disabled, className, title, children } = props;
+  const ariaLabel = props["aria-label"];
   return (
-    <select
-      {...props}
-      className={`bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand ${props.className ?? ""}`}
-    />
+    <AdminSelect
+      value={value as string | number | undefined}
+      defaultValue={defaultValue as string | number | undefined}
+      onChange={(e) => {
+        onChange?.({
+          target: { value: e.target.value },
+          currentTarget: { value: e.target.value },
+        } as unknown as React.ChangeEvent<HTMLSelectElement>);
+      }}
+      disabled={disabled}
+      className={`h-10 text-sm w-full ${className ?? ""}`}
+      aria-label={ariaLabel}
+      title={title}
+    >
+      {children}
+    </AdminSelect>
   );
 }
 
