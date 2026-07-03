@@ -70,7 +70,7 @@ export function PostOverlayMeta({ lang, author, publishedAt, readMinutes, custom
           <UserIcon className="w-3.5 h-3.5 opacity-80" aria-hidden />
           <span className="opacity-80">{t.by}</span>
           {authorHref ? (
-            <AppLink href={authorHref} className="font-medium hover:underline">
+            <AppLink href={authorHref} className="font-medium">
               {name}
             </AppLink>
           ) : (
