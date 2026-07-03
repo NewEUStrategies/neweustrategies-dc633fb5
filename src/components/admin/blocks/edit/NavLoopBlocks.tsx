@@ -1,12 +1,17 @@
 // Admin edytory dla bloków Phase 2 batch 5: navigation, post-navigation-link, query-loop.
 import type { Block, Json } from "@/lib/blocks/types";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
       {children}
     </div>
   );
@@ -46,7 +51,9 @@ export function PostNavigationLinkBlock({ block, onChange }: Props) {
         <select
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={direction}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, direction: e.target.value } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, direction: e.target.value } })
+          }
         >
           <option value="prev">Poprzedni</option>
           <option value="next">Następny</option>
@@ -55,7 +62,9 @@ export function PostNavigationLinkBlock({ block, onChange }: Props) {
           <input
             type="checkbox"
             checked={showTitle}
-            onChange={(e) => onChange({ ...block, data: { ...block.data, showTitle: e.target.checked } })}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...block.data, showTitle: e.target.checked } })
+            }
           />
           Pokaż tytuł
         </label>
@@ -77,7 +86,9 @@ export function QueryLoopBlock({ block, onChange }: Props) {
           onChange={(e) => set({ categorySlug: e.target.value })}
         />
         <input
-          type="number" min={1} max={24}
+          type="number"
+          min={1}
+          max={24}
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={Number(d.limit ?? 6)}
           onChange={(e) => set({ limit: Number(e.target.value) || 6 })}

@@ -16,7 +16,13 @@ interface Props {
   autoFocus?: boolean;
 }
 
-export function BlockInserter({ onInsert, variant = "inline", open: openProp, onOpenChange, autoFocus = false }: Props) {
+export function BlockInserter({
+  onInsert,
+  variant = "inline",
+  open: openProp,
+  onOpenChange,
+  autoFocus = false,
+}: Props) {
   const { t } = useTranslation();
   const [internalOpen, setInternalOpen] = useState(false);
   const open = openProp ?? internalOpen;
@@ -39,12 +45,13 @@ export function BlockInserter({ onInsert, variant = "inline", open: openProp, on
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return BLOCK_LIST;
-    return BLOCK_LIST.filter((s) =>
-      labelFor(s.type).toLowerCase().includes(q) ||
-      s.type.toLowerCase().includes(q) ||
-      s.description.toLowerCase().includes(q),
+    return BLOCK_LIST.filter(
+      (s) =>
+        labelFor(s.type).toLowerCase().includes(q) ||
+        s.type.toLowerCase().includes(q) ||
+        s.description.toLowerCase().includes(q),
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, t]);
 
   const choose = (spec: BlockSpec) => {
@@ -93,19 +100,32 @@ export function BlockInserter({ onInsert, variant = "inline", open: openProp, on
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Escape") { e.preventDefault(); setOpen(false); }
-            if (e.key === "Enter" && filtered[0]) { e.preventDefault(); choose(filtered[0]); }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setOpen(false);
+            }
+            if (e.key === "Enter" && filtered[0]) {
+              e.preventDefault();
+              choose(filtered[0]);
+            }
           }}
           placeholder={t("blocks.search")}
           className="flex-1 bg-background border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
         />
-        <button type="button" onClick={() => setOpen(false)} className="p-1 hover:bg-accent rounded" aria-label="Close">
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="p-1 hover:bg-accent rounded"
+          aria-label="Close"
+        >
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-xs text-muted-foreground italic py-3 text-center">{t("blocks.noResults")}</p>
+        <p className="text-xs text-muted-foreground italic py-3 text-center">
+          {t("blocks.noResults")}
+        </p>
       ) : query.trim() ? (
         <div className="grid grid-cols-3 gap-1.5">
           {filtered.map((spec) => renderItem(spec, labelFor, choose))}
@@ -116,7 +136,9 @@ export function BlockInserter({ onInsert, variant = "inline", open: openProp, on
           if (!items.length) return null;
           return (
             <div key={cat.id} className="mb-3 last:mb-0">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">{cat.label}</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
+                {cat.label}
+              </p>
               <div className="grid grid-cols-3 gap-1.5">
                 {items.map((spec) => renderItem(spec, labelFor, choose))}
               </div>

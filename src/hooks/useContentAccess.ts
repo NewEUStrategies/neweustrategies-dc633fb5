@@ -90,7 +90,6 @@ export interface AccessPlan {
   trial_days: number;
 }
 
-
 export function formatMoney(cents: number, currency: string) {
   try {
     return new Intl.NumberFormat("pl-PL", { style: "currency", currency }).format(cents / 100);

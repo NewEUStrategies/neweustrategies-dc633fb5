@@ -5,7 +5,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { onOpenLoginPopup } from "@/lib/loginPopupBus";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,8 +51,11 @@ export function LoginPopup() {
     if (session && open) setOpen(false);
   }, [session, open]);
 
-  const heading = override.title ?? (lang === "pl" ? settings.popup_heading_pl : settings.popup_heading_en);
-  const description = override.description ?? (lang === "pl" ? settings.popup_description_pl : settings.popup_description_en);
+  const heading =
+    override.title ?? (lang === "pl" ? settings.popup_heading_pl : settings.popup_heading_en);
+  const description =
+    override.description ??
+    (lang === "pl" ? settings.popup_description_pl : settings.popup_description_en);
   const logo = lang === "pl" ? settings.form_logo_url : settings.form_logo_url;
 
   const submit = async (e: React.FormEvent) => {
@@ -63,7 +72,8 @@ export function LoginPopup() {
         const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
         const displayName = trimmed || email.split("@")[0];
         const { error } = await supabase.auth.signUp({
-          email, password,
+          email,
+          password,
           options: {
             emailRedirectTo: `${window.location.origin}${settings.logged_in_redirect_url || "/"}`,
             data: {
@@ -95,9 +105,7 @@ export function LoginPopup() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader className="items-center text-center">
-          {logo ? (
-            <img src={logo} alt="" className="h-12 mx-auto mb-2 object-contain" />
-          ) : null}
+          {logo ? <img src={logo} alt="" className="h-12 mx-auto mb-2 object-contain" /> : null}
           <DialogTitle className="font-display text-2xl">{heading}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
@@ -111,27 +119,54 @@ export function LoginPopup() {
           )}
           <div>
             <Label htmlFor="lp-email">Email</Label>
-            <Input id="lp-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input
+              id="lp-email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </div>
           <div>
             <Label htmlFor="lp-pwd">{lang === "pl" ? "Hasło" : "Password"}</Label>
-            <Input id="lp-pwd" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
+            <Input
+              id="lp-pwd"
+              type="password"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </div>
           <Button type="submit" className="w-full" disabled={busy}>
-            {busy ? "…" : mode === "signin"
-              ? (lang === "pl" ? settings.signin_label_pl : settings.signin_label_en)
-              : (lang === "pl" ? settings.signup_label_pl : settings.signup_label_en)}
+            {busy
+              ? "…"
+              : mode === "signin"
+                ? lang === "pl"
+                  ? settings.signin_label_pl
+                  : settings.signin_label_en
+                : lang === "pl"
+                  ? settings.signup_label_pl
+                  : settings.signup_label_en}
           </Button>
         </form>
 
         {settings.allow_public_signup && (
           <div className="text-center text-sm pt-2 border-t border-border mt-3">
             {mode === "signin" ? (
-              <button type="button" className="text-brand hover:underline" onClick={() => setMode("signup")}>
+              <button
+                type="button"
+                className="text-brand hover:underline"
+                onClick={() => setMode("signup")}
+              >
                 {lang === "pl" ? "Nie masz konta? Zarejestruj się" : "No account? Sign up"}
               </button>
             ) : (
-              <button type="button" className="text-brand hover:underline" onClick={() => setMode("signin")}>
+              <button
+                type="button"
+                className="text-brand hover:underline"
+                onClick={() => setMode("signin")}
+              >
                 {lang === "pl" ? "Masz już konto? Zaloguj się" : "Already have an account? Sign in"}
               </button>
             )}

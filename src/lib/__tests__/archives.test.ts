@@ -48,7 +48,13 @@ function aggregateCounts<T extends { id: string }>(rows: Array<{ key: string }>)
 
 describe("facet aggregation", () => {
   it("counts by key, sorts desc", () => {
-    const r = aggregateCounts([{ key: "a" }, { key: "b" }, { key: "a" }, { key: "a" }, { key: "b" }]);
+    const r = aggregateCounts([
+      { key: "a" },
+      { key: "b" },
+      { key: "a" },
+      { key: "a" },
+      { key: "b" },
+    ]);
     expect(r).toEqual([
       { id: "a", count: 3 },
       { id: "b", count: 2 },

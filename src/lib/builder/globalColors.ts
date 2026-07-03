@@ -57,7 +57,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         defaultDark: "#e5e7eb",
         typography: true,
         defaultFontFamily: '"Red Hat Display", Georgia, serif',
-        defaultFontSize: "14px"
+        defaultFontSize: "14px",
       },
       {
         key: "header-icon-hover",
@@ -117,14 +117,14 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       {
         key: "icon-active",
         label: "Global Icon - Active",
-        description: "Kolor wybranej ikony - po najechaniu i kliknięciu (zaznaczona/aktywna pozycja, np. bieżąca zakładka, włączony toggle).",
+        description:
+          "Kolor wybranej ikony - po najechaniu i kliknięciu (zaznaczona/aktywna pozycja, np. bieżąca zakładka, włączony toggle).",
         hasDark: true,
         defaultLight: "#fa9346",
         defaultDark: "#fbbf24",
       },
     ],
   },
-
 
   {
     id: "dark-accent",
@@ -134,7 +134,8 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       {
         key: "dark-accent",
         label: "Dark Accent Color",
-        description: "Wiodący ciemny kolor - tła sekcji nagłówkowych, gradienty, ORAZ kolor tekstu (nagłówki, akapity, tytuły kart) w trybie jasnym.",
+        description:
+          "Wiodący ciemny kolor - tła sekcji nagłówkowych, gradienty, ORAZ kolor tekstu (nagłówki, akapity, tytuły kart) w trybie jasnym.",
         hasDark: true,
         defaultLight: "#131822",
         defaultDark: "#131822",
@@ -203,7 +204,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         overrides: ["--primary-foreground"],
         typography: true,
         defaultFontFamily: '"Red Hat Display", Georgia, serif',
-        defaultFontSize: "14px"
+        defaultFontSize: "14px",
       },
       {
         key: "btn-hover-bg",
@@ -222,10 +223,26 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "header-nav",
     label: "Mode Switcher",
     slots: [
-      { key: "switcher-light-icon", label: "Light Switcher - Icon", description: "Kolor ikony słońca." },
-      { key: "switcher-light-bg", label: "Light Switcher - Icon BG", description: "Tło ikony słońca." },
-      { key: "switcher-dark-icon", label: "Dark Switcher - Icon", description: "Kolor ikony księżyca." },
-      { key: "switcher-dark-bg", label: "Dark Switcher - Icon BG", description: "Tło ikony księżyca." },
+      {
+        key: "switcher-light-icon",
+        label: "Light Switcher - Icon",
+        description: "Kolor ikony słońca.",
+      },
+      {
+        key: "switcher-light-bg",
+        label: "Light Switcher - Icon BG",
+        description: "Tło ikony słońca.",
+      },
+      {
+        key: "switcher-dark-icon",
+        label: "Dark Switcher - Icon",
+        description: "Kolor ikony księżyca.",
+      },
+      {
+        key: "switcher-dark-bg",
+        label: "Dark Switcher - Icon BG",
+        description: "Tło ikony księżyca.",
+      },
     ],
   },
   {
@@ -246,8 +263,20 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "widgets",
     label: "Review Stars",
     slots: [
-      { key: "review-bg", label: "Background Color", description: "Tło dla gwiazdek recenzji.", hasDark: true, defaultLight: "#ffc300" },
-      { key: "review-icon", label: "Icon Color", description: "Kolor ikony gwiazdki.", hasDark: true, defaultLight: "#ffffff" },
+      {
+        key: "review-bg",
+        label: "Background Color",
+        description: "Tło dla gwiazdek recenzji.",
+        hasDark: true,
+        defaultLight: "#ffc300",
+      },
+      {
+        key: "review-icon",
+        label: "Icon Color",
+        description: "Kolor ikony gwiazdki.",
+        hasDark: true,
+        defaultLight: "#ffffff",
+      },
     ],
   },
   {
@@ -255,7 +284,15 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "widgets",
     label: "Sponsor Label",
     slots: [
-      { key: "sponsor-label", label: "Sponsor Label Color", description: "Kolor etykiety „sponsored”.", hasDark: true, typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "12px" },
+      {
+        key: "sponsor-label",
+        label: "Sponsor Label Color",
+        description: "Kolor etykiety „sponsored”.",
+        hasDark: true,
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "12px",
+      },
     ],
   },
   {
@@ -263,7 +300,15 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "widgets",
     label: "Popular Counter",
     slots: [
-      { key: "popular-counter", label: "Popular Counter Color", description: "Kolor licznika popularnych wpisów.", hasDark: true, typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "14px" },
+      {
+        key: "popular-counter",
+        label: "Popular Counter Color",
+        description: "Kolor licznika popularnych wpisów.",
+        hasDark: true,
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "14px",
+      },
     ],
   },
   {
@@ -279,7 +324,13 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "widgets",
     label: "TOC, Left Shares & Inline Related",
     slots: [
-      { key: "toc-bg", label: "Background", description: "Tło table-of-contents i share-bara.", hasDark: true, overrides: ["--muted"] },
+      {
+        key: "toc-bg",
+        label: "Background",
+        description: "Tło table-of-contents i share-bara.",
+        hasDark: true,
+        overrides: ["--muted"],
+      },
     ],
   },
   {
@@ -287,7 +338,13 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "widgets",
     label: "Verified Tick",
     slots: [
-      { key: "verified-tick", label: "Color", description: "Kolor odznaki „zweryfikowany autor”.", hasDark: true, defaultLight: "#f59e0b" },
+      {
+        key: "verified-tick",
+        label: "Color",
+        description: "Kolor odznaki „zweryfikowany autor”.",
+        hasDark: true,
+        defaultLight: "#f59e0b",
+      },
     ],
   },
   {
@@ -314,7 +371,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         overrides: ["--sidebar-foreground"],
         typography: true,
         defaultFontFamily: '"Red Hat Display", Georgia, serif',
-        defaultFontSize: "14px"
+        defaultFontSize: "14px",
       },
       {
         key: "sidebar-btn-bg",
@@ -335,7 +392,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         overrides: ["--sidebar-primary-foreground", "--sidebar-accent-foreground"],
         typography: true,
         defaultFontFamily: '"Red Hat Display", Georgia, serif',
-        defaultFontSize: "14px"
+        defaultFontSize: "14px",
       },
       {
         key: "sidebar-btn-hover-bg",
@@ -365,7 +422,8 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       {
         key: "sidebar-title",
         label: "Sidebar Title (Menu / Section)",
-        description: "Tytuł sekcji w sidebarze (np. Menu, Ustawienia) - z osobnym kolorem dla trybu jasnego i ciemnego.",
+        description:
+          "Tytuł sekcji w sidebarze (np. Menu, Ustawienia) - z osobnym kolorem dla trybu jasnego i ciemnego.",
         hasDark: true,
         defaultLight: "#6b7280",
         defaultDark: "#9ca3af",
@@ -376,7 +434,8 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
       {
         key: "sidebar-subtitle",
         label: "Sidebar Subtitle (Nawigacja / Podsekcja)",
-        description: "Podtytuł / nagłówek podsekcji w sidebarze (np. Nawigacja) - z osobnym kolorem dla trybu jasnego i ciemnego.",
+        description:
+          "Podtytuł / nagłówek podsekcji w sidebarze (np. Nawigacja) - z osobnym kolorem dla trybu jasnego i ciemnego.",
         hasDark: true,
         defaultLight: "#374151",
         defaultDark: "#d1d5db",
@@ -418,13 +477,70 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "forms",
     label: "Inputs / Text Fields",
     slots: [
-      { key: "input-bg", label: "Input Background", description: "Tło pól tekstowych.", hasDark: true, defaultLight: "#ffffff", defaultDark: "#131822", overrides: ["--input-background"] },
-      { key: "input-text", label: "Input Text", description: "Kolor wpisywanego tekstu.", hasDark: true, defaultLight: "#131822", defaultDark: "#f1f5f9", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "14px" },
-      { key: "input-placeholder", label: "Placeholder Text", description: "Kolor placeholdera.", hasDark: true, defaultLight: "#94a3b8", defaultDark: "#64748b", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "14px" },
-      { key: "input-border", label: "Input Border", description: "Kolor obramowania.", hasDark: true, defaultLight: "#e2e8f0", defaultDark: "#1b1f27", overrides: ["--input"] },
-      { key: "input-hover-bg", label: "Hover - Background", description: "Tło pola po najechaniu.", hasDark: true, defaultLight: "#f8fafc", defaultDark: "#1b1f27" },
-      { key: "input-hover-border", label: "Hover - Border", description: "Obramowanie pola po najechaniu.", hasDark: true, defaultLight: "#cbd5e1", defaultDark: "#334155" },
-      { key: "input-focus-border", label: "Focus - Border / Ring", description: "Obramowanie i ring po fokusie.", hasDark: true, defaultLight: "#fa9346", defaultDark: "#fbbf24" },
+      {
+        key: "input-bg",
+        label: "Input Background",
+        description: "Tło pól tekstowych.",
+        hasDark: true,
+        defaultLight: "#ffffff",
+        defaultDark: "#131822",
+        overrides: ["--input-background"],
+      },
+      {
+        key: "input-text",
+        label: "Input Text",
+        description: "Kolor wpisywanego tekstu.",
+        hasDark: true,
+        defaultLight: "#131822",
+        defaultDark: "#f1f5f9",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "14px",
+      },
+      {
+        key: "input-placeholder",
+        label: "Placeholder Text",
+        description: "Kolor placeholdera.",
+        hasDark: true,
+        defaultLight: "#94a3b8",
+        defaultDark: "#64748b",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "14px",
+      },
+      {
+        key: "input-border",
+        label: "Input Border",
+        description: "Kolor obramowania.",
+        hasDark: true,
+        defaultLight: "#e2e8f0",
+        defaultDark: "#1b1f27",
+        overrides: ["--input"],
+      },
+      {
+        key: "input-hover-bg",
+        label: "Hover - Background",
+        description: "Tło pola po najechaniu.",
+        hasDark: true,
+        defaultLight: "#f8fafc",
+        defaultDark: "#1b1f27",
+      },
+      {
+        key: "input-hover-border",
+        label: "Hover - Border",
+        description: "Obramowanie pola po najechaniu.",
+        hasDark: true,
+        defaultLight: "#cbd5e1",
+        defaultDark: "#334155",
+      },
+      {
+        key: "input-focus-border",
+        label: "Focus - Border / Ring",
+        description: "Obramowanie i ring po fokusie.",
+        hasDark: true,
+        defaultLight: "#fa9346",
+        defaultDark: "#fbbf24",
+      },
     ],
   },
   {
@@ -432,12 +548,72 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
     category: "typography",
     label: "Headings (H1–H6)",
     slots: [
-      { key: "h1", label: "H1 Color", description: "Kolor nagłówków H1.", hasDark: true, defaultLight: "#131822", defaultDark: "#ffffff", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "32px" },
-      { key: "h2", label: "H2 Color", description: "Kolor nagłówków H2.", hasDark: true, defaultLight: "#131822", defaultDark: "#ffffff", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "26px" },
-      { key: "h3", label: "H3 Color", description: "Kolor nagłówków H3.", hasDark: true, defaultLight: "#131822", defaultDark: "#f3f4f6", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "22px" },
-      { key: "h4", label: "H4 Color", description: "Kolor nagłówków H4.", hasDark: true, defaultLight: "#131822", defaultDark: "#f3f4f6", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "18px" },
-      { key: "h5", label: "H5 Color", description: "Kolor nagłówków H5.", hasDark: true, defaultLight: "#131822", defaultDark: "#e5e7eb", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "16px" },
-      { key: "h6", label: "H6 Color", description: "Kolor nagłówków H6.", hasDark: true, defaultLight: "#131822", defaultDark: "#e5e7eb", typography: true, defaultFontFamily: '"Red Hat Display", Georgia, serif', defaultFontSize: "14px" },
+      {
+        key: "h1",
+        label: "H1 Color",
+        description: "Kolor nagłówków H1.",
+        hasDark: true,
+        defaultLight: "#131822",
+        defaultDark: "#ffffff",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "32px",
+      },
+      {
+        key: "h2",
+        label: "H2 Color",
+        description: "Kolor nagłówków H2.",
+        hasDark: true,
+        defaultLight: "#131822",
+        defaultDark: "#ffffff",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "26px",
+      },
+      {
+        key: "h3",
+        label: "H3 Color",
+        description: "Kolor nagłówków H3.",
+        hasDark: true,
+        defaultLight: "#131822",
+        defaultDark: "#f3f4f6",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "22px",
+      },
+      {
+        key: "h4",
+        label: "H4 Color",
+        description: "Kolor nagłówków H4.",
+        hasDark: true,
+        defaultLight: "#131822",
+        defaultDark: "#f3f4f6",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "18px",
+      },
+      {
+        key: "h5",
+        label: "H5 Color",
+        description: "Kolor nagłówków H5.",
+        hasDark: true,
+        defaultLight: "#131822",
+        defaultDark: "#e5e7eb",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "16px",
+      },
+      {
+        key: "h6",
+        label: "H6 Color",
+        description: "Kolor nagłówków H6.",
+        hasDark: true,
+        defaultLight: "#131822",
+        defaultDark: "#e5e7eb",
+        typography: true,
+        defaultFontFamily: '"Red Hat Display", Georgia, serif',
+        defaultFontSize: "14px",
+      },
     ],
   },
   {
@@ -585,7 +761,6 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
 ];
 
-
 export type GlobalColorsValue = Record<
   string,
   {
@@ -620,9 +795,14 @@ export function isSlotHoverable(slot: GlobalColorSlot, group: GlobalColorGroup):
   if (keys.has(`${slot.key}-hover`)) return false;
   // Sloty z dedykowanymi parami hover w obrębie grupy (button / input / sidebar btn).
   const exempt = new Set([
-    "btn-bg", "btn-text",
-    "input-bg", "input-text", "input-placeholder", "input-border",
-    "sidebar-btn-bg", "sidebar-btn-text",
+    "btn-bg",
+    "btn-text",
+    "input-bg",
+    "input-text",
+    "input-placeholder",
+    "input-border",
+    "sidebar-btn-bg",
+    "sidebar-btn-text",
   ]);
   return !exempt.has(slot.key);
 }
@@ -671,7 +851,6 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
         if (fst) rootLines.push(`--gc-${slot.key}-style: ${fst};`);
         if (ftd) rootLines.push(`--gc-${slot.key}-decoration: ${ftd};`);
       }
-
     }
   }
 
@@ -679,10 +858,10 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
   if (rootLines.length) parts.push(`:root{${rootLines.join("")}}`);
   if (darkLines.length) parts.push(`.dark{${darkLines.join("")}}`);
 
-
   // Widget bridge: map global colors to widget elements with specificity 0
   // (via :where()), so any explicit per-widget color always wins.
-  parts.push(`
+  parts.push(
+    `
     :where(.rl-wrap .rl-num){color:var(--gc-highlight, currentColor);}
     :where(.rl-wrap .rl-cat){color:var(--gc-highlight, currentColor);}
     :where(.rl-wrap .rl-title:hover){color:var(--gc-highlight, currentColor);}
@@ -795,8 +974,10 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where([data-footnotes-list] [data-fn-marker]){color:var(--gc-fn-list-marker, inherit);font-family:var(--gc-fn-list-marker-font, inherit);font-size:var(--gc-fn-list-marker-size, inherit);font-weight:var(--gc-fn-list-marker-weight, inherit);font-style:var(--gc-fn-list-marker-style, inherit);text-decoration:var(--gc-fn-list-marker-decoration, inherit);}
     :where([data-footnote-backlink]){color:var(--gc-fn-backlink, inherit);}
     :where([data-footnote-tooltip]){background:var(--gc-fn-tooltip-bg, inherit);color:var(--gc-fn-tooltip-text, inherit);font-family:var(--gc-fn-tooltip-text-font, inherit);font-size:var(--gc-fn-tooltip-text-size, inherit);font-weight:var(--gc-fn-tooltip-text-weight, inherit);font-style:var(--gc-fn-tooltip-text-style, inherit);text-decoration:var(--gc-fn-tooltip-text-decoration, inherit);}
-  `.replace(/\s+/g, " ").trim());
-
+  `
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
 
   return parts.join("");
 }

@@ -12,8 +12,7 @@ export function CompareBlock({ block, onChange }: Props) {
   const after = String(block.data.after ?? "");
   const labelBefore = String(block.data.labelBefore ?? "Przed");
   const labelAfter = String(block.data.labelAfter ?? "Po");
-  const patch = (k: string, v: string) =>
-    onChange({ ...block, data: { ...block.data, [k]: v } });
+  const patch = (k: string, v: string) => onChange({ ...block, data: { ...block.data, [k]: v } });
 
   return (
     <div className="not-prose rounded-md border border-border bg-card p-3 space-y-2">
@@ -21,10 +20,26 @@ export function CompareBlock({ block, onChange }: Props) {
         <GitCompareArrows className="w-3.5 h-3.5" /> Before / After
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <Input placeholder="URL: PRZED" value={before} onChange={(e) => patch("before", e.target.value)} />
-        <Input placeholder="URL: PO" value={after} onChange={(e) => patch("after", e.target.value)} />
-        <Input placeholder="Etykieta lewa" value={labelBefore} onChange={(e) => patch("labelBefore", e.target.value)} />
-        <Input placeholder="Etykieta prawa" value={labelAfter} onChange={(e) => patch("labelAfter", e.target.value)} />
+        <Input
+          placeholder="URL: PRZED"
+          value={before}
+          onChange={(e) => patch("before", e.target.value)}
+        />
+        <Input
+          placeholder="URL: PO"
+          value={after}
+          onChange={(e) => patch("after", e.target.value)}
+        />
+        <Input
+          placeholder="Etykieta lewa"
+          value={labelBefore}
+          onChange={(e) => patch("labelBefore", e.target.value)}
+        />
+        <Input
+          placeholder="Etykieta prawa"
+          value={labelAfter}
+          onChange={(e) => patch("labelAfter", e.target.value)}
+        />
       </div>
       {before && after && (
         <div className="grid grid-cols-2 gap-1 rounded overflow-hidden border border-border">

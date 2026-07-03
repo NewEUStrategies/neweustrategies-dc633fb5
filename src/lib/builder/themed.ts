@@ -60,10 +60,7 @@ export function setMode<T>(
   return { [other]: prev as T, [mode]: value } as ThemedValue<T>;
 }
 
-export function resetMode<T>(
-  prev: Themed<T> | undefined,
-  mode: Mode,
-): Themed<T> | undefined {
+export function resetMode<T>(prev: Themed<T> | undefined, mode: Mode): Themed<T> | undefined {
   if (prev == null) return undefined;
   if (isThemedValue<T>(prev)) {
     const next: ThemedValue<T> = { ...prev };

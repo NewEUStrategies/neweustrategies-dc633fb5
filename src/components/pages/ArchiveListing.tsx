@@ -34,7 +34,9 @@ export function ArchiveListing({ parentPageId, lang, parentPath }: Props) {
     queryFn: async (): Promise<Row[]> => {
       const { data, error } = await supabase
         .from("posts")
-        .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at")
+        .select(
+          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at",
+        )
         .eq("status", "published")
         .is("deleted_at", null)
         .eq("parent_page_id", parentPageId)

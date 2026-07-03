@@ -3,11 +3,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 
 interface PageRow {
-  id: string; slug: string; title_pl: string; title_en: string;
+  id: string;
+  slug: string;
+  title_pl: string;
+  title_en: string;
   parent_id: string | null;
 }
 
@@ -23,7 +32,14 @@ export interface PageParentSelectProps {
 }
 
 export function PageParentSelect(props: PageParentSelectProps) {
-  const { tenantId, value, onChange, excludeId, label = "Strona nadrzędna", noneLabel = "- najwyższy poziom -" } = props;
+  const {
+    tenantId,
+    value,
+    onChange,
+    excludeId,
+    label = "Strona nadrzędna",
+    noneLabel = "- najwyższy poziom -",
+  } = props;
   const { data: pages = [] } = useQuery({
     queryKey: ["admin-page-tree", tenantId],
     queryFn: async (): Promise<PageRow[]> => {
@@ -32,7 +48,8 @@ export function PageParentSelect(props: PageParentSelectProps) {
         .select("id, slug, title_pl, title_en, parent_id")
         .eq("tenant_id", tenantId)
         .is("deleted_at", null)
-        .order("menu_order").order("title_pl");
+        .order("menu_order")
+        .order("title_pl");
       if (error) throw error;
       return (data ?? []) as PageRow[];
     },
@@ -43,7 +60,8 @@ export function PageParentSelect(props: PageParentSelectProps) {
     const byParent = new Map<string | null, PageRow[]>();
     for (const p of pages) {
       const arr = byParent.get(p.parent_id) ?? [];
-      arr.push(p); byParent.set(p.parent_id, arr);
+      arr.push(p);
+      byParent.set(p.parent_id, arr);
     }
     const result: Array<{ id: string; label: string; depth: number }> = [];
     const walk = (parentId: string | null, depth: number) => {
@@ -62,12 +80,19 @@ export function PageParentSelect(props: PageParentSelectProps) {
   return (
     <div>
       <Label>{label}</Label>
-      <Select value={value ?? "__none__"} onValueChange={(v) => onChange(v === "__none__" ? null : v)}>
-        <SelectTrigger><SelectValue /></SelectTrigger>
+      <Select
+        value={value ?? "__none__"}
+        onValueChange={(v) => onChange(v === "__none__" ? null : v)}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
         <SelectContent className="max-h-72">
           <SelectItem value="__none__">{noneLabel}</SelectItem>
           {options.map((o) => (
-            <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>
+            <SelectItem key={o.id} value={o.id}>
+              {o.label}
+            </SelectItem>
           ))}
         </SelectContent>
       </Select>

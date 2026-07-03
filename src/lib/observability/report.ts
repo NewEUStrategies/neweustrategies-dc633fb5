@@ -42,7 +42,14 @@ export function buildErrorPayload(
     error instanceof Error
       ? error
       : new Error(typeof error === "string" ? error : "Unknown client error");
-  const payload: ClientErrorPayload = { type: "error", message: err.message, stack: err.stack, source, path, ts };
+  const payload: ClientErrorPayload = {
+    type: "error",
+    message: err.message,
+    stack: err.stack,
+    source,
+    path,
+    ts,
+  };
   if (meta && Object.keys(meta).length > 0) payload.meta = meta;
   return payload;
 }
@@ -74,5 +81,8 @@ export function reportClientError(error: unknown, source: ClientErrorPayload["so
 export function reportBoundaryError(error: unknown, meta: Record<string, unknown>): boolean {
   const endpoint = observabilityEndpoint();
   const path = typeof location !== "undefined" ? location.pathname : "";
-  return sendBeaconPayload(endpoint, buildErrorPayload(error, "react_error_boundary", path, Date.now(), meta));
+  return sendBeaconPayload(
+    endpoint,
+    buildErrorPayload(error, "react_error_boundary", path, Date.now(), meta),
+  );
 }

@@ -17,7 +17,14 @@ interface Props {
   maxSizeMb?: number;
 }
 
-const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif", "image/svg+xml"];
+const ALLOWED_MIME = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+  "image/gif",
+  "image/svg+xml",
+];
 const URL_HINT = "Podaj pełny adres https://… lub wgraj plik z dysku.";
 
 /** Returns null when the URL is acceptable, otherwise a localized error. */
@@ -48,7 +55,9 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
   const handleFile = async (file: File) => {
     setError(null);
     if (!ALLOWED_MIME.includes(file.type)) {
-      setError(`Niedozwolony typ pliku (${file.type || "nieznany"}). Dozwolone: JPG, PNG, WEBP, AVIF, GIF, SVG.`);
+      setError(
+        `Niedozwolony typ pliku (${file.type || "nieznany"}). Dozwolone: JPG, PNG, WEBP, AVIF, GIF, SVG.`,
+      );
       return;
     }
     const sizeMb = file.size / (1024 * 1024);
@@ -65,7 +74,9 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
       const ext = file.name.split(".").pop()?.toLowerCase() || "png";
       const path = `${tenantId}/${uid}/widgets/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: upErr } = await supabase.storage.from("media").upload(path, file, {
-        cacheControl: "3600", upsert: false, contentType: file.type,
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type,
       });
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("media").getPublicUrl(path);
@@ -82,20 +93,27 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-        {icon}{label}
+        {icon}
+        {label}
       </div>
       <div className="flex items-center gap-2">
         <Input
           value={value}
           placeholder="https://... lub wgraj plik"
-          onChange={(e) => { setError(null); onChange(e.target.value); }}
+          onChange={(e) => {
+            setError(null);
+            onChange(e.target.value);
+          }}
           aria-invalid={urlError ? true : undefined}
           className={`h-8 text-xs flex-1 ${urlError ? "border-destructive focus-visible:ring-destructive" : ""}`}
         />
         {value && (
           <button
             type="button"
-            onClick={() => { setError(null); onChange(""); }}
+            onClick={() => {
+              setError(null);
+              onChange("");
+            }}
             className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-border hover:bg-muted text-muted-foreground"
             title="Usuń"
           >
@@ -108,7 +126,11 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+          e.target.value = "";
+        }}
       />
       <button
         type="button"
@@ -119,7 +141,9 @@ export function ImageSlot({ label, icon, value, onChange, hint, maxSizeMb = 8 }:
         <Upload className="w-3.5 h-3.5" />
         {uploading ? "Wgrywam…" : "Wgraj obrazek"}
       </button>
-      {hint && !urlError && !error && <div className="text-[10px] text-muted-foreground">{hint}</div>}
+      {hint && !urlError && !error && (
+        <div className="text-[10px] text-muted-foreground">{hint}</div>
+      )}
       {urlError && (
         <div className="flex items-start gap-1 text-[10px] text-destructive" role="alert">
           <AlertCircle className="w-3 h-3 mt-[1px] shrink-0" />

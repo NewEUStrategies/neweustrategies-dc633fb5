@@ -43,7 +43,9 @@ export function ListBlockEdit({ block, onChange }: Props) {
         <li key={i} className="flex items-baseline gap-2 m-0 p-0">
           {marker(i)}
           <input
-            ref={(el) => { refs.current[i] = el; }}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
             type="text"
             value={it}
             placeholder="Pozycja listy…"

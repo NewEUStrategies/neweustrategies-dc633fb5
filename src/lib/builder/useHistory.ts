@@ -15,8 +15,7 @@ export interface History {
   canRedo: boolean;
 }
 
-const eq = (a: BuilderDocument, b: BuilderDocument) =>
-  JSON.stringify(a) === JSON.stringify(b);
+const eq = (a: BuilderDocument, b: BuilderDocument) => JSON.stringify(a) === JSON.stringify(b);
 
 export function useHistory(
   initial: BuilderDocument,
@@ -37,17 +36,20 @@ export function useHistory(
     }
   }, [initial]);
 
-  const setDoc = useCallback((next: BuilderDocument) => {
-    const normalized = safeParseBuilderDoc(next);
-    setPast((p) => {
-      const np = [...p, present];
-      return np.length > MAX_HISTORY ? np.slice(np.length - MAX_HISTORY) : np;
-    });
-    setFuture([]);
-    setPresent(normalized);
-    lastExternal.current = normalized;
-    onChange(normalized);
-  }, [present, onChange]);
+  const setDoc = useCallback(
+    (next: BuilderDocument) => {
+      const normalized = safeParseBuilderDoc(next);
+      setPast((p) => {
+        const np = [...p, present];
+        return np.length > MAX_HISTORY ? np.slice(np.length - MAX_HISTORY) : np;
+      });
+      setFuture([]);
+      setPresent(normalized);
+      lastExternal.current = normalized;
+      onChange(normalized);
+    },
+    [present, onChange],
+  );
 
   const undo = useCallback(() => {
     setPast((p) => {

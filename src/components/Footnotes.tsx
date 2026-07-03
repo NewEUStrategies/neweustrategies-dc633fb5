@@ -6,22 +6,36 @@ import { sanitizeHtml } from "@/lib/sanitize";
 import type { Footnote } from "@/lib/footnotes";
 
 const FN_LIST_LABELS = {
-  pl: { title: "Przypisy źródłowe:", back: (id: number) => `Wróć do odsyłacza ${id}`, backTitle: "Wróć do odsyłacza" },
-  en: { title: "Source notes:", back: (id: number) => `Back to reference ${id}`, backTitle: "Back to reference" },
+  pl: {
+    title: "Przypisy źródłowe:",
+    back: (id: number) => `Wróć do odsyłacza ${id}`,
+    backTitle: "Wróć do odsyłacza",
+  },
+  en: {
+    title: "Source notes:",
+    back: (id: number) => `Back to reference ${id}`,
+    backTitle: "Back to reference",
+  },
 } as const;
 
 export function FootnotesList({ notes, lang = "pl" }: { notes: Footnote[]; lang?: "pl" | "en" }) {
   if (!notes.length) return null;
   const L = FN_LIST_LABELS[lang] ?? FN_LIST_LABELS.pl;
   return (
-    <section className="mt-12 pt-6 border-t border-border" aria-labelledby="footnotes-heading" lang={lang}>
+    <section
+      className="mt-12 pt-6 border-t border-border"
+      aria-labelledby="footnotes-heading"
+      lang={lang}
+    >
       <h2 id="footnotes-heading" data-footnotes-title className="font-display text-xl mb-4">
         {L.title}
       </h2>
       <ol data-footnotes-list className="space-y-2 text-sm text-muted-foreground">
         {notes.map((n) => (
           <li key={n.id} id={`fn-${n.id}`} className="leading-relaxed">
-            <span data-fn-marker className="text-foreground/80 font-medium mr-1">[{n.id}]</span>
+            <span data-fn-marker className="text-foreground/80 font-medium mr-1">
+              [{n.id}]
+            </span>
             <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(n.html) }} />{" "}
             <a
               href={`#fnref-${n.id}`}

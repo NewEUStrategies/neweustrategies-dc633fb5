@@ -66,7 +66,7 @@ export function reportLovableError(error: unknown, context: Record<string, unkno
 
   if (isDev()) {
     const label = typeof context.label === "string" ? context.label : "render";
-    // eslint-disable-next-line no-console
+
     console.error(`[render-boundary:${label}]`, error);
   }
 }

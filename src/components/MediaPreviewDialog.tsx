@@ -11,8 +11,19 @@ import { getMediaUsage } from "@/lib/media.functions";
 import { Link } from "@tanstack/react-router";
 
 const DownloadIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" />
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" x2="12" y1="15" y2="3" />
   </svg>
 );
 
@@ -34,7 +45,13 @@ interface Props {
   showUsage?: boolean;
 }
 
-export function MediaPreviewDialog({ item, open, onOpenChange, gated = true, showUsage = false }: Props) {
+export function MediaPreviewDialog({
+  item,
+  open,
+  onOpenChange,
+  gated = true,
+  showUsage = false,
+}: Props) {
   const { i18n } = useTranslation();
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
   // Hook needs a stable entity type; pass id only when gated + open
@@ -108,7 +125,11 @@ export function MediaPreviewDialog({ item, open, onOpenChange, gated = true, sho
             </div>
           ) : isImage ? (
             <div className="h-full w-full flex items-center justify-center p-4">
-              <img src={item.public_url} alt={item.filename} className="max-h-full max-w-full object-contain" />
+              <img
+                src={item.public_url}
+                alt={item.filename}
+                className="max-h-full max-w-full object-contain"
+              />
             </div>
           ) : isPdf ? (
             <iframe
@@ -125,15 +146,22 @@ export function MediaPreviewDialog({ item, open, onOpenChange, gated = true, sho
               <audio src={item.public_url} controls className="w-full max-w-xl" />
             </div>
           ) : isText ? (
-            <iframe src={item.public_url} title={item.filename} className="w-full h-full border-0 bg-white" />
+            <iframe
+              src={item.public_url}
+              title={item.filename}
+              className="w-full h-full border-0 bg-white"
+            />
           ) : (
             <div className="h-full flex flex-col items-center justify-center gap-3 text-center p-8 text-muted-foreground">
               <FileText className="w-12 h-12 opacity-60" />
               <p className="text-sm">
-                {lang === "pl" ? "Podgląd nie jest dostępny dla tego typu pliku." : "Preview not available for this file type."}
+                {lang === "pl"
+                  ? "Podgląd nie jest dostępny dla tego typu pliku."
+                  : "Preview not available for this file type."}
               </p>
               <Button onClick={download} disabled={downloading}>
-                <DownloadIcon className="w-4 h-4 mr-2" /> {lang === "pl" ? "Pobierz plik" : "Download file"}
+                <DownloadIcon className="w-4 h-4 mr-2" />{" "}
+                {lang === "pl" ? "Pobierz plik" : "Download file"}
               </Button>
             </div>
           )}
@@ -177,12 +205,21 @@ function UsagePanel({ mediaId, lang }: { mediaId: string; lang: "pl" | "en" }) {
       {items.length > 0 && (
         <ul className="divide-y divide-border border border-border rounded-md overflow-hidden">
           {items.map((it) => (
-            <li key={`${it.kind}-${it.id}`} className="p-2 flex items-center justify-between gap-3 hover:bg-muted/40 text-xs">
+            <li
+              key={`${it.kind}-${it.id}`}
+              className="p-2 flex items-center justify-between gap-3 hover:bg-muted/40 text-xs"
+            >
               <div className="min-w-0">
                 <div className="font-medium truncate">{it.title}</div>
                 <div className="text-[10px] text-muted-foreground flex items-center gap-2">
                   <span className="uppercase">
-                    {it.kind === "post" ? (lang === "pl" ? "Post" : "Post") : (lang === "pl" ? "Strona" : "Page")}
+                    {it.kind === "post"
+                      ? lang === "pl"
+                        ? "Post"
+                        : "Post"
+                      : lang === "pl"
+                        ? "Strona"
+                        : "Page"}
                   </span>
                   <span>·</span>
                   <span className="truncate">/{it.slug}</span>

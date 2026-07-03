@@ -21,7 +21,9 @@ export function ImageBlock({ block, onChange }: Props) {
           onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
           className="max-w-md mx-auto"
         />
-        <p className="text-xs text-muted-foreground">Ustawienia (alt, caption, link) w panelu po prawej.</p>
+        <p className="text-xs text-muted-foreground">
+          Ustawienia (alt, caption, link) w panelu po prawej.
+        </p>
       </div>
     );
   }

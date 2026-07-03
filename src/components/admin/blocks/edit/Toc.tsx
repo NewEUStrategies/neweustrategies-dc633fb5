@@ -19,10 +19,12 @@ export function TocBlock({ block, onChange }: Props) {
     <div className="not-prose rounded-md border border-border bg-muted/30 p-3 space-y-2">
       <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
         <ListTree className="w-3.5 h-3.5" /> Spis treści
-        <span className="ml-auto text-[10px] normal-case tracking-normal">Generowany automatycznie z H2-H{maxLevel}</span>
+        <span className="ml-auto text-[10px] normal-case tracking-normal">
+          Generowany automatycznie z H2-H{maxLevel}
+        </span>
       </div>
       <Input
-        placeholder={i18n.editor("toc","titlePh")}
+        placeholder={i18n.editor("toc", "titlePh")}
         value={title}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
@@ -31,7 +33,9 @@ export function TocBlock({ block, onChange }: Props) {
           Głębokość:
           <select
             value={maxLevel}
-            onChange={(e) => onChange({ ...block, data: { ...block.data, maxLevel: Number(e.target.value) } })}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...block.data, maxLevel: Number(e.target.value) } })
+            }
             className="bg-background border border-border rounded px-1 py-0.5"
           >
             <option value={2}>H2</option>
@@ -43,7 +47,9 @@ export function TocBlock({ block, onChange }: Props) {
           <input
             type="checkbox"
             checked={ordered}
-            onChange={(e) => onChange({ ...block, data: { ...block.data, ordered: e.target.checked } })}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...block.data, ordered: e.target.checked } })
+            }
           />
           Numerowana
         </label>
@@ -51,7 +57,9 @@ export function TocBlock({ block, onChange }: Props) {
           <input
             type="checkbox"
             checked={sticky}
-            onChange={(e) => onChange({ ...block, data: { ...block.data, sticky: e.target.checked } })}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...block.data, sticky: e.target.checked } })
+            }
           />
           Sticky (sidebar)
         </label>

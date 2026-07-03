@@ -18,7 +18,10 @@ import { EMPTY_BLOCKS_DOC, newBlockId } from "./types";
 // ---------- shared helpers ----------
 
 function stripTags(s: string): string {
-  return s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  return s
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function decodeEntities(s: string): string {
@@ -27,7 +30,7 @@ function decodeEntities(s: string): string {
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, "\"")
+    .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'");
 }
 
@@ -48,7 +51,8 @@ interface Token {
 
 // Capture the most common top-level block tags. Anything outside these
 // boundaries becomes an inline paragraph chunk.
-const BLOCK_RE = /<(p|h1|h2|h3|h4|h5|h6|ul|ol|blockquote|pre|hr|figure|img|iframe|div)\b([^>]*)>([\s\S]*?)<\/\1>|<(hr|img|iframe)\b([^>]*)\/?>/gi;
+const BLOCK_RE =
+  /<(p|h1|h2|h3|h4|h5|h6|ul|ol|blockquote|pre|hr|figure|img|iframe|div)\b([^>]*)>([\s\S]*?)<\/\1>|<(hr|img|iframe)\b([^>]*)\/?>/gi;
 
 function pushParagraph(out: Block[], html: string): void {
   const trimmed = html.trim();
@@ -141,8 +145,12 @@ function mapBlock(tag: string, inner: string, openAttrs: string): Block | null {
   if (lower === "pre") {
     // <pre><code class="language-x">...</code></pre>
     const codeMatch = inner.match(/<code\b([^>]*)>([\s\S]*?)<\/code>/i);
-    const code = codeMatch ? decodeEntities(stripTags(codeMatch[2])) : decodeEntities(stripTags(inner));
-    const lang = codeMatch ? (attr(`<code ${codeMatch[1]}>`, "class") ?? "").replace(/^language-/, "") : "";
+    const code = codeMatch
+      ? decodeEntities(stripTags(codeMatch[2]))
+      : decodeEntities(stripTags(inner));
+    const lang = codeMatch
+      ? (attr(`<code ${codeMatch[1]}>`, "class") ?? "").replace(/^language-/, "")
+      : "";
     return { id: newBlockId(), type: "code", data: { code, language: lang } };
   }
   if (lower === "figure") {
@@ -244,9 +252,15 @@ function walkBuilder(node: unknown, out: Block[]): void {
       type: "heading",
       data: { level: headingLevel(`h${level}`), text: data.text, anchor: "" },
     });
-  } else if ((type.includes("text") || type.includes("paragraph") || type.includes("richtext")) && typeof data.html === "string") {
+  } else if (
+    (type.includes("text") || type.includes("paragraph") || type.includes("richtext")) &&
+    typeof data.html === "string"
+  ) {
     pushParagraph(out, data.html);
-  } else if ((type.includes("text") || type.includes("paragraph")) && typeof data.text === "string") {
+  } else if (
+    (type.includes("text") || type.includes("paragraph")) &&
+    typeof data.text === "string"
+  ) {
     pushParagraph(out, `<p>${data.text}</p>`);
   } else if (type.includes("image") && typeof data.src === "string") {
     out.push({
@@ -268,7 +282,11 @@ function walkBuilder(node: unknown, out: Block[]): void {
   } else if (type.includes("separator") || type.includes("divider")) {
     out.push({ id: newBlockId(), type: "separator", data: {} });
   } else if ((type.includes("video") || type.includes("embed")) && typeof data.url === "string") {
-    out.push({ id: newBlockId(), type: "embed", data: { url: data.url, provider: "iframe", html: "" } });
+    out.push({
+      id: newBlockId(),
+      type: "embed",
+      data: { url: data.url, provider: "iframe", html: "" },
+    });
   } else if (type.includes("html") && typeof data.html === "string") {
     out.push({ id: newBlockId(), type: "html", data: { html: data.html } });
   }

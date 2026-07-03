@@ -2,20 +2,31 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
       {children}
     </div>
   );
 }
 
 function Toggle({
-  checked, onChange, label,
-}: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+}) {
   return (
     <label className="flex items-center gap-2 text-xs text-muted-foreground">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
@@ -40,14 +51,22 @@ export function AuthorBioBlock({ block, onChange }: Props) {
         value={variant}
         onChange={(e) => set({ variant: e.target.value })}
       >
-        <option value="card">{i18n.editor("newsletter","variantCard")}</option>
+        <option value="card">{i18n.editor("newsletter", "variantCard")}</option>
         <option value="inline">Inline</option>
         <option value="minimal">Minimalna</option>
       </select>
       <div className="flex flex-wrap gap-3">
         <Toggle checked={showAvatar} onChange={(v) => set({ showAvatar: v })} label="Avatar" />
-        <Toggle checked={showSocial} onChange={(v) => set({ showSocial: v })} label="Linki social" />
-        <Toggle checked={showPostsCount} onChange={(v) => set({ showPostsCount: v })} label="Licznik wpisów" />
+        <Toggle
+          checked={showSocial}
+          onChange={(v) => set({ showSocial: v })}
+          label="Linki social"
+        />
+        <Toggle
+          checked={showPostsCount}
+          onChange={(v) => set({ showPostsCount: v })}
+          label="Licznik wpisów"
+        />
       </div>
     </Shell>
   );

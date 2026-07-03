@@ -5,7 +5,10 @@
 type Plain = Record<string, unknown>;
 
 const isPlainObject = (v: unknown): v is Plain =>
-  typeof v === "object" && v !== null && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype;
+  typeof v === "object" &&
+  v !== null &&
+  !Array.isArray(v) &&
+  Object.getPrototypeOf(v) === Object.prototype;
 
 export function deepMerge<T>(target: T, source: unknown): T {
   if (!isPlainObject(target) || !isPlainObject(source)) return target;

@@ -22,7 +22,9 @@ interface Props {
 
 export function SortableBlockItem(props: Props) {
   const { t } = useTranslation();
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props.id,
+  });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -58,7 +60,10 @@ export function SortableBlockItem(props: Props) {
         <div className="absolute -right-1 top-0 -translate-y-full pb-1 flex items-center gap-0.5 z-10 bg-popover border border-border rounded-md shadow-sm px-1 py-0.5">
           <IconButton
             disabled={props.index === 0}
-            onClick={(e) => { e.stopPropagation(); props.onMove(-1); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onMove(-1);
+            }}
             title={t("blocks.actions.up")}
             aria-label={t("blocks.actions.up")}
           >
@@ -66,14 +71,20 @@ export function SortableBlockItem(props: Props) {
           </IconButton>
           <IconButton
             disabled={props.index === props.total - 1}
-            onClick={(e) => { e.stopPropagation(); props.onMove(1); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onMove(1);
+            }}
             title={t("blocks.actions.down")}
             aria-label={t("blocks.actions.down")}
           >
             <ChevronDown className="w-3 h-3" />
           </IconButton>
           <IconButton
-            onClick={(e) => { e.stopPropagation(); props.onDuplicate(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onDuplicate();
+            }}
             title={t("blocks.actions.duplicate")}
             aria-label={t("blocks.actions.duplicate")}
           >
@@ -81,7 +92,10 @@ export function SortableBlockItem(props: Props) {
           </IconButton>
           <IconButton
             danger
-            onClick={(e) => { e.stopPropagation(); props.onRemove(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onRemove();
+            }}
             title={t("blocks.actions.remove")}
             aria-label={t("blocks.actions.remove")}
           >

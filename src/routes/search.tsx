@@ -48,7 +48,9 @@ function SearchPage() {
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const [draft, setDraft] = useState(search.q);
 
-  useEffect(() => { setDraft(search.q); }, [search.q]);
+  useEffect(() => {
+    setDraft(search.q);
+  }, [search.q]);
 
   const filters: SearchFilters = {
     q: search.q,
@@ -71,8 +73,7 @@ function SearchPage() {
 
   const clearAll = () => navigate({ search: { q: search.q } });
 
-  const active =
-    !!search.category || !!search.author || !!search.from || !!search.to;
+  const active = !!search.category || !!search.author || !!search.from || !!search.to;
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
@@ -100,14 +101,20 @@ function SearchPage() {
               <header className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold">{t("search.filters")}</h2>
                 {active && (
-                  <button onClick={clearAll} className="text-xs text-brand inline-flex items-center gap-1 hover:underline">
-                    <X className="w-3 h-3" />{t("search.clear")}
+                  <button
+                    onClick={clearAll}
+                    className="text-xs text-brand inline-flex items-center gap-1 hover:underline"
+                  >
+                    <X className="w-3 h-3" />
+                    {t("search.clear")}
                   </button>
                 )}
               </header>
 
               <div>
-                <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("search.date")}</h3>
+                <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                  {t("search.date")}
+                </h3>
                 <div className="space-y-2">
                   <label className="block text-xs">
                     {t("search.date_from")}
@@ -130,7 +137,9 @@ function SearchPage() {
 
               {data && data.facets.categories.length > 0 && (
                 <div>
-                  <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("search.categories")}</h3>
+                  <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                    {t("search.categories")}
+                  </h3>
                   <ul className="space-y-1 text-sm">
                     {data.facets.categories.map((c) => {
                       const isActive = search.category === c.id;
@@ -153,7 +162,9 @@ function SearchPage() {
 
               {data && data.facets.authors.length > 0 && (
                 <div>
-                  <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("search.authors")}</h3>
+                  <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                    {t("search.authors")}
+                  </h3>
                   <ul className="space-y-1 text-sm">
                     {data.facets.authors.map((a) => {
                       const isActive = search.author === a.id;
@@ -177,14 +188,12 @@ function SearchPage() {
 
             <section>
               <p className="text-sm text-muted-foreground mb-4">
-                {isFetching ? t("search.searching") : t("search.results_count", { count: data?.posts.length ?? 0 })}
+                {isFetching
+                  ? t("search.searching")
+                  : t("search.results_count", { count: data?.posts.length ?? 0 })}
               </p>
               {data && (
-                <ArchivePostList
-                  posts={data.posts}
-                  lang={lang}
-                  emptyText={t("search.empty")}
-                />
+                <ArchivePostList posts={data.posts} lang={lang} emptyText={t("search.empty")} />
               )}
             </section>
           </div>

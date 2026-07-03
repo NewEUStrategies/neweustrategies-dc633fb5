@@ -31,25 +31,32 @@ function isWidget(node: SectionChild | WidgetNode): node is WidgetNode {
 function collectWidgetsFromChild(child: SectionChild | null | undefined, out: WidgetNode[]) {
   if (!child) return;
   if (child.kind === "column") {
-    (child.children ?? []).forEach((node) => { if (node) out.push(node); });
+    (child.children ?? []).forEach((node) => {
+      if (node) out.push(node);
+    });
     return;
   }
   (child.columns ?? []).forEach((column) =>
-    (column?.children ?? []).forEach((node) => { if (node) out.push(node); }),
+    (column?.children ?? []).forEach((node) => {
+      if (node) out.push(node);
+    }),
   );
 }
 
 export function collectSectionWidgets(section: SectionNode): WidgetNode[] {
   const widgets: WidgetNode[] = [];
-  (Array.isArray(section?.children) ? section.children : []).forEach((child) => collectWidgetsFromChild(child, widgets));
+  (Array.isArray(section?.children) ? section.children : []).forEach((child) =>
+    collectWidgetsFromChild(child, widgets),
+  );
   return widgets.filter(isWidget);
 }
-
 
 export function collectBuilderWidgets(doc: BuilderDocument): WidgetNode[] {
   const safeDoc = safeParseBuilderDoc(doc);
   const widgets: WidgetNode[] = [];
-  safeDoc.sections.forEach((section) => collectSectionWidgets(section).forEach((w) => widgets.push(w)));
+  safeDoc.sections.forEach((section) =>
+    collectSectionWidgets(section).forEach((w) => widgets.push(w)),
+  );
   return widgets;
 }
 
@@ -275,10 +282,7 @@ export interface AboveFoldPrefetchOptions {
 }
 
 /** Collect data-bound widgets from the first `sectionCount` sections only. */
-export function collectAboveFoldWidgets(
-  doc: BuilderDocument,
-  sectionCount: number,
-): WidgetNode[] {
+export function collectAboveFoldWidgets(doc: BuilderDocument, sectionCount: number): WidgetNode[] {
   const widgets: WidgetNode[] = [];
   doc.sections
     .slice(0, Math.max(0, sectionCount))

@@ -8,21 +8,56 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sun, Moon, Save, Image as ImageIcon, Smartphone, Eye, Star, Globe, Menu, Search, ChevronRight, Megaphone, LayoutDashboard, Users, LogIn, Layers, MousePointerClick, Pencil, Brush, Palette } from "@/lib/lucide-shim";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sun,
+  Moon,
+  Save,
+  Image as ImageIcon,
+  Smartphone,
+  Eye,
+  Star,
+  Globe,
+  Menu,
+  Search,
+  ChevronRight,
+  Megaphone,
+  LayoutDashboard,
+  Users,
+  LogIn,
+  Layers,
+  MousePointerClick,
+  Pencil,
+  Brush,
+  Palette,
+} from "@/lib/lucide-shim";
 import { GlobalColorsEditor } from "@/components/admin/GlobalColorsEditor";
 import { ThemeDesignPane } from "@/components/admin/ThemeDesignPane";
 import { ThemeBackgroundsPane } from "@/components/admin/ThemeBackgroundsPane";
 import { useTheme } from "@/components/ThemeProvider";
 import { cn } from "@/lib/utils";
 
-
-
 // ---------- Defaults ----------
 type HoverEffect = "color-border" | "underline" | "background" | "scale" | "none";
 type SearchMode = "standalone" | "dropdown" | "fullscreen";
 type AlertStyle = "info" | "warning" | "success" | "brand";
-type AlertIcon = "auto" | "none" | "Megaphone" | "Bell" | "Info" | "AlertTriangle" | "Check" | "Sparkles" | "Flame" | "Mail";
+type AlertIcon =
+  | "auto"
+  | "none"
+  | "Megaphone"
+  | "Bell"
+  | "Info"
+  | "AlertTriangle"
+  | "Check"
+  | "Sparkles"
+  | "Flame"
+  | "Mail";
 type HeaderLayout = "layout-1" | "layout-2" | "layout-3" | "layout-4" | "layout-5" | "layout-6";
 type SocialPlacement = "topbar" | "navbar" | "both" | "hidden";
 type ButtonVariant = "solid" | "outline" | "ghost" | "pill";
@@ -31,39 +66,56 @@ type InputStyle = "filled" | "outline" | "underline";
 type FocusRing = "none" | "brand" | "border";
 import type { SidebarStyle } from "@/lib/builder/sidebarStyles";
 
-
-
 interface ThemeOptions extends Record<string, unknown> {
   logo: {
-    main: string; main_dark: string;
-    mobile: string; mobile_dark: string;
-    transparent: string; transparent_dark: string;
-    organization: string; organization_dark: string;
-    sidebar_icon: string; sidebar_icon_dark: string;
-    sidebar_expanded: string; sidebar_expanded_dark: string;
-    bookmark_ios: string; bookmark_ios_dark: string;
-    bookmark_windows: string; bookmark_windows_dark: string;
+    main: string;
+    main_dark: string;
+    mobile: string;
+    mobile_dark: string;
+    transparent: string;
+    transparent_dark: string;
+    organization: string;
+    organization_dark: string;
+    sidebar_icon: string;
+    sidebar_icon_dark: string;
+    sidebar_expanded: string;
+    sidebar_expanded_dark: string;
+    bookmark_ios: string;
+    bookmark_ios_dark: string;
+    bookmark_windows: string;
+    bookmark_windows_dark: string;
     add_to_home_screen: boolean;
   };
   header: {
     layout: HeaderLayout;
     main_menu: {
-      hover_effect: HoverEffect; sticky: boolean; smart_sticky: boolean; glass_effect: boolean;
-      item_spacing: number; icon_spacing: number;
-      submenu_bg_from: string; submenu_bg_to: string;
+      hover_effect: HoverEffect;
+      sticky: boolean;
+      smart_sticky: boolean;
+      glass_effect: boolean;
+      item_spacing: number;
+      icon_spacing: number;
+      submenu_bg_from: string;
+      submenu_bg_to: string;
     };
     search: {
-      enabled: boolean; heading: string; mode: SearchMode;
-      live_results: boolean; live_limit: number; more_menu_search: boolean;
+      enabled: boolean;
+      heading: string;
+      mode: SearchMode;
+      live_results: boolean;
+      live_limit: number;
+      more_menu_search: boolean;
     };
     alert_bar: {
       enabled: boolean;
-      message_pl: string; message_en: string;
+      message_pl: string;
+      message_en: string;
       link_url: string;
       style: AlertStyle;
       dismissible: boolean;
       icon: AlertIcon;
-      cta_label_pl: string; cta_label_en: string;
+      cta_label_pl: string;
+      cta_label_en: string;
     };
     mobile: {
       breakpoint: number;
@@ -73,14 +125,20 @@ interface ThemeOptions extends Record<string, unknown> {
     };
     socials: {
       placement: SocialPlacement;
-      facebook: string; twitter: string; instagram: string;
-      linkedin: string; youtube: string; email: string;
+      facebook: string;
+      twitter: string;
+      instagram: string;
+      linkedin: string;
+      youtube: string;
+      email: string;
       size: number;
     };
     signin: {
       enabled: boolean;
-      signin_label_pl: string; signin_label_en: string;
-      signup_label_pl: string; signup_label_en: string;
+      signin_label_pl: string;
+      signin_label_en: string;
+      signup_label_pl: string;
+      signup_label_en: string;
       variant: ButtonVariant;
       show_signup: boolean;
     };
@@ -110,15 +168,76 @@ interface ThemeOptions extends Record<string, unknown> {
 }
 
 const DEFAULTS: ThemeOptions = {
-  logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", transparent_dark: "", organization: "", organization_dark: "", sidebar_icon: "", sidebar_icon_dark: "", sidebar_expanded: "", sidebar_expanded_dark: "", bookmark_ios: "", bookmark_ios_dark: "", bookmark_windows: "", bookmark_windows_dark: "", add_to_home_screen: true },
+  logo: {
+    main: "",
+    main_dark: "",
+    mobile: "",
+    mobile_dark: "",
+    transparent: "",
+    transparent_dark: "",
+    organization: "",
+    organization_dark: "",
+    sidebar_icon: "",
+    sidebar_icon_dark: "",
+    sidebar_expanded: "",
+    sidebar_expanded_dark: "",
+    bookmark_ios: "",
+    bookmark_ios_dark: "",
+    bookmark_windows: "",
+    bookmark_windows_dark: "",
+    add_to_home_screen: true,
+  },
   header: {
     layout: "layout-1",
-    main_menu: { hover_effect: "color-border", sticky: true, smart_sticky: false, glass_effect: false, item_spacing: 12, icon_spacing: 5, submenu_bg_from: "", submenu_bg_to: "" },
-    search: { enabled: true, heading: "Search", mode: "standalone", live_results: true, live_limit: 5, more_menu_search: true },
-    alert_bar: { enabled: false, message_pl: "", message_en: "", link_url: "", style: "brand", dismissible: true, icon: "auto", cta_label_pl: "", cta_label_en: "" },
+    main_menu: {
+      hover_effect: "color-border",
+      sticky: true,
+      smart_sticky: false,
+      glass_effect: false,
+      item_spacing: 12,
+      icon_spacing: 5,
+      submenu_bg_from: "",
+      submenu_bg_to: "",
+    },
+    search: {
+      enabled: true,
+      heading: "Search",
+      mode: "standalone",
+      live_results: true,
+      live_limit: 5,
+      more_menu_search: true,
+    },
+    alert_bar: {
+      enabled: false,
+      message_pl: "",
+      message_en: "",
+      link_url: "",
+      style: "brand",
+      dismissible: true,
+      icon: "auto",
+      cta_label_pl: "",
+      cta_label_en: "",
+    },
     mobile: { breakpoint: 1024, use_mobile_logo: true, sticky: true, show_search: true },
-    socials: { placement: "topbar", facebook: "", twitter: "", instagram: "", linkedin: "", youtube: "", email: "", size: 16 },
-    signin: { enabled: true, signin_label_pl: "Zaloguj", signin_label_en: "Sign in", signup_label_pl: "Zarejestruj", signup_label_en: "Sign up", variant: "ghost", show_signup: true },
+    socials: {
+      placement: "topbar",
+      facebook: "",
+      twitter: "",
+      instagram: "",
+      linkedin: "",
+      youtube: "",
+      email: "",
+      size: 16,
+    },
+    signin: {
+      enabled: true,
+      signin_label_pl: "Zaloguj",
+      signin_label_en: "Sign in",
+      signup_label_pl: "Zarejestruj",
+      signup_label_en: "Sign up",
+      variant: "ghost",
+      show_signup: true,
+    },
   },
   buttons: {
     default_variant: "solid",
@@ -164,23 +283,29 @@ const SECTIONS = [
   { id: "design", labelKey: "themeOptions.sections.contentStyling", icon: Brush },
 ] as const;
 
-
 const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
-  "layout-1": { label: "Layout 1 - Classic Centered", hint: "Utility bar + centered logo + nav (current default)" },
+  "layout-1": {
+    label: "Layout 1 - Classic Centered",
+    hint: "Utility bar + centered logo + nav (current default)",
+  },
   "layout-2": { label: "Layout 2 - Logo Left", hint: "Logo po lewej, nav po prawej, jeden pasek" },
   "layout-3": { label: "Layout 3 - Split Nav", hint: "Logo centralnie, menu po obu stronach" },
   "layout-4": { label: "Layout 4 - Stacked", hint: "Utility bar + logo + nav (3 paski)" },
   "layout-5": { label: "Layout 5 - Minimal", hint: "Tylko logo + menu, bez utility bar" },
-  "layout-6": { label: "Layout 6 - Left Global Sidebar", hint: "Pionowy sidebar po lewej zamiast poziomego nagłówka (collapse/expand)" },
+  "layout-6": {
+    label: "Layout 6 - Left Global Sidebar",
+    hint: "Pionowy sidebar po lewej zamiast poziomego nagłówka (collapse/expand)",
+  },
 };
-
 
 export function ThemeOptionsPane() {
   const { t } = useTranslation(undefined, { keyPrefix: "admin" });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { query, save } = useSettings<any>("theme_options", DEFAULTS as any);
   const [draft, setDraft] = useState<ThemeOptions | null>(null);
-  useEffect(() => { if (query.data && !draft) setDraft(query.data as ThemeOptions); }, [query.data, draft]);
+  useEffect(() => {
+    if (query.data && !draft) setDraft(query.data as ThemeOptions);
+  }, [query.data, draft]);
   const [active, setActive] = useState<(typeof SECTIONS)[number]["id"]>(() => {
     if (typeof window !== "undefined") {
       const h = window.location.hash.replace(/^#/, "");
@@ -189,20 +314,26 @@ export function ThemeOptionsPane() {
     }
     return "logo";
   });
-  const [logoTab, setLogoTab] = useState<"default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark">("default");
-
+  const [logoTab, setLogoTab] = useState<
+    "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark"
+  >("default");
 
   if (!draft) return <p className="text-sm text-muted-foreground">{t("themeOptions.loading")}</p>;
-
 
   const patchLogo = (p: Partial<ThemeOptions["logo"]>) =>
     setDraft({ ...draft, logo: { ...draft.logo, ...p } });
   const patchMenu = (p: Partial<ThemeOptions["header"]["main_menu"]>) =>
-    setDraft({ ...draft, header: { ...draft.header, main_menu: { ...draft.header.main_menu, ...p } } });
+    setDraft({
+      ...draft,
+      header: { ...draft.header, main_menu: { ...draft.header.main_menu, ...p } },
+    });
   const patchSearch = (p: Partial<ThemeOptions["header"]["search"]>) =>
     setDraft({ ...draft, header: { ...draft.header, search: { ...draft.header.search, ...p } } });
   const patchAlert = (p: Partial<ThemeOptions["header"]["alert_bar"]>) =>
-    setDraft({ ...draft, header: { ...draft.header, alert_bar: { ...draft.header.alert_bar, ...p } } });
+    setDraft({
+      ...draft,
+      header: { ...draft.header, alert_bar: { ...draft.header.alert_bar, ...p } },
+    });
   const patchMobile = (p: Partial<ThemeOptions["header"]["mobile"]>) =>
     setDraft({ ...draft, header: { ...draft.header, mobile: { ...draft.header.mobile, ...p } } });
   const patchSocials = (p: Partial<ThemeOptions["header"]["socials"]>) =>
@@ -250,592 +381,941 @@ export function ThemeOptionsPane() {
         ) : active === "design" ? (
           <ThemeDesignPane />
         ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-lg">
+                {(() => {
+                  const s = SECTIONS.find((x) => x.id === active);
+                  return s ? t(s.labelKey) : "";
+                })()}
+              </h3>
+              <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
+                <Save className="w-4 h-4 mr-2" />{" "}
+                {save.isPending ? t("themeOptions.saving") : t("themeOptions.save")}
+              </Button>
+            </div>
 
-
-        <>
-        <div className="flex items-center justify-between">
-          <h3 className="font-display text-lg">{(() => { const s = SECTIONS.find((x) => x.id === active); return s ? t(s.labelKey) : ""; })()}</h3>
-          <Button size="sm" onClick={() => save.mutate(draft)} disabled={save.isPending}>
-            <Save className="w-4 h-4 mr-2" /> {save.isPending ? t("themeOptions.saving") : t("themeOptions.save")}
-          </Button>
-        </div>
-
-
-        {active === "logo" && (
-          <div className="space-y-5">
-            <LogoPreview logo={draft.logo} tab={logoTab} />
-            <LogoTabs value={logoTab} onChange={setLogoTab} />
-
-            {logoTab === "default" && (
-              <div className="grid md:grid-cols-2 gap-4">
-                <ImageSlot
-                  label={t("themeOptions.slots.main")}
-                  icon={<Sun className="w-3.5 h-3.5" />}
-                  previewMode="light"
-                  value={draft.logo.main}
-                  onChange={(v) => patchLogo({ main: v })}
-                  hint={t("themeOptions.hints.recommended120")}
-                  folder="theme/logo"
-                />
-                <ImageSlot
-                  label={t("themeOptions.slots.mainDark")}
-                  icon={<Moon className="w-3.5 h-3.5" />}
-                  previewMode="dark"
-                  value={draft.logo.main_dark}
-                  onChange={(v) => patchLogo({ main_dark: v })}
-                  hint={t("themeOptions.hints.darkVariant")}
-                  folder="theme/logo"
-                />
-              </div>
-            )}
-
-            {logoTab === "mobile" && (
-              <div className="grid md:grid-cols-2 gap-4">
-                <ImageSlot
-                  label={t("themeOptions.slots.mobile")}
-                  icon={<Smartphone className="w-3.5 h-3.5" />}
-                  value={draft.logo.mobile}
-                  onChange={(v) => patchLogo({ mobile: v })}
-                  hint={t("themeOptions.hints.recommended84")}
-                  folder="theme/logo"
-                />
-                <ImageSlot
-                  label={t("themeOptions.slots.mobileDark")}
-                  icon={<Moon className="w-3.5 h-3.5" />}
-                  previewMode="dark"
-                  value={draft.logo.mobile_dark}
-                  onChange={(v) => patchLogo({ mobile_dark: v })}
-                  folder="theme/logo"
-                />
-              </div>
-            )}
-
-            {logoTab === "transparent" && (
-              <div className="grid md:grid-cols-2 gap-4">
-                <ImageSlot
-                  label={t("themeOptions.slots.transparent")}
-                  icon={<Sun className="w-3.5 h-3.5" />}
-                  previewMode="light"
-                  value={draft.logo.transparent}
-                  onChange={(v) => patchLogo({ transparent: v })}
-                  hint={t("themeOptions.hints.transparent")}
-                  folder="theme/logo"
-                />
-                <ImageSlot
-                  label={t("themeOptions.slots.transparentDark")}
-                  icon={<Moon className="w-3.5 h-3.5" />}
-                  previewMode="dark"
-                  value={draft.logo.transparent_dark}
-                  onChange={(v) => patchLogo({ transparent_dark: v })}
-                  hint={t("themeOptions.hints.darkVariant")}
-                  folder="theme/logo"
-                />
-              </div>
-            )}
-
-            {logoTab === "organization" && (
-              <div className="space-y-3">
-                <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
-                  {t("themeOptions.banners.organization")}
-                </div>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <ImageSlot
-                    label={t("themeOptions.slots.organization")}
-                    icon={<Sun className="w-3.5 h-3.5" />}
-                  previewMode="light"
-                    value={draft.logo.organization}
-                    onChange={(v) => patchLogo({ organization: v })}
-                    folder="theme/logo"
-                  />
-                  <ImageSlot
-                    label={t("themeOptions.slots.organizationDark")}
-                    icon={<Moon className="w-3.5 h-3.5" />}
-                  previewMode="dark"
-                    value={draft.logo.organization_dark}
-                    onChange={(v) => patchLogo({ organization_dark: v })}
-                    folder="theme/logo"
-                  />
-                </div>
-              </div>
-            )}
-
-            {logoTab === "sidebar" && (
-              <div className="space-y-4">
-                <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
-                  {t("themeOptions.banners.sidebar")}
-                </div>
-                <div>
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">{t("themeOptions.headers.sidebarCollapsed")}</div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <ImageSlot
-                      label={t("themeOptions.slots.sidebarIcon")}
-                      icon={<Sun className="w-3.5 h-3.5" />}
-                  previewMode="light"
-                      value={draft.logo.sidebar_icon}
-                      onChange={(v) => patchLogo({ sidebar_icon: v })}
-                      hint={t("themeOptions.hints.sidebarSquare")}
-                      folder="theme/logo"
-                    />
-                    <ImageSlot
-                      label={t("themeOptions.slots.sidebarIconDark")}
-                      icon={<Moon className="w-3.5 h-3.5" />}
-                  previewMode="dark"
-                      value={draft.logo.sidebar_icon_dark}
-                      onChange={(v) => patchLogo({ sidebar_icon_dark: v })}
-                      folder="theme/logo"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">{t("themeOptions.headers.sidebarExpanded")}</div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <ImageSlot
-                      label={t("themeOptions.slots.sidebarExpanded")}
-                      icon={<Sun className="w-3.5 h-3.5" />}
-                  previewMode="light"
-                      value={draft.logo.sidebar_expanded}
-                      onChange={(v) => patchLogo({ sidebar_expanded: v })}
-                      hint={t("themeOptions.hints.sidebarOblong")}
-                      folder="theme/logo"
-                    />
-                    <ImageSlot
-                      label={t("themeOptions.slots.sidebarExpandedDark")}
-                      icon={<Moon className="w-3.5 h-3.5" />}
-                  previewMode="dark"
-                      value={draft.logo.sidebar_expanded_dark}
-                      onChange={(v) => patchLogo({ sidebar_expanded_dark: v })}
-                      folder="theme/logo"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {logoTab === "bookmark" && (
+            {active === "logo" && (
               <div className="space-y-5">
-                <div>
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">{t("themeOptions.headers.iosTouchIcon")}</div>
+                <LogoPreview logo={draft.logo} tab={logoTab} />
+                <LogoTabs value={logoTab} onChange={setLogoTab} />
+
+                {logoTab === "default" && (
                   <div className="grid md:grid-cols-2 gap-4">
                     <ImageSlot
-                      label={t("themeOptions.slots.iosTouchIcon")}
+                      label={t("themeOptions.slots.main")}
                       icon={<Sun className="w-3.5 h-3.5" />}
-                  previewMode="light"
-                      value={draft.logo.bookmark_ios}
-                      onChange={(v) => patchLogo({ bookmark_ios: v })}
-                      folder="theme/icons"
+                      previewMode="light"
+                      value={draft.logo.main}
+                      onChange={(v) => patchLogo({ main: v })}
+                      hint={t("themeOptions.hints.recommended120")}
+                      folder="theme/logo"
                     />
                     <ImageSlot
-                      label={t("themeOptions.slots.iosTouchIconDark")}
+                      label={t("themeOptions.slots.mainDark")}
                       icon={<Moon className="w-3.5 h-3.5" />}
-                  previewMode="dark"
-                      value={draft.logo.bookmark_ios_dark}
-                      onChange={(v) => patchLogo({ bookmark_ios_dark: v })}
-                      folder="theme/icons"
+                      previewMode="dark"
+                      value={draft.logo.main_dark}
+                      onChange={(v) => patchLogo({ main_dark: v })}
+                      hint={t("themeOptions.hints.darkVariant")}
+                      folder="theme/logo"
                     />
                   </div>
-                </div>
-                <Row label={t("themeOptions.addToHomeScreen")} hint={t("themeOptions.hints.addToHome")}>
+                )}
+
+                {logoTab === "mobile" && (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <ImageSlot
+                      label={t("themeOptions.slots.mobile")}
+                      icon={<Smartphone className="w-3.5 h-3.5" />}
+                      value={draft.logo.mobile}
+                      onChange={(v) => patchLogo({ mobile: v })}
+                      hint={t("themeOptions.hints.recommended84")}
+                      folder="theme/logo"
+                    />
+                    <ImageSlot
+                      label={t("themeOptions.slots.mobileDark")}
+                      icon={<Moon className="w-3.5 h-3.5" />}
+                      previewMode="dark"
+                      value={draft.logo.mobile_dark}
+                      onChange={(v) => patchLogo({ mobile_dark: v })}
+                      folder="theme/logo"
+                    />
+                  </div>
+                )}
+
+                {logoTab === "transparent" && (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <ImageSlot
+                      label={t("themeOptions.slots.transparent")}
+                      icon={<Sun className="w-3.5 h-3.5" />}
+                      previewMode="light"
+                      value={draft.logo.transparent}
+                      onChange={(v) => patchLogo({ transparent: v })}
+                      hint={t("themeOptions.hints.transparent")}
+                      folder="theme/logo"
+                    />
+                    <ImageSlot
+                      label={t("themeOptions.slots.transparentDark")}
+                      icon={<Moon className="w-3.5 h-3.5" />}
+                      previewMode="dark"
+                      value={draft.logo.transparent_dark}
+                      onChange={(v) => patchLogo({ transparent_dark: v })}
+                      hint={t("themeOptions.hints.darkVariant")}
+                      folder="theme/logo"
+                    />
+                  </div>
+                )}
+
+                {logoTab === "organization" && (
+                  <div className="space-y-3">
+                    <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
+                      {t("themeOptions.banners.organization")}
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <ImageSlot
+                        label={t("themeOptions.slots.organization")}
+                        icon={<Sun className="w-3.5 h-3.5" />}
+                        previewMode="light"
+                        value={draft.logo.organization}
+                        onChange={(v) => patchLogo({ organization: v })}
+                        folder="theme/logo"
+                      />
+                      <ImageSlot
+                        label={t("themeOptions.slots.organizationDark")}
+                        icon={<Moon className="w-3.5 h-3.5" />}
+                        previewMode="dark"
+                        value={draft.logo.organization_dark}
+                        onChange={(v) => patchLogo({ organization_dark: v })}
+                        folder="theme/logo"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {logoTab === "sidebar" && (
+                  <div className="space-y-4">
+                    <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
+                      {t("themeOptions.banners.sidebar")}
+                    </div>
+                    <div>
+                      <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">
+                        {t("themeOptions.headers.sidebarCollapsed")}
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <ImageSlot
+                          label={t("themeOptions.slots.sidebarIcon")}
+                          icon={<Sun className="w-3.5 h-3.5" />}
+                          previewMode="light"
+                          value={draft.logo.sidebar_icon}
+                          onChange={(v) => patchLogo({ sidebar_icon: v })}
+                          hint={t("themeOptions.hints.sidebarSquare")}
+                          folder="theme/logo"
+                        />
+                        <ImageSlot
+                          label={t("themeOptions.slots.sidebarIconDark")}
+                          icon={<Moon className="w-3.5 h-3.5" />}
+                          previewMode="dark"
+                          value={draft.logo.sidebar_icon_dark}
+                          onChange={(v) => patchLogo({ sidebar_icon_dark: v })}
+                          folder="theme/logo"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">
+                        {t("themeOptions.headers.sidebarExpanded")}
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <ImageSlot
+                          label={t("themeOptions.slots.sidebarExpanded")}
+                          icon={<Sun className="w-3.5 h-3.5" />}
+                          previewMode="light"
+                          value={draft.logo.sidebar_expanded}
+                          onChange={(v) => patchLogo({ sidebar_expanded: v })}
+                          hint={t("themeOptions.hints.sidebarOblong")}
+                          folder="theme/logo"
+                        />
+                        <ImageSlot
+                          label={t("themeOptions.slots.sidebarExpandedDark")}
+                          icon={<Moon className="w-3.5 h-3.5" />}
+                          previewMode="dark"
+                          value={draft.logo.sidebar_expanded_dark}
+                          onChange={(v) => patchLogo({ sidebar_expanded_dark: v })}
+                          folder="theme/logo"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {logoTab === "bookmark" && (
+                  <div className="space-y-5">
+                    <div>
+                      <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">
+                        {t("themeOptions.headers.iosTouchIcon")}
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <ImageSlot
+                          label={t("themeOptions.slots.iosTouchIcon")}
+                          icon={<Sun className="w-3.5 h-3.5" />}
+                          previewMode="light"
+                          value={draft.logo.bookmark_ios}
+                          onChange={(v) => patchLogo({ bookmark_ios: v })}
+                          folder="theme/icons"
+                        />
+                        <ImageSlot
+                          label={t("themeOptions.slots.iosTouchIconDark")}
+                          icon={<Moon className="w-3.5 h-3.5" />}
+                          previewMode="dark"
+                          value={draft.logo.bookmark_ios_dark}
+                          onChange={(v) => patchLogo({ bookmark_ios_dark: v })}
+                          folder="theme/icons"
+                        />
+                      </div>
+                    </div>
+                    <Row
+                      label={t("themeOptions.addToHomeScreen")}
+                      hint={t("themeOptions.hints.addToHome")}
+                    >
+                      <Switch
+                        checked={draft.logo.add_to_home_screen}
+                        onCheckedChange={(v) => patchLogo({ add_to_home_screen: v })}
+                      />
+                    </Row>
+                    <div>
+                      <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">
+                        {t("themeOptions.headers.windowsTile")}
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <ImageSlot
+                          label={t("themeOptions.slots.windowsTile")}
+                          icon={<Sun className="w-3.5 h-3.5" />}
+                          previewMode="light"
+                          value={draft.logo.bookmark_windows}
+                          onChange={(v) => patchLogo({ bookmark_windows: v })}
+                          folder="theme/icons"
+                        />
+                        <ImageSlot
+                          label={t("themeOptions.slots.windowsTileDark")}
+                          icon={<Moon className="w-3.5 h-3.5" />}
+                          previewMode="dark"
+                          value={draft.logo.bookmark_windows_dark}
+                          onChange={(v) => patchLogo({ bookmark_windows_dark: v })}
+                          folder="theme/icons"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {active === "header.main_menu" && (
+              <div className="space-y-4">
+                <SectionTitle>{t("themeOptions.mainMenu.navTopLevel")}</SectionTitle>
+                <Row
+                  label={t("themeOptions.mainMenu.hoverEffect")}
+                  hint={t("themeOptions.mainMenu.hoverEffectHint")}
+                >
+                  <Select
+                    value={draft.header.main_menu.hover_effect}
+                    onValueChange={(v) =>
+                      patchMenu({
+                        hover_effect: v as ThemeOptions["header"]["main_menu"]["hover_effect"],
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-[220px] h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="color-border">
+                        {t("themeOptions.mainMenu.hoverColorBorder")}
+                      </SelectItem>
+                      <SelectItem value="underline">
+                        {t("themeOptions.mainMenu.hoverUnderline")}
+                      </SelectItem>
+                      <SelectItem value="background">
+                        {t("themeOptions.mainMenu.hoverBackground")}
+                      </SelectItem>
+                      <SelectItem value="scale">{t("themeOptions.mainMenu.hoverScale")}</SelectItem>
+                      <SelectItem value="none">{t("themeOptions.mainMenu.hoverNone")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <Row
+                  label={t("themeOptions.mainMenu.sticky")}
+                  hint={t("themeOptions.mainMenu.stickyHint")}
+                >
                   <Switch
-                    checked={draft.logo.add_to_home_screen}
-                    onCheckedChange={(v) => patchLogo({ add_to_home_screen: v })}
+                    checked={draft.header.main_menu.sticky}
+                    onCheckedChange={(v) => patchMenu({ sticky: v })}
                   />
                 </Row>
-                <div>
-                  <div className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground mb-2">{t("themeOptions.headers.windowsTile")}</div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <ImageSlot
-                      label={t("themeOptions.slots.windowsTile")}
-                      icon={<Sun className="w-3.5 h-3.5" />}
-                  previewMode="light"
-                      value={draft.logo.bookmark_windows}
-                      onChange={(v) => patchLogo({ bookmark_windows: v })}
-                      folder="theme/icons"
-                    />
-                    <ImageSlot
-                      label={t("themeOptions.slots.windowsTileDark")}
-                      icon={<Moon className="w-3.5 h-3.5" />}
-                  previewMode="dark"
-                      value={draft.logo.bookmark_windows_dark}
-                      onChange={(v) => patchLogo({ bookmark_windows_dark: v })}
-                      folder="theme/icons"
-                    />
-                  </div>
+                <Row
+                  label={t("themeOptions.mainMenu.smartSticky")}
+                  hint={t("themeOptions.mainMenu.smartStickyHint")}
+                >
+                  <Switch
+                    checked={draft.header.main_menu.smart_sticky}
+                    onCheckedChange={(v) => patchMenu({ smart_sticky: v })}
+                  />
+                </Row>
+                <Row
+                  label={t("themeOptions.mainMenu.glass")}
+                  hint={t("themeOptions.mainMenu.glassHint")}
+                >
+                  <Switch
+                    checked={draft.header.main_menu.glass_effect}
+                    onCheckedChange={(v) => patchMenu({ glass_effect: v })}
+                  />
+                </Row>
+                <Row
+                  label={t("themeOptions.mainMenu.itemSpacing")}
+                  hint={t("themeOptions.mainMenu.itemSpacingHint")}
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    max={64}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.header.main_menu.item_spacing}
+                    onChange={(e) => patchMenu({ item_spacing: Number(e.target.value) || 0 })}
+                  />
+                </Row>
+                <Row
+                  label={t("themeOptions.mainMenu.iconSpacing")}
+                  hint={t("themeOptions.mainMenu.iconSpacingHint")}
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    max={32}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.header.main_menu.icon_spacing}
+                    onChange={(e) => patchMenu({ icon_spacing: Number(e.target.value) || 0 })}
+                  />
+                </Row>
+
+                <SectionTitle>{t("themeOptions.mainMenu.subLevel")}</SectionTitle>
+                <Row label={t("themeOptions.mainMenu.submenuFrom")}>
+                  <Input
+                    type="color"
+                    className="w-[80px] h-9"
+                    value={draft.header.main_menu.submenu_bg_from || "#ffffff"}
+                    onChange={(e) => patchMenu({ submenu_bg_from: e.target.value })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.mainMenu.submenuTo")}>
+                  <Input
+                    type="color"
+                    className="w-[80px] h-9"
+                    value={draft.header.main_menu.submenu_bg_to || "#ffffff"}
+                    onChange={(e) => patchMenu({ submenu_bg_to: e.target.value })}
+                  />
+                </Row>
+              </div>
+            )}
+
+            {active === "header.search" && (
+              <div className="space-y-4">
+                <Row label={t("themeOptions.search.icon")} hint={t("themeOptions.search.iconHint")}>
+                  <Switch
+                    checked={draft.header.search.enabled}
+                    onCheckedChange={(v) => patchSearch({ enabled: v })}
+                  />
+                </Row>
+                <Row
+                  label={t("themeOptions.search.heading")}
+                  hint={t("themeOptions.search.headingHint")}
+                >
+                  <Input
+                    value={draft.header.search.heading}
+                    onChange={(e) => patchSearch({ heading: e.target.value })}
+                    className="w-[260px] h-9 text-xs"
+                  />
+                </Row>
+                <Row label={t("themeOptions.search.mode")} hint={t("themeOptions.search.modeHint")}>
+                  <Select
+                    value={draft.header.search.mode}
+                    onValueChange={(v) =>
+                      patchSearch({ mode: v as ThemeOptions["header"]["search"]["mode"] })
+                    }
+                  >
+                    <SelectTrigger className="w-[260px] h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="standalone">
+                        {t("themeOptions.search.modeStandalone")}
+                      </SelectItem>
+                      <SelectItem value="dropdown">
+                        {t("themeOptions.search.modeDropdown")}
+                      </SelectItem>
+                      <SelectItem value="fullscreen">
+                        {t("themeOptions.search.modeFullscreen")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <Row label={t("themeOptions.search.live")} hint={t("themeOptions.search.liveHint")}>
+                  <Switch
+                    checked={draft.header.search.live_results}
+                    onCheckedChange={(v) => patchSearch({ live_results: v })}
+                  />
+                </Row>
+                <Row
+                  label={t("themeOptions.search.limit")}
+                  hint={t("themeOptions.search.limitHint")}
+                >
+                  <Input
+                    type="number"
+                    min={1}
+                    max={10}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.header.search.live_limit}
+                    onChange={(e) =>
+                      patchSearch({
+                        live_limit: Math.min(10, Math.max(1, Number(e.target.value) || 1)),
+                      })
+                    }
+                  />
+                </Row>
+                <Row
+                  label={t("themeOptions.search.moreMenu")}
+                  hint={t("themeOptions.search.moreMenuHint")}
+                >
+                  <Switch
+                    checked={draft.header.search.more_menu_search}
+                    onCheckedChange={(v) => patchSearch({ more_menu_search: v })}
+                  />
+                </Row>
+              </div>
+            )}
+
+            {active === "header.alert_bar" && (
+              <div className="space-y-4">
+                <Row
+                  label={t("themeOptions.alertBar.enable")}
+                  hint={t("themeOptions.alertBar.enableHint")}
+                >
+                  <Switch
+                    checked={draft.header.alert_bar.enabled}
+                    onCheckedChange={(v) => patchAlert({ enabled: v })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.alertBar.messagePl")}>
+                  <Input
+                    value={draft.header.alert_bar.message_pl}
+                    onChange={(e) => patchAlert({ message_pl: e.target.value })}
+                    className="w-[320px] h-9 text-xs"
+                    placeholder="Nowa publikacja dostępna…"
+                  />
+                </Row>
+                <Row label={t("themeOptions.alertBar.messageEn")}>
+                  <Input
+                    value={draft.header.alert_bar.message_en}
+                    onChange={(e) => patchAlert({ message_en: e.target.value })}
+                    className="w-[320px] h-9 text-xs"
+                    placeholder="New publication available…"
+                  />
+                </Row>
+                <Row
+                  label={t("themeOptions.alertBar.link")}
+                  hint={t("themeOptions.alertBar.linkHint")}
+                >
+                  <Input
+                    value={draft.header.alert_bar.link_url}
+                    onChange={(e) => patchAlert({ link_url: e.target.value })}
+                    className="w-[320px] h-9 text-xs"
+                    placeholder="/blog"
+                  />
+                </Row>
+                <Row label={t("themeOptions.alertBar.style")}>
+                  <Select
+                    value={draft.header.alert_bar.style}
+                    onValueChange={(v) => patchAlert({ style: v as AlertStyle })}
+                  >
+                    <SelectTrigger className="w-[200px] h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="brand">{t("themeOptions.alertBar.styleBrand")}</SelectItem>
+                      <SelectItem value="info">{t("themeOptions.alertBar.styleInfo")}</SelectItem>
+                      <SelectItem value="warning">
+                        {t("themeOptions.alertBar.styleWarning")}
+                      </SelectItem>
+                      <SelectItem value="success">
+                        {t("themeOptions.alertBar.styleSuccess")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <Row
+                  label={t("themeOptions.alertBar.icon")}
+                  hint={t("themeOptions.alertBar.iconHint")}
+                >
+                  <Select
+                    value={draft.header.alert_bar.icon}
+                    onValueChange={(v) => patchAlert({ icon: v as AlertIcon })}
+                  >
+                    <SelectTrigger className="w-[200px] h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">{t("themeOptions.alertBar.iconAuto")}</SelectItem>
+                      <SelectItem value="none">{t("themeOptions.alertBar.iconNone")}</SelectItem>
+                      <SelectItem value="Megaphone">Megaphone</SelectItem>
+                      <SelectItem value="Bell">Bell</SelectItem>
+                      <SelectItem value="Info">Info</SelectItem>
+                      <SelectItem value="AlertTriangle">Warning</SelectItem>
+                      <SelectItem value="Check">Check</SelectItem>
+                      <SelectItem value="Sparkles">Sparkles</SelectItem>
+                      <SelectItem value="Flame">Flame</SelectItem>
+                      <SelectItem value="Mail">Mail</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <Row
+                  label={t("themeOptions.alertBar.ctaPl")}
+                  hint={t("themeOptions.alertBar.ctaHint")}
+                >
+                  <Input
+                    value={draft.header.alert_bar.cta_label_pl}
+                    onChange={(e) => patchAlert({ cta_label_pl: e.target.value })}
+                    className="w-[320px] h-9 text-xs"
+                    placeholder="Czytaj więcej"
+                  />
+                </Row>
+                <Row label={t("themeOptions.alertBar.ctaEn")}>
+                  <Input
+                    value={draft.header.alert_bar.cta_label_en}
+                    onChange={(e) => patchAlert({ cta_label_en: e.target.value })}
+                    className="w-[320px] h-9 text-xs"
+                    placeholder="Read more"
+                  />
+                </Row>
+                <Row
+                  label={t("themeOptions.alertBar.dismissible")}
+                  hint={t("themeOptions.alertBar.dismissibleHint")}
+                >
+                  <Switch
+                    checked={draft.header.alert_bar.dismissible}
+                    onCheckedChange={(v) => patchAlert({ dismissible: v })}
+                  />
+                </Row>
+              </div>
+            )}
+
+            {active === "header.mobile" && (
+              <div className="space-y-4">
+                <Row
+                  label={t("themeOptions.mobile.breakpoint")}
+                  hint={t("themeOptions.mobile.breakpointHint")}
+                >
+                  <Input
+                    type="number"
+                    min={480}
+                    max={1400}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.header.mobile.breakpoint}
+                    onChange={(e) => patchMobile({ breakpoint: Number(e.target.value) || 1024 })}
+                  />
+                </Row>
+                <Row
+                  label={t("themeOptions.mobile.useMobileLogo")}
+                  hint={t("themeOptions.mobile.useMobileLogoHint")}
+                >
+                  <Switch
+                    checked={draft.header.mobile.use_mobile_logo}
+                    onCheckedChange={(v) => patchMobile({ use_mobile_logo: v })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.mobile.sticky")}>
+                  <Switch
+                    checked={draft.header.mobile.sticky}
+                    onCheckedChange={(v) => patchMobile({ sticky: v })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.mobile.showSearch")}>
+                  <Switch
+                    checked={draft.header.mobile.show_search}
+                    onCheckedChange={(v) => patchMobile({ show_search: v })}
+                  />
+                </Row>
+              </div>
+            )}
+
+            {active === "header.layout" && (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  {t("themeOptions.layout.description")}
+                </p>
+                <div className="grid md:grid-cols-2 gap-3">
+                  {(Object.keys(LAYOUT_PREVIEWS) as HeaderLayout[]).map((id) => {
+                    const meta = LAYOUT_PREVIEWS[id];
+                    const active = draft.header.layout === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => patchLayout(id)}
+                        className={`text-left rounded-lg border-2 p-3 transition ${
+                          active ? "border-brand bg-brand/5" : "border-border hover:border-brand/40"
+                        }`}
+                      >
+                        <HeaderLayoutPreview id={id} />
+                        <div className="text-sm font-medium mt-3">{meta.label}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">{meta.hint}</div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
-          </div>
-        )}
 
-        {active === "header.main_menu" && (
-          <div className="space-y-4">
-            <SectionTitle>{t("themeOptions.mainMenu.navTopLevel")}</SectionTitle>
-            <Row label={t("themeOptions.mainMenu.hoverEffect")} hint={t("themeOptions.mainMenu.hoverEffectHint")}>
-              <Select
-                value={draft.header.main_menu.hover_effect}
-                onValueChange={(v) => patchMenu({ hover_effect: v as ThemeOptions["header"]["main_menu"]["hover_effect"] })}
-              >
-                <SelectTrigger className="w-[220px] h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="color-border">{t("themeOptions.mainMenu.hoverColorBorder")}</SelectItem>
-                  <SelectItem value="underline">{t("themeOptions.mainMenu.hoverUnderline")}</SelectItem>
-                  <SelectItem value="background">{t("themeOptions.mainMenu.hoverBackground")}</SelectItem>
-                  <SelectItem value="scale">{t("themeOptions.mainMenu.hoverScale")}</SelectItem>
-                  <SelectItem value="none">{t("themeOptions.mainMenu.hoverNone")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </Row>
-            <Row label={t("themeOptions.mainMenu.sticky")} hint={t("themeOptions.mainMenu.stickyHint")}>
-              <Switch checked={draft.header.main_menu.sticky} onCheckedChange={(v) => patchMenu({ sticky: v })} />
-            </Row>
-            <Row label={t("themeOptions.mainMenu.smartSticky")} hint={t("themeOptions.mainMenu.smartStickyHint")}>
-              <Switch checked={draft.header.main_menu.smart_sticky} onCheckedChange={(v) => patchMenu({ smart_sticky: v })} />
-            </Row>
-            <Row label={t("themeOptions.mainMenu.glass")} hint={t("themeOptions.mainMenu.glassHint")}>
-              <Switch checked={draft.header.main_menu.glass_effect} onCheckedChange={(v) => patchMenu({ glass_effect: v })} />
-            </Row>
-            <Row label={t("themeOptions.mainMenu.itemSpacing")} hint={t("themeOptions.mainMenu.itemSpacingHint")}>
-              <Input
-                type="number" min={0} max={64}
-                className="w-[120px] h-9 text-xs"
-                value={draft.header.main_menu.item_spacing}
-                onChange={(e) => patchMenu({ item_spacing: Number(e.target.value) || 0 })}
-              />
-            </Row>
-            <Row label={t("themeOptions.mainMenu.iconSpacing")} hint={t("themeOptions.mainMenu.iconSpacingHint")}>
-              <Input
-                type="number" min={0} max={32}
-                className="w-[120px] h-9 text-xs"
-                value={draft.header.main_menu.icon_spacing}
-                onChange={(e) => patchMenu({ icon_spacing: Number(e.target.value) || 0 })}
-              />
-            </Row>
-
-            <SectionTitle>{t("themeOptions.mainMenu.subLevel")}</SectionTitle>
-            <Row label={t("themeOptions.mainMenu.submenuFrom")}>
-              <Input type="color" className="w-[80px] h-9" value={draft.header.main_menu.submenu_bg_from || "#ffffff"} onChange={(e) => patchMenu({ submenu_bg_from: e.target.value })} />
-            </Row>
-            <Row label={t("themeOptions.mainMenu.submenuTo")}>
-              <Input type="color" className="w-[80px] h-9" value={draft.header.main_menu.submenu_bg_to || "#ffffff"} onChange={(e) => patchMenu({ submenu_bg_to: e.target.value })} />
-            </Row>
-          </div>
-        )}
-
-        {active === "header.search" && (
-          <div className="space-y-4">
-            <Row label={t("themeOptions.search.icon")} hint={t("themeOptions.search.iconHint")}>
-              <Switch checked={draft.header.search.enabled} onCheckedChange={(v) => patchSearch({ enabled: v })} />
-            </Row>
-            <Row label={t("themeOptions.search.heading")} hint={t("themeOptions.search.headingHint")}>
-              <Input value={draft.header.search.heading} onChange={(e) => patchSearch({ heading: e.target.value })} className="w-[260px] h-9 text-xs" />
-            </Row>
-            <Row label={t("themeOptions.search.mode")} hint={t("themeOptions.search.modeHint")}>
-              <Select value={draft.header.search.mode} onValueChange={(v) => patchSearch({ mode: v as ThemeOptions["header"]["search"]["mode"] })}>
-                <SelectTrigger className="w-[260px] h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="standalone">{t("themeOptions.search.modeStandalone")}</SelectItem>
-                  <SelectItem value="dropdown">{t("themeOptions.search.modeDropdown")}</SelectItem>
-                  <SelectItem value="fullscreen">{t("themeOptions.search.modeFullscreen")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </Row>
-            <Row label={t("themeOptions.search.live")} hint={t("themeOptions.search.liveHint")}>
-              <Switch checked={draft.header.search.live_results} onCheckedChange={(v) => patchSearch({ live_results: v })} />
-            </Row>
-            <Row label={t("themeOptions.search.limit")} hint={t("themeOptions.search.limitHint")}>
-              <Input
-                type="number" min={1} max={10}
-                className="w-[120px] h-9 text-xs"
-                value={draft.header.search.live_limit}
-                onChange={(e) => patchSearch({ live_limit: Math.min(10, Math.max(1, Number(e.target.value) || 1)) })}
-              />
-            </Row>
-            <Row label={t("themeOptions.search.moreMenu")} hint={t("themeOptions.search.moreMenuHint")}>
-              <Switch checked={draft.header.search.more_menu_search} onCheckedChange={(v) => patchSearch({ more_menu_search: v })} />
-            </Row>
-          </div>
-        )}
-
-        {active === "header.alert_bar" && (
-          <div className="space-y-4">
-            <Row label={t("themeOptions.alertBar.enable")} hint={t("themeOptions.alertBar.enableHint")}>
-              <Switch checked={draft.header.alert_bar.enabled} onCheckedChange={(v) => patchAlert({ enabled: v })} />
-            </Row>
-            <Row label={t("themeOptions.alertBar.messagePl")}>
-              <Input value={draft.header.alert_bar.message_pl} onChange={(e) => patchAlert({ message_pl: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="Nowa publikacja dostępna…" />
-            </Row>
-            <Row label={t("themeOptions.alertBar.messageEn")}>
-              <Input value={draft.header.alert_bar.message_en} onChange={(e) => patchAlert({ message_en: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="New publication available…" />
-            </Row>
-            <Row label={t("themeOptions.alertBar.link")} hint={t("themeOptions.alertBar.linkHint")}>
-              <Input value={draft.header.alert_bar.link_url} onChange={(e) => patchAlert({ link_url: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="/blog" />
-            </Row>
-            <Row label={t("themeOptions.alertBar.style")}>
-              <Select value={draft.header.alert_bar.style} onValueChange={(v) => patchAlert({ style: v as AlertStyle })}>
-                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="brand">{t("themeOptions.alertBar.styleBrand")}</SelectItem>
-                  <SelectItem value="info">{t("themeOptions.alertBar.styleInfo")}</SelectItem>
-                  <SelectItem value="warning">{t("themeOptions.alertBar.styleWarning")}</SelectItem>
-                  <SelectItem value="success">{t("themeOptions.alertBar.styleSuccess")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </Row>
-            <Row label={t("themeOptions.alertBar.icon")} hint={t("themeOptions.alertBar.iconHint")}>
-              <Select value={draft.header.alert_bar.icon} onValueChange={(v) => patchAlert({ icon: v as AlertIcon })}>
-                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">{t("themeOptions.alertBar.iconAuto")}</SelectItem>
-                  <SelectItem value="none">{t("themeOptions.alertBar.iconNone")}</SelectItem>
-                  <SelectItem value="Megaphone">Megaphone</SelectItem>
-                  <SelectItem value="Bell">Bell</SelectItem>
-                  <SelectItem value="Info">Info</SelectItem>
-                  <SelectItem value="AlertTriangle">Warning</SelectItem>
-                  <SelectItem value="Check">Check</SelectItem>
-                  <SelectItem value="Sparkles">Sparkles</SelectItem>
-                  <SelectItem value="Flame">Flame</SelectItem>
-                  <SelectItem value="Mail">Mail</SelectItem>
-                </SelectContent>
-              </Select>
-            </Row>
-            <Row label={t("themeOptions.alertBar.ctaPl")} hint={t("themeOptions.alertBar.ctaHint")}>
-              <Input value={draft.header.alert_bar.cta_label_pl} onChange={(e) => patchAlert({ cta_label_pl: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="Czytaj więcej" />
-            </Row>
-            <Row label={t("themeOptions.alertBar.ctaEn")}>
-              <Input value={draft.header.alert_bar.cta_label_en} onChange={(e) => patchAlert({ cta_label_en: e.target.value })} className="w-[320px] h-9 text-xs" placeholder="Read more" />
-            </Row>
-            <Row label={t("themeOptions.alertBar.dismissible")} hint={t("themeOptions.alertBar.dismissibleHint")}>
-              <Switch checked={draft.header.alert_bar.dismissible} onCheckedChange={(v) => patchAlert({ dismissible: v })} />
-            </Row>
-          </div>
-        )}
-
-        {active === "header.mobile" && (
-          <div className="space-y-4">
-            <Row label={t("themeOptions.mobile.breakpoint")} hint={t("themeOptions.mobile.breakpointHint")}>
-              <Input
-                type="number" min={480} max={1400}
-                className="w-[120px] h-9 text-xs"
-                value={draft.header.mobile.breakpoint}
-                onChange={(e) => patchMobile({ breakpoint: Number(e.target.value) || 1024 })}
-              />
-            </Row>
-            <Row label={t("themeOptions.mobile.useMobileLogo")} hint={t("themeOptions.mobile.useMobileLogoHint")}>
-              <Switch checked={draft.header.mobile.use_mobile_logo} onCheckedChange={(v) => patchMobile({ use_mobile_logo: v })} />
-            </Row>
-            <Row label={t("themeOptions.mobile.sticky")}>
-              <Switch checked={draft.header.mobile.sticky} onCheckedChange={(v) => patchMobile({ sticky: v })} />
-            </Row>
-            <Row label={t("themeOptions.mobile.showSearch")}>
-              <Switch checked={draft.header.mobile.show_search} onCheckedChange={(v) => patchMobile({ show_search: v })} />
-            </Row>
-          </div>
-        )}
-
-        {active === "header.layout" && (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">{t("themeOptions.layout.description")}</p>
-            <div className="grid md:grid-cols-2 gap-3">
-              {(Object.keys(LAYOUT_PREVIEWS) as HeaderLayout[]).map((id) => {
-                const meta = LAYOUT_PREVIEWS[id];
-                const active = draft.header.layout === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => patchLayout(id)}
-                    className={`text-left rounded-lg border-2 p-3 transition ${
-                      active ? "border-brand bg-brand/5" : "border-border hover:border-brand/40"
-                    }`}
+            {active === "header.socials" && (
+              <div className="space-y-4">
+                <Row
+                  label={t("themeOptions.socials.placement")}
+                  hint={t("themeOptions.socials.placementHint")}
+                >
+                  <Select
+                    value={draft.header.socials.placement}
+                    onValueChange={(v) => patchSocials({ placement: v as SocialPlacement })}
                   >
-                    <HeaderLayoutPreview id={id} />
-                    <div className="text-sm font-medium mt-3">{meta.label}</div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">{meta.hint}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                    <SelectTrigger className="w-[200px] h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="topbar">
+                        {t("themeOptions.socials.placementTopbar")}
+                      </SelectItem>
+                      <SelectItem value="navbar">
+                        {t("themeOptions.socials.placementNavbar")}
+                      </SelectItem>
+                      <SelectItem value="both">
+                        {t("themeOptions.socials.placementBoth")}
+                      </SelectItem>
+                      <SelectItem value="hidden">
+                        {t("themeOptions.socials.placementHidden")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <Row label={t("themeOptions.socials.size")}>
+                  <Input
+                    type="number"
+                    min={12}
+                    max={32}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.header.socials.size}
+                    onChange={(e) => patchSocials({ size: Number(e.target.value) || 16 })}
+                  />
+                </Row>
+                {(
+                  ["facebook", "twitter", "instagram", "linkedin", "youtube", "email"] as const
+                ).map((k) => (
+                  <Row
+                    key={k}
+                    label={k.charAt(0).toUpperCase() + k.slice(1)}
+                    hint={
+                      k === "email"
+                        ? t("themeOptions.socials.emailHint")
+                        : t("themeOptions.socials.profileHint")
+                    }
+                  >
+                    <Input
+                      value={draft.header.socials[k]}
+                      onChange={(e) =>
+                        patchSocials({ [k]: e.target.value } as Partial<
+                          ThemeOptions["header"]["socials"]
+                        >)
+                      }
+                      className="w-[320px] h-9 text-xs"
+                      placeholder={k === "email" ? "kontakt@example.com" : `https://${k}.com/...`}
+                    />
+                  </Row>
+                ))}
+              </div>
+            )}
 
-        {active === "header.socials" && (
-          <div className="space-y-4">
-            <Row label={t("themeOptions.socials.placement")} hint={t("themeOptions.socials.placementHint")}>
-              <Select value={draft.header.socials.placement} onValueChange={(v) => patchSocials({ placement: v as SocialPlacement })}>
-                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="topbar">{t("themeOptions.socials.placementTopbar")}</SelectItem>
-                  <SelectItem value="navbar">{t("themeOptions.socials.placementNavbar")}</SelectItem>
-                  <SelectItem value="both">{t("themeOptions.socials.placementBoth")}</SelectItem>
-                  <SelectItem value="hidden">{t("themeOptions.socials.placementHidden")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </Row>
-            <Row label={t("themeOptions.socials.size")}>
-              <Input type="number" min={12} max={32} className="w-[120px] h-9 text-xs"
-                value={draft.header.socials.size}
-                onChange={(e) => patchSocials({ size: Number(e.target.value) || 16 })} />
-            </Row>
-            {(["facebook", "twitter", "instagram", "linkedin", "youtube", "email"] as const).map((k) => (
-              <Row key={k} label={k.charAt(0).toUpperCase() + k.slice(1)} hint={k === "email" ? t("themeOptions.socials.emailHint") : t("themeOptions.socials.profileHint")}>
-                <Input value={draft.header.socials[k]} onChange={(e) => patchSocials({ [k]: e.target.value } as Partial<ThemeOptions["header"]["socials"]>)} className="w-[320px] h-9 text-xs" placeholder={k === "email" ? "kontakt@example.com" : `https://${k}.com/...`} />
-              </Row>
-            ))}
-          </div>
-        )}
+            {active === "header.signin" && (
+              <div className="space-y-4">
+                <Row
+                  label={t("themeOptions.signin.enable")}
+                  hint={t("themeOptions.signin.enableHint")}
+                >
+                  <Switch
+                    checked={draft.header.signin.enabled}
+                    onCheckedChange={(v) => patchSignin({ enabled: v })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.signin.showSignup")}>
+                  <Switch
+                    checked={draft.header.signin.show_signup}
+                    onCheckedChange={(v) => patchSignin({ show_signup: v })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.signin.variant")}>
+                  <Select
+                    value={draft.header.signin.variant}
+                    onValueChange={(v) => patchSignin({ variant: v as ButtonVariant })}
+                  >
+                    <SelectTrigger className="w-[200px] h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="solid">{t("themeOptions.signin.variantSolid")}</SelectItem>
+                      <SelectItem value="outline">
+                        {t("themeOptions.signin.variantOutline")}
+                      </SelectItem>
+                      <SelectItem value="ghost">{t("themeOptions.signin.variantGhost")}</SelectItem>
+                      <SelectItem value="pill">{t("themeOptions.signin.variantPill")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <Row label={t("themeOptions.signin.signinPl")}>
+                  <Input
+                    value={draft.header.signin.signin_label_pl}
+                    onChange={(e) => patchSignin({ signin_label_pl: e.target.value })}
+                    className="w-[220px] h-9 text-xs"
+                  />
+                </Row>
+                <Row label={t("themeOptions.signin.signinEn")}>
+                  <Input
+                    value={draft.header.signin.signin_label_en}
+                    onChange={(e) => patchSignin({ signin_label_en: e.target.value })}
+                    className="w-[220px] h-9 text-xs"
+                  />
+                </Row>
+                <Row label={t("themeOptions.signin.signupPl")}>
+                  <Input
+                    value={draft.header.signin.signup_label_pl}
+                    onChange={(e) => patchSignin({ signup_label_pl: e.target.value })}
+                    className="w-[220px] h-9 text-xs"
+                  />
+                </Row>
+                <Row label={t("themeOptions.signin.signupEn")}>
+                  <Input
+                    value={draft.header.signin.signup_label_en}
+                    onChange={(e) => patchSignin({ signup_label_en: e.target.value })}
+                    className="w-[220px] h-9 text-xs"
+                  />
+                </Row>
+              </div>
+            )}
 
-        {active === "header.signin" && (
-          <div className="space-y-4">
-            <Row label={t("themeOptions.signin.enable")} hint={t("themeOptions.signin.enableHint")}>
-              <Switch checked={draft.header.signin.enabled} onCheckedChange={(v) => patchSignin({ enabled: v })} />
-            </Row>
-            <Row label={t("themeOptions.signin.showSignup")}>
-              <Switch checked={draft.header.signin.show_signup} onCheckedChange={(v) => patchSignin({ show_signup: v })} />
-            </Row>
-            <Row label={t("themeOptions.signin.variant")}>
-              <Select value={draft.header.signin.variant} onValueChange={(v) => patchSignin({ variant: v as ButtonVariant })}>
-                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="solid">{t("themeOptions.signin.variantSolid")}</SelectItem>
-                  <SelectItem value="outline">{t("themeOptions.signin.variantOutline")}</SelectItem>
-                  <SelectItem value="ghost">{t("themeOptions.signin.variantGhost")}</SelectItem>
-                  <SelectItem value="pill">{t("themeOptions.signin.variantPill")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </Row>
-            <Row label={t("themeOptions.signin.signinPl")}>
-              <Input value={draft.header.signin.signin_label_pl} onChange={(e) => patchSignin({ signin_label_pl: e.target.value })} className="w-[220px] h-9 text-xs" />
-            </Row>
-            <Row label={t("themeOptions.signin.signinEn")}>
-              <Input value={draft.header.signin.signin_label_en} onChange={(e) => patchSignin({ signin_label_en: e.target.value })} className="w-[220px] h-9 text-xs" />
-            </Row>
-            <Row label={t("themeOptions.signin.signupPl")}>
-              <Input value={draft.header.signin.signup_label_pl} onChange={(e) => patchSignin({ signup_label_pl: e.target.value })} className="w-[220px] h-9 text-xs" />
-            </Row>
-            <Row label={t("themeOptions.signin.signupEn")}>
-              <Input value={draft.header.signin.signup_label_en} onChange={(e) => patchSignin({ signup_label_en: e.target.value })} className="w-[220px] h-9 text-xs" />
-            </Row>
-          </div>
-        )}
+            {active === "buttons" && (
+              <div className="space-y-4">
+                <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
+                  {t("themeOptions.buttons.hint")}
+                </div>
+                <Row label={t("themeOptions.buttons.defaultVariant")}>
+                  <Select
+                    value={draft.buttons.default_variant}
+                    onValueChange={(v) => patchButtons({ default_variant: v as ButtonVariant })}
+                  >
+                    <SelectTrigger className="w-[200px] h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="solid">{t("themeOptions.signin.variantSolid")}</SelectItem>
+                      <SelectItem value="outline">
+                        {t("themeOptions.signin.variantOutline")}
+                      </SelectItem>
+                      <SelectItem value="ghost">Ghost</SelectItem>
+                      <SelectItem value="pill">Pill</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <Row label={t("themeOptions.buttons.defaultSize")}>
+                  <Select
+                    value={draft.buttons.default_size}
+                    onValueChange={(v) => patchButtons({ default_size: v as ButtonSize })}
+                  >
+                    <SelectTrigger className="w-[160px] h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sm">{t("themeOptions.buttons.sizeSm")}</SelectItem>
+                      <SelectItem value="md">{t("themeOptions.buttons.sizeMd")}</SelectItem>
+                      <SelectItem value="lg">{t("themeOptions.buttons.sizeLg")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <Row
+                  label={t("themeOptions.buttons.radius")}
+                  hint={t("themeOptions.buttons.radiusHint")}
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    max={999}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.buttons.radius}
+                    onChange={(e) => patchButtons({ radius: Number(e.target.value) || 0 })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.buttons.paddingX")}>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={64}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.buttons.padding_x}
+                    onChange={(e) => patchButtons({ padding_x: Number(e.target.value) || 0 })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.buttons.paddingY")}>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={48}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.buttons.padding_y}
+                    onChange={(e) => patchButtons({ padding_y: Number(e.target.value) || 0 })}
+                  />
+                </Row>
+                <Row
+                  label={t("themeOptions.buttons.fontWeight")}
+                  hint={t("themeOptions.buttons.fontWeightHint")}
+                >
+                  <Select
+                    value={String(draft.buttons.font_weight)}
+                    onValueChange={(v) => patchButtons({ font_weight: Number(v) })}
+                  >
+                    <SelectTrigger className="w-[160px] h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="400">400 - Regular</SelectItem>
+                      <SelectItem value="500">500 - Medium</SelectItem>
+                      <SelectItem value="600">600 - Semibold</SelectItem>
+                      <SelectItem value="700">700 - Bold</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <Row
+                  label={t("themeOptions.buttons.uppercase")}
+                  hint={t("themeOptions.buttons.uppercaseHint")}
+                >
+                  <Switch
+                    checked={draft.buttons.uppercase}
+                    onCheckedChange={(v) => patchButtons({ uppercase: v })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.buttons.letterSpacing")}>
+                  <Input
+                    type="number"
+                    min={-2}
+                    max={8}
+                    step={0.1}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.buttons.letter_spacing}
+                    onChange={(e) => patchButtons({ letter_spacing: Number(e.target.value) || 0 })}
+                  />
+                </Row>
+                <ButtonPreview opts={draft.buttons} />
+              </div>
+            )}
 
-        {active === "buttons" && (
-          <div className="space-y-4">
-            <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
-              {t("themeOptions.buttons.hint")}
-            </div>
-            <Row label={t("themeOptions.buttons.defaultVariant")}>
-              <Select value={draft.buttons.default_variant} onValueChange={(v) => patchButtons({ default_variant: v as ButtonVariant })}>
-                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="solid">{t("themeOptions.signin.variantSolid")}</SelectItem>
-                  <SelectItem value="outline">{t("themeOptions.signin.variantOutline")}</SelectItem>
-                  <SelectItem value="ghost">Ghost</SelectItem>
-                  <SelectItem value="pill">Pill</SelectItem>
-                </SelectContent>
-              </Select>
-            </Row>
-            <Row label={t("themeOptions.buttons.defaultSize")}>
-              <Select value={draft.buttons.default_size} onValueChange={(v) => patchButtons({ default_size: v as ButtonSize })}>
-                <SelectTrigger className="w-[160px] h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sm">{t("themeOptions.buttons.sizeSm")}</SelectItem>
-                  <SelectItem value="md">{t("themeOptions.buttons.sizeMd")}</SelectItem>
-                  <SelectItem value="lg">{t("themeOptions.buttons.sizeLg")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </Row>
-            <Row label={t("themeOptions.buttons.radius")} hint={t("themeOptions.buttons.radiusHint")}>
-              <Input type="number" min={0} max={999} className="w-[120px] h-9 text-xs"
-                value={draft.buttons.radius}
-                onChange={(e) => patchButtons({ radius: Number(e.target.value) || 0 })} />
-            </Row>
-            <Row label={t("themeOptions.buttons.paddingX")}>
-              <Input type="number" min={0} max={64} className="w-[120px] h-9 text-xs"
-                value={draft.buttons.padding_x}
-                onChange={(e) => patchButtons({ padding_x: Number(e.target.value) || 0 })} />
-            </Row>
-            <Row label={t("themeOptions.buttons.paddingY")}>
-              <Input type="number" min={0} max={48} className="w-[120px] h-9 text-xs"
-                value={draft.buttons.padding_y}
-                onChange={(e) => patchButtons({ padding_y: Number(e.target.value) || 0 })} />
-            </Row>
-            <Row label={t("themeOptions.buttons.fontWeight")} hint={t("themeOptions.buttons.fontWeightHint")}>
-              <Select value={String(draft.buttons.font_weight)} onValueChange={(v) => patchButtons({ font_weight: Number(v) })}>
-                <SelectTrigger className="w-[160px] h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="400">400 - Regular</SelectItem>
-                  <SelectItem value="500">500 - Medium</SelectItem>
-                  <SelectItem value="600">600 - Semibold</SelectItem>
-                  <SelectItem value="700">700 - Bold</SelectItem>
-                </SelectContent>
-              </Select>
-            </Row>
-            <Row label={t("themeOptions.buttons.uppercase")} hint={t("themeOptions.buttons.uppercaseHint")}>
-              <Switch checked={draft.buttons.uppercase} onCheckedChange={(v) => patchButtons({ uppercase: v })} />
-            </Row>
-            <Row label={t("themeOptions.buttons.letterSpacing")}>
-              <Input type="number" min={-2} max={8} step={0.1} className="w-[120px] h-9 text-xs"
-                value={draft.buttons.letter_spacing}
-                onChange={(e) => patchButtons({ letter_spacing: Number(e.target.value) || 0 })} />
-            </Row>
-            <ButtonPreview opts={draft.buttons} />
-          </div>
-        )}
-
-        {active === "text_fields" && (
-          <div className="space-y-4">
-            <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
-              {t("themeOptions.inputs.hint")}
-            </div>
-            <Row label={t("themeOptions.inputs.style")}>
-              <Select value={draft.text_fields.style} onValueChange={(v) => patchInputs({ style: v as InputStyle })}>
-                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="filled">{t("themeOptions.inputs.styleFilled")}</SelectItem>
-                  <SelectItem value="outline">{t("themeOptions.inputs.styleOutline")}</SelectItem>
-                  <SelectItem value="underline">{t("themeOptions.inputs.styleUnderline")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </Row>
-            <Row label={t("themeOptions.inputs.radius")}>
-              <Input type="number" min={0} max={32} className="w-[120px] h-9 text-xs"
-                value={draft.text_fields.radius}
-                onChange={(e) => patchInputs({ radius: Number(e.target.value) || 0 })} />
-            </Row>
-            <Row label={t("themeOptions.inputs.height")}>
-              <Input type="number" min={28} max={72} className="w-[120px] h-9 text-xs"
-                value={draft.text_fields.height}
-                onChange={(e) => patchInputs({ height: Number(e.target.value) || 40 })} />
-            </Row>
-            <Row label={t("themeOptions.inputs.borderWidth")}>
-              <Input type="number" min={0} max={4} className="w-[120px] h-9 text-xs"
-                value={draft.text_fields.border_width}
-                onChange={(e) => patchInputs({ border_width: Number(e.target.value) || 0 })} />
-            </Row>
-            <Row label={t("themeOptions.inputs.focusRing")} hint={t("themeOptions.inputs.focusRingHint")}>
-              <Select value={draft.text_fields.focus_ring} onValueChange={(v) => patchInputs({ focus_ring: v as FocusRing })}>
-                <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t("themeOptions.inputs.focusNone")}</SelectItem>
-                  <SelectItem value="brand">{t("themeOptions.inputs.focusBrand")}</SelectItem>
-                  <SelectItem value="border">{t("themeOptions.inputs.focusBorder")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </Row>
-            <Row label={t("themeOptions.inputs.ringWidth")}>
-              <Input type="number" min={0} max={6} className="w-[120px] h-9 text-xs"
-                value={draft.text_fields.focus_ring_width}
-                onChange={(e) => patchInputs({ focus_ring_width: Number(e.target.value) || 0 })} />
-            </Row>
-            <Row label={t("themeOptions.inputs.showLabel")} hint={t("themeOptions.inputs.showLabelHint")}>
-              <Switch checked={draft.text_fields.show_label_above} onCheckedChange={(v) => patchInputs({ show_label_above: v })} />
-            </Row>
-            <InputPreview opts={draft.text_fields} />
-          </div>
-        )}
-
-        </>
-
-
+            {active === "text_fields" && (
+              <div className="space-y-4">
+                <div className="rounded-md border border-l-4 border-l-brand bg-brand/5 p-3 text-xs">
+                  {t("themeOptions.inputs.hint")}
+                </div>
+                <Row label={t("themeOptions.inputs.style")}>
+                  <Select
+                    value={draft.text_fields.style}
+                    onValueChange={(v) => patchInputs({ style: v as InputStyle })}
+                  >
+                    <SelectTrigger className="w-[200px] h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="filled">{t("themeOptions.inputs.styleFilled")}</SelectItem>
+                      <SelectItem value="outline">
+                        {t("themeOptions.inputs.styleOutline")}
+                      </SelectItem>
+                      <SelectItem value="underline">
+                        {t("themeOptions.inputs.styleUnderline")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <Row label={t("themeOptions.inputs.radius")}>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={32}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.text_fields.radius}
+                    onChange={(e) => patchInputs({ radius: Number(e.target.value) || 0 })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.inputs.height")}>
+                  <Input
+                    type="number"
+                    min={28}
+                    max={72}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.text_fields.height}
+                    onChange={(e) => patchInputs({ height: Number(e.target.value) || 40 })}
+                  />
+                </Row>
+                <Row label={t("themeOptions.inputs.borderWidth")}>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={4}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.text_fields.border_width}
+                    onChange={(e) => patchInputs({ border_width: Number(e.target.value) || 0 })}
+                  />
+                </Row>
+                <Row
+                  label={t("themeOptions.inputs.focusRing")}
+                  hint={t("themeOptions.inputs.focusRingHint")}
+                >
+                  <Select
+                    value={draft.text_fields.focus_ring}
+                    onValueChange={(v) => patchInputs({ focus_ring: v as FocusRing })}
+                  >
+                    <SelectTrigger className="w-[200px] h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t("themeOptions.inputs.focusNone")}</SelectItem>
+                      <SelectItem value="brand">{t("themeOptions.inputs.focusBrand")}</SelectItem>
+                      <SelectItem value="border">{t("themeOptions.inputs.focusBorder")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Row>
+                <Row label={t("themeOptions.inputs.ringWidth")}>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={6}
+                    className="w-[120px] h-9 text-xs"
+                    value={draft.text_fields.focus_ring_width}
+                    onChange={(e) => patchInputs({ focus_ring_width: Number(e.target.value) || 0 })}
+                  />
+                </Row>
+                <Row
+                  label={t("themeOptions.inputs.showLabel")}
+                  hint={t("themeOptions.inputs.showLabelHint")}
+                >
+                  <Switch
+                    checked={draft.text_fields.show_label_above}
+                    onCheckedChange={(v) => patchInputs({ show_label_above: v })}
+                  />
+                </Row>
+                <InputPreview opts={draft.text_fields} />
+              </div>
+            )}
+          </>
         )}
       </section>
     </ThemeOptionsBody>
@@ -858,19 +1338,42 @@ function ButtonPreview({ opts }: { opts: ThemeOptions["buttons"] }) {
   };
   return (
     <div className="rounded-md border border-border bg-background/40 p-4">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{t("themeOptions.buttons.preview")}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+        {t("themeOptions.buttons.preview")}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
-        <button style={{ ...base, background: "var(--gc-btn-bg, hsl(var(--primary)))", color: "var(--gc-btn-text, hsl(var(--primary-foreground)))" }}>Solid</button>
-        <button style={{ ...base, background: "transparent", color: "var(--gc-btn-bg, hsl(var(--primary)))", border: `2px solid var(--gc-btn-bg, hsl(var(--primary)))` }}>Outline</button>
-        <button style={{ ...base, background: "transparent", color: "var(--gc-btn-bg, hsl(var(--primary)))" }}>Ghost</button>
+        <button
+          style={{
+            ...base,
+            background: "var(--gc-btn-bg, hsl(var(--primary)))",
+            color: "var(--gc-btn-text, hsl(var(--primary-foreground)))",
+          }}
+        >
+          Solid
+        </button>
+        <button
+          style={{
+            ...base,
+            background: "transparent",
+            color: "var(--gc-btn-bg, hsl(var(--primary)))",
+            border: `2px solid var(--gc-btn-bg, hsl(var(--primary)))`,
+          }}
+        >
+          Outline
+        </button>
+        <button
+          style={{
+            ...base,
+            background: "transparent",
+            color: "var(--gc-btn-bg, hsl(var(--primary)))",
+          }}
+        >
+          Ghost
+        </button>
       </div>
     </div>
   );
 }
-
-
-
-
 
 function InputPreview({ opts }: { opts: ThemeOptions["text_fields"] }) {
   const { t } = useTranslation();
@@ -883,7 +1386,11 @@ function InputPreview({ opts }: { opts: ThemeOptions["text_fields"] }) {
     borderBottomWidth: isUnderline ? Math.max(1, opts.border_width) : opts.border_width,
     borderStyle: "solid",
     borderColor: "var(--gc-input-border, hsl(var(--border)))",
-    background: isFilled ? "var(--gc-input-bg, hsl(var(--muted)))" : isUnderline ? "transparent" : "var(--gc-input-bg, hsl(var(--background)))",
+    background: isFilled
+      ? "var(--gc-input-bg, hsl(var(--muted)))"
+      : isUnderline
+        ? "transparent"
+        : "var(--gc-input-bg, hsl(var(--background)))",
     color: "var(--gc-input-text, inherit)",
     paddingLeft: isUnderline ? 0 : 12,
     paddingRight: isUnderline ? 0 : 12,
@@ -893,9 +1400,15 @@ function InputPreview({ opts }: { opts: ThemeOptions["text_fields"] }) {
   };
   return (
     <div className="rounded-md border border-border bg-background/40 p-4 space-y-2">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("themeOptions.inputs.preview")}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        {t("themeOptions.inputs.preview")}
+      </div>
       {opts.show_label_above && <Label className="text-xs">E-mail</Label>}
-      <input type="email" placeholder={opts.show_label_above ? "twoj@email.pl" : "E-mail"} style={style} />
+      <input
+        type="email"
+        placeholder={opts.show_label_above ? "twoj@email.pl" : "E-mail"}
+        style={style}
+      />
       <p className="text-[10px] text-muted-foreground">{t("themeOptions.inputs.hoverHint")}</p>
     </div>
   );
@@ -928,7 +1441,10 @@ function ThemeOptionsBody({
           "shrink-0 border border-border rounded-lg bg-card p-2 self-start sidebar-shell",
         )}
       >
-        <div data-sidebar="group-label" className="px-2 pb-2 pt-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+        <div
+          data-sidebar="group-label"
+          className="px-2 pb-2 pt-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium"
+        >
           {t("nav.themeOptions")}
         </div>
         <nav className="space-y-0.5">
@@ -962,7 +1478,6 @@ function ThemeOptionsBody({
   );
 }
 
-
 function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
   // Tokens
   const bg = "hsl(var(--muted))";
@@ -992,7 +1507,9 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
             <Bar y={10} h={40} fill="transparent" />
             <Logo cx={100} cy={30} />
             <Bar y={50} h={20} fill="hsl(var(--muted) / 0.4)" />
-            {navItems.map((i) => <NavDot key={i} x={50 + i * 28} y={60} />)}
+            {navItems.map((i) => (
+              <NavDot key={i} x={50 + i * 28} y={60} />
+            ))}
             <Bar y={70} h={20} fill="transparent" />
           </>
         )}
@@ -1000,7 +1517,9 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
           <>
             <Bar y={0} h={36} fill="hsl(var(--muted) / 0.4)" />
             <Logo cx={28} cy={18} />
-            {navItems.map((i) => <NavDot key={i} x={90 + i * 22} y={18} />)}
+            {navItems.map((i) => (
+              <NavDot key={i} x={90 + i * 22} y={18} />
+            ))}
             <rect x="180" y={14} width="14" height="8" rx="2" fill={brand} opacity="0.7" />
             <Bar y={36} h={54} fill="transparent" />
           </>
@@ -1026,7 +1545,9 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
             <Bar y={10} h={32} fill="transparent" />
             <Logo cx={100} cy={26} w={36} />
             <Bar y={42} h={18} fill="hsl(var(--muted) / 0.4)" />
-            {navItems.map((i) => <NavDot key={i} x={56 + i * 26} y={51} />)}
+            {navItems.map((i) => (
+              <NavDot key={i} x={56 + i * 26} y={51} />
+            ))}
             <Bar y={60} h={30} fill="transparent" />
           </>
         )}
@@ -1034,7 +1555,9 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
           <>
             <Bar y={0} h={36} fill="transparent" />
             <Logo cx={28} cy={18} />
-            {navItems.map((i) => <NavDot key={i} x={110 + i * 22} y={18} />)}
+            {navItems.map((i) => (
+              <NavDot key={i} x={110 + i * 22} y={18} />
+            ))}
             <Bar y={36} h={54} fill="transparent" />
           </>
         )}
@@ -1043,7 +1566,16 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
             <rect x="0" y="0" width="44" height="90" fill="hsl(var(--muted) / 0.6)" />
             <Logo cx={22} cy={12} w={22} />
             {navItems.map((i) => (
-              <rect key={i} x={8} y={26 + i * 12} width={28} height={6} rx="1.5" fill={fg} opacity="0.55" />
+              <rect
+                key={i}
+                x={8}
+                y={26 + i * 12}
+                width={28}
+                height={6}
+                rx="1.5"
+                fill={fg}
+                opacity="0.55"
+              />
             ))}
             <rect x="44" y="0" width="1" height="90" fill={border} />
             <Bar y={0} h={90} fill="transparent" />
@@ -1057,10 +1589,21 @@ function HeaderLayoutPreview({ id }: { id: HeaderLayout }) {
   );
 }
 
-
-function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark") => void }) {
+function LogoTabs({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (
+    v: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark",
+  ) => void;
+}) {
   const { t } = useTranslation(undefined, { keyPrefix: "admin" });
-  const tabs: { id: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark"; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  const tabs: {
+    id: "default" | "mobile" | "transparent" | "organization" | "sidebar" | "bookmark";
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[] = [
     { id: "default", label: t("themeOptions.logoTabs.default"), icon: ImageIcon },
     { id: "mobile", label: t("themeOptions.logoTabs.mobile"), icon: Smartphone },
     { id: "transparent", label: t("themeOptions.logoTabs.transparent"), icon: Eye },
@@ -1079,7 +1622,9 @@ function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" 
             type="button"
             onClick={() => onChange(tab.id)}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs transition ${
-              active ? "bg-brand text-brand-foreground" : "hover:bg-background text-muted-foreground"
+              active
+                ? "bg-brand text-brand-foreground"
+                : "hover:bg-background text-muted-foreground"
             }`}
           >
             <Icon className="w-3.5 h-3.5" />
@@ -1093,13 +1638,24 @@ function LogoTabs({ value, onChange }: { value: string; onChange: (v: "default" 
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-md text-white text-xs font-semibold px-3 py-2" style={{ background: "#FA9346" }}>
+    <div
+      className="rounded-md text-white text-xs font-semibold px-3 py-2"
+      style={{ background: "#FA9346" }}
+    >
       {children}
     </div>
   );
 }
 
-function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Row({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="grid grid-cols-[1fr_auto] gap-4 py-2 border-b border-border/60 last:border-0 items-center">
       <div>
@@ -1117,12 +1673,30 @@ function useLogoLocations(): Record<string, { title: string; locations: string[]
   const { t } = useTranslation(undefined, { keyPrefix: "admin" });
   const arr = (k: string) => t(k, { returnObjects: true }) as unknown as string[];
   return {
-    default: { title: t("themeOptions.locations.mainTitle"), locations: arr("themeOptions.locations.mainItems") },
-    mobile: { title: t("themeOptions.locations.mobileTitle"), locations: arr("themeOptions.locations.mobileItems") },
-    transparent: { title: t("themeOptions.locations.transparentTitle"), locations: arr("themeOptions.locations.transparentItems") },
-    organization: { title: t("themeOptions.locations.organizationTitle"), locations: arr("themeOptions.locations.organizationItems") },
-    bookmark: { title: t("themeOptions.locations.bookmarkTitle"), locations: arr("themeOptions.locations.bookmarkItems") },
-    sidebar: { title: t("themeOptions.locations.sidebarTitle"), locations: arr("themeOptions.locations.sidebarItems") },
+    default: {
+      title: t("themeOptions.locations.mainTitle"),
+      locations: arr("themeOptions.locations.mainItems"),
+    },
+    mobile: {
+      title: t("themeOptions.locations.mobileTitle"),
+      locations: arr("themeOptions.locations.mobileItems"),
+    },
+    transparent: {
+      title: t("themeOptions.locations.transparentTitle"),
+      locations: arr("themeOptions.locations.transparentItems"),
+    },
+    organization: {
+      title: t("themeOptions.locations.organizationTitle"),
+      locations: arr("themeOptions.locations.organizationItems"),
+    },
+    bookmark: {
+      title: t("themeOptions.locations.bookmarkTitle"),
+      locations: arr("themeOptions.locations.bookmarkItems"),
+    },
+    sidebar: {
+      title: t("themeOptions.locations.sidebarTitle"),
+      locations: arr("themeOptions.locations.sidebarItems"),
+    },
   };
 }
 
@@ -1137,10 +1711,23 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
   };
   const sources = (() => {
     if (tab === "mobile") return pick(logo.mobile, logo.mobile_dark);
-    if (tab === "transparent") return { l: logo.transparent || logo.main || "", d: logo.transparent_dark || logo.transparent || logo.main_dark || logo.main || "" };
-    if (tab === "organization") return { l: logo.organization || logo.main || "", d: logo.organization_dark || logo.organization || logo.main_dark || logo.main || "" };
-    if (tab === "sidebar") return { l: logo.sidebar_expanded || logo.main || "", d: logo.sidebar_expanded_dark || logo.sidebar_expanded || logo.main_dark || logo.main || "" };
-    if (tab === "bookmark") return { l: logo.bookmark_ios || "", d: logo.bookmark_ios_dark || logo.bookmark_ios || "" };
+    if (tab === "transparent")
+      return {
+        l: logo.transparent || logo.main || "",
+        d: logo.transparent_dark || logo.transparent || logo.main_dark || logo.main || "",
+      };
+    if (tab === "organization")
+      return {
+        l: logo.organization || logo.main || "",
+        d: logo.organization_dark || logo.organization || logo.main_dark || logo.main || "",
+      };
+    if (tab === "sidebar")
+      return {
+        l: logo.sidebar_expanded || logo.main || "",
+        d: logo.sidebar_expanded_dark || logo.sidebar_expanded || logo.main_dark || logo.main || "",
+      };
+    if (tab === "bookmark")
+      return { l: logo.bookmark_ios || "", d: logo.bookmark_ios_dark || logo.bookmark_ios || "" };
     return pick(logo.main, logo.main_dark);
   })();
 
@@ -1153,19 +1740,28 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
         className="rounded-md border p-4 flex flex-col gap-2 min-h-[110px] transition-all"
         style={{
           background: isDark ? "#131822" : "#F8F6F4",
-          borderColor: active ? "#FA9346" : (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"),
+          borderColor: active ? "#FA9346" : isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
           color: isDark ? "#e5e7eb" : "#1b1f27",
           boxShadow: active ? "0 0 0 2px rgba(250,147,70,0.25)" : undefined,
         }}
       >
         <div className="flex items-center justify-between">
           <span className="text-[9px] uppercase tracking-widest" style={{ opacity: 0.6 }}>
-            {isDark ? t("themeOptions.preview.darkMode") : t("themeOptions.preview.lightMode")}{active ? ` • ${t("themeOptions.preview.activeSuffix")}` : ""}
+            {isDark ? t("themeOptions.preview.darkMode") : t("themeOptions.preview.lightMode")}
+            {active ? ` • ${t("themeOptions.preview.activeSuffix")}` : ""}
           </span>
           <button
             type="button"
-            onClick={() => { if (!active) toggle(); }}
-            title={active ? t("themeOptions.preview.activeTheme") : (isDark ? t("themeOptions.preview.switchToDark") : t("themeOptions.preview.switchToLight"))}
+            onClick={() => {
+              if (!active) toggle();
+            }}
+            title={
+              active
+                ? t("themeOptions.preview.activeTheme")
+                : isDark
+                  ? t("themeOptions.preview.switchToDark")
+                  : t("themeOptions.preview.switchToLight")
+            }
             aria-pressed={active}
             className="group relative w-9 h-9 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
             style={{
@@ -1180,7 +1776,10 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
           >
             {isDark ? (
               <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
-                <path d="M20 14.5A8 8 0 0 1 9.5 4a1 1 0 0 0-1.3-1.2A9.5 9.5 0 1 0 21.2 15.8a1 1 0 0 0-1.2-1.3Z" fill="#e2e8f0" />
+                <path
+                  d="M20 14.5A8 8 0 0 1 9.5 4a1 1 0 0 0-1.3-1.2A9.5 9.5 0 1 0 21.2 15.8a1 1 0 0 0-1.2-1.3Z"
+                  fill="#e2e8f0"
+                />
                 <circle cx="16" cy="6" r="0.8" fill="#fff" />
                 <circle cx="19" cy="9" r="0.5" fill="#fff" />
                 <circle cx="14" cy="3.5" r="0.4" fill="#fff" />
@@ -1211,7 +1810,9 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
               style={tab === "bookmark" ? { borderRadius: 8 } : undefined}
             />
           ) : (
-            <span className="text-[11px]" style={{ opacity: 0.5 }}>{t("themeOptions.preview.noImage")}</span>
+            <span className="text-[11px]" style={{ opacity: 0.5 }}>
+              {t("themeOptions.preview.noImage")}
+            </span>
           )}
         </div>
       </div>
@@ -1220,7 +1821,10 @@ function LogoPreview({ logo, tab }: { logo: LogoState; tab: string }) {
 
   return (
     <div className="rounded-lg border border-border bg-card/40 overflow-hidden">
-      <div className="rounded-t-lg text-white text-xs font-semibold px-3 py-2" style={{ background: "#FA9346" }}>
+      <div
+        className="rounded-t-lg text-white text-xs font-semibold px-3 py-2"
+        style={{ background: "#FA9346" }}
+      >
         {t("themeOptions.preview.previewOf")} {meta.title}
       </div>
       <div className="p-3 space-y-3">

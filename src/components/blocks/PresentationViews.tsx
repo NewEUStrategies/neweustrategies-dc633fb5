@@ -4,16 +4,44 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import type { Json } from "@/lib/blocks/types";
 import { AppLink } from "@/components/atoms/AppLink";
 import {
-  Star, Heart, Zap, Shield, Trophy, Rocket, Sparkles, Check,
-  Clock, Globe, Users, Award, Gem, Flame, Leaf, Target,
-  ChevronLeft, ChevronRight,
+  Star,
+  Heart,
+  Zap,
+  Shield,
+  Trophy,
+  Rocket,
+  Sparkles,
+  Check,
+  Clock,
+  Globe,
+  Users,
+  Award,
+  Gem,
+  Flame,
+  Leaf,
+  Target,
+  ChevronLeft,
+  ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, LucideIcon> = {
-  star: Star, heart: Heart, zap: Zap, shield: Shield, trophy: Trophy, rocket: Rocket,
-  sparkles: Sparkles, check: Check, clock: Clock, globe: Globe, users: Users,
-  award: Award, gem: Gem, flame: Flame, leaf: Leaf, target: Target,
+  star: Star,
+  heart: Heart,
+  zap: Zap,
+  shield: Shield,
+  trophy: Trophy,
+  rocket: Rocket,
+  sparkles: Sparkles,
+  check: Check,
+  clock: Clock,
+  globe: Globe,
+  users: Users,
+  award: Award,
+  gem: Gem,
+  flame: Flame,
+  leaf: Leaf,
+  target: Target,
 };
 
 // ===== Icon Box =====
@@ -28,7 +56,15 @@ interface IconBoxProps {
   cls?: string;
 }
 
-export function IconBoxView({ icon = "star", title, description, href, linkLabel, align = "center", cls }: IconBoxProps) {
+export function IconBoxView({
+  icon = "star",
+  title,
+  description,
+  href,
+  linkLabel,
+  align = "center",
+  cls,
+}: IconBoxProps) {
   const Icon = ICON_MAP[icon] ?? Star;
   const isCenter = align === "center";
   return (
@@ -48,7 +84,9 @@ export function IconBoxView({ icon = "star", title, description, href, linkLabel
         <Icon className="w-6 h-6" aria-hidden />
       </div>
       {title ? <h3 className="text-lg font-semibold text-foreground mb-2">{title}</h3> : null}
-      {description ? <p className="text-sm text-muted-foreground leading-relaxed">{description}</p> : null}
+      {description ? (
+        <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
+      ) : null}
       {href && linkLabel ? (
         <AppLink
           href={href}
@@ -63,7 +101,11 @@ export function IconBoxView({ icon = "star", title, description, href, linkLabel
 
 // ===== Stats Counter =====
 
-interface StatItemLite { value: string; label: string; suffix: string }
+interface StatItemLite {
+  value: string;
+  label: string;
+  suffix: string;
+}
 
 function parseNumber(v: string): { num: number; prefix: string } {
   const match = v.match(/^([^\d-]*)(-?\d+(?:[.,]\d+)?)/);
@@ -81,7 +123,13 @@ function useInView<T extends HTMLElement>(): [React.RefObject<T | null>, boolean
       return;
     }
     const obs = new IntersectionObserver(
-      (entries) => entries.forEach((e) => { if (e.isIntersecting) { setInView(true); obs.disconnect(); } }),
+      (entries) =>
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            setInView(true);
+            obs.disconnect();
+          }
+        }),
       { threshold: 0.2 },
     );
     obs.observe(el);
@@ -91,14 +139,27 @@ function useInView<T extends HTMLElement>(): [React.RefObject<T | null>, boolean
 }
 
 function formatNumber(n: number): string {
-  return Number.isInteger(n) ? n.toLocaleString("pl-PL") : n.toLocaleString("pl-PL", { maximumFractionDigits: 2 });
+  return Number.isInteger(n)
+    ? n.toLocaleString("pl-PL")
+    : n.toLocaleString("pl-PL", { maximumFractionDigits: 2 });
 }
 
-function AnimatedCounter({ target, duration, run }: { target: number; duration: number; run: boolean }) {
+function AnimatedCounter({
+  target,
+  duration,
+  run,
+}: {
+  target: number;
+  duration: number;
+  run: boolean;
+}) {
   const [val, setVal] = useState(0);
   useEffect(() => {
     if (!run) return;
-    if (typeof window === "undefined") { setVal(target); return; }
+    if (typeof window === "undefined") {
+      setVal(target);
+      return;
+    }
     const start = performance.now();
     let raf = 0;
     const tick = (t: number) => {
@@ -114,7 +175,11 @@ function AnimatedCounter({ target, duration, run }: { target: number; duration: 
   return <>{formatNumber(Math.round(val))}</>;
 }
 
-interface StatsProps { items?: Json[]; duration?: number; cls?: string }
+interface StatsProps {
+  items?: Json[];
+  duration?: number;
+  cls?: string;
+}
 
 export function StatsCounterView({ items, duration = 1500, cls }: StatsProps) {
   const parsed: StatItemLite[] = useMemo(() => {
@@ -157,7 +222,13 @@ export function StatsCounterView({ items, duration = 1500, cls }: StatsProps) {
 
 // ===== Testimonials =====
 
-interface TestimonialLite { quote: string; author: string; role: string; avatar: string; rating: number }
+interface TestimonialLite {
+  quote: string;
+  author: string;
+  role: string;
+  avatar: string;
+  rating: number;
+}
 
 function parseTestimonials(items: Json[] | undefined): TestimonialLite[] {
   if (!Array.isArray(items)) return [];
@@ -177,19 +248,31 @@ function TestimonialCard({ t }: { t: TestimonialLite }) {
   return (
     <figure className="h-full rounded-2xl border border-border bg-card p-6 flex flex-col">
       {t.rating > 0 ? (
-        <div className="flex items-center gap-0.5 mb-3 text-amber-500" aria-label={`Ocena: ${t.rating}/5`}>
+        <div
+          className="flex items-center gap-0.5 mb-3 text-amber-500"
+          aria-label={`Ocena: ${t.rating}/5`}
+        >
           {Array.from({ length: 5 }).map((_, i) => (
-            <Star key={i} className={`w-4 h-4 ${i < t.rating ? "fill-current" : "opacity-25"}`} aria-hidden />
+            <Star
+              key={i}
+              className={`w-4 h-4 ${i < t.rating ? "fill-current" : "opacity-25"}`}
+              aria-hidden
+            />
           ))}
         </div>
       ) : null}
       <blockquote className="text-sm text-foreground leading-relaxed flex-1">
         {t.quote ? `"${t.quote}"` : null}
       </blockquote>
-      {(t.author || t.avatar) ? (
+      {t.author || t.avatar ? (
         <figcaption className="mt-4 flex items-center gap-3">
           {t.avatar ? (
-            <img src={t.avatar} alt="" loading="lazy" className="w-10 h-10 rounded-full object-cover" />
+            <img
+              src={t.avatar}
+              alt=""
+              loading="lazy"
+              className="w-10 h-10 rounded-full object-cover"
+            />
           ) : (
             <div className="w-10 h-10 rounded-full bg-muted" aria-hidden />
           )}
@@ -203,15 +286,22 @@ function TestimonialCard({ t }: { t: TestimonialLite }) {
   );
 }
 
-interface TestimonialsProps { items?: Json[]; layout?: "grid" | "slider"; cls?: string }
+interface TestimonialsProps {
+  items?: Json[];
+  layout?: "grid" | "slider";
+  cls?: string;
+}
 
 export function TestimonialsView({ items, layout = "grid", cls }: TestimonialsProps) {
   const parsed = useMemo(() => parseTestimonials(items), [items]);
   const [idx, setIdx] = useState(0);
   const total = parsed.length;
-  const go = useCallback((d: number) => {
-    setIdx((cur) => (cur + d + total) % Math.max(1, total));
-  }, [total]);
+  const go = useCallback(
+    (d: number) => {
+      setIdx((cur) => (cur + d + total) % Math.max(1, total));
+    },
+    [total],
+  );
   if (total === 0) return null;
 
   if (layout === "slider") {
@@ -229,7 +319,9 @@ export function TestimonialsView({ items, layout = "grid", cls }: TestimonialsPr
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <div className="text-xs text-muted-foreground tabular-nums">{idx + 1} / {total}</div>
+            <div className="text-xs text-muted-foreground tabular-nums">
+              {idx + 1} / {total}
+            </div>
             <button
               type="button"
               onClick={() => go(1)}
@@ -246,7 +338,9 @@ export function TestimonialsView({ items, layout = "grid", cls }: TestimonialsPr
 
   return (
     <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${cls ?? ""}`}>
-      {parsed.map((t, i) => <TestimonialCard key={i} t={t} />)}
+      {parsed.map((t, i) => (
+        <TestimonialCard key={i} t={t} />
+      ))}
     </div>
   );
 }
@@ -254,8 +348,14 @@ export function TestimonialsView({ items, layout = "grid", cls }: TestimonialsPr
 // ===== Pricing Table =====
 
 interface PricingPlanLite {
-  name: string; price: string; period: string; description: string;
-  features: string[]; ctaLabel: string; ctaHref: string; featured: boolean;
+  name: string;
+  price: string;
+  period: string;
+  description: string;
+  features: string[];
+  ctaLabel: string;
+  ctaHref: string;
+  featured: boolean;
 }
 
 function parsePlans(raw: Json[] | undefined): PricingPlanLite[] {
@@ -276,7 +376,10 @@ function parsePlans(raw: Json[] | undefined): PricingPlanLite[] {
   });
 }
 
-interface PricingProps { plans?: Json[]; cls?: string }
+interface PricingProps {
+  plans?: Json[];
+  cls?: string;
+}
 
 export function PricingTableView({ plans, cls }: PricingProps) {
   const parsed = useMemo(() => parsePlans(plans), [plans]);
@@ -298,12 +401,16 @@ export function PricingTableView({ plans, cls }: PricingProps) {
                 Polecane
               </div>
             ) : null}
-            {p.name ? <div className="text-sm font-semibold text-muted-foreground">{p.name}</div> : null}
+            {p.name ? (
+              <div className="text-sm font-semibold text-muted-foreground">{p.name}</div>
+            ) : null}
             <div className="mt-3 flex items-baseline gap-1">
               <span className="text-3xl font-bold text-foreground">{p.price}</span>
               {p.period ? <span className="text-sm text-muted-foreground">{p.period}</span> : null}
             </div>
-            {p.description ? <p className="mt-2 text-sm text-muted-foreground">{p.description}</p> : null}
+            {p.description ? (
+              <p className="mt-2 text-sm text-muted-foreground">{p.description}</p>
+            ) : null}
             {p.features.length > 0 ? (
               <ul className="mt-4 space-y-2 text-sm text-foreground flex-1">
                 {p.features.map((f, i) => (
@@ -313,7 +420,9 @@ export function PricingTableView({ plans, cls }: PricingProps) {
                   </li>
                 ))}
               </ul>
-            ) : <div className="flex-1" />}
+            ) : (
+              <div className="flex-1" />
+            )}
             {p.ctaLabel && p.ctaHref ? (
               <AppLink
                 href={p.ctaHref}
@@ -336,9 +445,16 @@ export function PricingTableView({ plans, cls }: PricingProps) {
 
 // ===== Timeline =====
 
-interface TimelineLite { date: string; title: string; description: string }
+interface TimelineLite {
+  date: string;
+  title: string;
+  description: string;
+}
 
-interface TimelineProps { items?: Json[]; cls?: string }
+interface TimelineProps {
+  items?: Json[];
+  cls?: string;
+}
 
 export function TimelineView({ items, cls }: TimelineProps) {
   const parsed: TimelineLite[] = useMemo(() => {
@@ -362,10 +478,16 @@ export function TimelineView({ items, cls }: TimelineProps) {
             aria-hidden
           />
           {it.date ? (
-            <time className="block text-xs font-semibold uppercase tracking-wide text-primary">{it.date}</time>
+            <time className="block text-xs font-semibold uppercase tracking-wide text-primary">
+              {it.date}
+            </time>
           ) : null}
-          {it.title ? <h3 className="text-base font-semibold text-foreground mt-0.5">{it.title}</h3> : null}
-          {it.description ? <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{it.description}</p> : null}
+          {it.title ? (
+            <h3 className="text-base font-semibold text-foreground mt-0.5">{it.title}</h3>
+          ) : null}
+          {it.description ? (
+            <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{it.description}</p>
+          ) : null}
         </li>
       ))}
     </ol>

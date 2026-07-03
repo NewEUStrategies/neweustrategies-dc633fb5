@@ -114,20 +114,11 @@ export type BlockType =
   | "banner-image"
   | "video-hero";
 
-
-
-
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | Json[]
-  | { [k: string]: Json };
+export type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 
 export interface BlockStyle {
   align?: "left" | "center" | "right" | "wide" | "full";
-  marginTop?: number;   // px
+  marginTop?: number; // px
   marginBottom?: number;
 }
 

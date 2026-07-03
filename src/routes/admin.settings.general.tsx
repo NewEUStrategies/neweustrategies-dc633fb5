@@ -63,16 +63,32 @@ function GeneralSettings() {
         <Text value={draft.tagline} onChange={(e) => set("tagline", e.target.value)} />
       </Field>
       <Field label={t("admin.general.siteIcon")} hint={t("admin.general.siteIconHint")}>
-        <Text value={draft.site_icon_url} onChange={(e) => set("site_icon_url", e.target.value)} placeholder="https://…" />
+        <Text
+          value={draft.site_icon_url}
+          onChange={(e) => set("site_icon_url", e.target.value)}
+          placeholder="https://…"
+        />
       </Field>
       <Field label={t("admin.general.siteLogo")}>
-        <Text value={draft.site_logo_url} onChange={(e) => set("site_logo_url", e.target.value)} placeholder="https://…" />
+        <Text
+          value={draft.site_logo_url}
+          onChange={(e) => set("site_logo_url", e.target.value)}
+          placeholder="https://…"
+        />
       </Field>
       <Field label={t("admin.general.siteUrl")}>
-        <Text value={draft.site_url} onChange={(e) => set("site_url", e.target.value)} placeholder="https://example.com" />
+        <Text
+          value={draft.site_url}
+          onChange={(e) => set("site_url", e.target.value)}
+          placeholder="https://example.com"
+        />
       </Field>
       <Field label={t("admin.general.adminEmail")}>
-        <Text type="email" value={draft.admin_email} onChange={(e) => set("admin_email", e.target.value)} />
+        <Text
+          type="email"
+          value={draft.admin_email}
+          onChange={(e) => set("admin_email", e.target.value)}
+        />
       </Field>
       <Field label={t("admin.general.siteLanguage")}>
         <Select
@@ -84,13 +100,25 @@ function GeneralSettings() {
         </Select>
       </Field>
       <Field label={t("admin.general.timezone")}>
-        <Text value={draft.timezone} onChange={(e) => set("timezone", e.target.value)} placeholder="Europe/Warsaw" />
+        <Text
+          value={draft.timezone}
+          onChange={(e) => set("timezone", e.target.value)}
+          placeholder="Europe/Warsaw"
+        />
       </Field>
       <Field label={t("admin.general.dateFormat")} hint={t("admin.general.dateFormatHint")}>
-        <Text value={draft.date_format} onChange={(e) => set("date_format", e.target.value)} className="w-40" />
+        <Text
+          value={draft.date_format}
+          onChange={(e) => set("date_format", e.target.value)}
+          className="w-40"
+        />
       </Field>
       <Field label={t("admin.general.timeFormat")}>
-        <Text value={draft.time_format} onChange={(e) => set("time_format", e.target.value)} className="w-40" />
+        <Text
+          value={draft.time_format}
+          onChange={(e) => set("time_format", e.target.value)}
+          className="w-40"
+        />
       </Field>
       <Field label={t("admin.general.weekStart")}>
         <Select
@@ -101,10 +129,7 @@ function GeneralSettings() {
           <option value="0">{t("admin.general.sunday")}</option>
         </Select>
       </Field>
-      <Field
-        label={t("admin.general.iconPack")}
-        hint={t("admin.general.iconPackHint")}
-      >
+      <Field label={t("admin.general.iconPack")} hint={t("admin.general.iconPackHint")}>
         <Select
           value={draft.icon_pack}
           onChange={(e) => set("icon_pack", e.target.value as IconPack)}

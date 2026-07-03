@@ -15,7 +15,11 @@ const builderDoc = (sectionCount: number): BuilderDocument => ({
 const blocksDoc = (blockCount: number): BlocksDoc =>
   ({
     version: 1,
-    blocks: Array.from({ length: blockCount }, (_, i) => ({ id: `b${i}`, type: "paragraph", data: {} })),
+    blocks: Array.from({ length: blockCount }, (_, i) => ({
+      id: `b${i}`,
+      type: "paragraph",
+      data: {},
+    })),
   }) as unknown as BlocksDoc;
 
 describe("resolveContentEngine", () => {
@@ -45,8 +49,12 @@ describe("resolveContentEngine", () => {
   });
 
   it("lets the builder editor kind win when both documents are present", () => {
-    expect(resolveContentEngine({ editor: "builder", builderDoc: builderDoc(1), blocksDoc: blocksDoc(3) })).toBe(
-      "builder",
-    );
+    expect(
+      resolveContentEngine({
+        editor: "builder",
+        builderDoc: builderDoc(1),
+        blocksDoc: blocksDoc(3),
+      }),
+    ).toBe("builder");
   });
 });

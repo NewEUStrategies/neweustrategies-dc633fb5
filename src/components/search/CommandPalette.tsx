@@ -7,18 +7,36 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
-  CommandDialog, CommandEmpty, CommandGroup, CommandInput,
-  CommandItem, CommandList, CommandSeparator,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
 } from "@/components/ui/command";
 import { useAuth } from "@/hooks/useAuth";
-import { visibleCommands, buildHaystack, type PaletteCommand, type CommandSection } from "@/lib/search/registry";
+import {
+  visibleCommands,
+  buildHaystack,
+  type PaletteCommand,
+  type CommandSection,
+} from "@/lib/search/registry";
 import { rankItems } from "@/lib/search/fuzzy";
 import { globalSearch, type SearchHit } from "@/lib/search/search.functions";
 import { FileText, Newspaper } from "@/lib/lucide-shim";
 import { HighlightedText } from "@/components/search/HighlightedText";
 import "@/lib/i18n-search";
 
-const SECTION_ORDER: CommandSection[] = ["actions", "navigation", "account", "admin", "appearance", "settings", "content"];
+const SECTION_ORDER: CommandSection[] = [
+  "actions",
+  "navigation",
+  "account",
+  "admin",
+  "appearance",
+  "settings",
+  "content",
+];
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -56,19 +74,34 @@ export function CommandPalette() {
   }, [open]);
 
   // Reset query when closing.
-  useEffect(() => { if (!open) { setQuery(""); setHits([]); } }, [open]);
+  useEffect(() => {
+    if (!open) {
+      setQuery("");
+      setHits([]);
+    }
+  }, [open]);
 
   // Debounced server search.
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) { setHits([]); setSearching(false); return; }
+    if (q.length < 2) {
+      setHits([]);
+      setSearching(false);
+      return;
+    }
     setSearching(true);
     const id = ++reqIdRef.current;
     const handle = window.setTimeout(() => {
       void globalSearch({ data: { q, limit: 8 } })
-        .then((res) => { if (id === reqIdRef.current) setHits(res.hits); })
-        .catch(() => { if (id === reqIdRef.current) setHits([]); })
-        .finally(() => { if (id === reqIdRef.current) setSearching(false); });
+        .then((res) => {
+          if (id === reqIdRef.current) setHits(res.hits);
+        })
+        .catch(() => {
+          if (id === reqIdRef.current) setHits([]);
+        })
+        .finally(() => {
+          if (id === reqIdRef.current) setSearching(false);
+        });
     }, 180);
     return () => window.clearTimeout(handle);
   }, [query]);
@@ -90,21 +123,28 @@ export function CommandPalette() {
       arr.push(cmd);
       map.set(cmd.section, arr);
     }
-    return SECTION_ORDER
-      .filter((s) => map.has(s))
-      .map((s) => ({ section: s, items: map.get(s)! }));
+    return SECTION_ORDER.filter((s) => map.has(s)).map((s) => ({ section: s, items: map.get(s)! }));
   }, [ranked]);
 
-  const onSelect = useCallback((cmd: PaletteCommand): void => {
-    setOpen(false);
-    if (cmd.run) { void cmd.run(); return; }
-    if (cmd.to) void navigate({ to: cmd.to });
-  }, [navigate]);
+  const onSelect = useCallback(
+    (cmd: PaletteCommand): void => {
+      setOpen(false);
+      if (cmd.run) {
+        void cmd.run();
+        return;
+      }
+      if (cmd.to) void navigate({ to: cmd.to });
+    },
+    [navigate],
+  );
 
-  const onSelectHit = useCallback((hit: SearchHit): void => {
-    setOpen(false);
-    void navigate({ to: hit.href });
-  }, [navigate]);
+  const onSelectHit = useCallback(
+    (hit: SearchHit): void => {
+      setOpen(false);
+      void navigate({ to: hit.href });
+    },
+    [navigate],
+  );
 
   const popular = useMemo(() => commands.filter((c) => c.popular).slice(0, 8), [commands]);
   const q = query.trim();
@@ -116,11 +156,7 @@ export function CommandPalette() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput
-        placeholder={t("palette.placeholder")}
-        value={query}
-        onValueChange={setQuery}
-      />
+      <CommandInput placeholder={t("palette.placeholder")} value={query} onValueChange={setQuery} />
       <CommandList>
         {/* cmdk requires CommandEmpty for keyboard semantics, but we render
             richer state ourselves below; keep this minimal and visually hidden
@@ -130,11 +166,20 @@ export function CommandPalette() {
         {showPopular && (
           <CommandGroup heading={t("palette.suggestions")}>
             {popular.map((cmd) => (
-              <CommandItem key={cmd.id} value={cmd.id} onSelect={() => onSelect(cmd)} className="gap-2">
+              <CommandItem
+                key={cmd.id}
+                value={cmd.id}
+                onSelect={() => onSelect(cmd)}
+                className="gap-2"
+              >
                 {cmd.icon}
-                <span className="flex-1 truncate">{lang === "pl" ? cmd.label_pl : cmd.label_en}</span>
+                <span className="flex-1 truncate">
+                  {lang === "pl" ? cmd.label_pl : cmd.label_en}
+                </span>
                 {cmd.to && (
-                  <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">{cmd.to}</span>
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">
+                    {cmd.to}
+                  </span>
                 )}
               </CommandItem>
             ))}
@@ -157,7 +202,9 @@ export function CommandPalette() {
                     {cmd.icon}
                     <HighlightedText text={label} query={q} className="flex-1 truncate" />
                     {cmd.to && (
-                      <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">{cmd.to}</span>
+                      <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">
+                        {cmd.to}
+                      </span>
                     )}
                   </CommandItem>
                 );
@@ -171,16 +218,29 @@ export function CommandPalette() {
             <CommandSeparator />
             <CommandGroup heading={t("palette.sections.content")}>
               {searching && (
-                <div className="flex items-center gap-2 px-2 py-3 text-xs text-muted-foreground" role="status" aria-live="polite">
-                  <span className="inline-block w-3 h-3 rounded-full border-2 border-brand border-t-transparent animate-spin" aria-hidden="true" />
+                <div
+                  className="flex items-center gap-2 px-2 py-3 text-xs text-muted-foreground"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span
+                    className="inline-block w-3 h-3 rounded-full border-2 border-brand border-t-transparent animate-spin"
+                    aria-hidden="true"
+                  />
                   {t("palette.loading")}
                 </div>
               )}
               {showShortQueryHint && !searching && (
-                <div className="px-2 py-3 text-xs text-muted-foreground">{t("palette.type_to_search")}</div>
+                <div className="px-2 py-3 text-xs text-muted-foreground">
+                  {t("palette.type_to_search")}
+                </div>
               )}
               {hits.map((hit) => {
-                const title = (lang === "pl" ? hit.title_pl : hit.title_en) || hit.title_pl || hit.title_en || hit.slug;
+                const title =
+                  (lang === "pl" ? hit.title_pl : hit.title_en) ||
+                  hit.title_pl ||
+                  hit.title_en ||
+                  hit.slug;
                 const IconCmp = hit.kind === "post" ? Newspaper : FileText;
                 return (
                   <CommandItem
@@ -191,7 +251,9 @@ export function CommandPalette() {
                   >
                     <IconCmp className="w-4 h-4" />
                     <HighlightedText text={title} query={q} className="flex-1 truncate" />
-                    <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">{hit.href}</span>
+                    <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">
+                      {hit.href}
+                    </span>
                   </CommandItem>
                 );
               })}
@@ -210,9 +272,16 @@ export function CommandPalette() {
                 </p>
                 <CommandGroup>
                   {popular.slice(0, 5).map((cmd) => (
-                    <CommandItem key={cmd.id} value={cmd.id} onSelect={() => onSelect(cmd)} className="gap-2">
+                    <CommandItem
+                      key={cmd.id}
+                      value={cmd.id}
+                      onSelect={() => onSelect(cmd)}
+                      className="gap-2"
+                    >
                       {cmd.icon}
-                      <span className="flex-1 truncate">{lang === "pl" ? cmd.label_pl : cmd.label_en}</span>
+                      <span className="flex-1 truncate">
+                        {lang === "pl" ? cmd.label_pl : cmd.label_en}
+                      </span>
                     </CommandItem>
                   ))}
                 </CommandGroup>

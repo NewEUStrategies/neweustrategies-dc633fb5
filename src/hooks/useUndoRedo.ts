@@ -31,9 +31,7 @@ export function useUndoRedo<T>(initial: T): UndoRedo<T> {
 
   const set = useCallback((next: T | ((prev: T) => T), opts?: { coalesce?: boolean }) => {
     setS((prev) => {
-      const resolved = typeof next === "function"
-        ? (next as (p: T) => T)(prev.present)
-        : next;
+      const resolved = typeof next === "function" ? (next as (p: T) => T)(prev.present) : next;
       if (Object.is(resolved, prev.present)) return prev;
       if (opts?.coalesce && coalesceRef.current) {
         return { past: prev.past, present: resolved, future: [] };
@@ -76,7 +74,12 @@ export function useUndoRedo<T>(initial: T): UndoRedo<T> {
   }, []);
 
   return {
-    state: s.present, set, reset, undo, redo,
-    canUndo: s.past.length > 0, canRedo: s.future.length > 0,
+    state: s.present,
+    set,
+    reset,
+    undo,
+    redo,
+    canUndo: s.past.length > 0,
+    canRedo: s.future.length > 0,
   };
 }

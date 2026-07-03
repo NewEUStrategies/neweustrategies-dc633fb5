@@ -6,7 +6,11 @@ import {
   postListDisplayLimit,
   postListQueryOptions,
 } from "@/lib/builder/postListQuery";
-import { newsTickerInput, newsTickerDisplayLimit, newsTickerQueryOptions } from "@/lib/builder/newsTickerQuery";
+import {
+  newsTickerInput,
+  newsTickerDisplayLimit,
+  newsTickerQueryOptions,
+} from "@/lib/builder/newsTickerQuery";
 import { widgetQueryOptionsList, widgetCacheTargets } from "@/lib/builder/prefetch";
 
 const row = (id: string) => ({ id });
@@ -48,7 +52,11 @@ describe("post-list query key is snapshot-independent", () => {
 
 describe("news-ticker query + prefetch enumeration", () => {
   it("over-fetches for uniqueOnPage and parses category slugs", () => {
-    const c = { limit: 10, uniqueOnPage: true, categoriesCsv: "ue, nato , " } as unknown as WidgetContent;
+    const c = {
+      limit: 10,
+      uniqueOnPage: true,
+      categoriesCsv: "ue, nato , ",
+    } as unknown as WidgetContent;
     expect(newsTickerDisplayLimit(c)).toBe(10);
     const input = newsTickerInput(c);
     expect(input.limit).toBe(10 + 18);

@@ -10,7 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,7 +34,11 @@ export const Route = createFileRoute("/admin/live-blog")({
   }),
   component: LiveBlogAdmin,
   head: () => ({ meta: [{ title: "Live Blog - Admin" }] }),
-  errorComponent: ({ error }) => <div role="alert" className="p-6">{error.message}</div>,
+  errorComponent: ({ error }) => (
+    <div role="alert" className="p-6">
+      {error.message}
+    </div>
+  ),
   notFoundComponent: () => <div className="p-6">404</div>,
 });
 
@@ -77,8 +85,14 @@ function LiveBlogAdmin() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["liveBlogEntries"] });
 
   const addEntry = async () => {
-    if (!enabled) { toast.error("Najpierw wybierz post i blok"); return; }
-    if (!draft.body_html.trim()) { toast.error("Pusta treść"); return; }
+    if (!enabled) {
+      toast.error("Najpierw wybierz post i blok");
+      return;
+    }
+    if (!draft.body_html.trim()) {
+      toast.error("Pusta treść");
+      return;
+    }
     const { error } = await supabase.from("live_blog_entries").insert({
       tenant_id: tenantId,
       post_id: search.postId!,
@@ -89,7 +103,10 @@ function LiveBlogAdmin() {
       pinned: draft.pinned,
       occurred_at: new Date().toISOString(),
     });
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     setDraft({ title: "", body_html: "", pinned: false });
     toast.success("Dodano wpis");
     refresh();
@@ -100,14 +117,20 @@ function LiveBlogAdmin() {
       .from("live_blog_entries")
       .update({ pinned: !e.pinned })
       .eq("id", e.id);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     refresh();
   };
 
   const remove = async (id: string) => {
     if (!confirm("Usunąć wpis?")) return;
     const { error } = await supabase.from("live_blog_entries").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     refresh();
   };
 
@@ -116,8 +139,8 @@ function LiveBlogAdmin() {
       <header>
         <h1 className="font-display text-2xl">Live Blog - moderacja</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Wpisy publikowane na żywo w bloku Live Blog. Realtime: zmiany pojawiają się
-          natychmiast na stronie publicznej.
+          Wpisy publikowane na żywo w bloku Live Blog. Realtime: zmiany pojawiają się natychmiast na
+          stronie publicznej.
         </p>
       </header>
 
@@ -129,12 +152,23 @@ function LiveBlogAdmin() {
           </div>
           <div>
             <Label>Block ID</Label>
-            <Input value={blockId} onChange={(e) => setBlockId(e.target.value)} placeholder="b_xxx" />
+            <Input
+              value={blockId}
+              onChange={(e) => setBlockId(e.target.value)}
+              placeholder="b_xxx"
+            />
           </div>
           <div>
             <Label>Język</Label>
-            <Select value={lang} onValueChange={(v) => navigate({ search: (p: SearchParams) => ({ ...p, lang: v as "pl" | "en" }) })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={lang}
+              onValueChange={(v) =>
+                navigate({ search: (p: SearchParams) => ({ ...p, lang: v as "pl" | "en" }) })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pl">PL</SelectItem>
                 <SelectItem value="en">EN</SelectItem>
@@ -155,7 +189,10 @@ function LiveBlogAdmin() {
           <h2 className="font-medium">Nowy wpis</h2>
           <div>
             <Label>Tytuł (opcjonalny)</Label>
-            <Input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+            <Input
+              value={draft.title}
+              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+            />
           </div>
           <div>
             <Label>Treść (HTML, sanitizowany przy renderze)</Label>
@@ -167,7 +204,10 @@ function LiveBlogAdmin() {
             />
           </div>
           <div className="flex items-center gap-2">
-            <Switch checked={draft.pinned} onCheckedChange={(v) => setDraft({ ...draft, pinned: v })} />
+            <Switch
+              checked={draft.pinned}
+              onCheckedChange={(v) => setDraft({ ...draft, pinned: v })}
+            />
             <span className="text-sm">Przypięte</span>
           </div>
           <Button onClick={addEntry}>Opublikuj</Button>
@@ -187,7 +227,9 @@ function LiveBlogAdmin() {
                     <time className="text-xs font-mono text-muted-foreground">
                       {new Date(e.occurred_at).toLocaleString("pl-PL")}
                     </time>
-                    {e.pinned && <span className="text-[10px] uppercase text-amber-600">Przypięty</span>}
+                    {e.pinned && (
+                      <span className="text-[10px] uppercase text-amber-600">Przypięty</span>
+                    )}
                     {e.title && <strong>{e.title}</strong>}
                   </div>
                   <div className="flex gap-2">
@@ -199,7 +241,10 @@ function LiveBlogAdmin() {
                     </Button>
                   </div>
                 </div>
-                <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeHtml(e.body_html) }} />
+                <div
+                  className="prose prose-sm dark:prose-invert max-w-none"
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(e.body_html) }}
+                />
               </li>
             ))}
             {entries.length === 0 && !isLoading && (

@@ -7,11 +7,11 @@ ani polityk RLS.
 
 ## Pliki
 
-| Plik | Co weryfikuje |
-| --- | --- |
+| Plik                            | Co weryfikuje                                                                                                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `rls_tenant_isolation_test.sql` | „user tenanta A nie czyta postów B" (RLS na `public.posts`, szkice i opublikowane) oraz „UPDATE `tenant_id` jest ignorowany" (trigger `profiles_pin_tenant`). |
-| `search_tsquery_test.sql` | `public.nes_search_tsquery` — unaccent + lower, prefiks `:*`, łączenie AND, sanityzacja znaków, puste/NULL → `NULL`. |
-| `search_posts_smoke_test.sql` | Smoke RPC `public.search_posts`: zwraca tylko opublikowane, nieusunięte posty tenanta publicznego; pomija szkice, usunięte i obcych tenantów. |
+| `search_tsquery_test.sql`       | `public.nes_search_tsquery` — unaccent + lower, prefiks `:*`, łączenie AND, sanityzacja znaków, puste/NULL → `NULL`.                                          |
+| `search_posts_smoke_test.sql`   | Smoke RPC `public.search_posts`: zwraca tylko opublikowane, nieusunięte posty tenanta publicznego; pomija szkice, usunięte i obcych tenantów.                 |
 
 ## Uruchamianie
 

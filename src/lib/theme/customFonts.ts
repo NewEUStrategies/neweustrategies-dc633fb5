@@ -28,13 +28,15 @@ export interface CustomFont {
 export const FONT_SLUG_RE = /^[a-z0-9-]{1,40}$/;
 
 export function slugifyFontName(raw: string): string {
-  return raw
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40) || "font";
+  return (
+    raw
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "font"
+  );
 }
 
 export function fontFaceCss(f: CustomFont): string {
@@ -87,13 +89,11 @@ export async function uploadCustomFont(opts: {
   }
   const id = slugifyFontName(opts.label || opts.file.name.replace(/\.[^.]+$/, ""));
   const path = `${opts.tenantId}/fonts/${id}-${Date.now()}.${ext}`;
-  const { error } = await supabase.storage
-    .from("media")
-    .upload(path, opts.file, {
-      contentType: opts.file.type || `font/${ext === "ttf" ? "ttf" : ext}`,
-      cacheControl: "31536000, immutable",
-      upsert: false,
-    });
+  const { error } = await supabase.storage.from("media").upload(path, opts.file, {
+    contentType: opts.file.type || `font/${ext === "ttf" ? "ttf" : ext}`,
+    cacheControl: "31536000, immutable",
+    upsert: false,
+  });
   if (error) {
     toast.error(error.message || "Nie udało się wysłać fontu");
     return null;

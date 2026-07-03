@@ -20,7 +20,13 @@ import {
 export const Route = createFileRoute("/admin/greetings")({ component: GreetingsAdmin });
 
 const BUCKETS: TimeBucket[] = [
-  "night", "earlyMorning", "morning", "noon", "afternoon", "evening", "lateEvening",
+  "night",
+  "earlyMorning",
+  "morning",
+  "noon",
+  "afternoon",
+  "evening",
+  "lateEvening",
 ];
 
 const BUCKET_HOURS: Record<TimeBucket, string> = {
@@ -66,7 +72,11 @@ function GreetingsAdmin() {
   const [lang, setLang] = useState<Lang>(uiLang);
 
   useEffect(() => {
-    supabase.from("site_settings").select("value").eq("key", "greetings").maybeSingle()
+    supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "greetings")
+      .maybeSingle()
       .then(({ data }) => {
         if (data?.value) {
           const base = cloneDefaults();
@@ -99,7 +109,8 @@ function GreetingsAdmin() {
       return;
     }
     setBusy(true);
-    const { error } = await supabase.from("site_settings")
+    const { error } = await supabase
+      .from("site_settings")
       .upsert({ key: "greetings", value: dict as never }, { onConflict: "key" });
     setBusy(false);
     if (error) toast.error(error.message);
@@ -142,7 +153,15 @@ function GreetingsAdmin() {
     const now = new Date();
     return BUCKETS.map((b) => {
       const testDate = new Date(now);
-      const hour = { night: 2, earlyMorning: 6, morning: 9, noon: 12, afternoon: 15, evening: 19, lateEvening: 22 }[b];
+      const hour = {
+        night: 2,
+        earlyMorning: 6,
+        morning: 9,
+        noon: 12,
+        afternoon: 15,
+        evening: 19,
+        lateEvening: 22,
+      }[b];
       testDate.setHours(hour, 0, 0, 0);
       return {
         bucket: b,
@@ -159,7 +178,11 @@ function GreetingsAdmin() {
   }, [dict, lang, isPL]);
 
   if (!loaded) {
-    return <p className="p-6 text-sm text-muted-foreground">{t("admin.loading", { defaultValue: "Loading…" })}</p>;
+    return (
+      <p className="p-6 text-sm text-muted-foreground">
+        {t("admin.loading", { defaultValue: "Loading…" })}
+      </p>
+    );
   }
 
   const title = isPL ? "Powitania" : "Greetings";
@@ -173,186 +196,191 @@ function GreetingsAdmin() {
 
   return (
     <div className="space-y-6 max-w-5xl">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="font-display text-2xl flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-primary" />
+            {title}
+          </h1>
+          <p className="text-sm text-muted-foreground max-w-2xl mt-1">{subtitle}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={resetAll} className="gap-1.5">
+            <RotateCcw className="w-3.5 h-3.5" />
+            {isPL ? "Przywróć domyślne" : "Reset to defaults"}
+          </Button>
+          <Button size="sm" onClick={save} disabled={busy || !canSave}>
+            {busy ? (isPL ? "Zapisywanie…" : "Saving…") : isPL ? "Zapisz" : "Save"}
+          </Button>
+        </div>
+      </div>
 
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+      {/* Pattern / wzór */}
+      <div className="rounded-md border border-border p-4 bg-muted/30 space-y-2 text-sm">
+        <div className="flex items-center gap-2 font-semibold">
+          <Info className="w-4 h-4 text-primary" />
+          {isPL ? "Wzór powitania" : "Greeting pattern"}
+        </div>
+        <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+          <li>
+            {isPL ? "Użyj placeholdera" : "Use the placeholder"}{" "}
+            <code className="text-foreground bg-background/60 px-1 rounded">{"{name}"}</code>{" "}
+            {isPL
+              ? "— zostanie zamieniony na imię użytkownika."
+              : "— it will be replaced with the user's first name."}
+          </li>
+          <li>
+            {isPL
+              ? "W języku polskim imię zawsze pojawia się w wołaczu (np. Anna → Anno, Piotr → Piotrze). System dobiera formę automatycznie na podstawie słownika i płci."
+              : "In Polish, names are always in vocative form (Anna → Anno, Piotr → Piotrze). The system infers the form automatically."}
+          </li>
+          <li>
+            {isPL
+              ? "Każda pora dnia musi mieć co najmniej jedno powitanie w obu językach (PL i EN) — inaczej zapis jest zablokowany."
+              : "Every time bucket must have at least one greeting in both PL and EN — otherwise saving is blocked."}
+          </li>
+          <li>
+            {isPL ? "Przykład:" : "Example:"}{" "}
+            <code className="text-foreground bg-background/60 px-1 rounded">
+              {isPL ? "Dzień dobry, {name}!" : "Good morning, {name}!"}
+            </code>
+          </li>
+        </ul>
+      </div>
+
+      {!canSave && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 text-destructive p-3 text-sm flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
           <div>
-            <h1 className="font-display text-2xl flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-primary" />{title}
-            </h1>
-            <p className="text-sm text-muted-foreground max-w-2xl mt-1">{subtitle}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={resetAll} className="gap-1.5">
-              <RotateCcw className="w-3.5 h-3.5" />
-              {isPL ? "Przywróć domyślne" : "Reset to defaults"}
-            </Button>
-            <Button size="sm" onClick={save} disabled={busy || !canSave}>
-              {busy ? (isPL ? "Zapisywanie…" : "Saving…") : (isPL ? "Zapisz" : "Save")}
-            </Button>
+            {isPL
+              ? "Zapis zablokowany: uzupełnij brakujące powitania. Każda pora dnia wymaga min. 1 wpisu w PL i EN."
+              : "Save blocked: fill in the missing greetings. Each time bucket needs at least 1 entry in PL and EN."}
           </div>
         </div>
+      )}
 
-        {/* Pattern / wzór */}
-        <div className="rounded-md border border-border p-4 bg-muted/30 space-y-2 text-sm">
-          <div className="flex items-center gap-2 font-semibold">
-            <Info className="w-4 h-4 text-primary" />
-            {isPL ? "Wzór powitania" : "Greeting pattern"}
-          </div>
-          <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-            <li>
-              {isPL ? "Użyj placeholdera" : "Use the placeholder"}{" "}
-              <code className="text-foreground bg-background/60 px-1 rounded">{"{name}"}</code>{" "}
-              {isPL
-                ? "— zostanie zamieniony na imię użytkownika."
-                : "— it will be replaced with the user's first name."}
-            </li>
-            <li>
-              {isPL
-                ? "W języku polskim imię zawsze pojawia się w wołaczu (np. Anna → Anno, Piotr → Piotrze). System dobiera formę automatycznie na podstawie słownika i płci."
-                : "In Polish, names are always in vocative form (Anna → Anno, Piotr → Piotrze). The system infers the form automatically."}
-            </li>
-            <li>
-              {isPL
-                ? "Każda pora dnia musi mieć co najmniej jedno powitanie w obu językach (PL i EN) — inaczej zapis jest zablokowany."
-                : "Every time bucket must have at least one greeting in both PL and EN — otherwise saving is blocked."}
-            </li>
-            <li>
-              {isPL ? "Przykład:" : "Example:"}{" "}
-              <code className="text-foreground bg-background/60 px-1 rounded">
-                {isPL ? "Dzień dobry, {name}!" : "Good morning, {name}!"}
-              </code>
-            </li>
-          </ul>
-        </div>
+      <Tabs value={lang} onValueChange={(v) => setLang(v as Lang)}>
+        <TabsList>
+          <TabsTrigger value="pl" className="gap-1.5">
+            Polski (PL)
+            {emptyPerLang.pl > 0 && (
+              <span className="ml-1 rounded-full bg-destructive/15 text-destructive text-[10px] px-1.5 py-0.5">
+                {emptyPerLang.pl}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="en" className="gap-1.5">
+            English (EN)
+            {emptyPerLang.en > 0 && (
+              <span className="ml-1 rounded-full bg-destructive/15 text-destructive text-[10px] px-1.5 py-0.5">
+                {emptyPerLang.en}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-        {!canSave && (
-          <div className="rounded-md border border-destructive/40 bg-destructive/5 text-destructive p-3 text-sm flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-            <div>
-              {isPL
-                ? "Zapis zablokowany: uzupełnij brakujące powitania. Każda pora dnia wymaga min. 1 wpisu w PL i EN."
-                : "Save blocked: fill in the missing greetings. Each time bucket needs at least 1 entry in PL and EN."}
-            </div>
-          </div>
-        )}
+        {(["pl", "en"] as const).map((l) => (
+          <TabsContent key={l} value={l} className="space-y-4 mt-6">
+            {BUCKETS.map((b) => {
+              const items = dict[l][b];
+              const bucketEmpty = items.length === 0;
+              return (
+                <div
+                  key={b}
+                  className={`rounded-md border p-4 bg-card ${bucketEmpty ? "border-destructive/50" : "border-border"}`}
+                >
+                  <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                    <Label className="text-sm font-medium">
+                      {BUCKET_LABEL[l][b]}
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        ({BUCKET_HOURS[b]})
+                      </span>
+                      {bucketEmpty && (
+                        <span className="ml-2 text-[11px] text-destructive font-normal">
+                          {l === "pl" ? "wymagane" : "required"}
+                        </span>
+                      )}
+                    </Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => resetBucket(b)}
+                      className="h-7 gap-1.5 text-xs"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      {l === "pl" ? "Domyślne" : "Default"}
+                    </Button>
+                  </div>
 
-        <Tabs value={lang} onValueChange={(v) => setLang(v as Lang)}>
-          <TabsList>
-            <TabsTrigger value="pl" className="gap-1.5">
-              Polski (PL)
-              {emptyPerLang.pl > 0 && (
-                <span className="ml-1 rounded-full bg-destructive/15 text-destructive text-[10px] px-1.5 py-0.5">
-                  {emptyPerLang.pl}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="en" className="gap-1.5">
-              English (EN)
-              {emptyPerLang.en > 0 && (
-                <span className="ml-1 rounded-full bg-destructive/15 text-destructive text-[10px] px-1.5 py-0.5">
-                  {emptyPerLang.en}
-                </span>
-              )}
-            </TabsTrigger>
-          </TabsList>
-
-          {(["pl", "en"] as const).map((l) => (
-            <TabsContent key={l} value={l} className="space-y-4 mt-6">
-              {BUCKETS.map((b) => {
-                const items = dict[l][b];
-                const bucketEmpty = items.length === 0;
-                return (
-                  <div
-                    key={b}
-                    className={`rounded-md border p-4 bg-card ${bucketEmpty ? "border-destructive/50" : "border-border"}`}
-                  >
-                    <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-                      <Label className="text-sm font-medium">
-                        {BUCKET_LABEL[l][b]}
-                        <span className="ml-2 text-xs text-muted-foreground">({BUCKET_HOURS[b]})</span>
-                        {bucketEmpty && (
-                          <span className="ml-2 text-[11px] text-destructive font-normal">
-                            {l === "pl" ? "wymagane" : "required"}
-                          </span>
-                        )}
-                      </Label>
+                  {l === l && lang === l && (
+                    <div className="space-y-2">
+                      {items.map((val, i) => {
+                        const hasName = val.includes("{name}");
+                        return (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="text-[11px] text-muted-foreground w-5 text-right shrink-0">
+                              {i + 1}.
+                            </span>
+                            <Input
+                              value={val}
+                              onChange={(e) => updateItem(b, i, e.target.value)}
+                              placeholder={
+                                l === "pl"
+                                  ? "np. Dzień dobry, {name}!"
+                                  : "e.g. Good morning, {name}!"
+                              }
+                              className={`h-8 text-sm ${!hasName ? "border-amber-500/60" : ""}`}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                              onClick={() => removeItem(b, i)}
+                              aria-label={l === "pl" ? "Usuń" : "Remove"}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        );
+                      })}
                       <Button
-                        variant="ghost"
+                        type="button"
+                        variant="outline"
                         size="sm"
-                        onClick={() => resetBucket(b)}
-                        className="h-7 gap-1.5 text-xs"
+                        onClick={() => addItem(b)}
+                        className="h-8 gap-1.5"
                       >
-                        <RotateCcw className="w-3 h-3" />
-                        {l === "pl" ? "Domyślne" : "Default"}
+                        <Plus className="w-3.5 h-3.5" />
+                        {l === "pl" ? "Dodaj powitanie" : "Add greeting"}
                       </Button>
                     </div>
+                  )}
+                </div>
+              );
+            })}
+          </TabsContent>
+        ))}
+      </Tabs>
 
-                    {l === l && lang === l && (
-                      <div className="space-y-2">
-                        {items.map((val, i) => {
-                          const hasName = val.includes("{name}");
-                          return (
-                            <div key={i} className="flex items-center gap-2">
-                              <span className="text-[11px] text-muted-foreground w-5 text-right shrink-0">
-                                {i + 1}.
-                              </span>
-                              <Input
-                                value={val}
-                                onChange={(e) => updateItem(b, i, e.target.value)}
-                                placeholder={l === "pl" ? "np. Dzień dobry, {name}!" : "e.g. Good morning, {name}!"}
-                                className={`h-8 text-sm ${!hasName ? "border-amber-500/60" : ""}`}
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-                                onClick={() => removeItem(b, i)}
-                                aria-label={l === "pl" ? "Usuń" : "Remove"}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            </div>
-                          );
-                        })}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addItem(b)}
-                          className="h-8 gap-1.5"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          {l === "pl" ? "Dodaj powitanie" : "Add greeting"}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </TabsContent>
+      <div className="rounded-md border border-border p-4 bg-muted/30">
+        <h2 className="text-sm font-semibold mb-3">
+          {isPL ? "Podgląd (przykładowe imię)" : "Preview (sample name)"}
+        </h2>
+        <ul className="space-y-1.5 text-sm">
+          {preview.map((p) => (
+            <li key={p.bucket} className="flex items-baseline gap-3">
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground w-28 shrink-0">
+                {BUCKET_LABEL[lang][p.bucket]}
+              </span>
+              <span className="text-foreground">{p.sample}</span>
+            </li>
           ))}
-        </Tabs>
-
-        <div className="rounded-md border border-border p-4 bg-muted/30">
-          <h2 className="text-sm font-semibold mb-3">
-            {isPL ? "Podgląd (przykładowe imię)" : "Preview (sample name)"}
-          </h2>
-          <ul className="space-y-1.5 text-sm">
-            {preview.map((p) => (
-              <li key={p.bucket} className="flex items-baseline gap-3">
-                <span className="text-[11px] uppercase tracking-wide text-muted-foreground w-28 shrink-0">
-                  {BUCKET_LABEL[lang][p.bucket]}
-                </span>
-                <span className="text-foreground">{p.sample}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        </ul>
+      </div>
     </div>
   );
 }
-
 
 const BUCKET_LABEL: Record<Lang, Record<TimeBucket, string>> = {
   pl: {

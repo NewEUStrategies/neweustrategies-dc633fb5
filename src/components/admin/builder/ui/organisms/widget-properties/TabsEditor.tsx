@@ -24,18 +24,33 @@ export function TabsEditor({ c, lang, setContent }: Props) {
     >
       <div className="space-y-2">
         {tabs.map((it, i) => (
-          <ItemFrame key={i} title={`Zakładka #${i + 1}`} onRemove={() => update(tabs.filter((_, j) => j !== i))}>
+          <ItemFrame
+            key={i}
+            title={`Zakładka #${i + 1}`}
+            onRemove={() => update(tabs.filter((_, j) => j !== i))}
+          >
             <PropField label={`Etykieta (${lang.toUpperCase()})`}>
               <Input
-                value={typeof it[`label_${lang}`] === "string" ? it[`label_${lang}`] as string : ""}
-                onChange={(e) => update(tabs.map((x, j) => j === i ? { ...x, [`label_${lang}`]: e.target.value } : x))}
+                value={
+                  typeof it[`label_${lang}`] === "string" ? (it[`label_${lang}`] as string) : ""
+                }
+                onChange={(e) =>
+                  update(
+                    tabs.map((x, j) => (j === i ? { ...x, [`label_${lang}`]: e.target.value } : x)),
+                  )
+                }
                 className="h-8 text-xs"
               />
             </PropField>
             <PropField label={`Treść HTML (${lang.toUpperCase()})`}>
-              <Textarea rows={4}
-                value={typeof it[`html_${lang}`] === "string" ? it[`html_${lang}`] as string : ""}
-                onChange={(e) => update(tabs.map((x, j) => j === i ? { ...x, [`html_${lang}`]: e.target.value } : x))}
+              <Textarea
+                rows={4}
+                value={typeof it[`html_${lang}`] === "string" ? (it[`html_${lang}`] as string) : ""}
+                onChange={(e) =>
+                  update(
+                    tabs.map((x, j) => (j === i ? { ...x, [`html_${lang}`]: e.target.value } : x)),
+                  )
+                }
                 className="text-xs font-mono"
               />
             </PropField>

@@ -23,7 +23,11 @@ interface Loaded {
 }
 
 const LABELS = {
-  pl: { loading: "Ładuję następny wpis...", end: "To już wszystkie wpisy.", next: "Następny artykuł" },
+  pl: {
+    loading: "Ładuję następny wpis...",
+    end: "To już wszystkie wpisy.",
+    next: "Następny artykuł",
+  },
   en: { loading: "Loading next article...", end: "No more articles.", next: "Next article" },
 } as const;
 
@@ -42,9 +46,13 @@ export function AutoLoadNextPost({
   const requestedRef = useRef(false);
 
   // current "cursor" = last loaded post or starting point
-  const cursor = chain.length > 0
-    ? { id: chain[chain.length - 1].post.id, publishedAt: chain[chain.length - 1].post.published_at }
-    : { id: currentPostId, publishedAt: currentPublishedAt };
+  const cursor =
+    chain.length > 0
+      ? {
+          id: chain[chain.length - 1].post.id,
+          publishedAt: chain[chain.length - 1].post.published_at,
+        }
+      : { id: currentPostId, publishedAt: currentPublishedAt };
 
   useEffect(() => {
     if (done || chain.length >= maxChain) return;
@@ -90,9 +98,10 @@ export function AutoLoadNextPost({
         for (const e of entries) {
           if (e.isIntersecting && typeof window !== "undefined") {
             window.history.replaceState({}, "", last.post.href);
-            document.title = lang === "en"
-              ? last.post.title_en || last.post.title_pl
-              : last.post.title_pl || last.post.title_en;
+            document.title =
+              lang === "en"
+                ? last.post.title_en || last.post.title_pl
+                : last.post.title_pl || last.post.title_en;
           }
         }
       },
@@ -105,15 +114,16 @@ export function AutoLoadNextPost({
   return (
     <div className="auto-load-next-post mt-12">
       {chain.map((c) => {
-        const title = lang === "en" ? c.post.title_en || c.post.title_pl : c.post.title_pl || c.post.title_en;
-        const html = lang === "en" ? c.post.content_en || c.post.content_pl : c.post.content_pl || c.post.content_en;
+        const title =
+          lang === "en" ? c.post.title_en || c.post.title_pl : c.post.title_pl || c.post.title_en;
+        const html =
+          lang === "en"
+            ? c.post.content_en || c.post.content_pl
+            : c.post.content_pl || c.post.content_en;
         return (
           <article key={c.post.id} className="border-t-2 border-border pt-10 mt-10">
             <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">{L.next}</p>
-            <h2
-              id={`nextpost-${c.post.id}`}
-              className="font-display text-3xl lg:text-4xl mb-4"
-            >
+            <h2 id={`nextpost-${c.post.id}`} className="font-display text-3xl lg:text-4xl mb-4">
               <AppLink href={c.post.href} className="hover:text-primary">
                 {title}
               </AppLink>
@@ -147,9 +157,7 @@ export function AutoLoadNextPost({
           {L.loading}
         </p>
       )}
-      {done && (
-        <p className="text-center text-xs text-muted-foreground py-6">{L.end}</p>
-      )}
+      {done && <p className="text-center text-xs text-muted-foreground py-6">{L.end}</p>}
     </div>
   );
 }

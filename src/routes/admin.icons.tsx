@@ -8,11 +8,26 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Upload, Trash2, Search, Plus, Tags, LayoutGrid, Shapes } from "@/lib/lucide-shim";
 import { useRequiredTenant } from "@/hooks/useAuth";
-import { listIcons, upsertIcon, deleteIcon, uploadIconAsset, bulkImportIcons, slugifyIconName, type IconKind, type IconRow, type IconVariant } from "@/lib/iconLibrary";
-
+import {
+  listIcons,
+  upsertIcon,
+  deleteIcon,
+  uploadIconAsset,
+  bulkImportIcons,
+  slugifyIconName,
+  type IconKind,
+  type IconRow,
+  type IconVariant,
+} from "@/lib/iconLibrary";
 
 const KIND_TABS: { id: IconKind; icon: typeof Shapes; labelKey: string }[] = [
   { id: "custom", icon: Shapes, labelKey: "admin.icons.tabs.custom" },
@@ -35,9 +50,9 @@ function IconsAdmin() {
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return rows;
-    return rows.filter((r) =>
-      r.name.toLowerCase().includes(needle) ||
-      (r.label ?? "").toLowerCase().includes(needle),
+    return rows.filter(
+      (r) =>
+        r.name.toLowerCase().includes(needle) || (r.label ?? "").toLowerCase().includes(needle),
     );
   }, [rows, q]);
 
@@ -100,12 +115,7 @@ function IconsAdmin() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {filtered.map((row) => (
-              <IconCard
-                key={row.id}
-                row={row}
-                tenantId={tenantId}
-                onChanged={refresh}
-              />
+              <IconCard key={row.id} row={row} tenantId={tenantId} onChanged={refresh} />
             ))}
           </div>
         )}
@@ -115,8 +125,14 @@ function IconsAdmin() {
 }
 
 function NewIconForm({
-  kind, tenantId, onCreated,
-}: { kind: IconKind; tenantId: string; onCreated: () => void }) {
+  kind,
+  tenantId,
+  onCreated,
+}: {
+  kind: IconKind;
+  tenantId: string;
+  onCreated: () => void;
+}) {
   const { t } = useTranslation();
   const [name, setName] = useState("");
   const [label, setLabel] = useState("");
@@ -124,12 +140,16 @@ function NewIconForm({
 
   const submit = async () => {
     const slug = slugifyIconName(name);
-    if (!slug) { toast.error(t("admin.icons.errors.nameRequired")); return; }
+    if (!slug) {
+      toast.error(t("admin.icons.errors.nameRequired"));
+      return;
+    }
     setBusy(true);
     try {
       await upsertIcon(tenantId, { kind, name: slug, label: label || null });
       toast.success(t("admin.icons.created"));
-      setName(""); setLabel("");
+      setName("");
+      setLabel("");
       onCreated();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error");
@@ -149,16 +169,28 @@ function NewIconForm({
           <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">
             {t("admin.icons.fields.name")}
           </Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="np. nes_logo" className="h-9" />
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="np. nes_logo"
+            className="h-9"
+          />
         </div>
         <div>
           <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">
             {t("admin.icons.fields.label")}
           </Label>
-          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("admin.icons.fields.labelPh")} className="h-9" />
+          <Input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder={t("admin.icons.fields.labelPh")}
+            className="h-9"
+          />
         </div>
         <div className="flex items-end">
-          <Button onClick={submit} disabled={busy} className="h-9">{busy ? "…" : t("admin.icons.add")}</Button>
+          <Button onClick={submit} disabled={busy} className="h-9">
+            {busy ? "…" : t("admin.icons.add")}
+          </Button>
         </div>
       </div>
     </div>
@@ -166,14 +198,27 @@ function NewIconForm({
 }
 
 function BulkUpload({
-  kind, tenantId, onDone,
-}: { kind: IconKind; tenantId: string; onDone: () => void }) {
+  kind,
+  tenantId,
+  onDone,
+}: {
+  kind: IconKind;
+  tenantId: string;
+  onDone: () => void;
+}) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<{ index: number; total: number; base: string; status: string } | null>(null);
-  const [log, setLog] = useState<{ base: string; status: "done" | "skipped" | "error"; message?: string }[]>([]);
+  const [progress, setProgress] = useState<{
+    index: number;
+    total: number;
+    base: string;
+    status: string;
+  } | null>(null);
+  const [log, setLog] = useState<
+    { base: string; status: "done" | "skipped" | "error"; message?: string }[]
+  >([]);
 
   const handle = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -201,7 +246,7 @@ function BulkUpload({
       });
       toast.success(
         t("admin.icons.bulk.done", { created: res.created, updated: res.updated }) +
-        (res.skipped ? ` · pominięto: ${res.skipped}` : ""),
+          (res.skipped ? ` · pominięto: ${res.skipped}` : ""),
       );
       if (res.errors.length) {
         toast.error(t("admin.icons.bulk.errors", { count: res.errors.length }));
@@ -216,7 +261,8 @@ function BulkUpload({
     }
   };
 
-  const pct = progress && progress.total > 0 ? Math.round((progress.index / progress.total) * 100) : 0;
+  const pct =
+    progress && progress.total > 0 ? Math.round((progress.index / progress.total) * 100) : 0;
 
   return (
     <div className="rounded-lg border border-dashed border-border p-4 space-y-3 bg-muted/30">
@@ -236,7 +282,12 @@ function BulkUpload({
           className="hidden"
           onChange={(e) => handle(e.target.files)}
         />
-        <Button variant="outline" onClick={() => ref.current?.click()} disabled={busy} className="h-9 shrink-0">
+        <Button
+          variant="outline"
+          onClick={() => ref.current?.click()}
+          disabled={busy}
+          className="h-9 shrink-0"
+        >
           <Upload className="w-4 h-4 mr-1.5" />
           {busy ? t("admin.icons.bulk.uploading") : t("admin.icons.bulk.choose")}
         </Button>
@@ -268,8 +319,8 @@ function BulkUpload({
                 l.status === "done"
                   ? "text-emerald-600 dark:text-emerald-400"
                   : l.status === "skipped"
-                  ? "text-muted-foreground"
-                  : "text-destructive"
+                    ? "text-muted-foreground"
+                    : "text-destructive"
               }
             >
               {l.status === "done" ? "✓" : l.status === "skipped" ? "↷" : "✕"} :{l.base}:
@@ -283,8 +334,14 @@ function BulkUpload({
 }
 
 function IconCard({
-  row, tenantId, onChanged,
-}: { row: IconRow; tenantId: string; onChanged: () => void }) {
+  row,
+  tenantId,
+  onChanged,
+}: {
+  row: IconRow;
+  tenantId: string;
+  onChanged: () => void;
+}) {
   const { t } = useTranslation();
   const [label, setLabel] = useState(row.label ?? "");
   const [variant, setVariant] = useState<IconVariant>(row.default_variant);
@@ -406,7 +463,11 @@ function IconCard({
 }
 
 function VariantSlot({
-  label, value, mode, onUpload, onClear,
+  label,
+  value,
+  mode,
+  onUpload,
+  onClear,
 }: {
   label: string;
   value: string;
@@ -444,12 +505,17 @@ function VariantSlot({
         style={{ background: bg ?? "transparent" }}
         title={value ? value : "Wgraj"}
       >
-        {value
-          ? <img src={value} alt={label} className="max-w-[80%] max-h-[80%] object-contain" />
-          : <Upload className="w-4 h-4 text-muted-foreground" />}
+        {value ? (
+          <img src={value} alt={label} className="max-w-[80%] max-h-[80%] object-contain" />
+        ) : (
+          <Upload className="w-4 h-4 text-muted-foreground" />
+        )}
       </button>
       <input
-        ref={ref} type="file" accept="image/*" className="hidden"
+        ref={ref}
+        type="file"
+        accept="image/*"
+        className="hidden"
         onChange={(e) => handle(e.target.files?.[0])}
       />
       {value && (

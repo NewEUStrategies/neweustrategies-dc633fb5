@@ -20,7 +20,9 @@ export function HoverControl({ value, onChange }: Props) {
         <input
           type="checkbox"
           checked={enabled}
-          onChange={(e) => onChange(e.target.checked ? (value ?? { transitionMs: 200 }) : undefined)}
+          onChange={(e) =>
+            onChange(e.target.checked ? (value ?? { transitionMs: 200 }) : undefined)
+          }
         />
         Włącz styl hover
       </label>
@@ -36,7 +38,10 @@ export function HoverControl({ value, onChange }: Props) {
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Skala">
               <Input
-                type="number" step={0.01} min={0.5} max={2}
+                type="number"
+                step={0.01}
+                min={0.5}
+                max={2}
                 value={v.scale ?? ""}
                 placeholder="1.03"
                 onChange={(e) => {
@@ -73,7 +78,9 @@ export function HoverControl({ value, onChange }: Props) {
           </PropField>
           <PropField label="Czas przejścia (ms)">
             <Input
-              type="number" min={0} step={20}
+              type="number"
+              min={0}
+              step={20}
               value={v.transitionMs ?? ""}
               placeholder="200"
               onChange={(e) => {

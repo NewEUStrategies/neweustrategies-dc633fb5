@@ -29,7 +29,10 @@ export function ColumnsBlock({ block, onChange }: Props) {
 
   const updateInSide = (side: Side, id: string, next: Block) => {
     const arr = side === "left" ? left : right;
-    setSide(side, arr.map((b) => b.id === id ? next : b));
+    setSide(
+      side,
+      arr.map((b) => (b.id === id ? next : b)),
+    );
   };
 
   const addParagraph = (side: Side) => {
@@ -39,7 +42,9 @@ export function ColumnsBlock({ block, onChange }: Props) {
 
   const Cell = ({ side, items }: { side: Side; items: Block[] }) => (
     <div className="rounded-md border border-dashed border-border p-2 space-y-2 min-h-[80px]">
-      {items.length === 0 && <p className="text-[11px] text-muted-foreground italic">Pusta kolumna</p>}
+      {items.length === 0 && (
+        <p className="text-[11px] text-muted-foreground italic">Pusta kolumna</p>
+      )}
       {items.map((b) => (
         <div key={b.id} className="rounded border border-border p-2">
           <InnerBlock block={b} onChange={(n) => updateInSide(side, b.id, n)} />
@@ -65,9 +70,12 @@ export function ColumnsBlock({ block, onChange }: Props) {
 
 function InnerBlock({ block, onChange }: { block: Block; onChange: (n: Block) => void }) {
   switch (block.type) {
-    case "paragraph": return <ParagraphBlock block={block} isActive={true} onChange={onChange} />;
-    case "heading":   return <HeadingBlock block={block} onChange={onChange} />;
-    case "image":     return <ImageBlock block={block} onChange={onChange} />;
+    case "paragraph":
+      return <ParagraphBlock block={block} isActive={true} onChange={onChange} />;
+    case "heading":
+      return <HeadingBlock block={block} onChange={onChange} />;
+    case "image":
+      return <ImageBlock block={block} onChange={onChange} />;
     default:
       return <div className="text-xs text-muted-foreground italic">[{block.type}]</div>;
   }

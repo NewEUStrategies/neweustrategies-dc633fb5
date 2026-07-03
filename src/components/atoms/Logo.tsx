@@ -17,16 +17,25 @@ const SIZE: Record<NonNullable<LogoProps["size"]>, string> = {
   xl: "w-24 h-24",
 };
 
-
 type LogoCfg = {
   logo: {
-    main: string; main_dark: string;
-    mobile: string; mobile_dark: string;
-    transparent: string; transparent_dark: string;
+    main: string;
+    main_dark: string;
+    mobile: string;
+    mobile_dark: string;
+    transparent: string;
+    transparent_dark: string;
   };
 };
 const LOGO_DEFAULTS: LogoCfg = {
-  logo: { main: "", main_dark: "", mobile: "", mobile_dark: "", transparent: "", transparent_dark: "" },
+  logo: {
+    main: "",
+    main_dark: "",
+    mobile: "",
+    mobile_dark: "",
+    transparent: "",
+    transparent_dark: "",
+  },
 };
 
 export function Logo({ size = "md", withWordmark = true, variant = "main" }: LogoProps) {
@@ -46,7 +55,11 @@ export function Logo({ size = "md", withWordmark = true, variant = "main" }: Log
   const showWordmark = withWordmark && !resolved;
 
   return (
-    <Link to="/" className="flex items-center gap-3" aria-label="New European Strategies - strona główna">
+    <Link
+      to="/"
+      className="flex items-center gap-3"
+      aria-label="New European Strategies - strona główna"
+    >
       {src ? (
         <img
           src={src}
@@ -54,7 +67,9 @@ export function Logo({ size = "md", withWordmark = true, variant = "main" }: Log
           className={SIZE[size]}
           width={56}
           height={56}
-          onError={(e) => { e.currentTarget.style.display = "none"; }}
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
         />
       ) : (
         <span className={SIZE[size]} aria-hidden="true" />

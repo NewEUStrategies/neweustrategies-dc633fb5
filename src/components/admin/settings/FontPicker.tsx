@@ -15,25 +15,106 @@ export interface FontOption {
 }
 
 /** Sample dla nagłówków + treści - pokrywa popularne kierunki. */
-export const DEFAULT_FONT_STACK = '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif';
+export const DEFAULT_FONT_STACK =
+  '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif';
 
 export const FONT_OPTIONS: FontOption[] = [
-  { label: "Red Hat Display", stack: DEFAULT_FONT_STACK, googleFamily: "Red+Hat+Display:wght@400;500;600;700;800", hint: "Domyślny / System UI" },
-  { label: "Inter", stack: "Inter, system-ui, sans-serif", googleFamily: "Inter:wght@400;500;600;700", hint: "Neutralny, czytelny" },
-  { label: "Manrope", stack: "Manrope, system-ui, sans-serif", googleFamily: "Manrope:wght@400;500;600;700", hint: "Geometryczny sans" },
-  { label: "DM Sans", stack: "'DM Sans', system-ui, sans-serif", googleFamily: "DM+Sans:wght@400;500;700", hint: "Krągły, przyjazny" },
-  { label: "Space Grotesk", stack: "'Space Grotesk', system-ui, sans-serif", googleFamily: "Space+Grotesk:wght@400;500;700", hint: "Tech / startup" },
-  { label: "Outfit", stack: "Outfit, system-ui, sans-serif", googleFamily: "Outfit:wght@400;500;700", hint: "Lekki display" },
-  { label: "Sora", stack: "Sora, system-ui, sans-serif", googleFamily: "Sora:wght@400;500;700", hint: "Nowoczesny sans" },
-  { label: "Plus Jakarta Sans", stack: "'Plus Jakarta Sans', system-ui, sans-serif", googleFamily: "Plus+Jakarta+Sans:wght@400;500;700", hint: "Łagodny, biznesowy" },
-  { label: "Work Sans", stack: "'Work Sans', system-ui, sans-serif", googleFamily: "Work+Sans:wght@400;500;700", hint: "Klasyczny grotesk" },
-  { label: "Playfair Display", stack: "'Playfair Display', Georgia, serif", googleFamily: "Playfair+Display:wght@400;600;800", hint: "Elegancki serif" },
-  { label: "Instrument Serif", stack: "'Instrument Serif', Georgia, serif", googleFamily: "Instrument+Serif", hint: "Magazynowy serif" },
-  { label: "Lora", stack: "Lora, Georgia, serif", googleFamily: "Lora:wght@400;500;600;700", hint: "Czytelny serif" },
-  { label: "Cormorant Garamond", stack: "'Cormorant Garamond', Georgia, serif", googleFamily: "Cormorant+Garamond:wght@400;500;700", hint: "Luksusowy serif" },
-  { label: "Bebas Neue", stack: "'Bebas Neue', Impact, sans-serif", googleFamily: "Bebas+Neue", hint: "Display, plakat" },
-  { label: "Archivo Black", stack: "'Archivo Black', Impact, sans-serif", googleFamily: "Archivo+Black", hint: "Pogrubiony display" },
-  { label: "JetBrains Mono", stack: "'JetBrains Mono', ui-monospace, monospace", googleFamily: "JetBrains+Mono:wght@400;500;700", hint: "Monospace" },
+  {
+    label: "Red Hat Display",
+    stack: DEFAULT_FONT_STACK,
+    googleFamily: "Red+Hat+Display:wght@400;500;600;700;800",
+    hint: "Domyślny / System UI",
+  },
+  {
+    label: "Inter",
+    stack: "Inter, system-ui, sans-serif",
+    googleFamily: "Inter:wght@400;500;600;700",
+    hint: "Neutralny, czytelny",
+  },
+  {
+    label: "Manrope",
+    stack: "Manrope, system-ui, sans-serif",
+    googleFamily: "Manrope:wght@400;500;600;700",
+    hint: "Geometryczny sans",
+  },
+  {
+    label: "DM Sans",
+    stack: "'DM Sans', system-ui, sans-serif",
+    googleFamily: "DM+Sans:wght@400;500;700",
+    hint: "Krągły, przyjazny",
+  },
+  {
+    label: "Space Grotesk",
+    stack: "'Space Grotesk', system-ui, sans-serif",
+    googleFamily: "Space+Grotesk:wght@400;500;700",
+    hint: "Tech / startup",
+  },
+  {
+    label: "Outfit",
+    stack: "Outfit, system-ui, sans-serif",
+    googleFamily: "Outfit:wght@400;500;700",
+    hint: "Lekki display",
+  },
+  {
+    label: "Sora",
+    stack: "Sora, system-ui, sans-serif",
+    googleFamily: "Sora:wght@400;500;700",
+    hint: "Nowoczesny sans",
+  },
+  {
+    label: "Plus Jakarta Sans",
+    stack: "'Plus Jakarta Sans', system-ui, sans-serif",
+    googleFamily: "Plus+Jakarta+Sans:wght@400;500;700",
+    hint: "Łagodny, biznesowy",
+  },
+  {
+    label: "Work Sans",
+    stack: "'Work Sans', system-ui, sans-serif",
+    googleFamily: "Work+Sans:wght@400;500;700",
+    hint: "Klasyczny grotesk",
+  },
+  {
+    label: "Playfair Display",
+    stack: "'Playfair Display', Georgia, serif",
+    googleFamily: "Playfair+Display:wght@400;600;800",
+    hint: "Elegancki serif",
+  },
+  {
+    label: "Instrument Serif",
+    stack: "'Instrument Serif', Georgia, serif",
+    googleFamily: "Instrument+Serif",
+    hint: "Magazynowy serif",
+  },
+  {
+    label: "Lora",
+    stack: "Lora, Georgia, serif",
+    googleFamily: "Lora:wght@400;500;600;700",
+    hint: "Czytelny serif",
+  },
+  {
+    label: "Cormorant Garamond",
+    stack: "'Cormorant Garamond', Georgia, serif",
+    googleFamily: "Cormorant+Garamond:wght@400;500;700",
+    hint: "Luksusowy serif",
+  },
+  {
+    label: "Bebas Neue",
+    stack: "'Bebas Neue', Impact, sans-serif",
+    googleFamily: "Bebas+Neue",
+    hint: "Display, plakat",
+  },
+  {
+    label: "Archivo Black",
+    stack: "'Archivo Black', Impact, sans-serif",
+    googleFamily: "Archivo+Black",
+    hint: "Pogrubiony display",
+  },
+  {
+    label: "JetBrains Mono",
+    stack: "'JetBrains Mono', ui-monospace, monospace",
+    googleFamily: "JetBrains+Mono:wght@400;500;700",
+    hint: "Monospace",
+  },
 ];
 
 /** Załaduj wszystkie Google Fonts z listy raz (do podglądu w dropdownie). */
@@ -41,8 +122,7 @@ function useLoadGoogleFonts() {
   useEffect(() => {
     if (typeof document === "undefined") return;
     if (document.getElementById("__brand-font-picker-fonts")) return;
-    const families = FONT_OPTIONS
-      .filter((f) => f.googleFamily)
+    const families = FONT_OPTIONS.filter((f) => f.googleFamily)
       .map((f) => `family=${f.googleFamily}`)
       .join("&");
     const link = document.createElement("link");
@@ -53,7 +133,6 @@ function useLoadGoogleFonts() {
   }, []);
 }
 
-
 interface Props {
   value: string | undefined;
   onChange: (stack: string | undefined) => void;
@@ -63,18 +142,22 @@ interface Props {
 }
 
 export function FontPicker({
-  value, onChange, sampleText = "Aa - The quick brown fox", customFonts = [],
+  value,
+  onChange,
+  sampleText = "Aa - The quick brown fox",
+  customFonts = [],
 }: Props) {
   useLoadGoogleFonts();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const customOptions = useMemo<FontOption[]>(
-    () => customFonts.map((f) => ({
-      label: `${f.label} (własny)`,
-      stack: `"${f.id}", system-ui, sans-serif`,
-      hint: "Własny font",
-    })),
+    () =>
+      customFonts.map((f) => ({
+        label: `${f.label} (własny)`,
+        stack: `"${f.id}", system-ui, sans-serif`,
+        hint: "Własny font",
+      })),
     [customFonts],
   );
   const allOptions = useMemo(() => [...customOptions, ...FONT_OPTIONS], [customOptions]);
@@ -100,10 +183,7 @@ export function FontPicker({
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
             {selected?.label ?? "Red Hat Display (domyślny)"}
           </span>
-          <span
-            className="truncate text-base"
-            style={{ fontFamily: value || DEFAULT_FONT_STACK }}
-          >
+          <span className="truncate text-base" style={{ fontFamily: value || DEFAULT_FONT_STACK }}>
             {sampleText}
           </span>
         </span>
@@ -114,7 +194,10 @@ export function FontPicker({
         <div className="absolute z-30 mt-1 w-full max-h-80 overflow-auto rounded-md border border-border bg-popover shadow-lg">
           <button
             type="button"
-            onClick={() => { onChange(undefined); setOpen(false); }}
+            onClick={() => {
+              onChange(undefined);
+              setOpen(false);
+            }}
             className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-muted/50"
           >
             <span className="text-muted-foreground italic">Red Hat Display (domyślny)</span>
@@ -127,17 +210,18 @@ export function FontPicker({
               <button
                 key={opt.label}
                 type="button"
-                onClick={() => { onChange(opt.stack); setOpen(false); }}
+                onClick={() => {
+                  onChange(opt.stack);
+                  setOpen(false);
+                }}
                 className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-muted/50 ${active ? "bg-muted/40" : ""}`}
               >
                 <span className="flex flex-col min-w-0">
                   <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                    {opt.label}{opt.hint ? ` · ${opt.hint}` : ""}
+                    {opt.label}
+                    {opt.hint ? ` · ${opt.hint}` : ""}
                   </span>
-                  <span
-                    className="truncate text-base"
-                    style={{ fontFamily: opt.stack }}
-                  >
+                  <span className="truncate text-base" style={{ fontFamily: opt.stack }}>
                     {sampleText}
                   </span>
                 </span>

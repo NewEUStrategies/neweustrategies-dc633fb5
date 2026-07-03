@@ -3,7 +3,11 @@
 // PL/EN strings, and apply the result.
 import { useMemo, useState } from "react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -14,13 +18,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { sanitizeHtml } from "@/lib/sanitize";
-import {
-  PATTERNS, PAGE_PATTERNS, POST_PATTERNS,
-} from "@/lib/patterns/library";
+import { PATTERNS, PAGE_PATTERNS, POST_PATTERNS } from "@/lib/patterns/library";
 import type { Pattern, PagePattern, PostPattern } from "@/lib/patterns/types";
-import {
-  collectI18nFields, applyI18nOverrides, type I18nField,
-} from "@/lib/patterns/i18n";
+import { collectI18nFields, applyI18nOverrides, type I18nField } from "@/lib/patterns/i18n";
 
 type Lang = "pl" | "en";
 
@@ -83,7 +83,10 @@ export function PatternPicker({ open, onOpenChange, kind, onApply, onSkip, lang 
                 <li>
                   <button
                     type="button"
-                    onClick={() => { onOpenChange(false); onSkip?.(); }}
+                    onClick={() => {
+                      onOpenChange(false);
+                      onSkip?.();
+                    }}
                     className="w-full text-left rounded-md px-3 py-2 text-sm hover:bg-muted border border-dashed border-border"
                   >
                     + Pusta strona (bez szablonu)
@@ -101,10 +104,16 @@ export function PatternPicker({ open, onOpenChange, kind, onApply, onSkip, lang 
                       }`}
                     >
                       <div className="font-semibold text-foreground">{p.name[lang]}</div>
-                      <div className="text-[11px] text-muted-foreground line-clamp-2">{p.description[lang]}</div>
+                      <div className="text-[11px] text-muted-foreground line-clamp-2">
+                        {p.description[lang]}
+                      </div>
                       <div className="mt-1 flex items-center gap-1">
-                        <Badge variant="outline" className="text-[10px] py-0">{p.kind === "page" ? "strona" : "wpis"}</Badge>
-                        <Badge variant="outline" className="text-[10px] py-0">{p.category}</Badge>
+                        <Badge variant="outline" className="text-[10px] py-0">
+                          {p.kind === "page" ? "strona" : "wpis"}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] py-0">
+                          {p.category}
+                        </Badge>
                       </div>
                     </button>
                   </li>
@@ -118,7 +127,10 @@ export function PatternPicker({ open, onOpenChange, kind, onApply, onSkip, lang 
             <SelectedPanel
               key={selected.id}
               pattern={selected}
-              onApply={(applied) => { onApply(applied); onOpenChange(false); }}
+              onApply={(applied) => {
+                onApply(applied);
+                onOpenChange(false);
+              }}
               lang={lang}
             />
           ) : (
@@ -131,7 +143,9 @@ export function PatternPicker({ open, onOpenChange, kind, onApply, onSkip, lang 
 }
 
 function SelectedPanel({
-  pattern, onApply, lang,
+  pattern,
+  onApply,
+  lang,
 }: {
   pattern: Pattern;
   onApply: (applied: AppliedPattern) => void;
@@ -144,7 +158,9 @@ function SelectedPanel({
 }
 
 function PagePanel({
-  pattern, onApply, lang,
+  pattern,
+  onApply,
+  lang,
 }: {
   pattern: PagePattern;
   onApply: (applied: AppliedPattern) => void;
@@ -160,9 +176,10 @@ function PagePanel({
     [pattern, fields, overrides],
   );
   const changedFields = useMemo(
-    () => fields
-      .map((f, i) => ({ f, ov: overrides[i] }))
-      .filter(({ f, ov }) => ov && (ov.pl !== f.pl || ov.en !== f.en)),
+    () =>
+      fields
+        .map((f, i) => ({ f, ov: overrides[i] }))
+        .filter(({ f, ov }) => ov && (ov.pl !== f.pl || ov.en !== f.en)),
     [fields, overrides],
   );
   const titleChanged =
@@ -187,10 +204,15 @@ function PagePanel({
           <ScrollArea className="h-[48vh]">
             <div className="space-y-3 pr-3 pb-4">
               {fields.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Ten szablon nie ma edytowalnych pól tekstowych.</p>
+                <p className="text-xs text-muted-foreground">
+                  Ten szablon nie ma edytowalnych pól tekstowych.
+                </p>
               ) : (
                 fields.map((f, i) => (
-                  <div key={`${f.widgetId}.${f.baseKey}`} className="rounded-md border border-border p-3 space-y-2 bg-background">
+                  <div
+                    key={`${f.widgetId}.${f.baseKey}`}
+                    className="rounded-md border border-border p-3 space-y-2 bg-background"
+                  >
                     <div className="flex items-center justify-between">
                       <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
                         {f.widgetType} · {f.baseKey}
@@ -198,13 +220,23 @@ function PagePanel({
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <FieldInput
-                        label="PL" value={overrides[i]?.pl ?? ""}
-                        onChange={(v) => setOverrides((prev) => prev.map((o, j) => (j === i ? { pl: v, en: o.en } : o)))}
+                        label="PL"
+                        value={overrides[i]?.pl ?? ""}
+                        onChange={(v) =>
+                          setOverrides((prev) =>
+                            prev.map((o, j) => (j === i ? { pl: v, en: o.en } : o)),
+                          )
+                        }
                         multiline={f.baseKey === "html" || f.baseKey === "excerpt"}
                       />
                       <FieldInput
-                        label="EN" value={overrides[i]?.en ?? ""}
-                        onChange={(v) => setOverrides((prev) => prev.map((o, j) => (j === i ? { pl: o.pl, en: v } : o)))}
+                        label="EN"
+                        value={overrides[i]?.en ?? ""}
+                        onChange={(v) =>
+                          setOverrides((prev) =>
+                            prev.map((o, j) => (j === i ? { pl: o.pl, en: v } : o)),
+                          )
+                        }
                         multiline={f.baseKey === "html" || f.baseKey === "excerpt"}
                       />
                     </div>
@@ -230,9 +262,12 @@ function PagePanel({
         onOpenChange={setConfirmOpen}
         patternName={pattern.name[lang]}
         rows={[
-          { label: lang === "pl" ? "Tytuł strony" : "Page title", changed: titleChanged,
+          {
+            label: lang === "pl" ? "Tytuł strony" : "Page title",
+            changed: titleChanged,
             before: `${pattern.defaultTitle.pl} / ${pattern.defaultTitle.en}`,
-            after: `${titlePl.trim()} / ${titleEn.trim()}` },
+            after: `${titlePl.trim()} / ${titleEn.trim()}`,
+          },
           ...changedFields.map(({ f, ov }) => ({
             label: `${f.widgetType} · ${f.baseKey}`,
             changed: true,
@@ -243,8 +278,10 @@ function PagePanel({
         onConfirm={() => {
           setConfirmOpen(false);
           onApply({
-            kind: "page", pattern,
-            title_pl: titlePl.trim(), title_en: titleEn.trim(),
+            kind: "page",
+            pattern,
+            title_pl: titlePl.trim(),
+            title_en: titleEn.trim(),
             builder: editedDoc,
           });
         }}
@@ -254,7 +291,9 @@ function PagePanel({
 }
 
 function PostPanel({
-  pattern, onApply, lang,
+  pattern,
+  onApply,
+  lang,
 }: {
   pattern: PostPattern;
   onApply: (applied: AppliedPattern) => void;
@@ -268,8 +307,12 @@ function PostPanel({
   const [contentEn, setContentEn] = useState(pattern.content.en);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const diff = (label: string, before: string, after: string) =>
-    ({ label, changed: before !== after, before, after });
+  const diff = (label: string, before: string, after: string) => ({
+    label,
+    changed: before !== after,
+    before,
+    after,
+  });
 
   return (
     <div className="grid grid-rows-[minmax(0,1fr)_auto] min-h-[60vh]">
@@ -285,9 +328,15 @@ function PostPanel({
             <article className="prose prose-sm max-w-none px-6 py-8">
               <h1>{lang === "pl" ? titlePl : titleEn}</h1>
               {(lang === "pl" ? excerptPl : excerptEn) && (
-                <p className="lead text-muted-foreground">{lang === "pl" ? excerptPl : excerptEn}</p>
+                <p className="lead text-muted-foreground">
+                  {lang === "pl" ? excerptPl : excerptEn}
+                </p>
               )}
-              <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(lang === "pl" ? contentPl : contentEn) }} />
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeHtml(lang === "pl" ? contentPl : contentEn),
+                }}
+              />
             </article>
           </PreviewFrame>
         </TabsContent>
@@ -295,8 +344,20 @@ function PostPanel({
         <TabsContent value="content" className="mt-2 flex-1 min-h-0 px-4">
           <ScrollArea className="h-[48vh]">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-3 pb-4">
-              <FieldInput label="Treść PL (HTML)" value={contentPl} onChange={setContentPl} multiline rows={16} />
-              <FieldInput label="Content EN (HTML)" value={contentEn} onChange={setContentEn} multiline rows={16} />
+              <FieldInput
+                label="Treść PL (HTML)"
+                value={contentPl}
+                onChange={setContentPl}
+                multiline
+                rows={16}
+              />
+              <FieldInput
+                label="Content EN (HTML)"
+                value={contentEn}
+                onChange={setContentEn}
+                multiline
+                rows={16}
+              />
             </div>
           </ScrollArea>
         </TabsContent>
@@ -318,23 +379,33 @@ function PostPanel({
         onOpenChange={setConfirmOpen}
         patternName={pattern.name[lang]}
         rows={[
-          diff(lang === "pl" ? "Tytuł" : "Title",
+          diff(
+            lang === "pl" ? "Tytuł" : "Title",
             `${pattern.defaultTitle.pl} / ${pattern.defaultTitle.en}`,
-            `${titlePl.trim()} / ${titleEn.trim()}`),
-          diff(lang === "pl" ? "Lead" : "Excerpt",
+            `${titlePl.trim()} / ${titleEn.trim()}`,
+          ),
+          diff(
+            lang === "pl" ? "Lead" : "Excerpt",
             `${pattern.defaultExcerpt?.pl ?? ""} / ${pattern.defaultExcerpt?.en ?? ""}`,
-            `${excerptPl.trim()} / ${excerptEn.trim()}`),
-          diff(lang === "pl" ? "Treść" : "Content",
+            `${excerptPl.trim()} / ${excerptEn.trim()}`,
+          ),
+          diff(
+            lang === "pl" ? "Treść" : "Content",
             `${pattern.content.pl.length} zn. / ${pattern.content.en.length} zn.`,
-            `${contentPl.length} zn. / ${contentEn.length} zn.`),
+            `${contentPl.length} zn. / ${contentEn.length} zn.`,
+          ),
         ]}
         onConfirm={() => {
           setConfirmOpen(false);
           onApply({
-            kind: "post", pattern,
-            title_pl: titlePl.trim(), title_en: titleEn.trim(),
-            excerpt_pl: excerptPl.trim(), excerpt_en: excerptEn.trim(),
-            content_pl: contentPl, content_en: contentEn,
+            kind: "post",
+            pattern,
+            title_pl: titlePl.trim(),
+            title_en: titleEn.trim(),
+            excerpt_pl: excerptPl.trim(),
+            excerpt_en: excerptEn.trim(),
+            content_pl: contentPl,
+            content_en: contentEn,
           });
         }}
       />
@@ -346,7 +417,10 @@ function PreviewFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative h-[48vh] mx-4 my-2 rounded-lg border border-border overflow-hidden bg-background">
       <div className="absolute inset-0 overflow-auto">
-        <div className="origin-top-left" style={{ width: 1280, transform: "scale(0.6)", transformOrigin: "top left" }}>
+        <div
+          className="origin-top-left"
+          style={{ width: 1280, transform: "scale(0.6)", transformOrigin: "top left" }}
+        >
           {children}
         </div>
       </div>
@@ -362,10 +436,19 @@ function ApplyBar({ onApply }: { onApply: () => void }) {
   );
 }
 
-interface ConfirmRow { label: string; changed: boolean; before: string; after: string }
+interface ConfirmRow {
+  label: string;
+  changed: boolean;
+  before: string;
+  after: string;
+}
 
 function ConfirmDialog({
-  open, onOpenChange, patternName, rows, onConfirm,
+  open,
+  onOpenChange,
+  patternName,
+  rows,
+  onConfirm,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -378,16 +461,22 @@ function ConfirmDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="font-display text-lg">Potwierdź zastosowanie szablonu</DialogTitle>
+          <DialogTitle className="font-display text-lg">
+            Potwierdź zastosowanie szablonu
+          </DialogTitle>
           <DialogDescription>
-            Szablon: <strong>{patternName}</strong>. Zmienionych pól: <strong>{changedCount}</strong>.
-            Czynności nie można cofnąć automatycznie - zapisz wersję strony, jeśli to potrzebne.
+            Szablon: <strong>{patternName}</strong>. Zmienionych pól:{" "}
+            <strong>{changedCount}</strong>. Czynności nie można cofnąć automatycznie - zapisz
+            wersję strony, jeśli to potrzebne.
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[40vh] -mx-2 px-2">
           <ul className="space-y-2 py-2">
             {rows.map((r, i) => (
-              <li key={i} className={`rounded-md border p-3 text-xs ${r.changed ? "border-brand/40 bg-brand/5" : "border-border bg-muted/30"}`}>
+              <li
+                key={i}
+                className={`rounded-md border p-3 text-xs ${r.changed ? "border-brand/40 bg-brand/5" : "border-border bg-muted/30"}`}
+              >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-semibold text-foreground">{r.label}</span>
                   <Badge variant={r.changed ? "default" : "outline"} className="text-[10px]">
@@ -396,8 +485,14 @@ function ConfirmDialog({
                 </div>
                 {r.changed && (
                   <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-muted-foreground">
-                    <div><div className="text-[10px] uppercase">Przed</div><div className="line-clamp-3">{r.before}</div></div>
-                    <div><div className="text-[10px] uppercase">Po</div><div className="line-clamp-3 text-foreground">{r.after}</div></div>
+                    <div>
+                      <div className="text-[10px] uppercase">Przed</div>
+                      <div className="line-clamp-3">{r.before}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase">Po</div>
+                      <div className="line-clamp-3 text-foreground">{r.after}</div>
+                    </div>
                   </div>
                 )}
               </li>
@@ -405,7 +500,9 @@ function ConfirmDialog({
           </ul>
         </ScrollArea>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Anuluj</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Anuluj
+          </Button>
           <Button onClick={onConfirm}>Zastosuj</Button>
         </DialogFooter>
       </DialogContent>
@@ -414,7 +511,11 @@ function ConfirmDialog({
 }
 
 function FieldInput({
-  label, value, onChange, multiline, rows = 3,
+  label,
+  value,
+  onChange,
+  multiline,
+  rows = 3,
 }: {
   label: string;
   value: string;
@@ -424,11 +525,22 @@ function FieldInput({
 }) {
   return (
     <label className="block">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </span>
       {multiline ? (
-        <Textarea value={value} onChange={(e) => onChange(e.target.value)} rows={rows} className="mt-1 text-xs font-mono" />
+        <Textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          rows={rows}
+          className="mt-1 text-xs font-mono"
+        />
       ) : (
-        <Input value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 h-8 text-sm" />
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="mt-1 h-8 text-sm"
+        />
       )}
     </label>
   );

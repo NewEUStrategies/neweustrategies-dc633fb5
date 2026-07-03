@@ -2,9 +2,33 @@ import { describe, it, expect } from "vitest";
 import { buildCustomMetaItems, metaLabel, type CustomMetaDef } from "../customMeta";
 
 const defs: CustomMetaDef[] = [
-  { id: "1", tenant_id: "t", key: "prep_time", label_pl: "Czas przygotowania", label_en: "Prep time", icon: "Clock", position: 1 },
-  { id: "2", tenant_id: "t", key: "difficulty", label_pl: "Trudność", label_en: "Difficulty", icon: "Award", position: 2 },
-  { id: "3", tenant_id: "t", key: "servings", label_pl: "Porcje", label_en: "Servings", icon: "Users", position: 3 },
+  {
+    id: "1",
+    tenant_id: "t",
+    key: "prep_time",
+    label_pl: "Czas przygotowania",
+    label_en: "Prep time",
+    icon: "Clock",
+    position: 1,
+  },
+  {
+    id: "2",
+    tenant_id: "t",
+    key: "difficulty",
+    label_pl: "Trudność",
+    label_en: "Difficulty",
+    icon: "Award",
+    position: 2,
+  },
+  {
+    id: "3",
+    tenant_id: "t",
+    key: "servings",
+    label_pl: "Porcje",
+    label_en: "Servings",
+    icon: "Users",
+    position: 3,
+  },
 ];
 
 describe("buildCustomMetaItems", () => {
@@ -13,7 +37,12 @@ describe("buildCustomMetaItems", () => {
     expect(buildCustomMetaItems(defs, undefined)).toEqual([]);
   });
   it("preserves definition order and skips empty/missing", () => {
-    const items = buildCustomMetaItems(defs, { difficulty: "Łatwa", prep_time: "30 min", missing: "x", servings: "  " });
+    const items = buildCustomMetaItems(defs, {
+      difficulty: "Łatwa",
+      prep_time: "30 min",
+      missing: "x",
+      servings: "  ",
+    });
     expect(items.map((i) => i.def.key)).toEqual(["prep_time", "difficulty"]);
     expect(items[0].value).toBe("30 min");
   });

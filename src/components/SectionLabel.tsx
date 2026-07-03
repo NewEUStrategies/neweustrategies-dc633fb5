@@ -19,7 +19,11 @@ export function SectionLabel({ label, color = "brand", action }: Props) {
       <div className={`section-rule ${colorMap[color]} text-sm uppercase tracking-wider`}>
         {label}
       </div>
-      {action && <div className="text-xs font-semibold text-muted-foreground hover:text-brand pb-2 cursor-pointer">{action}</div>}
+      {action && (
+        <div className="text-xs font-semibold text-muted-foreground hover:text-brand pb-2 cursor-pointer">
+          {action}
+        </div>
+      )}
     </div>
   );
 }

@@ -51,8 +51,14 @@ export function storyTitle(s: Pick<WebStory, "title_pl" | "title_en">, lang: "pl
   return (lang === "en" ? s.title_en || s.title_pl : s.title_pl || s.title_en) || "";
 }
 
-export function storyDescription(s: Pick<WebStory, "description_pl" | "description_en">, lang: "pl" | "en"): string {
-  return (lang === "en" ? s.description_en || s.description_pl : s.description_pl || s.description_en) || "";
+export function storyDescription(
+  s: Pick<WebStory, "description_pl" | "description_en">,
+  lang: "pl" | "en",
+): string {
+  return (
+    (lang === "en" ? s.description_en || s.description_pl : s.description_pl || s.description_en) ||
+    ""
+  );
 }
 
 export function pageTitle(p: StoryPage, lang: "pl" | "en"): string {
@@ -62,7 +68,9 @@ export function pageCaption(p: StoryPage, lang: "pl" | "en"): string {
   return (lang === "en" ? p.caption_en || p.caption_pl : p.caption_pl || p.caption_en) || "";
 }
 export function pageCtaLabel(p: StoryPage, lang: "pl" | "en"): string {
-  return (lang === "en" ? p.cta_label_en || p.cta_label_pl : p.cta_label_pl || p.cta_label_en) || "";
+  return (
+    (lang === "en" ? p.cta_label_en || p.cta_label_pl : p.cta_label_pl || p.cta_label_en) || ""
+  );
 }
 
 export function safeParsePages(input: unknown): StoryPage[] {

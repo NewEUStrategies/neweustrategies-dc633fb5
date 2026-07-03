@@ -54,9 +54,7 @@ function wantsUniqueOnPage(c: WidgetContent): boolean {
 
 export function newsTickerInput(c: WidgetContent): NewsTickerInput {
   const display = newsTickerDisplayLimit(c);
-  const limit = wantsUniqueOnPage(c)
-    ? Math.min(60, display + UNIQUE_FETCH_HEADROOM)
-    : display;
+  const limit = wantsUniqueOnPage(c) ? Math.min(60, display + UNIQUE_FETCH_HEADROOM) : display;
   const categorySlugs = readStr(c, "categoriesCsv", "")
     .split(",")
     .map((s) => s.trim())
@@ -67,10 +65,16 @@ export function newsTickerInput(c: WidgetContent): NewsTickerInput {
 async function fetchTickerPosts(input: NewsTickerInput): Promise<TickerPost[]> {
   let allowedIds: string[] | null = null;
   if (input.categorySlugs.length) {
-    const { data: cats } = await supabase.from("categories").select("id").in("slug", input.categorySlugs);
+    const { data: cats } = await supabase
+      .from("categories")
+      .select("id")
+      .in("slug", input.categorySlugs);
     const catIds = (cats ?? []).map((r: { id: string }) => r.id);
     if (!catIds.length) return [];
-    const { data: links } = await supabase.from("post_categories").select("post_id").in("category_id", catIds);
+    const { data: links } = await supabase
+      .from("post_categories")
+      .select("post_id")
+      .in("category_id", catIds);
     allowedIds = Array.from(new Set((links ?? []).map((r: { post_id: string }) => r.post_id)));
     if (!allowedIds.length) return [];
   }

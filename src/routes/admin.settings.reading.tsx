@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
-import { Field, Text, NumberInput, Select, Checkbox, SaveBar } from "@/components/admin/settings/fields";
+import {
+  Field,
+  Text,
+  NumberInput,
+  Select,
+  Checkbox,
+  SaveBar,
+} from "@/components/admin/settings/fields";
 
 type Reading = {
   posts_per_page: number;
@@ -34,20 +41,35 @@ function ReadingSettings() {
       <h2 className="font-display text-xl mb-4">{t("admin.reading.title")}</h2>
 
       <Field label={t("admin.reading.homepageShows")}>
-        <Select value={draft.homepage_mode} onChange={(e) => set("homepage_mode", e.target.value as Reading["homepage_mode"])}>
+        <Select
+          value={draft.homepage_mode}
+          onChange={(e) => set("homepage_mode", e.target.value as Reading["homepage_mode"])}
+        >
           <option value="latest_posts">{t("admin.reading.latestPosts")}</option>
           <option value="static_page">{t("admin.reading.staticPage")}</option>
         </Select>
       </Field>
       {draft.homepage_mode === "static_page" && (
         <Field label={t("admin.reading.homepageSlug")} hint={t("admin.reading.homepageSlugHint")}>
-          <Text value={draft.homepage_page_slug} onChange={(e) => set("homepage_page_slug", e.target.value)} placeholder="o-nas" />
+          <Text
+            value={draft.homepage_page_slug}
+            onChange={(e) => set("homepage_page_slug", e.target.value)}
+            placeholder="o-nas"
+          />
         </Field>
       )}
       <Field label={t("admin.reading.postsPerPage")}>
-        <NumberInput min={1} max={100} value={draft.posts_per_page} onChange={(e) => set("posts_per_page", Number(e.target.value))} />
+        <NumberInput
+          min={1}
+          max={100}
+          value={draft.posts_per_page}
+          onChange={(e) => set("posts_per_page", Number(e.target.value))}
+        />
       </Field>
-      <Field label={t("admin.reading.searchVisibility")} hint={t("admin.reading.searchVisibilityHint")}>
+      <Field
+        label={t("admin.reading.searchVisibility")}
+        hint={t("admin.reading.searchVisibilityHint")}
+      >
         <Checkbox
           label={t("admin.reading.allowIndexing")}
           checked={draft.search_engine_visibility}

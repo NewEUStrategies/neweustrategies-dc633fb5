@@ -85,16 +85,14 @@ export function useSaveDesignTokens() {
     mutationFn: async (next: DesignTokens) => {
       // `tenant_id` is omitted: the DB default `current_tenant_id()` fills
       // it on insert; on update RLS already scopes to the caller's tenant.
-      const { error } = await supabase
-        .from("site_design_tokens")
-        .upsert(
-          {
-            colors: toJson(next.colors),
-            fonts: toJson(next.fonts),
-            scale: toJson(next.scale),
-          },
-          { onConflict: "tenant_id" },
-        );
+      const { error } = await supabase.from("site_design_tokens").upsert(
+        {
+          colors: toJson(next.colors),
+          fonts: toJson(next.fonts),
+          scale: toJson(next.scale),
+        },
+        { onConflict: "tenant_id" },
+      );
       if (error) throw error;
       return next;
     },

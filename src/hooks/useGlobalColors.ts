@@ -36,10 +36,7 @@ export function useSaveGlobalColors() {
     mutationFn: async (next: GlobalColorsValue) => {
       const { error } = await supabase
         .from("site_design_tokens")
-        .upsert(
-          { global_colors: toJson(next) },
-          { onConflict: "tenant_id" },
-        );
+        .upsert({ global_colors: toJson(next) }, { onConflict: "tenant_id" });
       if (error) throw error;
       return next;
     },

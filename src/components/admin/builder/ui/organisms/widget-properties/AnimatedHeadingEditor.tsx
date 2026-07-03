@@ -3,7 +3,13 @@ import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { PropField, ColorField } from "../../atoms";
 import {
   ANIMATED_MODES,
@@ -23,7 +29,7 @@ interface Props {
 export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
   const mode = (typeof c.mode === "string" ? c.mode : "highlight") as AnimatedHeadingMode;
   const shape = (typeof c.shape === "string" ? c.shape : "underline") as AnimatedHeadingShape;
-  const tag = (typeof c.tag === "string" ? c.tag : "h2") as "h1"|"h2"|"h3"|"h4"|"h5"|"h6";
+  const tag = (typeof c.tag === "string" ? c.tag : "h2") as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
   const visibleShapes =
     mode === "hover-underline"
@@ -51,9 +57,9 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
   const align = (typeof c.align === "string" ? c.align : "left") as "left" | "center" | "right";
 
   const textBefore = (c[`textBefore_${lang}`] as string) || "";
-  const textAfter  = (c[`textAfter_${lang}`]  as string) || "";
-  const highlight  = (c[`highlight_${lang}`]  as string) || "";
-  const rotateRaw  = c[`rotateWords_${lang}`];
+  const textAfter = (c[`textAfter_${lang}`] as string) || "";
+  const highlight = (c[`highlight_${lang}`] as string) || "";
+  const rotateRaw = c[`rotateWords_${lang}`];
   const rotateWords: string[] = Array.isArray(rotateRaw)
     ? rotateRaw.filter((x): x is string => typeof x === "string")
     : [];
@@ -61,41 +67,71 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
   const color = (typeof c.color === "string" ? c.color : "") || "";
   const accentColor = (typeof c.accentColor === "string" ? c.accentColor : "") || "#f97316";
   const durationMs = typeof c.durationMs === "number" ? c.durationMs : 1600;
-  const delayMs    = typeof c.delayMs    === "number" ? c.delayMs    : 200;
+  const delayMs = typeof c.delayMs === "number" ? c.delayMs : 200;
   const loop = c.loop !== false;
 
   const setWords = (txt: string) => {
-    const arr = txt.split("\n").map((s) => s.trim()).filter(Boolean);
+    const arr = txt
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
     setContent(`rotateWords_${lang}`, toJson(arr));
   };
 
   const previewCfg: AnimatedHeadingConfig = {
-    mode, shape, tag, align, textBefore, textAfter, highlight,
-    rotateWords, color: color || undefined, accentColor,
-    durationMs, delayMs, loop,
+    mode,
+    shape,
+    tag,
+    align,
+    textBefore,
+    textAfter,
+    highlight,
+    rotateWords,
+    color: color || undefined,
+    accentColor,
+    durationMs,
+    delayMs,
+    loop,
   };
 
-  const accentPresets = ["#f97316", "#ef4444", "#eab308", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#0ea5e9"];
+  const accentPresets = [
+    "#f97316",
+    "#ef4444",
+    "#eab308",
+    "#22c55e",
+    "#3b82f6",
+    "#a855f7",
+    "#ec4899",
+    "#0ea5e9",
+  ];
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2">
         <PropField label="Tryb animacji">
           <Select value={mode} onValueChange={handleModeChange}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {ANIMATED_MODES.map((m) => (
-                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </PropField>
         <PropField label="Tag HTML">
           <Select value={tag} onValueChange={(v) => setContent("tag", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
-              {["h1","h2","h3","h4","h5","h6"].map((t) => (
-                <SelectItem key={t} value={t}>{t.toUpperCase()}</SelectItem>
+              {["h1", "h2", "h3", "h4", "h5", "h6"].map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t.toUpperCase()}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -122,7 +158,9 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
                 title={s.label}
               >
                 <div className="pointer-events-none flex items-center justify-center h-[44px]">
-                  <div style={{ transform: "scale(0.42)", transformOrigin: "center", lineHeight: 1 }}>
+                  <div
+                    style={{ transform: "scale(0.42)", transformOrigin: "center", lineHeight: 1 }}
+                  >
                     <AnimatedHeadingRender
                       config={{
                         mode: "highlight",
@@ -138,9 +176,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
                   </div>
                 </div>
                 <div className="mt-1 text-[10px] text-muted-foreground truncate">{s.label}</div>
-                {isActive && (
-                  <span className="absolute top-1 right-1 text-brand text-xs">✓</span>
-                )}
+                {isActive && <span className="absolute top-1 right-1 text-brand text-xs">✓</span>}
               </button>
             );
           })}
@@ -231,7 +267,10 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
         <div className="grid grid-cols-2 gap-2">
           <PropField label="Czas animacji (ms)">
             <Input
-              type="number" min={300} max={10000} step={100}
+              type="number"
+              min={300}
+              max={10000}
+              step={100}
               value={durationMs}
               onChange={(e) => setContent("durationMs", Number(e.target.value) || 1600)}
               className="h-8 text-xs"
@@ -239,15 +278,23 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
           </PropField>
           <PropField label="Opóźnienie startu (ms)">
             <Input
-              type="number" min={0} max={10000} step={100}
+              type="number"
+              min={0}
+              max={10000}
+              step={100}
               value={delayMs}
               onChange={(e) => setContent("delayMs", Number(e.target.value) || 0)}
               className="h-8 text-xs"
             />
           </PropField>
           <PropField label="Pętla">
-            <Select value={loop ? "on" : "off"} onValueChange={(v) => setContent("loop", v === "on")}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <Select
+              value={loop ? "on" : "off"}
+              onValueChange={(v) => setContent("loop", v === "on")}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="on">tak</SelectItem>
                 <SelectItem value="off">nie</SelectItem>
@@ -256,7 +303,9 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
           </PropField>
           <PropField label="Wyrównanie">
             <Select value={align} onValueChange={(v) => setContent("align", v)}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="left">do lewej</SelectItem>
                 <SelectItem value="center">do środka</SelectItem>

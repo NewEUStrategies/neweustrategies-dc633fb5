@@ -6,7 +6,6 @@ import { routeTree } from "./routeTree.gen";
 import { addLangPrefix, stripLangPrefix } from "./lib/i18n/localePath";
 import { currentLang } from "./lib/i18n/localeRuntime";
 
-
 // World-class defaults for a content-heavy public site:
 //   - 5 min staleTime: settings/menus/posts rarely change; avoid wasted refetches.
 //   - 30 min gcTime: keep navigated-away routes warm for quick back-nav.
@@ -95,4 +94,3 @@ export const getRouter = () => {
 
   return router;
 };
-

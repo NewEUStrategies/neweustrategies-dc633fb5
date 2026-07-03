@@ -59,12 +59,20 @@ export function ContentRenderer({
 
   if (engine === "blocks") {
     const tree = <BlocksRenderer doc={blocksDoc} lang={lang} postId={postId} />;
-    return currentPostCtx ? <CurrentPostProvider value={currentPostCtx}>{tree}</CurrentPostProvider> : tree;
+    return currentPostCtx ? (
+      <CurrentPostProvider value={currentPostCtx}>{tree}</CurrentPostProvider>
+    ) : (
+      tree
+    );
   }
 
   if (engine === "builder") {
     const tree = <BuilderRenderer doc={builderDoc} lang={lang} stream={stream} />;
-    return currentPostCtx ? <CurrentPostProvider value={currentPostCtx}>{tree}</CurrentPostProvider> : tree;
+    return currentPostCtx ? (
+      <CurrentPostProvider value={currentPostCtx}>{tree}</CurrentPostProvider>
+    ) : (
+      tree
+    );
   }
 
   return (

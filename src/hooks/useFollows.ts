@@ -37,7 +37,15 @@ export function useToggleFollow() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async ({ targetType, targetId, on }: { targetType: FollowTargetType; targetId: string; on: boolean }) => {
+    mutationFn: async ({
+      targetType,
+      targetId,
+      on,
+    }: {
+      targetType: FollowTargetType;
+      targetId: string;
+      on: boolean;
+    }) => {
       if (!user) throw new Error("Not authenticated");
       if (on) {
         const { error } = await supabase

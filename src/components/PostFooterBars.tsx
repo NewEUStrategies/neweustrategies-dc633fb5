@@ -100,20 +100,28 @@ export function PostFooterBars({ settings, lang, tags, sources, via, author, pre
               params={{ _splat: `${prev.parent_path ?? ""}/${prev.slug}`.replace(/^\//, "") }}
               className="block p-4 rounded border border-border hover:bg-muted/40 transition"
             >
-              <span className="text-xs text-muted-foreground">{lang === "en" ? "Previous" : "Poprzedni"}</span>
+              <span className="text-xs text-muted-foreground">
+                {lang === "en" ? "Previous" : "Poprzedni"}
+              </span>
               <p className="text-sm font-medium mt-1">{prev.title}</p>
             </Link>
-          ) : <span />}
+          ) : (
+            <span />
+          )}
           {next ? (
             <Link
               to="/$"
               params={{ _splat: `${next.parent_path ?? ""}/${next.slug}`.replace(/^\//, "") }}
               className="block p-4 rounded border border-border hover:bg-muted/40 transition text-right"
             >
-              <span className="text-xs text-muted-foreground">{lang === "en" ? "Next" : "Następny"}</span>
+              <span className="text-xs text-muted-foreground">
+                {lang === "en" ? "Next" : "Następny"}
+              </span>
               <p className="text-sm font-medium mt-1">{next.title}</p>
             </Link>
-          ) : <span />}
+          ) : (
+            <span />
+          )}
         </nav>
       )}
     </div>

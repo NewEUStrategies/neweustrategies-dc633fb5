@@ -5,7 +5,11 @@ import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import { defaultDocFor } from "@/lib/builder/chromeDefaults";
 import type { BuilderDocument } from "@/lib/builder/types";
-import { FooterChromeSchema, defaultFooterChrome, type FooterChrome } from "@/lib/theme/footerSettings";
+import {
+  FooterChromeSchema,
+  defaultFooterChrome,
+  type FooterChrome,
+} from "@/lib/theme/footerSettings";
 import { BackToTop } from "@/components/footer/BackToTop";
 import { CopyrightBar } from "@/components/footer/CopyrightBar";
 
@@ -32,16 +36,24 @@ export const Footer = memo(function Footer() {
   const chromeCfg = chrome.success ? chrome.data : defaultFooterChrome();
 
   if (!doc?.sections?.length) {
-    return chromeCfg.back_to_top ? <BackToTop thresholdPx={chromeCfg.back_to_top_threshold_px} /> : null;
+    return chromeCfg.back_to_top ? (
+      <BackToTop thresholdPx={chromeCfg.back_to_top_threshold_px} />
+    ) : null;
   }
 
   return (
     <>
-      <footer data-site-footer data-footer-layout={chromeCfg.layout} style={{ viewTransitionName: "site-footer" }}>
+      <footer
+        data-site-footer
+        data-footer-layout={chromeCfg.layout}
+        style={{ viewTransitionName: "site-footer" }}
+      >
         <BuilderRenderer doc={doc} lang={isPl ? "pl" : "en"} />
         <CopyrightBar chrome={chromeCfg} lang={isPl ? "pl" : "en"} />
       </footer>
-      {chromeCfg.back_to_top ? <BackToTop thresholdPx={chromeCfg.back_to_top_threshold_px} /> : null}
+      {chromeCfg.back_to_top ? (
+        <BackToTop thresholdPx={chromeCfg.back_to_top_threshold_px} />
+      ) : null}
     </>
   );
 });

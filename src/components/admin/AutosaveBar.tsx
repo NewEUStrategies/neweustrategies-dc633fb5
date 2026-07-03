@@ -16,41 +16,56 @@ interface Props {
 }
 
 export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo, onDiscard }: Props) {
-
   const { t } = useTranslation();
 
   const label =
-    status === "saving" ? t("admin.autosave.saving", { defaultValue: "Zapisywanie..." }) :
-    status === "saved"  ? t("admin.autosave.saved",  { defaultValue: "Zapisano" }) :
-    status === "dirty"  ? t("admin.autosave.dirty",  { defaultValue: "Niezapisane zmiany" }) :
-    status === "error"  ? (error ?? t("admin.autosave.error", { defaultValue: "Błąd zapisu" })) :
-    t("admin.autosave.idle", { defaultValue: "Gotowe" });
+    status === "saving"
+      ? t("admin.autosave.saving", { defaultValue: "Zapisywanie..." })
+      : status === "saved"
+        ? t("admin.autosave.saved", { defaultValue: "Zapisano" })
+        : status === "dirty"
+          ? t("admin.autosave.dirty", { defaultValue: "Niezapisane zmiany" })
+          : status === "error"
+            ? (error ?? t("admin.autosave.error", { defaultValue: "Błąd zapisu" }))
+            : t("admin.autosave.idle", { defaultValue: "Gotowe" });
 
   const Icon =
-    status === "saving" ? Loader2 :
-    status === "saved"  ? Check :
-    status === "error"  ? AlertTriangle :
-    Circle;
+    status === "saving"
+      ? Loader2
+      : status === "saved"
+        ? Check
+        : status === "error"
+          ? AlertTriangle
+          : Circle;
 
   const tone =
-    status === "error"  ? "text-destructive" :
-    status === "saved"  ? "text-emerald-600 dark:text-emerald-400" :
-    status === "saving" ? "text-muted-foreground" :
-    "text-muted-foreground";
+    status === "error"
+      ? "text-destructive"
+      : status === "saved"
+        ? "text-emerald-600 dark:text-emerald-400"
+        : status === "saving"
+          ? "text-muted-foreground"
+          : "text-muted-foreground";
 
   return (
     <div className="inline-flex items-center gap-2">
       <Button
-        type="button" size="sm" variant="ghost"
-        onClick={onUndo} disabled={!canUndo}
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={onUndo}
+        disabled={!canUndo}
         aria-label={t("admin.autosave.undo", { defaultValue: "Cofnij" })}
         title={t("admin.autosave.undo", { defaultValue: "Cofnij" })}
       >
         <Undo2 className="w-4 h-4" />
       </Button>
       <Button
-        type="button" size="sm" variant="ghost"
-        onClick={onRedo} disabled={!canRedo}
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={onRedo}
+        disabled={!canRedo}
         aria-label={t("admin.autosave.redo", { defaultValue: "Ponów" })}
         title={t("admin.autosave.redo", { defaultValue: "Ponów" })}
       >
@@ -62,9 +77,17 @@ export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo, o
       </span>
       {onDiscard && status === "dirty" && (
         <Button
-          type="button" size="sm" variant="ghost"
+          type="button"
+          size="sm"
+          variant="ghost"
           onClick={() => {
-            if (window.confirm(t("admin.autosave.discardConfirm", { defaultValue: "Odrzucić niezapisane zmiany?" }))) {
+            if (
+              window.confirm(
+                t("admin.autosave.discardConfirm", {
+                  defaultValue: "Odrzucić niezapisane zmiany?",
+                }),
+              )
+            ) {
               onDiscard();
             }
           }}
@@ -77,6 +100,5 @@ export function AutosaveBar({ status, error, canUndo, canRedo, onUndo, onRedo, o
         </Button>
       )}
     </div>
-
   );
 }

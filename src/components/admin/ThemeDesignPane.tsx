@@ -3,13 +3,33 @@
 // + global slider/carousel defaults.
 // Embedded as a section inside ThemeOptionsPane (under "Style treści").
 import { useEffect, useState, type CSSProperties } from "react";
-import { Save, Sun, Moon, Undo, Redo, Monitor, Tablet, Smartphone, Facebook, Instagram, Youtube, Linkedin, Mail } from "lucide-react";
+import {
+  Save,
+  Sun,
+  Moon,
+  Undo,
+  Redo,
+  Monitor,
+  Tablet,
+  Smartphone,
+  Facebook,
+  Instagram,
+  Youtube,
+  Linkedin,
+  Mail,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   useThemeDesign,
   useSaveThemeDesign,
@@ -31,8 +51,12 @@ export function ThemeDesignPane() {
 
   const [draft, setDraft] = useState<ThemeDesign | null>(null);
   const [cDraft, setCDraft] = useState<CarouselDefaults | null>(null);
-  useEffect(() => { if (td && !draft) setDraft(td); }, [td, draft]);
-  useEffect(() => { if (cd && !cDraft) setCDraft(cd); }, [cd, cDraft]);
+  useEffect(() => {
+    if (td && !draft) setDraft(td);
+  }, [td, draft]);
+  useEffect(() => {
+    if (cd && !cDraft) setCDraft(cd);
+  }, [cd, cDraft]);
 
   if (tdLoading || cdLoading || !draft || !cDraft) {
     return <p className="text-sm text-muted-foreground">Ładowanie...</p>;
@@ -57,17 +81,36 @@ export function ThemeDesignPane() {
       <Section title="Nagłówki bloków">
         <Grid>
           <Field label="Rozmiar (px)">
-            <Input value={px(draft.blockHeading.fontSize)} onChange={(e) => set("blockHeading", { fontSize: `${e.target.value}px` })} />
+            <Input
+              value={px(draft.blockHeading.fontSize)}
+              onChange={(e) => set("blockHeading", { fontSize: `${e.target.value}px` })}
+            />
           </Field>
           <Field label="Grubość">
-            <Input type="number" value={draft.blockHeading.fontWeight} onChange={(e) => set("blockHeading", { fontWeight: Number(e.target.value) })} />
+            <Input
+              type="number"
+              value={draft.blockHeading.fontWeight}
+              onChange={(e) => set("blockHeading", { fontWeight: Number(e.target.value) })}
+            />
           </Field>
           <Field label="Kolor">
-            <Input value={draft.blockHeading.color} onChange={(e) => set("blockHeading", { color: e.target.value })} />
+            <Input
+              value={draft.blockHeading.color}
+              onChange={(e) => set("blockHeading", { color: e.target.value })}
+            />
           </Field>
           <Field label="Transformacja">
-            <Select value={draft.blockHeading.textTransform} onValueChange={(v) => set("blockHeading", { textTransform: v as ThemeDesign["blockHeading"]["textTransform"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={draft.blockHeading.textTransform}
+              onValueChange={(v) =>
+                set("blockHeading", {
+                  textTransform: v as ThemeDesign["blockHeading"]["textTransform"],
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Brak</SelectItem>
                 <SelectItem value="uppercase">WIELKIE</SelectItem>
@@ -77,10 +120,16 @@ export function ThemeDesignPane() {
             </Select>
           </Field>
           <Field label="Odstęp liter (px)">
-            <Input value={px(draft.blockHeading.letterSpacing)} onChange={(e) => set("blockHeading", { letterSpacing: `${e.target.value}px` })} />
+            <Input
+              value={px(draft.blockHeading.letterSpacing)}
+              onChange={(e) => set("blockHeading", { letterSpacing: `${e.target.value}px` })}
+            />
           </Field>
           <Field label="Margines dolny (px)">
-            <Input value={px(draft.blockHeading.marginBottom)} onChange={(e) => set("blockHeading", { marginBottom: `${e.target.value}px` })} />
+            <Input
+              value={px(draft.blockHeading.marginBottom)}
+              onChange={(e) => set("blockHeading", { marginBottom: `${e.target.value}px` })}
+            />
           </Field>
         </Grid>
         <Preview>
@@ -103,14 +152,27 @@ export function ThemeDesignPane() {
       <Section title="Miniatury wpisów">
         <Grid>
           <Field label="Zaokrąglenie (px)">
-            <Input value={px(draft.thumbnail.radius)} onChange={(e) => set("thumbnail", { radius: `${e.target.value}px` })} />
+            <Input
+              value={px(draft.thumbnail.radius)}
+              onChange={(e) => set("thumbnail", { radius: `${e.target.value}px` })}
+            />
           </Field>
           <Field label="Proporcje (np. 16/9)">
-            <Input value={draft.thumbnail.aspectRatio} onChange={(e) => set("thumbnail", { aspectRatio: e.target.value })} />
+            <Input
+              value={draft.thumbnail.aspectRatio}
+              onChange={(e) => set("thumbnail", { aspectRatio: e.target.value })}
+            />
           </Field>
           <Field label="Efekt hover">
-            <Select value={draft.thumbnail.hoverEffect} onValueChange={(v) => set("thumbnail", { hoverEffect: v as ThemeDesign["thumbnail"]["hoverEffect"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={draft.thumbnail.hoverEffect}
+              onValueChange={(v) =>
+                set("thumbnail", { hoverEffect: v as ThemeDesign["thumbnail"]["hoverEffect"] })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Brak</SelectItem>
                 <SelectItem value="zoom">Zoom</SelectItem>
@@ -120,8 +182,15 @@ export function ThemeDesignPane() {
             </Select>
           </Field>
           <Field label="Cień">
-            <Select value={draft.thumbnail.shadow} onValueChange={(v) => set("thumbnail", { shadow: v as ThemeDesign["thumbnail"]["shadow"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={draft.thumbnail.shadow}
+              onValueChange={(v) =>
+                set("thumbnail", { shadow: v as ThemeDesign["thumbnail"]["shadow"] })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Brak</SelectItem>
                 <SelectItem value="sm">Mały</SelectItem>
@@ -135,17 +204,59 @@ export function ThemeDesignPane() {
 
       <Section title={"Przycisk „Czytaj więcej”"}>
         <Grid>
-          <Field label="Kolor tła"><Input value={draft.readMoreButton.bgColor} onChange={(e) => set("readMoreButton", { bgColor: e.target.value })} /></Field>
-          <Field label="Kolor tekstu"><Input value={draft.readMoreButton.color} onChange={(e) => set("readMoreButton", { color: e.target.value })} /></Field>
-          <Field label="Kolor obramowania"><Input value={draft.readMoreButton.borderColor} onChange={(e) => set("readMoreButton", { borderColor: e.target.value })} /></Field>
-          <Field label="Zaokrąglenie (px)"><Input value={px(draft.readMoreButton.radius)} onChange={(e) => set("readMoreButton", { radius: `${e.target.value}px` })} /></Field>
-          <Field label="Padding X (px)"><Input value={px(draft.readMoreButton.paddingX)} onChange={(e) => set("readMoreButton", { paddingX: `${e.target.value}px` })} /></Field>
-          <Field label="Padding Y (px)"><Input value={px(draft.readMoreButton.paddingY)} onChange={(e) => set("readMoreButton", { paddingY: `${e.target.value}px` })} /></Field>
-          <Field label="Grubość">
-            <Input type="number" value={draft.readMoreButton.fontWeight} onChange={(e) => set("readMoreButton", { fontWeight: Number(e.target.value) })} />
+          <Field label="Kolor tła">
+            <Input
+              value={draft.readMoreButton.bgColor}
+              onChange={(e) => set("readMoreButton", { bgColor: e.target.value })}
+            />
           </Field>
-          <ToggleField label="WIELKIE LITERY" checked={draft.readMoreButton.uppercase} onChange={(v) => set("readMoreButton", { uppercase: v })} />
-          <ToggleField label="Strzałka →" checked={draft.readMoreButton.arrow} onChange={(v) => set("readMoreButton", { arrow: v })} />
+          <Field label="Kolor tekstu">
+            <Input
+              value={draft.readMoreButton.color}
+              onChange={(e) => set("readMoreButton", { color: e.target.value })}
+            />
+          </Field>
+          <Field label="Kolor obramowania">
+            <Input
+              value={draft.readMoreButton.borderColor}
+              onChange={(e) => set("readMoreButton", { borderColor: e.target.value })}
+            />
+          </Field>
+          <Field label="Zaokrąglenie (px)">
+            <Input
+              value={px(draft.readMoreButton.radius)}
+              onChange={(e) => set("readMoreButton", { radius: `${e.target.value}px` })}
+            />
+          </Field>
+          <Field label="Padding X (px)">
+            <Input
+              value={px(draft.readMoreButton.paddingX)}
+              onChange={(e) => set("readMoreButton", { paddingX: `${e.target.value}px` })}
+            />
+          </Field>
+          <Field label="Padding Y (px)">
+            <Input
+              value={px(draft.readMoreButton.paddingY)}
+              onChange={(e) => set("readMoreButton", { paddingY: `${e.target.value}px` })}
+            />
+          </Field>
+          <Field label="Grubość">
+            <Input
+              type="number"
+              value={draft.readMoreButton.fontWeight}
+              onChange={(e) => set("readMoreButton", { fontWeight: Number(e.target.value) })}
+            />
+          </Field>
+          <ToggleField
+            label="WIELKIE LITERY"
+            checked={draft.readMoreButton.uppercase}
+            onChange={(v) => set("readMoreButton", { uppercase: v })}
+          />
+          <ToggleField
+            label="Strzałka →"
+            checked={draft.readMoreButton.arrow}
+            onChange={(v) => set("readMoreButton", { arrow: v })}
+          />
         </Grid>
         <Preview>
           <button
@@ -168,12 +279,34 @@ export function ThemeDesignPane() {
 
       <Section title="Informacje meta (autor, data, kategoria)">
         <Grid>
-          <Field label="Rozmiar (px)"><Input value={px(draft.metaInfo.fontSize)} onChange={(e) => set("metaInfo", { fontSize: `${e.target.value}px` })} /></Field>
-          <Field label="Kolor"><Input value={draft.metaInfo.color} onChange={(e) => set("metaInfo", { color: e.target.value })} /></Field>
-          <Field label="Odstęp między (px)"><Input value={px(draft.metaInfo.gap)} onChange={(e) => set("metaInfo", { gap: `${e.target.value}px` })} /></Field>
+          <Field label="Rozmiar (px)">
+            <Input
+              value={px(draft.metaInfo.fontSize)}
+              onChange={(e) => set("metaInfo", { fontSize: `${e.target.value}px` })}
+            />
+          </Field>
+          <Field label="Kolor">
+            <Input
+              value={draft.metaInfo.color}
+              onChange={(e) => set("metaInfo", { color: e.target.value })}
+            />
+          </Field>
+          <Field label="Odstęp między (px)">
+            <Input
+              value={px(draft.metaInfo.gap)}
+              onChange={(e) => set("metaInfo", { gap: `${e.target.value}px` })}
+            />
+          </Field>
           <Field label="Separator">
-            <Select value={draft.metaInfo.separator} onValueChange={(v) => set("metaInfo", { separator: v as ThemeDesign["metaInfo"]["separator"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={draft.metaInfo.separator}
+              onValueChange={(v) =>
+                set("metaInfo", { separator: v as ThemeDesign["metaInfo"]["separator"] })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="dot">•</SelectItem>
                 <SelectItem value="slash">/</SelectItem>
@@ -182,69 +315,173 @@ export function ThemeDesignPane() {
               </SelectContent>
             </Select>
           </Field>
-          <ToggleField label="WIELKIE LITERY" checked={draft.metaInfo.uppercase} onChange={(v) => set("metaInfo", { uppercase: v })} />
+          <ToggleField
+            label="WIELKIE LITERY"
+            checked={draft.metaInfo.uppercase}
+            onChange={(v) => set("metaInfo", { uppercase: v })}
+          />
         </Grid>
       </Section>
 
       <Section title="Przyciski toolbara (undo, redo, język, urządzenie)">
         <Grid>
-          <Field label="Tło"><Input value={draft.toolbarButton.bgColor} onChange={(e) => set("toolbarButton", { bgColor: e.target.value })} /></Field>
-          <Field label="Kolor ikony/tekstu"><Input value={draft.toolbarButton.color} onChange={(e) => set("toolbarButton", { color: e.target.value })} /></Field>
-          <Field label="Hover - tło"><Input value={draft.toolbarButton.hoverBgColor} onChange={(e) => set("toolbarButton", { hoverBgColor: e.target.value })} /></Field>
-          <Field label="Hover - kolor"><Input value={draft.toolbarButton.hoverColor} onChange={(e) => set("toolbarButton", { hoverColor: e.target.value })} /></Field>
-          <Field label="Aktywny - tło"><Input value={draft.toolbarButton.activeBgColor} onChange={(e) => set("toolbarButton", { activeBgColor: e.target.value })} /></Field>
-          <Field label="Aktywny - kolor"><Input value={draft.toolbarButton.activeColor} onChange={(e) => set("toolbarButton", { activeColor: e.target.value })} /></Field>
-          <Field label="Zaokrąglenie (px)"><Input value={px(draft.toolbarButton.radius)} onChange={(e) => set("toolbarButton", { radius: `${e.target.value}px` })} /></Field>
-          <Field label="Padding X (px)"><Input value={px(draft.toolbarButton.paddingX)} onChange={(e) => set("toolbarButton", { paddingX: `${e.target.value}px` })} /></Field>
-          <Field label="Padding Y (px)"><Input value={px(draft.toolbarButton.paddingY)} onChange={(e) => set("toolbarButton", { paddingY: `${e.target.value}px` })} /></Field>
-          <Field label="Rozmiar ikony (px)"><Input value={px(draft.toolbarButton.size)} onChange={(e) => set("toolbarButton", { size: `${e.target.value}px` })} /></Field>
+          <Field label="Tło">
+            <Input
+              value={draft.toolbarButton.bgColor}
+              onChange={(e) => set("toolbarButton", { bgColor: e.target.value })}
+            />
+          </Field>
+          <Field label="Kolor ikony/tekstu">
+            <Input
+              value={draft.toolbarButton.color}
+              onChange={(e) => set("toolbarButton", { color: e.target.value })}
+            />
+          </Field>
+          <Field label="Hover - tło">
+            <Input
+              value={draft.toolbarButton.hoverBgColor}
+              onChange={(e) => set("toolbarButton", { hoverBgColor: e.target.value })}
+            />
+          </Field>
+          <Field label="Hover - kolor">
+            <Input
+              value={draft.toolbarButton.hoverColor}
+              onChange={(e) => set("toolbarButton", { hoverColor: e.target.value })}
+            />
+          </Field>
+          <Field label="Aktywny - tło">
+            <Input
+              value={draft.toolbarButton.activeBgColor}
+              onChange={(e) => set("toolbarButton", { activeBgColor: e.target.value })}
+            />
+          </Field>
+          <Field label="Aktywny - kolor">
+            <Input
+              value={draft.toolbarButton.activeColor}
+              onChange={(e) => set("toolbarButton", { activeColor: e.target.value })}
+            />
+          </Field>
+          <Field label="Zaokrąglenie (px)">
+            <Input
+              value={px(draft.toolbarButton.radius)}
+              onChange={(e) => set("toolbarButton", { radius: `${e.target.value}px` })}
+            />
+          </Field>
+          <Field label="Padding X (px)">
+            <Input
+              value={px(draft.toolbarButton.paddingX)}
+              onChange={(e) => set("toolbarButton", { paddingX: `${e.target.value}px` })}
+            />
+          </Field>
+          <Field label="Padding Y (px)">
+            <Input
+              value={px(draft.toolbarButton.paddingY)}
+              onChange={(e) => set("toolbarButton", { paddingY: `${e.target.value}px` })}
+            />
+          </Field>
+          <Field label="Rozmiar ikony (px)">
+            <Input
+              value={px(draft.toolbarButton.size)}
+              onChange={(e) => set("toolbarButton", { size: `${e.target.value}px` })}
+            />
+          </Field>
         </Grid>
         <Preview>
           <div
-            style={{
-              ["--td-tb-bg" as string]: draft.toolbarButton.bgColor,
-              ["--td-tb-color" as string]: draft.toolbarButton.color,
-              ["--td-tb-hover-bg" as string]: draft.toolbarButton.hoverBgColor,
-              ["--td-tb-hover-color" as string]: draft.toolbarButton.hoverColor,
-              ["--td-tb-active-bg" as string]: draft.toolbarButton.activeBgColor,
-              ["--td-tb-active-color" as string]: draft.toolbarButton.activeColor,
-              ["--td-tb-radius" as string]: draft.toolbarButton.radius,
-              ["--td-tb-px" as string]: draft.toolbarButton.paddingX,
-              ["--td-tb-py" as string]: draft.toolbarButton.paddingY,
-              ["--td-tb-size" as string]: draft.toolbarButton.size,
-            } as CSSProperties}
+            style={
+              {
+                ["--td-tb-bg" as string]: draft.toolbarButton.bgColor,
+                ["--td-tb-color" as string]: draft.toolbarButton.color,
+                ["--td-tb-hover-bg" as string]: draft.toolbarButton.hoverBgColor,
+                ["--td-tb-hover-color" as string]: draft.toolbarButton.hoverColor,
+                ["--td-tb-active-bg" as string]: draft.toolbarButton.activeBgColor,
+                ["--td-tb-active-color" as string]: draft.toolbarButton.activeColor,
+                ["--td-tb-radius" as string]: draft.toolbarButton.radius,
+                ["--td-tb-px" as string]: draft.toolbarButton.paddingX,
+                ["--td-tb-py" as string]: draft.toolbarButton.paddingY,
+                ["--td-tb-size" as string]: draft.toolbarButton.size,
+              } as CSSProperties
+            }
             className="flex flex-wrap items-center gap-2"
           >
-            <button className="cms-tb-btn" data-active="true" title="Aktywny"><Monitor /></button>
-            <button className="cms-tb-btn"><Tablet /></button>
-            <button className="cms-tb-btn"><Smartphone /></button>
-            <button className="cms-tb-btn"><Undo /></button>
-            <button className="cms-tb-btn"><Redo /></button>
-            <button className="cms-tb-btn" disabled><Redo /></button>
+            <button className="cms-tb-btn" data-active="true" title="Aktywny">
+              <Monitor />
+            </button>
+            <button className="cms-tb-btn">
+              <Tablet />
+            </button>
+            <button className="cms-tb-btn">
+              <Smartphone />
+            </button>
+            <button className="cms-tb-btn">
+              <Undo />
+            </button>
+            <button className="cms-tb-btn">
+              <Redo />
+            </button>
+            <button className="cms-tb-btn" disabled>
+              <Redo />
+            </button>
           </div>
         </Preview>
       </Section>
 
       <Section title="Przełącznik trybu jasny/ciemny">
         <Grid>
-          <Field label="Tło toru"><Input value={draft.modeSwitcher.trackBg} onChange={(e) => set("modeSwitcher", { trackBg: e.target.value })} /></Field>
-          <Field label="Obramowanie toru"><Input value={draft.modeSwitcher.trackBorder} onChange={(e) => set("modeSwitcher", { trackBorder: e.target.value })} /></Field>
-          <Field label="Kolor nieaktywny"><Input value={draft.modeSwitcher.inactiveColor} onChange={(e) => set("modeSwitcher", { inactiveColor: e.target.value })} /></Field>
-          <Field label="Aktywny - tło"><Input value={draft.modeSwitcher.activeBg} onChange={(e) => set("modeSwitcher", { activeBg: e.target.value })} /></Field>
-          <Field label="Aktywny - kolor"><Input value={draft.modeSwitcher.activeColor} onChange={(e) => set("modeSwitcher", { activeColor: e.target.value })} /></Field>
-          <Field label="Zaokrąglenie (px)"><Input value={px(draft.modeSwitcher.radius)} onChange={(e) => set("modeSwitcher", { radius: `${e.target.value}px` })} /></Field>
-          <ToggleField label="Pokaż etykiety (Jasny/Ciemny)" checked={draft.modeSwitcher.showLabel} onChange={(v) => set("modeSwitcher", { showLabel: v })} />
+          <Field label="Tło toru">
+            <Input
+              value={draft.modeSwitcher.trackBg}
+              onChange={(e) => set("modeSwitcher", { trackBg: e.target.value })}
+            />
+          </Field>
+          <Field label="Obramowanie toru">
+            <Input
+              value={draft.modeSwitcher.trackBorder}
+              onChange={(e) => set("modeSwitcher", { trackBorder: e.target.value })}
+            />
+          </Field>
+          <Field label="Kolor nieaktywny">
+            <Input
+              value={draft.modeSwitcher.inactiveColor}
+              onChange={(e) => set("modeSwitcher", { inactiveColor: e.target.value })}
+            />
+          </Field>
+          <Field label="Aktywny - tło">
+            <Input
+              value={draft.modeSwitcher.activeBg}
+              onChange={(e) => set("modeSwitcher", { activeBg: e.target.value })}
+            />
+          </Field>
+          <Field label="Aktywny - kolor">
+            <Input
+              value={draft.modeSwitcher.activeColor}
+              onChange={(e) => set("modeSwitcher", { activeColor: e.target.value })}
+            />
+          </Field>
+          <Field label="Zaokrąglenie (px)">
+            <Input
+              value={px(draft.modeSwitcher.radius)}
+              onChange={(e) => set("modeSwitcher", { radius: `${e.target.value}px` })}
+            />
+          </Field>
+          <ToggleField
+            label="Pokaż etykiety (Jasny/Ciemny)"
+            checked={draft.modeSwitcher.showLabel}
+            onChange={(v) => set("modeSwitcher", { showLabel: v })}
+          />
         </Grid>
         <Preview>
           <div
-            style={{
-              ["--td-ms-track-bg" as string]: draft.modeSwitcher.trackBg,
-              ["--td-ms-track-border" as string]: draft.modeSwitcher.trackBorder,
-              ["--td-ms-inactive" as string]: draft.modeSwitcher.inactiveColor,
-              ["--td-ms-active-bg" as string]: draft.modeSwitcher.activeBg,
-              ["--td-ms-active-color" as string]: draft.modeSwitcher.activeColor,
-              ["--td-ms-radius" as string]: draft.modeSwitcher.radius,
-            } as CSSProperties}
+            style={
+              {
+                ["--td-ms-track-bg" as string]: draft.modeSwitcher.trackBg,
+                ["--td-ms-track-border" as string]: draft.modeSwitcher.trackBorder,
+                ["--td-ms-inactive" as string]: draft.modeSwitcher.inactiveColor,
+                ["--td-ms-active-bg" as string]: draft.modeSwitcher.activeBg,
+                ["--td-ms-active-color" as string]: draft.modeSwitcher.activeColor,
+                ["--td-ms-radius" as string]: draft.modeSwitcher.radius,
+              } as CSSProperties
+            }
           >
             <div className="cms-mode-switch">
               <button className="cms-mode-switch__btn" data-active="true">
@@ -260,36 +497,93 @@ export function ThemeDesignPane() {
 
       <Section title="Ikony social media">
         <Grid>
-          <Field label="Kolor ikony"><Input value={draft.socialIcons.color} onChange={(e) => set("socialIcons", { color: e.target.value })} /></Field>
-          <Field label="Hover - kolor"><Input value={draft.socialIcons.hoverColor} onChange={(e) => set("socialIcons", { hoverColor: e.target.value })} /></Field>
-          <Field label="Tło"><Input value={draft.socialIcons.bgColor} onChange={(e) => set("socialIcons", { bgColor: e.target.value })} /></Field>
-          <Field label="Hover - tło"><Input value={draft.socialIcons.hoverBgColor} onChange={(e) => set("socialIcons", { hoverBgColor: e.target.value })} /></Field>
-          <Field label="Rozmiar (px)"><Input value={px(draft.socialIcons.size)} onChange={(e) => set("socialIcons", { size: `${e.target.value}px` })} /></Field>
-          <Field label="Odstęp (px)"><Input value={px(draft.socialIcons.gap)} onChange={(e) => set("socialIcons", { gap: `${e.target.value}px` })} /></Field>
-          <Field label="Zaokrąglenie (px)"><Input value={px(draft.socialIcons.radius)} onChange={(e) => set("socialIcons", { radius: `${e.target.value}px` })} /></Field>
-          <Field label="Padding X (px)"><Input value={px(draft.socialIcons.paddingX)} onChange={(e) => set("socialIcons", { paddingX: `${e.target.value}px` })} /></Field>
-          <Field label="Padding Y (px)"><Input value={px(draft.socialIcons.paddingY)} onChange={(e) => set("socialIcons", { paddingY: `${e.target.value}px` })} /></Field>
+          <Field label="Kolor ikony">
+            <Input
+              value={draft.socialIcons.color}
+              onChange={(e) => set("socialIcons", { color: e.target.value })}
+            />
+          </Field>
+          <Field label="Hover - kolor">
+            <Input
+              value={draft.socialIcons.hoverColor}
+              onChange={(e) => set("socialIcons", { hoverColor: e.target.value })}
+            />
+          </Field>
+          <Field label="Tło">
+            <Input
+              value={draft.socialIcons.bgColor}
+              onChange={(e) => set("socialIcons", { bgColor: e.target.value })}
+            />
+          </Field>
+          <Field label="Hover - tło">
+            <Input
+              value={draft.socialIcons.hoverBgColor}
+              onChange={(e) => set("socialIcons", { hoverBgColor: e.target.value })}
+            />
+          </Field>
+          <Field label="Rozmiar (px)">
+            <Input
+              value={px(draft.socialIcons.size)}
+              onChange={(e) => set("socialIcons", { size: `${e.target.value}px` })}
+            />
+          </Field>
+          <Field label="Odstęp (px)">
+            <Input
+              value={px(draft.socialIcons.gap)}
+              onChange={(e) => set("socialIcons", { gap: `${e.target.value}px` })}
+            />
+          </Field>
+          <Field label="Zaokrąglenie (px)">
+            <Input
+              value={px(draft.socialIcons.radius)}
+              onChange={(e) => set("socialIcons", { radius: `${e.target.value}px` })}
+            />
+          </Field>
+          <Field label="Padding X (px)">
+            <Input
+              value={px(draft.socialIcons.paddingX)}
+              onChange={(e) => set("socialIcons", { paddingX: `${e.target.value}px` })}
+            />
+          </Field>
+          <Field label="Padding Y (px)">
+            <Input
+              value={px(draft.socialIcons.paddingY)}
+              onChange={(e) => set("socialIcons", { paddingY: `${e.target.value}px` })}
+            />
+          </Field>
         </Grid>
         <Preview>
           <div
-            style={{
-              ["--td-si-color" as string]: draft.socialIcons.color,
-              ["--td-si-hover-color" as string]: draft.socialIcons.hoverColor,
-              ["--td-si-bg" as string]: draft.socialIcons.bgColor,
-              ["--td-si-hover-bg" as string]: draft.socialIcons.hoverBgColor,
-              ["--td-si-size" as string]: draft.socialIcons.size,
-              ["--td-si-gap" as string]: draft.socialIcons.gap,
-              ["--td-si-radius" as string]: draft.socialIcons.radius,
-              ["--td-si-px" as string]: draft.socialIcons.paddingX,
-              ["--td-si-py" as string]: draft.socialIcons.paddingY,
-            } as CSSProperties}
+            style={
+              {
+                ["--td-si-color" as string]: draft.socialIcons.color,
+                ["--td-si-hover-color" as string]: draft.socialIcons.hoverColor,
+                ["--td-si-bg" as string]: draft.socialIcons.bgColor,
+                ["--td-si-hover-bg" as string]: draft.socialIcons.hoverBgColor,
+                ["--td-si-size" as string]: draft.socialIcons.size,
+                ["--td-si-gap" as string]: draft.socialIcons.gap,
+                ["--td-si-radius" as string]: draft.socialIcons.radius,
+                ["--td-si-px" as string]: draft.socialIcons.paddingX,
+                ["--td-si-py" as string]: draft.socialIcons.paddingY,
+              } as CSSProperties
+            }
           >
             <div className="cms-social">
-              <button className="cms-social__btn" aria-label="Facebook"><Facebook /></button>
-              <button className="cms-social__btn" aria-label="Instagram"><Instagram /></button>
-              <button className="cms-social__btn" aria-label="YouTube"><Youtube /></button>
-              <button className="cms-social__btn" aria-label="LinkedIn"><Linkedin /></button>
-              <button className="cms-social__btn" aria-label="Email"><Mail /></button>
+              <button className="cms-social__btn" aria-label="Facebook">
+                <Facebook />
+              </button>
+              <button className="cms-social__btn" aria-label="Instagram">
+                <Instagram />
+              </button>
+              <button className="cms-social__btn" aria-label="YouTube">
+                <Youtube />
+              </button>
+              <button className="cms-social__btn" aria-label="LinkedIn">
+                <Linkedin />
+              </button>
+              <button className="cms-social__btn" aria-label="Email">
+                <Mail />
+              </button>
             </div>
           </div>
         </Preview>
@@ -302,25 +596,58 @@ export function ThemeDesignPane() {
         </p>
         <Grid>
           <Field label="Krój pisma (CSS font-family)">
-            <Input value={draft.postTitle.fontFamily} onChange={(e) => set("postTitle", { fontFamily: e.target.value })} />
+            <Input
+              value={draft.postTitle.fontFamily}
+              onChange={(e) => set("postTitle", { fontFamily: e.target.value })}
+            />
           </Field>
           <Field label="Rozmiar desktop (px)">
-            <Input value={px(draft.postTitle.fontSize)} onChange={(e) => set("postTitle", { fontSize: `${e.target.value}px` })} />
+            <Input
+              value={px(draft.postTitle.fontSize)}
+              onChange={(e) => set("postTitle", { fontSize: `${e.target.value}px` })}
+            />
           </Field>
           <Field label="Rozmiar mobile (px)">
-            <Input value={px(draft.postTitle.fontSizeSm)} onChange={(e) => set("postTitle", { fontSizeSm: `${e.target.value}px` })} />
+            <Input
+              value={px(draft.postTitle.fontSizeSm)}
+              onChange={(e) => set("postTitle", { fontSizeSm: `${e.target.value}px` })}
+            />
           </Field>
           <Field label="Grubość">
-            <Input type="number" value={draft.postTitle.fontWeight} onChange={(e) => set("postTitle", { fontWeight: Number(e.target.value) })} />
+            <Input
+              type="number"
+              value={draft.postTitle.fontWeight}
+              onChange={(e) => set("postTitle", { fontWeight: Number(e.target.value) })}
+            />
           </Field>
           <Field label="Interlinia (line-height)">
-            <Input value={String(draft.postTitle.lineHeight)} onChange={(e) => set("postTitle", { lineHeight: e.target.value })} />
+            <Input
+              value={String(draft.postTitle.lineHeight)}
+              onChange={(e) => set("postTitle", { lineHeight: e.target.value })}
+            />
           </Field>
-          <Field label="Kolor"><Input value={draft.postTitle.color} onChange={(e) => set("postTitle", { color: e.target.value })} /></Field>
-          <Field label="Kolor hover"><Input value={draft.postTitle.hoverColor} onChange={(e) => set("postTitle", { hoverColor: e.target.value })} /></Field>
+          <Field label="Kolor">
+            <Input
+              value={draft.postTitle.color}
+              onChange={(e) => set("postTitle", { color: e.target.value })}
+            />
+          </Field>
+          <Field label="Kolor hover">
+            <Input
+              value={draft.postTitle.hoverColor}
+              onChange={(e) => set("postTitle", { hoverColor: e.target.value })}
+            />
+          </Field>
           <Field label="Transformacja">
-            <Select value={draft.postTitle.textTransform} onValueChange={(v) => set("postTitle", { textTransform: v as ThemeDesign["postTitle"]["textTransform"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={draft.postTitle.textTransform}
+              onValueChange={(v) =>
+                set("postTitle", { textTransform: v as ThemeDesign["postTitle"]["textTransform"] })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Brak</SelectItem>
                 <SelectItem value="uppercase">WIELKIE</SelectItem>
@@ -330,24 +657,31 @@ export function ThemeDesignPane() {
             </Select>
           </Field>
           <Field label="Odstęp liter (px)">
-            <Input value={px(draft.postTitle.letterSpacing)} onChange={(e) => set("postTitle", { letterSpacing: `${e.target.value}px` })} />
+            <Input
+              value={px(draft.postTitle.letterSpacing)}
+              onChange={(e) => set("postTitle", { letterSpacing: `${e.target.value}px` })}
+            />
           </Field>
         </Grid>
         <Preview>
           <div
-            style={{
-              ["--td-pt-family" as string]: draft.postTitle.fontFamily,
-              ["--td-pt-size" as string]: draft.postTitle.fontSize,
-              ["--td-pt-size-sm" as string]: draft.postTitle.fontSizeSm,
-              ["--td-pt-weight" as string]: String(draft.postTitle.fontWeight),
-              ["--td-pt-lh" as string]: String(draft.postTitle.lineHeight),
-              ["--td-pt-color" as string]: draft.postTitle.color,
-              ["--td-pt-hover" as string]: draft.postTitle.hoverColor,
-              ["--td-pt-transform" as string]: draft.postTitle.textTransform,
-              ["--td-pt-spacing" as string]: draft.postTitle.letterSpacing,
-            } as CSSProperties}
+            style={
+              {
+                ["--td-pt-family" as string]: draft.postTitle.fontFamily,
+                ["--td-pt-size" as string]: draft.postTitle.fontSize,
+                ["--td-pt-size-sm" as string]: draft.postTitle.fontSizeSm,
+                ["--td-pt-weight" as string]: String(draft.postTitle.fontWeight),
+                ["--td-pt-lh" as string]: String(draft.postTitle.lineHeight),
+                ["--td-pt-color" as string]: draft.postTitle.color,
+                ["--td-pt-hover" as string]: draft.postTitle.hoverColor,
+                ["--td-pt-transform" as string]: draft.postTitle.textTransform,
+                ["--td-pt-spacing" as string]: draft.postTitle.letterSpacing,
+              } as CSSProperties
+            }
           >
-            <h3 className="cms-post-title">Przykładowy tytuł artykułu - jak będzie wyglądać w widgetach</h3>
+            <h3 className="cms-post-title">
+              Przykładowy tytuł artykułu - jak będzie wyglądać w widgetach
+            </h3>
           </div>
         </Preview>
       </Section>
@@ -355,32 +689,60 @@ export function ThemeDesignPane() {
       <Section title="Excerpt / lead wpisów">
         <Grid>
           <Field label="Krój pisma (CSS font-family)">
-            <Input value={draft.postExcerpt.fontFamily} onChange={(e) => set("postExcerpt", { fontFamily: e.target.value })} />
+            <Input
+              value={draft.postExcerpt.fontFamily}
+              onChange={(e) => set("postExcerpt", { fontFamily: e.target.value })}
+            />
           </Field>
           <Field label="Rozmiar (px)">
-            <Input value={px(draft.postExcerpt.fontSize)} onChange={(e) => set("postExcerpt", { fontSize: `${e.target.value}px` })} />
+            <Input
+              value={px(draft.postExcerpt.fontSize)}
+              onChange={(e) => set("postExcerpt", { fontSize: `${e.target.value}px` })}
+            />
           </Field>
           <Field label="Grubość">
-            <Input type="number" value={draft.postExcerpt.fontWeight} onChange={(e) => set("postExcerpt", { fontWeight: Number(e.target.value) })} />
+            <Input
+              type="number"
+              value={draft.postExcerpt.fontWeight}
+              onChange={(e) => set("postExcerpt", { fontWeight: Number(e.target.value) })}
+            />
           </Field>
           <Field label="Interlinia">
-            <Input value={String(draft.postExcerpt.lineHeight)} onChange={(e) => set("postExcerpt", { lineHeight: e.target.value })} />
+            <Input
+              value={String(draft.postExcerpt.lineHeight)}
+              onChange={(e) => set("postExcerpt", { lineHeight: e.target.value })}
+            />
           </Field>
-          <Field label="Kolor"><Input value={draft.postExcerpt.color} onChange={(e) => set("postExcerpt", { color: e.target.value })} /></Field>
-          <Field label="Margines górny (px)"><Input value={px(draft.postExcerpt.marginTop)} onChange={(e) => set("postExcerpt", { marginTop: `${e.target.value}px` })} /></Field>
+          <Field label="Kolor">
+            <Input
+              value={draft.postExcerpt.color}
+              onChange={(e) => set("postExcerpt", { color: e.target.value })}
+            />
+          </Field>
+          <Field label="Margines górny (px)">
+            <Input
+              value={px(draft.postExcerpt.marginTop)}
+              onChange={(e) => set("postExcerpt", { marginTop: `${e.target.value}px` })}
+            />
+          </Field>
         </Grid>
         <Preview>
           <div
-            style={{
-              ["--td-pe-family" as string]: draft.postExcerpt.fontFamily,
-              ["--td-pe-size" as string]: draft.postExcerpt.fontSize,
-              ["--td-pe-weight" as string]: String(draft.postExcerpt.fontWeight),
-              ["--td-pe-lh" as string]: String(draft.postExcerpt.lineHeight),
-              ["--td-pe-color" as string]: draft.postExcerpt.color,
-              ["--td-pe-mt" as string]: draft.postExcerpt.marginTop,
-            } as CSSProperties}
+            style={
+              {
+                ["--td-pe-family" as string]: draft.postExcerpt.fontFamily,
+                ["--td-pe-size" as string]: draft.postExcerpt.fontSize,
+                ["--td-pe-weight" as string]: String(draft.postExcerpt.fontWeight),
+                ["--td-pe-lh" as string]: String(draft.postExcerpt.lineHeight),
+                ["--td-pe-color" as string]: draft.postExcerpt.color,
+                ["--td-pe-mt" as string]: draft.postExcerpt.marginTop,
+              } as CSSProperties
+            }
           >
-            <p className="cms-post-excerpt">Krótki opis artykułu pojawiający się pod tytułem w kartach widgetów. Zachowuje spójność na całej platformie.</p>
+            <p className="cms-post-excerpt">
+              Krótki opis artykułu pojawiający się pod tytułem w kartach widgetów. Zachowuje
+              spójność na całej platformie.
+            </p>
           </div>
         </Preview>
       </Section>
@@ -392,10 +754,16 @@ export function ThemeDesignPane() {
         </p>
         <Grid>
           <Field label="Kolor (light mode)">
-            <Input value={draft.listIndex.colorLight} onChange={(e) => set("listIndex", { colorLight: e.target.value })} />
+            <Input
+              value={draft.listIndex.colorLight}
+              onChange={(e) => set("listIndex", { colorLight: e.target.value })}
+            />
           </Field>
           <Field label="Kolor (dark mode)">
-            <Input value={draft.listIndex.colorDark} onChange={(e) => set("listIndex", { colorDark: e.target.value })} />
+            <Input
+              value={draft.listIndex.colorDark}
+              onChange={(e) => set("listIndex", { colorDark: e.target.value })}
+            />
           </Field>
           <Field label="Przezroczystość (0 - 1)">
             <Input
@@ -404,7 +772,9 @@ export function ThemeDesignPane() {
               min="0"
               max="1"
               value={draft.listIndex.opacity}
-              onChange={(e) => set("listIndex", { opacity: Math.max(0, Math.min(1, Number(e.target.value) || 0)) })}
+              onChange={(e) =>
+                set("listIndex", { opacity: Math.max(0, Math.min(1, Number(e.target.value) || 0)) })
+              }
             />
           </Field>
           <Field label="Grubość">
@@ -435,30 +805,57 @@ export function ThemeDesignPane() {
         </Preview>
       </Section>
 
-
-
-
-
       <Section title="Slider / karuzela - ustawienia globalne">
         <p className="text-xs text-muted-foreground -mt-2">
           Wartości używane domyślnie przez każdy widget slidera/karuzeli. Można je nadpisać w
           ustawieniach pojedynczego widgetu.
         </p>
         <Grid>
-          <ToggleField label="Autoodtwarzanie" checked={cDraft.autoplay} onChange={(v) => setCDraft({ ...cDraft, autoplay: v })} />
-          <ToggleField label="Pętla" checked={cDraft.loop} onChange={(v) => setCDraft({ ...cDraft, loop: v })} />
-          <ToggleField label="Pauza na hover" checked={cDraft.pauseOnHover} onChange={(v) => setCDraft({ ...cDraft, pauseOnHover: v })} />
+          <ToggleField
+            label="Autoodtwarzanie"
+            checked={cDraft.autoplay}
+            onChange={(v) => setCDraft({ ...cDraft, autoplay: v })}
+          />
+          <ToggleField
+            label="Pętla"
+            checked={cDraft.loop}
+            onChange={(v) => setCDraft({ ...cDraft, loop: v })}
+          />
+          <ToggleField
+            label="Pauza na hover"
+            checked={cDraft.pauseOnHover}
+            onChange={(v) => setCDraft({ ...cDraft, pauseOnHover: v })}
+          />
           <Field label="Czas slajdu (ms)">
-            <Input type="number" min={1000} max={30000} step={500} value={cDraft.intervalMs}
-              onChange={(e) => setCDraft({ ...cDraft, intervalMs: Number(e.target.value) })} />
+            <Input
+              type="number"
+              min={1000}
+              max={30000}
+              step={500}
+              value={cDraft.intervalMs}
+              onChange={(e) => setCDraft({ ...cDraft, intervalMs: Number(e.target.value) })}
+            />
           </Field>
           <Field label="Czas przejścia (ms)">
-            <Input type="number" min={100} max={3000} step={50} value={cDraft.speedMs}
-              onChange={(e) => setCDraft({ ...cDraft, speedMs: Number(e.target.value) })} />
+            <Input
+              type="number"
+              min={100}
+              max={3000}
+              step={50}
+              value={cDraft.speedMs}
+              onChange={(e) => setCDraft({ ...cDraft, speedMs: Number(e.target.value) })}
+            />
           </Field>
           <Field label="Typ przejścia">
-            <Select value={cDraft.transition} onValueChange={(v) => setCDraft({ ...cDraft, transition: v as CarouselDefaults["transition"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={cDraft.transition}
+              onValueChange={(v) =>
+                setCDraft({ ...cDraft, transition: v as CarouselDefaults["transition"] })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="slide">Slide</SelectItem>
                 <SelectItem value="fade">Fade</SelectItem>
@@ -475,7 +872,10 @@ export function ThemeDesignPane() {
         </Button>
         <Button
           variant="outline"
-          onClick={() => { setDraft(THEME_DESIGN_DEFAULTS); setCDraft(CAROUSEL_DEFAULTS); }}
+          onClick={() => {
+            setDraft(THEME_DESIGN_DEFAULTS);
+            setCDraft(CAROUSEL_DEFAULTS);
+          }}
         >
           Przywróć domyślne
         </Button>
@@ -506,7 +906,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function ToggleField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+function ToggleField({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-md border border-border">
       <Label className="text-xs">{label}</Label>

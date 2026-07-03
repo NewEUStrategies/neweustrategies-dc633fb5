@@ -18,7 +18,7 @@ export function VideoBlock({ block, onChange }: Props) {
       <div className="rounded-lg border-2 border-dashed border-border p-6 text-center space-y-2">
         <VideoIcon className="w-8 h-8 mx-auto text-muted-foreground" />
         <Input
-          placeholder={i18n.editor("video","urlPh")}
+          placeholder={i18n.editor("video", "urlPh")}
           onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
           className="max-w-md mx-auto"
         />

@@ -38,8 +38,12 @@ function DesignSettings() {
   const [draft, setDraft] = useState<DesignTokens | null>(null);
   const [gDraft, setGDraft] = useState<GlobalColorsValue | null>(null);
 
-  useEffect(() => { if (data && !draft) setDraft(data); }, [data, draft]);
-  useEffect(() => { if (globals && !gDraft) setGDraft(globals); }, [globals, gDraft]);
+  useEffect(() => {
+    if (data && !draft) setDraft(data);
+  }, [data, draft]);
+  useEffect(() => {
+    if (globals && !gDraft) setGDraft(globals);
+  }, [globals, gDraft]);
 
   if (isLoading || gLoading || !draft || !gDraft) {
     return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
@@ -69,8 +73,8 @@ function DesignSettings() {
     <div>
       <h2 className="font-display text-xl mb-1">Tokeny marki</h2>
       <p className="text-sm text-muted-foreground mb-4">
-        Fonty i kolory definiują wygląd całej strony. Wartości zapisują się jako zmienne CSS
-        (<code>var(--brand-…)</code>, <code>var(--gc-…)</code>) i automatycznie nadpisują tokeny
+        Fonty i kolory definiują wygląd całej strony. Wartości zapisują się jako zmienne CSS (
+        <code>var(--brand-…)</code>, <code>var(--gc-…)</code>) i automatycznie nadpisują tokeny
         motywu (przyciski, tło, linki, ramki) - w trybie jasnym i ciemnym.
       </p>
 
@@ -104,7 +108,9 @@ function DesignSettings() {
         <Field label="Promień (radius)" hint="Domyślny border-radius dla kart, przycisków itp.">
           <Text
             value={draft.scale.radius ?? ""}
-            onChange={(e) => setDraft({ ...draft, scale: { ...draft.scale, radius: e.target.value || undefined } })}
+            onChange={(e) =>
+              setDraft({ ...draft, scale: { ...draft.scale, radius: e.target.value || undefined } })
+            }
             placeholder="8px"
           />
         </Field>
@@ -118,8 +124,8 @@ function DesignSettings() {
             <p className="text-xs text-muted-foreground mt-0.5">
               Każdy slot ma osobną wartość dla trybu jasnego (
               <Sun className="inline w-3 h-3 mb-0.5" /> Light) i ciemnego (
-              <Moon className="inline w-3 h-3 mb-0.5" /> Dark). Zmiana wpływa od razu na
-              całą stronę.
+              <Moon className="inline w-3 h-3 mb-0.5" /> Dark). Zmiana wpływa od razu na całą
+              stronę.
             </p>
           </div>
         </div>
@@ -137,7 +143,9 @@ function DesignSettings() {
                     <li key={slot.key} className="p-3 grid md:grid-cols-[260px_1fr] gap-3">
                       <div className="min-w-0">
                         <div className="text-sm font-medium">{slot.label}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">{slot.description}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {slot.description}
+                        </div>
                         {slot.overrides && slot.overrides.length > 0 && (
                           <div className="text-[10px] text-muted-foreground/80 mt-1 font-mono">
                             nadpisuje: {slot.overrides.join(", ")}
@@ -147,7 +155,9 @@ function DesignSettings() {
                           var(--gc-{slot.key})
                         </code>
                       </div>
-                      <div className={`grid gap-2 ${slot.hasDark ? "md:grid-cols-2" : "md:grid-cols-1"}`}>
+                      <div
+                        className={`grid gap-2 ${slot.hasDark ? "md:grid-cols-2" : "md:grid-cols-1"}`}
+                      >
                         <div>
                           <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1">
                             <Sun className="w-3 h-3" /> Light
@@ -214,14 +224,18 @@ function DesignSettings() {
                   <Text
                     value={c.name}
                     onChange={(e) =>
-                      setColors((cols) => cols.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))
+                      setColors((cols) =>
+                        cols.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)),
+                      )
                     }
                     placeholder="primary"
                   />
                   <ColorField
                     value={c.value}
                     onChange={(v) =>
-                      setColors((cols) => cols.map((x, i) => i === idx ? { ...x, value: v ?? "" } : x))
+                      setColors((cols) =>
+                        cols.map((x, i) => (i === idx ? { ...x, value: v ?? "" } : x)),
+                      )
                     }
                   />
                   <button
@@ -247,10 +261,7 @@ function DesignSettings() {
         )}
       </section>
 
-      <SaveBar
-        saving={save.isPending || saveGlobals.isPending}
-        onSave={saveAll}
-      />
+      <SaveBar saving={save.isPending || saveGlobals.isPending} onSave={saveAll} />
     </div>
   );
 }

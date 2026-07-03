@@ -12,9 +12,7 @@ const config: MegaMenuConfig = {
     {
       title_pl: "Analizy",
       title_en: "Analyses",
-      links: [
-        { label_pl: "Bezpieczeństwo", label_en: "Security", href: "/security" },
-      ],
+      links: [{ label_pl: "Bezpieczeństwo", label_en: "Security", href: "/security" }],
       featured: null,
     },
     {

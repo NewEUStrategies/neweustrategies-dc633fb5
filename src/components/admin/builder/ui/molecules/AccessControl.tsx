@@ -1,6 +1,11 @@
 // Molecule: configures auth/role-based visibility for a widget, column, or section.
 // Mirrors the structure used by VisibilityControl so the Advanced tab feels coherent.
-import type { AdvancedSettings, AccessAuthMode, AccessRole, AccessRolesMode } from "@/lib/builder/types";
+import type {
+  AdvancedSettings,
+  AccessAuthMode,
+  AccessRole,
+  AccessRolesMode,
+} from "@/lib/builder/types";
 import { Lock, Globe, Users, ShieldCheck } from "@/lib/lucide-shim";
 
 interface Props {
@@ -8,7 +13,9 @@ interface Props {
   onChange: (mut: (a: AdvancedSettings) => void) => void;
 }
 
-const AUTH_OPTIONS: Array<[AccessAuthMode, React.ComponentType<{ className?: string }>, string, string]> = [
+const AUTH_OPTIONS: Array<
+  [AccessAuthMode, React.ComponentType<{ className?: string }>, string, string]
+> = [
   ["any", Users, "Wszyscy", "Brak ograniczeń (domyślnie)"],
   ["guest", Globe, "Goście", "Tylko niezalogowani"],
   ["user", Lock, "Zalogowani", "Tylko zalogowani użytkownicy"],

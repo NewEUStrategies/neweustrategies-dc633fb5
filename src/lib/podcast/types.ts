@@ -67,9 +67,17 @@ export function podcastTitle(p: Pick<Podcast, "title_pl" | "title_en">, lang: "p
   return (lang === "en" ? p.title_en : p.title_pl) || p.title_pl || p.title_en || "";
 }
 
-export function podcastEpisodeLabel(p: Pick<Podcast, "season" | "episode_number">, lang: "pl" | "en"): string | null {
+export function podcastEpisodeLabel(
+  p: Pick<Podcast, "season" | "episode_number">,
+  lang: "pl" | "en",
+): string | null {
   if (p.episode_number == null && p.season == null) return null;
   const s = p.season != null ? (lang === "en" ? `S${p.season}` : `Sezon ${p.season}`) : null;
-  const e = p.episode_number != null ? (lang === "en" ? `E${p.episode_number}` : `Odc. ${p.episode_number}`) : null;
+  const e =
+    p.episode_number != null
+      ? lang === "en"
+        ? `E${p.episode_number}`
+        : `Odc. ${p.episode_number}`
+      : null;
   return [s, e].filter(Boolean).join(" · ");
 }

@@ -13,8 +13,10 @@ interface Props {
 export function RegisterFormBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const s = (k: string, fallback = "") => String(block.data[k] ?? fallback);
-  const b = (k: string, fallback = true) => block.data[k] === undefined ? fallback : Boolean(block.data[k]);
-  const set = (k: string, v: string | boolean) => onChange({ ...block, data: { ...block.data, [k]: v } });
+  const b = (k: string, fallback = true) =>
+    block.data[k] === undefined ? fallback : Boolean(block.data[k]);
+  const set = (k: string, v: string | boolean) =>
+    onChange({ ...block, data: { ...block.data, [k]: v } });
 
   return (
     <div className="not-prose space-y-3 rounded-md border border-border bg-muted/30 p-3">
@@ -25,7 +27,7 @@ export function RegisterFormBlock({ block, onChange }: Props) {
           onChange={(e) => set("variant", e.target.value)}
           className="ml-auto bg-background border border-border rounded px-1 py-0.5 text-[11px] normal-case tracking-normal"
         >
-          <option value="card">{i18n.editor("newsletter","variantCard")}</option>
+          <option value="card">{i18n.editor("newsletter", "variantCard")}</option>
           <option value="plain">Bez ramki</option>
           <option value="split">Split</option>
         </select>
@@ -49,38 +51,59 @@ export function RegisterFormBlock({ block, onChange }: Props) {
           <Input value={s("subtitle_en")} onChange={(e) => set("subtitle_en", e.target.value)} />
         </div>
         <div className="space-y-1">
-          <Label className="text-[11px] uppercase text-muted-foreground">Etykieta przycisku (PL)</Label>
-          <Input value={s("submitLabel_pl")} onChange={(e) => set("submitLabel_pl", e.target.value)} />
+          <Label className="text-[11px] uppercase text-muted-foreground">
+            Etykieta przycisku (PL)
+          </Label>
+          <Input
+            value={s("submitLabel_pl")}
+            onChange={(e) => set("submitLabel_pl", e.target.value)}
+          />
         </div>
         <div className="space-y-1">
           <Label className="text-[11px] uppercase text-muted-foreground">Submit label (EN)</Label>
-          <Input value={s("submitLabel_en")} onChange={(e) => set("submitLabel_en", e.target.value)} />
+          <Input
+            value={s("submitLabel_en")}
+            onChange={(e) => set("submitLabel_en", e.target.value)}
+          />
         </div>
         <div className="space-y-1">
           <Label className="text-[11px] uppercase text-muted-foreground">Treść zgody (PL)</Label>
-          <Input value={s("consentLabel_pl")} onChange={(e) => set("consentLabel_pl", e.target.value)} />
+          <Input
+            value={s("consentLabel_pl")}
+            onChange={(e) => set("consentLabel_pl", e.target.value)}
+          />
         </div>
         <div className="space-y-1">
           <Label className="text-[11px] uppercase text-muted-foreground">Consent label (EN)</Label>
-          <Input value={s("consentLabel_en")} onChange={(e) => set("consentLabel_en", e.target.value)} />
+          <Input
+            value={s("consentLabel_en")}
+            onChange={(e) => set("consentLabel_en", e.target.value)}
+          />
         </div>
         <div className="space-y-1">
-          <Label className="text-[11px] uppercase text-muted-foreground">Redirect po rejestracji</Label>
+          <Label className="text-[11px] uppercase text-muted-foreground">
+            Redirect po rejestracji
+          </Label>
           <Input value={s("redirectTo", "/")} onChange={(e) => set("redirectTo", e.target.value)} />
         </div>
         <div className="space-y-1">
           <Label className="text-[11px] uppercase text-muted-foreground">Link „Logowanie"</Label>
-          <Input value={s("loginHref", "?mode=signin")} onChange={(e) => set("loginHref", e.target.value)} />
+          <Input
+            value={s("loginHref", "?mode=signin")}
+            onChange={(e) => set("loginHref", e.target.value)}
+          />
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-        {([
-          ["showName", "Pokaż pole „Imię"],
-          ["showConfirmPassword", "Pokaż „Powtórz hasło"],
-          ["showNewsletterOptIn", "Pokaż zapis do newslettera"],
-          ["requireConsent", "Wymagaj zgody RODO"],
-        ] as [string, string][]).map(([k, label]) => (
+        {(
+          [
+            ["showName", "Pokaż pole „Imię"],
+            ["showConfirmPassword", "Pokaż „Powtórz hasło"],
+            ["showNewsletterOptIn", "Pokaż zapis do newslettera"],
+            ["requireConsent", "Wymagaj zgody RODO"],
+          ] as [string, string][]
+        ).map(([k, label]) => (
           <label key={k} className="flex items-center gap-2 text-sm">
             <Switch checked={b(k, true)} onCheckedChange={(v) => set(k, v)} />
             <span>{label}</span>

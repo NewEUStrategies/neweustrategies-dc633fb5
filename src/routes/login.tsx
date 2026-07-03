@@ -49,41 +49,70 @@ function LoginPage() {
   const t = useMemo(() => {
     const dict = {
       pl: {
-        signin: "Zaloguj się", signup: "Zarejestruj się", reset: "Resetuj hasło",
-        heroTitle: settings.hero_title_pl, heroSub: settings.hero_subtitle_pl,
-        haveNo: "Nie masz konta?", haveYes: "Masz już konto?",
-        signUpLink: "Zarejestruj się", signInLink: "Zaloguj się",
-        email: "E-mail", password: "Hasło", name: "Imię i nazwisko",
-        forgot: "Zapomniałeś hasła?", back: "Wróć do logowania",
-        submitSignin: "Zaloguj się", submitSignup: "Utwórz konto", submitReset: "Wyślij link",
+        signin: "Zaloguj się",
+        signup: "Zarejestruj się",
+        reset: "Resetuj hasło",
+        heroTitle: settings.hero_title_pl,
+        heroSub: settings.hero_subtitle_pl,
+        haveNo: "Nie masz konta?",
+        haveYes: "Masz już konto?",
+        signUpLink: "Zarejestruj się",
+        signInLink: "Zaloguj się",
+        email: "E-mail",
+        password: "Hasło",
+        name: "Imię i nazwisko",
+        forgot: "Zapomniałeś hasła?",
+        back: "Wróć do logowania",
+        submitSignin: "Zaloguj się",
+        submitSignup: "Utwórz konto",
+        submitReset: "Wyślij link",
         resetSub: "Wyślemy link do zmiany hasła na Twój adres.",
         legalPre: "Klikając przycisk, akceptujesz ",
         legalPrivacy: "Politykę prywatności",
         legalAnd: " i ",
         legalTerms: "Regulamin",
         legalSuf: ".",
-        backHome: "Wróć na stronę", showPw: "Pokaż hasło", hidePw: "Ukryj hasło",
+        backHome: "Wróć na stronę",
+        showPw: "Pokaż hasło",
+        hidePw: "Ukryj hasło",
       },
       en: {
-        signin: "Sign In", signup: "Sign Up", reset: "Reset password",
-        heroTitle: settings.hero_title_en, heroSub: settings.hero_subtitle_en,
-        haveNo: "Don't have an account?", haveYes: "Already have an account?",
-        signUpLink: "Sign Up", signInLink: "Sign In",
-        email: "E-Mail", password: "Password", name: "Full name",
-        forgot: "Forgot password?", back: "Back to sign in",
-        submitSignin: "Sign In", submitSignup: "Create account", submitReset: "Send link",
+        signin: "Sign In",
+        signup: "Sign Up",
+        reset: "Reset password",
+        heroTitle: settings.hero_title_en,
+        heroSub: settings.hero_subtitle_en,
+        haveNo: "Don't have an account?",
+        haveYes: "Already have an account?",
+        signUpLink: "Sign Up",
+        signInLink: "Sign In",
+        email: "E-Mail",
+        password: "Password",
+        name: "Full name",
+        forgot: "Forgot password?",
+        back: "Back to sign in",
+        submitSignin: "Sign In",
+        submitSignup: "Create account",
+        submitReset: "Send link",
         resetSub: "We'll email a password reset link.",
         legalPre: "By clicking the button, you agree to the ",
         legalPrivacy: "Privacy Policy",
         legalAnd: " and ",
         legalTerms: "Terms of Service",
         legalSuf: ".",
-        backHome: "Back to site", showPw: "Show password", hidePw: "Hide password",
+        backHome: "Back to site",
+        showPw: "Show password",
+        hidePw: "Hide password",
       },
     } as const;
     return isPl ? dict.pl : dict.en;
-  }, [isPl, settings.hero_title_pl, settings.hero_title_en, settings.hero_subtitle_pl, settings.hero_subtitle_en]);
-
+  }, [
+    isPl,
+    settings.hero_title_pl,
+    settings.hero_title_en,
+    settings.hero_subtitle_pl,
+    settings.hero_subtitle_en,
+  ]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,7 +125,8 @@ function LoginPage() {
         const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
         const displayName = trimmed || email.split("@")[0];
         const { error } = await supabase.auth.signUp({
-          email, password,
+          email,
+          password,
           options: {
             emailRedirectTo: `${window.location.origin}/admin`,
             data: {
@@ -108,13 +138,17 @@ function LoginPage() {
           },
         });
         if (error) throw error;
-        toast.success(isPl ? "Konto utworzone - sprawdź email." : "Account created - check your email.");
+        toast.success(
+          isPl ? "Konto utworzone - sprawdź email." : "Account created - check your email.",
+        );
       } else if (mode === "reset") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`,
         });
         if (error) throw error;
-        toast.success(isPl ? "Link wysłany. Sprawdź skrzynkę." : "Reset link sent. Check your inbox.");
+        toast.success(
+          isPl ? "Link wysłany. Sprawdź skrzynkę." : "Reset link sent. Check your inbox.",
+        );
         setMode("signin");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -130,8 +164,8 @@ function LoginPage() {
 
   const illustration =
     theme === "dark"
-      ? (settings.hero_image_url_dark || settings.hero_image_url_light || illustrationDark)
-      : (settings.hero_image_url_light || settings.hero_image_url_light || illustrationLight);
+      ? settings.hero_image_url_dark || settings.hero_image_url_light || illustrationDark
+      : settings.hero_image_url_light || settings.hero_image_url_light || illustrationLight;
 
   return (
     <div className="min-h-screen w-full bg-muted/40 dark:bg-background flex items-center justify-center p-4 sm:p-8">
@@ -151,8 +185,24 @@ function LoginPage() {
         <button
           type="button"
           onClick={toggleTheme}
-          aria-label={theme === "dark" ? (isPl ? "Tryb jasny" : "Light mode") : (isPl ? "Tryb ciemny" : "Dark mode")}
-          title={theme === "dark" ? (isPl ? "Tryb jasny" : "Light mode") : (isPl ? "Tryb ciemny" : "Dark mode")}
+          aria-label={
+            theme === "dark"
+              ? isPl
+                ? "Tryb jasny"
+                : "Light mode"
+              : isPl
+                ? "Tryb ciemny"
+                : "Dark mode"
+          }
+          title={
+            theme === "dark"
+              ? isPl
+                ? "Tryb jasny"
+                : "Light mode"
+              : isPl
+                ? "Tryb ciemny"
+                : "Dark mode"
+          }
           className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-border bg-card/80 backdrop-blur text-muted-foreground hover:text-foreground transition-colors"
         >
           {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
@@ -179,7 +229,6 @@ function LoginPage() {
         )}
       </div>
 
-
       <div className="relative w-full max-w-[1280px] grid grid-cols-1 lg:grid-cols-[100px_minmax(0,1.7fr)_minmax(0,1fr)] gap-0 lg:gap-5 isolate">
         {/* LEFT: vertical mode rail */}
         <aside className="hidden lg:flex flex-col items-center gap-2 bg-card rounded-2xl shadow-lg shadow-foreground/5 border border-border py-6 px-2">
@@ -188,9 +237,24 @@ function LoginPage() {
           </div>
           <div className="w-10 h-px bg-border my-2" />
 
-          <RailButton active={mode === "signin"} onClick={() => setMode("signin")} icon={<LogIn className="w-5 h-5" />} label={t.signin} />
-          <RailButton active={mode === "signup"} onClick={() => setMode("signup")} icon={<UserPlus className="w-5 h-5" />} label={t.signup} />
-          <RailButton active={mode === "reset"} onClick={() => setMode("reset")} icon={<KeyRound className="w-5 h-5" />} label={t.reset} />
+          <RailButton
+            active={mode === "signin"}
+            onClick={() => setMode("signin")}
+            icon={<LogIn className="w-5 h-5" />}
+            label={t.signin}
+          />
+          <RailButton
+            active={mode === "signup"}
+            onClick={() => setMode("signup")}
+            icon={<UserPlus className="w-5 h-5" />}
+            label={t.signup}
+          />
+          <RailButton
+            active={mode === "reset"}
+            onClick={() => setMode("reset")}
+            icon={<KeyRound className="w-5 h-5" />}
+            label={t.reset}
+          />
         </aside>
 
         {/* CENTER: hero illustration card */}
@@ -212,10 +276,11 @@ function LoginPage() {
           </div>
           <div className="p-6 relative z-10 flex items-center justify-between text-[11px] uppercase tracking-wider text-primary-foreground/80">
             <span>© {new Date().getFullYear()} New European Strategies</span>
-            <span className="px-2 py-1 rounded bg-white/15 backdrop-blur-sm">{isPl ? "PL" : "EN"}</span>
+            <span className="px-2 py-1 rounded bg-white/15 backdrop-blur-sm">
+              {isPl ? "PL" : "EN"}
+            </span>
           </div>
         </section>
-
 
         {/* RIGHT: form */}
         <main className="bg-card rounded-2xl border border-border shadow-lg shadow-foreground/5 p-6 sm:p-10 flex flex-col">
@@ -226,7 +291,9 @@ function LoginPage() {
                 key={m}
                 onClick={() => setMode(m)}
                 className={`flex-1 text-xs font-medium py-2 rounded-md transition-colors ${
-                  mode === m ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  mode === m
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
                 }`}
               >
                 {m === "signin" ? t.signin : m === "signup" ? t.signup : t.reset}
@@ -234,14 +301,19 @@ function LoginPage() {
             ))}
           </div>
 
-          <div className="lg:hidden mb-6"><Logo size="sm" withWordmark /></div>
+          <div className="lg:hidden mb-6">
+            <Logo size="sm" withWordmark />
+          </div>
 
           <div className="flex items-baseline justify-between mb-6">
             <p className="text-sm text-muted-foreground">
               {mode === "signin" && (
                 <>
                   {t.haveNo}{" "}
-                  <button onClick={() => setMode("signup")} className="text-primary font-semibold hover:underline">
+                  <button
+                    onClick={() => setMode("signup")}
+                    className="text-primary font-semibold hover:underline"
+                  >
                     {t.signUpLink}
                   </button>
                 </>
@@ -249,13 +321,19 @@ function LoginPage() {
               {mode === "signup" && (
                 <>
                   {t.haveYes}{" "}
-                  <button onClick={() => setMode("signin")} className="text-primary font-semibold hover:underline">
+                  <button
+                    onClick={() => setMode("signin")}
+                    className="text-primary font-semibold hover:underline"
+                  >
                     {t.signInLink}
                   </button>
                 </>
               )}
               {mode === "reset" && (
-                <button onClick={() => setMode("signin")} className="text-primary font-semibold hover:underline">
+                <button
+                  onClick={() => setMode("signin")}
+                  className="text-primary font-semibold hover:underline"
+                >
                   ← {t.back}
                 </button>
               )}
@@ -269,15 +347,24 @@ function LoginPage() {
           >
             {mode === "signup" && (
               <Field label={t.name} icon={<User className="w-4 h-4" />}>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={isPl ? "Jan Kowalski" : "Jane Doe"} className="pl-10 h-12" />
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={isPl ? "Jan Kowalski" : "Jane Doe"}
+                  className="pl-10 h-12"
+                />
               </Field>
             )}
 
             <Field label={t.email} icon={<Mail className="w-4 h-4" />}>
               <Input
-                type="email" required autoComplete="email"
-                value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="youremail@example.com" className="pl-10 h-12"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="youremail@example.com"
+                className="pl-10 h-12"
               />
             </Field>
 
@@ -285,20 +372,31 @@ function LoginPage() {
               <Field
                 label={t.password}
                 icon={<Lock className="w-4 h-4" />}
-                action={mode === "signin" ? (
-                  <button type="button" onClick={() => setMode("reset")} className="text-xs text-primary hover:underline">
-                    {t.forgot}
-                  </button>
-                ) : null}
+                action={
+                  mode === "signin" ? (
+                    <button
+                      type="button"
+                      onClick={() => setMode("reset")}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      {t.forgot}
+                    </button>
+                  ) : null
+                }
               >
                 <Input
-                  type={showPw ? "text" : "password"} required minLength={6}
+                  type={showPw ? "text" : "password"}
+                  required
+                  minLength={6}
                   autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                  value={password} onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••" className="pl-10 pr-10 h-12"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="pl-10 pr-10 h-12"
                 />
                 <button
-                  type="button" onClick={() => setShowPw((v) => !v)}
+                  type="button"
+                  onClick={() => setShowPw((v) => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   aria-label={showPw ? t.hidePw : t.showPw}
                 >
@@ -311,24 +409,43 @@ function LoginPage() {
               <p className="text-xs text-muted-foreground -mt-2">{t.resetSub}</p>
             )}
 
-            <Button type="submit" className="w-full h-12 font-semibold tracking-wide uppercase text-xs" disabled={busy}>
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> :
-                mode === "signin" ? t.submitSignin :
-                mode === "signup" ? t.submitSignup : t.submitReset}
+            <Button
+              type="submit"
+              className="w-full h-12 font-semibold tracking-wide uppercase text-xs"
+              disabled={busy}
+            >
+              {busy ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : mode === "signin" ? (
+                t.submitSignin
+              ) : mode === "signup" ? (
+                t.submitSignup
+              ) : (
+                t.submitReset
+              )}
             </Button>
 
             <p className="text-[11px] leading-relaxed text-muted-foreground text-center pt-2">
               {t.legalPre}
-              <a href={settings.privacy_url || "/polityka-prywatnosci"} target="_blank" rel="noreferrer" className="underline hover:text-foreground">
+              <a
+                href={settings.privacy_url || "/polityka-prywatnosci"}
+                target="_blank"
+                rel="noreferrer"
+                className="underline hover:text-foreground"
+              >
                 {t.legalPrivacy}
               </a>
               {t.legalAnd}
-              <a href={settings.terms_url || "/regulamin"} target="_blank" rel="noreferrer" className="underline hover:text-foreground">
+              <a
+                href={settings.terms_url || "/regulamin"}
+                target="_blank"
+                rel="noreferrer"
+                className="underline hover:text-foreground"
+              >
                 {t.legalTerms}
               </a>
               {t.legalSuf}
             </p>
-
           </form>
         </main>
       </div>
@@ -347,7 +464,17 @@ function LoginPage() {
   );
 }
 
-function RailButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+function RailButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
     <button
       onClick={onClick}
@@ -355,24 +482,40 @@ function RailButton({ active, onClick, icon, label }: { active: boolean; onClick
         active ? "text-primary" : "text-muted-foreground hover:text-foreground"
       }`}
     >
-      {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-10 bg-primary rounded-r-full" />}
-      <span className={`p-2 rounded-lg transition-colors ${active ? "bg-primary/10" : ""}`}>{icon}</span>
+      {active && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-10 bg-primary rounded-r-full" />
+      )}
+      <span className={`p-2 rounded-lg transition-colors ${active ? "bg-primary/10" : ""}`}>
+        {icon}
+      </span>
       <span>{label}</span>
     </button>
   );
 }
 
 function Field({
-  label, icon, action, children,
-}: { label: string; icon: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
+  label,
+  icon,
+  action,
+  children,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</Label>
+        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </Label>
         {action}
       </div>
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{icon}</span>
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+          {icon}
+        </span>
         {children}
       </div>
     </div>

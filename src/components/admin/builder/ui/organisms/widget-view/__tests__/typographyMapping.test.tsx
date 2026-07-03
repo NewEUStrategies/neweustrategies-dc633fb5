@@ -110,8 +110,12 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
           descriptionFontSize: { desktop: "13px" },
         },
       });
-      expect(countMatches(css, `[data-w-id="tm-${type}"][data-w-id][data-w-id] .cms-post-title`)).toBe(1);
-      expect(countMatches(css, `[data-w-id="tm-${type}"][data-w-id][data-w-id] .cms-post-excerpt`)).toBe(1);
+      expect(
+        countMatches(css, `[data-w-id="tm-${type}"][data-w-id][data-w-id] .cms-post-title`),
+      ).toBe(1);
+      expect(
+        countMatches(css, `[data-w-id="tm-${type}"][data-w-id][data-w-id] .cms-post-excerpt`),
+      ).toBe(1);
     }
   });
 
@@ -153,7 +157,9 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
     const css = widgetCss("slider", {
       typography: { fontSize: { tablet: "19px" } },
     });
-    expect(css).toContain(`[data-w-id="tm-slider"][data-w-id][data-w-id] .cms-post-title{font-size:19px !important;}`);
+    expect(css).toContain(
+      `[data-w-id="tm-slider"][data-w-id][data-w-id] .cms-post-title{font-size:19px !important;}`,
+    );
   });
 
   it("updates the rendered typography CSS immediately from the live editor channel", async () => {
@@ -179,7 +185,9 @@ describe("typography mapping is single-sourced and uniform across widgets", () =
       broadcastWidgetTypography("tm-live", { fontSize: { desktop: "28px" } });
     });
 
-    expect(document.head.querySelector("#builder-live-typography-style-tm-live")?.textContent).toContain(
+    expect(
+      document.head.querySelector("#builder-live-typography-style-tm-live")?.textContent,
+    ).toContain(
       `[data-w-id="tm-live"][data-w-id][data-w-id] .cms-post-title{font-size:28px !important;}`,
     );
 

@@ -32,20 +32,19 @@ describe("mergeRelatedConfig", () => {
   });
 
   it("global overrides defaults, per-post overrides global", () => {
-    const merged = mergeRelatedConfig(
-      { items_limit: 9, layout: "list" },
-      { items_limit: 4 },
-    );
+    const merged = mergeRelatedConfig({ items_limit: 9, layout: "list" }, { items_limit: 4 });
     expect(merged.items_limit).toBe(4);
     expect(merged.layout).toBe("list");
     expect(merged.columns).toBe(RELATED_POSTS_DEFAULTS.columns);
   });
 
   it("null/undefined override values do not clobber global", () => {
-    const merged = mergeRelatedConfig({ layout: "slider" }, {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      layout: undefined as any,
-    });
+    const merged = mergeRelatedConfig(
+      { layout: "slider" },
+      {
+        layout: undefined as any,
+      },
+    );
     expect(merged.layout).toBe("slider");
   });
 });

@@ -8,7 +8,10 @@ import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 
 /** Drag payload for a global-widget instance dragged from the palette. */
-export interface GlobalDragPayload { id: string; data: GlobalWidgetData }
+export interface GlobalDragPayload {
+  id: string;
+  data: GlobalWidgetData;
+}
 
 export const GLOBAL_WIDGET_MIME = "application/x-global-widget";
 
@@ -31,13 +34,28 @@ const AUTO_SCROLL_EDGE_PX = 90;
 const AUTO_SCROLL_MAX_SPEED = 22;
 
 export function VisualCanvas({
-  doc, lang, device, selection, setSelection, onInsertSection, onRemoveSection,
-  onMoveWidget, onMoveWidgetToColumn, onMoveWidgetToSection, onMoveSection,
-  onDropNewWidgetToColumn, onDropNewWidgetNear, onDropNewWidgetToSection,
-  firstLabel, lastLabel,
+  doc,
+  lang,
+  device,
+  selection,
+  setSelection,
+  onInsertSection,
+  onRemoveSection,
+  onMoveWidget,
+  onMoveWidgetToColumn,
+  onMoveWidgetToSection,
+  onMoveSection,
+  onDropNewWidgetToColumn,
+  onDropNewWidgetNear,
+  onDropNewWidgetToSection,
+  firstLabel,
+  lastLabel,
 }: {
-  doc: BuilderDocument; lang: "pl" | "en"; device: Device;
-  selection: Selection; setSelection: (s: Selection) => void;
+  doc: BuilderDocument;
+  lang: "pl" | "en";
+  device: Device;
+  selection: Selection;
+  setSelection: (s: Selection) => void;
   onInsertSection: (index: number, colsOrSpans: number | number[]) => void;
   onRemoveSection?: (id: string) => void;
   onMoveWidget: (srcId: string, targetId: string, pos: "before" | "after") => void;
@@ -45,9 +63,19 @@ export function VisualCanvas({
   onMoveWidgetToSection: (srcId: string, targetSectionId: string) => void;
   onMoveSection: (srcId: string, targetId: string, pos: "before" | "after") => void;
   onDropNewWidgetToColumn: (colId: string, type: WidgetType, global?: GlobalDragPayload) => void;
-  onDropNewWidgetNear: (targetWidgetId: string, pos: "before" | "after", type: WidgetType, global?: GlobalDragPayload) => void;
-  onDropNewWidgetToSection: (sectionId: string, type: WidgetType, global?: GlobalDragPayload) => void;
-  firstLabel: string; lastLabel: string;
+  onDropNewWidgetNear: (
+    targetWidgetId: string,
+    pos: "before" | "after",
+    type: WidgetType,
+    global?: GlobalDragPayload,
+  ) => void;
+  onDropNewWidgetToSection: (
+    sectionId: string,
+    type: WidgetType,
+    global?: GlobalDragPayload,
+  ) => void;
+  firstLabel: string;
+  lastLabel: string;
 }) {
   const safeDoc = safeParseBuilderDoc(doc);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -64,11 +92,20 @@ export function VisualCanvas({
   const onClickCapture = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = e.target as HTMLElement;
     const w = el.closest("[data-widget-id]") as HTMLElement | null;
-    if (w?.dataset.widgetId) { setSelection({ kind: "widget", id: w.dataset.widgetId }); return; }
+    if (w?.dataset.widgetId) {
+      setSelection({ kind: "widget", id: w.dataset.widgetId });
+      return;
+    }
     const c = el.closest("[data-col-id]") as HTMLElement | null;
-    if (c?.dataset.colId) { setSelection({ kind: "column", id: c.dataset.colId }); return; }
+    if (c?.dataset.colId) {
+      setSelection({ kind: "column", id: c.dataset.colId });
+      return;
+    }
     const s = el.closest("[data-sec-id]") as HTMLElement | null;
-    if (s?.dataset.secId) { setSelection({ kind: "section", id: s.dataset.secId }); return; }
+    if (s?.dataset.secId) {
+      setSelection({ kind: "section", id: s.dataset.secId });
+      return;
+    }
     setSelection({ kind: null, id: null });
   };
 
@@ -99,26 +136,47 @@ export function VisualCanvas({
     const root = rootRef.current;
     if (!root) return;
 
-
-    const widgets: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-widget-id]"));
+    const widgets: HTMLElement[] = Array.from(
+      root.querySelectorAll<HTMLElement>("[data-widget-id]"),
+    );
     const sections: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-sec-id]"));
     const cols: HTMLElement[] = Array.from(root.querySelectorAll<HTMLElement>("[data-col-id]"));
 
     widgets.forEach((w: HTMLElement) => {
-      w.classList.toggle("is-selected", w.dataset.widgetId === selection.id && selection.kind === "widget");
+      w.classList.toggle(
+        "is-selected",
+        w.dataset.widgetId === selection.id && selection.kind === "widget",
+      );
       w.setAttribute("draggable", "true");
     });
     cols.forEach((c: HTMLElement) => {
-      c.classList.toggle("is-selected", c.dataset.colId === selection.id && selection.kind === "column");
+      c.classList.toggle(
+        "is-selected",
+        c.dataset.colId === selection.id && selection.kind === "column",
+      );
     });
     sections.forEach((s: HTMLElement) => {
-      s.classList.toggle("is-selected", s.dataset.secId === selection.id && selection.kind === "section");
+      s.classList.toggle(
+        "is-selected",
+        s.dataset.secId === selection.id && selection.kind === "section",
+      );
       s.setAttribute("draggable", "true");
     });
 
     const clearDropMarkers = () => {
-      root.querySelectorAll<HTMLElement>(".is-drop-before,.is-drop-after,.is-drop-left,.is-drop-right,.is-drop-into")
-        .forEach((el) => el.classList.remove("is-drop-before", "is-drop-after", "is-drop-left", "is-drop-right", "is-drop-into"));
+      root
+        .querySelectorAll<HTMLElement>(
+          ".is-drop-before,.is-drop-after,.is-drop-left,.is-drop-right,.is-drop-into",
+        )
+        .forEach((el) =>
+          el.classList.remove(
+            "is-drop-before",
+            "is-drop-after",
+            "is-drop-left",
+            "is-drop-right",
+            "is-drop-into",
+          ),
+        );
     };
 
     const isLibraryDrag = (e: DragEvent) => {
@@ -141,7 +199,10 @@ export function VisualCanvas({
       }
     };
     const autoScrollStep = () => {
-      if (autoScrollSpeedRef.current === 0) { autoScrollRafRef.current = null; return; }
+      if (autoScrollSpeedRef.current === 0) {
+        autoScrollRafRef.current = null;
+        return;
+      }
       window.scrollBy(0, autoScrollSpeedRef.current);
       autoScrollRafRef.current = requestAnimationFrame(autoScrollStep);
     };
@@ -149,9 +210,13 @@ export function VisualCanvas({
       const vh = window.innerHeight;
       let speed = 0;
       if (clientY < AUTO_SCROLL_EDGE_PX) {
-        speed = -Math.ceil(((AUTO_SCROLL_EDGE_PX - clientY) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_SPEED);
+        speed = -Math.ceil(
+          ((AUTO_SCROLL_EDGE_PX - clientY) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_SPEED,
+        );
       } else if (clientY > vh - AUTO_SCROLL_EDGE_PX) {
-        speed = Math.ceil(((clientY - (vh - AUTO_SCROLL_EDGE_PX)) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_SPEED);
+        speed = Math.ceil(
+          ((clientY - (vh - AUTO_SCROLL_EDGE_PX)) / AUTO_SCROLL_EDGE_PX) * AUTO_SCROLL_MAX_SPEED,
+        );
       }
       autoScrollSpeedRef.current = speed;
       if (speed !== 0 && autoScrollRafRef.current === null) {
@@ -170,16 +235,31 @@ export function VisualCanvas({
       const ghost = document.createElement("div");
       ghost.textContent = label;
       ghost.style.cssText = [
-        "position:fixed", "top:-1000px", "left:-1000px", "z-index:9999",
-        "padding:4px 10px", "border-radius:999px",
-        "background:var(--brand, #2563eb)", "color:var(--brand-foreground, #fff)",
-        "font-size:11px", "font-weight:700", "letter-spacing:.02em",
-        "box-shadow:0 8px 24px rgba(0,0,0,.25)", "pointer-events:none",
-        "max-width:220px", "overflow:hidden", "text-overflow:ellipsis", "white-space:nowrap",
+        "position:fixed",
+        "top:-1000px",
+        "left:-1000px",
+        "z-index:9999",
+        "padding:4px 10px",
+        "border-radius:999px",
+        "background:var(--brand, #2563eb)",
+        "color:var(--brand-foreground, #fff)",
+        "font-size:11px",
+        "font-weight:700",
+        "letter-spacing:.02em",
+        "box-shadow:0 8px 24px rgba(0,0,0,.25)",
+        "pointer-events:none",
+        "max-width:220px",
+        "overflow:hidden",
+        "text-overflow:ellipsis",
+        "white-space:nowrap",
       ].join(";");
       document.body.appendChild(ghost);
       dragGhostRef.current = ghost;
-      try { e.dataTransfer.setDragImage(ghost, 12, 12); } catch { removeDragGhost(); }
+      try {
+        e.dataTransfer.setDragImage(ghost, 12, 12);
+      } catch {
+        removeDragGhost();
+      }
     };
 
     const onDragStart = (e: DragEvent) => {
@@ -205,18 +285,30 @@ export function VisualCanvas({
       }
     };
 
-    const onDragEnd = () => { setDragging(false); clearDropMarkers(); stopAutoScroll(); removeDragGhost(); };
+    const onDragEnd = () => {
+      setDragging(false);
+      clearDropMarkers();
+      stopAutoScroll();
+      removeDragGhost();
+    };
 
     /**
      * before/after for a hovered widget: inline widgets flow horizontally, so
      * their split axis is X (left/right markers); block widgets split on Y.
      */
-    const dropPosition = (e: DragEvent, widget: HTMLElement): { pos: "before" | "after"; inline: boolean } => {
+    const dropPosition = (
+      e: DragEvent,
+      widget: HTMLElement,
+    ): { pos: "before" | "after"; inline: boolean } => {
       const inline = widget.dataset.widgetLayout === "inline";
       const r = widget.getBoundingClientRect();
       const pos = inline
-        ? (e.clientX < r.left + r.width / 2 ? "before" : "after")
-        : (e.clientY < r.top + r.height / 2 ? "before" : "after");
+        ? e.clientX < r.left + r.width / 2
+          ? "before"
+          : "after"
+        : e.clientY < r.top + r.height / 2
+          ? "before"
+          : "after";
       return { pos, inline };
     };
 
@@ -242,17 +334,29 @@ export function VisualCanvas({
       if (widget) {
         const { pos, inline } = dropPosition(e, widget);
         widget.classList.add(
-          inline ? (pos === "before" ? "is-drop-left" : "is-drop-right")
-                 : (pos === "before" ? "is-drop-before" : "is-drop-after"),
+          inline
+            ? pos === "before"
+              ? "is-drop-left"
+              : "is-drop-right"
+            : pos === "before"
+              ? "is-drop-before"
+              : "is-drop-after",
         );
         return;
       }
-      if (col) { col.classList.add("is-drop-into"); return; }
+      if (col) {
+        col.classList.add("is-drop-into");
+        return;
+      }
       if (sec) sec.classList.add("is-drop-into");
     };
 
     const onDragLeave = (e: DragEvent) => {
-      if (!root.contains(e.relatedTarget as Node)) { clearDropMarkers(); setDragging(false); stopAutoScroll(); }
+      if (!root.contains(e.relatedTarget as Node)) {
+        clearDropMarkers();
+        setDragging(false);
+        stopAutoScroll();
+      }
     };
 
     const onDrop = (e: DragEvent) => {
@@ -264,11 +368,15 @@ export function VisualCanvas({
       dragRef.current = null;
       const t = e.target as HTMLElement;
 
-      const globalPayload = readGlobalDragPayload(e.dataTransfer?.getData(GLOBAL_WIDGET_MIME) ?? "");
-      const newType = globalPayload?.data.type
-        ?? (e.dataTransfer?.getData("application/x-widget-type") as WidgetType);
+      const globalPayload = readGlobalDragPayload(
+        e.dataTransfer?.getData(GLOBAL_WIDGET_MIME) ?? "",
+      );
+      const newType =
+        globalPayload?.data.type ??
+        (e.dataTransfer?.getData("application/x-widget-type") as WidgetType);
       if (newType) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         const widget = t.closest?.("[data-widget-id]") as HTMLElement | null;
         if (widget && widget.dataset.widgetId) {
           const { pos } = dropPosition(e, widget);
@@ -276,15 +384,20 @@ export function VisualCanvas({
           return;
         }
         const col = t.closest?.("[data-col-id]") as HTMLElement | null;
-        if (col && col.dataset.colId) { onDropNewWidgetToColumn(col.dataset.colId, newType, globalPayload ?? undefined); return; }
+        if (col && col.dataset.colId) {
+          onDropNewWidgetToColumn(col.dataset.colId, newType, globalPayload ?? undefined);
+          return;
+        }
         const sec = t.closest?.("[data-sec-id]") as HTMLElement | null;
-        if (sec && sec.dataset.secId) onDropNewWidgetToSection(sec.dataset.secId, newType, globalPayload ?? undefined);
+        if (sec && sec.dataset.secId)
+          onDropNewWidgetToSection(sec.dataset.secId, newType, globalPayload ?? undefined);
         return;
       }
 
       if (!drag) return;
       if (drag.kind === "widget") {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         const targetWidget = t.closest?.("[data-widget-id]") as HTMLElement | null;
         if (targetWidget?.dataset.widgetId && targetWidget.dataset.widgetId !== drag.id) {
           const { pos } = dropPosition(e, targetWidget);
@@ -328,7 +441,17 @@ export function VisualCanvas({
       stopAutoScroll();
       removeDragGhost();
     };
-  }, [safeDoc, selection, onMoveWidget, onMoveWidgetToColumn, onMoveWidgetToSection, onMoveSection, onDropNewWidgetToColumn, onDropNewWidgetNear, onDropNewWidgetToSection]);
+  }, [
+    safeDoc,
+    selection,
+    onMoveWidget,
+    onMoveWidgetToColumn,
+    onMoveWidgetToSection,
+    onMoveSection,
+    onDropNewWidgetToColumn,
+    onDropNewWidgetNear,
+    onDropNewWidgetToSection,
+  ]);
 
   const ringCss = `
     [data-visual-canvas] [data-widget-id]{position:relative;cursor:grab;outline:1px dashed transparent;outline-offset:2px;border-radius:4px;transition:outline-color .15s}
@@ -521,11 +644,7 @@ export function VisualCanvas({
     }
   `;
 
-
-  const deviceWidth =
-    device === "mobile" ? 390
-    : device === "tablet" ? 820
-    : undefined;
+  const deviceWidth = device === "mobile" ? 390 : device === "tablet" ? 820 : undefined;
 
   const frameStyle: React.CSSProperties = deviceWidth
     ? {
@@ -538,13 +657,29 @@ export function VisualCanvas({
     : { width: "100%", maxWidth: "100%", overflowX: "clip", boxSizing: "border-box" };
 
   return (
-    <div data-visual-canvas data-device={device} onClickCapture={onClickCapture} ref={rootRef} style={{ width: "100%", overflowX: "clip" }}>
+    <div
+      data-visual-canvas
+      data-device={device}
+      onClickCapture={onClickCapture}
+      ref={rootRef}
+      style={{ width: "100%", overflowX: "clip" }}
+    >
       <style dangerouslySetInnerHTML={{ __html: ringCss }} />
       <div style={frameStyle}>
-        <SectionDropZone onInsert={(cols) => onInsertSection(0, cols)} index={0} prominent label={firstLabel} />
+        <SectionDropZone
+          onInsert={(cols) => onInsertSection(0, cols)}
+          index={0}
+          prominent
+          label={firstLabel}
+        />
         {safeDoc.sections.map((s, idx) => (
           <div key={s.id} style={{ minWidth: 0, maxWidth: "100%", overflowX: "clip" }}>
-            <BuilderRenderer doc={{ ...safeDoc, sections: [s] }} lang={lang} device={device} editorPreview />
+            <BuilderRenderer
+              doc={{ ...safeDoc, sections: [s] }}
+              lang={lang}
+              device={device}
+              editorPreview
+            />
             {idx === safeDoc.sections.length - 1 && (
               <SectionDropZone
                 onInsert={(cols) => onInsertSection(idx + 1, cols)}
@@ -559,4 +694,3 @@ export function VisualCanvas({
     </div>
   );
 }
-

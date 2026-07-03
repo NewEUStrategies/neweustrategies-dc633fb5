@@ -14,13 +14,18 @@ export const Route = createFileRoute("/profile/bookmarks")({
 });
 
 interface PostLite {
-  id: string; slug: string;
-  title_pl: string | null; title_en: string | null;
-  cover_image_url: string | null; published_at: string | null;
+  id: string;
+  slug: string;
+  title_pl: string | null;
+  title_en: string | null;
+  cover_image_url: string | null;
+  published_at: string | null;
 }
 interface PageLite {
-  id: string; slug: string;
-  title_pl: string | null; title_en: string | null;
+  id: string;
+  slug: string;
+  title_pl: string | null;
+  title_en: string | null;
 }
 
 function pickTitle(row: { title_pl: string | null; title_en: string | null }, lang: "pl" | "en") {
@@ -37,7 +42,9 @@ function BookmarksPage() {
 
   const ids = useMemo(() => {
     const out = { post: [] as string[], page: [] as string[] };
-    (bookmarks ?? []).forEach((b) => { out[b.entity_type].push(b.entity_id); });
+    (bookmarks ?? []).forEach((b) => {
+      out[b.entity_type].push(b.entity_id);
+    });
     return out;
   }, [bookmarks]);
 
@@ -76,8 +83,12 @@ function BookmarksPage() {
       <CardContent>
         <Tabs value={tab} onValueChange={(v) => setTab(v as BookmarkEntityType)}>
           <TabsList>
-            <TabsTrigger value="post">{t("profile.bookmarks.tabPosts")} ({ids.post.length})</TabsTrigger>
-            <TabsTrigger value="page">{t("profile.bookmarks.tabPages")} ({ids.page.length})</TabsTrigger>
+            <TabsTrigger value="post">
+              {t("profile.bookmarks.tabPosts")} ({ids.post.length})
+            </TabsTrigger>
+            <TabsTrigger value="page">
+              {t("profile.bookmarks.tabPages")} ({ids.page.length})
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="post" className="mt-4">
@@ -88,22 +99,38 @@ function BookmarksPage() {
                 {(postsQ.data ?? []).map((p) => (
                   <li key={p.id} className="flex items-center gap-3 py-3">
                     {p.cover_image_url ? (
-                      <img src={p.cover_image_url} alt="" className="w-16 h-12 object-cover rounded" loading="lazy" />
+                      <img
+                        src={p.cover_image_url}
+                        alt=""
+                        className="w-16 h-12 object-cover rounded"
+                        loading="lazy"
+                      />
                     ) : (
                       <div className="w-16 h-12 rounded bg-muted" />
                     )}
                     <div className="min-w-0 flex-1">
-                      <Link to="/post/$slug" params={{ slug: p.slug }} className="font-medium hover:underline truncate block">
+                      <Link
+                        to="/post/$slug"
+                        params={{ slug: p.slug }}
+                        className="font-medium hover:underline truncate block"
+                      >
                         {pickTitle(p, lang)}
                       </Link>
                       {p.published_at && (
                         <div className="text-xs text-muted-foreground">
-                          {new Date(p.published_at).toLocaleDateString(lang === "en" ? "en-US" : "pl-PL")}
+                          {new Date(p.published_at).toLocaleDateString(
+                            lang === "en" ? "en-US" : "pl-PL",
+                          )}
                         </div>
                       )}
                     </div>
-                    <Button variant="ghost" size="sm"
-                      onClick={() => toggle.mutate({ entityType: "post", entityId: p.id, on: false })}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        toggle.mutate({ entityType: "post", entityId: p.id, on: false })
+                      }
+                    >
                       {t("profile.bookmarks.remove")}
                     </Button>
                   </li>
@@ -120,8 +147,13 @@ function BookmarksPage() {
                 {(pagesQ.data ?? []).map((p) => (
                   <li key={p.id} className="flex items-center justify-between gap-3 py-3">
                     <span className="font-medium truncate">{pickTitle(p, lang)}</span>
-                    <Button variant="ghost" size="sm"
-                      onClick={() => toggle.mutate({ entityType: "page", entityId: p.id, on: false })}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        toggle.mutate({ entityType: "page", entityId: p.id, on: false })
+                      }
+                    >
                       {t("profile.bookmarks.remove")}
                     </Button>
                   </li>

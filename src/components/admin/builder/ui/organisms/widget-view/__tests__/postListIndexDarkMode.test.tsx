@@ -26,7 +26,20 @@ const db = vi.hoisted(() => ({ tables: {} as Record<string, unknown[]> }));
 vi.mock("@/integrations/supabase/client", () => {
   const mk = (table: string) => {
     const b: Record<string, unknown> = {};
-    for (const m of ["select", "eq", "neq", "is", "in", "not", "gte", "lte", "order", "range", "limit", "ilike"]) {
+    for (const m of [
+      "select",
+      "eq",
+      "neq",
+      "is",
+      "in",
+      "not",
+      "gte",
+      "lte",
+      "order",
+      "range",
+      "limit",
+      "ilike",
+    ]) {
       b[m] = () => b;
     }
     b.then = (r: (v: unknown) => unknown) => r({ data: db.tables[table] ?? [], error: null });
@@ -44,7 +57,11 @@ vi.mock("@tanstack/react-router", async (orig) => {
   const actual = await orig<typeof import("@tanstack/react-router")>();
   return {
     ...actual,
-    Link: ({ to, children, ...rest }: { to?: unknown; children?: unknown } & Record<string, unknown>) => (
+    Link: ({
+      to,
+      children,
+      ...rest
+    }: { to?: unknown; children?: unknown } & Record<string, unknown>) => (
       <a href={typeof to === "string" ? to : "#"} {...rest}>
         {children as never}
       </a>
@@ -139,12 +156,14 @@ describe("styles.css - dark mode index color rule has adequate specificity", () 
     // The base rule intentionally triples the class name to raise specificity.
     // The dark override MUST triple it too, otherwise `--pl-num-dark` is set
     // but never read (regression: CMS "Kolor (dark)" had zero visible effect).
-    const darkRule = /\.dark\s+\.post-list-numbered-index\.post-list-numbered-index\.post-list-numbered-index\s*\{[^}]*color\s*:\s*var\(--pl-num-dark\)/;
+    const darkRule =
+      /\.dark\s+\.post-list-numbered-index\.post-list-numbered-index\.post-list-numbered-index\s*\{[^}]*color\s*:\s*var\(--pl-num-dark\)/;
     expect(darkRule.test(css)).toBe(true);
   });
 
   it("still exposes the base light-mode rule using --pl-num-light", () => {
-    const baseRule = /\.post-list-numbered-index\.post-list-numbered-index\.post-list-numbered-index\s*\{[^}]*color\s*:\s*var\(--pl-num-light\)/;
+    const baseRule =
+      /\.post-list-numbered-index\.post-list-numbered-index\.post-list-numbered-index\s*\{[^}]*color\s*:\s*var\(--pl-num-light\)/;
     expect(baseRule.test(css)).toBe(true);
   });
 });

@@ -58,8 +58,7 @@ export function OptimizedImage({
 }: OptimizedImageProps) {
   const [errored, setErrored] = useState(false);
 
-  const ratio =
-    aspectRatio ?? (width && height ? width / height : undefined);
+  const ratio = aspectRatio ?? (width && height ? width / height : undefined);
 
   const finalSrc = crop ? buildTransformedImageUrl(src, crop) : src;
   // Responsive srcSet only when opted-in, no fixed crop, and the source is a
@@ -79,8 +78,7 @@ export function OptimizedImage({
   // first paint is instant.
   const fadeClass = fadeIn && !priority ? "oi-fade-in" : "";
   const hoverClass = hoverEffect === "none" ? "" : "oi-img";
-  const imgClassName =
-    [className, hoverClass, fadeClass].filter(Boolean).join(" ") || undefined;
+  const imgClassName = [className, hoverClass, fadeClass].filter(Boolean).join(" ") || undefined;
 
   if (errored || !finalSrc) {
     return (
@@ -90,7 +88,15 @@ export function OptimizedImage({
         className={`inline-flex items-center justify-center bg-muted/40 text-muted-foreground ${className ?? ""}`}
         style={{ ...(ratio ? { aspectRatio: String(ratio) } : null), ...style }}
       >
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+        <svg
+          width="28"
+          height="28"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          aria-hidden="true"
+        >
           <rect x="3" y="3" width="18" height="18" rx="2" />
           <circle cx="8.5" cy="8.5" r="1.5" />
           <path d="m21 15-5-5L5 21" />
@@ -120,7 +126,6 @@ export function OptimizedImage({
         const afterFallback = event.currentTarget.currentSrc || event.currentTarget.src;
         if (afterFallback && afterFallback !== beforeFallback) return;
         if (typeof console !== "undefined") {
-          // eslint-disable-next-line no-console
           console.warn("[OptimizedImage] failed to load", finalSrc);
         }
         setErrored(true);

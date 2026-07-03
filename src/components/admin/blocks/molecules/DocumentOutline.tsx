@@ -68,9 +68,7 @@ export function DocumentOutline({ doc, activeId, onSelect }: Props) {
         {t("blocks.outline.title")}
       </h4>
       {headings.length === 0 ? (
-        <p className="text-xs text-muted-foreground italic py-2">
-          {t("blocks.outline.empty")}
-        </p>
+        <p className="text-xs text-muted-foreground italic py-2">{t("blocks.outline.empty")}</p>
       ) : (
         <ul className="space-y-0.5">
           {headings.map((h) => (

@@ -45,7 +45,9 @@ import { SiteChrome } from "../components/SiteChrome";
 // Non-critical overlays: not visible at first paint (they open on trigger/delay),
 // so they are code-split out of the entry to shrink the critical hydration bundle.
 // Streaming SSR still resolves them server-side, so the rendered HTML is unchanged.
-const LoginPopup = lazy(() => import("../components/LoginPopup").then((m) => ({ default: m.LoginPopup })));
+const LoginPopup = lazy(() =>
+  import("../components/LoginPopup").then((m) => ({ default: m.LoginPopup })),
+);
 const NewsletterPopup = lazy(() =>
   import("../components/NewsletterPopup").then((m) => ({ default: m.NewsletterPopup })),
 );
@@ -55,7 +57,6 @@ const CommandPalette = lazy(() =>
 const PopupHost = lazy(() =>
   import("../components/popups/PopupHost").then((m) => ({ default: m.PopupHost })),
 );
-
 
 function NotFoundComponent() {
   return (
@@ -202,8 +203,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // postViews.functions), so in steady state this adds no extra round-trips.
     const path = location.pathname;
     const showsChrome =
-      path !== "/admin" && !path.startsWith("/admin/") &&
-      path !== "/login" && !path.startsWith("/login/");
+      path !== "/admin" &&
+      !path.startsWith("/admin/") &&
+      path !== "/login" &&
+      !path.startsWith("/login/");
     if (showsChrome) {
       const header = resolveSetting<HeaderSettings>(settings, "header", {});
       const trending = header.trending ?? {};
@@ -275,7 +278,5 @@ function RootComponent() {
         <Toaster />
       </AuthProvider>
     </ThemeProvider>
-
   );
 }
-

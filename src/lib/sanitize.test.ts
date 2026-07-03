@@ -10,7 +10,7 @@ import {
 
 describe("sanitize", () => {
   it("strips script/style/iframe", () => {
-    const html = sanitizeHtml('<p>ok</p><script>alert(1)</script><style>x</style>');
+    const html = sanitizeHtml("<p>ok</p><script>alert(1)</script><style>x</style>");
     expect(html).toContain("<p>ok</p>");
     expect(html).not.toContain("script");
     expect(html).not.toContain("<style");

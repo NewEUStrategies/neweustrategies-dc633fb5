@@ -91,10 +91,7 @@ export function autoInvertColor(color: string, targetMode: Mode): string {
  * If the user did NOT set an explicit override for `mode`, the fallback
  * value is run through `autoInvertColor` so widgets adapt automatically.
  */
-export function resolveColorForMode(
-  v: Themed<string> | undefined,
-  mode: Mode,
-): string | undefined {
+export function resolveColorForMode(v: Themed<string> | undefined, mode: Mode): string | undefined {
   if (v == null) return undefined;
   if (!isThemedValue<string>(v)) {
     // Flat value applies to both modes - auto-invert for the non-authored side.

@@ -37,7 +37,10 @@ function getNum(c: WidgetContent, key: string, fallback: number): number {
 }
 
 function csv(c: WidgetContent, key: string): string[] {
-  return getStr(c, key).split(",").map((s) => s.trim()).filter(Boolean);
+  return getStr(c, key)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 export interface SliderPostsInput {
@@ -85,8 +88,7 @@ export function sliderUsesPostsSource(c: WidgetContent): boolean {
   if (rawItems.length === 0) return true;
   const hasBoundItems = rawItems.some(
     (it) =>
-      (typeof it.image === "string" && it.image) ||
-      (typeof it.postId === "string" && it.postId),
+      (typeof it.image === "string" && it.image) || (typeof it.postId === "string" && it.postId),
   );
   return !hasBoundItems;
 }
@@ -95,7 +97,10 @@ async function fetchSliderPosts(input: SliderPostsInput, lang: Lang): Promise<Sl
   const { limit, categoryId, categorySlugs, tagSlugs, excludeIds, orderBy } = input;
   let allowedIds: string[] | null = null;
   if (categoryId) {
-    const { data } = await supabase.from("post_categories").select("post_id").eq("category_id", categoryId);
+    const { data } = await supabase
+      .from("post_categories")
+      .select("post_id")
+      .eq("category_id", categoryId);
     allowedIds = (data ?? []).map((r) => r.post_id);
   }
   if (categorySlugs.length) {
@@ -110,7 +115,10 @@ async function fetchSliderPosts(input: SliderPostsInput, lang: Lang): Promise<Sl
     const { data: tagRows } = await supabase.from("tags").select("id").in("slug", tagSlugs);
     const tagIds = (tagRows ?? []).map((r) => r.id);
     if (tagIds.length) {
-      const { data: ptRows } = await supabase.from("post_tags").select("post_id").in("tag_id", tagIds);
+      const { data: ptRows } = await supabase
+        .from("post_tags")
+        .select("post_id")
+        .in("tag_id", tagIds);
       const ids = (ptRows ?? []).map((r) => r.post_id);
       allowedIds = allowedIds ? allowedIds.filter((id) => ids.includes(id)) : ids;
     } else {

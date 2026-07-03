@@ -34,7 +34,9 @@ export async function listCustomMetaDefs(tenantId?: string | null): Promise<Cust
   return (data ?? []) as CustomMetaDef[];
 }
 
-export async function upsertCustomMetaDef(def: Omit<CustomMetaDef, "id"> & { id?: string }): Promise<void> {
+export async function upsertCustomMetaDef(
+  def: Omit<CustomMetaDef, "id"> & { id?: string },
+): Promise<void> {
   const payload = { ...def };
   const { error } = await supabase
     .from("post_custom_meta_defs")

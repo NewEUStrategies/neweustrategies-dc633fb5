@@ -8,7 +8,11 @@ import {
   relatedPostsConfigQueryOptions,
   relatedPostsQueryOptions,
 } from "@/lib/queries/relatedPosts";
-import { mergeRelatedConfig, type RelatedPostsConfig, type RelatedPostsOverride } from "@/lib/relatedPosts";
+import {
+  mergeRelatedConfig,
+  type RelatedPostsConfig,
+  type RelatedPostsOverride,
+} from "@/lib/relatedPosts";
 import type { BlogListItem } from "@/lib/queries/public";
 
 export interface RelatedPostsProps {
@@ -87,7 +91,15 @@ function CardThumb({ p, cfg }: { p: BlogListItem; cfg: RelatedPostsConfig }) {
   );
 }
 
-function CardBody({ p, cfg, lang }: { p: BlogListItem; cfg: RelatedPostsConfig; lang: "pl" | "en" }) {
+function CardBody({
+  p,
+  cfg,
+  lang,
+}: {
+  p: BlogListItem;
+  cfg: RelatedPostsConfig;
+  lang: "pl" | "en";
+}) {
   const title = lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
   const excerpt = lang === "en" ? p.excerpt_en : p.excerpt_pl;
   return (
@@ -113,9 +125,18 @@ function CardBody({ p, cfg, lang }: { p: BlogListItem; cfg: RelatedPostsConfig; 
   );
 }
 
-function RelatedGrid({ posts, columns, cfg, lang }: ViewProps & { columns: RelatedPostsConfig["columns"] }) {
+function RelatedGrid({
+  posts,
+  columns,
+  cfg,
+  lang,
+}: ViewProps & { columns: RelatedPostsConfig["columns"] }) {
   const colClass =
-    columns === 2 ? "sm:grid-cols-2" : columns === 4 ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-3";
+    columns === 2
+      ? "sm:grid-cols-2"
+      : columns === 4
+        ? "sm:grid-cols-2 lg:grid-cols-4"
+        : "sm:grid-cols-2 lg:grid-cols-3";
   return (
     <div className={`grid grid-cols-1 ${colClass} gap-5`}>
       {posts.map((p) => (
@@ -135,7 +156,14 @@ function RelatedList({ posts, cfg, lang }: ViewProps) {
         <li key={p.id} className="py-3 flex gap-3 items-start">
           {cfg.show_cover && p.cover_image_url && (
             <div className="w-20 h-20 shrink-0 overflow-hidden rounded-md bg-muted">
-              <OptimizedImage src={p.cover_image_url} alt="" responsive responsiveWidths={[80, 160, 240]} sizes="80px" className="w-full h-full object-cover" />
+              <OptimizedImage
+                src={p.cover_image_url}
+                alt=""
+                responsive
+                responsiveWidths={[80, 160, 240]}
+                sizes="80px"
+                className="w-full h-full object-cover"
+              />
             </div>
           )}
           <div className="min-w-0 flex-1">
@@ -153,9 +181,12 @@ function RelatedSlider({ posts, cfg, lang }: ViewProps) {
 
   useEffect(() => {
     if (!cfg.slider_autoplay) return;
-    const t = window.setInterval(() => {
-      setIdx((i) => (i + 1) % posts.length);
-    }, Math.max(2000, cfg.slider_interval_ms));
+    const t = window.setInterval(
+      () => {
+        setIdx((i) => (i + 1) % posts.length);
+      },
+      Math.max(2000, cfg.slider_interval_ms),
+    );
     return () => window.clearInterval(t);
   }, [cfg.slider_autoplay, cfg.slider_interval_ms, posts.length]);
 

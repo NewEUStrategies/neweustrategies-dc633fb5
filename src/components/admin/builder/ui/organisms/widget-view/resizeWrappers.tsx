@@ -16,7 +16,13 @@ export function ResizableImageWrap({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [livePx, setLivePx] = useState<number | undefined>(undefined);
-  const dragRef = useRef<{ startX: number; startY: number; startW: number; startH: number; ratio: number } | null>(null);
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    startW: number;
+    startH: number;
+    ratio: number;
+  } | null>(null);
 
   if (!enabled) return <>{children}</>;
 
@@ -28,7 +34,13 @@ export function ResizableImageWrap({
     const img = el.querySelector("img") as HTMLImageElement | null;
     const rect = (img ?? el).getBoundingClientRect();
     const ratio = rect.height > 0 ? rect.width / rect.height : 1;
-    dragRef.current = { startX: e.clientX, startY: e.clientY, startW: rect.width, startH: rect.height, ratio };
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startW: rect.width,
+      startH: rect.height,
+      ratio,
+    };
     (e.target as Element).setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent) => {
@@ -129,7 +141,9 @@ export function ResizableBox({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState<{ w: number; h: number } | undefined>(undefined);
-  const dragRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(
+    null,
+  );
 
   const baseStyle: CSSProperties = {
     position: "relative",
@@ -156,7 +170,12 @@ export function ResizableBox({
     const el = ref.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    dragRef.current = { startX: e.clientX, startY: e.clientY, startW: rect.width, startH: rect.height };
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startW: rect.width,
+      startH: rect.height,
+    };
     (e.target as Element).setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent) => {

@@ -7,7 +7,9 @@ interface Props {
   onChange: (mut: (a: AdvancedSettings) => void) => void;
 }
 
-const DEVICES: Array<["desktop" | "tablet" | "mobile", React.ComponentType<{ className?: string }>, string]> = [
+const DEVICES: Array<
+  ["desktop" | "tablet" | "mobile", React.ComponentType<{ className?: string }>, string]
+> = [
   ["desktop", Monitor, "Desktop"],
   ["tablet", Tablet, "Tablet"],
   ["mobile", Smartphone, "Mobile"],
@@ -22,9 +24,11 @@ export function VisibilityControl({ value, onChange }: Props) {
           <button
             key={d}
             type="button"
-            onClick={() => onChange((a) => {
-              a.hideOn = { ...(a.hideOn ?? {}), [d]: !hidden };
-            })}
+            onClick={() =>
+              onChange((a) => {
+                a.hideOn = { ...(a.hideOn ?? {}), [d]: !hidden };
+              })
+            }
             className={`flex flex-col items-center gap-1 px-2 py-1.5 rounded border text-[10px] transition ${
               hidden
                 ? "bg-destructive/10 border-destructive/40 text-destructive"

@@ -88,12 +88,13 @@ export function useInterestCatalog(lang: "pl" | "en" = "pl") {
         void qc.invalidateQueries({ queryKey: ["interests-catalog"] });
       })
       .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [qc]);
 
   return query;
 }
-
 
 export function useCurrentUserId() {
   const [uid, setUid] = useState<string | null>(null);
@@ -129,7 +130,9 @@ export function useMyInterests() {
         .in("target_type", ["category", "tag"]);
       if (error) throw error;
       return {
-        categoryIds: (data ?? []).filter((r) => r.target_type === "category").map((r) => r.target_id),
+        categoryIds: (data ?? [])
+          .filter((r) => r.target_type === "category")
+          .map((r) => r.target_id),
         tagIds: (data ?? []).filter((r) => r.target_type === "tag").map((r) => r.target_id),
       };
     },
@@ -149,12 +152,22 @@ export function useMyInterests() {
       const nextCat = new Set(next.categoryIds);
       const nextTag = new Set(next.tagIds);
 
-      const toInsert: { user_id: string; target_type: "category" | "tag"; target_id: string }[] = [];
+      const toInsert: { user_id: string; target_type: "category" | "tag"; target_id: string }[] =
+        [];
       const toDelete: { type: "category" | "tag"; id: string }[] = [];
-      nextCat.forEach((id) => { if (!curCat.has(id)) toInsert.push({ user_id: userId, target_type: "category", target_id: id }); });
-      nextTag.forEach((id) => { if (!curTag.has(id)) toInsert.push({ user_id: userId, target_type: "tag", target_id: id }); });
-      curCat.forEach((id) => { if (!nextCat.has(id)) toDelete.push({ type: "category", id }); });
-      curTag.forEach((id) => { if (!nextTag.has(id)) toDelete.push({ type: "tag", id }); });
+      nextCat.forEach((id) => {
+        if (!curCat.has(id))
+          toInsert.push({ user_id: userId, target_type: "category", target_id: id });
+      });
+      nextTag.forEach((id) => {
+        if (!curTag.has(id)) toInsert.push({ user_id: userId, target_type: "tag", target_id: id });
+      });
+      curCat.forEach((id) => {
+        if (!nextCat.has(id)) toDelete.push({ type: "category", id });
+      });
+      curTag.forEach((id) => {
+        if (!nextTag.has(id)) toDelete.push({ type: "tag", id });
+      });
 
       if (toInsert.length) {
         const { error } = await supabase.from("user_follows").insert(toInsert);
@@ -192,8 +205,5 @@ export function useMyInterests() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  return useMemo(
-    () => ({ ...query, save, userId, isAnonymous: !userId }),
-    [query, save, userId],
-  );
+  return useMemo(() => ({ ...query, save, userId, isAnonymous: !userId }), [query, save, userId]);
 }

@@ -21,7 +21,7 @@ export function EmbedBlock({ block, onChange }: Props) {
         <Input
           value={url}
           onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
-          placeholder={i18n.editor("embed","urlPh")}
+          placeholder={i18n.editor("embed", "urlPh")}
         />
       </div>
       {parsed && isIframeEmbed(parsed) ? (
@@ -35,7 +35,9 @@ export function EmbedBlock({ block, onChange }: Props) {
           />
         </div>
       ) : url ? (
-        <p className="text-xs text-muted-foreground">Nie rozpoznano dostawcy - URL pojawi się jako link.</p>
+        <p className="text-xs text-muted-foreground">
+          Nie rozpoznano dostawcy - URL pojawi się jako link.
+        </p>
       ) : (
         <p className="text-xs text-muted-foreground">Wklej URL z YouTube, Vimeo lub X.</p>
       )}

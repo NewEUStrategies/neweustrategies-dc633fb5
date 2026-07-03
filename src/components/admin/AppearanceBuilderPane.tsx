@@ -8,8 +8,14 @@ import { emptyDocument, type BuilderDocument } from "@/lib/builder/types";
 import { defaultDocFor } from "@/lib/builder/chromeDefaults";
 import { Button } from "@/components/ui/button";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Save, Undo as RotateCcw } from "@/lib/lucide-shim";
@@ -24,7 +30,6 @@ interface Props {
   title: string;
   scope?: "header" | "footer" | "menu";
 }
-
 
 type Json = Record<string, unknown>;
 
@@ -100,7 +105,8 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Przywrócić domyślny układ?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Bieżący układ zostanie zastąpiony domyślnym szablonem. Zmiana wejdzie w życie po kliknięciu „Zapisz”.
+                    Bieżący układ zostanie zastąpiony domyślnym szablonem. Zmiana wejdzie w życie po
+                    kliknięciu „Zapisz”.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -130,7 +136,14 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
             <TabsTrigger value="options">Opcje motywu</TabsTrigger>
           </TabsList>
           <TabsContent value="builder" className="mt-3">
-            <Builder value={doc} onChange={onChange} lang={lang} onLangChange={setLang} hideChrome scope={scope} />
+            <Builder
+              value={doc}
+              onChange={onChange}
+              lang={lang}
+              onLangChange={setLang}
+              hideChrome
+              scope={scope}
+            />
           </TabsContent>
           <TabsContent value="trending" className="mt-3">
             <TrendingTickerPane />
@@ -146,14 +159,28 @@ export function AppearanceBuilderPane({ settingsKey, title, scope }: Props) {
             <TabsTrigger value="options">Opcje stopki</TabsTrigger>
           </TabsList>
           <TabsContent value="builder" className="mt-3">
-            <Builder value={doc} onChange={onChange} lang={lang} onLangChange={setLang} hideChrome scope={scope} />
+            <Builder
+              value={doc}
+              onChange={onChange}
+              lang={lang}
+              onLangChange={setLang}
+              hideChrome
+              scope={scope}
+            />
           </TabsContent>
           <TabsContent value="options" className="mt-3">
             <FooterChromePane />
           </TabsContent>
         </Tabs>
       ) : (
-        <Builder value={doc} onChange={onChange} lang={lang} onLangChange={setLang} hideChrome scope={scope} />
+        <Builder
+          value={doc}
+          onChange={onChange}
+          lang={lang}
+          onLangChange={setLang}
+          hideChrome
+          scope={scope}
+        />
       )}
     </div>
   );

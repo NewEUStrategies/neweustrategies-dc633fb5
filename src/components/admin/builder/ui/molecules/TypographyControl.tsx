@@ -3,8 +3,21 @@
 // Font size is a single value applied identically on desktop / tablet / mobile.
 import type { Device, WidgetTypography } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { AlignLeft, AlignCenter, AlignRight, AlignJustify, ChevronUp, ChevronDown } from "lucide-react";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 import { PropField } from "../atoms/PropField";
 import { FontPicker } from "@/components/admin/settings/FontPicker";
 
@@ -36,7 +49,11 @@ export function TypographyControl({ value, onChange }: Props) {
     set({ fontSize: { desktop: px, tablet: px, mobile: px } });
   };
 
-  const rawDesc = v.descriptionFontSize?.desktop ?? v.descriptionFontSize?.tablet ?? v.descriptionFontSize?.mobile ?? "";
+  const rawDesc =
+    v.descriptionFontSize?.desktop ??
+    v.descriptionFontSize?.tablet ??
+    v.descriptionFontSize?.mobile ??
+    "";
   const descPx = String(rawDesc).replace(/[^0-9]/g, "");
   const setDescSize = (raw: string) => {
     const digits = raw.replace(/[^0-9]/g, "");
@@ -75,7 +92,9 @@ export function TypographyControl({ value, onChange }: Props) {
         }}
         className="h-8 text-xs pr-12"
       />
-      <span className="pointer-events-none absolute right-7 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">{unitLabel}</span>
+      <span className="pointer-events-none absolute right-7 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+        {unitLabel}
+      </span>
       <div className="absolute right-0 top-0 h-8 w-6 flex flex-col border-l border-border">
         <button
           type="button"
@@ -116,12 +135,8 @@ export function TypographyControl({ value, onChange }: Props) {
   return (
     <div className="space-y-2">
       <PropField label="Krój pisma">
-        <FontPicker
-          value={v.fontFamily}
-          onChange={(stack) => set({ fontFamily: stack })}
-        />
+        <FontPicker value={v.fontFamily} onChange={(stack) => set({ fontFamily: stack })} />
       </PropField>
-
 
       <div className="grid grid-cols-2 gap-2">
         <PropField label="Rozmiar tytułu (px)">
@@ -137,7 +152,10 @@ export function TypographyControl({ value, onChange }: Props) {
           typeof v.titleDescriptionGapPx === "number" ? String(v.titleDescriptionGapPx) : "",
           (raw) => {
             const digits = raw.replace(/[^0-9]/g, "");
-            if (!digits) { set({ titleDescriptionGapPx: undefined }); return; }
+            if (!digits) {
+              set({ titleDescriptionGapPx: undefined });
+              return;
+            }
             set({ titleDescriptionGapPx: Math.max(0, Math.min(200, Number(digits) || 0)) });
           },
           "Odstęp tytuł opis",
@@ -147,17 +165,16 @@ export function TypographyControl({ value, onChange }: Props) {
         )}
       </PropField>
 
-
-
-
       <PropField label="Wyrównanie">
         <div className="inline-flex rounded border border-border bg-muted/30 p-0.5 w-full">
-          {([
-            { v: "left", Icon: AlignLeft, label: "Lewo" },
-            { v: "center", Icon: AlignCenter, label: "Środek" },
-            { v: "right", Icon: AlignRight, label: "Prawo" },
-            { v: "justify", Icon: AlignJustify, label: "Wyjustuj" },
-          ] as const).map(({ v: val, Icon, label }) => {
+          {(
+            [
+              { v: "left", Icon: AlignLeft, label: "Lewo" },
+              { v: "center", Icon: AlignCenter, label: "Środek" },
+              { v: "right", Icon: AlignRight, label: "Prawo" },
+              { v: "justify", Icon: AlignJustify, label: "Wyjustuj" },
+            ] as const
+          ).map(({ v: val, Icon, label }) => {
             const active = v.textAlign === val;
             return (
               <button
@@ -166,7 +183,9 @@ export function TypographyControl({ value, onChange }: Props) {
                 title={label}
                 onClick={() => set({ textAlign: active ? undefined : val })}
                 className={`flex-1 inline-flex items-center justify-center h-7 text-[11px] rounded transition ${
-                  active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  active
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -182,11 +201,15 @@ export function TypographyControl({ value, onChange }: Props) {
             value={v.fontWeight ?? "__unset"}
             onValueChange={(w) => set({ fontWeight: w === "__unset" ? undefined : w })}
           >
-            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="-" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="__unset">-</SelectItem>
               {["300", "400", "500", "600", "700", "800", "900"].map((w) => (
-                <SelectItem key={w} value={w}>{w}</SelectItem>
+                <SelectItem key={w} value={w}>
+                  {w}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -196,7 +219,9 @@ export function TypographyControl({ value, onChange }: Props) {
             value={v.fontStyle ?? "normal"}
             onValueChange={(s) => set({ fontStyle: s as "normal" | "italic" })}
           >
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="normal">Normalny</SelectItem>
               <SelectItem value="italic">Pochyły</SelectItem>
@@ -218,11 +243,15 @@ export function TypographyControl({ value, onChange }: Props) {
         <PropField label="Wielkość liter">
           <Select
             value={v.textTransform ?? "none"}
-            onValueChange={(t) => set({
-              textTransform: t as "none" | "uppercase" | "lowercase" | "capitalize",
-            })}
+            onValueChange={(t) =>
+              set({
+                textTransform: t as "none" | "uppercase" | "lowercase" | "capitalize",
+              })
+            }
           >
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Bez zmian</SelectItem>
               <SelectItem value="uppercase">WIELKIE LITERY</SelectItem>
@@ -234,11 +263,15 @@ export function TypographyControl({ value, onChange }: Props) {
         <PropField label="Dekoracja">
           <Select
             value={v.textDecoration ?? "none"}
-            onValueChange={(t) => set({
-              textDecoration: t as "none" | "underline" | "line-through",
-            })}
+            onValueChange={(t) =>
+              set({
+                textDecoration: t as "none" | "underline" | "line-through",
+              })
+            }
           >
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Brak</SelectItem>
               <SelectItem value="underline">Podkreślenie</SelectItem>

@@ -2,12 +2,26 @@
 // Uses lucide icons by name (`def.icon`). Unknown icon names fall back to Info.
 import type { ComponentType, SVGProps } from "react";
 import { Clock, Tags, Star, BookOpen, MapPin, Globe, Bookmark } from "@/lib/lucide-shim";
-import { buildCustomMetaItems, metaLabel, type CustomMetaDef, type CustomMetaValues } from "@/lib/customMeta";
+import {
+  buildCustomMetaItems,
+  metaLabel,
+  type CustomMetaDef,
+  type CustomMetaValues,
+} from "@/lib/customMeta";
 
 type IconCmp = ComponentType<SVGProps<SVGSVGElement> & { className?: string }>;
 
 const ICONS: Record<string, IconCmp> = {
-  Info: Globe, Clock, Award: Star, Users: Globe, Tag: Tags, Star, BookOpen, MapPin, Bookmark, Globe,
+  Info: Globe,
+  Clock,
+  Award: Star,
+  Users: Globe,
+  Tag: Tags,
+  Star,
+  BookOpen,
+  MapPin,
+  Bookmark,
+  Globe,
 };
 
 interface Props {
@@ -23,14 +37,20 @@ export function CustomMetaList({ defs, values, lang, variant = "inline", classNa
   if (items.length === 0) return null;
   if (variant === "stacked") {
     return (
-      <dl className={["grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm", className].filter(Boolean).join(" ")}>
+      <dl
+        className={["grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm", className]
+          .filter(Boolean)
+          .join(" ")}
+      >
         {items.map(({ def, value }) => {
           const Icon = ICONS[def.icon] ?? Globe;
           return (
             <div key={def.id} className="flex items-start gap-2">
               <Icon className="w-4 h-4 mt-0.5 text-brand shrink-0" aria-hidden />
               <div className="min-w-0">
-                <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">{metaLabel(def, lang)}</dt>
+                <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                  {metaLabel(def, lang)}
+                </dt>
                 <dd className="font-semibold text-foreground truncate">{value}</dd>
               </div>
             </div>
@@ -40,7 +60,11 @@ export function CustomMetaList({ defs, values, lang, variant = "inline", classNa
     );
   }
   return (
-    <ul className={["inline-flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground", className].filter(Boolean).join(" ")}>
+    <ul
+      className={["inline-flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground", className]
+        .filter(Boolean)
+        .join(" ")}
+    >
       {items.map(({ def, value }) => {
         const Icon = ICONS[def.icon] ?? Globe;
         return (

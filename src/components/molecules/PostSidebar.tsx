@@ -19,13 +19,15 @@ interface PostSidebarProps {
 }
 
 function slugifyHeading(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 64) || "section";
+  return (
+    s
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 64) || "section"
+  );
 }
 
 export function PostSidebar({ articleRef, tags, scanKey }: PostSidebarProps) {
@@ -62,7 +64,9 @@ export function PostSidebar({ articleRef, tags, scanKey }: PostSidebarProps) {
       (entries) => {
         const visible = entries.filter((e) => e.isIntersecting);
         if (visible.length > 0) {
-          const top = visible.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+          const top = visible.sort(
+            (a, b) => a.boundingClientRect.top - b.boundingClientRect.top,
+          )[0];
           setActive(top.target.id);
         }
       },
@@ -77,7 +81,10 @@ export function PostSidebar({ articleRef, tags, scanKey }: PostSidebarProps) {
   return (
     <div className="space-y-6 lg:sticky lg:top-24 self-start">
       {items.length > 0 && (
-        <nav aria-label={t("post.sidebar.toc")} className="rounded-lg border border-border bg-card p-4">
+        <nav
+          aria-label={t("post.sidebar.toc")}
+          className="rounded-lg border border-border bg-card p-4"
+        >
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 inline-flex items-center gap-1.5">
             <List className="w-3.5 h-3.5" /> {t("post.sidebar.toc")}
           </h2>

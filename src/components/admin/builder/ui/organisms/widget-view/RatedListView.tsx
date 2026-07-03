@@ -29,7 +29,15 @@ type RatedItem = {
   format?: string;
 };
 
-export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; lang: Lang; mode?: "light" | "dark" }) {
+export function RatedListView({
+  c,
+  lang,
+  mode = "light",
+}: {
+  c: WidgetContent;
+  lang: Lang;
+  mode?: "light" | "dark";
+}) {
   const source = getStr(c, "source") || "manual";
   const numFont = getStr(c, "numberFont") || "display";
   // Weight: widget override wins; otherwise inherit Theme Design token.
@@ -80,7 +88,8 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
   const excerptLines = typeof c.excerptLines === "number" ? c.excerptLines : 3;
 
   const showReadMore = c.showReadMore === true;
-  const readMoreText = getStr(c, `readMoreText_${lang}`) || (lang === "pl" ? "Czytaj więcej" : "Read more");
+  const readMoreText =
+    getStr(c, `readMoreText_${lang}`) || (lang === "pl" ? "Czytaj więcej" : "Read more");
   const readMoreColor = getStr(c, "readMoreColor");
   const readMoreColorDark = autoDark(readMoreColor, getStr(c, "readMoreColorDark"));
 
@@ -110,22 +119,30 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
   const pageSize = typeof c.pageSize === "number" ? c.pageSize : 4;
 
   const fontCls =
-    numFont === "sans" ? "font-sans"
-    : numFont === "serif" ? "font-serif"
-    : numFont === "mono" ? "font-mono"
-    : "font-display";
+    numFont === "sans"
+      ? "font-sans"
+      : numFont === "serif"
+        ? "font-serif"
+        : numFont === "mono"
+          ? "font-mono"
+          : "font-display";
   const titleFontCls =
-    titleFont === "sans" ? "font-sans"
-    : titleFont === "serif" ? "font-serif"
-    : titleFont === "mono" ? "font-mono"
-    : "font-display";
+    titleFont === "sans"
+      ? "font-sans"
+      : titleFont === "serif"
+        ? "font-serif"
+        : titleFont === "mono"
+          ? "font-mono"
+          : "font-display";
   const numStyle: CSSProperties = {
     fontSize: `clamp(${Math.round(numSize * 0.6)}px, ${Math.round(numSize * 0.08)}vw + ${Math.round(numSize * 0.5)}px, ${numSize}px)`,
     fontWeight: numWeight as CSSProperties["fontWeight"],
     opacity: numOpacity,
   };
 
-  const manualItems: RatedItem[] = (Array.isArray(c.items) ? c.items as Array<Record<string, unknown>> : []).map((it) => ({
+  const manualItems: RatedItem[] = (
+    Array.isArray(c.items) ? (c.items as Array<Record<string, unknown>>) : []
+  ).map((it) => ({
     title: (it[`title_${lang}`] || it.title_pl || "") as string,
     excerpt: (it[`excerpt_${lang}`] || it.excerpt_pl || "") as string,
     author: (it.author || "") as string,
@@ -135,7 +152,11 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
     format: (it.format || "standard") as string,
   }));
 
-  const csv = (k: string) => (getStr(c, k) || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const csv = (k: string) =>
+    (getStr(c, k) || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
   const cats = csv("categoriesFilter");
   const excludeCats = csv("excludeCategories");
   const tagSlugs = csv("tagsFilter");
@@ -148,29 +169,55 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
   const limit = typeof c.numberOfPosts === "number" ? c.numberOfPosts : 4;
   const offset = typeof c.postOffset === "number" ? c.postOffset : 0;
 
-  const queryKey = ["rated-list-dyn", { cats, excludeCats, tagSlugs, excludeTagSlugs, postFormat, authors, postIds, excludePostIds, orderBy, limit, offset }];
+  const queryKey = [
+    "rated-list-dyn",
+    {
+      cats,
+      excludeCats,
+      tagSlugs,
+      excludeTagSlugs,
+      postFormat,
+      authors,
+      postIds,
+      excludePostIds,
+      orderBy,
+      limit,
+      offset,
+    },
+  ];
   const { data: dynItems } = useQuery({
     queryKey,
     enabled: source === "dynamic",
     queryFn: async (): Promise<RatedItem[]> => {
       const resolveByCategory = async (slugs: string[]) => {
         if (!slugs.length) return null;
-        const { data } = await supabase.from("post_categories").select("post_id, categories!inner(slug)").in("categories.slug", slugs);
+        const { data } = await supabase
+          .from("post_categories")
+          .select("post_id, categories!inner(slug)")
+          .in("categories.slug", slugs);
         return new Set((data ?? []).map((r: { post_id: string }) => r.post_id));
       };
       const resolveByTag = async (slugs: string[]) => {
         if (!slugs.length) return null;
-        const { data } = await supabase.from("post_tags").select("post_id, tags!inner(slug)").in("tags.slug", slugs);
+        const { data } = await supabase
+          .from("post_tags")
+          .select("post_id, tags!inner(slug)")
+          .in("tags.slug", slugs);
         return new Set((data ?? []).map((r: { post_id: string }) => r.post_id));
       };
 
       const [incCat, excCat, incTag, excTag] = await Promise.all([
-        resolveByCategory(cats), resolveByCategory(excludeCats),
-        resolveByTag(tagSlugs), resolveByTag(excludeTagSlugs),
+        resolveByCategory(cats),
+        resolveByCategory(excludeCats),
+        resolveByTag(tagSlugs),
+        resolveByTag(excludeTagSlugs),
       ]);
 
-      let q = supabase.from("posts")
-        .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en, published_at, post_format, author_id")
+      let q = supabase
+        .from("posts")
+        .select(
+          "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, published_at, post_format, author_id",
+        )
         .eq("status", "published");
 
       if (postFormat && postFormat !== "all") q = q.eq("post_format", postFormat);
@@ -178,12 +225,16 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
 
       const includeIds = new Set<string>();
       let haveInclude = false;
-      if (incCat) { haveInclude = true; incCat.forEach((id) => includeIds.add(id)); }
+      if (incCat) {
+        haveInclude = true;
+        incCat.forEach((id) => includeIds.add(id));
+      }
       if (incTag) {
         if (haveInclude) {
           for (const id of Array.from(includeIds)) if (!incTag.has(id)) includeIds.delete(id);
         } else {
-          haveInclude = true; incTag.forEach((id) => includeIds.add(id));
+          haveInclude = true;
+          incTag.forEach((id) => includeIds.add(id));
         }
       }
       if (haveInclude) {
@@ -196,8 +247,10 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
       excTag?.forEach((id) => excludeIds.add(id));
       if (excludeIds.size) q = q.not("id", "in", `(${Array.from(excludeIds).join(",")})`);
 
-      if (orderBy === "title_asc") q = q.order(lang === "pl" ? "title_pl" : "title_en", { ascending: true });
-      else if (orderBy === "title_desc") q = q.order(lang === "pl" ? "title_pl" : "title_en", { ascending: false });
+      if (orderBy === "title_asc")
+        q = q.order(lang === "pl" ? "title_pl" : "title_en", { ascending: true });
+      else if (orderBy === "title_desc")
+        q = q.order(lang === "pl" ? "title_pl" : "title_en", { ascending: false });
       else q = q.order("published_at", { ascending: false });
 
       const from = Math.max(0, offset);
@@ -206,19 +259,34 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
 
       const { data } = await q;
       let rows = (data ?? []) as Array<{
-        id: string; slug: string; title_pl: string; title_en: string;
-        excerpt_pl: string | null; excerpt_en: string | null;
-        published_at: string | null; post_format: string | null;
+        id: string;
+        slug: string;
+        title_pl: string;
+        title_en: string;
+        excerpt_pl: string | null;
+        excerpt_en: string | null;
+        published_at: string | null;
+        post_format: string | null;
         author_id: string | null;
       }>;
 
-      const authorIds = Array.from(new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x)));
+      const authorIds = Array.from(
+        new Set(rows.map((r) => r.author_id).filter((x): x is string => !!x)),
+      );
       const authorMap = new Map<string, string>();
       if (authorIds.length) {
-        const { data: profs } = await supabase.from("profiles").select("id, display_name").in("id", authorIds);
-        (profs ?? []).forEach((p) => { if (p.display_name) authorMap.set(p.id, p.display_name); });
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", authorIds);
+        (profs ?? []).forEach((p) => {
+          if (p.display_name) authorMap.set(p.id, p.display_name);
+        });
       }
-      if (authors.length) rows = rows.filter((r) => r.author_id && authors.includes(authorMap.get(r.author_id) ?? ""));
+      if (authors.length)
+        rows = rows.filter(
+          (r) => r.author_id && authors.includes(authorMap.get(r.author_id) ?? ""),
+        );
       if (orderBy === "random") rows = rows.sort(() => Math.random() - 0.5);
 
       return rows.map((r) => ({
@@ -244,26 +312,53 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
   const gridStyle: CSSProperties = isCarousel
     ? { display: "flex", gap: colGap, overflowX: "auto", scrollSnapType: "x mandatory" }
     : isGrid
-    ? { display: "grid", gridTemplateColumns: `repeat(${colsD}, minmax(0, 1fr))`, columnGap: colGap, rowGap }
-    : { display: "block" };
+      ? {
+          display: "grid",
+          gridTemplateColumns: `repeat(${colsD}, minmax(0, 1fr))`,
+          columnGap: colGap,
+          rowGap,
+        }
+      : { display: "block" };
 
   const containerStyle: CSSProperties = {
     ...(isScroll ? { maxHeight: scrollMaxHeight, overflowY: "auto", paddingRight: 8 } : {}),
-    ...(gridBorders === "full" ? { border: `${gridBorderWidth}px solid ${gridBorderColor || "var(--border)"}`, padding: 12, borderRadius: 8 } : {}),
+    ...(gridBorders === "full"
+      ? {
+          border: `${gridBorderWidth}px solid ${gridBorderColor || "var(--border)"}`,
+          padding: 12,
+          borderRadius: 8,
+        }
+      : {}),
   };
 
   const formatIcon = (fmt?: string) => {
-    const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string; style?: CSSProperties }>>;
-    const map: Record<string, string> = { video: "Video", gallery: "Images", audio: "Music", quote: "Quote", link: "Link" };
+    const Icons = LucideIcons as Record<
+      string,
+      React.ComponentType<{ className?: string; style?: CSSProperties }>
+    >;
+    const map: Record<string, string> = {
+      video: "Video",
+      gallery: "Images",
+      audio: "Music",
+      quote: "Quote",
+      link: "Link",
+    };
     const key = map[fmt || ""] || "";
     return key ? Icons[key] : null;
   };
-  const BookmarkIcon = (LucideIcons as Record<string, React.ComponentType<{ className?: string; style?: CSSProperties }>>).Bookmark;
+  const BookmarkIcon = (
+    LucideIcons as Record<
+      string,
+      React.ComponentType<{ className?: string; style?: CSSProperties }>
+    >
+  ).Bookmark;
 
-  const schemeCls = colorScheme === "dark" ? "dark" : colorScheme === "light" ? "" : mode === "dark" ? "dark" : "";
+  const schemeCls =
+    colorScheme === "dark" ? "dark" : colorScheme === "light" ? "" : mode === "dark" ? "dark" : "";
 
   // Mark unused locals (used in CSS template only)
-  void colsT; void colsM;
+  void colsT;
+  void colsM;
 
   return (
     <div className={schemeCls}>
@@ -288,7 +383,16 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
         ${postFormatColorDark ? `.dark .rl-wrap .rl-format{color:${postFormatColorDark};}` : ""}
         .rl-wrap .rl-item + .rl-item{${gridBorders === "between" && !isGrid ? `border-top:${gridBorderWidth}px solid ${gridBorderColor || "var(--border)"};padding-top:${itemSpacing}px;` : ""}}
       `}</style>
-      <ol className="rl-wrap" style={{ ...containerStyle, ...gridStyle, listStyle: "none", margin: 0, padding: gridBorders === "full" ? 12 : 0 }}>
+      <ol
+        className="rl-wrap"
+        style={{
+          ...containerStyle,
+          ...gridStyle,
+          listStyle: "none",
+          margin: 0,
+          padding: gridBorders === "full" ? 12 : 0,
+        }}
+      >
         {items.map((it, i) => {
           const n = String(i + 1).padStart(2, "0");
           const numCls = `rl-num ${fontCls} select-none leading-none`;
@@ -296,73 +400,145 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
           const isTop = numPos === "top";
           const FmtIcon = showPostFormat ? formatIcon(it.format) : null;
           const itemStyle: CSSProperties = {
-            ...(scrollingMode === "none" && i > 0 && !isGrid && gridBorders !== "between" ? { marginTop: itemSpacing } : {}),
+            ...(scrollingMode === "none" && i > 0 && !isGrid && gridBorders !== "between"
+              ? { marginTop: itemSpacing }
+              : {}),
             ...(isCarousel ? { minWidth: 280, scrollSnapAlign: "start" } : {}),
             ...(itemPadding ? { padding: itemPadding } : {}),
-            ...(gridBorders === "between" && isGrid ? { borderBottom: `${gridBorderWidth}px solid ${gridBorderColor || "var(--border)"}`, paddingBottom: itemSpacing } : {}),
+            ...(gridBorders === "between" && isGrid
+              ? {
+                  borderBottom: `${gridBorderWidth}px solid ${gridBorderColor || "var(--border)"}`,
+                  paddingBottom: itemSpacing,
+                }
+              : {}),
           };
           const titleStyle: CSSProperties = {
             fontWeight: titleWeight as CSSProperties["fontWeight"],
             lineHeight: 1.3,
           };
           const titleEl = (
-            <h3 className={`rl-title cms-post-title ${titleFontCls} cursor-pointer ${isLeft || isTop ? "" : "pr-12"}`} style={titleStyle}>{it.title}</h3>
+            <h3
+              className={`rl-title cms-post-title ${titleFontCls} cursor-pointer ${isLeft || isTop ? "" : "pr-12"}`}
+              style={titleStyle}
+            >
+              {it.title}
+            </h3>
           );
           return (
-            <li key={i} className={`rl-item relative ${isLeft ? "flex items-start gap-3 sm:gap-4" : ""}`} style={{ ...itemStyle, overflow: "visible" }}>
+            <li
+              key={i}
+              className={`rl-item relative ${isLeft ? "flex items-start gap-3 sm:gap-4" : ""}`}
+              style={{ ...itemStyle, overflow: "visible" }}
+            >
               {isLeft ? (
-                <span className={`${numCls} shrink-0`} style={numStyle}>{n}</span>
+                <span className={`${numCls} shrink-0`} style={numStyle}>
+                  {n}
+                </span>
               ) : isTop ? (
-                <span className={`block mb-2 ${numCls}`} style={numStyle}>{n}</span>
+                <span className={`block mb-2 ${numCls}`} style={numStyle}>
+                  {n}
+                </span>
               ) : (
-                <span className={`absolute -top-2 right-0 ${numCls} pointer-events-none`} style={numStyle}>{n}</span>
+                <span
+                  className={`absolute -top-2 right-0 ${numCls} pointer-events-none`}
+                  style={numStyle}
+                >
+                  {n}
+                </span>
               )}
               <div className={isLeft ? "flex-1 min-w-0" : ""}>
                 {showBookmark && BookmarkIcon && (
                   <div className="float-right ml-2">
-                    <BookmarkIcon className="rl-bookmark" style={{ width: bookmarkSize, height: bookmarkSize }} />
+                    <BookmarkIcon
+                      className="rl-bookmark"
+                      style={{ width: bookmarkSize, height: bookmarkSize }}
+                    />
                   </div>
                 )}
                 {showCategory && it.category && (
-                  <div className="rl-cat mb-1" style={{
-                    fontSize: `${categorySize}px`,
-                    fontWeight: categoryWeight as CSSProperties["fontWeight"],
-                    textTransform: categoryUppercase ? "uppercase" : "none",
-                    letterSpacing: categoryUppercase ? "0.05em" : undefined,
-                  }}>{it.category}</div>
+                  <div
+                    className="rl-cat mb-1"
+                    style={{
+                      fontSize: `${categorySize}px`,
+                      fontWeight: categoryWeight as CSSProperties["fontWeight"],
+                      textTransform: categoryUppercase ? "uppercase" : "none",
+                      letterSpacing: categoryUppercase ? "0.05em" : undefined,
+                    }}
+                  >
+                    {it.category}
+                  </div>
                 )}
                 <div className="flex items-center gap-1.5">
                   {FmtIcon && <FmtIcon className="rl-format w-3.5 h-3.5" />}
-                  {it.href ? <AppLink href={it.href} className="block flex-1">{titleEl}</AppLink> : <div className="flex-1">{titleEl}</div>}
+                  {it.href ? (
+                    <AppLink href={it.href} className="block flex-1">
+                      {titleEl}
+                    </AppLink>
+                  ) : (
+                    <div className="flex-1">{titleEl}</div>
+                  )}
                 </div>
                 {showExcerpt && it.excerpt && (
-                  <p className="rl-exc cms-post-excerpt text-muted-foreground mt-2" style={{
-                    display: "-webkit-box",
-                    WebkitLineClamp: excerptLines,
-                    WebkitBoxOrient: "vertical",
-                    overflow: "hidden",
-                  }}>{it.excerpt}</p>
+                  <p
+                    className="rl-exc cms-post-excerpt text-muted-foreground mt-2"
+                    style={{
+                      display: "-webkit-box",
+                      WebkitLineClamp: excerptLines,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {it.excerpt}
+                  </p>
                 )}
                 {showRating && it.rating > 0 && (
                   <div className="mt-3 flex items-center gap-3">
                     <div className="relative h-1.5 w-32 overflow-hidden rounded-full">
-                      <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, #ef4444 0%, #f97316 25%, #facc15 50%, #a3e635 75%, #22c55e 100%)" }} />
-                      <div className="absolute top-0 bottom-0 bg-background/40" style={{ left: `${Math.min(100, Math.max(0, it.rating * 10))}%`, right: 0 }} />
+                      <div
+                        className="absolute inset-0"
+                        style={{
+                          background:
+                            "linear-gradient(90deg, #ef4444 0%, #f97316 25%, #facc15 50%, #a3e635 75%, #22c55e 100%)",
+                        }}
+                      />
+                      <div
+                        className="absolute top-0 bottom-0 bg-background/40"
+                        style={{ left: `${Math.min(100, Math.max(0, it.rating * 10))}%`, right: 0 }}
+                      />
                     </div>
                     <span className="text-xs font-semibold whitespace-nowrap">
-                      {it.rating} <span className="text-muted-foreground font-normal">{lang === "pl" ? "na 10" : "out of 10"}</span>
+                      {it.rating}{" "}
+                      <span className="text-muted-foreground font-normal">
+                        {lang === "pl" ? "na 10" : "out of 10"}
+                      </span>
                     </span>
                   </div>
                 )}
                 {(showAuthor && it.author) || (showDate && it.date) ? (
-                  <p className="rl-meta mt-2 text-muted-foreground" style={{ fontSize: `${metaSize}px` }}>
-                    {showAuthor && it.author && <>- <span className="font-semibold text-foreground/80">{it.author}</span></>}
+                  <p
+                    className="rl-meta mt-2 text-muted-foreground"
+                    style={{ fontSize: `${metaSize}px` }}
+                  >
+                    {showAuthor && it.author && (
+                      <>
+                        - <span className="font-semibold text-foreground/80">{it.author}</span>
+                      </>
+                    )}
                     {showAuthor && it.author && showDate && it.date && " · "}
-                    {showDate && it.date && <span>{new Date(it.date).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-US")}</span>}
+                    {showDate && it.date && (
+                      <span>
+                        {new Date(it.date).toLocaleDateString(lang === "pl" ? "pl-PL" : "en-US")}
+                      </span>
+                    )}
                   </p>
                 ) : null}
                 {showReadMore && it.href && (
-                  <AppLink href={it.href} className="rl-more inline-block mt-2 text-xs font-semibold hover:underline">{readMoreText} →</AppLink>
+                  <AppLink
+                    href={it.href}
+                    className="rl-more inline-block mt-2 text-xs font-semibold hover:underline"
+                  >
+                    {readMoreText} →
+                  </AppLink>
                 )}
               </div>
             </li>
@@ -371,8 +547,11 @@ export function RatedListView({ c, lang, mode = "light" }: { c: WidgetContent; l
       </ol>
       {scrollingMode === "loadmore" && visibleCount < allItems.length && (
         <div className="mt-4 text-center">
-          <button type="button" onClick={() => setVisibleCount((v) => v + pageSize)}
-            className="px-4 py-2 text-xs font-semibold border border-border rounded-md hover:bg-muted">
+          <button
+            type="button"
+            onClick={() => setVisibleCount((v) => v + pageSize)}
+            className="px-4 py-2 text-xs font-semibold border border-border rounded-md hover:bg-muted"
+          >
             {lang === "pl" ? "Pokaż więcej" : "Load more"}
           </button>
         </div>

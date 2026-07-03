@@ -1,7 +1,15 @@
 // Reusable field primitives for the admin settings tabs.
 import type { ReactNode } from "react";
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
   return (
     <div className="grid md:grid-cols-[200px_1fr] gap-3 md:gap-6 py-4 border-b border-border last:border-0">
       <label className="text-sm font-medium pt-2">{label}</label>
@@ -42,7 +50,15 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   );
 }
 
-export function Checkbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+export function Checkbox({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <label className="inline-flex items-center gap-2 text-sm">
       <input
@@ -56,7 +72,15 @@ export function Checkbox({ label, checked, onChange }: { label: string; checked:
   );
 }
 
-export function SaveBar({ saving, disabled, onSave }: { saving: boolean; disabled?: boolean; onSave: () => void }) {
+export function SaveBar({
+  saving,
+  disabled,
+  onSave,
+}: {
+  saving: boolean;
+  disabled?: boolean;
+  onSave: () => void;
+}) {
   return (
     <div className="mt-6 flex items-center gap-3">
       <button

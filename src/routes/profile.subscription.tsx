@@ -71,23 +71,31 @@ function SubscriptionPage() {
           <>
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <div className="text-xs uppercase text-muted-foreground">{t("profile.subscription.plan")}</div>
+                <div className="text-xs uppercase text-muted-foreground">
+                  {t("profile.subscription.plan")}
+                </div>
                 <div className="text-lg font-semibold">{planName(data.plan, i18n.language)}</div>
                 <div className="text-sm text-muted-foreground">
                   {formatMoney(data.plan.price_cents, data.plan.currency, i18n.language)}
                 </div>
               </div>
               <div>
-                <div className="text-xs uppercase text-muted-foreground">{t("profile.subscription.status")}</div>
+                <div className="text-xs uppercase text-muted-foreground">
+                  {t("profile.subscription.status")}
+                </div>
                 <Badge>{t(`profile.status.${data.status}`)}</Badge>
               </div>
               <div>
-                <div className="text-xs uppercase text-muted-foreground">{t("profile.subscription.startedAt")}</div>
+                <div className="text-xs uppercase text-muted-foreground">
+                  {t("profile.subscription.startedAt")}
+                </div>
                 <div>{fmtDate(data.started_at)}</div>
               </div>
               <div>
                 <div className="text-xs uppercase text-muted-foreground">
-                  {data.canceled_at ? t("profile.subscription.cancelsAt") : t("profile.subscription.renewsAt")}
+                  {data.canceled_at
+                    ? t("profile.subscription.cancelsAt")
+                    : t("profile.subscription.renewsAt")}
                 </div>
                 <div>{fmtDate(data.current_period_end)}</div>
               </div>

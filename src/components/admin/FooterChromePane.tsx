@@ -5,7 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { Save } from "@/lib/lucide-shim";
 import {
@@ -35,7 +41,10 @@ export function FooterChromePane() {
   const [c, setC] = useState<FooterChrome | null>(null);
   useEffect(() => {
     if (!data || c) return;
-    const parsed = FooterChromeSchema.safeParse({ ...defaultFooterChrome(), ...(data.chrome ?? {}) });
+    const parsed = FooterChromeSchema.safeParse({
+      ...defaultFooterChrome(),
+      ...(data.chrome ?? {}),
+    });
     setC(parsed.success ? parsed.data : defaultFooterChrome());
   }, [data, c]);
 
@@ -63,8 +72,13 @@ export function FooterChromePane() {
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <Label>Layout</Label>
-          <Select value={c.layout} onValueChange={(v: string) => upd({ layout: v as FooterLayoutT })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Select
+            value={c.layout}
+            onValueChange={(v: string) => upd({ layout: v as FooterLayoutT })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="default">Default</SelectItem>
               <SelectItem value="centered">Centered</SelectItem>
@@ -76,7 +90,11 @@ export function FooterChromePane() {
         </div>
         <div className="flex items-end gap-3">
           <div className="flex items-center gap-2">
-            <Switch checked={c.show_separator} onCheckedChange={(v) => upd({ show_separator: v })} id="sep" />
+            <Switch
+              checked={c.show_separator}
+              onCheckedChange={(v) => upd({ show_separator: v })}
+              id="sep"
+            />
             <Label htmlFor="sep">Separator</Label>
           </div>
           <div className="flex items-center gap-2">
@@ -89,13 +107,21 @@ export function FooterChromePane() {
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <Label>Copyright (PL)</Label>
-          <Input value={c.copyright_pl} onChange={(e) => upd({ copyright_pl: e.target.value })}
-            placeholder="© {year} Nazwa serwisu" maxLength={500} />
+          <Input
+            value={c.copyright_pl}
+            onChange={(e) => upd({ copyright_pl: e.target.value })}
+            placeholder="© {year} Nazwa serwisu"
+            maxLength={500}
+          />
         </div>
         <div>
           <Label>Copyright (EN)</Label>
-          <Input value={c.copyright_en} onChange={(e) => upd({ copyright_en: e.target.value })}
-            placeholder="© {year} Site name" maxLength={500} />
+          <Input
+            value={c.copyright_en}
+            onChange={(e) => upd({ copyright_en: e.target.value })}
+            placeholder="© {year} Site name"
+            maxLength={500}
+          />
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
@@ -104,13 +130,19 @@ export function FooterChromePane() {
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="flex items-center gap-2">
-          <Switch checked={c.back_to_top} onCheckedChange={(v) => upd({ back_to_top: v })} id="btt" />
+          <Switch
+            checked={c.back_to_top}
+            onCheckedChange={(v) => upd({ back_to_top: v })}
+            id="btt"
+          />
           <Label htmlFor="btt">Przycisk „Wróć na górę”</Label>
         </div>
         <div>
           <Label>Próg pokazania (px)</Label>
           <Input
-            type="number" min={0} max={5000}
+            type="number"
+            min={0}
+            max={5000}
             value={c.back_to_top_threshold_px}
             onChange={(e) => upd({ back_to_top_threshold_px: Number(e.target.value) || 0 })}
             disabled={!c.back_to_top}

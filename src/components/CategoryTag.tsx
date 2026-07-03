@@ -1,4 +1,7 @@
-type Props = { label: string; color?: "military" | "finance" | "diplomacy" | "cyber" | "brand" | "neutral" };
+type Props = {
+  label: string;
+  color?: "military" | "finance" | "diplomacy" | "cyber" | "brand" | "neutral";
+};
 
 const colorMap = {
   military: "bg-cat-military text-white",

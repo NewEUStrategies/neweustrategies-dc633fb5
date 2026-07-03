@@ -24,9 +24,13 @@ export function HighlightedText({ text, query, className }: Props): ReactNode {
   const flush = (key: number): void => {
     if (!buf) return;
     out.push(
-      inMark
-        ? <mark key={key} className="bg-brand/20 text-brand rounded-sm px-0.5 font-semibold">{buf}</mark>
-        : <Fragment key={key}>{buf}</Fragment>,
+      inMark ? (
+        <mark key={key} className="bg-brand/20 text-brand rounded-sm px-0.5 font-semibold">
+          {buf}
+        </mark>
+      ) : (
+        <Fragment key={key}>{buf}</Fragment>
+      ),
     );
     buf = "";
   };

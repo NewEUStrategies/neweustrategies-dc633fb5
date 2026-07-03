@@ -6,7 +6,19 @@ import { useEffect, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Bold, Italic, List, ListOrdered, Heading2, Heading3, Link as LinkIcon, Image as ImageIc, Quote, Undo, Redo } from "@/lib/lucide-shim";
+import {
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
+  Heading2,
+  Heading3,
+  Link as LinkIcon,
+  Image as ImageIc,
+  Quote,
+  Undo,
+  Redo,
+} from "@/lib/lucide-shim";
 
 interface Props {
   value: string;
@@ -23,7 +35,12 @@ export function PostEditor({ value, onChange, mode, onPickImage }: Props) {
 function MarkdownEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="grid md:grid-cols-2 gap-4">
-      <Textarea value={value} onChange={(e) => onChange(e.target.value)} rows={20} className="font-mono text-sm" />
+      <Textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={20}
+        className="font-mono text-sm"
+      />
       <div className="prose dark:prose-invert max-w-none border border-border rounded-md p-4 bg-muted/20 overflow-auto">
         <ReactMarkdown>{value || "*Podgląd...*"}</ReactMarkdown>
       </div>
@@ -31,7 +48,15 @@ function MarkdownEditor({ value, onChange }: { value: string; onChange: (v: stri
   );
 }
 
-function RichEditor({ value, onChange, onPickImage }: { value: string; onChange: (v: string) => void; onPickImage?: () => Promise<string | null> }) {
+function RichEditor({
+  value,
+  onChange,
+  onPickImage,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onPickImage?: () => Promise<string | null>;
+}) {
   const editor = useEditor({
     extensions: [StarterKit, Link.configure({ openOnClick: false }), Image],
     content: value,
@@ -51,7 +76,12 @@ function RichEditor({ value, onChange, onPickImage }: { value: string; onChange:
 
   if (!editor) return null;
 
-  interface BtnProps { onClick: () => void; active?: boolean; children: ReactNode; label: string }
+  interface BtnProps {
+    onClick: () => void;
+    active?: boolean;
+    children: ReactNode;
+    label: string;
+  }
   const Btn = ({ onClick, active, children, label }: BtnProps) => (
     <button
       type="button"
@@ -66,13 +96,55 @@ function RichEditor({ value, onChange, onPickImage }: { value: string; onChange:
   return (
     <div className="border border-border rounded-md bg-background">
       <div className="flex flex-wrap items-center gap-1 p-2 border-b border-border">
-        <Btn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")} label="Bold"><Bold className="w-4 h-4" /></Btn>
-        <Btn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")} label="Italic"><Italic className="w-4 h-4" /></Btn>
-        <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive("heading", { level: 2 })} label="H2"><Heading2 className="w-4 h-4" /></Btn>
-        <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive("heading", { level: 3 })} label="H3"><Heading3 className="w-4 h-4" /></Btn>
-        <Btn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")} label="UL"><List className="w-4 h-4" /></Btn>
-        <Btn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")} label="OL"><ListOrdered className="w-4 h-4" /></Btn>
-        <Btn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")} label="Quote"><Quote className="w-4 h-4" /></Btn>
+        <Btn
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          active={editor.isActive("bold")}
+          label="Bold"
+        >
+          <Bold className="w-4 h-4" />
+        </Btn>
+        <Btn
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          active={editor.isActive("italic")}
+          label="Italic"
+        >
+          <Italic className="w-4 h-4" />
+        </Btn>
+        <Btn
+          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          active={editor.isActive("heading", { level: 2 })}
+          label="H2"
+        >
+          <Heading2 className="w-4 h-4" />
+        </Btn>
+        <Btn
+          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+          active={editor.isActive("heading", { level: 3 })}
+          label="H3"
+        >
+          <Heading3 className="w-4 h-4" />
+        </Btn>
+        <Btn
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          active={editor.isActive("bulletList")}
+          label="UL"
+        >
+          <List className="w-4 h-4" />
+        </Btn>
+        <Btn
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          active={editor.isActive("orderedList")}
+          label="OL"
+        >
+          <ListOrdered className="w-4 h-4" />
+        </Btn>
+        <Btn
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          active={editor.isActive("blockquote")}
+          label="Quote"
+        >
+          <Quote className="w-4 h-4" />
+        </Btn>
         <Btn
           onClick={() => {
             const url = window.prompt("URL");
@@ -93,8 +165,12 @@ function RichEditor({ value, onChange, onPickImage }: { value: string; onChange:
           <ImageIc className="w-4 h-4" />
         </Btn>
         <div className="ml-auto flex gap-1">
-          <Btn onClick={() => editor.chain().focus().undo().run()} label="Undo"><Undo className="w-4 h-4" /></Btn>
-          <Btn onClick={() => editor.chain().focus().redo().run()} label="Redo"><Redo className="w-4 h-4" /></Btn>
+          <Btn onClick={() => editor.chain().focus().undo().run()} label="Undo">
+            <Undo className="w-4 h-4" />
+          </Btn>
+          <Btn onClick={() => editor.chain().focus().redo().run()} label="Redo">
+            <Redo className="w-4 h-4" />
+          </Btn>
         </div>
       </div>
       <EditorContent editor={editor} />

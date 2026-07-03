@@ -8,54 +8,110 @@ type ProfileExtras2 = {
   profile: {
     tabs: { about: string; experience: string; badges: string; activity: string; settings: string };
     actions: {
-      edit: string; viewAsGuest: string; add: string; remove: string; save: string; cancel: string;
-      saving: string; saved: string; saveError: string; uploading: string;
-      empty: string; loading: string;
+      edit: string;
+      viewAsGuest: string;
+      add: string;
+      remove: string;
+      save: string;
+      cancel: string;
+      saving: string;
+      saved: string;
+      saveError: string;
+      uploading: string;
+      empty: string;
+      loading: string;
     };
     sidebar: {
       personal: string;
       personality: string;
       interests: string;
       hobbies: string;
-      birthDate: string; gender: string; location: string; label: string; joined: string; phone: string;
+      birthDate: string;
+      gender: string;
+      location: string;
+      label: string;
+      joined: string;
+      phone: string;
       noData: string;
-      retakeTest: string; takeTest: string; testNote: string;
+      retakeTest: string;
+      takeTest: string;
+      testNote: string;
     };
     sections: {
-      bio: string; bioEmpty: string;
-      projects: string; projectsEmpty: string;
+      bio: string;
+      bioEmpty: string;
+      projects: string;
+      projectsEmpty: string;
       contact: string;
-      cv: string; cvHistory: string; cvCurrent: string; cvUpload: string; cvPreview: string;
-      cvDownload: string; cvDelete: string; cvEmpty: string; cvSize: string; cvUploaded: string;
-      experience: string; experienceEmpty: string;
-      education: string; educationEmpty: string;
-      skills: string; skillsEmpty: string;
-      awards: string; awardsEmpty: string;
-      recognitions: string; recognitionsEmpty: string;
-      mentions: string; mentionsEmpty: string;
+      cv: string;
+      cvHistory: string;
+      cvCurrent: string;
+      cvUpload: string;
+      cvPreview: string;
+      cvDownload: string;
+      cvDelete: string;
+      cvEmpty: string;
+      cvSize: string;
+      cvUploaded: string;
+      experience: string;
+      experienceEmpty: string;
+      education: string;
+      educationEmpty: string;
+      skills: string;
+      skillsEmpty: string;
+      awards: string;
+      awardsEmpty: string;
+      recognitions: string;
+      recognitionsEmpty: string;
+      mentions: string;
+      mentionsEmpty: string;
       hobbies: string;
     };
     forms: {
-      roleTitle: string; company: string; description: string; startDate: string; endDate: string;
-      current: string; school: string; degree: string; field: string;
-      label: string; level: string; category: string;
-      title: string; issuer: string; awardedAt: string; kind: string;
-      kindAward: string; kindRecognition: string; kindMention: string;
-      icon: string; url: string;
-      addExperience: string; addEducation: string; addSkill: string; addAward: string;
-      addHobby: string; addInterest: string;
+      roleTitle: string;
+      company: string;
+      description: string;
+      startDate: string;
+      endDate: string;
+      current: string;
+      school: string;
+      degree: string;
+      field: string;
+      label: string;
+      level: string;
+      category: string;
+      title: string;
+      issuer: string;
+      awardedAt: string;
+      kind: string;
+      kindAward: string;
+      kindRecognition: string;
+      kindMention: string;
+      icon: string;
+      url: string;
+      addExperience: string;
+      addEducation: string;
+      addSkill: string;
+      addAward: string;
+      addHobby: string;
+      addInterest: string;
       datePresent: string;
     };
     personality: {
       title: string;
       intro: string;
       axes: {
-        openness: string; conscientiousness: string; extraversion: string;
-        agreeableness: string; neuroticism: string;
+        openness: string;
+        conscientiousness: string;
+        extraversion: string;
+        agreeableness: string;
+        neuroticism: string;
       };
       lowHigh: {
-        openness: [string, string]; conscientiousness: [string, string];
-        extraversion: [string, string]; agreeableness: [string, string];
+        openness: [string, string];
+        conscientiousness: [string, string];
+        extraversion: [string, string];
+        agreeableness: [string, string];
         neuroticism: [string, string];
       };
       scale: { 1: string; 2: string; 3: string; 4: string; 5: string };
@@ -180,7 +236,8 @@ const extras2Pl: ProfileExtras2 = {
     },
     personality: {
       title: "Test osobowości (Big Five)",
-      intro: "30 pytań, ok. 5 minut. Odpowiedz na każde, używając skali od 1 (zdecydowanie nie) do 5 (zdecydowanie tak).",
+      intro:
+        "30 pytań, ok. 5 minut. Odpowiedz na każde, używając skali od 1 (zdecydowanie nie) do 5 (zdecydowanie tak).",
       axes: {
         openness: "Otwartość",
         conscientiousness: "Sumienność",
@@ -323,7 +380,8 @@ const extras2En: ProfileExtras2 = {
     },
     personality: {
       title: "Personality test (Big Five)",
-      intro: "30 questions, ~5 minutes. Rate each statement from 1 (strongly disagree) to 5 (strongly agree).",
+      intro:
+        "30 questions, ~5 minutes. Rate each statement from 1 (strongly disagree) to 5 (strongly agree).",
       axes: {
         openness: "Openness",
         conscientiousness: "Conscientiousness",

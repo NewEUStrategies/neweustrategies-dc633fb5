@@ -3,12 +3,17 @@
 
 import type { Block } from "@/lib/blocks/types";
 
-interface Props { block: Block; onChange: (next: Block) => void; }
+interface Props {
+  block: Block;
+  onChange: (next: Block) => void;
+}
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
       {children}
     </div>
   );
@@ -19,7 +24,9 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
 const STAT_OPTIONS = ["date", "author", "category", "reading", "views", "comments"] as const;
 
 export function PostStatsBlock({ block, onChange }: Props) {
-  const items = Array.isArray(block.data.items) ? (block.data.items as string[]) : ["date", "author", "reading"];
+  const items = Array.isArray(block.data.items)
+    ? (block.data.items as string[])
+    : ["date", "author", "reading"];
   const separator = String(block.data.separator ?? "•");
 
   const toggle = (n: string) => {
@@ -71,7 +78,9 @@ export function PostRatingBlock({ block, onChange }: Props) {
         <select
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={max}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, max: Number(e.target.value) } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, max: Number(e.target.value) } })
+          }
         >
           <option value={5}>5 gwiazdek</option>
           <option value={10}>10 gwiazdek</option>
@@ -104,7 +113,9 @@ export function LoginOutBlock({ block, onChange }: Props) {
         <input
           type="checkbox"
           checked={showAvatar}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, showAvatar: e.target.checked } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, showAvatar: e.target.checked } })
+          }
         />
         Pokaż avatar
       </label>
@@ -127,12 +138,16 @@ export function MorePostsBlock({ block, onChange }: Props) {
           max={12}
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={limit}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, limit: Number(e.target.value) || 4 } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, limit: Number(e.target.value) || 4 } })
+          }
         />
         <select
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={strategy}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, strategy: e.target.value } })}
+          onChange={(e) =>
+            onChange({ ...block, data: { ...block.data, strategy: e.target.value } })
+          }
         >
           <option value="latest">Najnowsze</option>
           <option value="trending">Popularne (7 dni)</option>

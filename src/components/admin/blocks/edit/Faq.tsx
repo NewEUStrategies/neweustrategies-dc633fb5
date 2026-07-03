@@ -8,7 +8,10 @@ interface Props {
   onChange: (next: Block) => void;
 }
 
-interface FaqItem { q: string; a: string }
+interface FaqItem {
+  q: string;
+  a: string;
+}
 
 function readItems(raw: Json | undefined): FaqItem[] {
   if (!Array.isArray(raw)) return [];

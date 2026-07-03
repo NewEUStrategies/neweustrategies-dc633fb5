@@ -29,18 +29,16 @@ export async function syncI18nToRequest(): Promise<AppLang> {
 }
 
 if (!i18n.isInitialized) {
-  i18n
-    .use(initReactI18next)
-    .init({
-      resources,
-      // currentLang() resolves from the URL path on the client (hydration-safe,
-      // mirroring the server) and falls back to the default elsewhere.
-      lng: currentLang(),
-      fallbackLng: DEFAULT_LANG,
-      supportedLngs: ["pl", "en"],
-      interpolation: { escapeValue: false },
-      react: { useSuspense: false },
-    });
+  i18n.use(initReactI18next).init({
+    resources,
+    // currentLang() resolves from the URL path on the client (hydration-safe,
+    // mirroring the server) and falls back to the default elsewhere.
+    lng: currentLang(),
+    fallbackLng: DEFAULT_LANG,
+    supportedLngs: ["pl", "en"],
+    interpolation: { escapeValue: false },
+    react: { useSuspense: false },
+  });
 
   if (typeof window !== "undefined") {
     i18n.on("languageChanged", (lng) => {
