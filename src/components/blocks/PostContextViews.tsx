@@ -3,7 +3,7 @@
 // idzie przez react-query (blocks.ts), więc prefetch SSR w loaderze $.tsx
 // renderuje powiązane wpisy również dla crawlerów.
 
-import { useMemo } from "react";
+import { useMemo, type ComponentType, type SVGProps } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   authorPostsCountQueryOptions,
@@ -13,7 +13,16 @@ import {
 import { useCurrentPostCtx, type CurrentPostAuthor } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
-import { User } from "lucide-react";
+import {
+  User,
+  Mail,
+  Globe,
+  Twitter,
+  Linkedin,
+  Facebook,
+  Instagram,
+  Music,
+} from "lucide-react";
 
 type Lang = "pl" | "en";
 
@@ -73,6 +82,14 @@ export function AuthorBioView({
           avatarUrl: fetched.avatar_url ?? undefined,
           bio_pl: fetched.bio_pl ?? undefined,
           bio_en: fetched.bio_en ?? undefined,
+          jobTitle: fetched.job_title ?? undefined,
+          contactEmail: fetched.contact_email ?? undefined,
+          twitterUrl: fetched.twitter_url ?? undefined,
+          linkedinUrl: fetched.linkedin_url ?? undefined,
+          facebookUrl: fetched.facebook_url ?? undefined,
+          instagramUrl: fetched.instagram_url ?? undefined,
+          spotifyUrl: fetched.spotify_url ?? undefined,
+          websiteUrl: fetched.website_url ?? undefined,
         }
       : (ctx?.author ?? null);
   const { data: postsCountData } = useQuery({
@@ -93,29 +110,98 @@ export function AuthorBioView({
     (lang === "en" ? author.bio_en : author.bio_pl) ?? author.bio_pl ?? author.bio_en ?? "";
   const profileHref = author.slug ? `/author/${author.slug}` : null;
 
+  type IconCmp = ComponentType<SVGProps<SVGSVGElement>>;
+  const socials: Array<{ key: string; href: string; label: string; Icon: IconCmp }> = [];
+  if (author.contactEmail) {
+    socials.push({
+      key: "email",
+      href: `mailto:${author.contactEmail}`,
+      label: author.contactEmail,
+      Icon: Mail,
+    });
+  }
+  if (author.twitterUrl) {
+    socials.push({ key: "twitter", href: author.twitterUrl, label: "X / Twitter", Icon: Twitter });
+  }
+  if (author.linkedinUrl) {
+    socials.push({ key: "linkedin", href: author.linkedinUrl, label: "LinkedIn", Icon: Linkedin });
+  }
+  if (author.facebookUrl) {
+    socials.push({ key: "facebook", href: author.facebookUrl, label: "Facebook", Icon: Facebook });
+  }
+  if (author.instagramUrl) {
+    socials.push({
+      key: "instagram",
+      href: author.instagramUrl,
+      label: "Instagram",
+      Icon: Instagram,
+    });
+  }
+  if (author.spotifyUrl) {
+    socials.push({ key: "spotify", href: author.spotifyUrl, label: "Spotify", Icon: Music });
+  }
+  if (author.websiteUrl) {
+    socials.push({ key: "website", href: author.websiteUrl, label: t.viewProfile, Icon: Globe });
+  }
+
+  const avatarSize = variant === "card" ? "w-24 h-24" : variant === "inline" ? "w-16 h-16" : "w-11 h-11";
   const avatar = showAvatar ? (
     author.avatarUrl ? (
       <OptimizedImage
         src={author.avatarUrl}
         alt={author.name}
-        className="rounded-full object-cover w-full h-full"
-        sizes="80px"
+        className="rounded-full object-cover w-full h-full ring-2 ring-border"
+        sizes="96px"
       />
     ) : (
-      <div className="w-full h-full rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+      <div className="w-full h-full rounded-full bg-muted flex items-center justify-center text-muted-foreground ring-2 ring-border">
         <User className="w-1/2 h-1/2" aria-hidden />
       </div>
     )
   ) : null;
 
+  const socialIcons = showSocial && socials.length > 0 && (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {socials.map(({ key, href, label, Icon }) => (
+        <a
+          key={key}
+          href={href}
+          target={href.startsWith("mailto:") ? undefined : "_blank"}
+          rel={href.startsWith("mailto:") ? undefined : "noreferrer"}
+          aria-label={label}
+          title={label}
+          className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 hover:bg-muted transition-colors"
+        >
+          <Icon width={14} height={14} aria-hidden />
+        </a>
+      ))}
+    </div>
+  );
+
+  const displayNameEl = profileHref ? (
+    <AppLink href={profileHref} className="hover:text-primary transition-colors">
+      {author.name}
+    </AppLink>
+  ) : (
+    <>{author.name}</>
+  );
+
   if (variant === "minimal") {
     return (
       <div className={`not-prose flex items-center gap-3 ${cls ?? ""}`}>
-        {showAvatar && <div className="w-10 h-10 shrink-0">{avatar}</div>}
-        <div className="text-sm">
-          <div className="text-foreground font-medium">{author.name}</div>
+        {showAvatar && <div className={`${avatarSize} shrink-0`}>{avatar}</div>}
+        <div className="min-w-0">
+          <div
+            className="text-foreground font-semibold leading-tight"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            {displayNameEl}
+          </div>
+          {author.jobTitle && (
+            <div className="text-xs text-muted-foreground truncate">{author.jobTitle}</div>
+          )}
           {showPostsCount && postsCount !== null && (
-            <div className="text-xs text-muted-foreground">{t.posts(postsCount)}</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">{t.posts(postsCount)}</div>
           )}
         </div>
       </div>
@@ -125,10 +211,26 @@ export function AuthorBioView({
   if (variant === "inline") {
     return (
       <div className={`not-prose flex items-start gap-4 py-4 ${cls ?? ""}`}>
-        {showAvatar && <div className="w-14 h-14 shrink-0">{avatar}</div>}
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-foreground">{author.name}</div>
-          {bio && <p className="text-sm text-muted-foreground mt-1 m-0">{bio}</p>}
+        {showAvatar && <div className={`${avatarSize} shrink-0`}>{avatar}</div>}
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div
+            className="text-base font-semibold text-foreground leading-tight"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            {displayNameEl}
+          </div>
+          {author.jobTitle && (
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              {author.jobTitle}
+            </div>
+          )}
+          {bio && <p className="text-sm text-muted-foreground m-0 line-clamp-2">{bio}</p>}
+          <div className="flex items-center gap-3 pt-1">
+            {socialIcons}
+            {showPostsCount && postsCount !== null && (
+              <span className="text-[11px] text-muted-foreground">{t.posts(postsCount)}</span>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -136,28 +238,38 @@ export function AuthorBioView({
 
   // card
   return (
-    <aside className={`not-prose rounded-xl border border-border bg-card p-5 ${cls ?? ""}`}>
-      <div className="flex items-start gap-4">
-        {showAvatar && <div className="w-20 h-20 shrink-0">{avatar}</div>}
+    <aside
+      className={`not-prose rounded-2xl border border-border bg-card p-6 shadow-sm ${cls ?? ""}`}
+    >
+      <div className="flex items-start gap-5">
+        {showAvatar && <div className={`${avatarSize} shrink-0`}>{avatar}</div>}
         <div className="flex-1 min-w-0">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">{t.about}</div>
-          <div className="text-lg font-serif font-semibold text-foreground leading-tight mt-0.5">
-            {profileHref ? (
-              <AppLink href={profileHref} className="hover:text-primary">
-                {author.name}
-              </AppLink>
-            ) : (
-              author.name
-            )}
+          <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+            {t.about}
           </div>
-          {bio && <p className="text-sm text-muted-foreground mt-2 m-0">{bio}</p>}
-          <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-            {showPostsCount && postsCount !== null && <span>{t.posts(postsCount)}</span>}
-            {showSocial && profileHref && (
-              <AppLink href={profileHref} className="text-primary hover:underline">
-                {t.viewProfile}
-              </AppLink>
-            )}
+          <div
+            className="text-2xl font-bold text-foreground leading-tight mt-1"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            {displayNameEl}
+          </div>
+          {author.jobTitle && (
+            <div className="text-sm text-muted-foreground mt-0.5">{author.jobTitle}</div>
+          )}
+          {bio && <p className="text-sm text-foreground/80 mt-3 m-0 leading-relaxed">{bio}</p>}
+          <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              {showPostsCount && postsCount !== null && <span>{t.posts(postsCount)}</span>}
+              {profileHref && (
+                <AppLink
+                  href={profileHref}
+                  className="text-primary hover:underline font-medium"
+                >
+                  {t.viewProfile} →
+                </AppLink>
+              )}
+            </div>
+            {socialIcons}
           </div>
         </div>
       </div>

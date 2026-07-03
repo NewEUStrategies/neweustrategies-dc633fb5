@@ -392,7 +392,18 @@ export interface AuthorProfileRow {
   avatar_url: string | null;
   bio_pl: string | null;
   bio_en: string | null;
+  job_title: string | null;
+  contact_email: string | null;
+  twitter_url: string | null;
+  linkedin_url: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
+  spotify_url: string | null;
+  website_url: string | null;
 }
+
+const AUTHOR_PROFILE_SELECT =
+  "id, slug, display_name, avatar_url, bio_pl, bio_en, job_title, contact_email, twitter_url, linkedin_url, facebook_url, instagram_url, spotify_url, website_url";
 
 export const authorProfileByIdQueryOptions = (authorId: string) =>
   queryOptions({
@@ -402,7 +413,7 @@ export const authorProfileByIdQueryOptions = (authorId: string) =>
     queryFn: async (): Promise<AuthorProfileRow | null> => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, slug, display_name, avatar_url, bio_pl, bio_en")
+        .select(AUTHOR_PROFILE_SELECT)
         .eq("id", authorId)
         .maybeSingle();
       if (error) throw error;
