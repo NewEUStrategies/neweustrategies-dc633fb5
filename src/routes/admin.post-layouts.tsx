@@ -93,13 +93,28 @@ function Page() {
                   key={p.id}
                   className="border border-border rounded-lg p-3 bg-background/50"
                 >
-                  <div className="flex items-baseline justify-between mb-2">
+                  <div className="flex items-baseline justify-between gap-3 mb-2 flex-wrap">
                     <p className="text-sm font-medium">{p.label}</p>
-                    {isSelected && (
-                      <span className="text-[10px] uppercase tracking-wider text-brand font-semibold">
-                        Aktywny · {currentHasSidebar ? "z sidebarem" : "bez sidebara"}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {p.recommendedImage ? (
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border"
+                          title="Rekomendowany rozmiar grafiki wyróżniającej"
+                        >
+                          Grafika: <b className="text-foreground">{p.recommendedImage.width}×{p.recommendedImage.height}px</b>
+                          {p.recommendedImage.ratio ? ` (${p.recommendedImage.ratio})` : ""}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                          Bez grafiki wyróżniającej
+                        </span>
+                      )}
+                      {isSelected && (
+                        <span className="text-[10px] uppercase tracking-wider text-brand font-semibold">
+                          Aktywny · {currentHasSidebar ? "z sidebarem" : "bez sidebara"}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     {[false, true].map((withSidebar) => {
@@ -156,6 +171,15 @@ function Page() {
               {selected.featuredRatioKey && (
                 <li>
                   Featured ratio: <b>{local[selected.featuredRatioKey]}%</b>
+                </li>
+              )}
+              {selected.recommendedImage && (
+                <li className="pt-1 mt-1 border-t border-border/60">
+                  Rekomendowana grafika:{" "}
+                  <b className="text-foreground">
+                    {selected.recommendedImage.width}×{selected.recommendedImage.height}px
+                  </b>
+                  {selected.recommendedImage.ratio ? ` (${selected.recommendedImage.ratio})` : ""}
                 </li>
               )}
             </ul>
