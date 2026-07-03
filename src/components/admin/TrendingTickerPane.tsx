@@ -234,6 +234,13 @@ export function TrendingTickerPane() {
     settings.variants.find((v) => v.id === settings.activeVariantId) ?? settings.variants[0];
   const cfg = activeVariant.config;
 
+  // Broadcast current (unsaved) config to the live site Header so edits in
+  // source, selection, order and colors reflect immediately without saving.
+  useEffect(() => {
+    publishTickerDraft(cfg);
+    return () => clearTickerDraft();
+  }, [cfg]);
+
   const save = useMutation({
     mutationFn: async (next: TickerSettings) => {
       const merged = { ...(data ?? {}), trending: next };
