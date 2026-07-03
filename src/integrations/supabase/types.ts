@@ -3262,6 +3262,7 @@ export type Database = {
       }
       tenants: {
         Row: {
+          aliases: string[]
           created_at: string
           domain: string | null
           id: string
@@ -3271,6 +3272,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aliases?: string[]
           created_at?: string
           domain?: string | null
           id?: string
@@ -3280,6 +3282,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aliases?: string[]
           created_at?: string
           domain?: string | null
           id?: string
