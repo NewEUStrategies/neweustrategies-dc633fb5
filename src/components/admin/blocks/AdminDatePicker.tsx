@@ -93,7 +93,7 @@ export function AdminDatePicker({
             disabled={disabled}
             aria-label={rest["aria-label"]}
             className={cn(
-              "flex-1 justify-start font-normal h-9",
+              "admin-date-trigger flex-1 justify-start font-normal h-9",
               !parsed && "text-muted-foreground",
               triggerClassName,
             )}
@@ -102,7 +102,7 @@ export function AdminDatePicker({
             {parsed ? format(parsed, labels.fmt, { locale }) : placeholder ?? labels.empty}
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-auto p-0">
+        <PopoverContent align="start" className="w-auto p-0 admin-calendar">
           <Calendar
             mode="single"
             selected={parsed ?? undefined}
@@ -177,7 +177,7 @@ export function AdminDateTimePicker({
             disabled={disabled}
             aria-label={rest["aria-label"]}
             className={cn(
-              "w-full justify-start font-normal h-9",
+              "admin-date-trigger w-full justify-start font-normal h-9",
               !parsed && "text-muted-foreground",
               triggerClassName,
             )}
@@ -186,7 +186,7 @@ export function AdminDateTimePicker({
             {parsed ? format(parsed, labels.fmt, { locale }) : placeholder ?? labels.empty}
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-auto p-0">
+        <PopoverContent align="start" className="w-auto p-0 admin-calendar">
           <Calendar
             mode="single"
             selected={parsed ?? undefined}
