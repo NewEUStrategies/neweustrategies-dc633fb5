@@ -212,7 +212,7 @@ export const submitContactMessage = createServerFn({ method: "POST" })
     }
 
     // 2) Admin notification
-    const adminTo = (data.recipient || (settings?.default_recipient as string | null) || null);
+    const adminTo = ((settings?.default_recipient as string | null) || null);
     let adminResult: { ok: boolean; error?: string } = { ok: false, error: "no_recipient" };
     if (settings?.notify_admin_enabled !== false && adminTo) {
       const notice = buildAdminNotice(data);
