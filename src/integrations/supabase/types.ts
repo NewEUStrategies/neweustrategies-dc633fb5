@@ -2891,7 +2891,6 @@ export type Database = {
           source_path: string
           status_code: number
           target_path: string
-          tenant_id: string
           updated_at: string
         }
         Insert: {
@@ -2906,7 +2905,6 @@ export type Database = {
           source_path: string
           status_code?: number
           target_path: string
-          tenant_id?: string
           updated_at?: string
         }
         Update: {
@@ -2921,18 +2919,9 @@ export type Database = {
           source_path?: string
           status_code?: number
           target_path?: string
-          tenant_id?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "redirects_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       related_posts_config: {
         Row: {
@@ -3005,44 +2994,6 @@ export type Database = {
           },
         ]
       }
-      role_audit_log: {
-        Row: {
-          actor_id: string | null
-          created_at: string
-          id: string
-          new_roles: Database["public"]["Enums"]["app_role"][]
-          old_roles: Database["public"]["Enums"]["app_role"][]
-          target_user_id: string
-          tenant_id: string
-        }
-        Insert: {
-          actor_id?: string | null
-          created_at?: string
-          id?: string
-          new_roles?: Database["public"]["Enums"]["app_role"][]
-          old_roles?: Database["public"]["Enums"]["app_role"][]
-          target_user_id: string
-          tenant_id: string
-        }
-        Update: {
-          actor_id?: string | null
-          created_at?: string
-          id?: string
-          new_roles?: Database["public"]["Enums"]["app_role"][]
-          old_roles?: Database["public"]["Enums"]["app_role"][]
-          target_user_id?: string
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "role_audit_log_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       seo_404_hits: {
         Row: {
           first_seen: string
@@ -3050,7 +3001,6 @@ export type Database = {
           last_referrer: string | null
           last_seen: string
           path: string
-          tenant_id: string
         }
         Insert: {
           first_seen?: string
@@ -3058,7 +3008,6 @@ export type Database = {
           last_referrer?: string | null
           last_seen?: string
           path: string
-          tenant_id: string
         }
         Update: {
           first_seen?: string
@@ -3066,17 +3015,8 @@ export type Database = {
           last_referrer?: string | null
           last_seen?: string
           path?: string
-          tenant_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "seo_404_hits_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       site_design_tokens: {
         Row: {
@@ -3216,27 +3156,21 @@ export type Database = {
       tenants: {
         Row: {
           created_at: string
-          domain: string | null
           id: string
-          is_default: boolean
           name: string
           slug: string
           updated_at: string
         }
         Insert: {
           created_at?: string
-          domain?: string | null
           id?: string
-          is_default?: boolean
           name: string
           slug: string
           updated_at?: string
         }
         Update: {
           created_at?: string
-          domain?: string | null
           id?: string
-          is_default?: boolean
           name?: string
           slug?: string
           updated_at?: string
@@ -3628,34 +3562,7 @@ export type Database = {
       }
     }
     Functions: {
-      admin_list_users: {
-        Args: never
-        Returns: {
-          avatar_url: string
-          bio: string
-          bio_en: string
-          bio_pl: string
-          cover_url: string
-          created_at: string
-          display_name: string
-          email: string
-          id: string
-          linkedin_url: string
-          roles: Database["public"]["Enums"]["app_role"][]
-          slug: string
-          twitter_url: string
-          updated_at: string
-          website_url: string
-        }[]
-      }
       can_publish_content: { Args: { _user_id?: string }; Returns: boolean }
-      change_user_role: {
-        Args: {
-          _new_role: Database["public"]["Enums"]["app_role"]
-          _target_user_id: string
-        }
-        Returns: Database["public"]["Enums"]["app_role"][]
-      }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }
       crm_upsert_lead: {
         Args: {
@@ -3682,10 +3589,6 @@ export type Database = {
           content_en: string
           content_pl: string
         }[]
-      }
-      get_own_profile: {
-        Args: never
-        Returns: Database["public"]["Tables"]["profiles"]["Row"][]
       }
       get_page_for_edit: {
         Args: { _slug: string }
@@ -3853,7 +3756,7 @@ export type Database = {
       }
       record_redirect_hit: { Args: { _id: string }; Returns: undefined }
       record_seo_404: {
-        Args: { _path: string; _referrer?: string; _tenant_id: string }
+        Args: { _path: string; _referrer?: string }
         Returns: undefined
       }
       resolve_path: {
