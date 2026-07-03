@@ -139,15 +139,15 @@ function UserDetail() {
           <div className="w-full h-24 bg-gradient-to-r from-muted/40 to-muted/20" />
         )}
         <div className="p-5 md:p-6 flex flex-col md:flex-row md:items-end gap-4 md:gap-6 -mt-12 md:-mt-16">
-          {data.avatar_url ? (
-            <img
-              src={data.avatar_url}
-              alt=""
-              className="w-24 h-24 md:w-28 md:h-28 rounded-full object-cover border-4 border-card shadow-sm"
-            />
-          ) : (
-            <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-muted border-4 border-card" />
-          )}
+          <AvatarEditor
+            userId={data.id}
+            tenantHint={null}
+            avatarUrl={data.avatar_url}
+            canEdit={isSuperAdmin}
+            onUpdated={() => qc.invalidateQueries({ queryKey: ["admin-user", id] })}
+            label={L("Zmień zdjęcie", "Change photo")}
+          />
+
           <div className="flex-1 min-w-0">
             <h1 className="font-display text-2xl md:text-3xl font-bold truncate">{fullName}</h1>
             {data.display_name && data.display_name !== fullName && (
