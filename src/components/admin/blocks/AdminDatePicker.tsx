@@ -184,16 +184,13 @@ export function AdminDateTimePicker({
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto p-0 admin-calendar">
-          <Calendar
-            mode="single"
+          <AdminCalendar
             selected={parsed ?? undefined}
             onSelect={(d) => {
               commit(d ?? null, timeValue || "00:00");
               setOpen(false);
             }}
-            initialFocus
             locale={locale}
-            className="pointer-events-auto"
           />
         </PopoverContent>
       </Popover>
