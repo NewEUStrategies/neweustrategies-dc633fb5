@@ -14,6 +14,16 @@ import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 import { MobileDrawerBody } from "@/components/header/mobile/MobileDrawerBody";
 import { AppLink } from "@/components/atoms/AppLink";
 import { useRouterState } from "@tanstack/react-router";
+import { useTheme } from "@/components/ThemeProvider";
+
+type ThemeLogoCfg = {
+  logo?: {
+    main?: string;
+    main_dark?: string;
+    mobile?: string;
+    mobile_dark?: string;
+  };
+};
 
 // Shared with the root loader (SSR prefetch of the ticker) - keep in sync.
 export type HeaderSettings = {
