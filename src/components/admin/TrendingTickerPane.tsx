@@ -170,6 +170,11 @@ const COPY = {
     color_counter: "Counters",
     resetColors: "Reset to defaults",
     cannotDeleteLast: "At least one variant must remain.",
+    undo: "Undo",
+    redo: "Redo",
+    cancel: "Discard changes",
+    noChanges: "No changes to discard.",
+    reverted: "Restored the last saved state.",
   },
 } as const;
 
