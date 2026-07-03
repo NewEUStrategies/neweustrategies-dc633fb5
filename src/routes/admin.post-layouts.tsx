@@ -52,7 +52,7 @@ function Page() {
     hint,
   }: {
     value: string;
-    onChange: (id: string) => void;
+    onChange: (id: string, extra?: Partial<PostLayoutSettings>) => void;
     presets: LayoutPreset[];
     title: string;
     hint?: string;
@@ -66,11 +66,9 @@ function Page() {
     // więc użytkownik nie musi klikać dodatkowego przełącznika.
     const pickVariant = (presetId: string, withSidebar: boolean) => {
       const nextMap = { ...overrides, [presetId]: withSidebar };
-      upd({
-        layout_sidebar_overrides: nextMap,
-        ...(value === presetId ? {} : {}),
-      });
-      onChange(presetId);
+      // Jedno wywołanie setLocal, żeby uniknąć wyścigu (drugi setState
+      // nadpisywałby pierwszy używając stale `local` z closure).
+      onChange(presetId, { layout_sidebar_overrides: nextMap });
     };
 
     return (
@@ -204,25 +202,25 @@ function Page() {
           title="Standard Post"
           value={local.standard_layout}
           presets={STANDARD_LAYOUTS}
-          onChange={(id) => upd({ standard_layout: id })}
+          onChange={(id, extra) => upd({ standard_layout: id, ...(extra ?? {}) })}
         />
         <LayoutGrid
           title="Video Post"
           value={local.video_layout}
           presets={VIDEO_LAYOUTS}
-          onChange={(id) => upd({ video_layout: id })}
+          onChange={(id, extra) => upd({ video_layout: id, ...(extra ?? {}) })}
         />
         <LayoutGrid
           title="Audio Post"
           value={local.audio_layout}
           presets={AUDIO_LAYOUTS}
-          onChange={(id) => upd({ audio_layout: id })}
+          onChange={(id, extra) => upd({ audio_layout: id, ...(extra ?? {}) })}
         />
         <LayoutGrid
           title="Gallery Post"
           value={local.gallery_layout}
           presets={GALLERY_LAYOUTS}
-          onChange={(id) => upd({ gallery_layout: id })}
+          onChange={(id, extra) => upd({ gallery_layout: id, ...(extra ?? {}) })}
         />
 
         <section className="space-y-2">
