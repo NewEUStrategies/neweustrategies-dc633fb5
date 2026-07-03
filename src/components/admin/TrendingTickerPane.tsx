@@ -775,26 +775,27 @@ export function TrendingTickerPane() {
 
             <div className="space-y-1.5">
               <Label htmlFor="tt-add">{t.selectedAdd}</Label>
-              <select
-                id="tt-add"
+              <Select
+                key={selectedIds.join(",")}
                 value=""
                 disabled={selectedIds.length >= MAX_SELECTED}
-                onChange={(e) => {
-                  if (e.target.value) toggleSelected(e.target.value);
-                }}
-                className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+                onValueChange={(v) => v && toggleSelected(v)}
               >
-                <option value="">
-                  {selectedIds.length >= MAX_SELECTED ? "-" : t.pickPost}
-                </option>
-                {posts
-                  ?.filter((p) => !selectedIds.includes(p.id))
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title}
-                    </option>
-                  ))}
-              </select>
+                <SelectTrigger id="tt-add" className="w-full">
+                  <SelectValue
+                    placeholder={selectedIds.length >= MAX_SELECTED ? "-" : t.pickPost}
+                  />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {posts
+                    ?.filter((p) => !selectedIds.includes(p.id))
+                    .map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <span className="truncate">{p.title}</span>
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         )}
