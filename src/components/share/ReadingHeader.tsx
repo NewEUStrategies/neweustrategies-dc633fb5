@@ -70,6 +70,30 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
   const isAuthed = mounted && !!session;
 
   const [visible, setVisible] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  // Close the menu automatically when the header hides on scroll-up.
+  useEffect(() => {
+    if (!visible) setMenuOpen(false);
+  }, [visible]);
+
 
   useEffect(() => {
     const onScroll = (): void => setVisible(window.scrollY > showAfter);
