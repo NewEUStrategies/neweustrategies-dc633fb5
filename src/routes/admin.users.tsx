@@ -51,11 +51,11 @@ type SortDir = "asc" | "desc";
 function Users() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { user, isSuperAdmin } = useAuth();
   const tenantId = useRequiredTenant();
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [openId, setOpenId] = useState<string | null>(null);
 
   const { data } = useQuery({
     queryKey: ["all-users", tenantId],
