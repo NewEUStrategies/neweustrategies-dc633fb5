@@ -198,13 +198,13 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                 return (
                   <li key={n.id}>
                     {n.href ? (
-                      <Link
-                        to={n.href}
+                      <a
+                        href={n.href}
                         onClick={onClick}
                         className="block hover:bg-muted/50 transition-colors"
                       >
                         {inner}
-                      </Link>
+                      </a>
                     ) : (
                       <button
                         type="button"
