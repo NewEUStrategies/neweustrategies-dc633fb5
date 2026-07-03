@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetContent } from "@/lib/builder/types";
-import { getNum, getStr } from "./frame";
+import { getBool, getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -41,8 +41,6 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
   const byLabel = t("hero.by", { defaultValue: lang === "pl" ? "Autor" : "By" });
   const titleWeight = getStr(c, "titleWeight");
   const excerptWeight = getStr(c, "excerptWeight");
-  const titleSize = typography?.fontSize?.desktop;
-  const descSize = typography?.descriptionFontSize?.desktop;
   const gapPx = normalizeTypographyGapPx(typography?.titleDescriptionGapPx);
   // Shared typography (font family, alignment, transform, decoration, line-height,
   // letter-spacing, italic/normal) is applied to BOTH title and excerpt so the
@@ -63,13 +61,11 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
     ...sharedTypo,
     ...(typoWeight ? { fontWeight: typoWeight as React.CSSProperties["fontWeight"] } : {}),
     ...(titleWeight ? { fontWeight: titleWeight as React.CSSProperties["fontWeight"] } : {}),
-    ...(titleSize ? { fontSize: titleSize } : {}),
   };
   const excerptStyle: React.CSSProperties = {
     ...sharedTypo,
     ...(typoWeight ? { fontWeight: typoWeight as React.CSSProperties["fontWeight"] } : {}),
     ...(excerptWeight ? { fontWeight: excerptWeight as React.CSSProperties["fontWeight"] } : {}),
-    ...(descSize ? { fontSize: descSize } : {}),
     ...(typeof gapPx === "number" ? { marginTop: `${gapPx}px` } : {}),
   };
   const tStyle = Object.keys(titleStyle).length ? titleStyle : undefined;
@@ -78,8 +74,8 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
   const aspect = aspectOf(c);
   const limit = Math.max(1, Math.min(100, getNum(c, "limit", 6)));
   const cols = Math.max(1, Math.min(6, getNum(c, "columns", 3)));
-  const uniqueOnPage = c["uniqueOnPage"] === true || c["uniqueOnPage"] === "true";
-  const mobileHScroll = c["mobileHorizontalScroll"] === true || c["mobileHorizontalScroll"] === "true";
+  const uniqueOnPage = getBool(c, "uniqueOnPage", false);
+  const mobileHScroll = getBool(c, "mobileHorizontalScroll", false);
 
   const used = useUsedPostIds();
   // Stable, snapshot-independent query: the server prefetch / stream gate and the
@@ -246,7 +242,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
             {/* Title-anchored wrapper - the number is positioned relative to this
                 box so its top edge aligns exactly with the title's top edge and
                 never overflows the row. */}
-            <div className="relative isolate overflow-hidden min-w-0 w-full text-left">
+            <div className="post-list-numbered-shell relative isolate overflow-visible min-w-0 w-full text-left">
               <span
                 aria-hidden
                 className="post-list-numbered-index font-display tabular-nums select-none leading-none"
@@ -304,7 +300,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
       const v = getStr(c, "indexVAlign") || "top";
       return v === "middle" || v === "bottom" ? v : "top";
     })();
-    const showExcerpt = c.showExcerpt !== false;
+    const showExcerpt = getBool(c, "showExcerpt", true);
     // Fall back to global Theme Design tokens when widget colors are empty.
     const lightColor = idxColor || "var(--td-li-light, rgb(35,31,32))";
     const darkColor = idxColorDark || "var(--td-li-dark, rgb(250,147,70))";
@@ -329,14 +325,14 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
           <AppLink
             key={p.id}
             href={`/post/${p.slug}`}
-            className={`grid items-start gap-3 sm:gap-4 py-4 sm:py-5 group ${
+            className={`post-list-numbered-row grid items-start gap-3 sm:gap-4 py-4 sm:py-5 group ${
               p.cover_image_url
                 ? "grid-cols-[minmax(0,1fr)_minmax(90px,32%)] sm:grid-cols-[minmax(0,1fr)_minmax(120px,28%)]"
                 : "grid-cols-1"
             }`}
 
           >
-            <div className="relative min-w-0 text-left isolate overflow-hidden">
+            <div className="post-list-numbered-shell relative min-w-0 text-left isolate overflow-visible">
               <span
                 aria-hidden
                 className="post-list-numbered-index font-display tabular-nums"

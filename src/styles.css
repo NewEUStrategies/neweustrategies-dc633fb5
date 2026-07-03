@@ -408,6 +408,14 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   transform: translate(-0.02em, -50%);
 }
 
+.post-list-numbered-shell.post-list-numbered-shell {
+  min-height: calc(clamp(28px, calc(var(--pl-num-fs, 52px) * 0.55 + 1.6vw), var(--pl-num-fs, 52px)) * 0.95);
+}
+
+.post-list-numbered-row.post-list-numbered-row {
+  min-width: 0;
+}
+
 .dark .post-list-numbered-index.post-list-numbered-index.post-list-numbered-index {
   color: var(--pl-num-dark);
 }
@@ -695,6 +703,13 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   padding-bottom: 2px;
   transition: background-size 0.4s cubic-bezier(0.4, 0, 0.2, 1), color .2s ease;
   text-decoration: none;
+}
+
+.cms-post-title.cms-post-title[class*="line-clamp-"],
+.cms-post-excerpt.cms-post-excerpt[class*="line-clamp-"] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  white-space: normal;
 }
 .cms-post-title:hover,
 a:hover .cms-post-title,
@@ -1029,7 +1044,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 [data-builder-renderer][data-device="mobile"] img[data-fill-image] { max-width: 100% !important; width: 100% !important; height: 100% !important; }
 [data-builder-renderer][data-device="mobile"] [data-widget-id] figure { width: 100% !important; align-items: center !important; }
 [data-builder-renderer][data-device="mobile"] a,
-[data-builder-renderer][data-device="mobile"] button { white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; max-width: 100% !important; }
+[data-builder-renderer][data-device="mobile"] button { white-space: normal !important; overflow-wrap: anywhere; word-break: normal; hyphens: auto; overflow: visible !important; text-overflow: clip !important; max-width: 100% !important; }
 [data-builder-renderer][data-device="mobile"] nav ul,
 [data-builder-renderer][data-device="mobile"] nav ol,
 [data-builder-renderer][data-device="mobile"] [role="menubar"] {
@@ -1071,7 +1086,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   [data-builder-renderer] [data-widget-id] figure { width: 100% !important; align-items: center !important; }
   [data-builder-renderer] [data-widget-id] figure > * { max-width: 100% !important; }
   /* Links / buttons: keep words intact but allow wrap, never collapse next to each other */
-  [data-builder-renderer] a, [data-builder-renderer] button { white-space: nowrap !important; overflow: visible !important; text-overflow: clip !important; max-width: 100% !important; }
+  [data-builder-renderer] a, [data-builder-renderer] button { white-space: normal !important; overflow-wrap: anywhere; word-break: normal; hyphens: auto; overflow: visible !important; text-overflow: clip !important; max-width: 100% !important; }
   /* Navigation menus: keep horizontal but wrap to next line */
   [data-builder-renderer] nav ul, [data-builder-renderer] nav ol,
   [data-builder-renderer] [role="menubar"] {
