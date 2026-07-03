@@ -1229,6 +1229,11 @@ function BlockView({
           showSocial={block.data.showSocial !== false}
           showPostsCount={block.data.showPostsCount !== false}
           variant={variant}
+          authorId={
+            typeof block.data.authorId === "string" && block.data.authorId
+              ? block.data.authorId
+              : undefined
+          }
           lang={lang}
           cls={cls}
         />
