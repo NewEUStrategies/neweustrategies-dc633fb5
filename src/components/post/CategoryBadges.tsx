@@ -25,7 +25,7 @@ export function CategoryBadges({ items, lang }: Props) {
         return (
           <AppLink
             key={c.slug}
-            to={href}
+            href={href}
             className="inline-flex items-center rounded-sm bg-brand px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:opacity-90"
           >
             {label}
