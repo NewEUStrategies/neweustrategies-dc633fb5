@@ -164,7 +164,7 @@ function renderItem(
       onClick={() => choose(spec)}
       disabled={!impl}
       title={spec.description}
-      className="flex flex-col items-center gap-1 p-2 rounded border border-border hover:border-foreground hover:bg-accent text-center disabled:opacity-40 disabled:cursor-not-allowed"
+      className="flex flex-col items-center gap-1 p-2 rounded border border-border hover:border-[#FDB078] hover:bg-[#FDB078]/20 focus:bg-[#FDB078]/20 text-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
     >
       <Icon className="w-4 h-4" />
       <span className="text-[11px] leading-tight">{labelFor(spec.type)}</span>
