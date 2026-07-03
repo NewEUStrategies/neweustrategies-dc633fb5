@@ -213,7 +213,9 @@ export interface PostLayoutSettings {
 export function effectiveHasSidebar(
   preset: LayoutPreset,
   settings: Pick<PostLayoutSettings, "layout_sidebar_overrides"> | null | undefined,
+  postOverride?: boolean | null,
 ): boolean {
+  if (typeof postOverride === "boolean") return postOverride;
   const ov = settings?.layout_sidebar_overrides?.[preset.id];
   return typeof ov === "boolean" ? ov : preset.hasSidebar;
 }
