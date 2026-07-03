@@ -47,7 +47,7 @@ function UserDetail() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, tenantId } = useAuth();
   const locale = i18n.language === "pl" ? "pl-PL" : "en-US";
   const isPL = i18n.language === "pl";
   const L = (pl: string, en: string) => (isPL ? pl : en);
