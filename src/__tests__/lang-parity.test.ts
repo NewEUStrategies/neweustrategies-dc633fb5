@@ -120,10 +120,10 @@ d("i18n parity: no duplicate pages after translation updates", () => {
 
     const { data: redirects, error: redirErr } = await client!
       .from("redirects")
-      .select("from_path")
+      .select("source_path")
       .eq("source", "merge-duplicates");
     expect(redirErr, redirErr?.message).toBeNull();
-    const froms = new Set((redirects ?? []).map((r) => r.from_path));
+    const froms = new Set((redirects ?? []).map((r) => r.source_path));
     for (const slug of MERGED_SLUGS) {
       expect(froms.has(`/${slug}`), `missing redirect for /${slug}`).toBe(true);
     }
