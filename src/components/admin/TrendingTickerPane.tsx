@@ -212,8 +212,8 @@ export function TrendingTickerPane() {
 
         <div className="space-y-1.5">
           <Label>{t.mode}</Label>
-          <div className="grid grid-cols-2 gap-2">
-            {(["scroll", "rotate"] as const).map((m) => (
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {(["scroll", "fade", "slide", "flip", "typewriter"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
@@ -257,20 +257,36 @@ export function TrendingTickerPane() {
               />
             </div>
           )}
-          {cfg.mode === "rotate" && (
-            <div className="space-y-1.5">
-              <Label htmlFor="tt-int">{t.interval}</Label>
-              <Input
-                id="tt-int"
-                type="number"
-                min={2}
-                max={120}
-                value={cfg.intervalSec}
-                onChange={(e) => set("intervalSec", Math.max(2, Number(e.target.value) || 2))}
-              />
-            </div>
+          {cfg.mode !== "scroll" && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="tt-visible">{t.visibleCount}</Label>
+                <Input
+                  id="tt-visible"
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={cfg.visibleCount}
+                  onChange={(e) =>
+                    set("visibleCount", Math.max(1, Math.min(5, Number(e.target.value) || 1)))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="tt-int">{t.interval}</Label>
+                <Input
+                  id="tt-int"
+                  type="number"
+                  min={2}
+                  max={120}
+                  value={cfg.intervalSec}
+                  onChange={(e) => set("intervalSec", Math.max(2, Number(e.target.value) || 2))}
+                />
+              </div>
+            </>
           )}
         </div>
+
 
         {cfg.source === "pinned" && (
           <div className="space-y-3 rounded-[5px] border border-dashed border-border p-3">
