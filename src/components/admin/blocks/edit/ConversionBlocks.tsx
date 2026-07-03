@@ -4,6 +4,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -65,7 +66,7 @@ export function StepListBlock({ block, onChange }: Props) {
         >
           <option value="vertical">Pionowo</option>
           <option value="horizontal">Poziomo</option>
-        </select>
+        </AdminSelect>
         <select
           className={sel}
           value={String(block.data.numberStyle ?? "circle")}
@@ -76,7 +77,7 @@ export function StepListBlock({ block, onChange }: Props) {
           <option value="circle">Numer: koło</option>
           <option value="square">Numer: kwadrat</option>
           <option value="plain">Numer: tekst</option>
-        </select>
+        </AdminSelect>
       </div>
       <div className="space-y-2">
         {items.map((it, idx) => (
@@ -345,7 +346,7 @@ export function BannerImageBlock({ block, onChange }: Props) {
           <option value="left">Tekst lewo</option>
           <option value="center">Tekst środek</option>
           <option value="right">Tekst prawo</option>
-        </select>
+        </AdminSelect>
         <select
           className={sel}
           value={String(d.theme ?? "dark")}
@@ -353,7 +354,7 @@ export function BannerImageBlock({ block, onChange }: Props) {
         >
           <option value="dark">Tekst jasny</option>
           <option value="light">Tekst ciemny</option>
-        </select>
+        </AdminSelect>
         <select
           className={sel}
           value={String(d.aspect ?? "21:9")}
@@ -363,7 +364,7 @@ export function BannerImageBlock({ block, onChange }: Props) {
           <option value="16:9">16:9</option>
           <option value="4:3">4:3</option>
           <option value="3:1">3:1</option>
-        </select>
+        </AdminSelect>
       </div>
       <label className="flex items-center gap-2 text-xs text-muted-foreground">
         <input
@@ -435,7 +436,7 @@ export function VideoHeroBlock({ block, onChange }: Props) {
           <option value="md">Średnia</option>
           <option value="lg">Wysoka</option>
           <option value="screen">Pełny ekran</option>
-        </select>
+        </AdminSelect>
         <select
           className={sel}
           value={String(d.align ?? "center")}
@@ -443,7 +444,7 @@ export function VideoHeroBlock({ block, onChange }: Props) {
         >
           <option value="left">Wyrównaj lewo</option>
           <option value="center">Wyśrodkuj</option>
-        </select>
+        </AdminSelect>
       </div>
       <label className="flex items-center gap-2 text-xs text-muted-foreground">
         <input

@@ -4,6 +4,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -74,7 +75,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
           <option value={2}>2 kolumny</option>
           <option value={3}>3 kolumny</option>
           <option value={4}>4 kolumny</option>
-        </select>
+        </AdminSelect>
         <select
           className={selectCls}
           value={shape}
@@ -82,7 +83,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
         >
           <option value="circle">Awatary okrągłe</option>
           <option value="square">Awatary kwadratowe</option>
-        </select>
+        </AdminSelect>
       </div>
       <div className="space-y-2">
         {items.map((it, idx) => (
@@ -214,7 +215,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
           <option value={4}>4 kol.</option>
           <option value={5}>5 kol.</option>
           <option value={6}>6 kol.</option>
-        </select>
+        </AdminSelect>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
             type="checkbox"
@@ -359,7 +360,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
           <option value={2}>2 kolumny</option>
           <option value={3}>3 kolumny</option>
           <option value={4}>4 kolumny</option>
-        </select>
+        </AdminSelect>
         <select
           className={selectCls}
           value={String(block.data.style ?? "card")}
@@ -368,7 +369,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
           <option value="card">Styl: karta</option>
           <option value="minimal">Styl: minimal</option>
           <option value="bordered">Styl: ramka</option>
-        </select>
+        </AdminSelect>
       </div>
       <div className="space-y-2">
         {items.map((it, idx) => (
@@ -388,7 +389,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
                     {o}
                   </option>
                 ))}
-              </select>
+              </AdminSelect>
               <input
                 className={inputCls}
                 placeholder="Tytuł funkcji"
@@ -459,7 +460,7 @@ export function AlertBannerBlock({ block, onChange }: Props) {
         <option value="warning">Ostrzeżenie (żółty)</option>
         <option value="danger">Błąd (czerwony)</option>
         <option value="neutral">Neutralny (szary)</option>
-      </select>
+      </AdminSelect>
       <input
         className={inputCls}
         placeholder="Tytuł (opcjonalnie)"
@@ -530,7 +531,7 @@ export function DividerTextBlock({ block, onChange }: Props) {
           <option value="left">Tekst po lewej</option>
           <option value="center">Tekst pośrodku</option>
           <option value="right">Tekst po prawej</option>
-        </select>
+        </AdminSelect>
         <select
           className={selectCls}
           value={String(d.lineStyle ?? "solid")}
@@ -539,7 +540,7 @@ export function DividerTextBlock({ block, onChange }: Props) {
           <option value="solid">Linia ciągła</option>
           <option value="dashed">Linia przerywana</option>
           <option value="dotted">Linia kropkowana</option>
-        </select>
+        </AdminSelect>
       </div>
     </Shell>
   );

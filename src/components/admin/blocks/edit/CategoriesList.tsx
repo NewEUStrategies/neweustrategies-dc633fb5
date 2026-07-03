@@ -1,4 +1,5 @@
 import type { Block } from "@/lib/blocks/types";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -22,7 +23,7 @@ export function CategoriesListBlock({ block, onChange }: Props) {
       >
         <option value="list">Lista</option>
         <option value="dropdown">Lista rozwijana</option>
-      </select>
+      </AdminSelect>
       <div className="flex gap-4 text-xs">
         <label className="flex items-center gap-1">
           <input

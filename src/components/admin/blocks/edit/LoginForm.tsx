@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { LogIn } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -49,7 +50,7 @@ export function LoginFormBlock({ block, onChange }: Props) {
           <option value="card">{i18n.editor("newsletter", "variantCard")}</option>
           <option value="plain">Bez ramki</option>
           <option value="split">Split (z brand panelem)</option>
-        </select>
+        </AdminSelect>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">

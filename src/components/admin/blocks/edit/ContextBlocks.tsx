@@ -1,6 +1,7 @@
 // Admin edytory dla bloków dynamicznych "post-*" (Phase 2).
 // Wszystkie czytają CurrentPostCtx na public stronie; tu pokazujemy tylko placeholder + opcje.
 import type { Block } from "@/lib/blocks/types";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -34,7 +35,7 @@ export function PostTitleBlock({ block, onChange }: Props) {
             H{l}
           </option>
         ))}
-      </select>
+      </AdminSelect>
     </Shell>
   );
 }
@@ -53,7 +54,7 @@ export function PostDateBlock({ block, onChange }: Props) {
           <option value="long">Pełna (15 stycznia 2025)</option>
           <option value="short">Krótka (15.01.2025)</option>
           <option value="relative">Względna (3 dni temu)</option>
-        </select>
+        </AdminSelect>
         <label className="flex items-center gap-1">
           <input
             type="checkbox"
@@ -133,7 +134,7 @@ export function PostFeaturedImageBlock({ block, onChange }: Props) {
           <option value="4/3">4:3</option>
           <option value="1/1">1:1</option>
           <option value="3/2">3:2</option>
-        </select>
+        </AdminSelect>
         <label className="flex items-center gap-1">
           <input
             type="checkbox"
@@ -160,7 +161,7 @@ export function PostTermsBlock({ block, onChange }: Props) {
       >
         <option value="categories">Kategorie</option>
         <option value="tags">Tagi</option>
-      </select>
+      </AdminSelect>
     </Shell>
   );
 }
@@ -181,7 +182,7 @@ export function SiteTitleBlock({ block, onChange }: Props) {
             H{l}
           </option>
         ))}
-      </select>
+      </AdminSelect>
     </Shell>
   );
 }

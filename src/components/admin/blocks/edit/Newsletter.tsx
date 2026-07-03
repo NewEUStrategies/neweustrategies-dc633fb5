@@ -2,6 +2,7 @@ import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Mail } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -25,7 +26,7 @@ export function NewsletterBlock({ block, onChange }: Props) {
         >
           <option value="card">{i18n.editor("newsletter", "variantCard")}</option>
           <option value="inline">{i18n.editor("newsletter", "variantInline")}</option>
-        </select>
+        </AdminSelect>
       </div>
       <Input
         placeholder={i18n.editor("newsletter", "titlePh")}

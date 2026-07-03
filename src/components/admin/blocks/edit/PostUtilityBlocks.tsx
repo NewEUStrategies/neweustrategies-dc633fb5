@@ -3,6 +3,7 @@
 // Lekkie kontrolki spójne z resztą edit/ - bez zewnętrznych zaleznosci UI.
 
 import type { Block } from "@/lib/blocks/types";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -108,7 +109,7 @@ export function ShareButtonsBlock({ block, onChange }: Props) {
         <option value="filled">Wypełnione</option>
         <option value="outline">Obrys</option>
         <option value="ghost">Minimalne</option>
-      </select>
+      </AdminSelect>
       <div className="flex flex-wrap gap-1.5">
         {ALL_NETWORKS.map((n) => {
           const active = networks.includes(n);

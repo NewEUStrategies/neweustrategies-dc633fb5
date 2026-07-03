@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { KeyRound } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -25,7 +26,7 @@ export function LostPasswordFormBlock({ block, onChange }: Props) {
         >
           <option value="card">{i18n.editor("newsletter", "variantCard")}</option>
           <option value="plain">Bez ramki</option>
-        </select>
+        </AdminSelect>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div className="space-y-1">

@@ -1,5 +1,6 @@
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -36,7 +37,7 @@ export function LatestPostsBlock({ block, onChange }: Props) {
         >
           <option value="list">List</option>
           <option value="grid">Grid</option>
-        </select>
+        </AdminSelect>
       </div>
       <Input
         value={category}

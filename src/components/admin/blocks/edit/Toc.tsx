@@ -2,6 +2,7 @@ import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { ListTree } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -41,7 +42,7 @@ export function TocBlock({ block, onChange }: Props) {
             <option value={2}>H2</option>
             <option value={3}>H2-H3</option>
             <option value={4}>H2-H4</option>
-          </select>
+          </AdminSelect>
         </label>
         <label className="flex items-center gap-1">
           <input

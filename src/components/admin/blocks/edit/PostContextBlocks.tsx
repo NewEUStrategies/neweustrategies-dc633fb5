@@ -1,6 +1,7 @@
 // Admin edytory dla bloków Phase 2 batch 7: author-bio, related-posts.
 import type { Block, Json } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -54,7 +55,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
         <option value="card">{i18n.editor("newsletter", "variantCard")}</option>
         <option value="inline">Inline</option>
         <option value="minimal">Minimalna</option>
-      </select>
+      </AdminSelect>
       <div className="flex flex-wrap gap-3">
         <Toggle checked={showAvatar} onChange={(v) => set({ showAvatar: v })} label="Avatar" />
         <Toggle
@@ -107,7 +108,7 @@ export function RelatedPostsBlock({ block, onChange }: Props) {
           <option value="tag">Wg tagu</option>
           <option value="author">Wg autora</option>
           <option value="latest">Najnowsze</option>
-        </select>
+        </AdminSelect>
         <select
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={layout}
@@ -116,7 +117,7 @@ export function RelatedPostsBlock({ block, onChange }: Props) {
           <option value="grid">Grid</option>
           <option value="list">Lista</option>
           <option value="compact">Kompakt</option>
-        </select>
+        </AdminSelect>
       </div>
     </Shell>
   );

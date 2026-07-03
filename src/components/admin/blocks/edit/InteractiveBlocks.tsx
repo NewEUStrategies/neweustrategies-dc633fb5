@@ -4,6 +4,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -131,7 +132,7 @@ export function TabsBlock({ block, onChange }: Props) {
       >
         <option value="horizontal">Poziomo</option>
         <option value="vertical">Pionowo</option>
-      </select>
+      </AdminSelect>
       <div className="space-y-2">
         {items.map((it, idx) => (
           <div key={idx} className="space-y-1.5 rounded border border-border p-2">
@@ -250,7 +251,7 @@ export function ProgressBlock({ block, onChange }: Props) {
           <option value="success">Sukces</option>
           <option value="warning">Ostrzeżenie</option>
           <option value="danger">Krytyczny</option>
-        </select>
+        </AdminSelect>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
             type="checkbox"

@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -55,7 +56,7 @@ export function SocialIconsBlock({ block, onChange }: Props) {
             <option value="sm">small</option>
             <option value="md">medium</option>
             <option value="lg">large</option>
-          </select>
+          </AdminSelect>
           <select
             className="text-xs bg-background border border-border rounded px-2 py-1"
             value={align}
@@ -64,7 +65,7 @@ export function SocialIconsBlock({ block, onChange }: Props) {
             <option value="left">left</option>
             <option value="center">center</option>
             <option value="right">right</option>
-          </select>
+          </AdminSelect>
         </div>
       </div>
       <div className="space-y-2">
@@ -84,7 +85,7 @@ export function SocialIconsBlock({ block, onChange }: Props) {
                   {p}
                 </option>
               ))}
-            </select>
+            </AdminSelect>
             <Input
               value={it.url}
               placeholder={i18n.field("urlPh")}

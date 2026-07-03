@@ -1,5 +1,6 @@
 // Admin edytory dla bloków Phase 2 batch 5: navigation, post-navigation-link, query-loop.
 import type { Block, Json } from "@/lib/blocks/types";
+import { AdminSelect } from "../AdminSelect";
 
 interface Props {
   block: Block;
@@ -36,7 +37,7 @@ export function NavigationBlock({ block, onChange }: Props) {
         >
           <option value="horizontal">Pozioma</option>
           <option value="vertical">Pionowa</option>
-        </select>
+        </AdminSelect>
       </div>
     </Shell>
   );
@@ -57,7 +58,7 @@ export function PostNavigationLinkBlock({ block, onChange }: Props) {
         >
           <option value="prev">Poprzedni</option>
           <option value="next">Następny</option>
-        </select>
+        </AdminSelect>
         <label className="flex items-center gap-2 text-xs">
           <input
             type="checkbox"
@@ -100,7 +101,7 @@ export function QueryLoopBlock({ block, onChange }: Props) {
         >
           <option value="grid">Siatka</option>
           <option value="list">Lista</option>
-        </select>
+        </AdminSelect>
         <select
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={String(d.orderBy ?? "date")}
@@ -108,7 +109,7 @@ export function QueryLoopBlock({ block, onChange }: Props) {
         >
           <option value="date">Data</option>
           <option value="title">Tytuł</option>
-        </select>
+        </AdminSelect>
       </div>
       <div className="flex flex-wrap gap-3 pt-1">
         {(["showImage", "showExcerpt", "showDate"] as const).map((k) => (
