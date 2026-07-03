@@ -8,6 +8,7 @@ import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "@/lib/views/tickerVariants";
+import { useTickerDraft } from "@/lib/views/tickerDraftBridge";
 import { AlertBar } from "@/components/AlertBar";
 import { AdZone } from "@/components/AdSlot";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
