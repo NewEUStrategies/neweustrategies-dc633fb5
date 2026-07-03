@@ -69,7 +69,10 @@ describe("styleToCSS", () => {
     expect(css.boxShadow).toContain("rgba");
     expect(css.opacity).toBe(0.8);
     expect(css.fontFamily).toContain("Inter");
-    expect(css.fontSize).toBe("18px");
+    // Contract: the title font-size is deliberately NOT set on the widget
+    // wrapper - WidgetView maps it to .cms-post-title / .cms-post-excerpt via
+    // scoped CSS (see styleToCSS), so the wrapper stays cascade-neutral.
+    expect(css.fontSize).toBeUndefined();
     expect(css.fontWeight).toBe("700");
     expect(css.textTransform).toBe("uppercase");
   });
