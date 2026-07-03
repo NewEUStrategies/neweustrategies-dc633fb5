@@ -107,6 +107,22 @@ export interface PostData extends PageData {
   takeaways_en: string[];
   custom_meta: Record<string, string> | null;
   related_override: Record<string, unknown> | null;
+  author_id: string | null;
+}
+
+export interface PostAuthor {
+  id: string;
+  slug: string | null;
+  display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
+}
+
+export interface PostCategory {
+  slug: string;
+  name_pl: string;
+  name_en: string;
 }
 
 export type ResolvedContent =
@@ -116,6 +132,8 @@ export type ResolvedContent =
       crumbs: BreadcrumbRow[];
       parentPageId: string;
       tags: Array<{ slug: string; name: string }>;
+      categories: PostCategory[];
+      author: PostAuthor | null;
       access: ContentAccessRule | null;
     }
   | {
