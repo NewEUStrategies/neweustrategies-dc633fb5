@@ -126,7 +126,6 @@ function Users() {
     qc.invalidateQueries({ queryKey: ["all-users"] });
   };
 
-  const active = sorted.find((u) => u.id === openId) ?? null;
   const locale = i18n.language === "pl" ? "pl-PL" : "en-US";
 
   return (
