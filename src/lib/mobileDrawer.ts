@@ -75,7 +75,7 @@ export type DrawerConfig = z.infer<typeof drawerConfigSchema>;
 
 export const DEFAULT_DRAWER_CONFIG: DrawerConfig = {
   section_order: [...DRAWER_SECTIONS],
-  top_tools: { search: true, theme: true, language: true },
+  top_tools: { search: true, theme: false, language: false },
   nav_items: [],
 };
 
