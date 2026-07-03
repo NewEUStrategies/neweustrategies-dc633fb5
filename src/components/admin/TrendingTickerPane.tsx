@@ -1,5 +1,5 @@
 // CMS panel for the header "Na czasie / Trending" ticker.
-// Stores config in site_settings.header.value.trending.
+// Stores config in site_settings.header.value.trending as { activeVariantId, variants }.
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -8,54 +8,43 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Save } from "@/lib/lucide-shim";
+import { Save, Plus, Copy, Trash2, Check } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
+import type { TickerConfig } from "@/lib/views/headerTickerQuery";
+import {
+  DEFAULT_LIGHT_COLORS,
+  DEFAULT_DARK_COLORS,
+  DEFAULT_TICKER_COLORS,
+  DEFAULT_TICKER_CONFIG,
+  MAX_TICKER_VARIANTS,
+  makeDefaultVariant,
+  normalizeTickerSettings,
+  type IconAnimation,
+  type MixedFill,
+  type TickerColors,
+  type TickerColorScheme,
+  type TickerSettings,
+  type TickerVariant,
+} from "@/lib/views/tickerVariants";
 
 type Json = Record<string, unknown>;
-type Source = "trending" | "latest" | "pinned" | "selected";
+type Source = "trending" | "latest" | "pinned" | "selected" | "mixed";
 type Mode = "scroll" | "fade" | "slide" | "flip" | "typewriter";
 
 const MAX_SELECTED = 3;
 
-interface TrendingCfg {
-  enabled: boolean;
-  source: Source;
-  mode: Mode;
-  days: number;
-  limit: number;
-  visibleCount: number;
-  intervalSec: number;
-  pinnedPostId: string;
-  pinnedUntil: string;
-  selectedPostIds: string[];
-  fullWidth: boolean;
-}
-
-const DEFAULTS: TrendingCfg = {
-  enabled: true,
-  source: "trending",
-  mode: "scroll",
-  days: 7,
-  limit: 8,
-  visibleCount: 1,
-  intervalSec: 6,
-  pinnedPostId: "",
-  pinnedUntil: "",
-  selectedPostIds: [],
-  fullWidth: true,
-};
-
 const COPY = {
   pl: {
     title: "Widget „Na czasie”",
-    desc: "Pasek wyświetlany w nagłówku - wybierz źródło wpisów, tryb i czas rotacji.",
+    desc: "Pasek w nagłówku - warianty, źródła, kolory light/dark, etykieta i animacja ognia.",
     enabled: "Włącz pasek",
     source: "Źródło wpisów",
     source_trending: "Najczęściej czytane",
     source_latest: "Najnowsze",
     source_pinned: "Przypięty wpis",
     source_selected: "Wybrane materiały",
+    source_mixed: "Miks (przypięte + wypełnienie)",
     mode: "Tryb animacji",
     mode_scroll: "Przewijanie w pętli",
     mode_fade: "Przenikanie (fade)",
@@ -78,16 +67,49 @@ const COPY = {
     selectedEmpty: "Nie wybrano żadnego wpisu.",
     selectedRemove: "Usuń",
     selectedAdd: "Dodaj wpis",
+    mixedFill: "Wypełnienie po przypiętych",
+    mixedFill_trending: "Najczęściej czytane",
+    mixedFill_latest: "Najnowsze",
+    variants: "Warianty",
+    variantsHint: `Możesz utworzyć do ${MAX_TICKER_VARIANTS} wariantów - jeden jest aktywny.`,
+    addVariant: "Dodaj wariant",
+    duplicate: "Duplikuj",
+    remove: "Usuń wariant",
+    activate: "Ustaw jako aktywny",
+    variantName: "Nazwa wariantu",
+    labels: "Etykieta paska",
+    labelPl: "Etykieta (PL)",
+    labelEn: "Etykieta (EN)",
+    labelPlaceholderPl: "Na czasie",
+    labelPlaceholderEn: "Trending",
+    icon: "Animacja ikony ognia",
+    icon_none: "Bez animacji",
+    icon_pulse: "Pulsuje",
+    icon_flicker: "Migoczący płomień",
+    icon_spin: "Obraca się",
+    icon_wave: "Fala",
+    colors: "Kolory",
+    colorsLight: "Tryb jasny",
+    colorsDark: "Tryb ciemny",
+    color_bg: "Tło",
+    color_border: "Obramowanie / separator",
+    color_label: "Etykieta i ikona",
+    color_item: "Kolor tytułu",
+    color_itemHover: "Tytuł na hover",
+    color_counter: "Numery",
+    resetColors: "Przywróć domyślne",
+    cannotDeleteLast: "Musi zostać przynajmniej jeden wariant.",
   },
   en: {
     title: "Trending widget",
-    desc: "Header bar - pick the post source, display mode and rotation interval.",
+    desc: "Header bar - variants, sources, light/dark colors, label and flame animation.",
     enabled: "Enable bar",
     source: "Post source",
     source_trending: "Most read",
     source_latest: "Latest",
     source_pinned: "Pinned post",
     source_selected: "Selected items",
+    source_mixed: "Mix (pinned + fill)",
     mode: "Animation mode",
     mode_scroll: "Loop scroll",
     mode_fade: "Cross-fade",
@@ -110,6 +132,38 @@ const COPY = {
     selectedEmpty: "No items selected.",
     selectedRemove: "Remove",
     selectedAdd: "Add item",
+    mixedFill: "Fill after pinned items",
+    mixedFill_trending: "Most read",
+    mixedFill_latest: "Latest",
+    variants: "Variants",
+    variantsHint: `You can create up to ${MAX_TICKER_VARIANTS} variants - one is active.`,
+    addVariant: "Add variant",
+    duplicate: "Duplicate",
+    remove: "Delete variant",
+    activate: "Set as active",
+    variantName: "Variant name",
+    labels: "Bar label",
+    labelPl: "Label (PL)",
+    labelEn: "Label (EN)",
+    labelPlaceholderPl: "Na czasie",
+    labelPlaceholderEn: "Trending",
+    icon: "Flame icon animation",
+    icon_none: "None",
+    icon_pulse: "Pulse",
+    icon_flicker: "Flicker",
+    icon_spin: "Spin",
+    icon_wave: "Wave",
+    colors: "Colors",
+    colorsLight: "Light mode",
+    colorsDark: "Dark mode",
+    color_bg: "Background",
+    color_border: "Border / divider",
+    color_label: "Label & icon",
+    color_item: "Title color",
+    color_itemHover: "Title on hover",
+    color_counter: "Counters",
+    resetColors: "Reset to defaults",
+    cannotDeleteLast: "At least one variant must remain.",
   },
 } as const;
 
@@ -117,6 +171,17 @@ interface PostOption {
   id: string;
   title: string;
 }
+
+const COLOR_KEYS: readonly (keyof TickerColors)[] = [
+  "bg",
+  "border",
+  "label",
+  "item",
+  "itemHover",
+  "counter",
+];
+
+const ICON_OPTIONS: readonly IconAnimation[] = ["none", "pulse", "flicker", "spin", "wave"];
 
 export function TrendingTickerPane() {
   const qc = useQueryClient();
@@ -155,14 +220,21 @@ export function TrendingTickerPane() {
     },
   });
 
-  const [cfg, setCfg] = useState<TrendingCfg>(DEFAULTS);
+  const [settings, setSettings] = useState<TickerSettings>(() => ({
+    activeVariantId: "",
+    variants: [makeDefaultVariant()],
+  }));
+
   useEffect(() => {
-    const raw = (data?.trending as Partial<TrendingCfg> | undefined) ?? {};
-    setCfg({ ...DEFAULTS, ...raw });
+    setSettings(normalizeTickerSettings(data?.trending));
   }, [data]);
 
+  const activeVariant: TickerVariant =
+    settings.variants.find((v) => v.id === settings.activeVariantId) ?? settings.variants[0];
+  const cfg = activeVariant.config;
+
   const save = useMutation({
-    mutationFn: async (next: TrendingCfg) => {
+    mutationFn: async (next: TickerSettings) => {
       const merged = { ...(data ?? {}), trending: next };
       const { error } = await supabase
         .from("site_settings")
@@ -178,41 +250,166 @@ export function TrendingTickerPane() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const set = <K extends keyof TrendingCfg>(k: K, v: TrendingCfg[K]): void =>
-    setCfg((c) => ({ ...c, [k]: v }));
+  const patchActive = (patch: Partial<TickerConfig>): void => {
+    setSettings((s) => ({
+      ...s,
+      variants: s.variants.map((v) =>
+        v.id === s.activeVariantId ? { ...v, config: { ...v.config, ...patch } } : v,
+      ),
+    }));
+  };
+  const set = <K extends keyof TickerConfig>(k: K, v: TickerConfig[K]): void =>
+    patchActive({ [k]: v } as Partial<TickerConfig>);
+
+  const renameActive = (name: string): void => {
+    setSettings((s) => ({
+      ...s,
+      variants: s.variants.map((v) => (v.id === s.activeVariantId ? { ...v, name } : v)),
+    }));
+  };
+
+  const activate = (id: string): void => setSettings((s) => ({ ...s, activeVariantId: id }));
+
+  const addVariant = (): void => {
+    setSettings((s) => {
+      if (s.variants.length >= MAX_TICKER_VARIANTS) return s;
+      const v = makeDefaultVariant(`${lang === "en" ? "Variant" : "Wariant"} ${s.variants.length + 1}`);
+      return { activeVariantId: v.id, variants: [...s.variants, v] };
+    });
+  };
+
+  const duplicateActive = (): void => {
+    setSettings((s) => {
+      if (s.variants.length >= MAX_TICKER_VARIANTS) return s;
+      const src = s.variants.find((v) => v.id === s.activeVariantId);
+      if (!src) return s;
+      const clone = makeDefaultVariant(`${src.name} (kopia)`);
+      clone.config = { ...src.config, colors: cloneColors(src.config.colors ?? DEFAULT_TICKER_COLORS) };
+      return { activeVariantId: clone.id, variants: [...s.variants, clone] };
+    });
+  };
+
+  const removeActive = (): void => {
+    setSettings((s) => {
+      if (s.variants.length <= 1) {
+        toast.error(t.cannotDeleteLast);
+        return s;
+      }
+      const rest = s.variants.filter((v) => v.id !== s.activeVariantId);
+      return { activeVariantId: rest[0].id, variants: rest };
+    });
+  };
+
+  const setColor = (mode: "light" | "dark", key: keyof TickerColors, value: string): void => {
+    const current: TickerColorScheme = cfg.colors ?? DEFAULT_TICKER_COLORS;
+    const nextMode: TickerColors = { ...current[mode], [key]: value };
+    const next: TickerColorScheme =
+      mode === "light" ? { ...current, light: nextMode } : { ...current, dark: nextMode };
+    set("colors", next);
+  };
+
+  const resetColors = (): void => set("colors", { ...DEFAULT_TICKER_COLORS });
 
   const previewKey = useMemo(
     () =>
-      `${cfg.source}-${cfg.mode}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}-${cfg.selectedPostIds.join(",")}`,
-    [cfg],
+      `${activeVariant.id}-${cfg.source}-${cfg.mode}-${cfg.visibleCount}-${cfg.intervalSec}-${cfg.pinnedPostId}-${cfg.pinnedUntil}-${cfg.limit}-${cfg.days}-${(cfg.selectedPostIds ?? []).join(",")}-${cfg.mixedFill}-${cfg.iconAnimation}-${cfg.labelPl}-${cfg.labelEn}-${JSON.stringify(cfg.colors ?? {})}`,
+    [activeVariant.id, cfg],
   );
 
   const toggleSelected = (id: string): void => {
-    setCfg((c) => {
-      const has = c.selectedPostIds.includes(id);
-      if (has) return { ...c, selectedPostIds: c.selectedPostIds.filter((x) => x !== id) };
-      if (c.selectedPostIds.length >= MAX_SELECTED) return c;
-      return { ...c, selectedPostIds: [...c.selectedPostIds, id] };
-    });
+    const list = cfg.selectedPostIds ?? [];
+    if (list.includes(id)) set("selectedPostIds", list.filter((x) => x !== id));
+    else if (list.length < MAX_SELECTED) set("selectedPostIds", [...list, id]);
   };
   const moveSelected = (id: string, dir: -1 | 1): void => {
-    setCfg((c) => {
-      const arr = [...c.selectedPostIds];
-      const i = arr.indexOf(id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= arr.length) return c;
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-      return { ...c, selectedPostIds: arr };
-    });
+    const arr = [...(cfg.selectedPostIds ?? [])];
+    const i = arr.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    set("selectedPostIds", arr);
   };
 
   const postTitle = (id: string): string => posts?.find((p) => p.id === id)?.title ?? id;
+
+  const currentSource = (cfg.source ?? "trending") as Source;
+  const currentMode = (cfg.mode ?? "scroll") as Mode;
+  const selectedIds = cfg.selectedPostIds ?? [];
 
   return (
     <div className="space-y-5 max-w-3xl">
       <div>
         <h3 className="font-display text-lg">{t.title}</h3>
         <p className="text-sm text-muted-foreground">{t.desc}</p>
+      </div>
+
+      {/* Variants management */}
+      <div className="rounded-[5px] border border-border p-4 space-y-3 bg-card">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="font-medium text-sm">{t.variants}</p>
+            <p className="text-xs text-muted-foreground">{t.variantsHint}</p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={addVariant}
+            disabled={settings.variants.length >= MAX_TICKER_VARIANTS}
+          >
+            <Plus className="w-4 h-4 mr-1" /> {t.addVariant}
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {settings.variants.map((v) => {
+            const isActive = v.id === settings.activeVariantId;
+            return (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => activate(v.id)}
+                className={`inline-flex items-center gap-1.5 rounded-[5px] border px-2.5 py-1 text-xs transition ${
+                  isActive
+                    ? "border-brand bg-brand/10 text-brand font-medium"
+                    : "border-border hover:bg-muted"
+                }`}
+                aria-pressed={isActive}
+                title={isActive ? "" : t.activate}
+              >
+                {isActive && <Check className="w-3 h-3" />}
+                <span className="truncate max-w-[160px]">{v.name}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 items-end">
+          <div className="space-y-1.5">
+            <Label htmlFor="tt-name">{t.variantName}</Label>
+            <Input
+              id="tt-name"
+              value={activeVariant.name}
+              onChange={(e) => renameActive(e.target.value)}
+            />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={duplicateActive}
+            disabled={settings.variants.length >= MAX_TICKER_VARIANTS}
+          >
+            <Copy className="w-4 h-4 mr-1" /> {t.duplicate}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={removeActive}
+            disabled={settings.variants.length <= 1}
+          >
+            <Trash2 className="w-4 h-4 mr-1" /> {t.remove}
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-[5px] border border-border p-4 space-y-4 bg-card">
@@ -222,21 +419,41 @@ export function TrendingTickerPane() {
           </Label>
           <Switch
             id="tt-enabled"
-            checked={cfg.enabled}
+            checked={cfg.enabled ?? true}
             onCheckedChange={(v) => set("enabled", v)}
           />
         </div>
 
+        {/* Labels */}
+        <div className="space-y-1.5">
+          <Label>{t.labels}</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Input
+              value={cfg.labelPl ?? ""}
+              onChange={(e) => set("labelPl", e.target.value)}
+              placeholder={t.labelPlaceholderPl}
+              aria-label={t.labelPl}
+            />
+            <Input
+              value={cfg.labelEn ?? ""}
+              onChange={(e) => set("labelEn", e.target.value)}
+              placeholder={t.labelPlaceholderEn}
+              aria-label={t.labelEn}
+            />
+          </div>
+        </div>
+
+        {/* Source */}
         <div className="space-y-1.5">
           <Label>{t.source}</Label>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {(["trending", "latest", "pinned", "selected"] as const).map((s) => (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {(["trending", "latest", "pinned", "selected", "mixed"] as const).map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => set("source", s)}
-                className={`rounded-[5px] border px-3 py-2 text-sm transition ${
-                  cfg.source === s
+                className={`rounded-[5px] border px-3 py-2 text-xs transition ${
+                  currentSource === s
                     ? "border-brand bg-brand/10 text-brand font-medium"
                     : "border-border hover:bg-muted"
                 }`}
@@ -247,6 +464,7 @@ export function TrendingTickerPane() {
           </div>
         </div>
 
+        {/* Mode */}
         <div className="space-y-1.5">
           <Label>{t.mode}</Label>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
@@ -255,8 +473,8 @@ export function TrendingTickerPane() {
                 key={m}
                 type="button"
                 onClick={() => set("mode", m)}
-                className={`rounded-[5px] border px-3 py-2 text-sm transition ${
-                  cfg.mode === m
+                className={`rounded-[5px] border px-3 py-2 text-xs transition ${
+                  currentMode === m
                     ? "border-brand bg-brand/10 text-brand font-medium"
                     : "border-border hover:bg-muted"
                 }`}
@@ -267,8 +485,31 @@ export function TrendingTickerPane() {
           </div>
         </div>
 
+        {/* Icon animation */}
+        <div className="space-y-1.5">
+          <Label>{t.icon}</Label>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {ICON_OPTIONS.map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => set("iconAnimation", a)}
+                className={`rounded-[5px] border px-3 py-2 text-xs transition ${
+                  (cfg.iconAnimation ?? "flicker") === a
+                    ? "border-brand bg-brand/10 text-brand font-medium"
+                    : "border-border hover:bg-muted"
+                }`}
+              >
+                {t[`icon_${a}` as const]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Numerics */}
         <div className="grid grid-cols-2 gap-4">
-          {cfg.source === "trending" && (
+          {(currentSource === "trending" ||
+            currentSource === "mixed") && (
             <div className="space-y-1.5">
               <Label htmlFor="tt-days">{t.days}</Label>
               <Input
@@ -276,12 +517,12 @@ export function TrendingTickerPane() {
                 type="number"
                 min={1}
                 max={90}
-                value={cfg.days}
+                value={cfg.days ?? 7}
                 onChange={(e) => set("days", Math.max(1, Number(e.target.value) || 1))}
               />
             </div>
           )}
-          {cfg.source !== "pinned" && cfg.source !== "selected" && (
+          {currentSource !== "pinned" && currentSource !== "selected" && (
             <div className="space-y-1.5">
               <Label htmlFor="tt-limit">{t.limit}</Label>
               <Input
@@ -289,12 +530,12 @@ export function TrendingTickerPane() {
                 type="number"
                 min={1}
                 max={30}
-                value={cfg.limit}
+                value={cfg.limit ?? 8}
                 onChange={(e) => set("limit", Math.max(1, Number(e.target.value) || 1))}
               />
             </div>
           )}
-          {cfg.mode !== "scroll" && (
+          {currentMode !== "scroll" && (
             <>
               <div className="space-y-1.5">
                 <Label htmlFor="tt-visible">{t.visibleCount}</Label>
@@ -303,7 +544,7 @@ export function TrendingTickerPane() {
                   type="number"
                   min={1}
                   max={5}
-                  value={cfg.visibleCount}
+                  value={cfg.visibleCount ?? 1}
                   onChange={(e) =>
                     set("visibleCount", Math.max(1, Math.min(5, Number(e.target.value) || 1)))
                   }
@@ -316,23 +557,46 @@ export function TrendingTickerPane() {
                   type="number"
                   min={2}
                   max={120}
-                  value={cfg.intervalSec}
+                  value={cfg.intervalSec ?? 6}
                   onChange={(e) => set("intervalSec", Math.max(2, Number(e.target.value) || 2))}
                 />
               </div>
             </>
-        )}
+          )}
         </div>
 
+        {/* Mixed fill */}
+        {currentSource === "mixed" && (
+          <div className="space-y-1.5">
+            <Label>{t.mixedFill}</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {(["trending", "latest"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => set("mixedFill", f)}
+                  className={`rounded-[5px] border px-3 py-2 text-xs transition ${
+                    (cfg.mixedFill ?? "trending") === f
+                      ? "border-brand bg-brand/10 text-brand font-medium"
+                      : "border-border hover:bg-muted"
+                  }`}
+                >
+                  {t[`mixedFill_${f}` as const]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
-        {cfg.source === "pinned" && (
+        {/* Pinned selection */}
+        {(currentSource === "pinned" || currentSource === "mixed") && (
           <div className="space-y-3 rounded-[5px] border border-dashed border-border p-3">
             <div className="space-y-1.5">
               <Label htmlFor="tt-pick">{t.pickPost}</Label>
               <select
                 id="tt-pick"
-                value={cfg.pinnedPostId}
-                onChange={(e) => set("pinnedPostId", e.target.value)}
+                value={cfg.pinnedPostId ?? ""}
+                onChange={(e) => set("pinnedPostId", e.target.value || undefined)}
                 className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="">-</option>
@@ -347,35 +611,38 @@ export function TrendingTickerPane() {
               <Label htmlFor="tt-pid">{t.pinnedId}</Label>
               <Input
                 id="tt-pid"
-                value={cfg.pinnedPostId}
-                onChange={(e) => set("pinnedPostId", e.target.value.trim())}
+                value={cfg.pinnedPostId ?? ""}
+                onChange={(e) => set("pinnedPostId", e.target.value.trim() || undefined)}
                 placeholder="00000000-0000-0000-0000-000000000000"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="tt-until">{t.pinnedUntil}</Label>
-              <Input
-                id="tt-until"
-                type="datetime-local"
-                value={cfg.pinnedUntil}
-                onChange={(e) => set("pinnedUntil", e.target.value)}
-              />
-            </div>
+            {currentSource === "pinned" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="tt-until">{t.pinnedUntil}</Label>
+                <Input
+                  id="tt-until"
+                  type="datetime-local"
+                  value={cfg.pinnedUntil ?? ""}
+                  onChange={(e) => set("pinnedUntil", e.target.value || null)}
+                />
+              </div>
+            )}
           </div>
         )}
 
-        {cfg.source === "selected" && (
+        {/* Selected / mixed selected list */}
+        {(currentSource === "selected" || currentSource === "mixed") && (
           <div className="space-y-3 rounded-[5px] border border-dashed border-border p-3">
             <div>
               <p className="font-medium text-sm">{t.selectedTitle}</p>
               <p className="text-xs text-muted-foreground">{t.selectedHint}</p>
             </div>
 
-            {cfg.selectedPostIds.length === 0 ? (
+            {selectedIds.length === 0 ? (
               <p className="text-xs text-muted-foreground italic">{t.selectedEmpty}</p>
             ) : (
               <ul className="space-y-1.5">
-                {cfg.selectedPostIds.map((id, i) => (
+                {selectedIds.map((id, i) => (
                   <li
                     key={id}
                     className="flex items-center gap-2 rounded-[5px] border border-border bg-background px-2 py-1.5 text-sm"
@@ -396,7 +663,7 @@ export function TrendingTickerPane() {
                     <button
                       type="button"
                       onClick={() => moveSelected(id, 1)}
-                      disabled={i === cfg.selectedPostIds.length - 1}
+                      disabled={i === selectedIds.length - 1}
                       className="px-1.5 py-0.5 rounded border border-border text-xs hover:bg-muted disabled:opacity-30"
                       aria-label="Down"
                     >
@@ -419,17 +686,17 @@ export function TrendingTickerPane() {
               <select
                 id="tt-add"
                 value=""
-                disabled={cfg.selectedPostIds.length >= MAX_SELECTED}
+                disabled={selectedIds.length >= MAX_SELECTED}
                 onChange={(e) => {
                   if (e.target.value) toggleSelected(e.target.value);
                 }}
                 className="w-full rounded-[5px] border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
               >
                 <option value="">
-                  {cfg.selectedPostIds.length >= MAX_SELECTED ? "-" : t.pickPost}
+                  {selectedIds.length >= MAX_SELECTED ? "-" : t.pickPost}
                 </option>
                 {posts
-                  ?.filter((p) => !cfg.selectedPostIds.includes(p.id))
+                  ?.filter((p) => !selectedIds.includes(p.id))
                   .map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.title}
@@ -440,6 +707,29 @@ export function TrendingTickerPane() {
           </div>
         )}
 
+        {/* Colors */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>{t.colors}</Label>
+            <Button type="button" size="sm" variant="ghost" onClick={resetColors}>
+              {t.resetColors}
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <ColorGroup
+              title={t.colorsLight}
+              labels={t}
+              values={cfg.colors?.light ?? DEFAULT_LIGHT_COLORS}
+              onChange={(k, v) => setColor("light", k, v)}
+            />
+            <ColorGroup
+              title={t.colorsDark}
+              labels={t}
+              values={cfg.colors?.dark ?? DEFAULT_DARK_COLORS}
+              onChange={(k, v) => setColor("dark", k, v)}
+            />
+          </div>
+        </div>
 
         <div className="flex items-center justify-between pt-1">
           <Label htmlFor="tt-full" className="font-medium">
@@ -447,38 +737,126 @@ export function TrendingTickerPane() {
           </Label>
           <Switch
             id="tt-full"
-            checked={cfg.fullWidth}
+            checked={cfg.fullWidth ?? true}
             onCheckedChange={(v) => set("fullWidth", v)}
           />
         </div>
       </div>
 
-      {cfg.enabled && (
+      {(cfg.enabled ?? true) && (
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">{t.preview}</p>
           <div className="rounded-[5px] border border-border overflow-hidden">
             <TrendingTicker
               key={previewKey}
-              source={cfg.source}
-              mode={cfg.mode}
-              days={cfg.days}
-              limit={cfg.limit}
-              visibleCount={cfg.visibleCount}
-              intervalSec={cfg.intervalSec}
+              variantId={activeVariant.id}
+              source={cfg.source ?? "trending"}
+              mode={cfg.mode ?? "scroll"}
+              days={cfg.days ?? 7}
+              limit={cfg.limit ?? 8}
+              visibleCount={cfg.visibleCount ?? 1}
+              intervalSec={cfg.intervalSec ?? 6}
               pinnedPostId={cfg.pinnedPostId || undefined}
               pinnedUntil={cfg.pinnedUntil || null}
               selectedPostIds={cfg.selectedPostIds}
-              fullWidth={cfg.fullWidth}
+              mixedFill={cfg.mixedFill}
+              labelPl={cfg.labelPl}
+              labelEn={cfg.labelEn}
+              iconAnimation={cfg.iconAnimation}
+              colors={cfg.colors}
+              fullWidth={cfg.fullWidth ?? true}
             />
           </div>
         </div>
       )}
 
       <div className="flex justify-end">
-        <Button onClick={() => save.mutate(cfg)} disabled={save.isPending}>
+        <Button onClick={() => save.mutate(settings)} disabled={save.isPending}>
           <Save className="w-4 h-4 mr-2" /> {save.isPending ? "..." : t.save}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function cloneColors(c: TickerColorScheme): TickerColorScheme {
+  return {
+    light: { ...c.light },
+    dark: { ...c.dark },
+  };
+}
+
+function ColorGroup({
+  title,
+  labels,
+  values,
+  onChange,
+}: {
+  title: string;
+  labels: (typeof COPY)["pl"];
+  values: TickerColors;
+  onChange: (k: keyof TickerColors, v: string) => void;
+}) {
+  const labelMap: Record<keyof TickerColors, string> = {
+    bg: labels.color_bg,
+    border: labels.color_border,
+    label: labels.color_label,
+    item: labels.color_item,
+    itemHover: labels.color_itemHover,
+    counter: labels.color_counter,
+  };
+  return (
+    <div className="rounded-[5px] border border-border p-3 space-y-2 bg-background/40">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </p>
+      <div className="space-y-1.5">
+        {COLOR_KEYS.map((k) => (
+          <ColorField
+            key={k}
+            id={`tt-color-${title}-${k}`}
+            label={labelMap[k]}
+            value={values[k]}
+            onChange={(v) => onChange(k, v)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ColorField({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  // If it's a valid hex, drive the native color input; otherwise, keep it as
+  // a token string and expose only the text input.
+  const isHex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value);
+  return (
+    <div className="grid grid-cols-[1fr_auto_2.5rem] gap-2 items-center">
+      <Label htmlFor={id} className="text-xs">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 text-xs font-mono"
+      />
+      <input
+        type="color"
+        aria-label={label}
+        value={isHex ? value : "#000000"}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 w-full rounded border border-border cursor-pointer bg-transparent"
+      />
     </div>
   );
 }
