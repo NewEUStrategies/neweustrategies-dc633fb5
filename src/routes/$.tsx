@@ -514,10 +514,18 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             excerpt={excerpt}
             coverImageUrl={it.cover_image_url}
             meta={
-              <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-                {post.read_minutes ? <span>{post.read_minutes} min</span> : null}
-                <CustomMetaList defs={customMetaDefs} values={post.custom_meta} lang={lang} />
-              </span>
+              <PostOverlayMeta
+                lang={lang}
+                author={postAuthor}
+                publishedAt={it.published_at}
+                readMinutes={post.read_minutes}
+                customMeta={
+                  <CustomMetaList defs={customMetaDefs} values={post.custom_meta} lang={lang} />
+                }
+              />
+            }
+            categoryBadges={
+              postCategories.length > 0 ? <CategoryBadges items={postCategories} lang={lang} /> : null
             }
             content={
               <>
