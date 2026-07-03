@@ -124,8 +124,9 @@ export function ImageWidget({
   const imgCls = isFramed
     ? `absolute inset-0 block h-full w-full ${variantCls}`
     : `block max-w-full h-auto ${variantCls}`;
+  const isLogo = wantsSiteLogo;
   const hoverEffect: import("@/components/atoms/OptimizedImage").HoverEffect =
-    variant === "zoom-hover" ? "none" : "zoom";
+    isLogo || variant === "zoom-hover" ? "none" : "zoom";
   const applyLogoFallback = (event: SyntheticEvent<HTMLImageElement>) => {
     if (!wantsSiteLogo) return;
     const img = event.currentTarget;
@@ -144,6 +145,7 @@ export function ImageWidget({
         style={fgImgStyle}
         onError={applyLogoFallback}
         hoverEffect={hoverEffect}
+        fadeIn={!isLogo}
       />
       <OptimizedImage
         src={darkSrc}
@@ -154,6 +156,7 @@ export function ImageWidget({
         style={fgImgStyle}
         onError={applyLogoFallback}
         hoverEffect={hoverEffect}
+        fadeIn={!isLogo}
       />
     </>
   ) : isFramed ? (
@@ -164,9 +167,10 @@ export function ImageWidget({
       sizes="(max-width: 767px) 100vw, 50vw"
       className={`${imgCls} widget-media-fg`}
       style={fgImgStyle}
-      onError={applyLogoFallback}
-      hoverEffect={hoverEffect}
-    />
+        onError={applyLogoFallback}
+        hoverEffect={hoverEffect}
+        fadeIn={!isLogo}
+      />
   ) : (
     <OptimizedImage
       src={theme === "dark" ? darkSrc : lightSrc}
@@ -175,9 +179,10 @@ export function ImageWidget({
       sizes="(max-width: 767px) 100vw, 50vw"
       className={imgCls}
       style={imgStyle}
-      onError={applyLogoFallback}
-      hoverEffect={hoverEffect}
-    />
+        onError={applyLogoFallback}
+        hoverEffect={hoverEffect}
+        fadeIn={!isLogo}
+      />
   );
   const framedImgEl = isFramed ? (
     <span
