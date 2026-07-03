@@ -70,26 +70,30 @@ export function buildHomepageDocument(): BuilderDocument {
       // 2) Hero 3-col [3 | 6 | 3]
       section(
         [
-          column(3, [
-            widget("section-label", {
-              label_pl: "Najnowszy raport",
-              label_en: "Latest report",
-              color: "military",
-              variant: "left-bar",
-              action_pl: "Więcej",
-              action_en: "More",
-            }),
-            widget("post-list", { limit: 1, columns: 1, variant: "card" }),
-            widget("section-label", {
-              label_pl: "Nadchodzące wydarzenia",
-              label_en: "Upcoming events",
-              color: "brand",
-              variant: "left-bar",
-              action_pl: "Więcej",
-              action_en: "More",
-            }),
-            widget("post-list", { limit: 2, columns: 1, variant: "list" }),
-          ]),
+          column(
+            3,
+            [
+              widget("section-label", {
+                label_pl: "Najnowszy raport",
+                label_en: "Latest report",
+                color: "military",
+                variant: "left-bar",
+                action_pl: "Więcej",
+                action_en: "More",
+              }),
+              widget("post-list", { limit: 1, columns: 1, variant: "card" }),
+              widget("section-label", {
+                label_pl: "Nadchodzące wydarzenia",
+                label_en: "Upcoming events",
+                color: "brand",
+                variant: "left-bar",
+                action_pl: "Więcej",
+                action_en: "More",
+              }),
+              widget("post-list", { limit: 2, columns: 1, variant: "list" }),
+            ],
+            { order: { mobile: 2 } },
+          ),
           column(6, [
             widget("slider", {
               source: "posts",
