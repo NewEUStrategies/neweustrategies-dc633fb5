@@ -176,9 +176,21 @@ export const submitContactMessage = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    // Service-role INSERT bypasses RLS and its column DEFAULT resolves to the
+    // DEFAULT tenant (no request headers on the admin client), so the message
+    // - sender PII included - must be pinned explicitly to the tenant owning
+    // the browsed host or it lands in another tenant's inbox.
+    const [{ resolveTenantIdForHost }, { currentTenantHost }] = await Promise.all([
+      import("@/lib/server/tenant.server"),
+      import("@/lib/http/requestHost"),
+    ]);
+    const hostTenantId = await resolveTenantIdForHost(await currentTenantHost());
+    if (!hostTenantId) throw new Error("tenant unresolved");
+
     const { data: inserted, error } = await supabaseAdmin
       .from("contact_messages")
       .insert({
+        tenant_id: hostTenantId,
         name: data.name,
         email: data.email,
         phone: data.phone ?? null,

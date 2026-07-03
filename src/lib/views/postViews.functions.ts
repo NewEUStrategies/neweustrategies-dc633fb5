@@ -8,14 +8,17 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
+import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
+// Anon client running UNDER RLS. fetchWithTenantHost forwards the request
+// host, so public_tenant_id() (and with it trending_posts + the "Public reads
+// published posts" policy) resolves the tenant of the site being browsed.
 function client() {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { storage: undefined, persistSession: false, autoRefreshToken: false } },
-  );
+  return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
+    auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+    global: { fetch: fetchWithTenantHost },
+  });
 }
 
 const recordSchema = z.object({
@@ -76,7 +79,8 @@ function postHref(paths: Map<string, string>, parentPageId: string | null | unde
 
 // Anonymous, tenant-wide lists: keep them warm per isolate so repeat SSR
 // renders (and the client HTTP calls hitting this server fn) skip Supabase
-// entirely inside the TTL window.
+// entirely inside the TTL window. edgeTtlCache scopes every entry by the
+// request host, so tenants never share a warm entry.
 const TICKER_TTL_MS = 60_000;
 
 const trendingSchema = z.object({

@@ -133,19 +133,24 @@ const redirectMiddleware = createMiddleware().server(async ({ request, next }) =
 
   // Dynamic imports keep the Supabase service-role client strictly out of the
   // client bundle (module instances are cached after the first request).
-  const [{ recordRedirectHit, recordSeo404, resolveRedirect }, { resolveTenantIdForHost }] =
-    await Promise.all([
-      import("@/lib/server/redirects.server"),
-      import("@/lib/server/tenant.server"),
-    ]);
+  const [
+    { recordRedirectHit, recordSeo404, resolveRedirect },
+    { resolveCrawlerTenantIdForHost },
+    { requestPublicHost },
+  ] = await Promise.all([
+    import("@/lib/server/redirects.server"),
+    import("@/lib/server/tenant.server"),
+    import("@/lib/http/requestHost"),
+  ]);
 
   // Rules are tenant-scoped: resolve the tenant owning this host first, so a
   // rule created by one tenant's staff can never capture another tenant's
-  // traffic. Unresolvable tenant (empty/unavailable directory) -> no redirect
-  // handling, plain pass-through.
+  // traffic. FAIL-CLOSED resolution: an unknown (unclaimed) host gets neither
+  // the default tenant's redirect rules nor 404 logging - plain pass-through.
+  // Same for an empty/unavailable directory.
   let tenantId: string | null = null;
   try {
-    tenantId = await resolveTenantIdForHost(request.headers.get("host"));
+    tenantId = await resolveCrawlerTenantIdForHost(requestPublicHost(request));
   } catch (e) {
     console.warn("[redirects] tenant resolution failed:", e);
   }

@@ -4,6 +4,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requestPublicHost } from "@/lib/http/requestHost";
 import {
   DEFAULT_LANG,
   SUPPORTED_LANGS,
@@ -56,7 +57,7 @@ export function alternateLinks(loc: string): string[] {
 function requestContext(): { origin: string; host: string } {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
-  const host = req.headers.get("host") ?? "";
+  const host = requestPublicHost(req) ?? "";
   return { origin: host ? `${proto}://${host}` : "", host };
 }
 
@@ -90,6 +91,16 @@ export const Route = createFileRoute("/sitemap.xml")({
     handlers: {
       GET: async () => {
         const { origin, host } = requestContext();
+
+        // FAIL-CLOSED: a host no tenant has claimed (and that is not a
+        // preview host) must not advertise anyone's URLs - answer 404 rather
+        // than map the default tenant's content onto a foreign domain.
+        const { resolveCrawlerTenantIdForHost } = await import("@/lib/server/tenant.server");
+        const tenantId = await resolveCrawlerTenantIdForHost(host);
+        if (!tenantId) {
+          return new Response("Unknown host", { status: 404 });
+        }
+
         const entries: SitemapEntry[] = [
           { loc: `${origin}/`, changefreq: "daily", priority: "1.0" },
           { loc: `${origin}/blog`, changefreq: "daily", priority: "0.8" },
@@ -99,9 +110,6 @@ export const Route = createFileRoute("/sitemap.xml")({
         // Crawler surfaces degrade, never 500: on a DB failure the sitemap
         // still serves the static entries instead of poisoning the crawl.
         try {
-          const { resolveTenantIdForHost } = await import("@/lib/server/tenant.server");
-          const tenantId = await resolveTenantIdForHost(host);
-          if (!tenantId) throw new Error("tenant unresolved - static entries only");
           const { paths: pagePaths, noindex: noindexPages } = await buildPagePaths(tenantId);
           for (const [id, path] of pagePaths) {
             // Pages marked noindex are excluded - a sitemap must not advertise

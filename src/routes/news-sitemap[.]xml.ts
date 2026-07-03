@@ -5,16 +5,17 @@
 // sitemap. Short cache: freshness is the whole point of this surface.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
+import { requestPublicHost } from "@/lib/http/requestHost";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { buildNewsSitemapXml, type NewsSitemapEntry } from "@/lib/seo/newsSitemap";
 import { effectiveNewsPublicationName, parseSeoSettings } from "@/lib/seo/settings";
 import { fetchPublishedPosts, fetchSeoSettingsValue } from "@/lib/server/publishedContent.server";
-import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
+import { resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
 function requestContext(): { origin: string; host: string } {
   const req = getRequest();
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
-  const host = req.headers.get("host") ?? "";
+  const host = requestPublicHost(req) ?? "";
   return { origin: host ? `${proto}://${host}` : "", host };
 }
 
@@ -24,16 +25,20 @@ export const Route = createFileRoute("/news-sitemap.xml")({
       GET: async () => {
         const { origin, host } = requestContext();
         // Service-role reads below bypass RLS - scope them to the host's
-        // tenant. Unresolvable tenant -> empty sitemap shell (crawler surfaces
-        // never 500 and never serve unscoped data).
-        const tenantId = await resolveTenantIdForHost(host);
-        const settings = parseSeoSettings(tenantId ? await fetchSeoSettingsValue(tenantId) : null);
+        // tenant. FAIL-CLOSED: a host no tenant has claimed (and that is not
+        // a preview host) gets a 404 instead of the default tenant's articles
+        // on a foreign domain.
+        const tenantId = await resolveCrawlerTenantIdForHost(host);
+        if (!tenantId) {
+          return new Response("Unknown host", { status: 404 });
+        }
+        const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
         if (!settings.news_sitemap_enabled) {
           return new Response("News sitemap disabled", { status: 404 });
         }
 
         // 200 recent posts comfortably covers any 48h publishing window.
-        const posts = tenantId ? await fetchPublishedPosts(tenantId, 200) : [];
+        const posts = await fetchPublishedPosts(tenantId, 200);
         const entries: NewsSitemapEntry[] = [];
         for (const post of posts) {
           if (!post.published_at) continue;

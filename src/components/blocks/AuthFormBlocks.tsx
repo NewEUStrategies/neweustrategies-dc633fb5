@@ -236,6 +236,9 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
             full_name: trimmed || displayName,
             newsletter_opt_in: newsletter,
             consent_accepted_at: new Date().toISOString(),
+            // Explicit reader signup - staff/tenant provisioning happens only
+            // server-side via app_metadata (see handle_new_user).
+            signup_type: "reader",
           },
         },
       });

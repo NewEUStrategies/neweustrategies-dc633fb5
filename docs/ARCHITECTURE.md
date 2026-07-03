@@ -250,3 +250,53 @@ different costs:
 Admin-only chunks are identified by emitted basename (`admin.*`, `Builder-`,
 `PostBlockEditor`, `ThemeOptionsPane`, `AdminShell`, `sidebar`, `vendor-dnd`) and
 billed to OVERALL only - keep that list in sync with `vite.config.ts` manualChunks.
+
+---
+
+## 4. Multi-tenant: the host -> tenant plane
+
+One tenant = one public site = one claimed domain (`tenants.domain`, unique,
+`www.`/apex aliased); exactly one tenant is `is_default` - the fallback for
+previews and unclaimed hosts. Three planes consume that mapping, each with its
+own failure contract:
+
+- **Anon content plane (RLS)** - every anon policy says
+  `tenant_id = public.public_tenant_id()`. Since `20260703120000` that
+  function is host-aware: it reads the `x-tenant-host` request header
+  (`public.request_public_host()`), matches `tenants.domain` and falls back to
+  the default tenant. The header is attached by every Supabase client in
+  `src/integrations/supabase/`: the browser singleton and the per-request /
+  per-call server clients all route through `tenant-host-fetch.ts`
+  (`fetchWithTenantHost`), which resolves the host via
+  `src/lib/http/requestHost.ts` (browser: `location.host`; SSR: the active
+  request). The header is client-controlled BY DESIGN - it only selects which
+  tenant's PUBLISHED content is read and where anon public INSERTs (newsletter,
+  contact) are attributed; staff/private access is pinned by
+  `current_tenant_id()` (profile-based) and ignores it. Unknown host ->
+  default tenant, so previews render (fail-open on purpose).
+- **Crawler plane (service role)** - sitemap.xml, rss.xml, news-sitemap.xml,
+  llms.txt, robots.txt and the redirect/404 middleware read with the service
+  role (RLS bypassed), so they scope queries by
+  `resolveCrawlerTenantForHost()` (`src/lib/server/tenant.server.ts`), which
+  FAILS CLOSED: unknown hosts get 404 / `Disallow: /` unless the host is a
+  local/platform preview (`isPreviewHost`, `src/lib/http/host.ts`) or no
+  tenant has claimed any domain yet (single-tenant bootstrap).
+- **SSR edge cache** - `edgeTtlCache` (`src/lib/ssrCache.ts`) transparently
+  scopes every entry by the request host, so a cache warmed for tenant A's
+  domain can never be served on tenant B's - callers cannot forget the scope
+  because they never write it.
+
+Provisioning follows the same doctrine (`handle_new_user`,
+`20260703120200`): client signups are always readers in the default tenant;
+creating a tenant + admin requires `signup_type='staff'` in
+`raw_app_meta_data`, which only the service role can write. The `tenants` row
+itself is guarded at the privilege layer (`20260703120300`): tenant admins may
+UPDATE only `name`; `slug`, `domain` and `is_default` (the routing surface)
+are service-role-only.
+
+pgTAP coverage: `supabase/tests/host_tenant_resolution_test.sql`,
+`signup_provisioning_test.sql`, `tenants_update_grants_test.sql`; TS coverage:
+`src/lib/http/__tests__/host.test.ts`,
+`src/lib/server/__tests__/tenantResolver.test.ts`,
+`src/lib/__tests__/ssrCacheHostScope.test.ts`,
+`src/integrations/supabase/__tests__/tenantHostFetch.test.ts`.
