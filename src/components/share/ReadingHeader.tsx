@@ -120,26 +120,62 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
           <ThemeToggle className="h-8 w-8 grid place-items-center" />
           <span className="hidden sm:block h-4 w-px bg-border" aria-hidden />
           <div className="hidden md:flex items-center gap-2 text-[12px] font-semibold">
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-1 text-foreground hover:text-brand transition"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              {t.login}
-            </Link>
-            <span className="text-muted-foreground/60" aria-hidden>
-              |
-            </span>
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-1 text-brand hover:opacity-80 transition"
-            >
-              <User className="w-3.5 h-3.5" />
-              {t.register}
-            </Link>
+            {isAuthed ? (
+              <>
+                <Link
+                  to="/profile"
+                  className="inline-flex items-center gap-1.5 text-foreground hover:text-brand transition"
+                  title={displayName}
+                >
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt=""
+                      className="h-6 w-6 rounded-md object-cover"
+                    />
+                  ) : (
+                    <span className="h-6 w-6 rounded-md bg-muted grid place-items-center text-[10px] font-bold text-muted-foreground">
+                      {initials}
+                    </span>
+                  )}
+                  <span className="max-w-[10rem] truncate">{displayName}</span>
+                </Link>
+                <span className="text-muted-foreground/60" aria-hidden>
+                  |
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void signOut()}
+                  className="inline-flex items-center gap-1 text-muted-foreground hover:text-brand transition"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  {t.logout}
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="inline-flex items-center gap-1 text-foreground hover:text-brand transition"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  {t.login}
+                </Link>
+                <span className="text-muted-foreground/60" aria-hidden>
+                  |
+                </span>
+                <Link
+                  to="/login"
+                  className="inline-flex items-center gap-1 text-brand hover:opacity-80 transition"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  {t.register}
+                </Link>
+              </>
+            )}
           </div>
           <span className="hidden md:block h-4 w-px bg-border" aria-hidden />
-          <LangToggle />
+          <LangSwitcherDropdown label={t.lang} />
         </div>
       </div>
     </div>
