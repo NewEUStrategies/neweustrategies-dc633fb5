@@ -304,7 +304,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
       const v = getStr(c, "indexVAlign") || "top";
       return v === "middle" || v === "bottom" ? v : "top";
     })();
-    const showExcerpt = false;
+    const showExcerpt = c.showExcerpt !== false;
     // Fall back to global Theme Design tokens when widget colors are empty.
     const lightColor = idxColor || "var(--td-li-light, rgb(35,31,32))";
     const darkColor = idxColorDark || "var(--td-li-dark, rgb(250,147,70))";
@@ -361,7 +361,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
                 </h4>
                 {showExcerpt && excerpt(p) && (
                   <p
-                    className="cms-post-excerpt hidden sm:block line-clamp-2"
+                    className="cms-post-excerpt mt-1.5 line-clamp-2"
                     style={eStyle}
                   >
                     {excerpt(p)}
