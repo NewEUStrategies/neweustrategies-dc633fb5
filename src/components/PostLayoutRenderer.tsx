@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import {
   findLayout,
   coverImageSizes,
+  effectiveHasSidebar,
   type PostFormat,
   type PostLayoutSettings,
 } from "@/lib/postLayouts";
