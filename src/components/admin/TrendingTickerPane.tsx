@@ -12,6 +12,7 @@ import { Save, Plus, Copy, Trash2, Check } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
+import { publishTickerDraft, clearTickerDraft } from "@/lib/views/tickerDraftBridge";
 import {
   DEFAULT_LIGHT_COLORS,
   DEFAULT_DARK_COLORS,
@@ -232,6 +233,13 @@ export function TrendingTickerPane() {
   const activeVariant: TickerVariant =
     settings.variants.find((v) => v.id === settings.activeVariantId) ?? settings.variants[0];
   const cfg = activeVariant.config;
+
+  // Broadcast current (unsaved) config to the live site Header so edits in
+  // source, selection, order and colors reflect immediately without saving.
+  useEffect(() => {
+    publishTickerDraft(cfg);
+    return () => clearTickerDraft();
+  }, [cfg]);
 
   const save = useMutation({
     mutationFn: async (next: TickerSettings) => {

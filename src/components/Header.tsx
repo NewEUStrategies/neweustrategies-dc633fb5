@@ -8,6 +8,7 @@ import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "@/lib/views/tickerVariants";
+import { useTickerDraft } from "@/lib/views/tickerDraftBridge";
 import { AlertBar } from "@/components/AlertBar";
 import { AdZone } from "@/components/AdSlot";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
@@ -47,7 +48,8 @@ function HeaderInner() {
   const cfg = resolveSetting<HeaderSettings>(settingsMap, "header", {});
   const general = resolveSetting<GeneralSettings>(settingsMap, "general", {});
   const theme = resolveSetting<ThemeLogoCfg>(settingsMap, "theme_options", {});
-  const trending = resolveActiveTickerConfig(cfg.trending);
+  const draft = useTickerDraft();
+  const trending = draft ?? resolveActiveTickerConfig(cfg.trending);
   const siteName = (general.site_name && general.site_name.trim()) || "Menu";
   const { theme: mode } = useTheme();
   const isDark = mode === "dark";
