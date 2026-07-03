@@ -86,8 +86,13 @@ export const PLACEHOLDER_POST_CTX: CurrentPostCtx = {
   author: {
     name: "Jan Kowalski",
     slug: "jan-kowalski",
-    bio_pl: "Redaktor naczelny.",
-    bio_en: "Editor in chief.",
+    bio_pl: "Redaktor naczelny. Pisze o Europie, gospodarce i społeczeństwie od 15 lat.",
+    bio_en: "Editor in chief. Covers Europe, economy and society for the last 15 years.",
+    jobTitle: "Redaktor naczelny",
+    contactEmail: "jan.kowalski@example.com",
+    twitterUrl: "https://twitter.com/example",
+    linkedinUrl: "https://linkedin.com/in/example",
+    websiteUrl: "https://example.com",
   },
   categories: [{ slug: "wiadomosci", name: "Wiadomości" }],
   tags: [
