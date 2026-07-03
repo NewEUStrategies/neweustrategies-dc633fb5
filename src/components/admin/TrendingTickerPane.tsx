@@ -14,7 +14,7 @@ import { TrendingTicker } from "@/components/header/TrendingTicker";
 
 type Json = Record<string, unknown>;
 type Source = "trending" | "latest" | "pinned";
-type Mode = "scroll" | "rotate";
+type Mode = "scroll" | "fade" | "slide" | "flip" | "typewriter";
 
 interface TrendingCfg {
   enabled: boolean;
@@ -22,6 +22,7 @@ interface TrendingCfg {
   mode: Mode;
   days: number;
   limit: number;
+  visibleCount: number;
   intervalSec: number;
   pinnedPostId: string;
   pinnedUntil: string;
@@ -34,6 +35,7 @@ const DEFAULTS: TrendingCfg = {
   mode: "scroll",
   days: 7,
   limit: 8,
+  visibleCount: 1,
   intervalSec: 6,
   pinnedPostId: "",
   pinnedUntil: "",
