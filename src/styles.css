@@ -1700,7 +1700,23 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   [data-builder-renderer] [data-col-id] > .flex-1 {
     flex: 0 0 auto !important;
   }
+  /* Widget items in a column must NOT claim 100% of column height on mobile -
+     desktop uses flex-basis:100% + height:100% to make a hero widget fill
+     the column, which on a narrow mobile column stretches every widget to
+     the tallest sibling and creates huge empty gaps. */
+  [data-builder-renderer] [data-col-id] > [data-widget-id] {
+    flex: 0 0 auto !important;
+    flex-basis: auto !important;
+    align-self: stretch !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+  [data-builder-renderer] [data-col-id] > [data-widget-id] > * {
+    height: auto !important;
+    min-height: 0 !important;
+  }
 }
+
 
 @media (min-width: 768px) and (max-width: 1023px) {
   [data-builder-renderer] [data-columns-row] {
