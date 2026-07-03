@@ -146,12 +146,13 @@ function UserDetail() {
         <div className="p-5 md:p-6 flex flex-col md:flex-row md:items-end gap-4 md:gap-6 -mt-12 md:-mt-16">
           <AvatarEditor
             userId={data.id}
-            tenantHint={null}
+            tenantId={tenantId}
             avatarUrl={data.avatar_url}
             canEdit={isSuperAdmin}
             onUpdated={() => qc.invalidateQueries({ queryKey: ["admin-user", id] })}
             label={L("Zmień zdjęcie", "Change photo")}
           />
+
 
           <div className="flex-1 min-w-0">
             <h1 className="font-display text-2xl md:text-3xl font-bold truncate">{fullName}</h1>
