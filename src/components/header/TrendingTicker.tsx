@@ -32,6 +32,7 @@ export interface TickerProps {
   intervalSec?: number;
   pinnedPostId?: string;
   pinnedUntil?: string | null;
+  selectedPostIds?: string[];
   fullWidth?: boolean;
   className?: string;
 }
@@ -50,6 +51,7 @@ export function TrendingTicker({
   intervalSec = 6,
   pinnedPostId,
   pinnedUntil,
+  selectedPostIds,
   fullWidth = true,
   className,
 }: TickerProps) {
@@ -58,7 +60,7 @@ export function TrendingTicker({
   const kind = normalizeMode(mode);
 
   const { data, isLoading } = useQuery(
-    headerTickerQueryOptions({ source, days, limit, pinnedPostId, pinnedUntil }),
+    headerTickerQueryOptions({ source, days, limit, pinnedPostId, pinnedUntil, selectedPostIds }),
   );
 
   const posts = data ?? [];
