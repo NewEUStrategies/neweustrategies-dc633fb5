@@ -493,26 +493,8 @@ export function TrendingTickerPane() {
           </div>
         </div>
 
-        {/* Icon animation */}
-        <div className="space-y-1.5">
-          <Label>{t.icon}</Label>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {ICON_OPTIONS.map((a) => (
-              <button
-                key={a}
-                type="button"
-                onClick={() => set("iconAnimation", a)}
-                className={`rounded-[5px] border px-3 py-2 text-xs transition ${
-                  (cfg.iconAnimation ?? "flicker") === a
-                    ? "border-brand bg-brand/10 text-brand font-medium"
-                    : "border-border hover:bg-muted"
-                }`}
-              >
-                {t[`icon_${a}` as const]}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Icon animation removed - flame stays static. */}
+
 
         {/* Numerics */}
         <div className="grid grid-cols-2 gap-4">
