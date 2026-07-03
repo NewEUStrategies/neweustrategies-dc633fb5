@@ -400,9 +400,12 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
      dwarfs the title or overflows the row on mobile / tablet. Keeps the
      authored --pl-num-fs as the desktop maximum. */
   font-size: clamp(28px, calc(var(--pl-num-fs, 52px) * 0.55 + 1.6vw), var(--pl-num-fs, 52px)) !important;
-  line-height: 0.82 !important;
+  /* Keep the glyph inside its own box so `overflow-hidden` wrappers on
+     mobile cards never crop the ascender ("01" / "02" showing only their
+     bottom halves). Slightly airier than 0.82 but still tight enough. */
+  line-height: 0.95 !important;
   letter-spacing: 0;
-  transform: translate(-0.08em, -50%);
+  transform: translate(-0.02em, -50%);
 }
 
 .dark .post-list-numbered-index.post-list-numbered-index.post-list-numbered-index {
