@@ -349,6 +349,7 @@ export function TrendingTickerPane() {
               mode={cfg.mode}
               days={cfg.days}
               limit={cfg.limit}
+              visibleCount={cfg.visibleCount}
               intervalSec={cfg.intervalSec}
               pinnedPostId={cfg.pinnedPostId || undefined}
               pinnedUntil={cfg.pinnedUntil || null}
