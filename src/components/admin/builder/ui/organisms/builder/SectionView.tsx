@@ -232,13 +232,14 @@ export function SectionView(p: SectionViewProps) {
           {children.map((child) => {
             const span = child.kind === "column" ? resolveSpan(child.span, p.device, 12) : 12;
             const gridColumn = p.device === "mobile" ? "1 / -1" : `span ${span}`;
+            const order = child.kind === "column" ? resolveOrder(child.order, p.device) : undefined;
             const sectionToolbar = isToolbarTag(p.section.layout?.htmlTag);
             if (child.kind === "inner-section") {
               return (
                 <div
                   key={child.id}
                   className="min-w-0 max-w-full overflow-hidden"
-                  style={{ gridColumn }}
+                  style={{ gridColumn, ...(order !== undefined ? { order } : {}) }}
                 >
                   <InnerSectionView
                     inner={child}
