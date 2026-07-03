@@ -300,15 +300,16 @@ function EditPost() {
       // przejście na slug wpisany w formularzu załadowałoby CUDZY wpis,
       // który go posiada ("podmiana" edytowanego posta).
       const canonicalSlug = result?.slug ?? snapshot.slug;
-      qc.invalidateQueries({ queryKey: ["admin-posts"] });
-      qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, routeSlug] });
-      qc.invalidateQueries({ queryKey: ["post-by-slug", tenantId, canonicalSlug] });
-      // Refresh every widget cache that references posts (live sync across the site).
-      invalidateWidgetCaches(qc);
-      emitWidgetCacheInvalidate();
-      // Odswiez publiczne surface'y SEO (mapa strony HTML, dashboard /admin/seo);
-      // sitemap.xml + llms.txt są serwerowe i mają wlasny SWR.
-      invalidateSeoCaches(qc, router);
+      // WAZNE: autosave nie moze przebudowywac calego swiata przy kazdym
+      // debounced zapisie - to powodowalo "auto-refresh" edytora (loadery
+      // route'a znow pobieraly wiersz posta, cache widgetow leciał, a
+      // router.invalidate() re-renderowal cala trase). Tutaj robimy WYLACZNIE
+      // to co niezbedne dla poprawnosci UI: uaktualnienie listy w tle
+      // (nastepna wizyta /admin/posts) i sygnal statusu. Cieze inwalidacje
+      // (widget cache, SEO cache, router.invalidate) sa uruchamiane dopiero
+      // przez explicit "Publikuj/Zapisz i wyjdz" lub przy odmontowaniu edytora.
+      void qc.invalidateQueries({ queryKey: ["admin-posts"], refetchType: "none" });
+
       if (canonicalSlug !== snapshot.slug) {
         // Kolizja nie może być cicha: pokaz stan błędu/ostrzeżenia i zsynchronizuj
         // pole formularza z tym, co realnie trafiło do bazy.
