@@ -148,6 +148,15 @@
   }
 }
 
+/* Overlay meta card: wyłączone efekty hover (brak zmiany koloru, opacity, underline). */
+.overlay-meta-card a,
+.overlay-meta-card a:hover,
+.overlay-meta-card a:focus {
+  text-decoration: none !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
 /* Block editor — wszystkie pola wejściowe wewnątrz kanwy są płaskie i przejrzyste,
    żeby nagłówki / listy / akapity wyglądały jednolicie jak tekst w obrębie wpisu. */
 .block-canvas :is(input, textarea, [contenteditable="true"]) {

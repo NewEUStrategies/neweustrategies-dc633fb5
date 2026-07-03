@@ -68,7 +68,7 @@ export function PostLayoutRenderer({
   // Wspólna meta-karta w stylu overlay – używana we wszystkich wariantach layoutu z cover photo.
   const overlayMetaCard = (
     <div className="absolute inset-x-0 bottom-0 flex justify-center px-4 lg:px-6">
-      <div className={`w-full lg:max-w-3xl bg-[#0b0b0d] text-white rounded-t-sm shadow-2xl ${center ? "text-center" : ""}`}>
+      <div className={`w-full lg:max-w-3xl bg-[#0b0b0d] text-white rounded-t-sm shadow-2xl ${center ? "text-center" : ""} overlay-meta-card`}>
         <div className="px-5 lg:px-8 pt-5 pb-5">
           {categoryBadges && (
             <div className={`mb-3 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
