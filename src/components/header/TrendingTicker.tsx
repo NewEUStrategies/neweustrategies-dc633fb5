@@ -91,15 +91,6 @@ export function TrendingTicker({
         <span className="inline-flex items-center gap-1.5 text-[12px] leading-none font-bold uppercase tracking-[0.14em] text-brand shrink-0 whitespace-nowrap">
           <Flame className="w-4 h-4 shrink-0" aria-hidden />
           <span className="leading-none">{label}</span>
-          {kind !== "scroll" && (
-            <span
-              className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-brand-foreground text-[10px] font-bold tabular-nums"
-              aria-label={lang === "en" ? `${perView} visible` : `${perView} widoczne`}
-              title={lang === "en" ? `${perView} on bar` : `${perView} na pasku`}
-            >
-              {perView}
-            </span>
-          )}
         </span>
         <span className="hidden sm:block h-4 w-px bg-border shrink-0" aria-hidden />
         <div
