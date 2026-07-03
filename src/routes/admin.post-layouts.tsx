@@ -52,7 +52,7 @@ function Page() {
     hint,
   }: {
     value: string;
-    onChange: (id: string) => void;
+    onChange: (id: string, extra?: Partial<PostLayoutSettings>) => void;
     presets: LayoutPreset[];
     title: string;
     hint?: string;
