@@ -128,39 +128,55 @@ export function PostLayoutRenderer({
       <>
         <ReadingHeader title={title} />
         <div className={`relative ${preset.cover === "full-bleed" ? "-mx-4 lg:-mx-8" : ""}`}>
-          <div className="relative h-[60vh] rounded-lg overflow-hidden mb-8">
-            <OptimizedImage
-              src={coverImageUrl}
-              alt={title}
-              className="absolute inset-0 w-full h-full object-cover"
-              priority
-              responsive
-              sizes={coverImageSizes(preset)}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent" />
-            <div
-              className={`absolute inset-x-0 bottom-0 p-6 lg:p-10 ${center ? "text-center" : ""} text-white`}
-            >
+          <div className="relative rounded-lg overflow-hidden mb-8">
+            {/* Cover image */}
+            <div className="relative h-[52vh] min-h-[360px]">
+              <OptimizedImage
+                src={coverImageUrl}
+                alt={title}
+                className="absolute inset-0 w-full h-full object-cover"
+                priority
+                responsive
+                sizes={coverImageSizes(preset)}
+              />
+              {/* Delikatny gradient dla czytelności krawędzi obrazu */}
+              <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/70" />
+            </div>
+
+            {/* Solidne, ciemne tło pod meta-blokiem (jak w referencji Foxiz).
+                Kategorie "wystają" ponad krawędź, dając charakterystyczny akcent. */}
+            <div className={`relative bg-[#0b0b0d] text-white ${center ? "text-center" : ""}`}>
               {categoryBadges && (
                 <div
-                  className={`mb-4 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}
+                  className={`absolute -top-4 left-0 right-0 px-6 lg:px-10 flex flex-wrap gap-2 ${
+                    center ? "justify-center" : ""
+                  }`}
                 >
                   {categoryBadges}
                 </div>
               )}
-              <h1 className="font-display text-3xl lg:text-5xl mb-3">{title}</h1>
-              {excerpt && (
-                <p className="text-base lg:text-lg opacity-90 mb-3 max-w-3xl mx-auto">{excerpt}</p>
-              )}
-              {meta && (
-                <div
-                  className={`text-sm flex flex-wrap items-center gap-x-4 gap-y-1 text-white/85 ${center ? "justify-center" : ""}`}
-                >
-                  {meta}
-                </div>
-              )}
+              <div className="px-6 lg:px-10 pt-10 pb-8 lg:pt-12 lg:pb-10">
+                <h1 className="font-display text-3xl lg:text-5xl leading-tight mb-3">{title}</h1>
+                {excerpt && (
+                  <p className="text-base lg:text-lg text-white/85 mb-4 max-w-3xl mx-auto">
+                    {excerpt}
+                  </p>
+                )}
+                {meta && (
+                  <div
+                    className={`text-sm flex flex-wrap items-center gap-x-4 gap-y-1 text-white/75 pt-4 border-t border-white/10 ${
+                      center ? "justify-center" : ""
+                    }`}
+                  >
+                    {meta}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+
+
+
           <LayoutBody
             contentMaxW={contentMaxW}
             content={content}
