@@ -2155,3 +2155,9 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 .mobile-drawer-builder [data-w-id="fdc43723-7434-4873-8ea3-d78a8ca901d6"] {
   display: none !important;
 }
+
+/* Shrink the logo image inside the mobile drawer */
+#mobile-header-drawer .oi-img {
+  max-height: 48px !important;
+  width: auto !important;
+}
