@@ -5,6 +5,7 @@ import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import { AdminSelect } from "../AdminSelect";
+import { AdminDateTimePicker } from "../AdminDatePicker";
 
 interface Props {
   block: Block;
