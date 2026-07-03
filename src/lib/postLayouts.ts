@@ -213,7 +213,9 @@ export interface PostLayoutSettings {
 export function effectiveHasSidebar(
   preset: LayoutPreset,
   settings: Pick<PostLayoutSettings, "layout_sidebar_overrides"> | null | undefined,
+  postOverride?: boolean | null,
 ): boolean {
+  if (typeof postOverride === "boolean") return postOverride;
   const ov = settings?.layout_sidebar_overrides?.[preset.id];
   return typeof ov === "boolean" ? ov : preset.hasSidebar;
 }
@@ -230,6 +232,8 @@ export interface LayoutOverrides {
   show_bottom_newsletter?: boolean;
   show_floating_share_bar?: boolean;
   auto_load_next_post?: boolean;
+  /** Per-wpis nadpisanie sidebara (true/false, null = użyj presetu/globalnego overrideu). */
+  has_sidebar?: boolean | null;
 }
 
 export function defaultPostLayoutSettings(): PostLayoutSettings {
