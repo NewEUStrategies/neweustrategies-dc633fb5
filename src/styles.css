@@ -159,6 +159,14 @@
   -webkit-appearance: none;
 }
 
+/* Admin scope — neutralizuj globalne kolory (--gc-*) dla ikon SVG w panelu
+   administracyjnym, żeby lucide-react dziedziczyły kolor tekstu, a nie
+   pomarańczowy `--gc-highlight` ustawiony przez globalColors w widoku publicznym. */
+.admin-compact svg,
+.admin-compact :where(a, button, [data-active], [data-state]) svg {
+  color: inherit;
+}
+
 /* Dual-source images (light/dark variants) - toggled via .dark on <html>.
    Selectors are chained through the OptimizedImage wrapper (.oi-wrap) so
    specificity beats `.oi-wrap .oi-img { display: block }` defined below,
