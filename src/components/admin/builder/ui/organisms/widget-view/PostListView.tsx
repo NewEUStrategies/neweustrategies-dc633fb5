@@ -304,7 +304,7 @@ export function PostListView({ c, lang, carousel = false, typography }: { c: Wid
       const v = getStr(c, "indexVAlign") || "top";
       return v === "middle" || v === "bottom" ? v : "top";
     })();
-    const showExcerpt = false;
+    const showExcerpt = getBool(c, "showExcerpt", true);
     // Fall back to global Theme Design tokens when widget colors are empty.
     const lightColor = idxColor || "var(--td-li-light, rgb(35,31,32))";
     const darkColor = idxColorDark || "var(--td-li-dark, rgb(250,147,70))";
