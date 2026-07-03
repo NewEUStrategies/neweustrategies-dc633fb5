@@ -44,6 +44,22 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
   const t = COPY[lang];
+  const mounted = useHasMounted();
+  const { session, user, signOut } = useAuth();
+  const { data: profile } = useHeaderProfile(user?.id);
+  const displayName =
+    profile?.display_name ||
+    [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
+    user?.email?.split("@")[0] ||
+    "";
+  const initials = (displayName || "?")
+    .split(" ")
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  const isAuthed = mounted && !!session;
 
   const [visible, setVisible] = useState(false);
 
