@@ -54,11 +54,22 @@ export function LayoutPreview({ preset, settings, hasSidebarOverride, className 
     </div>
   );
 
-  let body: React.ReactNode = null;
+  const Sidebar = () => (
+    <div className="space-y-1 border-l border-border pl-1.5">
+      <Bar w="w-full" h="h-1.5" c="bg-foreground/40" />
+      <Bar w="w-full" h="h-1.5" c="bg-foreground/30" />
+      <Bar w="w-2/3" h="h-1.5" c="bg-foreground/30" />
+      <div className="h-6 bg-muted rounded mt-1" />
+      <Bar w="w-full" h="h-1.5" c="bg-foreground/30" />
+      <Bar w="w-1/2" h="h-1.5" c="bg-foreground/30" />
+    </div>
+  );
+
+  let inner: React.ReactNode = null;
 
   switch (preset.header) {
     case "no-cover":
-      body = (
+      inner = (
         <div className="p-3 space-y-3">
           <Header />
           <Lines />
@@ -66,16 +77,18 @@ export function LayoutPreview({ preset, settings, hasSidebarOverride, className 
       );
       break;
     case "overlay":
-      body = (
-        <div className="relative">
-          <div
-            className={`w-full ${preset.cover === "full-bleed" ? "h-24" : "h-20"} bg-gradient-to-br from-foreground/80 to-foreground/40`}
-          />
-          <div
-            className={`absolute inset-0 p-3 flex flex-col ${centered ? "items-center text-center" : "items-start"} justify-end`}
-          >
-            <Bar w="w-1/3" h="h-1" c="bg-brand" />
-            <Bar w="w-5/6" h="h-3" c="bg-background" />
+      inner = (
+        <div>
+          <div className="relative">
+            <div
+              className={`w-full ${preset.cover === "full-bleed" ? "h-24" : "h-20"} bg-gradient-to-br from-foreground/80 to-foreground/40`}
+            />
+            <div
+              className={`absolute inset-0 p-3 flex flex-col ${centered ? "items-center text-center" : "items-start"} justify-end`}
+            >
+              <Bar w="w-1/3" h="h-1" c="bg-brand" />
+              <Bar w="w-5/6" h="h-3" c="bg-background" />
+            </div>
           </div>
           <div className="p-3">
             <Lines />
@@ -84,7 +97,7 @@ export function LayoutPreview({ preset, settings, hasSidebarOverride, className 
       );
       break;
     case "side-by-side":
-      body = (
+      inner = (
         <div className="p-3 grid grid-cols-2 gap-2">
           <Img h="h-16" />
           <div className="space-y-2">
@@ -96,7 +109,7 @@ export function LayoutPreview({ preset, settings, hasSidebarOverride, className 
       );
       break;
     case "below-cover":
-      body = (
+      inner = (
         <div className="p-3 space-y-2">
           <Img h="h-14" />
           <Header />
@@ -107,40 +120,39 @@ export function LayoutPreview({ preset, settings, hasSidebarOverride, className 
     case "above-cover":
     default: {
       const ph = preset.cover === "ratio" ? `${Math.round((ratio / 150) * 28 + 10)}px` : "56px";
-      body = (
-        <div
-          className={`p-3 space-y-2 ${hasSidebar ? "grid grid-cols-[1fr_60px] gap-2 space-y-0" : ""}`}
-        >
-          <div className="space-y-2">
-            <Header />
-            {preset.cover === "full-bleed" ? (
-              <div className="w-[110%] -ml-[5%]">
-                <Img h="h-14" />
-              </div>
-            ) : preset.cover === "boxed" ? (
-              <div className="mx-auto w-3/4">
-                <Img h="h-14" />
-              </div>
-            ) : (
-              <div style={{ height: ph }}>
-                <Img h="h-full" />
-              </div>
-            )}
-            <Lines />
-          </div>
-          {hasSidebar && (
-            <div className="space-y-1 border-l border-border pl-1.5">
-              <Bar w="w-full" h="h-1.5" c="bg-foreground/40" />
-              <Bar w="w-full" h="h-1.5" c="bg-foreground/30" />
-              <Bar w="w-2/3" h="h-1.5" c="bg-foreground/30" />
-              <div className="h-6 bg-muted rounded mt-1" />
+      inner = (
+        <div className="p-3 space-y-2">
+          <Header />
+          {preset.cover === "full-bleed" ? (
+            <div className="w-[110%] -ml-[5%]">
+              <Img h="h-14" />
+            </div>
+          ) : preset.cover === "boxed" ? (
+            <div className="mx-auto w-3/4">
+              <Img h="h-14" />
+            </div>
+          ) : (
+            <div style={{ height: ph }}>
+              <Img h="h-full" />
             </div>
           )}
+          <Lines />
         </div>
       );
       break;
     }
   }
+
+  const body = hasSidebar ? (
+    <div className="grid grid-cols-[1fr_56px] gap-1 p-1">
+      <div className="min-w-0">{inner}</div>
+      <div className="p-2">
+        <Sidebar />
+      </div>
+    </div>
+  ) : (
+    inner
+  );
 
   return (
     <div
@@ -148,5 +160,6 @@ export function LayoutPreview({ preset, settings, hasSidebarOverride, className 
     >
       {body}
     </div>
+
   );
 }
