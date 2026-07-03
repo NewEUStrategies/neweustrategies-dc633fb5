@@ -43,6 +43,7 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     header: "above-cover",
     cover: "wide",
     hasSidebar: false,
+    recommendedImage: { width: 1600, height: 900, ratio: "16:9" },
   },
   {
     id: "layout-1a",
@@ -50,6 +51,7 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     header: "above-cover",
     cover: "wide",
     hasSidebar: false,
+    recommendedImage: { width: 1600, height: 900, ratio: "16:9" },
   },
   {
     id: "layout-2",
@@ -58,6 +60,7 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     cover: "boxed",
     hasSidebar: false,
     centerHeaderDefault: true,
+    recommendedImage: { width: 800, height: 450, ratio: "16:9" },
   },
   {
     id: "layout-3",
@@ -65,6 +68,7 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     header: "above-cover",
     cover: "wide",
     hasSidebar: true,
+    recommendedImage: { width: 1200, height: 675, ratio: "16:9" },
   },
   {
     id: "layout-4",
@@ -73,6 +77,7 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     cover: "full-bleed",
     hasSidebar: false,
     centerHeaderDefault: true,
+    recommendedImage: { width: 1920, height: 1080, ratio: "16:9" },
   },
   {
     id: "layout-5",
@@ -81,6 +86,7 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     cover: "wide",
     hasSidebar: false,
     centerHeaderDefault: true,
+    recommendedImage: { width: 1600, height: 900, ratio: "16:9" },
   },
   {
     id: "layout-6",
@@ -89,6 +95,7 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     cover: "ratio",
     hasSidebar: false,
     featuredRatioKey: "featured_ratio_l6",
+    recommendedImage: { width: 1600, height: 2400, ratio: "2:3" },
   },
   {
     id: "layout-7",
@@ -96,6 +103,7 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     header: "side-by-side",
     cover: "side",
     hasSidebar: false,
+    recommendedImage: { width: 900, height: 900, ratio: "1:1" },
   },
   {
     id: "layout-8",
@@ -103,6 +111,7 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     header: "below-cover",
     cover: "wide",
     hasSidebar: true,
+    recommendedImage: { width: 1600, height: 900, ratio: "16:9" },
   },
   {
     id: "layout-9",
@@ -119,6 +128,7 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     cover: "ratio",
     hasSidebar: false,
     featuredRatioKey: "featured_ratio_l10",
+    recommendedImage: { width: 1600, height: 720, ratio: "20:9" },
   },
   {
     id: "layout-11",
@@ -127,6 +137,7 @@ export const STANDARD_LAYOUTS: LayoutPreset[] = [
     cover: "ratio",
     hasSidebar: true,
     featuredRatioKey: "featured_ratio_l11",
+    recommendedImage: { width: 1200, height: 540, ratio: "20:9" },
   },
 ];
 
