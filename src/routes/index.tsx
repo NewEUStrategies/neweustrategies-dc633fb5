@@ -126,6 +126,15 @@ function Index() {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <main className="flex-1 w-full">
+        {/* Screen-reader-only H1 so the homepage always exposes a descriptive
+            landmark heading, even when the CMS builder renders its own visual
+            hierarchy. Search engines and assistive tech get the brand headline
+            regardless of the builder document above. */}
+        <h1 className="sr-only">
+          {lang === "en"
+            ? "New European Strategies - Strategic thinking, new perspectives"
+            : "New European Strategies - Strategiczne myślenie, nowe perspektywy"}
+        </h1>
         {doc && doc.sections.length > 0 ? (
           // The loader settles the whole document's widget queries before the
           // router dehydrates (see loader note), so sections normally render
