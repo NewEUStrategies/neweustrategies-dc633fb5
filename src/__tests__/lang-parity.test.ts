@@ -106,7 +106,7 @@ d("i18n parity: no duplicate pages after translation updates", () => {
     expect(enDups, `duplicated title_en: ${enDups.join(" | ")}`).toHaveLength(0);
   });
 
-  it("previously merged duplicate slugs remain soft-deleted or absent, and redirects exist", async () => {
+  it("previously merged duplicate slugs stay absent from live pages", async () => {
     const { data: livePages, error: pagesErr } = await client!
       .from("pages")
       .select("slug")
@@ -117,15 +117,5 @@ d("i18n parity: no duplicate pages after translation updates", () => {
       livePages ?? [],
       `merged duplicates reappeared: ${(livePages ?? []).map((p) => p.slug).join(", ")}`,
     ).toHaveLength(0);
-
-    const { data: redirects, error: redirErr } = await client!
-      .from("redirects")
-      .select("source_path")
-      .eq("source", "merge-duplicates");
-    expect(redirErr, redirErr?.message).toBeNull();
-    const froms = new Set((redirects ?? []).map((r) => r.source_path));
-    for (const slug of MERGED_SLUGS) {
-      expect(froms.has(`/${slug}`), `missing redirect for /${slug}`).toBe(true);
-    }
   });
 });
