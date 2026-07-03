@@ -225,16 +225,16 @@ function Page() {
           onChange={(id) => upd({ gallery_layout: id })}
         />
 
-        <section className="space-y-3">
-          <h2 className="font-display text-lg">Featured Ratio</h2>
-          <p className="text-xs text-muted-foreground">
+        <section className="space-y-2">
+          <h2 className="font-display text-base">Featured Ratio</h2>
+          <p className="text-[11px] text-muted-foreground">
             Procent szerokości względem obrazu wyróżniającego (Layout 6/10/11).
           </p>
-          <div className="grid sm:grid-cols-3 gap-3">
+          <div className="grid sm:grid-cols-3 gap-2">
             {(["featured_ratio_l6", "featured_ratio_l10", "featured_ratio_l11"] as const).map(
               (k) => (
                 <label key={k} className="block">
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-[11px] text-muted-foreground">
                     {k.replace("featured_ratio_", "Layout ")}
                   </span>
                   <input
@@ -243,7 +243,7 @@ function Page() {
                     onChange={(e) =>
                       upd({ [k]: Number(e.target.value) } as Partial<PostLayoutSettings>)
                     }
-                    className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
+                    className="w-full px-2 py-1.5 rounded border border-input bg-background text-xs"
                   />
                 </label>
               ),
@@ -251,68 +251,70 @@ function Page() {
           </div>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="font-display text-lg">Centering Header</h2>
-          <Toggle
-            label="Wycentruj tytuł i opis wpisu"
-            checked={local.center_header}
-            onChange={(v) => upd({ center_header: v })}
-          />
-          <Toggle
-            label="Wycentruj pasek meta (data, autor)"
-            checked={local.center_entry_meta}
-            onChange={(v) => upd({ center_entry_meta: v })}
-          />
-        </section>
+        <div className="grid md:grid-cols-2 gap-6">
+          <section className="space-y-1">
+            <h2 className="font-display text-base mb-1">Centering Header</h2>
+            <Toggle
+              label="Wycentruj tytuł i opis wpisu"
+              checked={local.center_header}
+              onChange={(v) => upd({ center_header: v })}
+            />
+            <Toggle
+              label="Wycentruj pasek meta (data, autor)"
+              checked={local.center_entry_meta}
+              onChange={(v) => upd({ center_entry_meta: v })}
+            />
+          </section>
 
-        <section className="space-y-3">
-          <h2 className="font-display text-lg">Stopka wpisu</h2>
-          <Toggle
-            label="Pasek tagów"
-            checked={local.show_post_tags_bar}
-            onChange={(v) => upd({ show_post_tags_bar: v })}
-          />
-          <Toggle
-            label="Pasek źródeł"
-            checked={local.show_sources_bar}
-            onChange={(v) => upd({ show_sources_bar: v })}
-          />
-          <Toggle
-            label="Pasek Via"
-            checked={local.show_via_bar}
-            onChange={(v) => upd({ show_via_bar: v })}
-          />
-          <Toggle
-            label="Karta autora"
-            checked={local.show_author_card}
-            onChange={(v) => upd({ show_author_card: v })}
-          />
-          <Toggle
-            label="Nawigacja Poprzedni/Następny"
-            checked={local.show_prev_next}
-            onChange={(v) => upd({ show_prev_next: v })}
-          />
-          <Toggle
-            label="Ukryj paginację na mobile"
-            checked={local.prev_next_mobile_hide}
-            onChange={(v) => upd({ prev_next_mobile_hide: v })}
-          />
-          <Toggle
-            label="Dolny newsletter w treści"
-            checked={local.show_bottom_newsletter}
-            onChange={(v) => upd({ show_bottom_newsletter: v })}
-          />
-          <Toggle
-            label="Pływający pasek udostępniania (lewa strona, desktop)"
-            checked={local.show_floating_share_bar}
-            onChange={(v) => upd({ show_floating_share_bar: v })}
-          />
-          <Toggle
-            label="Auto-load następnego wpisu (przy scrollu do końca)"
-            checked={local.auto_load_next_post}
-            onChange={(v) => upd({ auto_load_next_post: v })}
-          />
-        </section>
+          <section className="space-y-1">
+            <h2 className="font-display text-base mb-1">Stopka wpisu</h2>
+            <Toggle
+              label="Pasek tagów"
+              checked={local.show_post_tags_bar}
+              onChange={(v) => upd({ show_post_tags_bar: v })}
+            />
+            <Toggle
+              label="Pasek źródeł"
+              checked={local.show_sources_bar}
+              onChange={(v) => upd({ show_sources_bar: v })}
+            />
+            <Toggle
+              label="Pasek Via"
+              checked={local.show_via_bar}
+              onChange={(v) => upd({ show_via_bar: v })}
+            />
+            <Toggle
+              label="Karta autora"
+              checked={local.show_author_card}
+              onChange={(v) => upd({ show_author_card: v })}
+            />
+            <Toggle
+              label="Nawigacja Poprzedni/Następny"
+              checked={local.show_prev_next}
+              onChange={(v) => upd({ show_prev_next: v })}
+            />
+            <Toggle
+              label="Ukryj paginację na mobile"
+              checked={local.prev_next_mobile_hide}
+              onChange={(v) => upd({ prev_next_mobile_hide: v })}
+            />
+            <Toggle
+              label="Dolny newsletter w treści"
+              checked={local.show_bottom_newsletter}
+              onChange={(v) => upd({ show_bottom_newsletter: v })}
+            />
+            <Toggle
+              label="Pływający pasek udostępniania (lewa strona, desktop)"
+              checked={local.show_floating_share_bar}
+              onChange={(v) => upd({ show_floating_share_bar: v })}
+            />
+            <Toggle
+              label="Auto-load następnego wpisu (przy scrollu do końca)"
+              checked={local.auto_load_next_post}
+              onChange={(v) => upd({ auto_load_next_post: v })}
+            />
+          </section>
+        </div>
       </div>
     </AdminShell>
   );
