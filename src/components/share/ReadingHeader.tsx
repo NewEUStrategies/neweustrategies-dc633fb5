@@ -153,10 +153,14 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
           <span className="hidden sm:block h-4 w-px bg-border" aria-hidden />
           <div className="hidden md:flex items-center gap-2 text-[12px] font-semibold">
             {isAuthed ? (
-              <>
-                <Link
-                  to="/profile"
-                  className="inline-flex items-center gap-1.5 text-foreground hover:text-brand transition"
+              <div ref={menuRef} className="relative">
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  aria-label={t.menu}
+                  onClick={() => setMenuOpen((s) => !s)}
+                  className="inline-flex items-center gap-1.5 rounded-md pl-1 pr-2 py-1 text-foreground hover:bg-muted transition"
                   title={displayName}
                 >
                   {profile?.avatar_url ? (
@@ -171,19 +175,66 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
                     </span>
                   )}
                   <span className="max-w-[10rem] truncate">{displayName}</span>
-                </Link>
-                <span className="text-muted-foreground/60" aria-hidden>
-                  |
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void signOut()}
-                  className="inline-flex items-center gap-1 text-muted-foreground hover:text-brand transition"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  {t.logout}
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 opacity-60 transition-transform ${menuOpen ? "rotate-180" : ""}`}
+                  />
                 </button>
-              </>
+                {menuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full mt-1 z-50 min-w-[13rem] rounded-md border border-border bg-popover shadow-lg py-1 text-[12.5px]"
+                  >
+                    <div className="px-3 py-2 border-b border-border/70">
+                      <p className="truncate font-semibold text-foreground">{displayName}</p>
+                      {user?.email && (
+                        <p className="truncate text-[11px] font-normal text-muted-foreground">
+                          {user.email}
+                        </p>
+                      )}
+                    </div>
+                    <Link
+                      to="/profile"
+                      role="menuitem"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2 hover:bg-muted transition text-foreground"
+                    >
+                      <User className="w-3.5 h-3.5 opacity-70" />
+                      {t.profile}
+                    </Link>
+                    <Link
+                      to="/profile/bookmarks"
+                      role="menuitem"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2 hover:bg-muted transition text-foreground"
+                    >
+                      <Bookmark className="w-3.5 h-3.5 opacity-70" />
+                      {t.bookmarks}
+                    </Link>
+                    <Link
+                      to="/profile/account"
+                      role="menuitem"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2 hover:bg-muted transition text-foreground"
+                    >
+                      <Settings className="w-3.5 h-3.5 opacity-70" />
+                      {t.settings}
+                    </Link>
+                    <div className="my-1 border-t border-border/70" aria-hidden />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        void signOut();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted transition text-muted-foreground hover:text-brand"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      {t.logout}
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               <>
                 <Link
