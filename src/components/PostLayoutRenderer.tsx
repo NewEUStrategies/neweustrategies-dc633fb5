@@ -176,20 +176,23 @@ function LayoutBody({
   sidebar?: ReactNode;
   footer?: ReactNode;
 }) {
-  // Sidebar (jeśli włączony) renderujemy jako blok BEZPOŚREDNIO pod hero
-  // section - nad główną treścią wpisu. Treść dalej płynie w wycentrowanej,
-  // wąskiej kolumnie zgodnie z `contentMaxW` (bez podziału na dwie kolumny).
-  return (
-    <div>
-      {sidebar && (
-        <aside
-          className="mb-10 w-full mx-auto post-hero-sidebar"
-          style={{ maxWidth: `${contentMaxW}px` }}
-          aria-label="Sidebar wpisu"
-        >
+  if (sidebar) {
+    return (
+      <div className="grid lg:grid-cols-[1fr_320px] gap-10">
+        <div>
+          <div style={{ maxWidth: `${contentMaxW}px` }} className="w-full mx-auto">
+            {content}
+          </div>
+          {footer}
+        </div>
+        <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:[scrollbar-width:thin]">
           {sidebar}
         </aside>
-      )}
+      </div>
+    );
+  }
+  return (
+    <div>
       <div style={{ maxWidth: `${contentMaxW}px` }} className="w-full mx-auto">
         {content}
       </div>
@@ -197,4 +200,3 @@ function LayoutBody({
     </div>
   );
 }
-
