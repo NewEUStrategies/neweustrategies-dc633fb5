@@ -1,15 +1,7 @@
 // Header "Na czasie / Trending" - compact bar of posts.
-// Supports three sources (trending | latest | pinned) and multiple animation
-// modes:
-//   - scroll     : horizontal marquee, many items side-by-side in a loop
-//                  (no count badge - all visible)
-//   - fade       : cross-fade between batches of `visibleCount` items
-//   - slide      : slide-up rotation (a.k.a. legacy `rotate`)
-//   - flip       : 3D flip on the Y-axis
-//   - typewriter : character-by-character type-in of the current title
-// For rotate-family modes we render `visibleCount` items simultaneously and
-// surface a small "N" badge next to the label so the editor and reader see
-// how many news are on the bar at once.
+// Sources: trending | latest | pinned | selected | mixed.
+// Modes: scroll (marquee) | fade | slide | flip | typewriter.
+// Colors and label overridable per light/dark via CSS custom properties.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +11,12 @@ import {
   type TickerMode,
   type TickerSource,
 } from "@/lib/views/headerTickerQuery";
+import {
+  DEFAULT_TICKER_COLORS,
+  type IconAnimation,
+  type MixedFill,
+  type TickerColorScheme,
+} from "@/lib/views/tickerVariants";
 import { AppLink } from "@/components/atoms/AppLink";
 
 export type { TickerMode, TickerSource };
@@ -33,13 +31,24 @@ export interface TickerProps {
   pinnedPostId?: string;
   pinnedUntil?: string | null;
   selectedPostIds?: string[];
+  mixedFill?: MixedFill;
+  labelPl?: string;
+  labelEn?: string;
+  iconAnimation?: IconAnimation;
+  colors?: TickerColorScheme;
   fullWidth?: boolean;
+  variantId?: string;
   className?: string;
 }
 
 function normalizeMode(mode: TickerMode): "scroll" | "fade" | "slide" | "flip" | "typewriter" {
   if (mode === "rotate") return "slide";
   return mode;
+}
+
+// Stable, DOM-safe attribute selector fragment for the given variant id.
+function safeAttr(id: string): string {
+  return id.replace(/[^a-zA-Z0-9_-]/g, "_") || "default";
 }
 
 export function TrendingTicker({
@@ -52,15 +61,31 @@ export function TrendingTicker({
   pinnedPostId,
   pinnedUntil,
   selectedPostIds,
+  mixedFill = "trending",
+  labelPl,
+  labelEn,
+  iconAnimation = "flicker",
+  colors,
   fullWidth = true,
+  variantId = "default",
   className,
 }: TickerProps) {
   const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const kind = normalizeMode(mode);
+  const palette = colors ?? DEFAULT_TICKER_COLORS;
+  const vid = safeAttr(variantId);
 
   const { data, isLoading } = useQuery(
-    headerTickerQueryOptions({ source, days, limit, pinnedPostId, pinnedUntil, selectedPostIds }),
+    headerTickerQueryOptions({
+      source,
+      days,
+      limit,
+      pinnedPostId,
+      pinnedUntil,
+      selectedPostIds,
+      mixedFill,
+    }),
   );
 
   const posts = data ?? [];
@@ -77,24 +102,42 @@ export function TrendingTicker({
 
   if (isLoading || !posts.length) return null;
 
-  const label = lang === "en" ? "Trending" : "Na czasie";
+  const defaultLabel = lang === "en" ? "Trending" : "Na czasie";
+  const label =
+    lang === "en"
+      ? (labelEn && labelEn.trim()) || (labelPl && labelPl.trim()) || defaultLabel
+      : (labelPl && labelPl.trim()) || (labelEn && labelEn.trim()) || defaultLabel;
   const innerMax = fullWidth ? "max-w-none" : "max-w-[1400px] mx-auto";
 
-  const currentBatch = kind === "scroll"
-    ? posts
-    : posts.slice(batch * perView, batch * perView + perView);
+  const currentBatch =
+    kind === "scroll" ? posts : posts.slice(batch * perView, batch * perView + perView);
+
+  const iconClass = `tt-flame tt-flame-${iconAnimation}`;
 
   return (
     <div
-      className={`cms-trending border-b border-border bg-muted/30 ${className ?? ""}`}
+      className={`cms-trending border-b ${className ?? ""}`}
       data-testid="trending-ticker"
+      data-tt-vid={vid}
+      style={{
+        background: "var(--tt-bg)",
+        borderColor: "var(--tt-border)",
+      }}
     >
+      <TickerPaletteStyle vid={vid} palette={palette} />
       <div className={`${innerMax} px-4 lg:px-8 h-10 flex items-center gap-4 overflow-hidden`}>
-        <span className="inline-flex items-center gap-1.5 text-[12px] leading-none font-bold uppercase tracking-[0.14em] text-brand shrink-0 whitespace-nowrap">
-          <Flame className="w-4 h-4 shrink-0" aria-hidden />
+        <span
+          className="inline-flex items-center gap-1.5 text-[12px] leading-none font-bold uppercase tracking-[0.14em] shrink-0 whitespace-nowrap"
+          style={{ color: "var(--tt-label)" }}
+        >
+          <Flame className={`w-4 h-4 shrink-0 ${iconClass}`} aria-hidden />
           <span className="leading-none">{label}</span>
         </span>
-        <span className="hidden sm:block h-4 w-px bg-border shrink-0" aria-hidden />
+        <span
+          className="hidden sm:block h-4 w-px shrink-0"
+          aria-hidden
+          style={{ background: "var(--tt-border)" }}
+        />
         <div
           className={`flex-1 min-w-0 flex items-center gap-6 ${
             kind === "scroll" ? "overflow-x-auto scrollbar-none" : "overflow-hidden"
@@ -133,7 +176,13 @@ export function TrendingTicker({
 }
 
 interface TickerItemProps {
-  post: { id: string; slug?: string; href?: string; title_pl: string | null; title_en: string | null };
+  post: {
+    id: string;
+    slug?: string;
+    href?: string;
+    title_pl: string | null;
+    title_en: string | null;
+  };
   index: number;
   lang: "pl" | "en";
   animation: "none" | "fade" | "slide" | "flip" | "typewriter";
@@ -141,9 +190,10 @@ interface TickerItemProps {
 }
 
 function TickerItem({ post, index, lang, animation, delayMs = 0 }: TickerItemProps) {
-  const title = lang === "en"
-    ? post.title_en || post.title_pl || ""
-    : post.title_pl || post.title_en || "";
+  const title =
+    lang === "en"
+      ? post.title_en || post.title_pl || ""
+      : post.title_pl || post.title_en || "";
   const displayIdx = index + 1;
   const cls =
     animation === "fade"
@@ -153,17 +203,19 @@ function TickerItem({ post, index, lang, animation, delayMs = 0 }: TickerItemPro
         : animation === "flip"
           ? "tt-anim-flip"
           : "";
-
   const href = post.href ?? (post.slug ? `/post/${post.slug}` : "#");
 
   return (
     <AppLink
       href={href}
-      className={`group inline-flex items-center gap-2 h-10 text-[13px] leading-none whitespace-nowrap hover:text-brand transition shrink-0 ${cls}`}
-      style={{ animationDelay: `${delayMs}ms` }}
+      className={`tt-item group inline-flex items-center gap-2 h-10 text-[13px] leading-none whitespace-nowrap transition shrink-0 ${cls}`}
+      style={{ animationDelay: `${delayMs}ms`, color: "var(--tt-item)" }}
       title={title}
     >
-      <span className="text-[12px] leading-none font-bold text-muted-foreground tabular-nums">
+      <span
+        className="text-[12px] leading-none font-bold tabular-nums"
+        style={{ color: "var(--tt-counter)" }}
+      >
         {String(displayIdx).padStart(2, "0")}
       </span>
       {animation === "typewriter" ? (
@@ -188,7 +240,6 @@ function TypewriterText({ text, delayMs }: { text: string; delayMs: number }) {
         setN(i);
         if (i >= text.length) window.clearInterval(iv);
       }, 22);
-      // Cleanup handled by outer effect return.
       (start as unknown as { _iv?: number })._iv = iv;
     }, delayMs);
     return () => {
@@ -200,9 +251,41 @@ function TypewriterText({ text, delayMs }: { text: string; delayMs: number }) {
   return (
     <span className="font-medium truncate max-w-[220px] sm:max-w-none sm:whitespace-nowrap leading-none">
       {text.slice(0, n)}
-      <span className="tt-caret" aria-hidden>|</span>
+      <span className="tt-caret" aria-hidden>
+        |
+      </span>
     </span>
   );
+}
+
+function TickerPaletteStyle({
+  vid,
+  palette,
+}: {
+  vid: string;
+  palette: TickerColorScheme;
+}) {
+  const sel = `[data-tt-vid="${vid}"]`;
+  const css = `
+    ${sel} {
+      --tt-bg: ${palette.light.bg};
+      --tt-border: ${palette.light.border};
+      --tt-label: ${palette.light.label};
+      --tt-item: ${palette.light.item};
+      --tt-item-hover: ${palette.light.itemHover};
+      --tt-counter: ${palette.light.counter};
+    }
+    :root.dark ${sel}, .dark ${sel} {
+      --tt-bg: ${palette.dark.bg};
+      --tt-border: ${palette.dark.border};
+      --tt-label: ${palette.dark.label};
+      --tt-item: ${palette.dark.item};
+      --tt-item-hover: ${palette.dark.itemHover};
+      --tt-counter: ${palette.dark.counter};
+    }
+    ${sel} .tt-item:hover { color: var(--tt-item-hover) !important; }
+  `;
+  return <style dangerouslySetInnerHTML={{ __html: css }} />;
 }
 
 function TickerStyles() {
@@ -223,9 +306,37 @@ function TickerStyles() {
         .tt-anim-slide { animation: tt-slide 420ms cubic-bezier(.22,.61,.36,1) both }
         .tt-anim-flip  { animation: tt-flip  520ms cubic-bezier(.22,.61,.36,1) both }
         .tt-caret { display:inline-block; margin-left:2px; opacity:.6; animation: tt-fade 800ms steps(2) infinite alternate }
+
+        /* Flame animations */
+        @keyframes tt-flame-pulse {
+          0%,100% { transform: scale(1); filter: drop-shadow(0 0 0 currentColor) }
+          50%     { transform: scale(1.18); filter: drop-shadow(0 0 6px currentColor) }
+        }
+        @keyframes tt-flame-flicker {
+          0%,100% { transform: scale(1) rotate(-2deg); opacity: 1 }
+          20%     { transform: scale(1.12) rotate(3deg); opacity: .92 }
+          40%     { transform: scale(0.94) rotate(-4deg); opacity: .85 }
+          60%     { transform: scale(1.08) rotate(2deg); opacity: 1 }
+          80%     { transform: scale(0.98) rotate(-1deg); opacity: .95 }
+        }
+        @keyframes tt-flame-spin {
+          from { transform: rotate(0deg) } to { transform: rotate(360deg) }
+        }
+        @keyframes tt-flame-wave {
+          0%,100% { transform: translateY(0) scale(1) }
+          50%     { transform: translateY(-2px) scale(1.06) }
+        }
+        .tt-flame { transform-origin: 50% 90%; will-change: transform, opacity, filter }
+        .tt-flame-pulse    { animation: tt-flame-pulse    1.8s ease-in-out infinite }
+        .tt-flame-flicker  { animation: tt-flame-flicker  1.4s ease-in-out infinite }
+        .tt-flame-spin     { animation: tt-flame-spin     3.2s linear infinite }
+        .tt-flame-wave     { animation: tt-flame-wave     1.6s ease-in-out infinite }
+
         @media (prefers-reduced-motion: reduce) {
           .tt-anim-fade, .tt-anim-slide, .tt-anim-flip { animation: none !important }
-          .tt-caret { animation: none !important }
+          .tt-caret, .tt-flame-pulse, .tt-flame-flicker, .tt-flame-spin, .tt-flame-wave {
+            animation: none !important
+          }
         }
       `,
       }}
