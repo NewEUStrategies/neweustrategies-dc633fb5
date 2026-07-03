@@ -141,45 +141,46 @@ export function PostLayoutRenderer({
               />
               {/* Ciemny gradient dla czytelności */}
               <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/10 to-black/60" />
-            </div>
 
-            {/* Meta-karta nachodzi na centralną-dolną część zdjęcia (zawężona szerokość). */}
-            <div className="relative -mt-28 lg:-mt-36 mx-4 lg:mx-auto lg:max-w-3xl px-2 lg:px-6">
-              <div className={`relative bg-[#0b0b0d] text-white rounded-sm shadow-2xl ${center ? "text-center" : ""}`}>
-                <div className="px-5 lg:px-8 pt-5 pb-5">
-                  {categoryBadges && (
-                    <div
-                      className={`mb-3 flex flex-wrap gap-2 ${
-                        center ? "justify-center" : ""
-                      }`}
+              {/* Meta-karta wyrównana dolną krawędzią do dolnej krawędzi cover photo. */}
+              <div className="absolute inset-x-0 bottom-0 flex justify-center px-4 lg:px-6">
+                <div className={`w-full lg:max-w-3xl bg-[#0b0b0d] text-white rounded-t-sm shadow-2xl ${center ? "text-center" : ""}`}>
+                  <div className="px-5 lg:px-8 pt-5 pb-5">
+                    {categoryBadges && (
+                      <div
+                        className={`mb-3 flex flex-wrap gap-2 ${
+                          center ? "justify-center" : ""
+                        }`}
+                      >
+                        {categoryBadges}
+                      </div>
+                    )}
+                    <h1
+                      className="font-display font-bold text-white text-2xl lg:text-4xl leading-[1.15] mb-3"
+                      style={{ fontFamily: 'var(--font-display, "Red Hat Display")' }}
                     >
-                      {categoryBadges}
-                    </div>
-                  )}
-                  <h1
-                    className="font-display font-bold text-white text-2xl lg:text-4xl leading-[1.15] mb-3"
-                    style={{ fontFamily: 'var(--font-display, "Red Hat Display")' }}
-                  >
-                    {title}
-                  </h1>
-                  {excerpt && (
-                    <p className="text-sm lg:text-base text-white/85 mb-3 max-w-3xl mx-auto leading-relaxed">
-                      {excerpt}
-                    </p>
-                  )}
-                  {meta && (
-                    <div
-                      className={`text-sm flex flex-wrap items-center gap-x-4 gap-y-1 text-white/70 pt-3 border-t border-white/10 ${
-                        center ? "justify-center" : ""
-                      }`}
-                    >
-                      {meta}
-                    </div>
-                  )}
+                      {title}
+                    </h1>
+                    {excerpt && (
+                      <p className="text-sm lg:text-base text-white/85 mb-3 max-w-3xl mx-auto leading-relaxed">
+                        {excerpt}
+                      </p>
+                    )}
+                    {meta && (
+                      <div
+                        className={`text-sm flex flex-wrap items-center gap-x-4 gap-y-1 text-white/70 pt-3 border-t border-white/10 ${
+                          center ? "justify-center" : ""
+                        }`}
+                      >
+                        {meta}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+
 
 
           <LayoutBody
