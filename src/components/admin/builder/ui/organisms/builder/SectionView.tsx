@@ -263,7 +263,7 @@ export function SectionView(p: SectionViewProps) {
               <div
                 key={child.id}
                 className="min-w-0 max-w-full overflow-hidden"
-                style={{ gridColumn }}
+                style={{ gridColumn, ...(order !== undefined ? { order } : {}) }}
               >
                 <ColumnView
                   column={child}
