@@ -35,6 +35,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listCustomMetaDefs } from "@/lib/customMeta";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
+import { estimateReadingMinutes } from "@/lib/readingTime";
 import { useUnlockedContent } from "@/hooks/useUnlockedContent";
 import {
   isGatedMode,
