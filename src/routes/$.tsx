@@ -21,6 +21,8 @@ import { FloatingShareBar } from "@/components/share/FloatingShareBar";
 import { PostSidebarRenderer } from "@/components/post/PostSidebarRenderer";
 import { AutoLoadNextPost } from "@/components/post/AutoLoadNextPost";
 import { CustomMetaList } from "@/components/post/CustomMetaList";
+import { PostOverlayMeta } from "@/components/post/PostOverlayMeta";
+import { CategoryBadges } from "@/components/post/CategoryBadges";
 import { RelatedPosts } from "@/components/post/RelatedPosts";
 import { RelatedPostsAfterParagraph } from "@/components/post/RelatedPostsAfterParagraph";
 import { relatedPostsConfigQueryOptions } from "@/lib/queries/relatedPosts";
