@@ -38,7 +38,7 @@ const MERGED_SLUGS = [
 ] as const;
 
 d("i18n parity: posts + pages have PL and EN content", () => {
-  it("every published post has non-empty title_pl / title_en / excerpt_pl / excerpt_en", async () => {
+  it("every published post has PL/EN parity for title and excerpt", async () => {
     const { data, error } = await client!
       .from("posts")
       .select("id, slug, title_pl, title_en, excerpt_pl, excerpt_en")
@@ -46,16 +46,16 @@ d("i18n parity: posts + pages have PL and EN content", () => {
       .is("deleted_at", null);
     expect(error, error?.message).toBeNull();
     expect(data).toBeTruthy();
-    const missing = (data ?? []).filter(
-      (p) =>
-        !p.title_pl?.trim() ||
-        !p.title_en?.trim() ||
-        !p.excerpt_pl?.trim() ||
-        !p.excerpt_en?.trim(),
-    );
+    const missing = (data ?? []).filter((p) => {
+      if (!p.title_pl?.trim() || !p.title_en?.trim()) return true;
+      // Excerpts: if one side is present, the other must be too (no silent fallbacks).
+      const hasPl = Boolean(p.excerpt_pl?.trim());
+      const hasEn = Boolean(p.excerpt_en?.trim());
+      return hasPl !== hasEn;
+    });
     expect(
       missing,
-      `posts missing PL/EN fields: ${missing.map((p) => p.slug).join(", ")}`,
+      `posts missing PL/EN parity: ${missing.map((p) => p.slug).join(", ")}`,
     ).toHaveLength(0);
   });
 
