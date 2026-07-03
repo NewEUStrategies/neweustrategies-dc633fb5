@@ -108,18 +108,24 @@ export const restoreRevision = createServerFn({ method: "POST" })
       if (revErr) throw new Error(revErr.message);
       if (!revision) throw new Error("Revision not found or access denied");
 
+      // The pre-restore safety snapshot needs the body columns, which are no
+      // longer SELECT-able by the authenticated role; read via service_role
+      // scoped by tenant. The restore UPDATE below still runs under RLS.
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const isPage = revision.entity_type === "page";
       const { data: current, error: curErr } = isPage
-        ? await supabase
+        ? await supabaseAdmin
             .from("pages")
             .select("*")
             .eq("id", revision.entity_id)
+            .eq("tenant_id", tenantId)
             .is("deleted_at", null)
             .maybeSingle()
-        : await supabase
+        : await supabaseAdmin
             .from("posts")
             .select("*")
             .eq("id", revision.entity_id)
+            .eq("tenant_id", tenantId)
             .is("deleted_at", null)
             .maybeSingle();
       if (curErr) throw new Error(curErr.message);

@@ -1,6 +1,7 @@
 // Pobieranie kolejnego (chronologicznie wstecz) opublikowanego wpisu
 // w obrębie tej samej strony nadrzędnej. Używane przez AutoLoadNextPost.
 import { supabase } from "@/integrations/supabase/client";
+import { fetchGatedBody } from "@/lib/queries/public";
 
 export interface NextPostSummary {
   id: string;
@@ -17,8 +18,10 @@ export interface NextPostSummary {
   href: string;
 }
 
+// Only non-gated display columns are selected directly; the body is fetched
+// through the SECURITY DEFINER get_entity_content RPC (see fetchGatedBody).
 const COLS =
-  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, content_pl, content_en, published_at, parent_page_id";
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, parent_page_id";
 
 export async function fetchNextPost(params: {
   currentPostId: string;
@@ -42,9 +45,18 @@ export async function fetchNextPost(params: {
   if (error) throw error;
   const row = (data ?? [])[0];
   if (!row) return null;
-  const { data: path } = await supabase.rpc("page_full_path", {
-    _page_id: row.parent_page_id,
-  });
+  // The body goes through the gated RPC, never a direct column select, so a
+  // members/paid "next" article is not leaked to an unentitled reader: it comes
+  // back with a null body and AutoLoadNextPost renders only the headline + link.
+  const [{ data: path }, body] = await Promise.all([
+    supabase.rpc("page_full_path", { _page_id: row.parent_page_id }),
+    fetchGatedBody("post", row.id),
+  ]);
   const href = `/${typeof path === "string" ? path : "blog"}/${row.slug}`;
-  return { ...(row as Omit<NextPostSummary, "href">), href };
+  return {
+    ...(row as Omit<NextPostSummary, "href" | "content_pl" | "content_en">),
+    content_pl: body.content_pl,
+    content_en: body.content_en,
+    href,
+  };
 }

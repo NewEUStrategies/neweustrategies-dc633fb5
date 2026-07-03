@@ -1,8 +1,10 @@
-// Formularz zapisu do newslettera (publiczny). Wykorzystuje insertową
-// politykę RLS pozwalającą każdemu dodać wiersz do newsletter_subscribers.
+// Formularz zapisu do newslettera (publiczny). Zapis idzie przez serwerową
+// funkcję subscribeToNewsletter (double opt-in + wysyłka maila potwierdzającego
+// po stronie serwera); token potwierdzenia nigdy nie powstaje w przeglądarce.
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
+import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { sanitizeHtml } from "@/lib/sanitize";
 
 interface Props {
@@ -17,6 +19,7 @@ export function NewsletterForm({ lang = "pl", source = "post-bottom", variant = 
   const [name, setName] = useState("");
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  const subscribe = useServerFn(subscribeToNewsletter);
 
   if (!s || !s.enabled) return null;
 
@@ -32,44 +35,28 @@ export function NewsletterForm({ lang = "pl", source = "post-bottom", variant = 
       return;
     }
 
-    // tenant_id wynika z bieżącego site_settings - musimy go pobrać
-    const { data: site } = await supabase.from("newsletter_settings").select("tenant_id").maybeSingle();
-    if (!site?.tenant_id) {
-      setErrMsg(lang === "en" ? "Newsletter is not configured." : "Newsletter nie jest skonfigurowany.");
-      setState("err");
-      return;
-    }
-
-    const token = s.double_opt_in && typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, "")
-      : null;
-
-    const { error } = await supabase.from("newsletter_subscribers").insert({
-      tenant_id: site.tenant_id,
-      email: trimmed,
-      display_name: name.trim() || null,
-      language: lang,
-      source,
-      status: s.double_opt_in ? "pending" : "subscribed",
-      confirmed_at: s.double_opt_in ? null : new Date().toISOString(),
-      confirmation_token: token,
-      confirmation_expires_at: s.double_opt_in
-        ? new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString()
-        : null,
-    });
-
-    if (error) {
-      if (error.code === "23505") {
-        setErrMsg(lang === "en" ? "This e-mail is already subscribed." : "Ten adres jest już zapisany.");
-      } else {
-        setErrMsg(error.message);
+    try {
+      const res = await subscribe({
+        data: { email: trimmed, name: name.trim() || undefined, language: lang, source },
+      });
+      if (!res.ok) {
+        setErrMsg(
+          res.error === "not_configured" || res.error === "disabled"
+            ? lang === "en"
+              ? "Newsletter is not configured."
+              : "Newsletter nie jest skonfigurowany."
+            : res.error,
+        );
+        setState("err");
+        return;
       }
+      setState("ok");
+      setEmail("");
+      setName("");
+    } catch (err) {
+      setErrMsg(err instanceof Error ? err.message : String(err));
       setState("err");
-      return;
     }
-    setState("ok");
-    setEmail("");
-    setName("");
   };
 
   const heading = lang === "en" ? s.heading_en : s.heading_pl;

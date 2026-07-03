@@ -151,11 +151,14 @@ export const homePageQueryOptions = () =>
           homepage_page_slug?: string;
         };
 
-        // Includes excerpts + SEO overrides: the homepage head() (src/routes/
-        // index.tsx) resolves the static home page's own SEO fields, so a
-        // builder-built homepage is a first-class SEO citizen like any page.
-        const cols = `id, slug, title_pl, title_en, content_pl, content_en, excerpt_pl, excerpt_en, editor, builder_data, cover_image_url, published_at, updated_at, ${SEO_FIELDS_SELECT}`;
+        // Non-gated display + SEO columns only; the body (content_*/builder_data)
+        // is fetched via the gated get_entity_content RPC below, so the homepage
+        // is never read through direct body-column selects. Excerpts + SEO
+        // overrides are included so the homepage head() (src/routes/index.tsx)
+        // resolves the static page's own SEO fields like any other page.
+        const cols = `id, slug, title_pl, title_en, excerpt_pl, excerpt_en, editor, cover_image_url, published_at, updated_at, ${SEO_FIELDS_SELECT}`;
 
+        let row: Record<string, unknown> | null = null;
         if (reading.homepage_mode === "static_page") {
           if (reading.homepage_page_id) {
             const { data } = await supabase
@@ -165,9 +168,9 @@ export const homePageQueryOptions = () =>
               .is("deleted_at", null)
               .eq("status", "published")
               .maybeSingle();
-            if (data) return data as PageData;
+            if (data) row = data;
           }
-          if (reading.homepage_page_slug) {
+          if (!row && reading.homepage_page_slug) {
             const { data } = await supabase
               .from("pages")
               .select(cols)
@@ -176,21 +179,28 @@ export const homePageQueryOptions = () =>
               .is("deleted_at", null)
               .eq("status", "published")
               .maybeSingle();
-            if (data) return data as PageData;
+            if (data) row = data;
           }
         }
 
         // 2. Fallback: conventional slug = "home".
-        const { data, error } = await supabase
-          .from("pages")
-          .select(cols)
-          .eq("slug", "home")
-          .is("parent_id", null)
-          .is("deleted_at", null)
-          .eq("status", "published")
-          .maybeSingle();
-        if (error) throw error;
-        return (data as PageData | null) ?? null;
+        if (!row) {
+          const { data, error } = await supabase
+            .from("pages")
+            .select(cols)
+            .eq("slug", "home")
+            .is("parent_id", null)
+            .is("deleted_at", null)
+            .eq("status", "published")
+            .maybeSingle();
+          if (error) throw error;
+          row = data ?? null;
+        }
+
+        if (!row) return null;
+        // Body via the gated RPC (public homepage → has_content_access = true).
+        const body = await fetchGatedBody("page", row.id as string);
+        return { ...row, ...body } as PageData;
       });
     },
     staleTime: PAGE_PATH_TTL,

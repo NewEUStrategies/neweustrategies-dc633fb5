@@ -1,13 +1,14 @@
 // "Dołącz do nas" / "Join us" widget. Combines newsletter signup with
 // optional interests tagging so newly subscribed users immediately receive
-// personalized recommendations. Uses public RLS-insert into
-// newsletter_subscribers and (for signed-in users) writes interests to
-// user_follows.
+// personalized recommendations. Subscribes via the server-side
+// subscribeToNewsletter function (double opt-in; token + mail server-side) and
+// (for signed-in users) writes interests to user_follows.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useServerFn } from "@tanstack/react-start";
 import { Check, Loader2, UserPlus } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
+import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { useInterestCatalog, useMyInterests } from "@/hooks/useInterests";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-interests";
@@ -34,6 +35,7 @@ export function JoinUsForm({
   const { data: nl } = useNewsletterSettings();
   const catalog = useInterestCatalog(lang);
   const my = useMyInterests();
+  const subscribe = useServerFn(subscribeToNewsletter);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -76,40 +78,21 @@ export function JoinUsForm({
       return;
     }
 
-    // Resolve tenant
-    const { data: site } = await supabase
-      .from("newsletter_settings")
-      .select("tenant_id")
-      .maybeSingle();
-    if (!site?.tenant_id) {
-      setErrMsg(t("joinUs.errorGeneric"));
-      setState("err");
-      return;
-    }
-
-    const doubleOptIn = nl?.double_opt_in ?? false;
-    const token =
-      doubleOptIn && typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, "")
-        : null;
-
-    const { error } = await supabase.from("newsletter_subscribers").insert({
-      tenant_id: site.tenant_id,
-      email: trimmed,
-      display_name: name.trim() || null,
-      language: lang,
-      source,
-      status: doubleOptIn ? "pending" : "subscribed",
-      confirmed_at: doubleOptIn ? null : new Date().toISOString(),
-      confirmation_token: token,
-      confirmation_expires_at: doubleOptIn
-        ? new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString()
-        : null,
-    });
-
-    if (error) {
-      if (error.code === "23505") setErrMsg(t("joinUs.duplicate"));
-      else setErrMsg(error.message || t("joinUs.errorGeneric"));
+    try {
+      const res = await subscribe({
+        data: { email: trimmed, name: name.trim() || undefined, language: lang, source },
+      });
+      if (!res.ok) {
+        setErrMsg(
+          res.error === "not_configured" || res.error === "disabled"
+            ? t("joinUs.errorGeneric")
+            : res.error,
+        );
+        setState("err");
+        return;
+      }
+    } catch (err) {
+      setErrMsg(err instanceof Error ? err.message : t("joinUs.errorGeneric"));
       setState("err");
       return;
     }

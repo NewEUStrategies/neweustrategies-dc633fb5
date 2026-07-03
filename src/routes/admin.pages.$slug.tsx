@@ -86,15 +86,16 @@ function EditPage() {
     queryKey: ["page-by-slug", tenantId, routeSlug],
     enabled: !!tenantId,
     queryFn: async (): Promise<PageForm> => {
+      // Body columns are revoked from the authenticated role, so `select("*")`
+      // would be denied. Staff load the full row (incl. body) through the
+      // SECURITY DEFINER get_page_for_edit RPC (is_staff + own tenant enforced
+      // server-side; slug is unique per tenant).
       const { data, error } = await supabase
-        .from("pages")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .eq("slug", routeSlug)
-        .is("deleted_at", null)
-        .single();
+        .rpc("get_page_for_edit", { _slug: routeSlug })
+        .maybeSingle();
       if (error) throw error;
-      return data as PageForm;
+      if (!data) throw new Error("Page not found or access denied");
+      return data as unknown as PageForm;
     },
   });
 

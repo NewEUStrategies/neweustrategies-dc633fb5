@@ -131,14 +131,16 @@ function EditPost() {
     queryKey: ["post-by-slug", tenantId, routeSlug],
     enabled: !!tenantId,
     queryFn: async (): Promise<PostForm> => {
+      // Body columns are revoked from the authenticated role, so `select("*")`
+      // would be denied. Staff load the full row (incl. body) through the
+      // SECURITY DEFINER get_post_for_edit RPC (is_staff + own tenant enforced
+      // server-side; slug is unique per tenant).
       const { data, error } = await supabase
-        .from("posts").select("*")
-        .eq("tenant_id", tenantId)
-        .eq("slug", routeSlug)
-        .is("deleted_at", null)
-        .single();
+        .rpc("get_post_for_edit", { _slug: routeSlug })
+        .maybeSingle();
       if (error) throw error;
-      return data as PostForm;
+      if (!data) throw new Error("Post not found or access denied");
+      return data as unknown as PostForm;
     },
   });
 
