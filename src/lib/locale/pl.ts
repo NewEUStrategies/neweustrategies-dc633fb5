@@ -1562,4 +1562,17 @@ export const pl = {
       openInMap: "Otwórz w mapie",
     },
   },
+  notifications: {
+    title: "Powiadomienia",
+    empty: "Brak powiadomień",
+    markAllRead: "Oznacz wszystkie",
+    markRead: "Oznacz jako przeczytane",
+    openInbox: "Otwórz skrzynkę",
+    unread: "{{count}} nieprzeczytanych",
+    inboxSubtitle: "Twoja prywatna skrzynka - widzisz tylko własne powiadomienia.",
+    filters: {
+      all: "Wszystkie",
+      unread: "Nieprzeczytane",
+    },
+  },
 };
