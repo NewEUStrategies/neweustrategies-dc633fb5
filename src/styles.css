@@ -2320,3 +2320,22 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   max-height: 48px !important;
   width: auto !important;
 }
+
+/* ==========================================================================
+   Admin calendar / date picker — soft hover token
+   Zamiast intensywnego pomarańczowego (primary), używamy #FDB078 na hover
+   we wszystkich kalendarzach i triggerach dat w adminie.
+   ========================================================================== */
+.admin-calendar [data-day]:hover:not([data-disabled="true"]),
+.admin-calendar button[role="gridcell"]:hover:not([disabled]),
+.admin-calendar .rdp-day:hover:not([disabled]),
+.admin-calendar [data-slot="calendar"] button:hover:not([disabled]) {
+  background-color: #FDB078 !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.admin-date-trigger:hover:not([disabled]) {
+  background-color: #FDB078 !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: #FDB078 !important;
+}
