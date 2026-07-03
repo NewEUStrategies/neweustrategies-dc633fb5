@@ -470,9 +470,25 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="p-2 shadow-lg border-border/60"
+        collisionPadding={12}
+        sticky="always"
+        hideWhenDetached={false}
+        avoidCollisions
+        className={[
+          "p-2 shadow-xl border-border/60 backdrop-blur-md",
+          // Smooth in/out — override the default snappy Radix animation
+          "will-change-[transform,opacity,filter]",
+          "data-[state=open]:animate-none data-[state=closed]:animate-none",
+          "data-[state=open]:opacity-100 data-[state=closed]:opacity-0",
+          "data-[state=open]:translate-y-0 data-[state=closed]:-translate-y-1",
+          "data-[state=open]:scale-100 data-[state=closed]:scale-[0.97]",
+          "data-[state=open]:blur-0 data-[state=closed]:blur-[2px]",
+          "transition-[opacity,transform,filter] duration-200 ease-[cubic-bezier(0.22,0.61,0.36,1)]",
+          "origin-(--radix-popover-content-transform-origin)",
+        ].join(" ")}
         style={panelStyle}
       >
+
         {session ? (
           <>
             {user?.email && (
