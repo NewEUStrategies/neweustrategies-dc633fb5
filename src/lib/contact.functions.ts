@@ -182,7 +182,7 @@ export const submitContactMessage = createServerFn({ method: "POST" })
         message: data.message,
         consent: data.consent,
         lang: data.lang,
-        recipient: data.recipient ?? null,
+        recipient: null,
         newsletter_opt_in: data.newsletterOptIn ?? false,
         source: data.source ?? null,
         status: "new",
