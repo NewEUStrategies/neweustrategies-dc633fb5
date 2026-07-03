@@ -102,13 +102,26 @@ function HeaderInner() {
       )}
       <AdZone position="header_banner" pageType="all" className="py-2 text-center" />
 
-      {/* Mobile compact bar: site name + hamburger. Hidden on tablet/desktop. */}
+      {/* Mobile compact bar: horizontal logo (super-admin -> Branding -> Logo -> Mobile) + hamburger. */}
       <div className="lg:hidden sticky top-0 z-[9998] flex items-center justify-between gap-3 px-4 py-3 border-b border-border bg-background">
         <AppLink
           href="/"
-          className="text-base font-bold tracking-tight text-foreground truncate min-w-0"
+          aria-label={siteName}
+          className="flex items-center min-w-0 text-foreground"
         >
-          {siteName}
+          {mobileLogo ? (
+            <img
+              src={mobileLogo}
+              alt={siteName}
+              className="h-8 w-auto max-w-[220px] object-contain"
+              loading="eager"
+              decoding="async"
+            />
+          ) : (
+            <span className="text-base font-bold tracking-tight truncate min-w-0">
+              {siteName}
+            </span>
+          )}
         </AppLink>
         <button
           type="button"
