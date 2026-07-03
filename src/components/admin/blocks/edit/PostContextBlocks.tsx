@@ -2,6 +2,7 @@
 import type { Block, Json } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import { AdminSelect } from "../AdminSelect";
+import { AuthorBioView } from "@/components/blocks/PostContextViews";
 
 interface Props {
   block: Block;
