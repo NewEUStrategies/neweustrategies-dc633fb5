@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { memo, Suspense, useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LogIn, UserPlus, User, LayoutDashboard, LogOut, Home, Newspaper, Tag, Mic, Mail, DollarSign } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
@@ -11,7 +11,9 @@ import { AdZone } from "@/components/AdSlot";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 import { AppLink } from "@/components/atoms/AppLink";
-import { useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { useAuth } from "@/hooks/useAuth";
+
 
 // Shared with the root loader (SSR prefetch of the ticker) - keep in sync.
 export type HeaderSettings = {
@@ -139,6 +141,7 @@ function HeaderInner() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [&_*]:max-w-full">
+              <MobileAccountNav isPl={isPl} onNavigate={() => setOpen(false)} />
               {/* Force mobile-device rendering inside the drawer so widgets
                   stack vertically (columns collapse to single column). */}
               <BuilderRenderer
@@ -151,6 +154,87 @@ function HeaderInner() {
         </div>
       )}
     </>
+  );
+}
+
+function MobileAccountNav({ isPl, onNavigate }: { isPl: boolean; onNavigate: () => void }) {
+  const { session, isStaff, signOut } = useAuth();
+  const t = (pl: string, en: string) => (isPl ? pl : en);
+
+  const navItems: Array<{ to: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+    { to: "/", label: t("Strona główna", "Home"), icon: Home },
+    { to: "/blog", label: t("Aktualności", "News"), icon: Newspaper },
+    { to: "/pricing", label: t("Cennik", "Pricing"), icon: DollarSign },
+  ];
+
+  const linkCls =
+    "flex items-center gap-3 px-4 py-3 text-sm font-medium text-foreground hover:bg-muted border-b border-border/60 transition";
+  const primaryBtn =
+    "flex-1 inline-flex items-center justify-center gap-2 h-10 px-3 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition";
+  const secondaryBtn =
+    "flex-1 inline-flex items-center justify-center gap-2 h-10 px-3 rounded-md border border-border text-foreground text-sm font-semibold hover:bg-muted transition";
+
+  return (
+    <div className="border-b border-border bg-muted/30">
+      <div className="px-4 py-4">
+        <p className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground mb-2">
+          {t("Moje konto", "My account")}
+        </p>
+        {session ? (
+          <div className="flex flex-col gap-2">
+            <Link
+              to={isStaff ? "/admin" : "/profile"}
+              onClick={onNavigate}
+              className={primaryBtn}
+            >
+              {isStaff ? <LayoutDashboard className="w-4 h-4" /> : <User className="w-4 h-4" />}
+              {isStaff ? t("Panel", "Dashboard") : t("Mój profil", "My profile")}
+            </Link>
+            <button
+              type="button"
+              onClick={async () => {
+                await signOut();
+                onNavigate();
+              }}
+              className={secondaryBtn}
+            >
+              <LogOut className="w-4 h-4" />
+              {t("Wyloguj", "Sign out")}
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Link to="/login" onClick={onNavigate} className={primaryBtn}>
+              <LogIn className="w-4 h-4" />
+              {t("Zaloguj", "Sign in")}
+            </Link>
+            <Link
+              to="/login"
+              search={{ mode: "signup" }}
+              onClick={onNavigate}
+              className={secondaryBtn}
+            >
+              <UserPlus className="w-4 h-4" />
+              {t("Zarejestruj", "Register")}
+            </Link>
+          </div>
+        )}
+      </div>
+      <nav aria-label={t("Menu główne", "Main menu")} className="border-t border-border">
+        <p className="px-4 pt-3 pb-2 text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
+          {t("Nawigacja", "Navigation")}
+        </p>
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link key={item.to} to={item.to} onClick={onNavigate} className={linkCls}>
+              <Icon className="w-4 h-4 text-muted-foreground" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
   );
 }
 
