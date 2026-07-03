@@ -28,7 +28,9 @@ export function MobileDrawerBody({ builderDoc, isPl, onNavigate }: Props) {
     nav: () => <MobileNavSection items={cfg.nav_items} isPl={isPl} onNavigate={onNavigate} />,
     builder: () => (
       // Wymuszamy render mobilny, żeby kolumny buildera zwijały się w jedną.
-      <div className="relative z-0 isolate">
+      // Ukrywamy wybrane widgety które w drawerze są zbędne (duplikaty
+      // top_tools / account / nav) – zostają widoczne na desktop headerze.
+      <div className="relative z-0 isolate mobile-drawer-builder">
         <BuilderRenderer doc={builderDoc} lang={isPl ? "pl" : "en"} device="mobile" />
       </div>
     ),

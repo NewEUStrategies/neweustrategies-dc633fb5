@@ -2146,3 +2146,12 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     animation: none !important;
   }
 }
+
+/* Hide specific builder widgets inside the mobile drawer that duplicate
+   native drawer sections (top_tools / account / nav). They remain visible
+   on the desktop header. */
+.mobile-drawer-builder [data-w-id="84e44a59-9f0a-4961-b4eb-b370b6b703a2"],
+.mobile-drawer-builder [data-w-id="a7cef829-6cdd-4aac-9a45-44fbc1b56730"],
+.mobile-drawer-builder [data-w-id="fdc43723-7434-4873-8ea3-d78a8ca901d6"] {
+  display: none !important;
+}
