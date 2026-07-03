@@ -1312,6 +1312,47 @@ export type Database = {
           },
         ]
       }
+      mobile_drawer_configs: {
+        Row: {
+          created_at: string
+          id: string
+          nav_items: Json
+          section_order: string[]
+          tenant_id: string
+          top_tools: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nav_items?: Json
+          section_order?: string[]
+          tenant_id: string
+          top_tools?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nav_items?: Json
+          section_order?: string[]
+          tenant_id?: string
+          top_tools?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mobile_drawer_configs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       name_dictionary: {
         Row: {
           created_at: string
