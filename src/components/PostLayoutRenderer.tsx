@@ -67,28 +67,28 @@ export function PostLayoutRenderer({
 
   // Wspólna meta-karta w stylu overlay – używana we wszystkich wariantach layoutu z cover photo.
   const overlayMetaCard = (
-    <div className="absolute inset-x-0 bottom-0 flex justify-center px-4 lg:px-6">
-      <div className={`w-full lg:max-w-3xl bg-[#0b0b0d] text-white rounded-t-sm shadow-2xl ${center ? "text-center" : ""} overlay-meta-card`}>
-        <div className="px-5 lg:px-8 pt-5 pb-5">
+    <div className="absolute inset-x-0 bottom-0 flex justify-center px-3 md:px-4 lg:px-6">
+      <div className={`w-full max-w-[92vw] md:max-w-2xl lg:max-w-3xl bg-[#0b0b0d] text-white rounded-t-sm shadow-2xl ${center ? "text-center" : ""} overlay-meta-card`}>
+        <div className="px-4 md:px-5 lg:px-8 pt-4 md:pt-5 pb-4 md:pb-5">
           {categoryBadges && (
-            <div className={`mb-3 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
+            <div className={`mb-2 md:mb-3 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
               {categoryBadges}
             </div>
           )}
           <h1
-            className="font-display font-bold text-white text-2xl lg:text-4xl leading-[1.15] mb-3"
+            className="font-display font-bold text-white text-xl md:text-2xl lg:text-4xl leading-[1.15] mb-2 md:mb-3"
             style={{ fontFamily: 'var(--font-display, "Red Hat Display")' }}
           >
             {title}
           </h1>
           {excerpt && (
-            <p className="text-sm lg:text-base text-white/85 mb-3 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-xs md:text-sm lg:text-base text-white/85 mb-2 md:mb-3 max-w-3xl mx-auto leading-relaxed">
               {excerpt}
             </p>
           )}
           {meta && (
             <div
-              className={`text-sm flex flex-wrap items-center gap-x-4 gap-y-1 text-white/70 pt-3 border-t border-white/10 ${center ? "justify-center" : ""}`}
+              className={`text-xs md:text-sm flex flex-wrap items-center gap-x-3 md:gap-x-4 gap-y-1 text-white/70 pt-2 md:pt-3 border-t border-white/10 ${center ? "justify-center" : ""}`}
             >
               {meta}
             </div>
