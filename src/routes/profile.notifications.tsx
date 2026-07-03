@@ -136,8 +136,8 @@ function NotificationsInboxPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           {n.href ? (
-                            <Link
-                              to={n.href}
+                            <a
+                              href={n.href}
                               onClick={() => isUnread && markOne.mutate(n.id)}
                               className={[
                                 "text-sm truncate hover:underline",
@@ -145,7 +145,7 @@ function NotificationsInboxPage() {
                               ].join(" ")}
                             >
                               {pickTitle(n, lang)}
-                            </Link>
+                            </a>
                           ) : (
                             <span
                               className={[
