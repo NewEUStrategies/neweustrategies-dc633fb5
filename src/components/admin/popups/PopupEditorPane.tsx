@@ -1,9 +1,13 @@
 // Popup editor: the full visual Builder (scope "popup") + display settings.
 // The popup document and settings live in builder_popups; Save persists both.
-import { useCallback, useEffect, useState } from "react";
+// Zapis jest ręczny (bez autosave), więc guard niezapisanych zmian porównuje
+// bieżący stan z migawką z ostatniego zapisu - wyjście z edytora lub
+// zamknięcie karty z brudnym stanem wymaga potwierdzenia.
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { Builder } from "@/components/admin/builder/Builder";
 import { PopupSettingsPane } from "./PopupSettingsPane";
 import { Button } from "@/components/ui/button";
@@ -30,6 +34,8 @@ export function PopupEditorPane({ popupId }: { popupId: string }) {
   const [settings, setSettings] = useState<PopupSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [lang, setLang] = useState<"pl" | "en">("pl");
+  // Migawka stanu z ostatniego zapisu (null = rekord jeszcze nie zaladowany).
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
 
   // Seed local editing state once the record arrives.
   useEffect(() => {
@@ -38,15 +44,35 @@ export function PopupEditorPane({ popupId }: { popupId: string }) {
     setStatus(popup.status);
     setDoc(popup.builder_data);
     setSettings(popup.settings);
+    setSavedSnapshot(
+      JSON.stringify({
+        name: popup.name,
+        status: popup.status,
+        doc: popup.builder_data,
+        settings: popup.settings,
+      }),
+    );
   }, [popup, doc]);
+
+  const currentSnapshot = useMemo(
+    () => JSON.stringify({ name, status, doc, settings }),
+    [name, status, doc, settings],
+  );
+  const isDirty = savedSnapshot !== null && currentSnapshot !== savedSnapshot;
+  // Tab close / route change with unsaved edits -> confirmation prompt.
+  useUnsavedChangesGuard(isDirty || saving);
 
   const onSave = useCallback(async () => {
     if (!doc || !settings) return;
     setSaving(true);
     const ok = await save({ name: name.trim() || "Popup", status, builder_data: doc, settings });
     setSaving(false);
-    if (ok) toast.success(t("admin.popups.saved", { defaultValue: "Zapisano popup" }));
-    else toast.error(t("admin.popups.saveError", { defaultValue: "Nie udało się zapisać popupu" }));
+    if (ok) {
+      setSavedSnapshot(JSON.stringify({ name, status, doc, settings }));
+      toast.success(t("admin.popups.saved", { defaultValue: "Zapisano popup" }));
+    } else {
+      toast.error(t("admin.popups.saveError", { defaultValue: "Nie udało się zapisać popupu" }));
+    }
   }, [doc, settings, name, status, save, t]);
 
   if (loading || (!popup && !doc)) {
