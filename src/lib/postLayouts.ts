@@ -6,6 +6,13 @@
 
 export type PostFormat = "standard" | "video" | "audio" | "gallery";
 
+export interface RecommendedImageSize {
+  width: number;
+  height: number;
+  /** Krótki opis proporcji, np. "16:9". */
+  ratio?: string;
+}
+
 export interface LayoutPreset {
   id: string;
   label: string;
@@ -25,6 +32,8 @@ export interface LayoutPreset {
   centerHeaderDefault?: boolean;
   /** Klucz featured-ratio z post_layout_settings dla layoutu */
   featuredRatioKey?: "featured_ratio_l6" | "featured_ratio_l10" | "featured_ratio_l11";
+  /** Rekomendowany rozmiar grafiki wyróżniającej (px). */
+  recommendedImage?: RecommendedImageSize;
 }
 
 export const STANDARD_LAYOUTS: LayoutPreset[] = [
