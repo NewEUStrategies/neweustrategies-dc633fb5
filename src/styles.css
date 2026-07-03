@@ -967,12 +967,6 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   text-decoration: none;
 }
 
-.cms-post-title.cms-post-title[class*="line-clamp-"],
-.cms-post-excerpt.cms-post-excerpt[class*="line-clamp-"] {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  white-space: normal;
-}
 .cms-post-title:hover,
 a:hover .cms-post-title,
 a:focus-visible .cms-post-title,
