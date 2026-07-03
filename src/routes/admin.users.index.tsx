@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { ArrowUp, ArrowDown, ArrowUpDown, Eye, UserCog } from "lucide-react";
 import { impersonateUser } from "@/lib/admin/impersonation";
 
-export const Route = createFileRoute("/admin/users")({
+export const Route = createFileRoute("/admin/users/")({
   component: Users,
 });
 
