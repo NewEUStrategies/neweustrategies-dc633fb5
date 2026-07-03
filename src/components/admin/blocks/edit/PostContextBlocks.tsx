@@ -144,14 +144,22 @@ export function AuthorBioBlock({ block, onChange }: Props) {
       <div className="pt-2 border-t border-border/60 space-y-3">
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
           Podgląd - {variant === "card" ? "Karta" : variant === "inline" ? "Inline" : "Minimalna"}
+          {!selectedAuthorId && (
+            <span className="ml-1 italic normal-case">(przykładowe dane)</span>
+          )}
         </div>
-        <CurrentPostProvider value={{ ...PLACEHOLDER_POST_CTX, author: previewAuthor }}>
+        <CurrentPostProvider
+          value={{
+            ...PLACEHOLDER_POST_CTX,
+            author: PLACEHOLDER_POST_CTX.author as CurrentPostAuthor,
+          }}
+        >
           <AuthorBioView
             showAvatar={showAvatar}
             showSocial={showSocial}
             showPostsCount={showPostsCount}
             variant={variant as "card" | "inline" | "minimal"}
-            authorOverride={previewAuthor}
+            authorId={selectedAuthorId || undefined}
           />
         </CurrentPostProvider>
 
@@ -166,14 +174,17 @@ export function AuthorBioBlock({ block, onChange }: Props) {
                     {v === "card" ? "Karta" : v === "inline" ? "Inline" : "Minimalna"}
                   </div>
                   <CurrentPostProvider
-                    value={{ ...PLACEHOLDER_POST_CTX, author: previewAuthor }}
+                    value={{
+                      ...PLACEHOLDER_POST_CTX,
+                      author: PLACEHOLDER_POST_CTX.author as CurrentPostAuthor,
+                    }}
                   >
                     <AuthorBioView
                       showAvatar={showAvatar}
                       showSocial={showSocial}
                       showPostsCount={showPostsCount}
                       variant={v}
-                      authorOverride={previewAuthor}
+                      authorId={selectedAuthorId || undefined}
                     />
                   </CurrentPostProvider>
                 </div>
