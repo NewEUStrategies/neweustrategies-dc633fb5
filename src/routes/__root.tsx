@@ -36,6 +36,7 @@ import { WidgetLiveSync } from "../lib/builder/widgetCacheInvalidation";
 import { SiteSettingsLiveSync } from "../lib/builder/siteSettingsLiveSync";
 import { resolveSetting, siteSettingsQueryOptions } from "../lib/useSiteSetting";
 import { headerTickerQueryOptions } from "../lib/views/headerTickerQuery";
+import { resolveActiveTickerConfig } from "../lib/views/tickerVariants";
 import { designTokensQueryOptions } from "../lib/builder/designTokens";
 import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
 import { postLayoutSettingsQueryOptions } from "../hooks/usePostLayoutSettings";
@@ -209,7 +210,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       !path.startsWith("/login/");
     if (showsChrome) {
       const header = resolveSetting<HeaderSettings>(settings, "header", {});
-      const trending = header.trending ?? {};
+      const trending = resolveActiveTickerConfig(header.trending);
       const headerVisible = !!header.builder_data?.sections?.length;
       if (headerVisible && trending.enabled !== false) {
         await context.queryClient.ensureQueryData(headerTickerQueryOptions(trending));

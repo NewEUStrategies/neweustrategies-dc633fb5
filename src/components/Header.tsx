@@ -7,6 +7,7 @@ import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/admin/builder/BuilderRenderer";
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
+import { resolveActiveTickerConfig } from "@/lib/views/tickerVariants";
 import { AlertBar } from "@/components/AlertBar";
 import { AdZone } from "@/components/AdSlot";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
@@ -28,7 +29,8 @@ type ThemeLogoCfg = {
 // Shared with the root loader (SSR prefetch of the ticker) - keep in sync.
 export type HeaderSettings = {
   builder_data?: BuilderDocument | null;
-  trending?: TickerConfig;
+  // Legacy TickerConfig OR new TickerSettings shape - resolveActiveTickerConfig normalizes both.
+  trending?: TickerConfig | Record<string, unknown>;
 };
 
 type GeneralSettings = { site_name?: string };
@@ -45,7 +47,7 @@ function HeaderInner() {
   const cfg = resolveSetting<HeaderSettings>(settingsMap, "header", {});
   const general = resolveSetting<GeneralSettings>(settingsMap, "general", {});
   const theme = resolveSetting<ThemeLogoCfg>(settingsMap, "theme_options", {});
-  const trending = cfg.trending ?? { enabled: true };
+  const trending = resolveActiveTickerConfig(cfg.trending);
   const siteName = (general.site_name && general.site_name.trim()) || "Menu";
   const { theme: mode } = useTheme();
   const isDark = mode === "dark";
@@ -99,10 +101,16 @@ function HeaderInner() {
           pinnedPostId={trending.pinnedPostId}
           pinnedUntil={trending.pinnedUntil ?? null}
           selectedPostIds={trending.selectedPostIds}
+          mixedFill={trending.mixedFill}
+          labelPl={trending.labelPl}
+          labelEn={trending.labelEn}
+          iconAnimation={trending.iconAnimation}
+          colors={trending.colors}
           fullWidth={trending.fullWidth ?? true}
         />
       )}
       <AdZone position="header_banner" pageType="all" className="py-2 text-center" />
+
 
       {/* Mobile compact bar: horizontal logo (super-admin -> Branding -> Logo -> Mobile) + hamburger. */}
       <div className="lg:hidden sticky top-0 z-[9998] grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-3 px-4 py-3 border-b border-border bg-background">
