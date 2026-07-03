@@ -117,13 +117,79 @@ function OverlayCover({
   center: boolean;
 }) {
   return (
-    <div className={`relative ${ZONE} overflow-hidden`} style={{ aspectRatio: "16 / 7" }}>
+    <div
+      className={`relative ${ZONE} overflow-hidden bg-neutral-900`}
+      style={{ aspectRatio: "16 / 8" }}
+    >
       <ZoneTag label="Cover overlay + nagłówek" />
-      {url && <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover" />}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-      <div className={`absolute inset-x-0 bottom-0 p-4 text-white ${center ? "text-center" : ""}`}>
-        <p className="font-display text-xl lg:text-2xl leading-tight">{title || "Tytuł wpisu"}</p>
-        {excerpt && <p className="text-xs opacity-80 mt-1 line-clamp-2">{excerpt}</p>}
+      {url && (
+        <img
+          src={url}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover opacity-70"
+        />
+      )}
+      {/* Ciemny gradient całości + wzmocnienie dołu (jak w referencji) */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/90" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.55)_75%)]" />
+
+      {/* Zawartość - kategorie, tytuł, excerpt, meta */}
+      <div
+        className={`absolute inset-x-0 bottom-0 p-5 lg:p-8 text-white ${
+          center ? "text-center" : ""
+        }`}
+      >
+        {/* Kategorie */}
+        <div
+          className={`flex flex-wrap gap-1.5 mb-3 ${center ? "justify-center" : ""}`}
+        >
+          <span
+            className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-sm text-white"
+            style={{ background: "#FDB078", color: "#111" }}
+          >
+            Kategoria
+          </span>
+          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-sm bg-white/15 text-white/90 border border-white/20">
+            Tag
+          </span>
+        </div>
+
+        {/* Tytuł */}
+        <p
+          className="font-display font-bold text-2xl lg:text-4xl leading-[1.1] mb-2"
+          style={{ fontFamily: 'var(--font-display, "Red Hat Display")' }}
+        >
+          {title || "Tytuł wpisu"}
+        </p>
+
+        {/* Excerpt */}
+        {excerpt && (
+          <p className="text-xs lg:text-sm text-white/80 max-w-2xl mx-auto line-clamp-2 mb-3">
+            {excerpt}
+          </p>
+        )}
+
+        {/* Meta */}
+        <div
+          className={`flex flex-wrap gap-x-3 gap-y-1 text-[10px] lg:text-[11px] text-white/70 items-center ${
+            center ? "justify-center" : ""
+          }`}
+        >
+          <span>
+            By <span className="underline text-white/90">Autor</span>
+          </span>
+          <span className="opacity-50">|</span>
+          <span>Published: DD/MM/YYYY</span>
+          <span className="opacity-50">|</span>
+          <span>X Min Read</span>
+          <span className="opacity-50">|</span>
+          <span className="inline-flex gap-1.5">
+            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">f</span>
+            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">x</span>
+            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">in</span>
+            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">@</span>
+          </span>
+        </div>
       </div>
     </div>
   );
