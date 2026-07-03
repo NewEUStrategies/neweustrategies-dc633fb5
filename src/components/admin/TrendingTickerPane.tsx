@@ -1,6 +1,6 @@
 // CMS panel for the header "Na czasie / Trending" ticker.
 // Stores config in site_settings.header.value.trending as { activeVariantId, variants }.
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
