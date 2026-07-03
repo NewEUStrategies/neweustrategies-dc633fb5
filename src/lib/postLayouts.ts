@@ -230,6 +230,8 @@ export interface LayoutOverrides {
   show_bottom_newsletter?: boolean;
   show_floating_share_bar?: boolean;
   auto_load_next_post?: boolean;
+  /** Per-wpis nadpisanie sidebara (true/false, null = użyj presetu/globalnego overrideu). */
+  has_sidebar?: boolean | null;
 }
 
 export function defaultPostLayoutSettings(): PostLayoutSettings {
