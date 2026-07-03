@@ -213,6 +213,21 @@ export function getNum(c: WidgetContent, k: string, dflt: number): number {
   return typeof v === "number" ? v : dflt;
 }
 
+export function getBool(c: WidgetContent, k: string, dflt = false): boolean {
+  const v = c[k];
+  if (typeof v === "boolean") return v;
+  if (typeof v === "string") {
+    const normalized = v.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1" || normalized === "yes") return true;
+    if (normalized === "false" || normalized === "0" || normalized === "no") return false;
+  }
+  if (typeof v === "number") {
+    if (v === 1) return true;
+    if (v === 0) return false;
+  }
+  return dflt;
+}
+
 export function getStrArr(c: WidgetContent, k: string): string[] {
   const v = c[k];
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
