@@ -137,16 +137,25 @@ export function PostLayoutRenderer({
               responsive
               sizes={coverImageSizes(preset)}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent" />
             <div
               className={`absolute inset-x-0 bottom-0 p-6 lg:p-10 ${center ? "text-center" : ""} text-white`}
             >
+              {categoryBadges && (
+                <div
+                  className={`mb-4 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}
+                >
+                  {categoryBadges}
+                </div>
+              )}
               <h1 className="font-display text-3xl lg:text-5xl mb-3">{title}</h1>
               {excerpt && (
                 <p className="text-base lg:text-lg opacity-90 mb-3 max-w-3xl mx-auto">{excerpt}</p>
               )}
               {meta && (
-                <div className={`text-sm flex flex-wrap gap-3 ${center ? "justify-center" : ""}`}>
+                <div
+                  className={`text-sm flex flex-wrap items-center gap-x-4 gap-y-1 text-white/85 ${center ? "justify-center" : ""}`}
+                >
                   {meta}
                 </div>
               )}
