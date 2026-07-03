@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
 import { publishTickerDraft, clearTickerDraft } from "@/lib/views/tickerDraftBridge";
+import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import {
   DEFAULT_LIGHT_COLORS,
   DEFAULT_DARK_COLORS,
