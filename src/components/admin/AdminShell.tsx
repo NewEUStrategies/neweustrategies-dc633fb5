@@ -234,6 +234,13 @@ function AdminShellInner({
                 }),
               },
               { to: "/admin/users", icon: Users, label: t("admin.nav.users") },
+              {
+                to: "/admin/authors",
+                icon: Users,
+                label: t("admin.nav.authors", {
+                  defaultValue: lang === "pl" ? "Autorzy" : "Authors",
+                }),
+              },
               { to: "/admin/settings", icon: Settings, label: t("admin.nav.settings") },
             ],
           },
