@@ -1,14 +1,17 @@
 // Sticky condensed reading header for single-post pages.
 // Uses the SAME SearchButtonWidget as the builder header so the input is
 // visually and behaviourally identical (live results, popover, clear button).
-// Layout: [search] [current article title] [theme | login/register | lang]
+// Layout: [search] [current article title] [theme | account/login | lang]
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { LogIn, User } from "@/lib/lucide-shim";
+import { LogIn, LogOut, User } from "@/lib/lucide-shim";
 import { ThemeToggle } from "@/components/atoms/ThemeToggle";
-import { LangToggle } from "@/components/atoms/LangToggle";
+import { LangSwitcherDropdown } from "@/components/admin/builder/ui/organisms/widget-view/chromeWidgets";
 import { SearchButtonWidget } from "@/components/admin/builder/ui/organisms/widget-view/SearchButtonWidget";
+import { useAuth } from "@/hooks/useAuth";
+import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
+import { useHasMounted } from "@/hooks/useHasMounted";
 
 interface Props {
   title: string;
@@ -17,8 +20,24 @@ interface Props {
 }
 
 const COPY = {
-  pl: { reading: "CZYTASZ", search: "Szukaj", login: "Zaloguj", register: "Zarejestruj" },
-  en: { reading: "READING", search: "Search", login: "Sign in", register: "Sign up" },
+  pl: {
+    reading: "CZYTASZ",
+    search: "Szukaj",
+    login: "Zaloguj",
+    register: "Zarejestruj",
+    profile: "Profil",
+    logout: "Wyloguj",
+    lang: "Język",
+  },
+  en: {
+    reading: "READING",
+    search: "Search",
+    login: "Sign in",
+    register: "Sign up",
+    profile: "Profile",
+    logout: "Sign out",
+    lang: "Language",
+  },
 } as const;
 
 export function ReadingHeader({ title, showAfter = 320 }: Props) {
