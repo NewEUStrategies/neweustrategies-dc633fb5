@@ -148,7 +148,7 @@ export function PostLayoutRenderer({
           <LayoutBody
             contentMaxW={contentMaxW}
             content={content}
-            sidebar={preset.hasSidebar ? sidebar : undefined}
+            sidebar={hasSidebar ? sidebar : undefined}
             footer={footer}
           />
         </div>
@@ -182,7 +182,7 @@ export function PostLayoutRenderer({
           <LayoutBody
             contentMaxW={contentMaxW}
             content={content}
-            sidebar={preset.hasSidebar ? sidebar : undefined}
+            sidebar={hasSidebar ? sidebar : undefined}
             footer={footer}
           />
         </div>
@@ -201,7 +201,7 @@ export function PostLayoutRenderer({
           <LayoutBody
             contentMaxW={contentMaxW}
             content={content}
-            sidebar={preset.hasSidebar ? sidebar : undefined}
+            sidebar={hasSidebar ? sidebar : undefined}
             footer={footer}
           />
         </div>
@@ -219,7 +219,7 @@ export function PostLayoutRenderer({
         <LayoutBody
           contentMaxW={contentMaxW}
           content={content}
-          sidebar={preset.hasSidebar ? sidebar : undefined}
+          sidebar={hasSidebar ? sidebar : undefined}
           footer={footer}
         />
       </div>
