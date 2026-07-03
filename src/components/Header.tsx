@@ -14,6 +14,16 @@ import { HeaderSkeleton } from "@/components/header/HeaderSkeleton";
 import { MobileDrawerBody } from "@/components/header/mobile/MobileDrawerBody";
 import { AppLink } from "@/components/atoms/AppLink";
 import { useRouterState } from "@tanstack/react-router";
+import { useTheme } from "@/components/ThemeProvider";
+
+type ThemeLogoCfg = {
+  logo?: {
+    main?: string;
+    main_dark?: string;
+    mobile?: string;
+    mobile_dark?: string;
+  };
+};
 
 // Shared with the root loader (SSR prefetch of the ticker) - keep in sync.
 export type HeaderSettings = {
@@ -34,8 +44,15 @@ function HeaderInner() {
   const { data: settingsMap } = useSuspenseQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<HeaderSettings>(settingsMap, "header", {});
   const general = resolveSetting<GeneralSettings>(settingsMap, "general", {});
+  const theme = resolveSetting<ThemeLogoCfg>(settingsMap, "theme_options", {});
   const trending = cfg.trending ?? { enabled: true };
   const siteName = (general.site_name && general.site_name.trim()) || "Menu";
+  const { theme: mode } = useTheme();
+  const isDark = mode === "dark";
+  const themeLogo = theme.logo ?? {};
+  const mobileLogo = isDark
+    ? themeLogo.mobile_dark || themeLogo.mobile || themeLogo.main_dark || themeLogo.main || ""
+    : themeLogo.mobile || themeLogo.mobile_dark || themeLogo.main || themeLogo.main_dark || "";
 
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
@@ -85,13 +102,26 @@ function HeaderInner() {
       )}
       <AdZone position="header_banner" pageType="all" className="py-2 text-center" />
 
-      {/* Mobile compact bar: site name + hamburger. Hidden on tablet/desktop. */}
+      {/* Mobile compact bar: horizontal logo (super-admin -> Branding -> Logo -> Mobile) + hamburger. */}
       <div className="lg:hidden sticky top-0 z-[9998] flex items-center justify-between gap-3 px-4 py-3 border-b border-border bg-background">
         <AppLink
           href="/"
-          className="text-base font-bold tracking-tight text-foreground truncate min-w-0"
+          aria-label={siteName}
+          className="flex items-center min-w-0 text-foreground"
         >
-          {siteName}
+          {mobileLogo ? (
+            <img
+              src={mobileLogo}
+              alt={siteName}
+              className="h-8 w-auto max-w-[220px] object-contain"
+              loading="eager"
+              decoding="async"
+            />
+          ) : (
+            <span className="text-base font-bold tracking-tight truncate min-w-0">
+              {siteName}
+            </span>
+          )}
         </AppLink>
         <button
           type="button"
