@@ -64,7 +64,7 @@ export function TrendingTicker({
   mixedFill = "trending",
   labelPl,
   labelEn,
-  iconAnimation = "flicker",
+  iconAnimation = "none",
   colors,
   fullWidth = true,
   variantId = "default",

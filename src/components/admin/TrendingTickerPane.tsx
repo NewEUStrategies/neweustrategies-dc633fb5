@@ -1,6 +1,6 @@
 // CMS panel for the header "Na czasie / Trending" ticker.
 // Stores config in site_settings.header.value.trending as { activeVariantId, variants }.
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Save, Plus, Copy, Trash2, Check } from "@/lib/lucide-shim";
+import { Save, Plus, Copy, Trash2, Check, Undo2, Redo2, X } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { TrendingTicker } from "@/components/header/TrendingTicker";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
@@ -21,7 +21,6 @@ import {
   MAX_TICKER_VARIANTS,
   makeDefaultVariant,
   normalizeTickerSettings,
-  type IconAnimation,
   type MixedFill,
   type TickerColors,
   type TickerColorScheme,
@@ -100,6 +99,11 @@ const COPY = {
     color_counter: "Numery",
     resetColors: "Przywróć domyślne",
     cannotDeleteLast: "Musi zostać przynajmniej jeden wariant.",
+    undo: "Cofnij",
+    redo: "Ponów",
+    cancel: "Anuluj zmiany",
+    noChanges: "Brak zmian do cofnięcia.",
+    reverted: "Przywrócono ostatnio zapisany stan.",
   },
   en: {
     title: "Trending widget",
@@ -165,6 +169,11 @@ const COPY = {
     color_counter: "Counters",
     resetColors: "Reset to defaults",
     cannotDeleteLast: "At least one variant must remain.",
+    undo: "Undo",
+    redo: "Redo",
+    cancel: "Discard changes",
+    noChanges: "No changes to discard.",
+    reverted: "Restored the last saved state.",
   },
 } as const;
 
@@ -182,7 +191,7 @@ const COLOR_KEYS: readonly (keyof TickerColors)[] = [
   "counter",
 ];
 
-const ICON_OPTIONS: readonly IconAnimation[] = ["none", "pulse", "flicker", "spin", "wave"];
+
 
 export function TrendingTickerPane() {
   const qc = useQueryClient();
@@ -226,9 +235,71 @@ export function TrendingTickerPane() {
     variants: [makeDefaultVariant()],
   }));
 
+  // Undo/redo history + baseline snapshot for the "cancel" action.
+  const [past, setPast] = useState<TickerSettings[]>([]);
+  const [future, setFuture] = useState<TickerSettings[]>([]);
+  const baselineRef = useRef<TickerSettings | null>(null);
+
   useEffect(() => {
-    setSettings(normalizeTickerSettings(data?.trending));
+    const next = normalizeTickerSettings(data?.trending);
+    setSettings(next);
+    baselineRef.current = next;
+    setPast([]);
+    setFuture([]);
   }, [data]);
+
+  // commit() pushes the current state onto the past stack, drops any redo
+  // future, then applies the updater. All mutations funnel through here so
+  // undo/redo has a complete picture of edits made in this session.
+  const commit = useCallback((updater: (s: TickerSettings) => TickerSettings): void => {
+    setSettings((current) => {
+      const next = updater(current);
+      if (next === current) return current;
+      setPast((p) => [...p, current]);
+      setFuture([]);
+      return next;
+    });
+  }, []);
+
+  const undo = useCallback((): void => {
+    setPast((p) => {
+      if (p.length === 0) {
+        toast.info(t.noChanges);
+        return p;
+      }
+      const prev = p[p.length - 1];
+      setSettings((current) => {
+        setFuture((f) => [current, ...f]);
+        return prev;
+      });
+      return p.slice(0, -1);
+    });
+  }, [t.noChanges]);
+
+  const redo = useCallback((): void => {
+    setFuture((f) => {
+      if (f.length === 0) return f;
+      const [nextState, ...rest] = f;
+      setSettings((current) => {
+        setPast((p) => [...p, current]);
+        return nextState;
+      });
+      return rest;
+    });
+  }, []);
+
+  const cancelChanges = useCallback((): void => {
+    const base = baselineRef.current;
+    if (!base) return;
+    if (past.length === 0 && future.length === 0) {
+      toast.info(t.noChanges);
+      return;
+    }
+    setSettings(base);
+    setPast([]);
+    setFuture([]);
+    toast.success(t.reverted);
+  }, [past.length, future.length, t.noChanges, t.reverted]);
 
   const activeVariant: TickerVariant =
     settings.variants.find((v) => v.id === settings.activeVariantId) ?? settings.variants[0];
@@ -249,7 +320,10 @@ export function TrendingTickerPane() {
         .upsert({ key: "header", value: merged as never }, { onConflict: "key" });
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_r, next) => {
+      baselineRef.current = next;
+      setPast([]);
+      setFuture([]);
       qc.invalidateQueries({ queryKey: ["site_settings", "header"] });
       qc.invalidateQueries({ queryKey: ["site_settings_public", "all"] });
       qc.invalidateQueries({ queryKey: ["site_settings_public", "header"] });
@@ -259,7 +333,7 @@ export function TrendingTickerPane() {
   });
 
   const patchActive = (patch: Partial<TickerConfig>): void => {
-    setSettings((s) => ({
+    commit((s) => ({
       ...s,
       variants: s.variants.map((v) =>
         v.id === s.activeVariantId ? { ...v, config: { ...v.config, ...patch } } : v,
@@ -270,16 +344,16 @@ export function TrendingTickerPane() {
     patchActive({ [k]: v } as Partial<TickerConfig>);
 
   const renameActive = (name: string): void => {
-    setSettings((s) => ({
+    commit((s) => ({
       ...s,
       variants: s.variants.map((v) => (v.id === s.activeVariantId ? { ...v, name } : v)),
     }));
   };
 
-  const activate = (id: string): void => setSettings((s) => ({ ...s, activeVariantId: id }));
+  const activate = (id: string): void => commit((s) => ({ ...s, activeVariantId: id }));
 
   const addVariant = (): void => {
-    setSettings((s) => {
+    commit((s) => {
       if (s.variants.length >= MAX_TICKER_VARIANTS) return s;
       const v = makeDefaultVariant(`${lang === "en" ? "Variant" : "Wariant"} ${s.variants.length + 1}`);
       return { activeVariantId: v.id, variants: [...s.variants, v] };
@@ -287,7 +361,7 @@ export function TrendingTickerPane() {
   };
 
   const duplicateActive = (): void => {
-    setSettings((s) => {
+    commit((s) => {
       if (s.variants.length >= MAX_TICKER_VARIANTS) return s;
       const src = s.variants.find((v) => v.id === s.activeVariantId);
       if (!src) return s;
@@ -298,7 +372,7 @@ export function TrendingTickerPane() {
   };
 
   const removeActive = (): void => {
-    setSettings((s) => {
+    commit((s) => {
       if (s.variants.length <= 1) {
         toast.error(t.cannotDeleteLast);
         return s;
@@ -307,6 +381,24 @@ export function TrendingTickerPane() {
       return { activeVariantId: rest[0].id, variants: rest };
     });
   };
+
+  // Keyboard shortcuts: Cmd/Ctrl+Z = undo, Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y = redo.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((key === "z" && e.shiftKey) || key === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
+
 
   const setColor = (mode: "light" | "dark", key: keyof TickerColors, value: string): void => {
     const current: TickerColorScheme = cfg.colors ?? DEFAULT_TICKER_COLORS;
@@ -493,26 +585,8 @@ export function TrendingTickerPane() {
           </div>
         </div>
 
-        {/* Icon animation */}
-        <div className="space-y-1.5">
-          <Label>{t.icon}</Label>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {ICON_OPTIONS.map((a) => (
-              <button
-                key={a}
-                type="button"
-                onClick={() => set("iconAnimation", a)}
-                className={`rounded-[5px] border px-3 py-2 text-xs transition ${
-                  (cfg.iconAnimation ?? "flicker") === a
-                    ? "border-brand bg-brand/10 text-brand font-medium"
-                    : "border-border hover:bg-muted"
-                }`}
-              >
-                {t[`icon_${a}` as const]}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Icon animation removed - flame stays static. */}
+
 
         {/* Numerics */}
         <div className="grid grid-cols-2 gap-4">
@@ -774,10 +848,45 @@ export function TrendingTickerPane() {
         </div>
       )}
 
-      <div className="flex justify-end">
-        <Button onClick={() => save.mutate(settings)} disabled={save.isPending}>
-          <Save className="w-4 h-4 mr-2" /> {save.isPending ? "..." : t.save}
-        </Button>
+      <div className="sticky bottom-0 -mx-1 flex flex-wrap items-center justify-between gap-2 border-t border-border bg-background/95 px-1 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <div className="flex items-center gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={undo}
+            disabled={past.length === 0}
+            title={`${t.undo} (Ctrl+Z)`}
+            aria-label={t.undo}
+          >
+            <Undo2 className="w-4 h-4 mr-1" /> {t.undo}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={redo}
+            disabled={future.length === 0}
+            title={`${t.redo} (Ctrl+Shift+Z)`}
+            aria-label={t.redo}
+          >
+            <Redo2 className="w-4 h-4 mr-1" /> {t.redo}
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={cancelChanges}
+            disabled={past.length === 0 && future.length === 0}
+          >
+            <X className="w-4 h-4 mr-1" /> {t.cancel}
+          </Button>
+          <Button onClick={() => save.mutate(settings)} disabled={save.isPending}>
+            <Save className="w-4 h-4 mr-2" /> {save.isPending ? "..." : t.save}
+          </Button>
+        </div>
       </div>
     </div>
   );
