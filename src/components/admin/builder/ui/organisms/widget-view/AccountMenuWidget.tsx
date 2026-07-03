@@ -470,9 +470,28 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="p-2 shadow-lg border-border/60"
+        collisionPadding={12}
+        sticky="always"
+        hideWhenDetached={false}
+        avoidCollisions
+        className={[
+          "p-2 shadow-xl border-border/60 backdrop-blur-md",
+          // Smoother in/out using Radix state + tailwindcss-animate keyframes.
+          // Overrides the default 150ms snap with a longer, cubic-bezier easing
+          // and adds a small vertical slide + subtle scale for a premium feel.
+          "data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
+          "data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
+          "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
+          "data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2",
+          "duration-220 ease-[cubic-bezier(0.22,0.61,0.36,1)]",
+          "will-change-[transform,opacity]",
+          "origin-(--radix-popover-content-transform-origin)",
+        ].join(" ")}
         style={panelStyle}
       >
+
+
         {session ? (
           <>
             {user?.email && (
