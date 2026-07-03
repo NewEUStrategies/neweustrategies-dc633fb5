@@ -3891,6 +3891,7 @@ export type Database = {
         Args: { _path: string; _referrer?: string; _tenant_id: string }
         Returns: undefined
       }
+      request_public_host: { Args: never; Returns: string }
       resolve_path: {
         Args: { _segments: string[] }
         Returns: {
