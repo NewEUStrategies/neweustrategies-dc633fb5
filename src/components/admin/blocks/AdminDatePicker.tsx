@@ -14,7 +14,7 @@ import { Calendar as CalendarIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Calendar } from "@/components/ui/calendar";
+import { AdminCalendar } from "@/components/admin/blocks/AdminCalendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type Lang = "pl" | "en";
@@ -103,16 +103,13 @@ export function AdminDatePicker({
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto p-0 admin-calendar">
-          <Calendar
-            mode="single"
+          <AdminCalendar
             selected={parsed ?? undefined}
             onSelect={(d) => {
               onChange(d ? toLocalDate(d) : null);
               setOpen(false);
             }}
-            initialFocus
             locale={locale}
-            className="pointer-events-auto"
           />
         </PopoverContent>
       </Popover>
@@ -187,16 +184,13 @@ export function AdminDateTimePicker({
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto p-0 admin-calendar">
-          <Calendar
-            mode="single"
+          <AdminCalendar
             selected={parsed ?? undefined}
             onSelect={(d) => {
               commit(d ?? null, timeValue || "00:00");
               setOpen(false);
             }}
-            initialFocus
             locale={locale}
-            className="pointer-events-auto"
           />
         </PopoverContent>
       </Popover>
