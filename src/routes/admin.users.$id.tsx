@@ -29,8 +29,11 @@ import {
   Facebook,
   Instagram,
   Music2,
+  Camera,
+  Loader2,
 } from "lucide-react";
 import { impersonateUser } from "@/lib/admin/impersonation";
+
 
 export const Route = createFileRoute("/admin/users/$id")({
   component: UserDetail,
