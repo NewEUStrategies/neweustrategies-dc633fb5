@@ -14,7 +14,7 @@ import { requireStaff } from "@/integrations/supabase/require-staff";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { recordAudit, type AuditAction } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
-import { POST_STATUSES, evaluateTransition } from "./content/workflow";
+import { POST_STATUSES, evaluateTransition, isFirstPublish } from "./content/workflow";
 import { normalizeSourcePath, normalizeTargetPath } from "./seo/redirects";
 import {
   REVISION_KEEP_LIMIT,
@@ -82,6 +82,40 @@ async function audit(
 
 type PostUpdateRow = Database["public"]["Tables"]["posts"]["Update"];
 type PageUpdateRow = Database["public"]["Tables"]["pages"]["Update"];
+type ContentStatus = Database["public"]["Enums"]["post_status"];
+
+/**
+ * Bulk status change honouring the first-publication rule (isFirstPublish):
+ * publishing stamps `published_at` only on rows that never had one, so a bulk
+ * action over a mixed selection cannot re-date already-published content and
+ * reshuffle the public archive, feeds or sitemaps. The rule is expressed as
+ * two complementary filtered UPDATEs because bulk paths have no per-row
+ * pre-read; RLS keeps both statements tenant-scoped.
+ */
+async function applyBulkStatus(
+  supabase: SupabaseClient<Database>,
+  table: "posts" | "pages",
+  ids: string[],
+  status: ContentStatus,
+): Promise<void> {
+  if (status !== "published") {
+    const { error } = await supabase.from(table).update({ status }).in("id", ids);
+    if (error) throw new Error(error.message);
+    return;
+  }
+  const { error: stampError } = await supabase
+    .from(table)
+    .update({ status, published_at: new Date().toISOString() })
+    .in("id", ids)
+    .is("published_at", null);
+  if (stampError) throw new Error(stampError.message);
+  const { error: keepError } = await supabase
+    .from(table)
+    .update({ status })
+    .in("id", ids)
+    .not("published_at", "is", null);
+  if (keepError) throw new Error(keepError.message);
+}
 
 // ---------- SEO: automatic redirects on permalink changes ----------
 
@@ -368,7 +402,11 @@ export const updatePost = createServerFn({ method: "POST" })
           );
         }
       }
-      if (updates.status === "published" && !updates.published_at) {
+      // `published_at` is stamped exactly once - on the first transition into
+      // `published` (see isFirstPublish). The editor re-sends
+      // status: "published" with every save of a live post, so an unguarded
+      // stamp here would reorder every published_at-sorted list and feed.
+      if (isFirstPublish(existing.status, nextStatus, existing.published_at)) {
         updates.published_at = new Date().toISOString();
       }
       // Leaving `scheduled` (or publishing directly) clears the pending schedule.
@@ -516,10 +554,7 @@ export const bulkUpdatePosts = createServerFn({ method: "POST" })
           "Workflow: only an administrator can publish - submit for review instead",
         );
       }
-      const updates: PostUpdateRow = { status: data.status };
-      if (data.status === "published") updates.published_at = new Date().toISOString();
-      const { error } = await supabase.from("posts").update(updates).in("id", data.ids);
-      if (error) throw new Error(error.message);
+      await applyBulkStatus(supabase, "posts", data.ids, data.status);
       await audit(
         supabase, tenantId,
         data.status === "published" ? "post.publish" : "post.update",
@@ -591,7 +626,10 @@ export const updatePage = createServerFn({ method: "POST" })
       const tenantId = await resolveTenant(supabase, userId);
 
       const { data: existing, error: exErr } = await supabase
-        .from("pages").select("id, status, slug, parent_id").eq("id", data.id).maybeSingle();
+        .from("pages")
+        .select("id, status, slug, parent_id, published_at")
+        .eq("id", data.id)
+        .maybeSingle();
       if (exErr) throw new Error(exErr.message);
       if (!existing) throw new Error("Page not found or access denied");
 
@@ -599,7 +637,11 @@ export const updatePage = createServerFn({ method: "POST" })
       if (typeof updates.slug === "string") {
         updates.slug = await uniqueSlug(supabase, "pages", tenantId, updates.slug, data.id);
       }
-      if (updates.status === "published" && !updates.published_at) {
+      // Same first-publication rule as posts (see isFirstPublish): a re-save
+      // of a live page must not re-date it - sitemaps and feeds order by
+      // `published_at`, and the editor re-sends status: "published" every time.
+      const nextStatus = updates.status ?? existing.status;
+      if (isFirstPublish(existing.status, nextStatus, existing.published_at)) {
         updates.published_at = new Date().toISOString();
       }
 
@@ -627,7 +669,7 @@ export const updatePage = createServerFn({ method: "POST" })
         });
       }
 
-      const publish = updates.status === "published" && existing.status !== "published";
+      const publish = nextStatus === "published" && existing.status !== "published";
       await audit(
         supabase, tenantId, publish ? "page.publish" : "page.update",
         "page", data.id, { fields: Object.keys(updates) },
@@ -707,10 +749,7 @@ export const bulkUpdatePages = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("page.bulkUpdate", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
-      const updates: PageUpdateRow = { status: data.status };
-      if (data.status === "published") updates.published_at = new Date().toISOString();
-      const { error } = await supabase.from("pages").update(updates).in("id", data.ids);
-      if (error) throw new Error(error.message);
+      await applyBulkStatus(supabase, "pages", data.ids, data.status);
       await audit(
         supabase, tenantId,
         data.status === "published" ? "page.publish" : "page.update",
