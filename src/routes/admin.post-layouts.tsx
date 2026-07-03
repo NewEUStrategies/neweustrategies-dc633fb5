@@ -74,49 +74,43 @@ function Page() {
     };
 
     return (
-      <section className="space-y-3">
-        <div className="flex items-baseline justify-between">
-          <h2 className="font-display text-lg">{title}</h2>
-          <span className="text-xs text-muted-foreground">
+      <section className="space-y-2">
+        <div className="flex items-baseline justify-between gap-3 flex-wrap">
+          <h2 className="font-display text-base">{title}</h2>
+          <span className="text-[11px] text-muted-foreground">
             Wybrany: <b>{selected.label}</b> ({selectedHasSidebar ? "z sidebarem" : "bez sidebara"})
           </span>
         </div>
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+        {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
 
-        <div className="grid md:grid-cols-[1fr_280px] gap-4 items-start">
-          <div className="space-y-4">
+        <div className="grid md:grid-cols-[1fr_220px] gap-3 items-start">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {presets.map((p) => {
               const isSelected = value === p.id;
-              const currentHasSidebar = isSelected ? selectedHasSidebar : (overrides[p.id] ?? p.hasSidebar);
+              const currentHasSidebar = isSelected
+                ? selectedHasSidebar
+                : (overrides[p.id] ?? p.hasSidebar);
               return (
                 <div
                   key={p.id}
-                  className="border border-border rounded-lg p-3 bg-background/50"
+                  className={`border rounded-md p-2 bg-background/50 ${isSelected ? "border-brand" : "border-border"}`}
                 >
-                  <div className="flex items-baseline justify-between gap-3 mb-2 flex-wrap">
-                    <p className="text-sm font-medium">{p.label}</p>
-                    <div className="flex items-center gap-2">
-                      {p.recommendedImage ? (
-                        <span
-                          className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border"
-                          title="Rekomendowany rozmiar grafiki wyróżniającej"
-                        >
-                          Grafika: <b className="text-foreground">{p.recommendedImage.width}×{p.recommendedImage.height}px</b>
-                          {p.recommendedImage.ratio ? ` (${p.recommendedImage.ratio})` : ""}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                          Bez grafiki wyróżniającej
-                        </span>
-                      )}
-                      {isSelected && (
-                        <span className="text-[10px] uppercase tracking-wider text-brand font-semibold">
-                          Aktywny · {currentHasSidebar ? "z sidebarem" : "bez sidebara"}
-                        </span>
-                      )}
-                    </div>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <p className="text-[11px] font-medium truncate">{p.label}</p>
+                    {p.recommendedImage ? (
+                      <span
+                        className="text-[9px] px-1 py-px rounded bg-muted text-muted-foreground shrink-0"
+                        title="Rekomendowany rozmiar grafiki"
+                      >
+                        {p.recommendedImage.width}×{p.recommendedImage.height}
+                      </span>
+                    ) : (
+                      <span className="text-[9px] px-1 py-px rounded bg-muted text-muted-foreground shrink-0">
+                        brak
+                      </span>
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-1.5">
                     {[false, true].map((withSidebar) => {
                       const active = isSelected && currentHasSidebar === withSidebar;
                       return (
@@ -126,9 +120,9 @@ function Page() {
                           onClick={() => pickVariant(p.id, withSidebar)}
                           aria-pressed={active}
                           aria-label={`${p.label} - ${withSidebar ? "z sidebarem" : "bez sidebara"}`}
-                          className={`text-left p-2 rounded-md border transition ${
+                          className={`text-left p-1 rounded border transition ${
                             active
-                              ? "border-brand ring-2 ring-brand/30 bg-brand/5"
+                              ? "border-brand ring-1 ring-brand/40 bg-brand/5"
                               : "border-border hover:border-brand/50"
                           }`}
                         >
@@ -136,10 +130,9 @@ function Page() {
                             preset={p}
                             settings={local}
                             hasSidebarOverride={withSidebar}
-                            className="mb-2"
                           />
-                          <p className="text-[11px] text-muted-foreground">
-                            {withSidebar ? "Z sidebarem" : "Bez sidebara"}
+                          <p className="text-[9px] text-muted-foreground mt-1 leading-tight">
+                            {withSidebar ? "+ sidebar" : "bez sidebara"}
                           </p>
                         </button>
                       );
@@ -149,8 +142,8 @@ function Page() {
               );
             })}
           </div>
-          <aside className="sticky top-4 space-y-2 border border-border rounded-lg p-3 bg-muted/30">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">
+          <aside className="sticky top-4 space-y-1.5 border border-border rounded-md p-2 bg-muted/30">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Live preview
             </div>
             <LayoutPreview
@@ -158,7 +151,7 @@ function Page() {
               settings={local}
               hasSidebarOverride={selectedHasSidebar}
             />
-            <ul className="text-[11px] text-muted-foreground space-y-0.5 pt-2">
+            <ul className="text-[10px] text-muted-foreground space-y-0.5 pt-1">
               <li>
                 Nagłówek: <b>{selected.header}</b>
               </li>
@@ -170,16 +163,16 @@ function Page() {
               </li>
               {selected.featuredRatioKey && (
                 <li>
-                  Featured ratio: <b>{local[selected.featuredRatioKey]}%</b>
+                  Ratio: <b>{local[selected.featuredRatioKey]}%</b>
                 </li>
               )}
               {selected.recommendedImage && (
                 <li className="pt-1 mt-1 border-t border-border/60">
-                  Rekomendowana grafika:{" "}
+                  Grafika:{" "}
                   <b className="text-foreground">
                     {selected.recommendedImage.width}×{selected.recommendedImage.height}px
                   </b>
-                  {selected.recommendedImage.ratio ? ` (${selected.recommendedImage.ratio})` : ""}
+                  {selected.recommendedImage.ratio ? ` · ${selected.recommendedImage.ratio}` : ""}
                 </li>
               )}
             </ul>
@@ -191,11 +184,11 @@ function Page() {
 
   return (
     <AdminShell hideSidebar>
-      <div className="max-w-6xl mx-auto p-6 space-y-10">
-        <header className="flex items-center justify-between">
+      <div className="max-w-5xl mx-auto p-4 space-y-6">
+        <header className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="font-display text-2xl">Layouty wpisów</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="font-display text-xl">Layouty wpisów</h1>
+            <p className="text-xs text-muted-foreground">
               Globalne ustawienia. Każdy wpis może je nadpisać w swoim edytorze.
             </p>
           </div>
@@ -232,16 +225,16 @@ function Page() {
           onChange={(id) => upd({ gallery_layout: id })}
         />
 
-        <section className="space-y-3">
-          <h2 className="font-display text-lg">Featured Ratio</h2>
-          <p className="text-xs text-muted-foreground">
+        <section className="space-y-2">
+          <h2 className="font-display text-base">Featured Ratio</h2>
+          <p className="text-[11px] text-muted-foreground">
             Procent szerokości względem obrazu wyróżniającego (Layout 6/10/11).
           </p>
-          <div className="grid sm:grid-cols-3 gap-3">
+          <div className="grid sm:grid-cols-3 gap-2">
             {(["featured_ratio_l6", "featured_ratio_l10", "featured_ratio_l11"] as const).map(
               (k) => (
                 <label key={k} className="block">
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-[11px] text-muted-foreground">
                     {k.replace("featured_ratio_", "Layout ")}
                   </span>
                   <input
@@ -250,7 +243,7 @@ function Page() {
                     onChange={(e) =>
                       upd({ [k]: Number(e.target.value) } as Partial<PostLayoutSettings>)
                     }
-                    className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
+                    className="w-full px-2 py-1.5 rounded border border-input bg-background text-xs"
                   />
                 </label>
               ),
@@ -258,68 +251,70 @@ function Page() {
           </div>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="font-display text-lg">Centering Header</h2>
-          <Toggle
-            label="Wycentruj tytuł i opis wpisu"
-            checked={local.center_header}
-            onChange={(v) => upd({ center_header: v })}
-          />
-          <Toggle
-            label="Wycentruj pasek meta (data, autor)"
-            checked={local.center_entry_meta}
-            onChange={(v) => upd({ center_entry_meta: v })}
-          />
-        </section>
+        <div className="grid md:grid-cols-2 gap-6">
+          <section className="space-y-1">
+            <h2 className="font-display text-base mb-1">Centering Header</h2>
+            <Toggle
+              label="Wycentruj tytuł i opis wpisu"
+              checked={local.center_header}
+              onChange={(v) => upd({ center_header: v })}
+            />
+            <Toggle
+              label="Wycentruj pasek meta (data, autor)"
+              checked={local.center_entry_meta}
+              onChange={(v) => upd({ center_entry_meta: v })}
+            />
+          </section>
 
-        <section className="space-y-3">
-          <h2 className="font-display text-lg">Stopka wpisu</h2>
-          <Toggle
-            label="Pasek tagów"
-            checked={local.show_post_tags_bar}
-            onChange={(v) => upd({ show_post_tags_bar: v })}
-          />
-          <Toggle
-            label="Pasek źródeł"
-            checked={local.show_sources_bar}
-            onChange={(v) => upd({ show_sources_bar: v })}
-          />
-          <Toggle
-            label="Pasek Via"
-            checked={local.show_via_bar}
-            onChange={(v) => upd({ show_via_bar: v })}
-          />
-          <Toggle
-            label="Karta autora"
-            checked={local.show_author_card}
-            onChange={(v) => upd({ show_author_card: v })}
-          />
-          <Toggle
-            label="Nawigacja Poprzedni/Następny"
-            checked={local.show_prev_next}
-            onChange={(v) => upd({ show_prev_next: v })}
-          />
-          <Toggle
-            label="Ukryj paginację na mobile"
-            checked={local.prev_next_mobile_hide}
-            onChange={(v) => upd({ prev_next_mobile_hide: v })}
-          />
-          <Toggle
-            label="Dolny newsletter w treści"
-            checked={local.show_bottom_newsletter}
-            onChange={(v) => upd({ show_bottom_newsletter: v })}
-          />
-          <Toggle
-            label="Pływający pasek udostępniania (lewa strona, desktop)"
-            checked={local.show_floating_share_bar}
-            onChange={(v) => upd({ show_floating_share_bar: v })}
-          />
-          <Toggle
-            label="Auto-load następnego wpisu (przy scrollu do końca)"
-            checked={local.auto_load_next_post}
-            onChange={(v) => upd({ auto_load_next_post: v })}
-          />
-        </section>
+          <section className="space-y-1">
+            <h2 className="font-display text-base mb-1">Stopka wpisu</h2>
+            <Toggle
+              label="Pasek tagów"
+              checked={local.show_post_tags_bar}
+              onChange={(v) => upd({ show_post_tags_bar: v })}
+            />
+            <Toggle
+              label="Pasek źródeł"
+              checked={local.show_sources_bar}
+              onChange={(v) => upd({ show_sources_bar: v })}
+            />
+            <Toggle
+              label="Pasek Via"
+              checked={local.show_via_bar}
+              onChange={(v) => upd({ show_via_bar: v })}
+            />
+            <Toggle
+              label="Karta autora"
+              checked={local.show_author_card}
+              onChange={(v) => upd({ show_author_card: v })}
+            />
+            <Toggle
+              label="Nawigacja Poprzedni/Następny"
+              checked={local.show_prev_next}
+              onChange={(v) => upd({ show_prev_next: v })}
+            />
+            <Toggle
+              label="Ukryj paginację na mobile"
+              checked={local.prev_next_mobile_hide}
+              onChange={(v) => upd({ prev_next_mobile_hide: v })}
+            />
+            <Toggle
+              label="Dolny newsletter w treści"
+              checked={local.show_bottom_newsletter}
+              onChange={(v) => upd({ show_bottom_newsletter: v })}
+            />
+            <Toggle
+              label="Pływający pasek udostępniania (lewa strona, desktop)"
+              checked={local.show_floating_share_bar}
+              onChange={(v) => upd({ show_floating_share_bar: v })}
+            />
+            <Toggle
+              label="Auto-load następnego wpisu (przy scrollu do końca)"
+              checked={local.auto_load_next_post}
+              onChange={(v) => upd({ auto_load_next_post: v })}
+            />
+          </section>
+        </div>
       </div>
     </AdminShell>
   );
@@ -335,15 +330,15 @@ function Toggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex items-center justify-between gap-4 py-2 border-b border-border/60">
-      <span className="text-sm">{label}</span>
+    <label className="flex items-center justify-between gap-3 py-1 border-b border-border/60">
+      <span className="text-xs">{label}</span>
       <button
         type="button"
         onClick={() => onChange(!checked)}
-        className={`relative w-10 h-6 rounded-full transition ${checked ? "bg-brand" : "bg-muted"}`}
+        className={`relative w-8 h-4 rounded-full transition shrink-0 ${checked ? "bg-brand" : "bg-muted"}`}
       >
         <span
-          className={`absolute top-0.5 ${checked ? "left-5" : "left-0.5"} w-5 h-5 rounded-full bg-background transition-all`}
+          className={`absolute top-0.5 ${checked ? "left-4" : "left-0.5"} w-3 h-3 rounded-full bg-background transition-all`}
         />
       </button>
     </label>
