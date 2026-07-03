@@ -1,5 +1,6 @@
 // Reusable field primitives for the admin settings tabs.
 import type { ReactNode } from "react";
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 
 export function Field({
   label,
