@@ -94,25 +94,29 @@ export function buildHomepageDocument(): BuilderDocument {
             ],
             { order: { mobile: 2 } },
           ),
-          column(6, [
-            widget("slider", {
-              source: "posts",
-              variant: "hero-overlay",
-              ratio: "16/9",
-              rounded: "lg",
-              autoplay: true,
-              intervalMs: 5500,
-              overlayOpacity: 0.55,
-              limit: 5,
-              orderBy: "newest",
-              categoryId: "",
-              tagSlugs: "",
-              excludeIds: "",
-              showExcerpt: true,
-              cta_pl: "Czytaj więcej",
-              cta_en: "Read more",
-            }),
-          ]),
+          column(
+            6,
+            [
+              widget("slider", {
+                source: "posts",
+                variant: "hero-overlay",
+                ratio: "16/9",
+                rounded: "lg",
+                autoplay: true,
+                intervalMs: 5500,
+                overlayOpacity: 0.55,
+                limit: 5,
+                orderBy: "newest",
+                categoryId: "",
+                tagSlugs: "",
+                excludeIds: "",
+                showExcerpt: true,
+                cta_pl: "Czytaj więcej",
+                cta_en: "Read more",
+              }),
+            ],
+            { order: { mobile: 1 } },
+          ),
 
           column(3, [
             widget("section-label", {
