@@ -1,8 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 const MAX_CHARS = 5000;
 const DEFAULT_VOICE = "JBFqnCBsd6RMkjVDRZzb";
 const DEFAULT_MODEL = "eleven_multilingual_v2";
+// Explicit allowlist so an attacker cannot switch the request to a more
+// expensive ElevenLabs model by supplying an arbitrary `model` string.
+const ALLOWED_MODELS = new Set<string>([
+  "eleven_multilingual_v2",
+  "eleven_monolingual_v1",
+  "eleven_turbo_v2",
+  "eleven_turbo_v2_5",
+]);
 
 export type TtsBody = { text?: string; voiceId?: string; model?: string };
 export type TtsNormalized =
