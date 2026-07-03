@@ -28,9 +28,10 @@ export async function currentTenantHost(): Promise<string | null> {
   }
   if (!import.meta.env.SSR) return null;
   try {
-    const { getRequest } = await import("@tanstack/react-start/server");
-    const request = getRequest();
-    return request ? requestPublicHost(request) : null;
+    // The *.server.ts suffix keeps @tanstack/react-start/server out of the
+    // client bundle (Vite's import protection denies that specifier).
+    const mod = await import("./requestHost.server");
+    return mod.currentServerHost();
   } catch {
     // Outside a request scope (warmup, tests) - no host, callers fall back.
     return null;
