@@ -5,8 +5,12 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { authorPostsCountQueryOptions, relatedPostsBlockQueryOptions } from "@/lib/queries/blocks";
-import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
+import {
+  authorPostsCountQueryOptions,
+  authorProfileByIdQueryOptions,
+  relatedPostsBlockQueryOptions,
+} from "@/lib/queries/blocks";
+import { useCurrentPostCtx, type CurrentPostAuthor } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { User } from "lucide-react";
