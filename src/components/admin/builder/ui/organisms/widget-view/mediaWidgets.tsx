@@ -74,8 +74,9 @@ export function ImageWidget({
     ? siteLogo.dark || rawSrcDark || siteLogo.light || rawSrc
     : rawSrcDark;
 
-  const variantCls =
-    variant === "rounded"
+  const variantCls = isLogo
+    ? "rounded"
+    : variant === "rounded"
       ? "rounded-xl"
       : variant === "circle"
         ? "rounded-full aspect-square"
