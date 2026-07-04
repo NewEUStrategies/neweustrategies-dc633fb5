@@ -68,12 +68,17 @@ export function ImageWidget({
   const siteLogoVariant = (getStr(c, "useSiteLogo") || "") as "" | SiteLogoVariant;
   const altIsLogo = /logo/i.test(alt);
   const wantsSiteLogo = siteLogoVariant !== "" || altIsLogo;
-  const isLogo = wantsSiteLogo;
   const siteLogo = useSiteLogo(siteLogoVariant || "main");
   const src = wantsSiteLogo ? siteLogo.light || rawSrc : rawSrc;
   const srcDark = wantsSiteLogo
     ? siteLogo.dark || rawSrcDark || siteLogo.light || rawSrc
     : rawSrcDark;
+  // Also treat any image whose src matches the configured site logo as a logo
+  // (e.g. header widgets pointing at the same asset without setting useSiteLogo).
+  const srcMatchesSiteLogo =
+    (!!siteLogo.light && (rawSrc === siteLogo.light || rawSrcDark === siteLogo.light)) ||
+    (!!siteLogo.dark && (rawSrc === siteLogo.dark || rawSrcDark === siteLogo.dark));
+  const isLogo = wantsSiteLogo || srcMatchesSiteLogo;
 
   const variantCls = isLogo
     ? "rounded"
