@@ -94,7 +94,6 @@ export function ReadingHeader({ title, showAfter = 320 }: Props) {
     if (!visible) setMenuOpen(false);
   }, [visible]);
 
-
   useEffect(() => {
     const onScroll = (): void => setVisible(window.scrollY > showAfter);
     onScroll();

@@ -3,7 +3,6 @@
 // Max 6 bullet points, bilingual. Atomic-design "molecule".
 import { useTranslation } from "react-i18next";
 
-
 interface KeyTakeawaysProps {
   items: readonly string[];
   className?: string;

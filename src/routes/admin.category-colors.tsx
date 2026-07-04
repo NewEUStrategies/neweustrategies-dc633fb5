@@ -74,8 +74,7 @@ function CategoryColorsPage() {
   const recommendedFor = (slug: string): string | null =>
     CORE_CATEGORY_AREAS.find((a) => a.slug === slug)?.color ?? null;
 
-  const setColor = (slug: string, color: string) =>
-    setDraft((d) => ({ ...d, [slug]: color }));
+  const setColor = (slug: string, color: string) => setDraft((d) => ({ ...d, [slug]: color }));
 
   const saveAll = async () => {
     const changed = ordered.filter(
@@ -141,21 +140,14 @@ function CategoryColorsPage() {
     <div className="max-w-4xl">
       <header className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h1 className="font-display text-2xl font-bold">
-            {t("admin.categoryColors.title")}
-          </h1>
+          <h1 className="font-display text-2xl font-bold">{t("admin.categoryColors.title")}</h1>
           <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
             {t("admin.categoryColors.subtitle")}
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
           {missing.length > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() => addMissing(missing)}
-            >
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => addMissing(missing)}>
               {t("admin.categoryColors.addMissing")} ({missing.length})
             </Button>
           )}
@@ -173,12 +165,8 @@ function CategoryColorsPage() {
                 {t("admin.categoryColors.column.preview")}
               </th>
               <th className="text-left p-3">{t("admin.categoryColors.column.name")}</th>
-              <th className="text-left p-3 w-[220px]">
-                {t("admin.categoryColors.column.slug")}
-              </th>
-              <th className="text-left p-3 w-[260px]">
-                {t("admin.categoryColors.column.color")}
-              </th>
+              <th className="text-left p-3 w-[220px]">{t("admin.categoryColors.column.slug")}</th>
+              <th className="text-left p-3 w-[260px]">{t("admin.categoryColors.column.color")}</th>
             </tr>
           </thead>
           <tbody>
@@ -186,7 +174,8 @@ function CategoryColorsPage() {
               const c = colorFor(r);
               const label = lang === "en" ? r.name_en || r.name_pl : r.name_pl || r.name_en;
               const recommended = recommendedFor(r.slug);
-              const dirty = draft[r.slug] && draft[r.slug].toLowerCase() !== (r.color ?? "").toLowerCase();
+              const dirty =
+                draft[r.slug] && draft[r.slug].toLowerCase() !== (r.color ?? "").toLowerCase();
               return (
                 <tr key={r.id} className="border-t border-border">
                   <td className="p-3">

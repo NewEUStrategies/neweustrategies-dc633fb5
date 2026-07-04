@@ -42,9 +42,7 @@ export function PostLayoutRenderer({
   const hasSidebar = effectiveHasSidebar(preset, settings);
   const center = settings.center_header ?? preset.centerHeaderDefault ?? false;
   const ratioPct = preset.featuredRatioKey ? settings[preset.featuredRatioKey] : null;
-  const contentMaxW = hasSidebar
-    ? settings.has_sidebar_max_width
-    : settings.no_sidebar_max_width;
+  const contentMaxW = hasSidebar ? settings.has_sidebar_max_width : settings.no_sidebar_max_width;
 
   const header = (
     <header className={`mb-8 ${center ? "text-center" : ""}`}>
@@ -68,7 +66,9 @@ export function PostLayoutRenderer({
   // Wspólna meta-karta w stylu overlay – używana we wszystkich wariantach layoutu z cover photo.
   const overlayMetaCard = (
     <div className="absolute inset-x-0 bottom-0 flex justify-center px-3 md:px-4 lg:px-6">
-      <div className={`w-full max-w-[92vw] md:max-w-2xl lg:max-w-3xl bg-[#0b0b0d] text-white rounded-t-sm shadow-2xl ${center ? "text-center" : ""} overlay-meta-card`}>
+      <div
+        className={`w-full max-w-[92vw] md:max-w-2xl lg:max-w-3xl bg-[#0b0b0d] text-white rounded-t-sm shadow-2xl ${center ? "text-center" : ""} overlay-meta-card`}
+      >
         <div className="px-4 md:px-5 lg:px-8 pt-4 md:pt-5 pb-4 md:pb-5">
           {categoryBadges && (
             <div className={`mb-2 md:mb-3 flex flex-wrap gap-2 ${center ? "justify-center" : ""}`}>
