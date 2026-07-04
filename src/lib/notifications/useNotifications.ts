@@ -123,8 +123,13 @@ export function useNotificationsRealtime(): void {
   const { user } = useAuth();
   useEffect(() => {
     if (!user) return;
+    // Unique channel name per mount - reusing the same name returns the
+    // already-subscribed instance (StrictMode double-mount, remounts), which
+    // rejects new `.on()` callbacks with
+    // "cannot add postgres_changes callbacks ... after subscribe()".
+    const channelName = `notifications:${user.id}:${Math.random().toString(36).slice(2, 10)}`;
     const channel = supabase
-      .channel(`notifications:${user.id}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
