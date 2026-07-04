@@ -5,6 +5,7 @@
 //     error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
 
 // Vendor code-splitting: pull heavy third-party libraries out of the single
 // entry chunk into cacheable per-library chunks. This shrinks the largest chunk,
@@ -47,6 +48,7 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    plugins: [mcpPlugin()],
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the
     // FIRST page load - "new dependencies optimized: ... reloading" then forces
