@@ -9,7 +9,7 @@ import {
   PLACEHOLDER_POST_CTX,
   type CurrentPostCtx,
 } from "@/lib/builder/currentPostContext";
-import { sanitizeHtml, safeUrl } from "@/lib/sanitize";
+import { safeUrl } from "@/lib/sanitize";
 import {
   User as UserIcon,
   Clock,
@@ -431,6 +431,3 @@ export function DynamicTagWidget({ node, lang }: { node: WidgetNode; lang: Lang 
       return null;
   }
 }
-
-// sanitizeHtml is imported for parity with sibling files; suppress unused
-export const __keepSanitize = sanitizeHtml;

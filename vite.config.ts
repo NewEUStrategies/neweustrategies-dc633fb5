@@ -17,12 +17,9 @@ function manualChunks(id: string): string | undefined {
   if (id.includes("node_modules/@tanstack/")) return "vendor-tanstack";
   if (id.includes("node_modules/@radix-ui/")) return "vendor-radix";
   if (id.includes("node_modules/@supabase/")) return "vendor-supabase";
-  if (/node_modules\/(recharts|d3-|victory|internmap)/.test(id)) return "vendor-charts";
   if (/node_modules\/(@tiptap|prosemirror)/.test(id)) return "vendor-editor";
   // Admin-builder-only drag & drop - must never be dragged into first paint.
   if (id.includes("node_modules/@dnd-kit/")) return "vendor-dnd";
-  // Forms (auth/contact/newsletter) are lazy widgets - keep their deps lazy too.
-  if (/node_modules\/(react-hook-form|@hookform)/.test(id)) return "vendor-forms";
   if (
     id.includes("node_modules/react-markdown") ||
     id.includes("node_modules/remark") ||
@@ -36,11 +33,7 @@ function manualChunks(id: string): string | undefined {
   if (id.includes("node_modules/lucide-react")) return "vendor-icons";
   if (/node_modules\/(isomorphic-)?dompurify/.test(id)) return "vendor-dompurify";
   if (id.includes("node_modules/date-fns")) return "vendor-datefns";
-  if (
-    /node_modules\/(embla-carousel|yet-another-react-lightbox|react-day-picker|cmdk|vaul|sonner)/.test(
-      id,
-    )
-  ) {
+  if (/node_modules\/(yet-another-react-lightbox|react-day-picker|cmdk|sonner)/.test(id)) {
     return "vendor-ui";
   }
   if (/node_modules\/(i18next|react-i18next)/.test(id)) return "vendor-i18n";
