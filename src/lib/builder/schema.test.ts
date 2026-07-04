@@ -27,7 +27,7 @@ describe("isKnownWidgetType", () => {
   });
 });
 
-describe("safeParseBuilderDoc — top level", () => {
+describe("safeParseBuilderDoc - top level", () => {
   it("returns an empty doc for non-objects", () => {
     expect(safeParseBuilderDoc(null).sections).toEqual([]);
     expect(safeParseBuilderDoc(undefined).sections).toEqual([]);
@@ -48,7 +48,7 @@ describe("safeParseBuilderDoc — top level", () => {
   });
 });
 
-describe("safeParseBuilderDoc — sections", () => {
+describe("safeParseBuilderDoc - sections", () => {
   it("drops non-object sections but keeps valid ones", () => {
     const doc = safeParseBuilderDoc({
       version: 1,
@@ -114,7 +114,7 @@ describe("safeParseBuilderDoc — sections", () => {
   });
 });
 
-describe("safeParseBuilderDoc — columns & widgets", () => {
+describe("safeParseBuilderDoc - columns & widgets", () => {
   const wrap = (children: unknown[]) => ({
     version: 1,
     sections: [{ id: "s1", kind: "section", children }],
@@ -170,7 +170,7 @@ describe("safeParseBuilderDoc — columns & widgets", () => {
   });
 });
 
-describe("safeParseBuilderDoc — inner sections", () => {
+describe("safeParseBuilderDoc - inner sections", () => {
   it("detects an inner-section by its kind discriminator", () => {
     const doc = safeParseBuilderDoc({
       version: 1,

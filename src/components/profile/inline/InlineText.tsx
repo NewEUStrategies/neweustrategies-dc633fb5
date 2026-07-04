@@ -17,7 +17,7 @@ interface Props {
 
 /**
  * Click-to-edit single line. Enter / blur = save, Esc = cancel.
- * Hover reveals a subtle pencil. No save button shown by default — autosave on blur.
+ * Hover reveals a subtle pencil. No save button shown by default - autosave on blur.
  */
 export function InlineText({
   value,

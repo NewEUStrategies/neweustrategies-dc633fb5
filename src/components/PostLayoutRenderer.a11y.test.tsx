@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
 // ReadingHeader (rendered by every layout) contains TanStack <Link>, which
 // throws without a RouterProvider - swap it for the shared plain-anchor stub.
@@ -16,7 +16,7 @@ const COVER = "https://proj.supabase.co/storage/v1/object/public/media/cover.jpg
 
 function renderLayout(layoutId: string) {
   // Wrap in <main> so landmark-structure is realistic for the (kept) ARIA rules.
-  return render(
+  return renderWithQueryClient(
     <main>
       <PostLayoutRenderer
         format="standard"

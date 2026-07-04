@@ -486,8 +486,8 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
                   </div>
                   <div className="text-[11px] text-muted-foreground">{l.email}</div>
                 </td>
-                <td className="p-2 hidden md:table-cell text-[12px]">{l.phone ?? "—"}</td>
-                <td className="p-2 hidden lg:table-cell text-[12px]">{l.company ?? "—"}</td>
+                <td className="p-2 hidden md:table-cell text-[12px]">{l.phone ?? "-"}</td>
+                <td className="p-2 hidden lg:table-cell text-[12px]">{l.company ?? "-"}</td>
                 <td className="p-2">
                   <StageBadge stage={l.stage} L={L} />
                 </td>
@@ -497,7 +497,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
                       {l.newsletter_status}
                     </Badge>
                   ) : (
-                    <span className="text-muted-foreground text-[11px]">—</span>
+                    <span className="text-muted-foreground text-[11px]">-</span>
                   )}
                 </td>
                 <td className="p-2 hidden md:table-cell text-[11px] text-muted-foreground">
@@ -646,8 +646,8 @@ function LeadDrawer({
                 saving={updateMut.isPending}
               />
               <div className="grid grid-cols-2 gap-2 text-[12px] pt-2 border-t">
-                <Stat label={L.detail.nlStatus} value={lead.newsletter_status ?? "—"} />
-                <Stat label={L.detail.marketing} value={lead.marketing_consent ? "✓" : "—"} />
+                <Stat label={L.detail.nlStatus} value={lead.newsletter_status ?? "-"} />
+                <Stat label={L.detail.marketing} value={lead.marketing_consent ? "✓" : "-"} />
                 <Stat label={L.detail.sources} value={String(lead.source_count ?? 0)} />
                 <Stat
                   label={L.detail.lastActivity}
@@ -698,7 +698,7 @@ function LeadDrawer({
                   <div className="flex items-center gap-2 flex-wrap">
                     <Mail className="w-3 h-3" />
                     <b>{m.form_name ?? m.form_type ?? "contact"}</b>
-                    {m.subject && <span className="text-muted-foreground">— {m.subject}</span>}
+                    {m.subject && <span className="text-muted-foreground">- {m.subject}</span>}
                     <span className="ml-auto text-[11px] text-muted-foreground">
                       {new Date(m.created_at).toLocaleString()}
                     </span>
@@ -715,7 +715,7 @@ function LeadDrawer({
                       {s.status}
                     </Badge>
                     {s.source_form_name && (
-                      <span className="text-muted-foreground">— {s.source_form_name}</span>
+                      <span className="text-muted-foreground">- {s.source_form_name}</span>
                     )}
                     <span className="ml-auto text-[11px] text-muted-foreground">
                       {new Date(s.created_at).toLocaleString()}

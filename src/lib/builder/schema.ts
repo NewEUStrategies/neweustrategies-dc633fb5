@@ -9,7 +9,7 @@
 // widget has a known `type` and an object `content`, every column has a `span`
 // object) and **drops only irrecoverable nodes** instead of discarding the
 // whole page. Cosmetic fields (style, advanced, layout, background, overlay,
-// border, typography, shape dividers, …) are passed through untouched — the
+// border, typography, shape dividers, …) are passed through untouched - the
 // renderer already sanitizes every user string at render time, so re-validating
 // them here would risk stripping legitimate styling.
 import type {

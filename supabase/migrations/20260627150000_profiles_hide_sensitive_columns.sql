@@ -11,7 +11,7 @@
 --
 -- Effect:
 --  * anon + authenticated can read public profile fields (display name, avatar,
---    bio, slug, tenant) — needed for author bylines — but NOT email / prefs.
+--    bio, slug, tenant) - needed for author bylines - but NOT email / prefs.
 --  * RLS row policies are unchanged (they still gate WHICH rows are visible).
 --  * service_role (admin / server functions) is untouched and keeps full access,
 --    so admin user-management that reads email server-side still works.

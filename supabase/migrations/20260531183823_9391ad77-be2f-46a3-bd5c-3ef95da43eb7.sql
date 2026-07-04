@@ -88,7 +88,7 @@ ON public.pages FOR SELECT
 TO anon, authenticated
 USING (status = 'published'::post_status AND deleted_at IS NULL);
 
--- 4) Revisions table — append-only snapshots of post/page content.
+-- 4) Revisions table - append-only snapshots of post/page content.
 CREATE TABLE IF NOT EXISTS public.content_revisions (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id    uuid NOT NULL,
@@ -125,7 +125,7 @@ WITH CHECK (
   AND author_id = auth.uid()
 );
 
--- 5) Audit log — every privileged write surface logs here.
+-- 5) Audit log - every privileged write surface logs here.
 CREATE TABLE IF NOT EXISTS public.audit_log (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id   uuid NOT NULL,
@@ -172,4 +172,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS rate_limits_window_uniq
 
 GRANT ALL ON public.rate_limits TO service_role;
 ALTER TABLE public.rate_limits ENABLE ROW LEVEL SECURITY;
--- No policies — only service_role (server functions) touches this table.
+-- No policies - only service_role (server functions) touches this table.

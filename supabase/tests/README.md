@@ -1,6 +1,6 @@
 # Testy bazy danych (pgTAP)
 
-Testy SQL warstwy danych Supabase — RLS (izolacja tenantów), przypięcie
+Testy SQL warstwy danych Supabase - RLS (izolacja tenantów), przypięcie
 `profiles.tenant_id` oraz pełnotekstowe wyszukiwanie. Dopełniają testy
 jednostkowe Vitest (`bun run test`), które nie dotykają realnego Postgresa
 ani polityk RLS.
@@ -10,12 +10,12 @@ ani polityk RLS.
 | Plik                            | Co weryfikuje                                                                                                                                                 |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `rls_tenant_isolation_test.sql` | „user tenanta A nie czyta postów B" (RLS na `public.posts`, szkice i opublikowane) oraz „UPDATE `tenant_id` jest ignorowany" (trigger `profiles_pin_tenant`). |
-| `search_tsquery_test.sql`       | `public.nes_search_tsquery` — unaccent + lower, prefiks `:*`, łączenie AND, sanityzacja znaków, puste/NULL → `NULL`.                                          |
+| `search_tsquery_test.sql`       | `public.nes_search_tsquery` - unaccent + lower, prefiks `:*`, łączenie AND, sanityzacja znaków, puste/NULL → `NULL`.                                          |
 | `search_posts_smoke_test.sql`   | Smoke RPC `public.search_posts`: zwraca tylko opublikowane, nieusunięte posty tenanta publicznego; pomija szkice, usunięte i obcych tenantów.                 |
 
 ## Uruchamianie
 
-Kanonicznie — przez Supabase CLI, które stawia świeżą bazę, nakłada wszystkie
+Kanonicznie - przez Supabase CLI, które stawia świeżą bazę, nakłada wszystkie
 migracje z `supabase/migrations/` i odpala pliki przez `pg_prove`:
 
 ```bash
@@ -31,7 +31,7 @@ create extension if not exists pgtap with schema extensions;
 ### Konwencje
 
 - Każdy plik jest samowystarczalny: `begin; select plan(N); … select * from finish(); rollback;`.
-  `ROLLBACK` na końcu nie zostawia żadnych danych — testy nie zależą od kolejności.
+  `ROLLBACK` na końcu nie zostawia żadnych danych - testy nie zależą od kolejności.
 - Wcielanie się w użytkownika (RLS): `set local role authenticated|anon` +
   `set_config('request.jwt.claims', '{"sub":"…","role":"…"}', true)`; `auth.uid()`
   czyta `sub` z claims. Rolę zdejmujemy przez `reset role`.

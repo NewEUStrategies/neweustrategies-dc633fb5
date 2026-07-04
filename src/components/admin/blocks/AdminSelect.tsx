@@ -1,4 +1,4 @@
-// AdminSelect — drop-in odpowiednik natywnego <select> oparty o Radix
+// AdminSelect - drop-in odpowiednik natywnego <select> oparty o Radix
 // (shadcn) `Select`. Zachowuje API zbliżone do <select value onChange>,
 // czytając potomne <option value>Label</option>, tak by refactor edytora
 // bloków sprowadzał się do zamiany tagu, bez zmiany logiki komponentów.
@@ -68,11 +68,17 @@ export function AdminSelect({
   const handle = (next: string) => {
     onChange?.({ target: { value: next } });
   };
-  // Radix Select nie akceptuje pustego stringa jako wartości — użyj sentinela.
+  // Radix Select nie akceptuje pustego stringa jako wartości - użyj sentinela.
   const EMPTY = "__admin_select_empty__";
   const asStr = (v: string | number | undefined) => (v == null ? undefined : String(v));
-  const val = value === "" || value === undefined ? (value === "" ? EMPTY : undefined) : asStr(value);
-  const def = defaultValue === "" || defaultValue === undefined ? (defaultValue === "" ? EMPTY : undefined) : asStr(defaultValue);
+  const val =
+    value === "" || value === undefined ? (value === "" ? EMPTY : undefined) : asStr(value);
+  const def =
+    defaultValue === "" || defaultValue === undefined
+      ? defaultValue === ""
+        ? EMPTY
+        : undefined
+      : asStr(defaultValue);
 
   return (
     <Select

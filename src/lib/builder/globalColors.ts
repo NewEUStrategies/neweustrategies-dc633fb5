@@ -910,12 +910,12 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     @layer utilities { :where([data-sidebar="group-label"]){font-family:var(--gc-sidebar-title-font, inherit);font-size:var(--gc-sidebar-title-size, inherit);font-weight:var(--gc-sidebar-title-weight, inherit);font-style:var(--gc-sidebar-title-style, inherit);text-decoration:var(--gc-sidebar-title-decoration, inherit);} }
     [data-sidebar="group-subtitle"], [data-sidebar="menu-sub-label"]{color:var(--gc-sidebar-subtitle, inherit) !important;}
     @layer utilities { :where([data-sidebar="group-subtitle"], [data-sidebar="menu-sub-label"]){font-family:var(--gc-sidebar-subtitle-font, inherit);font-size:var(--gc-sidebar-subtitle-size, inherit);font-weight:var(--gc-sidebar-subtitle-weight, inherit);font-style:var(--gc-sidebar-subtitle-style, inherit);text-decoration:var(--gc-sidebar-subtitle-decoration, inherit);} }
-    /* "Dark accent" intentionally NOT applied to article prose — titles,
+    /* "Dark accent" intentionally NOT applied to article prose - titles,
        paragraphs and list items inside posts must keep the regular
        foreground color. Only true hyperlinks (<a href>) get the accent,
        handled by the link rules above. */
 
-    /* Typography bridge — wrapped in @layer utilities so :where() (0,0,0)
+    /* Typography bridge - wrapped in @layer utilities so :where() (0,0,0)
        loses to Tailwind utilities like text-base / text-xl (0,1,0) that
        live in the same cascade layer. Without this layer, the inline
        <style> rules would sit outside any layer and win over utilities

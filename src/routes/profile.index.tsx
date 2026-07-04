@@ -281,7 +281,7 @@ function ProfileInline() {
             )}
           </div>
 
-          {/* Roles + admin — compact pill row */}
+          {/* Roles + admin - compact pill row */}
           {!previewAsGuest && roles.length > 0 && (
             <div className="mt-2.5 flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
               {roles.map((r) => (

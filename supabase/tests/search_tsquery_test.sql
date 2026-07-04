@@ -1,4 +1,4 @@
--- pgTAP: public.nes_search_tsquery — normalizacja frazy użytkownika na tsquery.
+-- pgTAP: public.nes_search_tsquery - normalizacja frazy użytkownika na tsquery.
 --
 -- Kontrakt funkcji (migracja 20260628210000_fulltext_search.sql):
 --   * unaccent + lower  → diakrytyki i wielkość liter bez znaczenia,
@@ -9,7 +9,7 @@
 --     dzięki czemu RPC wyszukiwania zwraca pusty zbiór zamiast się wywracać.
 --
 -- Część asercji jest tekstowa (dokładny zapis tsquery), a część semantyczna
--- (@@ na tsvectorze) — żeby kontrakt AND/prefiksu nie zależał od kolejności
+-- (@@ na tsvectorze) - żeby kontrakt AND/prefiksu nie zależał od kolejności
 -- sklejania termów przez string_agg.
 
 BEGIN;

@@ -11,6 +11,7 @@ import {
   SITE_DEFAULT_TITLE,
   SITE_DEFAULT_DESCRIPTION,
   SITE_DEFAULT_OG_IMAGE,
+  SITE_CANONICAL_ORIGIN,
 } from "@/lib/seo/meta";
 
 const find = (meta: Array<Record<string, string>>, key: string, val: string) =>
@@ -118,8 +119,15 @@ describe("buildRootHead", () => {
   it("brands the document defaults to New European Strategies, not the generator", () => {
     for (const lang of ["pl", "en"] as const) {
       const meta = buildRootHead(lang);
-      const serialized = JSON.stringify(meta);
-      expect(serialized).not.toMatch(/lovable/i);
+      // URL fields legitimately carry the canonical brand origin (a
+      // *.lovable.app host until the custom domain ships). The generator's
+      // BRANDING must not leak into any textual field: title, descriptions,
+      // author, site name, card copy.
+      const urlFields = new Set(["og:image", "twitter:image", "og:url"]);
+      const textual = meta.filter(
+        (m) => !urlFields.has(m.property ?? "") && !urlFields.has(m.name ?? ""),
+      );
+      expect(JSON.stringify(textual)).not.toMatch(/lovable/i);
       expect(find(meta, "name", "author")?.content).toBe(SITE_NAME);
       expect(find(meta, "property", "og:site_name")?.content).toBe(SITE_NAME);
     }
@@ -149,10 +157,12 @@ describe("buildRootHead", () => {
   it("mirrors og into the Twitter card without a stale @handle", () => {
     const en = buildRootHead("en");
     // buildRootHead is origin-less (error/fallback documents), so the brand
-    // default image stays a root-relative path; the card is large-image.
+    // default image is resolved against the canonical brand origin - social
+    // scrapers ignore relative og:image paths; the card is large-image.
+    const expectedImage = `${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}`;
     expect(find(en, "name", "twitter:card")?.content).toBe("summary_large_image");
-    expect(find(en, "property", "og:image")?.content).toBe(SITE_DEFAULT_OG_IMAGE);
-    expect(find(en, "name", "twitter:image")?.content).toBe(SITE_DEFAULT_OG_IMAGE);
+    expect(find(en, "property", "og:image")?.content).toBe(expectedImage);
+    expect(find(en, "name", "twitter:image")?.content).toBe(expectedImage);
     expect(find(en, "name", "twitter:title")?.content).toBe(SITE_DEFAULT_TITLE.en);
     expect(find(en, "name", "twitter:description")?.content).toBe(SITE_DEFAULT_DESCRIPTION.en);
     expect(en.find((m) => m.name === "twitter:site")).toBeUndefined();

@@ -416,7 +416,7 @@ describe("NewsTickerView extra branches", () => {
   it("pauses on hover and uses a custom separator", async () => {
     db.tables.posts = [{ id: "1", slug: "a", title_pl: "Alfa", title_en: "Alpha" }];
     const { container } = wrap(
-      <NewsTickerView c={{ separator: "—", pauseOnHover: true, speedSeconds: 30 }} lang="pl" />,
+      <NewsTickerView c={{ separator: "-", pauseOnHover: true, speedSeconds: 30 }} lang="pl" />,
     );
     await screen.findAllByText("Alfa");
     const track = container.querySelector(".w-max") as HTMLElement;

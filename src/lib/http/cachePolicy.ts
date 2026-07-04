@@ -54,7 +54,7 @@ export interface ContentCachePolicy {
  *
  * Language is no longer a cacheability concern: it now lives in the URL path
  * (PL at the bare path, EN under `/en`), so the CDN keys each language as its
- * own entry. A content render is fully determined by its URL — there is no
+ * own entry. A content render is fully determined by its URL - there is no
  * cookie-driven, no-store path and no language cache-poisoning.
  */
 export function contentCacheControl(policy: ContentCachePolicy = {}): string {

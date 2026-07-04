@@ -60,10 +60,11 @@ const legacyLangQueryMiddleware = createMiddleware().server(async ({ request, ne
 const GONE_BODY = `<!doctype html><html><head><meta charset="utf-8"><title>410 Gone</title></head><body style="font-family:system-ui;text-align:center;padding:4rem 1rem"><h1>410</h1><p>Ta treść została trwale usunięta. / This content has been permanently removed.</p><p><a href="/">New European Strategies</a></p></body></html>`;
 
 /**
- * Baseline security headers for every HTML document. The CSP is the defense-
- * in-depth layer behind output escaping (see safeJsonLd): even if an escape is
- * missed somewhere, no third-party script can load, nothing can frame the
- * site, <base> cannot be hijacked and plugins are dead.
+ * Baseline security headers: HSTS for every https response plus the document
+ * set (CSP / X-Frame-Options / nosniff / referrer / permissions) for HTML. The
+ * CSP is the defense-in-depth layer behind output escaping (see safeJsonLd):
+ * even if an escape is missed somewhere, no third-party script can load,
+ * nothing can frame the site, <base> cannot be hijacked and plugins are dead.
  *
  * Zakres 'unsafe-inline':
  * - script-src trzyma 'unsafe-inline' wyłącznie dla framework'owych snippetów
@@ -115,9 +116,18 @@ function contentSecurityPolicy(): string {
   ].join("; ");
 }
 
-const securityHeadersMiddleware = createMiddleware().server(async ({ next }) => {
+const securityHeadersMiddleware = createMiddleware().server(async ({ request, next }) => {
   const response = await next();
   if (!(response instanceof Response)) return response;
+  // HSTS pins the whole origin (RFC 6797), so it goes on EVERY https response,
+  // not only HTML - the first response the browser sees is the one that counts.
+  // Guarded by the actual request protocol (proxy-aware) so a plain-http dev /
+  // preview server never pins localhost.
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const scheme = forwardedProto || new URL(request.url).protocol.replace(":", "");
+  if (scheme === "https" && !response.headers.has("Strict-Transport-Security")) {
+    response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
+  }
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("text/html")) return response;
   if (!response.headers.has("Content-Security-Policy")) {

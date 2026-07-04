@@ -13,16 +13,7 @@ import {
 import { useCurrentPostCtx, type CurrentPostAuthor } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
-import {
-  User,
-  Mail,
-  Globe,
-  Twitter,
-  Linkedin,
-  Facebook,
-  Instagram,
-  Music,
-} from "lucide-react";
+import { User, Mail, Globe, Twitter, Linkedin, Facebook, Instagram, Music } from "lucide-react";
 
 type Lang = "pl" | "en";
 
@@ -50,9 +41,9 @@ interface AuthorBioProps {
   variant?: "card" | "inline" | "minimal";
   lang?: Lang;
   cls?: string;
-  /** Explicit author id — overrides the author from the current post context. */
+  /** Explicit author id - overrides the author from the current post context. */
   authorId?: string;
-  /** Fully materialized author — used by the admin preview to avoid fetching. */
+  /** Fully materialized author - used by the admin preview to avoid fetching. */
   authorOverride?: CurrentPostAuthor | null;
 }
 
@@ -144,7 +135,8 @@ export function AuthorBioView({
     socials.push({ key: "website", href: author.websiteUrl, label: t.viewProfile, Icon: Globe });
   }
 
-  const avatarSize = variant === "card" ? "w-24 h-24" : variant === "inline" ? "w-16 h-16" : "w-11 h-11";
+  const avatarSize =
+    variant === "card" ? "w-24 h-24" : variant === "inline" ? "w-16 h-16" : "w-11 h-11";
   const avatar = showAvatar ? (
     author.avatarUrl ? (
       <OptimizedImage
@@ -261,10 +253,7 @@ export function AuthorBioView({
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               {showPostsCount && postsCount !== null && <span>{t.posts(postsCount)}</span>}
               {profileHref && (
-                <AppLink
-                  href={profileHref}
-                  className="text-primary hover:underline font-medium"
-                >
+                <AppLink href={profileHref} className="text-primary hover:underline font-medium">
                   {t.viewProfile} →
                 </AppLink>
               )}

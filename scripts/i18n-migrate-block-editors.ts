@@ -57,7 +57,7 @@ const STR_MAP: Record<string, string> = {
     'i18n.editor("preformatted","textPh")',
 };
 
-// JSX text nodes (between > and <) — common labels.
+// JSX text nodes (between > and <) - common labels.
 const TEXT_MAP: Record<string, string> = {
   "Pozycja mediów:": '{i18n.editor("mediaText","mediaPosition")}:',
   Lewa: '{i18n.editor("mediaText","left")}',
