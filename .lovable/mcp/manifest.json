@@ -22,7 +22,6 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "http://json-schema.org/draft-07/schema#",
           "type": "object",
           "properties": {
             "query": {
@@ -31,25 +30,27 @@
               "description": "Search phrase."
             },
             "lang": {
-              "default": "pl",
-              "description": "Language variant to search.",
               "type": "string",
               "enum": [
                 "pl",
                 "en"
-              ]
+              ],
+              "default": "pl",
+              "description": "Language variant to search."
             },
             "limit": {
-              "default": 10,
-              "description": "Maximum posts to return.",
               "type": "integer",
               "minimum": 1,
-              "maximum": 50
+              "maximum": 50,
+              "default": 10,
+              "description": "Maximum posts to return."
             }
           },
           "required": [
             "query"
-          ]
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
       },
@@ -63,7 +64,6 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "http://json-schema.org/draft-07/schema#",
           "type": "object",
           "properties": {
             "slug": {
@@ -72,18 +72,20 @@
               "description": "Post slug."
             },
             "lang": {
-              "default": "pl",
-              "description": "Language variant.",
               "type": "string",
               "enum": [
                 "pl",
                 "en"
-              ]
+              ],
+              "default": "pl",
+              "description": "Language variant."
             }
           },
           "required": [
             "slug"
-          ]
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
       },
@@ -97,26 +99,27 @@
           "openWorldHint": false
         },
         "inputSchema": {
-          "$schema": "http://json-schema.org/draft-07/schema#",
           "type": "object",
           "properties": {
             "lang": {
-              "default": "pl",
-              "description": "Language variant.",
               "type": "string",
               "enum": [
                 "pl",
                 "en"
-              ]
+              ],
+              "default": "pl",
+              "description": "Language variant."
             },
             "limit": {
-              "default": 10,
-              "description": "Maximum posts to return.",
               "type": "integer",
               "minimum": 1,
-              "maximum": 50
+              "maximum": 50,
+              "default": 10,
+              "description": "Maximum posts to return."
             }
-          }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
       }
