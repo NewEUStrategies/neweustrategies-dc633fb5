@@ -33,12 +33,12 @@ function clean(value: string | null | undefined): string | null {
 }
 
 /** SEO title override for a language, or null when the editor left it empty. */
-export function seoTitleOverride(row: SeoFieldsRow, lang: Lang): string | null {
+function seoTitleOverride(row: SeoFieldsRow, lang: Lang): string | null {
   return clean(lang === "en" ? row.seo_title_en : row.seo_title_pl);
 }
 
 /** SEO description override for a language, or null when empty. */
-export function seoDescriptionOverride(row: SeoFieldsRow, lang: Lang): string | null {
+function seoDescriptionOverride(row: SeoFieldsRow, lang: Lang): string | null {
   return clean(lang === "en" ? row.seo_description_en : row.seo_description_pl);
 }
 

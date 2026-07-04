@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-export type Gender = "male" | "female" | "neutral";
+type Gender = "male" | "female" | "neutral";
 
 export interface ProfileEditorRow {
   display_name: string | null;

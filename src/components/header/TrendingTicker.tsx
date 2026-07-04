@@ -2,7 +2,7 @@
 // Sources: trending | latest | pinned | selected | mixed.
 // Modes: scroll (marquee) | fade | slide | flip | typewriter.
 // Colors and label overridable per light/dark via CSS custom properties.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Flame } from "lucide-react";
@@ -19,7 +19,7 @@ import {
 } from "@/lib/views/tickerVariants";
 import { AppLink } from "@/components/atoms/AppLink";
 
-export type { TickerMode, TickerSource };
+export type { TickerMode };
 
 export interface TickerProps {
   source?: TickerSource;
@@ -130,7 +130,11 @@ export function TrendingTicker({
           className="inline-flex items-center gap-1.5 text-[12px] leading-none font-bold uppercase tracking-[0.14em] shrink-0 whitespace-nowrap"
           style={{ color: "var(--tt-label)" }}
         >
-          <Flame className={`w-4 h-4 shrink-0 ${iconClass}`} style={{ color: "var(--tt-label)" }} aria-hidden />
+          <Flame
+            className={`w-4 h-4 shrink-0 ${iconClass}`}
+            style={{ color: "var(--tt-label)" }}
+            aria-hidden
+          />
           <span className="leading-none">{label}</span>
         </span>
         <span
@@ -146,13 +150,7 @@ export function TrendingTicker({
         >
           {kind === "scroll" ? (
             currentBatch.map((p, i) => (
-              <TickerItem
-                key={`${p.id}-${i}`}
-                post={p}
-                index={i}
-                lang={lang}
-                animation="none"
-              />
+              <TickerItem key={`${p.id}-${i}`} post={p} index={i} lang={lang} animation="none" />
             ))
           ) : (
             <div className="flex-1 min-w-0 flex items-center gap-6" key={`batch-${batch}`}>
@@ -191,9 +189,7 @@ interface TickerItemProps {
 
 function TickerItem({ post, index, lang, animation, delayMs = 0 }: TickerItemProps) {
   const title =
-    lang === "en"
-      ? post.title_en || post.title_pl || ""
-      : post.title_pl || post.title_en || "";
+    lang === "en" ? post.title_en || post.title_pl || "" : post.title_pl || post.title_en || "";
   const displayIdx = index + 1;
   const cls =
     animation === "fade"
@@ -258,13 +254,7 @@ function TypewriterText({ text, delayMs }: { text: string; delayMs: number }) {
   );
 }
 
-function TickerPaletteStyle({
-  vid,
-  palette,
-}: {
-  vid: string;
-  palette: TickerColorScheme;
-}) {
+function TickerPaletteStyle({ vid, palette }: { vid: string; palette: TickerColorScheme }) {
   const sel = `[data-tt-vid="${vid}"]`;
   const css = `
     ${sel} {

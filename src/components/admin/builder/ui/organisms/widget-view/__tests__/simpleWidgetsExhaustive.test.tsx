@@ -2,7 +2,7 @@
 // only touches with defaults: every styling permutation, plus the interactive
 // chrome widgets (search box, language dropdown, theme toggle) driven by events.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, act, within } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/admin/builder/WidgetView";
 import type { WidgetNode, WidgetType, WidgetContent, Device } from "@/lib/builder/types";

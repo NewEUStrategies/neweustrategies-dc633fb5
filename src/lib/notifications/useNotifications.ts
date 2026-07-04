@@ -2,24 +2,13 @@
 // Multi-tenant: RLS in DB filters by auth.uid() AND current_tenant_id(),
 // so a compromised client cannot see other tenants' rows even by guessing IDs.
 import { useEffect } from "react";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type UseQueryResult,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 
 export type NotificationRow = Database["public"]["Tables"]["notifications"]["Row"];
-export type NotificationKind =
-  | "system"
-  | "comment"
-  | "follow"
-  | "subscription"
-  | "content"
-  | "security";
+type NotificationKind = "system" | "comment" | "follow" | "subscription" | "content" | "security";
 
 const listKey = (uid: string | undefined, filter: NotificationsFilter) =>
   ["notifications", uid ?? "anon", filter] as const;

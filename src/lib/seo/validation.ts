@@ -16,9 +16,9 @@ import { serpDescriptionMetric, serpTitleMetric, type SerpMetric } from "@/lib/s
 import { metaDescription } from "@/lib/routing/publicSegments";
 import type { SeoPanelValue } from "@/components/admin/seo/SeoPanel";
 
-export type SeoIssueSeverity = "error" | "warning";
-export type SeoIssueLang = "pl" | "en";
-export type SeoIssueKind = "title" | "description";
+type SeoIssueSeverity = "error" | "warning";
+type SeoIssueLang = "pl" | "en";
+type SeoIssueKind = "title" | "description";
 
 export interface SeoIssue {
   lang: SeoIssueLang;

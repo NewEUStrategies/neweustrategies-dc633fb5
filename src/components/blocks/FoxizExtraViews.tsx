@@ -7,17 +7,7 @@ import { useCurrentPostCtx } from "@/lib/builder/currentPostContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { supabase } from "@/integrations/supabase/client";
 import { morePostsBlockQueryOptions } from "@/lib/queries/blocks";
-import {
-  Clock,
-  Eye,
-  User,
-  Calendar,
-  FolderOpen,
-  MessageSquare,
-  Star,
-  LogIn,
-  LogOut,
-} from "lucide-react";
+import { Clock, Eye, User, Calendar, FolderOpen, Star, LogIn, LogOut } from "lucide-react";
 
 type Lang = "pl" | "en";
 

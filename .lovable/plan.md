@@ -7,6 +7,7 @@ Dodać ikonę notyfikacji obok menu konta w headerze, z rozwijaną listą po kli
 ### 1. Baza danych (migracja)
 
 Tabela `public.notifications`:
+
 - `id uuid PK`
 - `user_id uuid` - FK do `auth.users`, ON DELETE CASCADE
 - `tenant_id uuid NOT NULL` - izolacja tenantów
@@ -20,11 +21,14 @@ Tabela `public.notifications`:
 - Indeks: `(user_id, tenant_id, created_at DESC)` i częściowy `WHERE read_at IS NULL`
 
 Grants + RLS:
+
 ```
 GRANT SELECT, UPDATE, DELETE ON public.notifications TO authenticated;
 GRANT ALL ON public.notifications TO service_role;
 ```
+
 Polityki:
+
 - SELECT: `auth.uid() = user_id AND tenant_id = (SELECT tenant_id FROM profiles WHERE id = auth.uid())`
 - UPDATE (tylko `read_at`): `auth.uid() = user_id`
 - DELETE: `auth.uid() = user_id`
@@ -35,6 +39,7 @@ Trigger walidacyjny: przy INSERT wymusza `tenant_id` zgodny z `profiles.tenant_i
 ### 2. Komponenty frontendowe (atomic design)
 
 `src/components/notifications/NotificationsBell.tsx` (molecule):
+
 - Przycisk z ikoną `Bell` (Lucide) + badge z liczbą nieprzeczytanych
 - Popover (Radix, ten sam wzorzec animacji co AccountMenu - fade+scale+slide 220ms, `sticky="always"`)
 - Lista ostatnich 10 - tytuł, opis, względny czas (`Intl.RelativeTimeFormat`), ikona kind
@@ -42,12 +47,14 @@ Trigger walidacyjny: przy INSERT wymusza `tenant_id` zgodny z `profiles.tenant_i
 - Realtime: subskrypcja Supabase channel `notifications:user_id=eq.<uid>` -> refetch + odznaczenie badge z animacją pulse
 
 `src/lib/notifications/useNotifications.ts` (hook):
+
 - TanStack Query: `list()`, `unreadCount()`, `markAllRead()`, `markRead(id)`, `remove(id)`
 - Realtime hook `useNotificationsRealtime()`
 
 ### 3. Strona skrzynki
 
 `src/routes/_authenticated/profile/notifications.tsx`:
+
 - Pełna lista z filtrami: Wszystkie / Nieprzeczytane / wg kind
 - Zaznacz/odznacz, usuń, "oznacz wszystkie", stronicowanie
 - Empty state + i18n PL/EN
@@ -55,12 +62,14 @@ Trigger walidacyjny: przy INSERT wymusza `tenant_id` zgodny z `profiles.tenant_i
 ### 4. Integracja w headerze
 
 W `AccountMenuWidget.tsx`:
+
 - Przed przyciskiem trigger, wewnątrz tego samego kontenera flex, renderowany `<NotificationsBell />` (tylko gdy `session`)
 - Dopasowanie do gap/height triggera, spójne z motywem (używa tokenów semantycznych)
 
 ### 5. i18n
 
 Klucze w `pl.json` i `en.json`:
+
 - `notifications.title`, `notifications.empty`, `notifications.markAllRead`, `notifications.openInbox`, `notifications.unread`, `notifications.filters.*`
 
 ### 6. Testy

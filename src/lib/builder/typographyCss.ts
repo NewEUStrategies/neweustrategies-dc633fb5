@@ -10,7 +10,7 @@ function cssEscape(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
 }
 
-export function pickResponsiveValue<T>(
+function pickResponsiveValue<T>(
   value: { desktop?: T; tablet?: T; mobile?: T } | undefined,
   device: Device,
 ): T | undefined {
@@ -59,7 +59,7 @@ export function buildWidgetTypographyCss(
   return buildWidgetTypographyRules(widgetId, typography, device, options).join("\n");
 }
 
-export function buildWidgetTypographyRules(
+function buildWidgetTypographyRules(
   widgetId: string,
   typography: WidgetTypography,
   device: Device,
@@ -137,8 +137,6 @@ export function buildWidgetTypographyRules(
   const titleFallbackSel = titleTargets.slice(1).join(", ");
   const descriptionClassSel = descriptionTargets[0];
   const descriptionFallbackSel = descriptionTargets.slice(1).join(", ");
-  const titleSel = titleTargets.join(", ");
-  const descriptionSel = descriptionTargets.join(", ");
   const rules: string[] = [];
 
   const fontFamily = cleanCssValue(typography.fontFamily);

@@ -14,7 +14,7 @@
 
 import { rateVital, type VitalName, type VitalRating } from "@/lib/observability/vitalsThresholds";
 
-export interface VitalMetric {
+interface VitalMetric {
   name: Extract<VitalName, "LCP" | "CLS" | "INP" | "FCP" | "TTFB">;
   value: number;
   rating: VitalRating;

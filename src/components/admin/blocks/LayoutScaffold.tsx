@@ -123,11 +123,7 @@ function OverlayCover({
     >
       <ZoneTag label="Cover overlay + nagłówek" />
       {url && (
-        <img
-          src={url}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover opacity-70"
-        />
+        <img src={url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-70" />
       )}
       {/* Ciemny gradient całości + wzmocnienie dołu (jak w referencji) */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/90" />
@@ -140,9 +136,7 @@ function OverlayCover({
         }`}
       >
         {/* Kategorie */}
-        <div
-          className={`flex flex-wrap gap-1.5 mb-3 ${center ? "justify-center" : ""}`}
-        >
+        <div className={`flex flex-wrap gap-1.5 mb-3 ${center ? "justify-center" : ""}`}>
           <span
             className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-sm text-white"
             style={{ background: "#FDB078", color: "#111" }}
@@ -184,10 +178,18 @@ function OverlayCover({
           <span>X Min Read</span>
           <span className="opacity-50">|</span>
           <span className="inline-flex gap-1.5">
-            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">f</span>
-            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">x</span>
-            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">in</span>
-            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">@</span>
+            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">
+              f
+            </span>
+            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">
+              x
+            </span>
+            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">
+              in
+            </span>
+            <span className="w-4 h-4 rounded-full bg-white/15 grid place-items-center text-[8px]">
+              @
+            </span>
           </span>
         </div>
       </div>

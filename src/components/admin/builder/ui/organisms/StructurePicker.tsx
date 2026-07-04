@@ -2,9 +2,9 @@
 // Each variant renders a small preview of the column proportions, click to insert.
 import { Plus } from "@/lib/lucide-shim";
 
-export type Structure = { spans: number[]; label: string };
+type Structure = { spans: number[]; label: string };
 
-export const STRUCTURES: Structure[] = [
+const STRUCTURES: Structure[] = [
   { spans: [12], label: "1 kolumna" },
   { spans: [6, 6], label: "1/2 · 1/2" },
   { spans: [4, 8], label: "1/3 · 2/3" },

@@ -31,7 +31,7 @@ const pick = <T,>(
 
 // ---------- layout ----------
 
-export const GAP_PX: Record<ColumnsGap, number> = {
+const GAP_PX: Record<ColumnsGap, number> = {
   default: 20,
   no: 0,
   narrow: 10,
@@ -41,13 +41,11 @@ export const GAP_PX: Record<ColumnsGap, number> = {
   custom: 20,
 };
 
-export const SECTION_SAFE_AREA_PX = 8;
+const SECTION_SAFE_AREA_PX = 8;
 export const INNER_SECTION_SAFE_AREA_PX = 12;
 export const COLUMN_SAFE_AREA_PX = 12;
-/** Domyślna i minimalna wysokość każdej sekcji (zgodna z wysokością kompaktowych widgetów). */
-export const SECTION_DEFAULT_MIN_HEIGHT_PX = 40;
 
-export function columnsGapPx(layout?: SectionLayout): number {
+function columnsGapPx(layout?: SectionLayout): number {
   const g = layout?.columnsGap ?? "default";
   if (g === "custom") return layout?.columnsGapCustom ?? 20;
   return GAP_PX[g];
@@ -290,19 +288,4 @@ export function typographyCss(scopeAttr: string, t: TypographySettings | undefin
 export function typographyAlign(t: TypographySettings | undefined, device: Device): CSSProperties {
   const a = pick(t?.align, device);
   return a ? { textAlign: a } : {};
-}
-
-// ---------- combined helpers ----------
-
-/** All "skin" styles applied to the main wrapper (size/overflow + border + bg). */
-export function sectionSkinStyle(
-  node: SectionNode | InnerSectionNode,
-  device: Device,
-): CSSProperties {
-  return {
-    ...sectionWrapperStyle(node),
-    ...backgroundLayerStyle((node as SectionNode).background),
-    ...borderStyle((node as SectionNode).border),
-    ...typographyAlign((node as SectionNode).typography, device),
-  };
 }

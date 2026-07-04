@@ -92,14 +92,10 @@ import {
   CreditCard as LCreditCard,
   Play as LPlay,
   Pause as LPause,
-  Bell as LBell,
-  Info as LInfo,
   Mic as LMic,
   Film as LFilm,
   Brush as LBrush,
-  Rss as LRss,
   ShieldCheck as LShieldCheck,
-  Cog as LCog,
   Wand2 as LWand2,
   Share2 as LShare2,
   Gauge as LGauge,
@@ -109,10 +105,8 @@ import {
   Download as LDownload,
   RotateCcw as LRotateCcw,
   Facebook as LFacebook,
-  Instagram as LInstagram,
   Linkedin as LLinkedin,
   Twitter as LTwitter,
-  Youtube as LYoutube,
   type LucideIcon as LucideIconImpl,
 } from "lucide-react";
 import { useIconPack } from "@/lib/iconPack";
@@ -123,7 +117,7 @@ const FaGlyph = lazy(() => import("./lucide-shim.fa"));
 
 export type LucideIcon = React.FC<IconProps>;
 
-export interface IconProps extends Omit<SVGAttributes<SVGSVGElement>, "color"> {
+interface IconProps extends Omit<SVGAttributes<SVGSVGElement>, "color"> {
   size?: number | string;
   color?: string;
   strokeWidth?: number | string;
@@ -264,14 +258,10 @@ export const PanelsTopLeft = makeIcon("PanelsTopLeft", LPanelsTopLeft);
 export const CreditCard = makeIcon("CreditCard", LCreditCard);
 export const Play = makeIcon("Play", LPlay);
 export const Pause = makeIcon("Pause", LPause);
-export const Bell = makeIcon("Bell", LBell);
-export const Info = makeIcon("Info", LInfo);
 export const Mic = makeIcon("Mic", LMic);
 export const Film = makeIcon("Film", LFilm);
 export const Brush = makeIcon("Brush", LBrush);
-export const Rss = makeIcon("Rss", LRss);
 export const ShieldCheck = makeIcon("ShieldCheck", LShieldCheck);
-export const Cog = makeIcon("Cog", LCog);
 export const Wand2 = makeIcon("Wand2", LWand2);
 export const Share2 = makeIcon("Share2", LShare2);
 export const Gauge = makeIcon("Gauge", LGauge);
@@ -280,7 +270,5 @@ export const Download = makeIcon("Download", LDownload);
 
 // Brands
 export const Facebook = makeIcon("Facebook", LFacebook);
-export const Instagram = makeIcon("Instagram", LInstagram);
 export const Linkedin = makeIcon("Linkedin", LLinkedin);
 export const Twitter = makeIcon("Twitter", LTwitter);
-export const Youtube = makeIcon("Youtube", LYoutube);

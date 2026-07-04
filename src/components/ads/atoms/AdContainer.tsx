@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { reserveStyle, type AdDimensions } from "@/lib/ads/dimensions";
 import type { AdPosition, AdSlotKind } from "@/lib/ads/types";
 
-export type AdContainerState = "loading" | "blocked" | "ready";
+type AdContainerState = "loading" | "blocked" | "ready";
 
 export interface AdContainerProps {
   /** Intrinsic creative dimensions used to reserve the layout box (zero CLS). */

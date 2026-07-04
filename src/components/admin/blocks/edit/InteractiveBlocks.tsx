@@ -31,7 +31,6 @@ interface AccordionItem {
 }
 
 export function AccordionBlock({ block, onChange }: Props) {
-  const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: AccordionItem[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -110,7 +109,6 @@ interface TabItem {
 }
 
 export function TabsBlock({ block, onChange }: Props) {
-  const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: TabItem[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -184,7 +182,6 @@ export function TabsBlock({ block, onChange }: Props) {
 // ===== Countdown =====
 
 export function CountdownBlock({ block, onChange }: Props) {
-  const i18n = useBlocksI18n();
   const targetAt = String(block.data.targetAt ?? "");
   const label = String(block.data.label ?? "");
   const expiredText = String(block.data.expiredText ?? "");
@@ -192,9 +189,7 @@ export function CountdownBlock({ block, onChange }: Props) {
     <Shell label="Odliczanie">
       <AdminDateTimePicker
         value={targetAt}
-        onChange={(v) =>
-          onChange({ ...block, data: { ...block.data, targetAt: v ?? "" } })
-        }
+        onChange={(v) => onChange({ ...block, data: { ...block.data, targetAt: v ?? "" } })}
       />
       <input
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"

@@ -9,7 +9,7 @@
 //     on parse failure, so a corrupted setting cannot take the page down.
 //  4. 5-minute staleTime / 30-minute gcTime - settings rarely change; we trade
 //     a few seconds of staleness for a fast, quiet UI.
-import { useQuery, type QueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { ZodType } from "zod";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,11 +42,6 @@ export const siteSettingsQueryOptions = {
   gcTime: 60 * 60_000,
 } as const;
 
-/** Prefetch all site_settings from a route loader (server-friendly). */
-export function prefetchSiteSettings(qc: QueryClient): Promise<SettingsMap> {
-  return qc.ensureQueryData(siteSettingsQueryOptions);
-}
-
 /** Resolve one setting against an in-memory bulk map (no network). */
 export function resolveSetting<T extends object>(
   map: SettingsMap | undefined,
@@ -70,10 +65,4 @@ export function resolveSetting<T extends object>(
 export function useSiteSetting<T extends object>(key: string, defaults: T, schema?: ZodType<T>): T {
   const { data } = useQuery(siteSettingsQueryOptions);
   return useMemo(() => resolveSetting(data, key, defaults, schema), [data, key, defaults, schema]);
-}
-
-/** Subscribe to the full bulk map (rarely needed; prefer useSiteSetting). */
-export function useAllSiteSettings(): SettingsMap {
-  const { data } = useQuery(siteSettingsQueryOptions);
-  return data ?? {};
 }

@@ -1,4 +1,4 @@
-export type LoginPosition = "left" | "center" | "right";
+type LoginPosition = "left" | "center" | "right";
 
 export interface AuthSettings {
   popup_enabled: boolean;

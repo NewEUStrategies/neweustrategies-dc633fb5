@@ -27,12 +27,6 @@ export function useFollows() {
   });
 }
 
-export function useIsFollowing(targetType: FollowTargetType, targetId: string | undefined) {
-  const { data } = useFollows();
-  if (!targetId) return false;
-  return (data ?? []).some((f) => f.target_type === targetType && f.target_id === targetId);
-}
-
 export function useToggleFollow() {
   const qc = useQueryClient();
   const { user } = useAuth();

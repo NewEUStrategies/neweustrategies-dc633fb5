@@ -25,7 +25,7 @@ export interface CustomFont {
   display?: "auto" | "block" | "swap" | "fallback" | "optional";
 }
 
-export const FONT_SLUG_RE = /^[a-z0-9-]{1,40}$/;
+const FONT_SLUG_RE = /^[a-z0-9-]{1,40}$/;
 
 export function slugifyFontName(raw: string): string {
   return (

@@ -15,10 +15,9 @@ export interface FontOption {
 }
 
 /** Sample dla nagłówków + treści - pokrywa popularne kierunki. */
-export const DEFAULT_FONT_STACK =
-  '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif';
+const DEFAULT_FONT_STACK = '"Red Hat Display", system-ui, -apple-system, Segoe UI, sans-serif';
 
-export const FONT_OPTIONS: FontOption[] = [
+const FONT_OPTIONS: FontOption[] = [
   {
     label: "Red Hat Display",
     stack: DEFAULT_FONT_STACK,

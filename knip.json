@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["src/router.tsx", "src/start.ts", "src/server.ts", "src/routes/**/*.{ts,tsx}"],
+  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "e2e/**/*.ts"],
+  "ignore": ["src/integrations/supabase/types.ts"],
+  "ignoreDependencies": ["tailwindcss", "tw-animate-css"],
+  "ignoreBinaries": ["supabase"]
+}

@@ -21,9 +21,7 @@ export function MobileDrawerBody({ builderDoc, isPl, onNavigate }: Props) {
   const { data: cfg } = useSuspenseQuery(mobileDrawerConfigQueryOptions);
 
   const renderers: Record<DrawerSection, () => ReactElement | null> = {
-    top_tools: () => (
-      <MobileTopTools tools={cfg.top_tools} isPl={isPl} onNavigate={onNavigate} />
-    ),
+    top_tools: () => <MobileTopTools tools={cfg.top_tools} isPl={isPl} onNavigate={onNavigate} />,
     account: () => <MobileAccountSection isPl={isPl} onNavigate={onNavigate} />,
     nav: () => <MobileNavSection items={cfg.nav_items} isPl={isPl} onNavigate={onNavigate} />,
     builder: () => (

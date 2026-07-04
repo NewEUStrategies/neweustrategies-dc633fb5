@@ -34,7 +34,6 @@ import {
 } from "lucide-react";
 import { impersonateUser } from "@/lib/admin/impersonation";
 
-
 export const Route = createFileRoute("/admin/users/$id")({
   component: UserDetail,
 });
@@ -153,7 +152,6 @@ function UserDetail() {
             label={L("Zmień zdjęcie", "Change photo")}
           />
 
-
           <div className="flex-1 min-w-0">
             <h1 className="font-display text-2xl md:text-3xl font-bold truncate">{fullName}</h1>
             {data.display_name && data.display_name !== fullName && (
@@ -199,10 +197,26 @@ function UserDetail() {
         {/* Left: about */}
         <section className="lg:col-span-2 space-y-6">
           <Card title={L("Informacje", "Details")}>
-            <InfoRow icon={<Briefcase className="w-4 h-4" />} label={L("Stanowisko", "Job title")} value={data.job_title} />
-            <InfoRow icon={<Briefcase className="w-4 h-4" />} label={L("Firma", "Company")} value={data.current_company} />
-            <InfoRow icon={<Briefcase className="w-4 h-4" />} label={L("Specjalizacja", "Specialization")} value={data.specialization} />
-            <InfoRow icon={<MapPin className="w-4 h-4" />} label={L("Lokalizacja", "Location")} value={data.location} />
+            <InfoRow
+              icon={<Briefcase className="w-4 h-4" />}
+              label={L("Stanowisko", "Job title")}
+              value={data.job_title}
+            />
+            <InfoRow
+              icon={<Briefcase className="w-4 h-4" />}
+              label={L("Firma", "Company")}
+              value={data.current_company}
+            />
+            <InfoRow
+              icon={<Briefcase className="w-4 h-4" />}
+              label={L("Specjalizacja", "Specialization")}
+              value={data.specialization}
+            />
+            <InfoRow
+              icon={<MapPin className="w-4 h-4" />}
+              label={L("Lokalizacja", "Location")}
+              value={data.location}
+            />
             <InfoRow icon={<Mail className="w-4 h-4" />} label="Email" value={data.email} isEmail />
             <InfoRow
               icon={<Mail className="w-4 h-4" />}
@@ -210,7 +224,11 @@ function UserDetail() {
               value={data.contact_email}
               isEmail
             />
-            <InfoRow icon={<Phone className="w-4 h-4" />} label={L("Telefon", "Phone")} value={data.phone} />
+            <InfoRow
+              icon={<Phone className="w-4 h-4" />}
+              label={L("Telefon", "Phone")}
+              value={data.phone}
+            />
           </Card>
 
           {(data.bio || data.bio_pl || data.bio_en) && (
@@ -222,12 +240,36 @@ function UserDetail() {
           )}
 
           <Card title={L("Media społecznościowe", "Social media")}>
-            <SocialRow icon={<Globe className="w-4 h-4" />} label="Website" value={data.website_url} />
-            <SocialRow icon={<Twitter className="w-4 h-4" />} label="Twitter / X" value={data.twitter_url} />
-            <SocialRow icon={<Linkedin className="w-4 h-4" />} label="LinkedIn" value={data.linkedin_url} />
-            <SocialRow icon={<Facebook className="w-4 h-4" />} label="Facebook" value={data.facebook_url} />
-            <SocialRow icon={<Instagram className="w-4 h-4" />} label="Instagram" value={data.instagram_url} />
-            <SocialRow icon={<Music2 className="w-4 h-4" />} label="Spotify" value={data.spotify_url} />
+            <SocialRow
+              icon={<Globe className="w-4 h-4" />}
+              label="Website"
+              value={data.website_url}
+            />
+            <SocialRow
+              icon={<Twitter className="w-4 h-4" />}
+              label="Twitter / X"
+              value={data.twitter_url}
+            />
+            <SocialRow
+              icon={<Linkedin className="w-4 h-4" />}
+              label="LinkedIn"
+              value={data.linkedin_url}
+            />
+            <SocialRow
+              icon={<Facebook className="w-4 h-4" />}
+              label="Facebook"
+              value={data.facebook_url}
+            />
+            <SocialRow
+              icon={<Instagram className="w-4 h-4" />}
+              label="Instagram"
+              value={data.instagram_url}
+            />
+            <SocialRow
+              icon={<Music2 className="w-4 h-4" />}
+              label="Spotify"
+              value={data.spotify_url}
+            />
           </Card>
         </section>
 
@@ -241,7 +283,10 @@ function UserDetail() {
               value={new Date(data.created_at).toLocaleString(locale)}
             />
             {data.updated_at && (
-              <Field label={L("Aktualizacja", "Updated")} value={new Date(data.updated_at).toLocaleString(locale)} />
+              <Field
+                label={L("Aktualizacja", "Updated")}
+                value={new Date(data.updated_at).toLocaleString(locale)}
+              />
             )}
             {data.gender && <Field label={L("Płeć", "Gender")} value={String(data.gender)} />}
           </Card>
@@ -251,11 +296,7 @@ function UserDetail() {
               <Link to="/admin/users" className="text-sm text-primary hover:underline">
                 {L("Wszyscy użytkownicy", "All users")}
               </Link>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate({ to: "/admin/users" })}
-              >
+              <Button variant="outline" size="sm" onClick={() => navigate({ to: "/admin/users" })}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 {L("Wróć", "Back")}
               </Button>
@@ -391,50 +432,81 @@ function AvatarEditor({
   const [busy, setBusy] = useState(false);
 
   const handlePick = async (file: File) => {
-    if (!tenantId) { toast.error("Brak kontekstu tenanta"); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error("Plik za duży (max 5 MB)"); return; }
+    if (!tenantId) {
+      toast.error("Brak kontekstu tenanta");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Plik za duży (max 5 MB)");
+      return;
+    }
     setBusy(true);
     try {
       const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
       const path = tenantId + "/users/" + userId + "/avatar-" + Date.now() + "." + ext;
       const { data: signed, error: signErr } = await supabase.storage
-        .from("media").createSignedUploadUrl(path);
+        .from("media")
+        .createSignedUploadUrl(path);
       if (signErr || !signed) throw signErr ?? new Error("sign failed");
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", signed.signedUrl);
         xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
         xhr.setRequestHeader("x-upsert", "true");
-        xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error("HTTP " + xhr.status));
+        xhr.onload = () =>
+          xhr.status >= 200 && xhr.status < 300
+            ? resolve()
+            : reject(new Error("HTTP " + xhr.status));
         xhr.onerror = () => reject(new Error("network"));
         xhr.send(file);
       });
       const { data: pub } = supabase.storage.from("media").getPublicUrl(path);
       const { error: updErr } = await supabase.rpc("admin_update_user_avatar", {
-        _user_id: userId, _avatar_url: pub.publicUrl,
+        _user_id: userId,
+        _avatar_url: pub.publicUrl,
       });
       if (updErr) throw updErr;
       toast.success("Zapisano");
       onUpdated();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <div className="relative group">
       {avatarUrl ? (
-        <img src={avatarUrl} alt="" className="w-24 h-24 md:w-28 md:h-28 rounded-md object-cover border-4 border-card shadow-sm" />
+        <img
+          src={avatarUrl}
+          alt=""
+          className="w-24 h-24 md:w-28 md:h-28 rounded-md object-cover border-4 border-card shadow-sm"
+        />
       ) : (
         <div className="w-24 h-24 md:w-28 md:h-28 rounded-md bg-muted border-4 border-card" />
       )}
       {canEdit && (
         <>
-          <input ref={inputRef} type="file" accept="image/*" className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) void handlePick(f); e.currentTarget.value = ""; }} />
-          <button type="button" disabled={busy} onClick={() => inputRef.current?.click()}
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handlePick(f);
+              e.currentTarget.value = "";
+            }}
+          />
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => inputRef.current?.click()}
             className="absolute inset-0 rounded-md flex items-center justify-center bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-100"
-            aria-label={label} title={label}>
+            aria-label={label}
+            title={label}
+          >
             {busy ? <Loader2 className="w-6 h-6 animate-spin" /> : <Camera className="w-6 h-6" />}
           </button>
         </>

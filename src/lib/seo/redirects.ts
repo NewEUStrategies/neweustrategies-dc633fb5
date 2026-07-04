@@ -45,7 +45,7 @@ export function isProtectedPath(pathname: string): boolean {
 
 const WILDCARD_SUFFIX = "/*";
 
-export function isWildcardSource(sourcePath: string): boolean {
+function isWildcardSource(sourcePath: string): boolean {
   return sourcePath.endsWith(WILDCARD_SUFFIX) && sourcePath.length > WILDCARD_SUFFIX.length;
 }
 
@@ -236,14 +236,14 @@ export function matchRedirect(
 // CSV import/export (admin UI + WP migration tooling)
 // ---------------------------------------------------------------------------
 
-export interface RedirectCsvRow {
+interface RedirectCsvRow {
   source_path: string;
   target_path: string;
   status_code: RedirectStatusCode;
   note: string | null;
 }
 
-export interface RedirectCsvIssue {
+interface RedirectCsvIssue {
   line: number;
   reason: "invalid_source" | "invalid_target" | "invalid_status" | "self_redirect";
 }

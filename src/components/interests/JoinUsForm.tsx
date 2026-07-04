@@ -248,5 +248,3 @@ export function JoinUsForm({
     </section>
   );
 }
-
-export default JoinUsForm;

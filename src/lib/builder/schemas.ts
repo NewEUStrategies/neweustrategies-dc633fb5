@@ -3,7 +3,7 @@
 // Complex list-style widgets (accordion, tabs, pricing) keep custom editors.
 import type { WidgetType } from "./types";
 
-export type FieldType =
+type FieldType =
   | "text" // single-line, language-agnostic
   | "i18nText" // single-line, separate PL/EN values stored as `${key}_pl|_en`
   | "i18nHtml" // textarea HTML, separate PL/EN values

@@ -160,6 +160,5 @@ export function LayoutPreview({ preset, settings, hasSidebarOverride, className 
     >
       {body}
     </div>
-
   );
 }

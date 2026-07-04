@@ -107,7 +107,7 @@ export type MotionEasing =
   | "spring"
   | "bounce";
 
-export type WidgetSize = number | "auto";
+type WidgetSize = number | "auto";
 
 export type AccessAuthMode = "any" | "guest" | "user";
 export type AccessRole = "admin" | "editor" | "author";
@@ -132,7 +132,7 @@ export interface AccessControlSettings {
  * renderer deterministically shows exactly one of them per visitor and logs
  * exposure/conversion events; the builder canvas shows both with badges.
  */
-export interface AbTestTag {
+interface AbTestTag {
   experimentId: string;
   variant: "a" | "b";
 }

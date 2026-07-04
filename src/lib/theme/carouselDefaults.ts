@@ -9,7 +9,7 @@ import { z } from "zod";
 import { deepMerge } from "@/lib/deepMerge";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
-export const CarouselDefaultsSchema = z.object({
+const CarouselDefaultsSchema = z.object({
   autoplay: z.boolean().default(true),
   intervalMs: z.number().int().min(1000).max(30_000).default(4500),
   transition: z.enum(["slide", "fade", "zoom"]).default("slide"),

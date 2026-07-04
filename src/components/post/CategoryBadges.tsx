@@ -42,11 +42,7 @@ export function CategoryBadges({ items, lang }: Props) {
           <AppLink
             key={c.slug}
             href={href}
-            style={
-              bg
-                ? { backgroundColor: bg, color: pickTextColor(bg) }
-                : undefined
-            }
+            style={bg ? { backgroundColor: bg, color: pickTextColor(bg) } : undefined}
             className={
               "inline-flex items-center rounded-sm px-3 py-1 text-xs font-semibold uppercase tracking-wide shadow-sm transition " +
               (bg ? "" : "bg-foreground/85 text-background")

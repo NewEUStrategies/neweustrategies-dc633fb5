@@ -85,8 +85,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
   const showSocial = block.data.showSocial !== false;
   const showPostsCount = block.data.showPostsCount !== false;
   const variant = String(block.data.variant ?? "card");
-  const selectedAuthorId =
-    typeof block.data.authorId === "string" ? block.data.authorId : "";
+  const selectedAuthorId = typeof block.data.authorId === "string" ? block.data.authorId : "";
   const set = (patch: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });
 
@@ -95,9 +94,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
   return (
     <Shell label="Bio autora">
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          Autor
-        </span>
+        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Autor</span>
         <AdminSelect
           className="mt-1 w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={selectedAuthorId}
@@ -113,9 +110,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
       </label>
 
       <label className="block">
-        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          Wariant
-        </span>
+        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Wariant</span>
         <AdminSelect
           className="mt-1 w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={variant}
@@ -144,9 +139,7 @@ export function AuthorBioBlock({ block, onChange }: Props) {
       <div className="pt-2 border-t border-border/60 space-y-3">
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
           Podgląd - {variant === "card" ? "Karta" : variant === "inline" ? "Inline" : "Minimalna"}
-          {!selectedAuthorId && (
-            <span className="ml-1 italic normal-case">(przykładowe dane)</span>
-          )}
+          {!selectedAuthorId && <span className="ml-1 italic normal-case">(przykładowe dane)</span>}
         </div>
         <CurrentPostProvider
           value={{

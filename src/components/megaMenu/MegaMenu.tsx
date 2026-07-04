@@ -11,9 +11,9 @@ import { safeUrl, safeImageUrl } from "@/lib/sanitize";
 import { AppLink } from "@/components/atoms/AppLink";
 import { megaMenuCategoryQueryOptions } from "@/lib/queries/megaMenu";
 
-export type MegaMenuLang = "pl" | "en";
+type MegaMenuLang = "pl" | "en";
 
-export interface MegaMenuLink {
+interface MegaMenuLink {
   label_pl?: string;
   label_en?: string;
   href?: string;
@@ -21,7 +21,7 @@ export interface MegaMenuLink {
   desc_en?: string;
 }
 
-export type FeaturedAspectRatio = "16/10" | "16/9" | "4/3" | "1/1" | "3/4";
+type FeaturedAspectRatio = "16/10" | "16/9" | "4/3" | "1/1" | "3/4";
 
 export interface MegaMenuFeatured {
   image?: string;
@@ -42,9 +42,9 @@ export interface MegaMenuFeatured {
   placeholderColor?: string;
 }
 
-export type MegaMenuColumnKind = "links" | "category";
+type MegaMenuColumnKind = "links" | "category";
 
-export interface MegaMenuColumn {
+interface MegaMenuColumn {
   kind?: MegaMenuColumnKind;
   title_pl?: string;
   title_en?: string;
@@ -334,14 +334,6 @@ function CategoryColumn({ col, lang }: { col: MegaMenuColumn; lang: MegaMenuLang
       )}
     </div>
   );
-}
-
-interface PostCard {
-  id: string;
-  slug: string;
-  title: string;
-  cover: string;
-  href: string;
 }
 
 /** Allowed aspect ratios; used for legacy normalization. */

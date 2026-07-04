@@ -528,7 +528,7 @@ export type LeadRow = {
   last_activity_at: string;
 };
 
-export async function dispatchMerydian(
+async function dispatchMerydian(
   lead: LeadRow,
   cfg: Record<string, unknown>,
 ): Promise<{ ok: boolean; via?: string; status?: number; error?: string }> {

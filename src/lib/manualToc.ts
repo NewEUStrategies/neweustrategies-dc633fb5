@@ -11,7 +11,7 @@
 // Honors only the FIRST <!--TOC--> marker; subsequent markers are stripped
 // (multiple TOCs in the same article are an authoring mistake).
 
-export interface TocEntry {
+interface TocEntry {
   level: 2 | 3;
   id: string;
   text: string;

@@ -2,7 +2,7 @@
 // (RLS-protected user_follows for logged-in users, localStorage for anon).
 // Used both as a standalone page (/profile/interests) and inside the
 // "customize-interests" Page Builder widget.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { Loader2, Check, SlidersHorizontal, LogIn } from "lucide-react";
@@ -208,5 +208,3 @@ function InterestGroup({
     </div>
   );
 }
-
-export default InterestsCustomizer;

@@ -123,7 +123,7 @@ function newWidget(type: SidebarWidgetType): SidebarWidget {
 }
 
 export function SidebarBuilderPane() {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const qc = useQueryClient();
   const layoutsQuery = useQuery(allSidebarLayoutsQueryOptions());

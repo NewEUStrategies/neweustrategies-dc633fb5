@@ -304,7 +304,6 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
 // ===== Contact Form =====
 
 export function ContactFormBlock({ block, onChange }: Props) {
-  const i18n = useBlocksI18n();
   const d = block.data;
   return (
     <Shell label="Formularz kontaktowy">
@@ -367,7 +366,6 @@ export function ContactFormBlock({ block, onChange }: Props) {
 // ===== Map (OSM iframe) =====
 
 export function MapBlock({ block, onChange }: Props) {
-  const i18n = useBlocksI18n();
   const d = block.data;
   const lat = Number(d.lat ?? 52.2297);
   const lng = Number(d.lng ?? 21.0122);

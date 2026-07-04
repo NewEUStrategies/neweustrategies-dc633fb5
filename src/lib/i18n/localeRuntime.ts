@@ -28,11 +28,6 @@ function resolveClientInitial(): AppLang {
 
 let clientLocale: AppLang = resolveClientInitial();
 
-/** Live client-side render language. */
-export function getClientLang(): AppLang {
-  return clientLocale;
-}
-
 /**
  * Update the live client render language. The language switcher calls this
  * synchronously *before* navigating so the router's `output` rewrite prefixes

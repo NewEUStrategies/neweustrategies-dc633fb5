@@ -46,7 +46,10 @@ export const Route = createFileRoute("/admin/super/mobile-drawer")({
   component: MobileDrawerEditor,
 });
 
-const SECTION_LABELS: Record<DrawerSection, { pl: string; en: string; desc: { pl: string; en: string } }> = {
+const SECTION_LABELS: Record<
+  DrawerSection,
+  { pl: string; en: string; desc: { pl: string; en: string } }
+> = {
   top_tools: {
     pl: "Narzędzia",
     en: "Tools",
@@ -123,7 +126,14 @@ function MobileDrawerEditor() {
       ...cfg,
       nav_items: [
         ...cfg.nav_items,
-        { id, label_pl: t("Nowa pozycja", "New item"), label_en: "New item", href: "/", icon: "link", enabled: true },
+        {
+          id,
+          label_pl: t("Nowa pozycja", "New item"),
+          label_en: "New item",
+          href: "/",
+          icon: "link",
+          enabled: true,
+        },
       ],
     }));
   };
@@ -185,7 +195,11 @@ function MobileDrawerEditor() {
             {t("Kolejność bloków", "Block order")}
           </h2>
         </div>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onSectionDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={onSectionDragEnd}
+        >
           <SortableContext items={config.section_order} strategy={verticalListSortingStrategy}>
             <ul className="divide-y divide-border">
               {config.section_order.map((section) => (
@@ -264,7 +278,10 @@ function MobileDrawerEditor() {
         </div>
         {config.nav_items.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted-foreground">
-            {t("Brak pozycji - sekcja nawigacji nie pokaże się w drawerze.", "No items - the navigation section will be hidden in the drawer.")}
+            {t(
+              "Brak pozycji - sekcja nawigacji nie pokaże się w drawerze.",
+              "No items - the navigation section will be hidden in the drawer.",
+            )}
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onNavDragEnd}>

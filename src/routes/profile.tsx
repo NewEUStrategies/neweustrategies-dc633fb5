@@ -16,7 +16,10 @@ function initialsFrom(email: string | null | undefined, name?: string | null): s
   const source = (name ?? email ?? "").trim();
   if (!source) return "?";
   const parts = source.split(/[\s@._-]+/).filter(Boolean);
-  const letters = parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");
+  const letters = parts
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
   return letters || source[0]?.toUpperCase() || "?";
 }
 
@@ -78,7 +81,11 @@ function ProfileLayout() {
               </aside>
 
               {/* Main content */}
-              <main className={isRoot ? "min-w-0 flex-1 bg-card p-5 md:p-8" : "min-w-0 flex-1 bg-card p-5 md:p-8"}>
+              <main
+                className={
+                  isRoot ? "min-w-0 flex-1 bg-card p-5 md:p-8" : "min-w-0 flex-1 bg-card p-5 md:p-8"
+                }
+              >
                 <Outlet />
               </main>
             </div>

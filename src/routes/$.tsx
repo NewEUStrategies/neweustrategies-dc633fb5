@@ -74,7 +74,6 @@ import {
   findLayout,
   coverImageSizes,
   defaultPostLayoutSettings,
-  type LayoutOverrides,
   type PostFormat,
   type PostLayoutSettings,
 } from "@/lib/postLayouts";
@@ -539,7 +538,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
               />
             }
             categoryBadges={
-              postCategories.length > 0 ? <CategoryBadges items={postCategories} lang={lang} /> : null
+              postCategories.length > 0 ? (
+                <CategoryBadges items={postCategories} lang={lang} />
+              ) : null
             }
             content={
               <>

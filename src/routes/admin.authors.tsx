@@ -157,9 +157,7 @@ function Authors() {
                     </div>
                   </div>
                 </div>
-                {bio && (
-                  <p className="text-sm text-muted-foreground line-clamp-3 m-0">{bio}</p>
-                )}
+                {bio && <p className="text-sm text-muted-foreground line-clamp-3 m-0">{bio}</p>}
                 <div className="mt-auto flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">
                     {a.posts_count}{" "}
@@ -174,10 +172,7 @@ function Authors() {
                         : "posts"}
                   </span>
                   <div className="flex items-center gap-2">
-                    <Link
-                      to="/admin/users"
-                      className="text-primary hover:underline"
-                    >
+                    <Link to="/admin/users" className="text-primary hover:underline">
                       {label("admin.authors.manage", "Zarządzaj", "Manage")}
                     </Link>
                     {a.slug && (

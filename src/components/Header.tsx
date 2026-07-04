@@ -113,7 +113,6 @@ function HeaderInner() {
       )}
       <AdZone position="header_banner" pageType="all" className="py-2 text-center" />
 
-
       {/* Mobile compact bar: horizontal logo (super-admin -> Branding -> Logo -> Mobile) + hamburger. */}
       <div className="lg:hidden sticky top-0 z-[9998] grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-3 px-4 py-3 border-b border-border bg-background">
         <div />
@@ -131,9 +130,7 @@ function HeaderInner() {
               decoding="async"
             />
           ) : (
-            <span className="text-base font-bold tracking-tight truncate min-w-0">
-              {siteName}
-            </span>
+            <span className="text-base font-bold tracking-tight truncate min-w-0">{siteName}</span>
           )}
         </AppLink>
         <button

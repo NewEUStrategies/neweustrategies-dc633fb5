@@ -25,8 +25,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { isPreviewHost, normalizeHost, wwwToggledHost } from "@/lib/http/host";
 
-export { normalizeHost } from "@/lib/http/host";
-
 export interface TenantDirectoryEntry {
   id: string;
   slug: string;

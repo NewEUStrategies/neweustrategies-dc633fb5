@@ -4,7 +4,6 @@ import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import { useEffect, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Bold,

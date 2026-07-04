@@ -70,7 +70,7 @@ function withStableIds(doc: BuilderDocument, prefix: string): BuilderDocument {
   };
 }
 
-export const defaultHeaderDoc = (): BuilderDocument =>
+const defaultHeaderDoc = (): BuilderDocument =>
   withStableIds(
     {
       version: 1,
@@ -220,7 +220,7 @@ export const defaultHeaderDoc = (): BuilderDocument =>
     "hdr-default",
   );
 
-export const defaultFooterDoc = (): BuilderDocument =>
+const defaultFooterDoc = (): BuilderDocument =>
   withStableIds(
     {
       version: 1,
@@ -308,7 +308,7 @@ export const defaultFooterDoc = (): BuilderDocument =>
     "ftr-default",
   );
 
-export const defaultMenuDoc = (): BuilderDocument =>
+const defaultMenuDoc = (): BuilderDocument =>
   withStableIds(
     {
       version: 1,

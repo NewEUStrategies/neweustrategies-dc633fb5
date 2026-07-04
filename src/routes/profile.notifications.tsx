@@ -37,10 +37,7 @@ function fmtDate(iso: string, lang: Lang): string {
 }
 function resolveIcon(name: string | null | undefined) {
   if (!name) return null;
-  const reg = LucideIcons as unknown as Record<
-    string,
-    React.ComponentType<{ className?: string }>
-  >;
+  const reg = LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string }>>;
   return reg[name] ?? null;
 }
 
@@ -164,7 +161,9 @@ function NotificationsInboxPage() {
                           )}
                         </div>
                         {pickBody(n, lang) && (
-                          <p className="mt-0.5 text-xs text-muted-foreground">{pickBody(n, lang)}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {pickBody(n, lang)}
+                          </p>
                         )}
                         <div className="mt-1 text-[11px] text-muted-foreground/80">
                           {fmtDate(n.created_at, lang)}

@@ -164,11 +164,13 @@ export function normalizeTickerSettings(raw: unknown): TickerSettings {
     const variants = raw.variants
       .slice(0, MAX_TICKER_VARIANTS)
       .filter(isRecord)
-      .map((v): TickerVariant => ({
-        id: safeString(v.id, "") || genId(),
-        name: safeString(v.name, "Wariant"),
-        config: normalizeTickerConfig(v.config),
-      }));
+      .map(
+        (v): TickerVariant => ({
+          id: safeString(v.id, "") || genId(),
+          name: safeString(v.name, "Wariant"),
+          config: normalizeTickerConfig(v.config),
+        }),
+      );
     if (variants.length === 0) {
       const def = makeDefaultVariant();
       return { activeVariantId: def.id, variants: [def] };

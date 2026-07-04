@@ -6,7 +6,7 @@ import { z } from "zod";
 import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import type { Database } from "@/integrations/supabase/types";
 
-export type SearchHitKind = "post" | "page";
+type SearchHitKind = "post" | "page";
 
 export interface SearchHit {
   kind: SearchHitKind;

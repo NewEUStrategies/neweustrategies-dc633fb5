@@ -105,11 +105,6 @@ export function scoreRelated(
   return score;
 }
 
-export interface ScoredRelated {
-  post: BlogListItem;
-  score: number;
-}
-
 export function rankRelated<T extends { post: BlogListItem; score: number }>(
   items: T[],
   limit: number,

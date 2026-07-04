@@ -96,7 +96,7 @@ function AdminShellInner({
   hideSidebar?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const { signOut, user, isAdmin, isSuperAdmin } = useAuth();
+  const { signOut, isAdmin, isSuperAdmin } = useAuth();
   const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });

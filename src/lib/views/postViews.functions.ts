@@ -8,12 +8,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
-import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import { edgeTtlCache } from "@/lib/ssrCache";
 
-// Anon client running UNDER RLS. fetchWithTenantHost forwards the request
-// host, so public_tenant_id() (and with it trending_posts + the "Public reads
-// published posts" policy) resolves the tenant of the site being browsed.
+// Anon client running UNDER RLS: public_tenant_id() (and with it
+// trending_posts + the "Public reads published posts" policy) resolves the
+// tenant of the site being browsed.
 function client() {
   return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
     auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
@@ -148,7 +147,10 @@ async function toTrendingPosts(
   sb: ReturnType<typeof client>,
   rows: TickerRow[],
 ): Promise<TrendingPost[]> {
-  const paths = await resolveParentPaths(sb, rows.map((r) => r.parent_page_id));
+  const paths = await resolveParentPaths(
+    sb,
+    rows.map((r) => r.parent_page_id),
+  );
   return rows.map((r) => ({
     id: r.id,
     slug: r.slug,
@@ -182,9 +184,7 @@ export const getTickerPosts = createServerFn({ method: "GET" })
             if (pinnedIds.length) {
               const { data: rows, error } = await sb
                 .from("posts")
-                .select(
-                  "id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id",
-                )
+                .select("id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id")
                 .in("id", pinnedIds)
                 .eq("status", "published")
                 .is("deleted_at", null);
@@ -225,9 +225,7 @@ export const getTickerPosts = createServerFn({ method: "GET" })
               } else {
                 const { data: rows, error } = await sb
                   .from("posts")
-                  .select(
-                    "id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id",
-                  )
+                  .select("id,slug,title_pl,title_en,cover_image_url,published_at,parent_page_id")
                   .eq("status", "published")
                   .is("deleted_at", null)
                   .order("published_at", { ascending: false })

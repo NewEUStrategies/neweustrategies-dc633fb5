@@ -6,7 +6,7 @@
 
 export type PostFormat = "standard" | "video" | "audio" | "gallery";
 
-export interface RecommendedImageSize {
+interface RecommendedImageSize {
   width: number;
   height: number;
   /** Krótki opis proporcji, np. "16:9". */

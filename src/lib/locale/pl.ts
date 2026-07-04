@@ -4,56 +4,17 @@
 export const pl = {
   common: {
     retry: "Spróbuj ponownie",
-    loadError: "Nie udało się załadować",
   },
   nav: {
-    analyses: "ANALIZY",
-    interviews: "WYWIADY",
-    policyPapers: "POLICY PAPERS",
-    reports: "RAPORTY",
-    events: "WYDARZENIA",
-    about: "O NAS",
-    search: "Szukaj",
     newsletter: "Newsletter",
   },
   hero: {
-    hotTopic: "Hot topic",
-    readMore: "Przeczytaj pełną analizę",
-    minRead: "min czytania",
     by: "Autor",
-  },
-  sections: {
-    latestReport: "Najnowszy raport",
-    upcomingEvents: "Nadchodzące wydarzenia",
-    expertOpinion: "Zdaniem ekspertów",
-    interviewsPodcasts: "Wywiady | Podcasty",
-    ourReports: "Poznaj nasze raporty",
-    militaryGeo: "Wojskowość i Geopolityka",
-    financeEconomy: "Finanse i Gospodarka",
-    transportEnergy: "Transport i Energetyka",
-    diplomacy: "Dyplomacja",
-    cybersecurity: "Cyberbezpieczeństwo",
-    bookReviews: "Recenzje książek",
-    partnerContent: "Materiały naszych partnerów",
-    partnerSub: "Więcej materiałów sponsorowanych",
-    more: "Więcej",
-    seeMore: "Zobacz więcej",
-    outOf: "z 10",
   },
   newsletter: {
     title: "STRATEGICZNE MYŚLENIE, NOWE PERSPEKTYWY",
     sub: "Śledź globalną i europejską grę mocarstw z pierwszego rzędu",
-    name: "Imię",
-    surname: "Nazwisko",
-    position: "Stanowisko",
-    company: "Firma",
-    linkedin: "LinkedIn",
-    email: "Twój e-mail",
-    phone: "Numer telefonu",
-    list: "Wybierz listę mailingową",
     subscribe: "Zapisz się",
-    terms: "Przeczytałem/am i zgadzam się z",
-    termsLink: "regulaminem",
     confirmPage: {
       loading: "Potwierdzanie subskrypcji…",
       okTitle: "Subskrypcja potwierdzona",
@@ -67,69 +28,9 @@ export const pl = {
       backHome: "← Wróć na stronę główną",
     },
   },
-  footer: {
-    mission:
-      "Naszym celem jest zdefiniowanie przyszłości europejskiego bezpieczeństwa i kształtowanie nowych europejskich elit.",
-    forum: "Tworzymy ważne forum rozwoju mechanizmów współpracy w obszarach strategicznych.",
-    vision:
-      "Pracujemy nad wizją bezpieczniejszego porządku międzynarodowego, wzmacniając relacje handlowe Europy ze światem.",
-    knowUs: "Poznaj nas lepiej",
-    workWithUs: "Współpraca",
-    about: "O NAS",
-    contact: "KONTAKT",
-    joinNewsletter: "DOŁĄCZ DO NEWSLETTERA",
-    support: "WSPIERAJ NAS",
-    advertise: "REKLAMUJ SIĘ U NAS",
-    events: "WYDARZENIA",
-    projects: "PROJEKTY",
-    privacy: "POLITYKA PRYWATNOŚCI",
-    contactLabel: "Kontakt",
-    phoneLabel: "Telefon",
-    addressLabel: "Adres",
-    rights: "Wszelkie prawa zastrzeżone",
-  },
-  cats: {
-    reports: "RAPORTY",
-    review: "RECENZJA",
-    history: "HISTORIA",
-    policyPapers: "POLICY PAPERS",
-    geopolitics: "GEOPOLITYKA",
-    economy: "EKONOMIA",
-    europe: "EUROPA",
-    interviews: "WYWIADY",
-    book: "KSIĄŻKA",
-  },
-  articles: {
-    a1t: "Militarne zdolności do projekcji siły i zabezpieczania stref wpływu",
-    a1d: "Położenie geograficzne Rosji w Eurazji powoduje naturalnie, że elity rosyjskie mają skłonności do postrzegania stosunków…",
-    a2t: "Policentryzacja świata wg. mocarstw: Eurazja",
-    a2d: "Rupert Murdoch stwierdził, że „świat dynamicznie się zmienia. Odchodzimy od starego modelu ekonomicznego do nowego…",
-    a3t: "Między wielkością a zanikiem. Rzecz o Polsce w XXI wieku – o książce Bartłomieja Radziejewskiego",
-    a3d: "Książka Bartłomieja Radziejewskiego, założyciela think-zine Nowa Konfederacja, wzbudziła we mnie wielki entuzjazm…",
-    a4t: "Minister Radosław Sikorski: Polska może być lepsza w rywalizacji międzynarodowej. Jak ona wygląda?",
-    a5t: "Generał Skrzypczak: Wyzwania militarne dla strategii Polski w kontekście globalnej Gry Mocarstw",
-    a6t: "Istota Bliskiego Wschodu w rywalizacji mocarstw",
-    a6d: "Po 1991 roku jako jedyne supermocarstwo, Stany Zjednoczone by utrzymywać swój prymat…",
-    a7t: "Hegemoniczna rywalizacja Imperium Brytyjskiego z Cesarstwem Niemieckim",
-    a8t: "Droga obalenia hegemonii funta i ustanowienie Imperium Dolara",
-    a8d: "Pierwsza wojna światowa zakończyła niepodzielne panowanie funta brytyjskiego…",
-    a9t: "Co rozpoczęło Zimną Wojnę? Źródła konfliktu Stanów Zjednoczonych i Związku Radzieckiego",
-    a10t: "Hegemoniczne starcie: Imperium Hiszpańskie, Anglia i Zjednoczone Prowincje Niderlandzkie",
-    a10d: "Brytyjczycy stosunkowo późno przyłączyli się do europejskiego wyścigu budowania imperiów zamorskich…",
-    a11t: "Geostrategiczne wyzwania dla Polski – Generał Stanisław Koziej",
-    a11d: "Wywiad konferencyjny z byłym Szefem Biura Bezpieczeństwa Narodowego (2010–2015) o priorytetach strategicznych Polski.",
-  },
   auth: {
-    signinTitle: "Zaloguj się",
-    signupTitle: "Utwórz konto",
-    subtitle: "Panel administracyjny New European Strategies",
     signin: "Zaloguj się",
     signup: "Zarejestruj się",
-    toSignup: "Nie masz konta? Zarejestruj się",
-    toSignin: "Masz już konto? Zaloguj się",
-    password: "Hasło",
-    name: "Imię i nazwisko",
-    backHome: "Wróć na stronę",
     signinOk: "Zalogowano",
     signupOk: "Konto utworzone",
   },
@@ -143,14 +44,9 @@ export const pl = {
       hint: "Krótkie, konkretne bullet pointy - max 6. Wyświetlane nad treścią wpisu w wybranym języku.",
       empty: "Brak punktów dla tego języka.",
     },
-    sidebar: {
-      toc: "Spis treści",
-      tags: "Tagi",
-    },
   },
   ads: {
     label: "Reklama",
-    loading: "Ładowanie reklamy…",
     consentBlocked: "Treść reklamowa zablokowana - wymaga zgody marketingowej.",
     slideupLabel: "Reklama",
     dismiss: "Zamknij reklamę",
@@ -168,7 +64,6 @@ export const pl = {
       ads: "Reklamy",
       appearance: "Nagłówek i stopka",
       themeOptions: "Opcje motywu",
-      themeDesign: "Theme Design",
       postLayouts: "Layouty wpisów",
       icons: "Ikony",
       names: "Słownik imion",
@@ -203,8 +98,6 @@ export const pl = {
       saved: "Kolory kategorii zapisane",
       saveError: "Nie udało się zapisać kolorów",
       reset: "Przywróć rekomendowany",
-      previewLabel: "Podgląd",
-      noColor: "brak",
     },
     popups: {
       title: "Popupy",
@@ -318,7 +211,11 @@ export const pl = {
       title: "Wydajność (RUM)",
       subtitle:
         "Dane Core Web Vitals zbierane od rzeczywistych użytkowników w produkcji. Wartość p75 to wynik raportowany przez Web Vitals.",
-      window: { "1": "24 godz.", "7": "7 dni", "28": "28 dni" },
+      window: {
+        "1": "24 godz.",
+        "7": "7 dni",
+        "28": "28 dni",
+      },
       loading: "Wczytywanie danych…",
       error: "Nie udało się wczytać danych.",
       sampleCount: "Próbki w oknie: {{count}}",
@@ -329,14 +226,21 @@ export const pl = {
       p75: "p75",
       median: "Mediana",
       range: "Zakres",
-      rating: { good: "Dobre", ni: "Wymaga poprawy", poor: "Słabe" },
+      rating: {
+        good: "Dobre",
+        ni: "Wymaga poprawy",
+        poor: "Słabe",
+      },
       trends: "Trend dzienny (p75)",
       byPath: "Wg ścieżki",
       path: "Ścieżka",
       samples: "Próbki",
       metricsCol: "Metryki (p75)",
     },
-    sidebar: { expand: "Rozszerz", collapse: "Zwiń" },
+    sidebar: {
+      expand: "Rozszerz",
+      collapse: "Zwiń",
+    },
     appearance: {
       header: "Nagłówek",
       footer: "Stopka",
@@ -348,7 +252,11 @@ export const pl = {
       title: "Biblioteka ikon",
       subtitle:
         "Zarządzaj własnymi ikonami, flagami i logotypami brandów - z wariantami light/dark.",
-      tabs: { custom: "Własne ikony", flag: "Flagi", brand: "Logotypy brandów" },
+      tabs: {
+        custom: "Własne ikony",
+        flag: "Flagi",
+        brand: "Logotypy brandów",
+      },
       newTitle: "Nowa ikona",
       add: "Dodaj",
       searchPlaceholder: "Szukaj ikony po nazwie…",
@@ -363,7 +271,12 @@ export const pl = {
         labelPh: "np. Logo NES",
         defaultVariant: "Domyślny wariant",
       },
-      variants: { auto: "Auto (wg trybu)", default: "Default", light: "Light", dark: "Dark" },
+      variants: {
+        auto: "Auto (wg trybu)",
+        default: "Default",
+        light: "Light",
+        dark: "Dark",
+      },
       bulk: {
         title: "Import hurtem",
         hint: "Przeciągnij wiele plików naraz. Sufiks „-dark” lub „-light” w nazwie pliku przypisuje wariant (np. logo-dark.svg).",
@@ -372,7 +285,9 @@ export const pl = {
         done: "Gotowe: utworzono {{created}}, zaktualizowano {{updated}}.",
         errors: "Błędy: {{count}}",
       },
-      errors: { nameRequired: "Podaj nazwę ikony." },
+      errors: {
+        nameRequired: "Podaj nazwę ikony.",
+      },
     },
     themeOptions: {
       save: "Zapisz",
@@ -401,7 +316,6 @@ export const pl = {
         "Ustaw kolory ikon SVG: stan nieaktywny, po najechaniu (hover) oraz aktywny - dla trybu jasnego i ciemnego.",
       linkColorsDescription:
         "Ustaw kolory linków: stan nieaktywny, po najechaniu (hover) oraz aktywny - dla trybu jasnego i ciemnego.",
-
       mainMenu: {
         navTopLevel: "Nawigacja (najwyższy poziom)",
         hoverEffect: "Efekt hover menu",
@@ -584,8 +498,6 @@ export const pl = {
           "Logo dla schema markup (social media, wyniki wyszukiwania). Zostaw puste, by użyć Logo głównego.",
         sidebar:
           "Logo sidebaru. Kwadrat pokazywany po zwinięciu, podłużne logo po rozwinięciu sidebaru.",
-        sidebarSquareBold: "Kwadrat",
-        sidebarOblongBold: "podłużne logo",
       },
       addToHomeScreen: "Dodaj do ekranu głównego",
       preview: {
@@ -829,7 +741,10 @@ export const pl = {
       cookieBanner: "Baner cookie",
       cookieBannerLabel: "Pokazuj baner zgody na pliki cookie",
     },
-    dashboard: { title: "Kokpit", subtitle: "Przegląd treści serwisu" },
+    dashboard: {
+      title: "Kokpit",
+      subtitle: "Przegląd treści serwisu",
+    },
     viewSite: "Zobacz stronę",
     theme: "Motyw",
     signout: "Wyloguj",
@@ -863,7 +778,6 @@ export const pl = {
     published: "opublikowanych",
     drafts: "szkiców",
     language: "Język panelu",
-
     status: {
       draft: "Szkic",
       pending_review: "Do recenzji",
@@ -894,7 +808,10 @@ export const pl = {
       confirmDescription:
         "Treść z {{date}} zastąpi bieżącą wersję. Obecny stan zostanie zapisany jako kopia, a status publikacji się nie zmieni.",
       confirmAction: "Przywróć",
-      note: { autosave: "autozapis", preRestore: "kopia przed przywróceniem" },
+      note: {
+        autosave: "autozapis",
+        preRestore: "kopia przed przywróceniem",
+      },
     },
     presence: {
       editingNow:
@@ -936,7 +853,9 @@ export const pl = {
       count: "stron",
       empty: "Brak stron",
     },
-    tags: { placeholder: "Nazwa tagu i Enter" },
+    tags: {
+      placeholder: "Nazwa tagu i Enter",
+    },
     users: {
       title: "Użytkownicy",
       name: "Imię",
@@ -949,7 +868,10 @@ export const pl = {
         user: "Użytkownik",
       },
     },
-    media: { upload: "Wgraj", uploaded: "Wgrano" },
+    media: {
+      upload: "Wgraj",
+      uploaded: "Wgrano",
+    },
     personalized: {
       title: "Personalized System",
       subtitle: "Bookmarks, follows, reading list i rekomendacje",
@@ -1084,9 +1006,12 @@ export const pl = {
     search: "Szukaj bloku...",
     noResults: "Brak wyników",
     firstBlock: "Dodaj pierwszy blok",
-    library: "Biblioteka bloków",
-    toggleLibrary: "Pokaż / ukryj bibliotekę bloków",
-    categories: { text: "Tekst", media: "Media", layout: "Layout", advanced: "Zaawansowane" },
+    categories: {
+      text: "Tekst",
+      media: "Media",
+      layout: "Layout",
+      advanced: "Zaawansowane",
+    },
     actions: {
       up: "W górę",
       down: "W dół",
@@ -1095,14 +1020,15 @@ export const pl = {
       drag: "Przeciągnij, aby przenieść",
       undo: "Cofnij",
       redo: "Ponów",
-      settings: "Ustawienia bloku",
     },
     sidebar: {
       block: "Blok",
       document: "Dokument",
       selectBlock: "Wybierz blok, aby zobaczyć ustawienia.",
     },
-    slash: { hint: "Wpisz / aby wybrać blok" },
+    slash: {
+      hint: "Wpisz / aby wybrać blok",
+    },
     types: {
       paragraph: "Akapit",
       heading: "Nagłówek",
@@ -1202,7 +1128,10 @@ export const pl = {
       row: "Wiersz",
       stack: "Stos",
     },
-    outline: { title: "Konspekt", empty: "Dodaj nagłówki, aby zbudować konspekt." },
+    outline: {
+      title: "Konspekt",
+      empty: "Dodaj nagłówki, aby zbudować konspekt.",
+    },
     settings: {
       level: "Poziom",
       anchor: "Anchor (id)",
@@ -1406,17 +1335,36 @@ export const pl = {
         left: "Lewa",
         right: "Prawa",
       },
-      cover: { title: "Tło / okładka", overlay: "Nakładka (0-90%)" },
-      gallery: { title: "Galeria", addImage: "Dodaj obraz", removeImage: "Usuń obraz" },
+      cover: {
+        title: "Tło / okładka",
+        overlay: "Nakładka (0-90%)",
+      },
+      gallery: {
+        title: "Galeria",
+        addImage: "Dodaj obraz",
+        removeImage: "Usuń obraz",
+      },
       accordion: {
         title: "Akordeon",
         addQuestion: "Dodaj pytanie",
         questionPh: "Nowe pytanie",
         answerPh: "Odpowiedź…",
       },
-      tabs: { title: "Zakładki", addTab: "Dodaj zakładkę", tabLabelPh: "Nazwa zakładki" },
-      countdown: { title: "Odliczanie", targetDate: "Data docelowa", labels: "Etykiety" },
-      progress: { title: "Pasek postępu", value: "Wartość (0-100)", colorVariant: "Kolor" },
+      tabs: {
+        title: "Zakładki",
+        addTab: "Dodaj zakładkę",
+        tabLabelPh: "Nazwa zakładki",
+      },
+      countdown: {
+        title: "Odliczanie",
+        targetDate: "Data docelowa",
+        labels: "Etykiety",
+      },
+      progress: {
+        title: "Pasek postępu",
+        value: "Wartość (0-100)",
+        colorVariant: "Kolor",
+      },
       pricing: {
         title: "Tabela cenowa",
         addPlan: "Dodaj plan",
@@ -1431,7 +1379,10 @@ export const pl = {
         quote: "Cytat",
         author: "Autor",
       },
-      timeline: { title: "Oś czasu", addEvent: "Dodaj wydarzenie" },
+      timeline: {
+        title: "Oś czasu",
+        addEvent: "Dodaj wydarzenie",
+      },
       teamGrid: {
         title: "Siatka zespołu",
         addMember: "Dodaj osobę",
@@ -1439,7 +1390,10 @@ export const pl = {
         circle: "Koło",
         square: "Kwadrat",
       },
-      logoGrid: { title: "Siatka logotypów", addLogo: "Dodaj logo" },
+      logoGrid: {
+        title: "Siatka logotypów",
+        addLogo: "Dodaj logo",
+      },
       featureGrid: {
         title: "Siatka funkcji",
         addFeature: "Dodaj funkcję",
@@ -1476,9 +1430,19 @@ export const pl = {
         addPlan: "Dodaj plan",
         addFeature: "Dodaj funkcję",
       },
-      bannerImage: { title: "Banner z obrazem", textPosition: "Pozycja tekstu" },
-      videoHero: { title: "Hero z tłem wideo", posterFallback: "Plakat zastępczy" },
-      quote: { title: "Cytat", textPh: "Treść cytatu…", citePh: "- Autor (opcjonalnie)" },
+      bannerImage: {
+        title: "Banner z obrazem",
+        textPosition: "Pozycja tekstu",
+      },
+      videoHero: {
+        title: "Hero z tłem wideo",
+        posterFallback: "Plakat zastępczy",
+      },
+      quote: {
+        title: "Cytat",
+        textPh: "Treść cytatu…",
+        citePh: "- Autor (opcjonalnie)",
+      },
       pullquote: {
         title: "Wyróżniony cytat",
         textPh: "Wyróżniony cytat…",
@@ -1506,29 +1470,68 @@ export const pl = {
         buttonLabelPh: "Etykieta przycisku",
         actionPh: "Akcja (np. /search)",
       },
-      tagCloud: { title: "Chmura tagów", countPh: "Liczba tagów (1-200)" },
-      archives: { title: "Archiwa" },
-      calendar: { title: "Kalendarz", monthPh: "Bieżący miesiąc" },
+      tagCloud: {
+        title: "Chmura tagów",
+        countPh: "Liczba tagów (1-200)",
+      },
+      archives: {
+        title: "Archiwa",
+      },
+      calendar: {
+        title: "Kalendarz",
+        monthPh: "Bieżący miesiąc",
+      },
       xquote: {
         title: "X Quote / Click-to-Tweet",
         textPh: "Cytat do udostępnienia na X (max ~280 znaków)",
       },
-      map: { title: "Mapa" },
-      contactForm: { title: "Formularz kontaktowy" },
-      iconBox: { title: "Karta z ikoną" },
-      statsCounter: { title: "Licznik / statystyka", addStat: "Dodaj statystykę" },
-      imageCarousel: { title: "Karuzela obrazów", addSlide: "Dodaj slajd" },
-      callout: { title: "Callout", textPh: "Tekst callout…" },
+      map: {
+        title: "Mapa",
+      },
+      contactForm: {
+        title: "Formularz kontaktowy",
+      },
+      iconBox: {
+        title: "Karta z ikoną",
+      },
+      statsCounter: {
+        title: "Licznik / statystyka",
+        addStat: "Dodaj statystykę",
+      },
+      imageCarousel: {
+        title: "Karuzela obrazów",
+        addSlide: "Dodaj slajd",
+      },
+      callout: {
+        title: "Callout",
+        textPh: "Tekst callout…",
+      },
       embed: {
         urlPh: "https://www.youtube.com/watch?v=…  •  https://vimeo.com/…  •  https://x.com/…",
       },
-      video: { urlPh: "URL pliku wideo (.mp4, .webm)…" },
-      verse: { textPh: "Wpisz wiersz / poezję…" },
-      preformatted: { textPh: "Wstępnie sformatowany tekst (zachowuje spacje i nowe linie)…" },
-      readMore: { textPh: "Czytaj dalej" },
-      pageBreak: { label: "Podział strony" },
-      separator: { lineLabel: "Linia", dotsLabel: "Kropki", wideLabel: "Szeroka" },
-      spacer: { heightLabel: "Wysokość:" },
+      video: {
+        urlPh: "URL pliku wideo (.mp4, .webm)…",
+      },
+      verse: {
+        textPh: "Wpisz wiersz / poezję…",
+      },
+      preformatted: {
+        textPh: "Wstępnie sformatowany tekst (zachowuje spacje i nowe linie)…",
+      },
+      readMore: {
+        textPh: "Czytaj dalej",
+      },
+      pageBreak: {
+        label: "Podział strony",
+      },
+      separator: {
+        lineLabel: "Linia",
+        dotsLabel: "Kropki",
+        wideLabel: "Szeroka",
+      },
+      spacer: {
+        heightLabel: "Wysokość:",
+      },
       toc: {
         title: "Spis treści",
         titlePh: "Tytuł (np. Spis treści)",

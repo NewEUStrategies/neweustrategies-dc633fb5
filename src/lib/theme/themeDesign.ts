@@ -18,7 +18,7 @@ const PX = z
   .transform((v) => (typeof v === "number" ? `${v}px` : v));
 const COLOR = z.string().min(1);
 
-export const ThemeDesignSchema = z
+const ThemeDesignSchema = z
   .object({
     blockHeading: z
       .object({

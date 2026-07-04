@@ -23,7 +23,7 @@ type SiteLogoCfg = {
   };
 };
 type WidgetMediaFrameStyle = CSSProperties & { "--widget-media-fit"?: CSSProperties["objectFit"] };
-export function useSiteLogo(variant: SiteLogoVariant = "main"): { light: string; dark: string } {
+function useSiteLogo(variant: SiteLogoVariant = "main"): { light: string; dark: string } {
   const { data } = useQuery(siteSettingsQueryOptions);
   const cfg = resolveSetting<SiteLogoCfg>(data, "theme_options", {});
   const l = cfg.logo ?? {};
@@ -173,10 +173,10 @@ export function ImageWidget({
       sizes="(max-width: 767px) 100vw, 50vw"
       className={`${imgCls} widget-media-fg`}
       style={fgImgStyle}
-        onError={applyLogoFallback}
-        hoverEffect={hoverEffect}
-        fadeIn={!isLogo}
-      />
+      onError={applyLogoFallback}
+      hoverEffect={hoverEffect}
+      fadeIn={!isLogo}
+    />
   ) : (
     <OptimizedImage
       src={theme === "dark" ? darkSrc : lightSrc}
@@ -185,10 +185,10 @@ export function ImageWidget({
       sizes="(max-width: 767px) 100vw, 50vw"
       className={imgCls}
       style={imgStyle}
-        onError={applyLogoFallback}
-        hoverEffect={hoverEffect}
-        fadeIn={!isLogo}
-      />
+      onError={applyLogoFallback}
+      hoverEffect={hoverEffect}
+      fadeIn={!isLogo}
+    />
   );
   const framedImgEl = isFramed ? (
     <span

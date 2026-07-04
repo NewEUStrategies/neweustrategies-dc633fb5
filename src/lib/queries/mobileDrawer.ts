@@ -4,7 +4,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { getMobileDrawerConfig } from "@/lib/mobileDrawer.functions";
 import { DEFAULT_DRAWER_CONFIG } from "@/lib/mobileDrawer";
 
-export const mobileDrawerConfigQueryKey = ["mobile-drawer-config"] as const;
+const mobileDrawerConfigQueryKey = ["mobile-drawer-config"] as const;
 
 export const mobileDrawerConfigQueryOptions = queryOptions({
   queryKey: mobileDrawerConfigQueryKey,

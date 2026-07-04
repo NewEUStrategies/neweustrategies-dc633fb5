@@ -4,56 +4,17 @@
 export const en = {
   common: {
     retry: "Try again",
-    loadError: "Failed to load",
   },
   nav: {
-    analyses: "ANALYSES",
-    interviews: "INTERVIEWS",
-    policyPapers: "POLICY PAPERS",
-    reports: "REPORTS",
-    events: "EVENTS",
-    about: "ABOUT",
-    search: "Search",
     newsletter: "Newsletter",
   },
   hero: {
-    hotTopic: "Hot topic",
-    readMore: "Read the full analysis",
-    minRead: "min read",
     by: "By",
-  },
-  sections: {
-    latestReport: "Latest report",
-    upcomingEvents: "Upcoming events",
-    expertOpinion: "Expert opinion",
-    interviewsPodcasts: "Interviews | Podcasts",
-    ourReports: "Discover our reports",
-    militaryGeo: "Military & Geopolitics",
-    financeEconomy: "Finance & Economy",
-    transportEnergy: "Transport & Energy",
-    diplomacy: "Diplomacy",
-    cybersecurity: "Cybersecurity",
-    bookReviews: "Book reviews",
-    partnerContent: "Partner content",
-    partnerSub: "More sponsored content",
-    more: "More",
-    seeMore: "See more",
-    outOf: "out of 10",
   },
   newsletter: {
     title: "STRATEGIC THINKING, NEW PERSPECTIVES",
     sub: "Follow the global and European great-power game from the front row",
-    name: "Name",
-    surname: "Surname",
-    position: "Job position",
-    company: "Company",
-    linkedin: "LinkedIn",
-    email: "Your e-mail",
-    phone: "Phone number",
-    list: "Choose your mailing list",
     subscribe: "Subscribe",
-    terms: "I have read and agree to the",
-    termsLink: "terms & conditions",
     confirmPage: {
       loading: "Confirming your subscription…",
       okTitle: "Subscription confirmed",
@@ -67,70 +28,9 @@ export const en = {
       backHome: "← Back to the homepage",
     },
   },
-  footer: {
-    mission:
-      "Our aim is to define the future of European security and shape new young European elites.",
-    forum:
-      "We are creating an important forum to develop cooperation mechanisms in strategic areas.",
-    vision:
-      "A vision of a safer international order is being worked on, strengthening Europe's trade relations with the world.",
-    knowUs: "Know us better",
-    workWithUs: "Work with us",
-    about: "ABOUT",
-    contact: "CONTACT",
-    joinNewsletter: "JOIN THE NEWSLETTER",
-    support: "SUPPORT US",
-    advertise: "ADVERTISE WITH US",
-    events: "EVENTS",
-    projects: "PROJECTS",
-    privacy: "PRIVACY POLICY",
-    contactLabel: "Contact",
-    phoneLabel: "Phone",
-    addressLabel: "Address",
-    rights: "All rights reserved",
-  },
-  cats: {
-    reports: "REPORTS",
-    review: "REVIEW",
-    history: "HISTORY",
-    policyPapers: "POLICY PAPERS",
-    geopolitics: "GEOPOLITICS",
-    economy: "ECONOMY",
-    europe: "EUROPE",
-    interviews: "INTERVIEWS",
-    book: "BOOK",
-  },
-  articles: {
-    a1t: "Military capabilities for projecting power and securing spheres of influence",
-    a1d: "Russia's geographic position in Eurasia naturally leads Russian elites to perceive international relations through…",
-    a2t: "The polycentrization of the world according to great powers: Eurasia",
-    a2d: "Rupert Murdoch said that 'the world is dynamically changing'. We're moving from the old economic model to a new one…",
-    a3t: "Between greatness and decline. On Poland in the 21st century - Bartłomiej Radziejewski's book",
-    a3d: "Bartłomiej Radziejewski's book, founder of think-zine Nowa Konfederacja, sparked great enthusiasm in me…",
-    a4t: "Minister Radosław Sikorski: Poland can do better in international rivalry. What does it look like?",
-    a5t: "General Skrzypczak: Military challenges for Poland's strategy in the global Great-Power Game",
-    a6t: "The essence of the Middle East in great-power rivalry",
-    a6d: "After 1991, as the sole superpower, the United States sought to maintain its primacy…",
-    a7t: "Hegemonic rivalry between the British Empire and the German Empire",
-    a8t: "The path to overthrowing pound hegemony and establishing the Dollar Empire",
-    a8d: "The First World War ended the undivided rule of the British pound…",
-    a9t: "What started the Cold War? The roots of conflict between the US and the Soviet Union",
-    a10t: "Hegemonic clash: the Spanish Empire, England and the United Provinces",
-    a10d: "The British joined the European race to build overseas empires relatively late…",
-    a11t: "Geostrategic challenges for Poland - General Stanisław Koziej",
-    a11d: "Conference interview with the former Head of the National Security Bureau (2010–2015) on Poland's strategic priorities.",
-  },
   auth: {
-    signinTitle: "Sign in",
-    signupTitle: "Create account",
-    subtitle: "New European Strategies admin panel",
     signin: "Sign in",
     signup: "Sign up",
-    toSignup: "No account? Sign up",
-    toSignin: "Have an account? Sign in",
-    password: "Password",
-    name: "Full name",
-    backHome: "Back to site",
     signinOk: "Signed in",
     signupOk: "Account created",
   },
@@ -144,14 +44,9 @@ export const en = {
       hint: "Short, concrete bullet points - max 6. Shown above the post content in the matching language.",
       empty: "No bullets for this language.",
     },
-    sidebar: {
-      toc: "Table of contents",
-      tags: "Tags",
-    },
   },
   ads: {
     label: "Advertisement",
-    loading: "Loading ad…",
     consentBlocked: "Advertising content blocked - marketing consent required.",
     slideupLabel: "Advertisement",
     dismiss: "Close ad",
@@ -169,7 +64,6 @@ export const en = {
       ads: "Ads",
       appearance: "Header & Footer",
       themeOptions: "Theme Options",
-      themeDesign: "Theme Design",
       postLayouts: "Post layouts",
       icons: "Icons",
       names: "Name dictionary",
@@ -204,8 +98,6 @@ export const en = {
       saved: "Category colors saved",
       saveError: "Failed to save colors",
       reset: "Restore recommended",
-      previewLabel: "Preview",
-      noColor: "none",
     },
     popups: {
       title: "Popups",
@@ -319,7 +211,11 @@ export const en = {
       title: "Performance (RUM)",
       subtitle:
         "Core Web Vitals collected from real users in production. The p75 value is the score Web Vitals reports.",
-      window: { "1": "24 h", "7": "7 days", "28": "28 days" },
+      window: {
+        "1": "24 h",
+        "7": "7 days",
+        "28": "28 days",
+      },
       loading: "Loading data…",
       error: "Failed to load data.",
       sampleCount: "Samples in window: {{count}}",
@@ -330,14 +226,21 @@ export const en = {
       p75: "p75",
       median: "Median",
       range: "Range",
-      rating: { good: "Good", ni: "Needs work", poor: "Poor" },
+      rating: {
+        good: "Good",
+        ni: "Needs work",
+        poor: "Poor",
+      },
       trends: "Daily trend (p75)",
       byPath: "By path",
       path: "Path",
       samples: "Samples",
       metricsCol: "Metrics (p75)",
     },
-    sidebar: { expand: "Expand", collapse: "Collapse" },
+    sidebar: {
+      expand: "Expand",
+      collapse: "Collapse",
+    },
     appearance: {
       header: "Header",
       footer: "Footer",
@@ -348,7 +251,11 @@ export const en = {
     icons: {
       title: "Icon library",
       subtitle: "Manage custom icons, flags and brand logos - with light/dark variants.",
-      tabs: { custom: "Custom icons", flag: "Flags", brand: "Brand logos" },
+      tabs: {
+        custom: "Custom icons",
+        flag: "Flags",
+        brand: "Brand logos",
+      },
       newTitle: "New icon",
       add: "Add",
       searchPlaceholder: "Search icons by name…",
@@ -363,7 +270,12 @@ export const en = {
         labelPh: "e.g. NES logo",
         defaultVariant: "Default variant",
       },
-      variants: { auto: "Auto (by mode)", default: "Default", light: "Light", dark: "Dark" },
+      variants: {
+        auto: "Auto (by mode)",
+        default: "Default",
+        light: "Light",
+        dark: "Dark",
+      },
       bulk: {
         title: "Bulk import",
         hint: "Drop many files at once. A „-dark” or „-light” filename suffix assigns the variant (e.g. logo-dark.svg).",
@@ -372,7 +284,9 @@ export const en = {
         done: "Done: created {{created}}, updated {{updated}}.",
         errors: "Errors: {{count}}",
       },
-      errors: { nameRequired: "Provide an icon name." },
+      errors: {
+        nameRequired: "Provide an icon name.",
+      },
     },
     themeOptions: {
       save: "Save",
@@ -401,7 +315,6 @@ export const en = {
         "Set SVG icon colors: inactive, hover, and active state - for both light and dark mode.",
       linkColorsDescription:
         "Set link colors: inactive, hover, and active state - for both light and dark mode.",
-
       mainMenu: {
         navTopLevel: "Navigation (Top Level)",
         hoverEffect: "Menu Hover Effect",
@@ -583,8 +496,6 @@ export const en = {
         organization:
           "Logo for schema markup (social media, search results). Leave empty to use Main Logo.",
         sidebar: "Sidebar logo. Square shown when collapsed, oblong logo when sidebar is expanded.",
-        sidebarSquareBold: "Square",
-        sidebarOblongBold: "oblong logo",
       },
       addToHomeScreen: "Add to Home Screen",
       preview: {
@@ -829,7 +740,10 @@ export const en = {
       cookieBanner: "Cookie banner",
       cookieBannerLabel: "Show cookie consent banner",
     },
-    dashboard: { title: "Dashboard", subtitle: "Site content overview" },
+    dashboard: {
+      title: "Dashboard",
+      subtitle: "Site content overview",
+    },
     viewSite: "View site",
     theme: "Theme",
     signout: "Sign out",
@@ -863,7 +777,6 @@ export const en = {
     published: "published",
     drafts: "drafts",
     language: "Panel language",
-
     status: {
       draft: "Draft",
       pending_review: "Pending review",
@@ -895,7 +808,10 @@ export const en = {
       confirmDescription:
         "Content from {{date}} will replace the current version. The current state is saved as a backup and the publication status will not change.",
       confirmAction: "Restore",
-      note: { autosave: "autosave", preRestore: "backup before restore" },
+      note: {
+        autosave: "autosave",
+        preRestore: "backup before restore",
+      },
     },
     presence: {
       editingNow:
@@ -937,7 +853,9 @@ export const en = {
       count: "pages",
       empty: "No pages yet",
     },
-    tags: { placeholder: "Tag name + Enter" },
+    tags: {
+      placeholder: "Tag name + Enter",
+    },
     users: {
       title: "Users",
       name: "Name",
@@ -950,11 +868,19 @@ export const en = {
         user: "User",
       },
     },
-    media: { upload: "Upload", uploaded: "Uploaded" },
+    media: {
+      upload: "Upload",
+      uploaded: "Uploaded",
+    },
     personalized: {
       title: "Personalized System",
       subtitle: "Bookmarks, follows, reading list and recommendations",
-      tabs: { global: "Global", saved: "Saved", followed: "Followed", recommended: "Recommended" },
+      tabs: {
+        global: "Global",
+        saved: "Saved",
+        followed: "Followed",
+        recommended: "Recommended",
+      },
       enabled: "System enabled",
       enabledHint: "Main switch for bookmarks/follows/recommendations",
       allowGuests: "Allow guests",
@@ -1079,9 +1005,12 @@ export const en = {
     search: "Search block...",
     noResults: "No results",
     firstBlock: "Add first block",
-    library: "Block library",
-    toggleLibrary: "Toggle block library",
-    categories: { text: "Text", media: "Media", layout: "Layout", advanced: "Advanced" },
+    categories: {
+      text: "Text",
+      media: "Media",
+      layout: "Layout",
+      advanced: "Advanced",
+    },
     actions: {
       up: "Move up",
       down: "Move down",
@@ -1090,14 +1019,15 @@ export const en = {
       drag: "Drag to reorder",
       undo: "Undo",
       redo: "Redo",
-      settings: "Block settings",
     },
     sidebar: {
       block: "Block",
       document: "Document",
       selectBlock: "Select a block to see its settings.",
     },
-    slash: { hint: "Type / to pick a block" },
+    slash: {
+      hint: "Type / to pick a block",
+    },
     types: {
       paragraph: "Paragraph",
       heading: "Heading",
@@ -1197,7 +1127,10 @@ export const en = {
       row: "Row",
       stack: "Stack",
     },
-    outline: { title: "Outline", empty: "Add headings to build the outline." },
+    outline: {
+      title: "Outline",
+      empty: "Add headings to build the outline.",
+    },
     settings: {
       level: "Level",
       anchor: "Anchor (id)",
@@ -1401,17 +1334,36 @@ export const en = {
         left: "Left",
         right: "Right",
       },
-      cover: { title: "Cover", overlay: "Overlay (0-90%)" },
-      gallery: { title: "Gallery", addImage: "Add image", removeImage: "Remove image" },
+      cover: {
+        title: "Cover",
+        overlay: "Overlay (0-90%)",
+      },
+      gallery: {
+        title: "Gallery",
+        addImage: "Add image",
+        removeImage: "Remove image",
+      },
       accordion: {
         title: "Accordion",
         addQuestion: "Add question",
         questionPh: "New question",
         answerPh: "Answer…",
       },
-      tabs: { title: "Tabs", addTab: "Add tab", tabLabelPh: "Tab name" },
-      countdown: { title: "Countdown", targetDate: "Target date", labels: "Labels" },
-      progress: { title: "Progress bar", value: "Value (0-100)", colorVariant: "Color" },
+      tabs: {
+        title: "Tabs",
+        addTab: "Add tab",
+        tabLabelPh: "Tab name",
+      },
+      countdown: {
+        title: "Countdown",
+        targetDate: "Target date",
+        labels: "Labels",
+      },
+      progress: {
+        title: "Progress bar",
+        value: "Value (0-100)",
+        colorVariant: "Color",
+      },
       pricing: {
         title: "Pricing table",
         addPlan: "Add plan",
@@ -1426,7 +1378,10 @@ export const en = {
         quote: "Quote",
         author: "Author",
       },
-      timeline: { title: "Timeline", addEvent: "Add event" },
+      timeline: {
+        title: "Timeline",
+        addEvent: "Add event",
+      },
       teamGrid: {
         title: "Team grid",
         addMember: "Add member",
@@ -1434,7 +1389,10 @@ export const en = {
         circle: "Circle",
         square: "Square",
       },
-      logoGrid: { title: "Logo grid", addLogo: "Add logo" },
+      logoGrid: {
+        title: "Logo grid",
+        addLogo: "Add logo",
+      },
       featureGrid: {
         title: "Feature grid",
         addFeature: "Add feature",
@@ -1471,10 +1429,24 @@ export const en = {
         addPlan: "Add plan",
         addFeature: "Add feature",
       },
-      bannerImage: { title: "Banner with image", textPosition: "Text position" },
-      videoHero: { title: "Hero with video background", posterFallback: "Poster fallback" },
-      quote: { title: "Quote", textPh: "Quote text…", citePh: "- Author (optional)" },
-      pullquote: { title: "Pullquote", textPh: "Pullquote…", citePh: "- source / author" },
+      bannerImage: {
+        title: "Banner with image",
+        textPosition: "Text position",
+      },
+      videoHero: {
+        title: "Hero with video background",
+        posterFallback: "Poster fallback",
+      },
+      quote: {
+        title: "Quote",
+        textPh: "Quote text…",
+        citePh: "- Author (optional)",
+      },
+      pullquote: {
+        title: "Pullquote",
+        textPh: "Pullquote…",
+        citePh: "- source / author",
+      },
       spoiler: {
         title: "Spoiler",
         summaryPh: "Title (click to expand)",
@@ -1497,26 +1469,68 @@ export const en = {
         buttonLabelPh: "Button label",
         actionPh: "Action (e.g. /search)",
       },
-      tagCloud: { title: "Tag cloud", countPh: "Tag count (1-200)" },
-      archives: { title: "Archives" },
-      calendar: { title: "Calendar", monthPh: "Current month" },
-      xquote: { title: "X Quote / Click-to-Tweet", textPh: "Quote to share on X (max ~280 chars)" },
-      map: { title: "Map" },
-      contactForm: { title: "Contact form" },
-      iconBox: { title: "Icon box" },
-      statsCounter: { title: "Counter / stat", addStat: "Add stat" },
-      imageCarousel: { title: "Image carousel", addSlide: "Add slide" },
-      callout: { title: "Callout", textPh: "Callout text…" },
+      tagCloud: {
+        title: "Tag cloud",
+        countPh: "Tag count (1-200)",
+      },
+      archives: {
+        title: "Archives",
+      },
+      calendar: {
+        title: "Calendar",
+        monthPh: "Current month",
+      },
+      xquote: {
+        title: "X Quote / Click-to-Tweet",
+        textPh: "Quote to share on X (max ~280 chars)",
+      },
+      map: {
+        title: "Map",
+      },
+      contactForm: {
+        title: "Contact form",
+      },
+      iconBox: {
+        title: "Icon box",
+      },
+      statsCounter: {
+        title: "Counter / stat",
+        addStat: "Add stat",
+      },
+      imageCarousel: {
+        title: "Image carousel",
+        addSlide: "Add slide",
+      },
+      callout: {
+        title: "Callout",
+        textPh: "Callout text…",
+      },
       embed: {
         urlPh: "https://www.youtube.com/watch?v=…  •  https://vimeo.com/…  •  https://x.com/…",
       },
-      video: { urlPh: "Video file URL (.mp4, .webm)…" },
-      verse: { textPh: "Enter verse / poetry…" },
-      preformatted: { textPh: "Preformatted text (preserves spaces and newlines)…" },
-      readMore: { textPh: "Read more" },
-      pageBreak: { label: "Page break" },
-      separator: { lineLabel: "Line", dotsLabel: "Dots", wideLabel: "Wide" },
-      spacer: { heightLabel: "Height:" },
+      video: {
+        urlPh: "Video file URL (.mp4, .webm)…",
+      },
+      verse: {
+        textPh: "Enter verse / poetry…",
+      },
+      preformatted: {
+        textPh: "Preformatted text (preserves spaces and newlines)…",
+      },
+      readMore: {
+        textPh: "Read more",
+      },
+      pageBreak: {
+        label: "Page break",
+      },
+      separator: {
+        lineLabel: "Line",
+        dotsLabel: "Dots",
+        wideLabel: "Wide",
+      },
+      spacer: {
+        heightLabel: "Height:",
+      },
       toc: {
         title: "Table of contents",
         titlePh: "Title (e.g. Table of contents)",

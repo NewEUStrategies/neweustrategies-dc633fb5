@@ -76,10 +76,7 @@ d("i18n parity: posts + pages have PL and EN content", () => {
 
 d("i18n parity: no duplicate pages after translation updates", () => {
   it("no duplicated slug among live pages", async () => {
-    const { data, error } = await client!
-      .from("pages")
-      .select("slug")
-      .is("deleted_at", null);
+    const { data, error } = await client!.from("pages").select("slug").is("deleted_at", null);
     expect(error, error?.message).toBeNull();
     const counts = new Map<string, number>();
     for (const row of data ?? []) counts.set(row.slug, (counts.get(row.slug) ?? 0) + 1);

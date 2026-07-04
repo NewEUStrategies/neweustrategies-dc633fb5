@@ -25,19 +25,14 @@ export const REVISION_FIELDS = [
   "related_override",
 ] as const;
 
-export type RevisionField = (typeof REVISION_FIELDS)[number];
+type RevisionField = (typeof REVISION_FIELDS)[number];
 
 /**
  * Fields safe to write back on restore. Deliberately excludes `status`:
  * restoring old content must not silently unpublish or republish a post -
  * the workflow status stays as it is and is changed explicitly.
  */
-export const RESTORABLE_FIELDS: readonly RevisionField[] = REVISION_FIELDS.filter(
-  (f) => f !== "status",
-);
-
-/** Machine-readable revision notes; the UI translates known codes (PL/EN). */
-export type RevisionNote = "autosave" | "pre_restore";
+const RESTORABLE_FIELDS: readonly RevisionField[] = REVISION_FIELDS.filter((f) => f !== "status");
 
 /** Keep at most this many revisions per entity (oldest pruned, best-effort). */
 export const REVISION_KEEP_LIMIT = 50;

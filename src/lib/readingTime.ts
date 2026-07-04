@@ -19,7 +19,7 @@ const IMAGE_SECONDS_HEAD = 12; // pierwsze 10 obrazów
 const IMAGE_SECONDS_TAIL = 3; // każde kolejne
 const IMAGE_HEAD_COUNT = 10;
 
-export const WPM_BY_LANG: Readonly<Record<string, number>> = {
+const WPM_BY_LANG: Readonly<Record<string, number>> = {
   pl: 220,
   en: 238,
 };
@@ -39,7 +39,9 @@ function extractText(node: unknown): string {
   if (typeof node === "number" || typeof node === "boolean") return String(node);
   if (Array.isArray(node)) return node.map(extractText).join(" ");
   if (typeof node === "object") {
-    return Object.values(node as Record<string, unknown>).map(extractText).join(" ");
+    return Object.values(node as Record<string, unknown>)
+      .map(extractText)
+      .join(" ");
   }
   return "";
 }
@@ -68,12 +70,7 @@ function countDocImages(node: unknown, seen = new WeakSet<object>()): number {
   let total = 0;
   const rec = node as Record<string, unknown>;
   const type = typeof rec.type === "string" ? rec.type.toLowerCase() : "";
-  if (
-    type.includes("image") ||
-    type === "gallery" ||
-    type === "figure" ||
-    type === "cover"
-  ) {
+  if (type.includes("image") || type === "gallery" || type === "figure" || type === "cover") {
     total += 1;
   }
   for (const v of Object.values(rec)) total += countDocImages(v, seen);
@@ -123,16 +120,15 @@ export function estimateReadingMinutes(
   const images =
     typeof sources.images === "number" && sources.images >= 0
       ? sources.images
-      : countHtmlImages(html) + (sources.docs?.reduce<number>((a, d) => a + countDocImages(d), 0) ?? 0);
+      : countHtmlImages(html) +
+        (sources.docs?.reduce<number>((a, d) => a + countDocImages(d), 0) ?? 0);
 
   const imageSeconds =
     Math.min(images, IMAGE_HEAD_COUNT) * IMAGE_SECONDS_HEAD +
     Math.max(0, images - IMAGE_HEAD_COUNT) * IMAGE_SECONDS_TAIL;
 
   const minutes =
-    narrativeWords / wpmSafe +
-    codeWords / Math.max(30, wpmSafe / 2) +
-    imageSeconds / 60;
+    narrativeWords / wpmSafe + codeWords / Math.max(30, wpmSafe / 2) + imageSeconds / 60;
 
   if (totalWords === 0 && images === 0) return 0;
   return Math.max(1, Math.round(minutes));

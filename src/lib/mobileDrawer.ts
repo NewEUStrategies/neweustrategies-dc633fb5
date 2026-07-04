@@ -50,7 +50,7 @@ export const navItemSchema = z.object({
 });
 export type NavItem = z.infer<typeof navItemSchema>;
 
-export const topToolsSchema = z.object({
+const topToolsSchema = z.object({
   search: z.boolean().default(true),
   theme: z.boolean().default(true),
   language: z.boolean().default(true),
@@ -61,10 +61,7 @@ export const sectionOrderSchema = z
   .array(z.enum(DRAWER_SECTIONS))
   .min(1)
   .max(DRAWER_SECTIONS.length)
-  .refine(
-    (arr) => new Set(arr).size === arr.length,
-    "section_order nie może zawierać duplikatów",
-  );
+  .refine((arr) => new Set(arr).size === arr.length, "section_order nie może zawierać duplikatów");
 
 export const drawerConfigSchema = z.object({
   section_order: sectionOrderSchema,

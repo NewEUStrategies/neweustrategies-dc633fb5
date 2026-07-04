@@ -40,10 +40,8 @@ import {
   ChevronRight,
   Clock,
   BookOpen,
-  Eye,
   Image as CoverIcon,
   FileText,
-  Sparkles,
   SlidersHorizontal,
   UserPlus,
 } from "@/lib/lucide-shim";

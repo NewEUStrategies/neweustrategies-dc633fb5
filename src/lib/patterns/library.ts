@@ -366,7 +366,3 @@ export const PAGE_PATTERNS = PATTERNS.filter(
 export const POST_PATTERNS = PATTERNS.filter(
   (p): p is Extract<Pattern, { kind: "post" }> => p.kind === "post",
 );
-
-export function findPattern(id: string): Pattern | undefined {
-  return PATTERNS.find((p) => p.id === id);
-}

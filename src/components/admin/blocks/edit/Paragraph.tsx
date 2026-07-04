@@ -52,7 +52,10 @@ export function ParagraphBlock({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] }, codeBlock: false }),
-      Link.configure({ openOnClick: false, HTMLAttributes: { class: "underline text-foreground" } }),
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: { class: "underline text-foreground" },
+      }),
       Underline,
       TextStyle,
       Color,

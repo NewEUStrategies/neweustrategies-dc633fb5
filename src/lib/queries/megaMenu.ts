@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type MegaMenuLang = "pl" | "en";
 
-export interface MegaMenuPostCard {
+interface MegaMenuPostCard {
   id: string;
   slug: string;
   title: string;

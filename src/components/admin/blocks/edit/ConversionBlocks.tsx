@@ -34,7 +34,6 @@ interface StepItem {
 }
 
 export function StepListBlock({ block, onChange }: Props) {
-  const i18n = useBlocksI18n();
   const raw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: StepItem[] = raw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -131,16 +130,12 @@ export function StepListBlock({ block, onChange }: Props) {
 
 // ===== Comparison Table (feature matrix) =====
 
-interface CompCell {
-  value: string;
-}
 interface CompRow {
   feature: string;
   values: string[];
 }
 
 export function ComparisonTableBlock({ block, onChange }: Props) {
-  const i18n = useBlocksI18n();
   const rawCols = Array.isArray(block.data.columns) ? (block.data.columns as Json[]) : [];
   const columns: string[] = rawCols.map((c) => String(c ?? ""));
   const rawRows = Array.isArray(block.data.rows) ? (block.data.rows as Json[]) : [];

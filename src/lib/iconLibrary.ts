@@ -92,13 +92,13 @@ export function slugifyIconName(name: string): string {
     .slice(0, 64);
 }
 
-export interface BulkUploadParsed {
+interface BulkUploadParsed {
   base: string;
   variant: "light" | "dark" | "default";
 }
 
 /** Parsuje nazwę pliku: `foo-dark.svg` -> {base:"foo", variant:"dark"}. */
-export function parseUploadFilename(filename: string): BulkUploadParsed {
+function parseUploadFilename(filename: string): BulkUploadParsed {
   const noExt = filename.replace(/\.[^.]+$/, "");
   const slug = slugifyIconName(noExt);
   if (/-dark$/.test(slug)) return { base: slug.replace(/-dark$/, ""), variant: "dark" };
@@ -127,7 +127,7 @@ export interface BulkResult {
   errors: { file: string; message: string }[];
 }
 
-export interface BulkProgress {
+interface BulkProgress {
   index: number;
   total: number;
   base: string;

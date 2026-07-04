@@ -8,7 +8,7 @@
 // verbatim, and the migration runner keeps the original `blocks_data` column, so
 // the change is reversible (flip `editor` back to "blocks").
 import { toJson } from "@/lib/builder/types";
-import type { BuilderDocument, Json } from "../types";
+import type { BuilderDocument } from "../types";
 import { newId } from "../types";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 

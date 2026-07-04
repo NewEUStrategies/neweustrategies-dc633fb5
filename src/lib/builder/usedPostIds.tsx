@@ -5,7 +5,7 @@
 // Implementation is intentionally lightweight: a ref-backed set provided via
 // React context. Widgets call `getSnapshot()` synchronously at query time and
 // `register(ids)` after their data resolves. Order matches DOM render order.
-import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useRef, type ReactNode } from "react";
 
 interface UsedPostIdsApi {
   /** Add post IDs to the shared set (after a widget fetches). */
@@ -43,10 +43,4 @@ export function useUsedPostIds(): UsedPostIdsApi {
       },
     [ctx],
   );
-}
-
-// Test hook: registers a callback to be invoked whenever ids change.
-export function useRegisterPostIds(): (ids: ReadonlyArray<string>) => void {
-  const { register } = useUsedPostIds();
-  return useCallback((ids) => register(ids), [register]);
 }

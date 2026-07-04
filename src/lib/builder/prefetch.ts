@@ -170,7 +170,7 @@ export function pendingSectionQueries(
  * Reused by both whole-document prefetch (SSR/loader) and per-section
  * lazy prefetch driven by IntersectionObserver.
  */
-export async function prefetchWidgets(
+async function prefetchWidgets(
   queryClient: QueryClient,
   widgets: WidgetNode[],
   lang: Lang,
@@ -269,7 +269,7 @@ export const ABOVE_FOLD_SECTION_COUNT = 3;
  * single pathologically slow query (or a cold upstream) can never hang the
  * whole server response. The widget then resolves client-side on hydration.
  */
-export const ABOVE_FOLD_PREFETCH_BUDGET_MS = 2500;
+const ABOVE_FOLD_PREFETCH_BUDGET_MS = 2500;
 
 export interface AboveFoldPrefetchOptions {
   /** Leading sections to prefetch. Defaults to {@link ABOVE_FOLD_SECTION_COUNT}. */
@@ -349,7 +349,7 @@ export async function prefetchAboveFoldQueries(
  * budget is only a hang-guard - any query that overruns it falls back to the
  * client-side `useSectionPreload` path.
  */
-export const CACHED_ROUTE_PREFETCH_BUDGET_MS = 6000;
+const CACHED_ROUTE_PREFETCH_BUDGET_MS = 6000;
 
 /**
  * Prefetch EVERY section's data for an edge-cached content route (home, public

@@ -23,7 +23,7 @@ function emit() {
   listeners.forEach((l) => l());
 }
 
-export function getIconPack(): IconPack {
+function getIconPack(): IconPack {
   return current;
 }
 

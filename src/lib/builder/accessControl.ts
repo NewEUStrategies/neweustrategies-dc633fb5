@@ -29,15 +29,3 @@ export function useAccessContext(): AccessContext {
   const { session, roles } = useAuth();
   return { isAuthenticated: !!session, roles: roles as AccessRole[] };
 }
-
-export function useAccessAllowed(rule: AccessControlSettings | undefined): boolean {
-  const ctx = useAccessContext();
-  return evaluateAccess(rule, ctx);
-}
-
-export function isAccessConfigured(rule: AccessControlSettings | undefined): boolean {
-  if (!rule) return false;
-  if (rule.auth && rule.auth !== "any") return true;
-  if (rule.roles && rule.roles.length > 0) return true;
-  return false;
-}

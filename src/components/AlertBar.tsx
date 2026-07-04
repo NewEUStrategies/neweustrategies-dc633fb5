@@ -6,7 +6,7 @@ import * as Icons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
 
 type AlertStyle = "info" | "warning" | "success" | "brand";
-export const ALERT_ICONS = [
+const ALERT_ICONS = [
   "Megaphone",
   "Bell",
   "Info",
@@ -16,7 +16,7 @@ export const ALERT_ICONS = [
   "Flame",
   "Mail",
 ] as const;
-export type AlertIconName = (typeof ALERT_ICONS)[number] | "auto" | "none";
+type AlertIconName = (typeof ALERT_ICONS)[number] | "auto" | "none";
 
 type AlertBarCfg = {
   header: {

@@ -1,6 +1,6 @@
 // Publiczne renderery dla Phase 4 batch 11 (sekcje marketingowe).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Json } from "@/lib/blocks/types";
 import { AppLink } from "@/components/atoms/AppLink";
 import { ChevronLeft, ChevronRight, Loader2, MapPin } from "lucide-react";

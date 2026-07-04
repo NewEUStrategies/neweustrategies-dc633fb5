@@ -19,12 +19,12 @@ export interface CurrentPostAuthor {
   websiteUrl?: string;
 }
 
-export interface CurrentPostCategory {
+interface CurrentPostCategory {
   slug: string;
   name: string;
 }
 
-export interface CurrentPostTag {
+interface CurrentPostTag {
   slug: string;
   name: string;
 }

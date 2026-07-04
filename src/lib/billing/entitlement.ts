@@ -44,8 +44,8 @@ export function periodEndFor(interval: PlanInterval | null | undefined, from: Da
   return d;
 }
 
-export type OrderKind = "subscription" | "one_time";
-export type EntityType = "post" | "page" | "media";
+type OrderKind = "subscription" | "one_time";
+type EntityType = "post" | "page" | "media";
 
 export interface OrderForGrant {
   kind: OrderKind;

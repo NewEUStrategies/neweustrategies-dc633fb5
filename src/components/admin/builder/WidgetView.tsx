@@ -2,17 +2,8 @@
 // canvas via `editable` + `onContentChange`). Used in the live preview inside
 // the builder canvas and on public pages. All user-authored strings (custom
 // CSS, ids, classes, html, urls) go through src/lib/sanitize.ts.
-import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import type {
-  WidgetNode,
-  WidgetContent,
-  CommonStyle,
-  AdvancedSettings,
-  Device,
-  WidgetTypography,
-} from "@/lib/builder/types";
+import { memo, useEffect, useMemo, useState, type CSSProperties } from "react";
+import type { WidgetNode, Device, WidgetTypography } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import {
   sanitizeHtmlId,
@@ -49,20 +40,8 @@ import {
   AdSlotById,
   RichTextView,
 } from "./ui/organisms/widget-view/lazyWidgets";
-import {
-  SectionLabelRender,
-  resolveAccentColor,
-  type SectionLabelVariant,
-} from "@/lib/builder/sectionLabelVariants";
-import { SliderRender, type SliderVariant } from "@/lib/builder/sliderVariants";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
-import {
-  AnimatedHeadingRender,
-  type AnimatedHeadingConfig,
-  type AnimatedHeadingMode,
-  type AnimatedHeadingShape,
-} from "@/lib/builder/animatedHeadingVariants";
 
 type Lang = "pl" | "en";
 
@@ -70,14 +49,9 @@ import {
   styleToCSS,
   getWidgetFrameStyle,
   hiddenOnDevice,
-  DEFAULT_WIDGET_WIDTH_BY_DEVICE,
-  DEFAULT_WIDGET_MIN_HEIGHT,
-  AUTO_SIZE_WIDGETS,
-  COMPACT_WIDGET_MIN_HEIGHT,
   COMPACT_WIDGET_TYPES,
   getStr,
   getNum,
-  getStrArr,
   normalizeNewsletterVariant,
 } from "./ui/organisms/widget-view/frame";
 import { MOTION_INITIAL, MOTION_FINAL } from "./ui/organisms/widget-view/motion";
@@ -89,14 +63,7 @@ import { CategoriesView } from "./ui/organisms/widget-view/CategoriesView";
 import { TagsView } from "./ui/organisms/widget-view/TagsView";
 import { renderSimpleWidget, ResizableBox } from "./ui/organisms/widget-view/SimpleWidgets";
 import { RichHtmlView } from "./ui/organisms/widget-view/RichHtmlView";
-export {
-  styleToCSS,
-  getWidgetFrameStyle,
-  hiddenOnDevice,
-  DEFAULT_WIDGET_WIDTH_BY_DEVICE,
-  DEFAULT_WIDGET_MIN_HEIGHT,
-  AUTO_SIZE_WIDGETS,
-};
+export { getWidgetFrameStyle, hiddenOnDevice };
 
 const EASING_MAP: Record<string, string> = {
   ease: "ease",

@@ -34,7 +34,7 @@ export interface BuilderExperiment {
 const VISITOR_KEY = "cms_visitor_id";
 
 /** Stable anonymous visitor id (localStorage). Empty string during SSR. */
-export function getVisitorId(): string {
+function getVisitorId(): string {
   if (typeof window === "undefined") return "";
   try {
     const existing = window.localStorage.getItem(VISITOR_KEY);

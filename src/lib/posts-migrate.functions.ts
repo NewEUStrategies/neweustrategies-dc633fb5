@@ -11,19 +11,6 @@ import { resolveUserTenantId } from "@/lib/server/userTenant.server";
 
 const UUID = z.string().uuid();
 
-async function resolveTenant(
-  supabase: import("@supabase/supabase-js").SupabaseClient,
-  userId: string,
-): Promise<string> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("tenant_id")
-    .eq("id", userId)
-    .maybeSingle();
-  if (error || !data?.tenant_id) throw new Error("No tenant for current user");
-  return data.tenant_id as string;
-}
-
 interface LegacyRow {
   id: string;
   editor: string;

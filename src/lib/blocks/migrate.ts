@@ -42,13 +42,6 @@ function attr(tag: string, name: string): string | null {
 
 // ---------- HTML -> blocks ----------
 
-interface Token {
-  raw: string;
-  open: string;
-  tag: string;
-  inner: string;
-}
-
 // Capture the most common top-level block tags. Anything outside these
 // boundaries becomes an inline paragraph chunk.
 const BLOCK_RE =

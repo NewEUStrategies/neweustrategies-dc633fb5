@@ -4,7 +4,7 @@ import { z } from "zod";
 export const PodcastStatus = z.enum(["draft", "published", "archived"]);
 export type PodcastStatus = z.infer<typeof PodcastStatus>;
 
-export const PodcastSchema = z.object({
+const PodcastSchema = z.object({
   id: z.string().uuid(),
   tenant_id: z.string().uuid(),
   slug: z.string().min(1),
@@ -29,7 +29,7 @@ export const PodcastSchema = z.object({
 });
 export type Podcast = z.infer<typeof PodcastSchema>;
 
-export const PodcastSettingsSchema = z.object({
+const PodcastSettingsSchema = z.object({
   tenant_id: z.string().uuid(),
   default_player_variant: z.enum(["mini", "full", "sticky"]).default("full"),
   autoplay_next: z.boolean().default(false),

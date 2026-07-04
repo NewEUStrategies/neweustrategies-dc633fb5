@@ -313,16 +313,10 @@ export function PostListEditor({ c, lang, setContent }: Props) {
 
           <div className="grid grid-cols-2 gap-2">
             <PropField label="Data od">
-              <AdminDatePicker
-                value={dateFrom}
-                onChange={(v) => setContent("dateFrom", v ?? "")}
-              />
+              <AdminDatePicker value={dateFrom} onChange={(v) => setContent("dateFrom", v ?? "")} />
             </PropField>
             <PropField label="Data do">
-              <AdminDatePicker
-                value={dateTo}
-                onChange={(v) => setContent("dateTo", v ?? "")}
-              />
+              <AdminDatePicker value={dateTo} onChange={(v) => setContent("dateTo", v ?? "")} />
             </PropField>
           </div>
         </div>

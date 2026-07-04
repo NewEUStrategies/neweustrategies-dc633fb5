@@ -12,8 +12,8 @@ export const SERP_TITLE_LIMIT_PX = 600;
 export const SERP_DESCRIPTION_LIMIT_PX = 960;
 
 /** Sensible authoring ranges (px) used for grading, mirroring Yoast's bounds. */
-export const SERP_TITLE_MIN_PX = 200;
-export const SERP_DESCRIPTION_MIN_PX = 400;
+const SERP_TITLE_MIN_PX = 200;
+const SERP_DESCRIPTION_MIN_PX = 400;
 
 // Width classes as fractions of the font size (empirically close to Arial
 // metrics; exactness is not required - the grade bands are wide).
@@ -38,7 +38,7 @@ export function estimateTextWidthPx(text: string, fontSizePx: number): number {
   return Math.round(units * fontSizePx);
 }
 
-export type SerpGrade = "empty" | "short" | "good" | "long";
+type SerpGrade = "empty" | "short" | "good" | "long";
 
 export interface SerpMetric {
   px: number;
