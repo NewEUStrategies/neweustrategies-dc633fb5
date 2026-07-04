@@ -98,11 +98,6 @@ function SocialPage() {
 
   useEffect(() => {
     let active = true;
-    void supabase
-      .from("tenants")
-      .select("domain")
-      .eq("id", (supabase as unknown as { __noop?: never }) && undefined as never)
-      .then(() => {});
     // Fetch the current user's tenant canonical domain and use it as the
     // public author URL origin (falls back to window.location.origin).
     void (async () => {
