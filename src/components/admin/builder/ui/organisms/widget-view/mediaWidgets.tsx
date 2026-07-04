@@ -68,14 +68,16 @@ export function ImageWidget({
   const siteLogoVariant = (getStr(c, "useSiteLogo") || "") as "" | SiteLogoVariant;
   const altIsLogo = /logo/i.test(alt);
   const wantsSiteLogo = siteLogoVariant !== "" || altIsLogo;
+  const isLogo = wantsSiteLogo;
   const siteLogo = useSiteLogo(siteLogoVariant || "main");
   const src = wantsSiteLogo ? siteLogo.light || rawSrc : rawSrc;
   const srcDark = wantsSiteLogo
     ? siteLogo.dark || rawSrcDark || siteLogo.light || rawSrc
     : rawSrcDark;
 
-  const variantCls =
-    variant === "rounded"
+  const variantCls = isLogo
+    ? "rounded"
+    : variant === "rounded"
       ? "rounded-xl"
       : variant === "circle"
         ? "rounded-full aspect-square"
@@ -124,7 +126,6 @@ export function ImageWidget({
   const imgCls = isFramed
     ? `absolute inset-0 block h-full w-full ${variantCls}`
     : `block max-w-full h-auto ${variantCls}`;
-  const isLogo = wantsSiteLogo;
   const hoverEffect: import("@/components/atoms/OptimizedImage").HoverEffect =
     isLogo || variant === "zoom-hover" ? "none" : "zoom";
   const applyLogoFallback = (event: SyntheticEvent<HTMLImageElement>) => {
