@@ -66,7 +66,7 @@ type InputStyle = "filled" | "outline" | "underline";
 type FocusRing = "none" | "brand" | "border";
 import type { SidebarStyle } from "@/lib/builder/sidebarStyles";
 
-interface ThemeOptions extends Record<string, unknown> {
+type ThemeOptions = {
   logo: {
     main: string;
     main_dark: string;
@@ -165,7 +165,7 @@ interface ThemeOptions extends Record<string, unknown> {
   sidebars: {
     style: SidebarStyle;
   };
-}
+};
 
 const DEFAULTS: ThemeOptions = {
   logo: {
@@ -300,11 +300,10 @@ const LAYOUT_PREVIEWS: Record<HeaderLayout, { label: string; hint: string }> = {
 
 export function ThemeOptionsPane() {
   const { t } = useTranslation(undefined, { keyPrefix: "admin" });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { query, save } = useSettings<any>("theme_options", DEFAULTS as any);
+  const { query, save } = useSettings<ThemeOptions>("theme_options", DEFAULTS);
   const [draft, setDraft] = useState<ThemeOptions | null>(null);
   useEffect(() => {
-    if (query.data && !draft) setDraft(query.data as ThemeOptions);
+    if (query.data && !draft) setDraft(query.data);
   }, [query.data, draft]);
   const [active, setActive] = useState<(typeof SECTIONS)[number]["id"]>(() => {
     if (typeof window !== "undefined") {
@@ -352,7 +351,6 @@ export function ThemeOptionsPane() {
       draft={draft}
       active={active}
       setActive={(id) => setActive(id as typeof active)}
-      save={save}
     >
       {/* Panel */}
       <section className="border border-border rounded-lg bg-card p-5 space-y-5">
@@ -1418,16 +1416,13 @@ function ThemeOptionsBody({
   draft,
   active,
   setActive,
-  save,
   children,
 }: {
   draft: ThemeOptions;
   active: string;
   setActive: (id: string) => void;
-  save: ReturnType<typeof useSettings>["save"];
   children: React.ReactNode;
 }) {
-  void save;
   const { t } = useTranslation(undefined, { keyPrefix: "admin" });
   const sidebarStyle = draft.sidebars?.style ?? "style-1";
   const compact = sidebarStyle === "style-4";

@@ -2,11 +2,11 @@
 --
 -- Weryfikuje dwie krytyczne dla bezpieczeństwa własności z migracji
 -- 20260628230000_tenant_isolation_and_authz.sql oraz polityk RLS na posts:
---   1. „user tenanta A nie czyta postów B" — RLS na public.posts nie pozwala
+--   1. „user tenanta A nie czyta postów B" - RLS na public.posts nie pozwala
 --      członkowi tenanta A zobaczyć ŻADNYCH wierszy tenanta B (ani szkiców,
---      ani opublikowanych — polityka publiczna jest zawężona do tenanta
+--      ani opublikowanych - polityka publiczna jest zawężona do tenanta
 --      publicznego, więc opublikowane posty obcego tenanta też nie wyciekają).
---   2. „UPDATE tenant_id jest ignorowany" — trigger profiles_pin_tenant cicho
+--   2. „UPDATE tenant_id jest ignorowany" - trigger profiles_pin_tenant cicho
 --      cofa próbę zmiany własnego tenant_id (przejęcie kontekstu innej firmy),
 --      nie wywracając przy tym legalnych zmian innych kolumn profilu.
 --
@@ -18,7 +18,7 @@ SELECT plan(6);
 -- ── Seed ───────────────────────────────────────────────────────────────────
 -- Seedujemy jako właściciel/superuser (RLS pomijane). Wyłączamy WSZYSTKIE
 -- triggery użytkownika na auth.users, żeby nadać tenant_id i role jawnie zamiast
--- polegać na auto-provisioningu — na auth.users wisi już kilka triggerów AFTER
+-- polegać na auto-provisioningu - na auth.users wisi już kilka triggerów AFTER
 -- INSERT (handle_new_user tworzący tenant per e-mail oraz nadawanie super_admin
 -- dla konta marketingowego). DISABLE TRIGGER USER jest odporne na dodawanie
 -- kolejnych i jest transakcyjne (cofane przez ROLLBACK).
@@ -100,7 +100,7 @@ SELECT is(
   'UPDATE tenant_id jest ignorowany (tenant_id przypięty do pierwotnej wartości)'
 );
 
--- Trigger nie może wywracać legalnych zmian — inne kolumny zapisują się normalnie.
+-- Trigger nie może wywracać legalnych zmian - inne kolumny zapisują się normalnie.
 SELECT is(
   (SELECT display_name FROM public.profiles WHERE id = 'a0000000-0000-0000-0000-0000000000aa'),
   'Hacked A',

@@ -2,8 +2,8 @@
 // admin surface (settings, block editors, ticker) shares one calendar UI
 // consistent with the rest of the admin theme.
 //
-// - AdminDatePicker    — value: "YYYY-MM-DD"
-// - AdminDateTimePicker — value: "YYYY-MM-DDTHH:mm" (local, no timezone)
+// - AdminDatePicker    - value: "YYYY-MM-DD"
+// - AdminDateTimePicker - value: "YYYY-MM-DDTHH:mm" (local, no timezone)
 //
 // Both accept `null | ""` for empty and emit `null` on clear so callers can
 // treat them as drop-in replacements for <input type="date"> / "datetime-local".
@@ -99,7 +99,7 @@ export function AdminDatePicker({
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {parsed ? format(parsed, labels.fmt, { locale }) : placeholder ?? labels.empty}
+            {parsed ? format(parsed, labels.fmt, { locale }) : (placeholder ?? labels.empty)}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto p-0 admin-calendar">
@@ -180,7 +180,7 @@ export function AdminDateTimePicker({
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {parsed ? format(parsed, labels.fmt, { locale }) : placeholder ?? labels.empty}
+            {parsed ? format(parsed, labels.fmt, { locale }) : (placeholder ?? labels.empty)}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto p-0 admin-calendar">

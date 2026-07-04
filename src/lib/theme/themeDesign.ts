@@ -181,7 +181,7 @@ export function useSaveThemeDesign() {
 }
 
 /** Normalizes legacy shadcn-style `hsl(var(--x))` / `hsl(var(--x) / .5)` wrappers
- *  to bare `var(--x)` — our design tokens now hold ready-to-use color values
+ *  to bare `var(--x)` - our design tokens now hold ready-to-use color values
  *  (hex, oklch, color-mix), not raw HSL triplets, so wrapping them in `hsl()`
  *  produces invalid CSS ("hsl(#F8F6F4)") that browsers silently drop, leaving
  *  text unreadable in dark mode. Older DB rows still contain the wrapped form. */

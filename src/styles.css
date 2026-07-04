@@ -178,7 +178,7 @@
   transition: none !important;
 }
 
-/* Block editor — wszystkie pola wejściowe wewnątrz kanwy są płaskie i przejrzyste,
+/* Block editor - wszystkie pola wejściowe wewnątrz kanwy są płaskie i przejrzyste,
    żeby nagłówki / listy / akapity wyglądały jednolicie jak tekst w obrębie wpisu. */
 .block-canvas :is(input, textarea, [contenteditable="true"]) {
   background: transparent !important;
@@ -189,7 +189,7 @@
   -webkit-appearance: none;
 }
 
-/* Admin scope — neutralizuj globalne kolory (--gc-*) dla ikon SVG w panelu
+/* Admin scope - neutralizuj globalne kolory (--gc-*) dla ikon SVG w panelu
    administracyjnym, żeby lucide-react dziedziczyły kolor tekstu, a nie
    pomarańczowy `--gc-highlight` ustawiony przez globalColors w widoku publicznym. */
 .admin-compact svg,
@@ -197,7 +197,7 @@
   color: inherit;
 }
 
-/* Admin scope — ujednolicone stylowanie natywnych kontrolek formularza
+/* Admin scope - ujednolicone stylowanie natywnych kontrolek formularza
    (select, input, textarea) w edytorze bloków (Gutenberg-like), żeby
    dropdowny, popupy i pola wejściowe pasowały do design systemu zamiast
    pokazywać domyślne, natywne UI przeglądarki. */
@@ -245,7 +245,7 @@
   border-color: #FDB078;
   box-shadow: 0 0 0 2px color-mix(in oklab, #FDB078 30%, transparent);
 }
-/* Native <option> tuning — most browsers restrict styling, ale te reguły
+/* Native <option> tuning - most browsers restrict styling, ale te reguły
    działają w Firefox/Chromium na Windows/Linux dla popupu wyboru. */
 .admin-compact .block-canvas select option,
 .admin-compact [data-admin-form] select option {
@@ -254,7 +254,7 @@
   padding: 0.25rem 0.5rem;
 }
 /* Neutralizacja tła edytora bloków dla input/textarea (jak dotychczas transparentne
-   inside inline TipTap fields) — te reguły są precyzyjniejsze i wygrywają. */
+   inside inline TipTap fields) - te reguły są precyzyjniejsze i wygrywają. */
 .block-canvas :is(input, textarea, [contenteditable="true"])[data-inline="true"] {
   background: transparent !important;
   border: 0 !important;
@@ -304,12 +304,12 @@ aside[data-sidebar="sidebar"].sidebar-shell {
     transform 180ms ease;
 }
 
-/* Style 1 — Solid Classic (default look, fully square menu items) */
+/* Style 1 - Solid Classic (default look, fully square menu items) */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-1"] [data-sidebar="menu-button"] {
   border-radius: 0 !important;
 }
 
-/* Style 2 — Minimal Borderless */
+/* Style 2 - Minimal Borderless */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-2"] {
   background: transparent !important;
   border-right: 1px dashed hsl(var(--border));
@@ -337,7 +337,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-2"]
   border-left-color: hsl(var(--primary));
 }
 
-/* Style 3 — Floating Card */
+/* Style 3 - Floating Card */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-3"] {
   margin: 0.75rem;
   height: calc(100vh - 1.5rem) !important;
@@ -353,7 +353,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-3"] [data-sidebar="menu-
   margin: 1px 4px;
 }
 
-/* Style 4 — Compact Icon Rail (always collapsed) */
+/* Style 4 - Compact Icon Rail (always collapsed) */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] {
   width: 3.5rem !important;
 }
@@ -382,7 +382,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-4"] [data-sidebar="group
   padding-inline: 0 !important;
 }
 
-/* Style 5 — Glass / Frosted */
+/* Style 5 - Glass / Frosted */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] {
   background: linear-gradient(180deg, hsl(var(--card) / 0.55), hsl(var(--card) / 0.35)) !important;
   backdrop-filter: blur(18px) saturate(160%);
@@ -405,7 +405,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"]
   border-color: hsl(var(--primary) / 0.25);
 }
 
-/* Style 6 — Bold Dark (forces dark contrast in both modes) */
+/* Style 6 - Bold Dark (forces dark contrast in both modes) */
 aside[data-sidebar="sidebar"][data-sidebar-style="style-6"] {
   background: #0b0b12 !important;
   border-right: 1px solid #1f1f2b;
@@ -440,7 +440,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 }
 
 /* -----------------------------------------------------------------------
- * Widget Properties panel — compact density
+ * Widget Properties panel - compact density
  * Scoped to `.wp-compact` so it doesn't bleed into the rest of the admin.
  * Goal: small fonts, short rows, tight spacing so the panel surfaces more
  * controls without scrolling. Every change still lives in design tokens.
@@ -496,7 +496,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   gap: 0.4rem;
 }
 
-/* Compact CMS Builder UI — smaller fonts and tighter spacing across the whole builder shell. */
+/* Compact CMS Builder UI - smaller fonts and tighter spacing across the whole builder shell. */
 .cms-builder-compact {
   font-size: 11px;
 }
@@ -551,7 +551,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 .cms-builder-compact .gap-3 {
   gap: 0.5rem;
 }
-/* Canvas content must render identically to the public site — neutralize ALL
+/* Canvas content must render identically to the public site - neutralize ALL
    .cms-builder-compact overrides (fonts, spacing, paddings) inside the live preview. */
 .cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) {
   font-size: initial;
@@ -785,7 +785,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   object-position: center !important;
   transform: none !important;
 }
-/* Dual-source logos (light/dark) — keep only the active variant visible even
+/* Dual-source logos (light/dark) - keep only the active variant visible even
    inside builder/canvas, where the rule above would otherwise force both to
    `display: block` and stack them. */
 :is([data-builder-renderer], [data-visual-canvas]) [data-widget-media] .gc-img-dark,
@@ -1261,7 +1261,7 @@ a:has(.cms-post-title):focus {
   font-size: 12.5px !important;
 }
 
-/* Native <select> styling — unified across the whole platform.
+/* Native <select> styling - unified across the whole platform.
    Removes the OS-native look and matches our themed inputs (border, bg,
    rounded, custom chevron, focus ring in brand color). */
 select:not([multiple]):not([size]) {
@@ -1373,7 +1373,7 @@ select option {
 }
 
 /* ============================================================
-   Skeleton shimmer — premium loading visual
+   Skeleton shimmer - premium loading visual
    Replaces plain `animate-pulse` rectangles with a sweeping
    highlight that reads as active progress rather than idle pulse.
    Honours prefers-reduced-motion and dark mode.
@@ -2026,7 +2026,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 }
 
 /* ============================================================
-   Contact form widget — shell, layered backgrounds & 6 animations
+   Contact form widget - shell, layered backgrounds & 6 animations
    ============================================================ */
 .cf-shell {
   position: relative;
@@ -2322,7 +2322,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 }
 
 /* ==========================================================================
-   Admin calendar / date picker — soft hover token
+   Admin calendar / date picker - soft hover token
    Zamiast intensywnego pomarańczowego (primary), używamy #FDB078 na hover
    we wszystkich kalendarzach i triggerach dat w adminie.
    ========================================================================== */
@@ -2341,7 +2341,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 }
 
 /* ==========================================================================
-   AdminColorPicker — kompaktowy popover z react-colorful
+   AdminColorPicker - kompaktowy popover z react-colorful
    ========================================================================== */
 .admin-color-picker-canvas .react-colorful {
   width: 100% !important;

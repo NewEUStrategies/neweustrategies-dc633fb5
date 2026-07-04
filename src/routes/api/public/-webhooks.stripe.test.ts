@@ -7,7 +7,7 @@ function sign(payload: string, secret: string, timestamp = Math.floor(Date.now()
 }
 
 // ---------------------------------------------------------------------------
-// Signature verification (pure) — exercised directly.
+// Signature verification (pure) - exercised directly.
 // ---------------------------------------------------------------------------
 import { __verifySignatureForTests as verify } from "./webhooks.stripe";
 
@@ -39,7 +39,7 @@ describe("stripe webhook signature", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Handler reconciliation — mock the service-role client and the entitlement
+// Handler reconciliation - mock the service-role client and the entitlement
 // grant so we assert the DB writes + grant decisions a real Stripe event drives,
 // without a live Supabase/Stripe. This is the money path: a paid order becomes
 // access, replays don't double-provision, and failures flip the order status.

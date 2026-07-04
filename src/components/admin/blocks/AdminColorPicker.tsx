@@ -33,8 +33,23 @@ const isTransparent = (v?: string) => {
 
 function expandHex(hex: string): string {
   const h = hex.replace("#", "");
-  if (h.length === 3) return "#" + h.split("").map((c) => c + c).join("");
-  if (h.length === 4) return "#" + h.slice(0, 3).split("").map((c) => c + c).join("");
+  if (h.length === 3)
+    return (
+      "#" +
+      h
+        .split("")
+        .map((c) => c + c)
+        .join("")
+    );
+  if (h.length === 4)
+    return (
+      "#" +
+      h
+        .slice(0, 3)
+        .split("")
+        .map((c) => c + c)
+        .join("")
+    );
   if (h.length === 8) return "#" + h.slice(0, 6);
   return "#" + h.slice(0, 6);
 }
@@ -50,22 +65,34 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
 }
 
 function rgbToHex(r: number, g: number, b: number): string {
-  const c = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+  const c = (n: number) =>
+    Math.max(0, Math.min(255, Math.round(n)))
+      .toString(16)
+      .padStart(2, "0");
   return `#${c(r)}${c(g)}${c(b)}`;
 }
 
 function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
-  const rn = r / 255, gn = g / 255, bn = b / 255;
-  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn);
+  const rn = r / 255,
+    gn = g / 255,
+    bn = b / 255;
+  const max = Math.max(rn, gn, bn),
+    min = Math.min(rn, gn, bn);
   const l = (max + min) / 2;
-  let h = 0, s = 0;
+  let h = 0,
+    s = 0;
   if (max !== min) {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
     switch (max) {
-      case rn: h = ((gn - bn) / d + (gn < bn ? 6 : 0)); break;
-      case gn: h = ((bn - rn) / d + 2); break;
-      default: h = ((rn - gn) / d + 4);
+      case rn:
+        h = (gn - bn) / d + (gn < bn ? 6 : 0);
+        break;
+      case gn:
+        h = (bn - rn) / d + 2;
+        break;
+      default:
+        h = (rn - gn) / d + 4;
     }
     h *= 60;
   }
@@ -73,11 +100,14 @@ function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: n
 }
 
 function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
-  const sn = s / 100, ln = l / 100;
+  const sn = s / 100,
+    ln = l / 100;
   const c = (1 - Math.abs(2 * ln - 1)) * sn;
   const hp = (h % 360) / 60;
   const x = c * (1 - Math.abs((hp % 2) - 1));
-  let r = 0, g = 0, b = 0;
+  let r = 0,
+    g = 0,
+    b = 0;
   if (hp >= 0 && hp < 1) [r, g, b] = [c, x, 0];
   else if (hp < 2) [r, g, b] = [x, c, 0];
   else if (hp < 3) [r, g, b] = [0, c, x];
@@ -149,9 +179,11 @@ export function AdminColorPicker({
             <HexColorPicker color={hexForPicker} onChange={commitHex} />
           </div>
 
-          {/* HEX first — most important */}
+          {/* HEX first - most important */}
           <div className="space-y-[2px]">
-            <label className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold leading-none">HEX</label>
+            <label className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold leading-none">
+              HEX
+            </label>
             <Input
               value={hexDraft.toUpperCase()}
               onChange={(e) => {
@@ -166,7 +198,9 @@ export function AdminColorPicker({
 
           {/* RGB */}
           <div className="space-y-[2px]">
-            <label className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold leading-none">RGB</label>
+            <label className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold leading-none">
+              RGB
+            </label>
             <div className="grid grid-cols-3 gap-1">
               {(["r", "g", "b"] as const).map((k) => (
                 <div key={k} className="relative">
@@ -192,7 +226,9 @@ export function AdminColorPicker({
 
           {/* HSL */}
           <div className="space-y-[2px]">
-            <label className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold leading-none">HSL</label>
+            <label className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold leading-none">
+              HSL
+            </label>
             <div className="grid grid-cols-3 gap-1">
               {(["h", "s", "l"] as const).map((k) => (
                 <div key={k} className="relative">
@@ -202,7 +238,10 @@ export function AdminColorPicker({
                     max={k === "h" ? 360 : 100}
                     value={hsl[k]}
                     onChange={(e) => {
-                      const n = Math.max(0, Math.min(k === "h" ? 360 : 100, Number(e.target.value) || 0));
+                      const n = Math.max(
+                        0,
+                        Math.min(k === "h" ? 360 : 100, Number(e.target.value) || 0),
+                      );
                       const next = { ...hsl, [k]: n };
                       const c = hslToRgb(next.h, next.s, next.l);
                       commitHex(rgbToHex(c.r, c.g, c.b));
@@ -222,10 +261,15 @@ export function AdminColorPicker({
       <Input
         value={v}
         placeholder={
-          showInherited ? `dziedziczy: ${inherited}` : (placeholder ?? "#000 / var(--brand) / transparent")
+          showInherited
+            ? `dziedziczy: ${inherited}`
+            : (placeholder ?? "#000 / var(--brand) / transparent")
         }
         onChange={(e) => onChange(e.target.value || undefined)}
-        className={cn("h-8 text-xs font-mono", showInherited && "placeholder:italic placeholder:text-foreground/70")}
+        className={cn(
+          "h-8 text-xs font-mono",
+          showInherited && "placeholder:italic placeholder:text-foreground/70",
+        )}
         spellCheck={false}
       />
 

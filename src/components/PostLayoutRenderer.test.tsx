@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, within } from "@testing-library/react";
+import { within } from "@testing-library/react";
+import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
 // ReadingHeader (rendered by every layout) contains TanStack <Link>, which
 // throws without a RouterProvider - swap it for the shared plain-anchor stub.
@@ -22,7 +23,7 @@ const COVER = "https://proj.supabase.co/storage/v1/object/public/media/cover.jpg
 
 function renderLayout(layoutId: string, overrides: Partial<PostLayoutSettings> = {}) {
   const settings = { ...defaultPostLayoutSettings(), ...overrides };
-  return render(
+  return renderWithQueryClient(
     <PostLayoutRenderer
       format="standard"
       layoutId={layoutId}
@@ -81,7 +82,7 @@ describe("PostLayoutRenderer", () => {
     });
 
     it("omits the cover when no coverImageUrl is supplied", () => {
-      const { container } = render(
+      const { container } = renderWithQueryClient(
         <PostLayoutRenderer
           format="standard"
           layoutId="layout-1"
@@ -124,15 +125,33 @@ describe("PostLayoutRenderer", () => {
     });
 
     it("centers the header when center_header is enabled", () => {
-      const { getByRole } = renderLayout("layout-1", { center_header: true });
-      const header = getByRole("heading", { level: 1 }).closest("header");
-      expect(header?.className).toContain("text-center");
+      // Covered posts render the overlay meta-card; centering applies there.
+      const { container } = renderLayout("layout-1", { center_header: true });
+      const card = container.querySelector(".overlay-meta-card");
+      expect(card).not.toBeNull();
+      expect(card!.className).toContain("text-center");
     });
 
     it("does not center the header when center_header is disabled", () => {
-      const { getByRole } = renderLayout("layout-1", { center_header: false });
+      const { container } = renderLayout("layout-1", { center_header: false });
+      const card = container.querySelector(".overlay-meta-card");
+      expect(card).not.toBeNull();
+      expect(card!.className).not.toContain("text-center");
+    });
+
+    it("centers the classic header (no cover) when center_header is enabled", () => {
+      const { getByRole } = renderWithQueryClient(
+        <PostLayoutRenderer
+          format="standard"
+          layoutId="layout-1"
+          settings={{ ...defaultPostLayoutSettings(), center_header: true }}
+          title="Bez okładki"
+          content={<div>Treść</div>}
+        />,
+      );
       const header = getByRole("heading", { level: 1 }).closest("header");
-      expect(header?.className).not.toContain("text-center");
+      expect(header).not.toBeNull();
+      expect(header!.className).toContain("text-center");
     });
 
     it("respects center_header=false on the overlay preset (layout-4)", () => {

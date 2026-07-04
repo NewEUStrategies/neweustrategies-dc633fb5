@@ -226,8 +226,8 @@ function GreetingsAdmin() {
             {isPL ? "Użyj placeholdera" : "Use the placeholder"}{" "}
             <code className="text-foreground bg-background/60 px-1 rounded">{"{name}"}</code>{" "}
             {isPL
-              ? "— zostanie zamieniony na imię użytkownika."
-              : "— it will be replaced with the user's first name."}
+              ? "- zostanie zamieniony na imię użytkownika."
+              : "- it will be replaced with the user's first name."}
           </li>
           <li>
             {isPL
@@ -236,8 +236,8 @@ function GreetingsAdmin() {
           </li>
           <li>
             {isPL
-              ? "Każda pora dnia musi mieć co najmniej jedno powitanie w obu językach (PL i EN) — inaczej zapis jest zablokowany."
-              : "Every time bucket must have at least one greeting in both PL and EN — otherwise saving is blocked."}
+              ? "Każda pora dnia musi mieć co najmniej jedno powitanie w obu językach (PL i EN) - inaczej zapis jest zablokowany."
+              : "Every time bucket must have at least one greeting in both PL and EN - otherwise saving is blocked."}
           </li>
           <li>
             {isPL ? "Przykład:" : "Example:"}{" "}

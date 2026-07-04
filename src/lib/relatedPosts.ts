@@ -51,14 +51,9 @@ export function mergeRelatedConfig(
   const base: RelatedPostsConfig = { ...RELATED_POSTS_DEFAULTS, ...(global ?? {}) };
   if (!override) return base;
   // Only spread defined override keys so `null`/missing values don't clobber the global.
-  const cleaned: RelatedPostsOverride = {};
-  (Object.keys(override) as Array<keyof RelatedPostsOverride>).forEach((k) => {
-    const v = override[k];
-    if (v !== undefined && v !== null) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (cleaned as any)[k] = v;
-    }
-  });
+  const cleaned = Object.fromEntries(
+    Object.entries(override).filter(([, v]) => v !== undefined && v !== null),
+  ) as RelatedPostsOverride;
   return { ...base, ...cleaned };
 }
 

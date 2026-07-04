@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AUTH_DEFAULTS, AUTH_SETTINGS_KEY, type AuthSettings } from "@/lib/authSettings";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { toJson } from "@/lib/builder/types";
 
 export function useAuthSettings(): AuthSettings {
   const { data } = useQuery({
@@ -24,8 +25,7 @@ export function useSaveAuthSettings() {
     mutationFn: async (value: AuthSettings) => {
       const { error } = await supabase
         .from("site_settings")
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .upsert({ key: AUTH_SETTINGS_KEY, value: value as any }, { onConflict: "key" });
+        .upsert({ key: AUTH_SETTINGS_KEY, value: toJson(value) }, { onConflict: "key" });
       if (error) throw error;
     },
     onSuccess: () => {

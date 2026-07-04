@@ -197,7 +197,7 @@ export function PostRatingView({ max = 5, label, lang = "pl", cls }: PostRatingP
         /* noop */
       }
       // Local aggregate update for instant feedback; canonical persistence
-      // requires a dedicated reactions table — out of scope for this block.
+      // requires a dedicated reactions table - out of scope for this block.
       setAgg((a) => {
         const c = (a?.count ?? 0) + 1;
         const sum = (a?.avg ?? n) * (a?.count ?? 0) + n;

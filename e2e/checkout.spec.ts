@@ -2,8 +2,8 @@ import { test, expect } from "@playwright/test";
 
 // E2E for the public payment funnel UI. Like public.spec.ts this is
 // intentionally backend-agnostic: CI drives the real SSR app with placeholder
-// Supabase credentials, so we assert the funnel's *structure* — routes resolve,
-// the checkout step is gated behind auth, and the success/cancel pages render —
+// Supabase credentials, so we assert the funnel's *structure* - routes resolve,
+// the checkout step is gated behind auth, and the success/cancel pages render -
 // rather than data state. The money path's data side (paid order -> entitlement)
 // is covered deterministically by the Vitest webhook + grant tests; a fully
 // data-driven flow (seeded plan -> Stripe session -> webhook -> unlocked content)
@@ -26,7 +26,7 @@ test("pricing page boots and renders a well-formed document", async ({ page }) =
 
 test("checkout step is gated behind authentication when logged out", async ({ page }) => {
   const errors = collectErrors(page);
-  // Any plan id — the route is public (AuthGate renders an inline sign-in CTA
+  // Any plan id - the route is public (AuthGate renders an inline sign-in CTA
   // instead of redirecting), so a logged-out visitor must be offered sign-in.
   await page.goto("/checkout/00000000-0000-0000-0000-000000000000");
   await expect(page).toHaveTitle(/Checkout/);

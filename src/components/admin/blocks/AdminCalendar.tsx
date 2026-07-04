@@ -1,4 +1,4 @@
-// AdminCalendar — shadcn Calendar wrapper with a "zoom-out" caption:
+// AdminCalendar - shadcn Calendar wrapper with a "zoom-out" caption:
 // - click on "month year" label -> month grid
 // - click again -> year grid
 // - pick a year -> back to month grid
@@ -97,7 +97,9 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
         <div className="grid grid-cols-3 gap-1.5">
           {monthNames.map((name, idx) => {
             const isSelected =
-              selected && selected.getFullYear() === month.getFullYear() && selected.getMonth() === idx;
+              selected &&
+              selected.getFullYear() === month.getFullYear() &&
+              selected.getMonth() === idx;
             const isToday = currentYear === month.getFullYear() && currentMonth === idx;
             return (
               <button

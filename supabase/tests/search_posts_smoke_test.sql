@@ -2,7 +2,7 @@
 --
 -- search_posts jest SECURITY DEFINER i sam egzekwuje widoczność: zwraca tylko
 -- posty published, nieusunięte (deleted_at IS NULL) i w obrębie tenanta
--- rozstrzyganego WYŁĄCZNIE serwerowo — dla anonima jest to tenant publiczny
+-- rozstrzyganego WYŁĄCZNIE serwerowo - dla anonima jest to tenant publiczny
 -- (public_tenant_id()). Smoke pokrywa happy-path + każde wykluczenie + brzegowe
 -- zapytania, wszystko z perspektywy roli `anon`.
 
@@ -12,13 +12,13 @@ SELECT plan(7);
 -- ── Seed ───────────────────────────────────────────────────────────────────
 -- Wyłączamy wszystkie triggery użytkownika na auth.users (jest ich kilka:
 -- auto-provisioning profilu/tenanta + nadawanie super_admin), by w pełni
--- kontrolować seed. Transakcyjne — cofane przez ROLLBACK.
+-- kontrolować seed. Transakcyjne - cofane przez ROLLBACK.
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
 -- Tenant publiczny ('nes') jest już zaseedowany przez migracje.
 SELECT public.public_tenant_id() AS nes \gset
 
--- Drugi, NIEpubliczny tenant — jego treść nie może trafić do publicznego search.
+-- Drugi, NIEpubliczny tenant - jego treść nie może trafić do publicznego search.
 INSERT INTO public.tenants (id, slug, name) VALUES
   ('cccccccc-3333-3333-3333-333333333333', 'tenant-c', 'Tenant C');
 

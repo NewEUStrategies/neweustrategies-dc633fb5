@@ -884,7 +884,7 @@ function BlockView({
         <blockquote className={`not-prose border-y-4 border-primary py-6 my-6 text-center ${cls}`}>
           <p className="text-2xl md:text-3xl font-serif italic m-0">{text}</p>
           {cite && (
-            <cite className="block mt-3 text-sm text-muted-foreground not-italic">— {cite}</cite>
+            <cite className="block mt-3 text-sm text-muted-foreground not-italic">- {cite}</cite>
           )}
         </blockquote>
       );
