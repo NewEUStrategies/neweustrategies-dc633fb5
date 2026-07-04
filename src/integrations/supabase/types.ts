@@ -4020,6 +4020,10 @@ export type Database = {
       }
       page_full_path: { Args: { _page_id: string }; Returns: string }
       profile_is_public: { Args: { _user_id: string }; Returns: boolean }
+      profiles_generate_unique_slug: {
+        Args: { _base: string }
+        Returns: string
+      }
       public_tenant_id: { Args: never; Returns: string }
       publish_due_posts: { Args: never; Returns: number }
       record_post_view: {
