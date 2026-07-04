@@ -68,6 +68,7 @@ export function ImageWidget({
   const siteLogoVariant = (getStr(c, "useSiteLogo") || "") as "" | SiteLogoVariant;
   const altIsLogo = /logo/i.test(alt);
   const wantsSiteLogo = siteLogoVariant !== "" || altIsLogo;
+  const isLogo = wantsSiteLogo;
   const siteLogo = useSiteLogo(siteLogoVariant || "main");
   const src = wantsSiteLogo ? siteLogo.light || rawSrc : rawSrc;
   const srcDark = wantsSiteLogo
