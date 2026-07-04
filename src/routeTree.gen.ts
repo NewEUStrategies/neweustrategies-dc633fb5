@@ -18,6 +18,7 @@ import { Route as ReadingListRouteImport } from './routes/reading-list'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as NewsSitemapDotxmlRouteImport } from './routes/news-sitemap[.]xml'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as FeedRouteImport } from './routes/feed'
@@ -85,6 +86,8 @@ import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminAuthorsRouteImport } from './routes/admin.authors'
 import { Route as AdminAppearanceRouteImport } from './routes/admin.appearance'
 import { Route as AdminAdsRouteImport } from './routes/admin.ads'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminSettingsIndexRouteImport } from './routes/admin.settings.index'
 import { Route as ApiPublicVitalsRouteImport } from './routes/api/public/vitals'
@@ -109,6 +112,7 @@ import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearan
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
 import { Route as AdminAppearanceGlobalColorsRouteImport } from './routes/admin.appearance.global-colors'
 import { Route as AdminAppearanceFooterRouteImport } from './routes/admin.appearance.footer'
+import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks.stripe'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 
@@ -155,6 +159,11 @@ const PricingRoute = PricingRouteImport.update({
 const NewsSitemapDotxmlRoute = NewsSitemapDotxmlRouteImport.update({
   id: '/news-sitemap.xml',
   path: '/news-sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -492,6 +501,18 @@ const AdminAdsRoute = AdminAdsRouteImport.update({
   path: '/ads',
   getParentRoute: () => AdminRoute,
 } as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Char91DotmcpChar93ListToolsRoute =
+  Char91DotmcpChar93ListToolsRouteImport.update({
+    id: '/.mcp/list-tools',
+    path: '/.mcp/list-tools',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminUsersIndexRoute = AdminUsersIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -614,6 +635,12 @@ const AdminAppearanceFooterRoute = AdminAppearanceFooterRouteImport.update({
   path: '/footer',
   getParentRoute: () => AdminAppearanceRoute,
 } as any)
+const Char91DotmcpChar93InvokeToolToolRoute =
+  Char91DotmcpChar93InvokeToolToolRouteImport.update({
+    id: '/.mcp/invoke-tool/$tool',
+    path: '/.mcp/invoke-tool/$tool',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicWebhooksStripeRoute = ApiPublicWebhooksStripeRouteImport.update({
   id: '/api/public/webhooks/stripe',
   path: '/api/public/webhooks/stripe',
@@ -633,6 +660,7 @@ export interface FileRoutesByFullPath {
   '/feed': typeof FeedRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
+  '/mcp': typeof McpRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
@@ -642,6 +670,8 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/authors': typeof AdminAuthorsRoute
@@ -703,6 +733,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -736,6 +767,7 @@ export interface FileRoutesByTo {
   '/feed': typeof FeedRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
+  '/mcp': typeof McpRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/pricing': typeof PricingRoute
   '/reading-list': typeof ReadingListRoute
@@ -744,6 +776,8 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/authors': typeof AdminAuthorsRoute
@@ -803,6 +837,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/blog': typeof BlogIndexRoute
   '/profile': typeof ProfileIndexRoute
+  '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -838,6 +873,7 @@ export interface FileRoutesById {
   '/feed': typeof FeedRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
+  '/mcp': typeof McpRoute
   '/news-sitemap.xml': typeof NewsSitemapDotxmlRoute
   '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRouteWithChildren
@@ -847,6 +883,8 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/sitemap': typeof SitemapRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin/ads': typeof AdminAdsRoute
   '/admin/appearance': typeof AdminAppearanceRouteWithChildren
   '/admin/authors': typeof AdminAuthorsRoute
@@ -908,6 +946,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/blog/': typeof BlogIndexRoute
   '/profile/': typeof ProfileIndexRoute
+  '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/appearance/footer': typeof AdminAppearanceFooterRoute
   '/admin/appearance/global-colors': typeof AdminAppearanceGlobalColorsRoute
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
@@ -944,6 +983,7 @@ export interface FileRouteTypes {
     | '/feed'
     | '/llms.txt'
     | '/login'
+    | '/mcp'
     | '/news-sitemap.xml'
     | '/pricing'
     | '/profile'
@@ -953,6 +993,8 @@ export interface FileRouteTypes {
     | '/search'
     | '/sitemap'
     | '/sitemap.xml'
+    | '/.mcp/list-tools'
+    | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
     | '/admin/appearance'
     | '/admin/authors'
@@ -1014,6 +1056,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/profile/'
+    | '/.mcp/invoke-tool/$tool'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -1047,6 +1090,7 @@ export interface FileRouteTypes {
     | '/feed'
     | '/llms.txt'
     | '/login'
+    | '/mcp'
     | '/news-sitemap.xml'
     | '/pricing'
     | '/reading-list'
@@ -1055,6 +1099,8 @@ export interface FileRouteTypes {
     | '/search'
     | '/sitemap'
     | '/sitemap.xml'
+    | '/.mcp/list-tools'
+    | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
     | '/admin/appearance'
     | '/admin/authors'
@@ -1114,6 +1160,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/blog'
     | '/profile'
+    | '/.mcp/invoke-tool/$tool'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -1148,6 +1195,7 @@ export interface FileRouteTypes {
     | '/feed'
     | '/llms.txt'
     | '/login'
+    | '/mcp'
     | '/news-sitemap.xml'
     | '/pricing'
     | '/profile'
@@ -1157,6 +1205,8 @@ export interface FileRouteTypes {
     | '/search'
     | '/sitemap'
     | '/sitemap.xml'
+    | '/.mcp/list-tools'
+    | '/.well-known/oauth-protected-resource'
     | '/admin/ads'
     | '/admin/appearance'
     | '/admin/authors'
@@ -1218,6 +1268,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/blog/'
     | '/profile/'
+    | '/.mcp/invoke-tool/$tool'
     | '/admin/appearance/footer'
     | '/admin/appearance/global-colors'
     | '/admin/appearance/header'
@@ -1253,6 +1304,7 @@ export interface RootRouteChildren {
   FeedRoute: typeof FeedRoute
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   LoginRoute: typeof LoginRoute
+  McpRoute: typeof McpRoute
   NewsSitemapDotxmlRoute: typeof NewsSitemapDotxmlRoute
   PricingRoute: typeof PricingRoute
   ProfileRoute: typeof ProfileRouteWithChildren
@@ -1262,6 +1314,8 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SitemapRoute: typeof SitemapRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
+  Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiTtsRoute: typeof ApiTtsRoute
   AuthorSlugRoute: typeof AuthorSlugRoute
   CategorySlugRoute: typeof CategorySlugRoute
@@ -1274,6 +1328,7 @@ export interface RootRouteChildren {
   TagSlugRoute: typeof TagSlugRoute
   WebStoriesSlugRoute: typeof WebStoriesSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
+  Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiPublicClientErrorsRoute: typeof ApiPublicClientErrorsRoute
   ApiPublicVitalsRoute: typeof ApiPublicVitalsRoute
   ApiPublicNewsletterConfirmRoute: typeof ApiPublicNewsletterConfirmRoute
@@ -1343,6 +1398,13 @@ declare module '@tanstack/react-router' {
       path: '/news-sitemap.xml'
       fullPath: '/news-sitemap.xml'
       preLoaderRoute: typeof NewsSitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -1814,6 +1876,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAdsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.mcp/list-tools': {
+      id: '/.mcp/list-tools'
+      path: '/.mcp/list-tools'
+      fullPath: '/.mcp/list-tools'
+      preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/users/': {
       id: '/admin/users/'
       path: '/'
@@ -1981,6 +2057,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/appearance/footer'
       preLoaderRoute: typeof AdminAppearanceFooterRouteImport
       parentRoute: typeof AdminAppearanceRoute
+    }
+    '/.mcp/invoke-tool/$tool': {
+      id: '/.mcp/invoke-tool/$tool'
+      path: '/.mcp/invoke-tool/$tool'
+      fullPath: '/.mcp/invoke-tool/$tool'
+      preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/webhooks/stripe': {
       id: '/api/public/webhooks/stripe'
@@ -2225,6 +2308,7 @@ const rootRouteChildren: RootRouteChildren = {
   FeedRoute: FeedRoute,
   LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
+  McpRoute: McpRoute,
   NewsSitemapDotxmlRoute: NewsSitemapDotxmlRoute,
   PricingRoute: PricingRoute,
   ProfileRoute: ProfileRouteWithChildren,
@@ -2234,6 +2318,9 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SitemapRoute: SitemapRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
+  Char91DotwellKnownChar93OauthProtectedResourceRoute:
+    Char91DotwellKnownChar93OauthProtectedResourceRoute,
   ApiTtsRoute: ApiTtsRoute,
   AuthorSlugRoute: AuthorSlugRoute,
   CategorySlugRoute: CategorySlugRoute,
@@ -2246,6 +2333,7 @@ const rootRouteChildren: RootRouteChildren = {
   TagSlugRoute: TagSlugRoute,
   WebStoriesSlugRoute: WebStoriesSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
+  Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiPublicClientErrorsRoute: ApiPublicClientErrorsRoute,
   ApiPublicVitalsRoute: ApiPublicVitalsRoute,
   ApiPublicNewsletterConfirmRoute: ApiPublicNewsletterConfirmRoute,
