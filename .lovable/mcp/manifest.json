@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "mcp": {
+    "server": {
+      "name": "neweustrategies-mcp",
+      "version": "0.1.0",
+      "title": "NEW EU Strategies"
+    },
+    "tools": [
+      {
+        "name": "search_posts",
+        "title": "Search posts",
+        "description": "Search published posts by keyword across titles and excerpts. Returns slug, title, excerpt, publish date and cover image.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Search phrase."
+            },
+            "lang": {
+              "default": "pl",
+              "description": "Language variant to search.",
+              "type": "string",
+              "enum": [
+                "pl",
+                "en"
+              ]
+            },
+            "limit": {
+              "default": 10,
+              "description": "Maximum posts to return.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          "required": [
+            "query"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_post",
+        "title": "Get post by slug",
+        "description": "Fetch a single published post by its slug, including body content.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "slug": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Post slug."
+            },
+            "lang": {
+              "default": "pl",
+              "description": "Language variant.",
+              "type": "string",
+              "enum": [
+                "pl",
+                "en"
+              ]
+            }
+          },
+          "required": [
+            "slug"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_recent_posts",
+        "title": "List recent posts",
+        "description": "List the most recently published posts.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "lang": {
+              "default": "pl",
+              "description": "Language variant.",
+              "type": "string",
+              "enum": [
+                "pl",
+                "en"
+              ]
+            },
+            "limit": {
+              "default": 10,
+              "description": "Maximum posts to return.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
