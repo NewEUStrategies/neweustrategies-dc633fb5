@@ -17,7 +17,7 @@ export type Lang = AppLang;
 export { SUPPORTED_LANGS };
 
 export const SITE_NAME = "New European Strategies";
-export const OG_LOCALE: Record<Lang, string> = { pl: "pl_PL", en: "en_US" };
+const OG_LOCALE: Record<Lang, string> = { pl: "pl_PL", en: "en_US" };
 
 /**
  * Brand-default social-share image (served from `public/`). Used as the

@@ -21,7 +21,7 @@ export interface BrandIconMap {
  * "custom" po imporcie hurtowym) były dostępne wszędzie tam, gdzie używamy
  * BrandIcon - bez wymagania ręcznej rekategoryzacji.
  */
-export function useBrandIcons(kind?: "brand" | "flag" | "custom"): BrandIconMap {
+function useBrandIcons(kind?: "brand" | "flag" | "custom"): BrandIconMap {
   const { data = [] } = useQuery({
     queryKey: ["icon-library", kind ?? "all"],
     queryFn: () => listIcons(kind),

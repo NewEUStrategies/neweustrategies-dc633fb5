@@ -18,14 +18,14 @@ export const POST_STATUSES = [
 export type PostWorkflowStatus = (typeof POST_STATUSES)[number];
 
 /** Statuses that only a publisher (admin / super_admin) may enter. */
-export const PUBLISHER_ONLY_STATUSES: readonly PostWorkflowStatus[] = ["published", "scheduled"];
+const PUBLISHER_ONLY_STATUSES: readonly PostWorkflowStatus[] = ["published", "scheduled"];
 
 export interface WorkflowActor {
   /** admin or super_admin - may publish and schedule directly. */
   canPublish: boolean;
 }
 
-export type TransitionDenial = "requires_publisher" | "requires_publish_at";
+type TransitionDenial = "requires_publisher" | "requires_publish_at";
 
 export type TransitionResult = { ok: true } | { ok: false; reason: TransitionDenial };
 

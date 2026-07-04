@@ -7,7 +7,7 @@
 // Cache keys are stable + lang-scoped so a single invalidate({ queryKey:
 // ["post-ref"] }) refreshes every widget on the page.
 
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export type Lang = "pl" | "en";
@@ -93,12 +93,6 @@ export function postRefQueryOptions(id: string | null | undefined, lang: Lang) {
   };
 }
 
-/** Resolve a single post reference. Returns null until loaded / when no id. */
-export function useResolvedPostRef(id: string | null | undefined, lang: Lang) {
-  const q = useQuery(postRefQueryOptions(id ?? null, lang));
-  return q.data ?? null;
-}
-
 /** Batch resolver - one query per id, dedup'd before useQueries receives keys. */
 export function useResolvedPostRefs(ids: ReadonlyArray<string | null | undefined>, lang: Lang) {
   const seen = new Set<string>();
@@ -119,39 +113,6 @@ export function useResolvedPostRefs(ids: ReadonlyArray<string | null | undefined
     if (r.data) map.set(id, r.data);
   });
   return map;
-}
-
-/**
- * Merge a manually-edited widget item with a resolved post reference.
- * Rule: explicit non-empty user overrides win; otherwise live post data wins;
- * otherwise we fall back to whatever was previously saved.
- */
-export function mergePostRefOverride<T extends Record<string, unknown>>(
-  override: T,
-  ref: PostRefData | null,
-  map: {
-    image?: keyof T;
-    title?: keyof T;
-    subtitle?: keyof T;
-    href?: keyof T;
-    author?: keyof T;
-  },
-): T {
-  if (!ref) return override;
-  const out = { ...override };
-  const pick = (key: keyof T | undefined, live: string) => {
-    if (!key) return;
-    const current = out[key];
-    if (typeof current !== "string" || current.trim() === "") {
-      (out as Record<keyof T, unknown>)[key] = live as T[keyof T];
-    }
-  };
-  pick(map.image, ref.cover);
-  pick(map.title, ref.title);
-  pick(map.subtitle, ref.excerpt);
-  pick(map.href, ref.href);
-  pick(map.author, ref.authorName);
-  return out;
 }
 
 /** Invalidate every widget cache that consumes live entity refs. */

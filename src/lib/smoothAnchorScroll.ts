@@ -59,7 +59,7 @@ function disableRouterHashScrollForCurrentEntry(): void {
   );
 }
 
-export function cancelSmoothAnchorScroll(): void {
+function cancelSmoothAnchorScroll(): void {
   activeScrollCancel?.();
   activeScrollCancel = null;
 }

@@ -5,7 +5,7 @@
 //   - style panelu: tło, kolor tekstu, akcent, zaokrąglenie, szerokość
 //   - presety profilu (/profile, /profile/bookmarks, ...) + strony z DB pages + URL custom
 // Atomic design: AccountMenu = molecule (Popover + lista). i18n: PL/EN.
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { useGreeting } from "@/lib/greetings/useGreeting";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useQuery } from "@tanstack/react-query";
@@ -17,12 +17,11 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/lib/builder/types";
 import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 
 type Lang = "pl" | "en";
 
-export type AccountMenuItemKind = "preset" | "page" | "custom" | "separator" | "logout";
+type AccountMenuItemKind = "preset" | "page" | "custom" | "separator" | "logout";
 export type AccountMenuSection = "guest" | "auth" | "staff";
 
 export interface AccountMenuItem {
@@ -157,14 +156,6 @@ export const ACCOUNT_PRESETS: Array<{
 
 function presetFor(key: string | undefined) {
   return ACCOUNT_PRESETS.find((p) => p.key === key);
-}
-
-function readNum(x: Json | undefined, fallback: number): number {
-  return typeof x === "number" && Number.isFinite(x) ? x : fallback;
-}
-
-function readStr(x: Json | undefined): string | undefined {
-  return typeof x === "string" && x.length ? x : undefined;
 }
 
 interface PageRef {
@@ -469,105 +460,103 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
     <div className="inline-flex items-center gap-1">
       {session ? <NotificationsBell /> : null}
       <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent
-        align="end"
-        sideOffset={8}
-        collisionPadding={12}
-        sticky="always"
-        hideWhenDetached={false}
-        avoidCollisions
-        className={[
-          "p-2 shadow-xl border-border/60 backdrop-blur-md",
-          // Smoother in/out using Radix state + tailwindcss-animate keyframes.
-          // Overrides the default 150ms snap with a longer, cubic-bezier easing
-          // and adds a small vertical slide + subtle scale for a premium feel.
-          "data-[state=open]:animate-in data-[state=closed]:animate-out",
-          "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
-          "data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
-          "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
-          "data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2",
-          "duration-220 ease-[cubic-bezier(0.22,0.61,0.36,1)]",
-          "will-change-[transform,opacity]",
-          "origin-(--radix-popover-content-transform-origin)",
-        ].join(" ")}
-        style={panelStyle}
-      >
-
-
-        {session ? (
-          <>
-            {user?.email && (
-              <div className="px-2.5 pt-1 pb-2 border-b border-border/60 mb-1">
-                <div className="text-sm font-semibold truncate">{displayName || user.email}</div>
-                {displayName && (
-                  <div className="text-xs text-muted-foreground truncate">{user.email}</div>
-                )}
-              </div>
-            )}
-            <div className="flex flex-col gap-0.5">{effectiveAuth.map(renderItem)}</div>
-            {isStaff &&
-              (() => {
-                // Auto-defaults for staff: ensure admin / super-admin always have a route
-                // back into the management panels even when no custom items are configured.
-                const autoStaff: ReturnType<typeof sectionItems> = [];
-                if (isAdmin) {
-                  autoStaff.push({
-                    raw: {
-                      id: "auto-admin",
-                      section: "staff",
-                      kind: "custom",
-                      icon: "LayoutDashboard",
-                      customHref: "/admin",
-                    },
-                    href: "/admin",
-                    label: lang === "pl" ? "Panel admina" : "Admin panel",
-                    desc: "",
-                  });
-                }
-                if (isSuperAdmin) {
-                  autoStaff.push({
-                    raw: {
-                      id: "auto-users",
-                      section: "staff",
-                      kind: "custom",
-                      icon: "ShieldCheck",
-                      customHref: "/admin/users",
-                    },
-                    href: "/admin/users",
-                    label: lang === "pl" ? "Super admin - użytkownicy" : "Super admin - users",
-                    desc:
-                      lang === "pl"
-                        ? "Zarządzanie rolami i wcielanie się"
-                        : "Roles & impersonation",
-                  });
-                }
-                // Merge: auto entries first, then admin-configured items (deduped by href).
-                const seen = new Set(autoStaff.map((x) => x.href));
-                const merged = [...autoStaff, ...staffItems.filter((x) => !seen.has(x.href))];
-                if (merged.length === 0) return null;
-                return (
-                  <>
-                    <div className="my-1 h-px bg-border/70" />
-                    <div className="px-2.5 pt-1 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                      {isSuperAdmin
-                        ? lang === "pl"
-                          ? "Super Admin"
-                          : "Super Admin"
-                        : lang === "pl"
-                          ? "Zespół"
-                          : "Staff"}
-                    </div>
-                    <div className="flex flex-col gap-0.5">{merged.map(renderItem)}</div>
-                  </>
-                );
-              })()}
-          </>
-        ) : (
-          <div className="flex flex-col gap-0.5">{effectiveGuest.map(renderItem)}</div>
-        )}
-        <span className="sr-only">{t("nav.account", { defaultValue: "Account menu" })}</span>
-      </PopoverContent>
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        <PopoverContent
+          align="end"
+          sideOffset={8}
+          collisionPadding={12}
+          sticky="always"
+          hideWhenDetached={false}
+          avoidCollisions
+          className={[
+            "p-2 shadow-xl border-border/60 backdrop-blur-md",
+            // Smoother in/out using Radix state + tailwindcss-animate keyframes.
+            // Overrides the default 150ms snap with a longer, cubic-bezier easing
+            // and adds a small vertical slide + subtle scale for a premium feel.
+            "data-[state=open]:animate-in data-[state=closed]:animate-out",
+            "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
+            "data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
+            "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
+            "data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2",
+            "duration-220 ease-[cubic-bezier(0.22,0.61,0.36,1)]",
+            "will-change-[transform,opacity]",
+            "origin-(--radix-popover-content-transform-origin)",
+          ].join(" ")}
+          style={panelStyle}
+        >
+          {session ? (
+            <>
+              {user?.email && (
+                <div className="px-2.5 pt-1 pb-2 border-b border-border/60 mb-1">
+                  <div className="text-sm font-semibold truncate">{displayName || user.email}</div>
+                  {displayName && (
+                    <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                  )}
+                </div>
+              )}
+              <div className="flex flex-col gap-0.5">{effectiveAuth.map(renderItem)}</div>
+              {isStaff &&
+                (() => {
+                  // Auto-defaults for staff: ensure admin / super-admin always have a route
+                  // back into the management panels even when no custom items are configured.
+                  const autoStaff: ReturnType<typeof sectionItems> = [];
+                  if (isAdmin) {
+                    autoStaff.push({
+                      raw: {
+                        id: "auto-admin",
+                        section: "staff",
+                        kind: "custom",
+                        icon: "LayoutDashboard",
+                        customHref: "/admin",
+                      },
+                      href: "/admin",
+                      label: lang === "pl" ? "Panel admina" : "Admin panel",
+                      desc: "",
+                    });
+                  }
+                  if (isSuperAdmin) {
+                    autoStaff.push({
+                      raw: {
+                        id: "auto-users",
+                        section: "staff",
+                        kind: "custom",
+                        icon: "ShieldCheck",
+                        customHref: "/admin/users",
+                      },
+                      href: "/admin/users",
+                      label: lang === "pl" ? "Super admin - użytkownicy" : "Super admin - users",
+                      desc:
+                        lang === "pl"
+                          ? "Zarządzanie rolami i wcielanie się"
+                          : "Roles & impersonation",
+                    });
+                  }
+                  // Merge: auto entries first, then admin-configured items (deduped by href).
+                  const seen = new Set(autoStaff.map((x) => x.href));
+                  const merged = [...autoStaff, ...staffItems.filter((x) => !seen.has(x.href))];
+                  if (merged.length === 0) return null;
+                  return (
+                    <>
+                      <div className="my-1 h-px bg-border/70" />
+                      <div className="px-2.5 pt-1 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {isSuperAdmin
+                          ? lang === "pl"
+                            ? "Super Admin"
+                            : "Super Admin"
+                          : lang === "pl"
+                            ? "Zespół"
+                            : "Staff"}
+                      </div>
+                      <div className="flex flex-col gap-0.5">{merged.map(renderItem)}</div>
+                    </>
+                  );
+                })()}
+            </>
+          ) : (
+            <div className="flex flex-col gap-0.5">{effectiveGuest.map(renderItem)}</div>
+          )}
+          <span className="sr-only">{t("nav.account", { defaultValue: "Account menu" })}</span>
+        </PopoverContent>
       </Popover>
     </div>
   );

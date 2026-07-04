@@ -8,7 +8,6 @@ import type {
   Device,
   Mode,
   WidgetTypography,
-  HoverStyle,
 } from "@/lib/builder/types";
 import { pickMode } from "@/lib/builder/themed";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
@@ -20,7 +19,6 @@ export const DEFAULT_WIDGET_WIDTH_BY_DEVICE: Record<Device, string> = {
   tablet: "100%",
   mobile: "100%",
 };
-export const DEFAULT_WIDGET_MIN_HEIGHT = 0;
 export const AUTO_SIZE_WIDGETS = new Set(["image", "icon", "button", "spacer", "divider"]);
 export const COMPACT_WIDGET_MIN_HEIGHT = 0;
 export const COMPACT_ICON_BOX_SIZE = 40;
@@ -99,8 +97,6 @@ export const styleToCSS = (
 };
 
 // Re-export so consumers don't need a separate import.
-export type { HoverStyle };
-
 type ResponsiveSize =
   | number
   | "auto"

@@ -14,8 +14,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { customFontsCss, type CustomFont } from "@/lib/theme/customFonts";
 
-export type { CustomFont };
-
 export interface BrandColor {
   /** Stable slug used to build the CSS variable (`--brand-primary`). */
   name: string;
@@ -23,7 +21,7 @@ export interface BrandColor {
   value: string;
 }
 
-export interface BrandFonts {
+interface BrandFonts {
   /** Font-family stack for headings. */
   heading?: string;
   /** Font-family stack for body copy. */
@@ -32,7 +30,7 @@ export interface BrandFonts {
   custom?: CustomFont[];
 }
 
-export interface BrandScale {
+interface BrandScale {
   /** Default border radius (e.g. `8px`). */
   radius?: string;
 }

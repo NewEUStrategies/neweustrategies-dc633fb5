@@ -16,7 +16,7 @@ const CARD_IMAGE_SIZES = "(min-width: 1024px) 360px, (min-width: 768px) 45vw, 92
 
 // Minimalny, dwujęzyczny kształt danych karty. `BlogListItem` jest z nim
 // strukturalnie zgodny, więc można przekazać go wprost.
-export interface PostCardData {
+interface PostCardData {
   title_pl: string;
   title_en: string;
   excerpt_pl: string | null;
@@ -95,5 +95,3 @@ export function PostListCard({
     </Link>
   );
 }
-
-export default PostListCard;

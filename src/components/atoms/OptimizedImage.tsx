@@ -146,5 +146,3 @@ export function OptimizedImage({
     </span>
   );
 }
-
-export default OptimizedImage;

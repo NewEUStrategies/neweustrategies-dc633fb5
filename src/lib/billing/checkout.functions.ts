@@ -193,17 +193,3 @@ export const finalizeCheckout = createServerFn({ method: "POST" })
     await grantEntitlement(order, order.id);
     return { ok: true as const };
   });
-
-export const cancelOrder = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ order_id: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from("payment_orders")
-      .update({ status: "canceled" })
-      .eq("id", data.order_id)
-      .eq("user_id", context.userId)
-      .in("status", ["pending", "processing"]);
-    if (error) throw error;
-    return { ok: true as const };
-  });

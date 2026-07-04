@@ -431,7 +431,9 @@ const RenderSection = memo(function RenderSection({
       </div>
       {(() => {
         const mobileOrderCss = visibleCols
-          .filter((c): c is ColumnNode => c.kind === "column" && typeof c.order?.mobile === "number")
+          .filter(
+            (c): c is ColumnNode => c.kind === "column" && typeof c.order?.mobile === "number",
+          )
           .map(
             (c) =>
               `[data-sec-id="${section.id}"] [data-col-id="${c.id}"]{order:${c.order!.mobile};}`,

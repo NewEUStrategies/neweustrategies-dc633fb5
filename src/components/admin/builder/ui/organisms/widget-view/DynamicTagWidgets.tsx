@@ -71,7 +71,7 @@ function getNum(c: WidgetNode["content"], k: string, fb = 0): number {
   return typeof v === "number" ? v : fb;
 }
 
-export function PostTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
+function PostTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const c = node.content;
   const tag = getStr(c, "tag", "h1");
@@ -92,7 +92,7 @@ export function PostTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }
   return createElement(tag, { className: "cms-post-title leading-tight" }, inner);
 }
 
-export function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
+function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const c = node.content;
   const sep = getStr(c, "separator", " · ");
@@ -187,7 +187,7 @@ function PillList({
   );
 }
 
-export function PostTagsDynWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
+function PostTagsDynWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const c = node.content;
   const items = ctx.tags ?? [];
@@ -205,7 +205,7 @@ export function PostTagsDynWidget({ node, lang }: { node: WidgetNode; lang: Lang
   );
 }
 
-export function PostCategoriesDynWidget({ node }: { node: WidgetNode; lang: Lang }) {
+function PostCategoriesDynWidget({ node }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const limit = getNum(node.content, "limit", 0);
   const items = (ctx.categories ?? []).slice(0, limit > 0 ? limit : undefined);
@@ -213,7 +213,7 @@ export function PostCategoriesDynWidget({ node }: { node: WidgetNode; lang: Lang
   return <PillList items={items} base="category" />;
 }
 
-export function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
+function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const a = ctx.author;
   if (!a) return null;
@@ -255,7 +255,7 @@ export function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: L
   );
 }
 
-export function PostBreadcrumbsWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
+function PostBreadcrumbsWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const c = node.content;
   const sep = getStr(c, "separator", "/");
@@ -305,7 +305,7 @@ export function PostBreadcrumbsWidget({ node, lang }: { node: WidgetNode; lang: 
   );
 }
 
-export function PostCoverWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
+function PostCoverWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const c = node.content;
   if (!ctx.coverUrl) return null;
@@ -325,7 +325,7 @@ export function PostCoverWidget({ node, lang }: { node: WidgetNode; lang: Lang }
   );
 }
 
-export function PostExcerptWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
+function PostExcerptWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const max = getNum(node.content, "maxChars", 240);
   const raw = pickLocalized(ctx, lang, "excerpt");
@@ -334,7 +334,7 @@ export function PostExcerptWidget({ node, lang }: { node: WidgetNode; lang: Lang
   return <p className="cms-post-excerpt text-muted-foreground">{text}</p>;
 }
 
-export function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
+function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const ctx = useCtx();
   const a = ctx.archive ?? {
     type: "category",
@@ -368,7 +368,7 @@ export function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lan
   );
 }
 
-export function SearchFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
+function SearchFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const c = node.content;
   const action = safeUrl(getStr(c, "action", "/search")) || "/search";
   const placeholder =

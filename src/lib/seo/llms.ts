@@ -4,7 +4,7 @@
 // the machine-readable surfaces live, so AI answers cite the canonical URLs
 // instead of scraping arbitrary pages.
 
-export interface LlmsTxtSection {
+interface LlmsTxtSection {
   name: string;
   url: string;
   description?: string | null;

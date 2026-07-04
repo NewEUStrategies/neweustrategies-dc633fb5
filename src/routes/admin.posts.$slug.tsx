@@ -46,7 +46,7 @@ import {
 } from "@/lib/lucide-shim";
 import { ChevronDown } from "lucide-react";
 import { PostBlockEditor } from "@/components/admin/blocks/PostBlockEditor";
-import type { LocalizedBlocks, BlocksDoc } from "@/lib/blocks/types";
+import type { LocalizedBlocks } from "@/lib/blocks/types";
 import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
 import { getLayoutSet, findLayout, mergeOverrides, pickLayoutId } from "@/lib/postLayouts";
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
@@ -374,7 +374,6 @@ function EditPost() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
 
   if (isLoading || !form) return <div className="text-sm text-muted-foreground">...</div>;
 

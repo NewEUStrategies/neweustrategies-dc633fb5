@@ -4,8 +4,8 @@ import type { SectionNode, ColumnNode, WidgetNode, InnerSectionNode } from "./ty
 
 const KEY = "builder.clipboard.v1";
 
-export type ClipKind = "section" | "inner-section" | "column" | "widget";
-export type ClipNode = SectionNode | InnerSectionNode | ColumnNode | WidgetNode;
+type ClipKind = "section" | "inner-section" | "column" | "widget";
+type ClipNode = SectionNode | InnerSectionNode | ColumnNode | WidgetNode;
 export interface ClipEnvelope {
   kind: ClipKind;
   node: ClipNode;

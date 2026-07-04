@@ -27,12 +27,6 @@ export function useBookmarks() {
   });
 }
 
-export function useIsBookmarked(entityType: BookmarkEntityType, entityId: string | undefined) {
-  const { data } = useBookmarks();
-  if (!entityId) return false;
-  return (data ?? []).some((b) => b.entity_type === entityType && b.entity_id === entityId);
-}
-
 export function useToggleBookmark() {
   const qc = useQueryClient();
   const { user } = useAuth();

@@ -92,7 +92,7 @@ export function mergeGlobalIntoInstance(instance: WidgetNode, data: GlobalWidget
 // ---------- query keys (registered in WIDGET_LIVE_QUERY_PREFIXES) ----------
 
 export const globalWidgetKey = (id: string) => ["global-widget", id] as const;
-export const globalWidgetsListKey = (tenantId: string | null) =>
+const globalWidgetsListKey = (tenantId: string | null) =>
   ["global-widgets", tenantId ?? ""] as const;
 
 // ---------- render-side resolution ----------

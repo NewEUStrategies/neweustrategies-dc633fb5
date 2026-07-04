@@ -81,14 +81,3 @@ export function isModeOverridden<T>(v: Themed<T> | undefined, mode: Mode): boole
   // Flat value counts as an override for both modes (it's user-set).
   return true;
 }
-
-/** Number of fields in a CommonStyle that carry a dark-mode override. */
-export function countDarkOverrides(style: Record<string, unknown> | undefined): number {
-  if (!style) return 0;
-  let n = 0;
-  for (const key of Object.keys(style)) {
-    const v = style[key];
-    if (isThemedValue(v) && (v as ThemedValue<unknown>).dark != null) n++;
-  }
-  return n;
-}

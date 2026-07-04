@@ -18,7 +18,6 @@ import {
   User as UserIcon,
   CreditCard,
   ListOrdered,
-  FolderTree,
 } from "@/lib/lucide-shim";
 
 export type CommandSection =
@@ -57,7 +56,7 @@ export interface PaletteCommand {
 
 const Icon = (C: typeof Home) => <C className="w-4 h-4" />;
 
-export const STATIC_COMMANDS: PaletteCommand[] = [
+const STATIC_COMMANDS: PaletteCommand[] = [
   // Public navigation
   {
     id: "nav:home",

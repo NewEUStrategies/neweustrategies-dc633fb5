@@ -70,7 +70,7 @@ export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] =
   { value: "hover-allsides-8", label: "Allsides: rogi-segmenty" },
 ];
 
-export const HOVER_LINE_CSS = `
+const HOVER_LINE_CSS = `
 .ah-hu { display: inline-block; padding-bottom: 1px; cursor: pointer; }
 .ah-hu-1 { background: linear-gradient(currentColor 0 0) var(--p,50%) 100%/var(--d,10%) 3px no-repeat; transition: .3s, background-position .3s .3s; }
 .ah-hu-1:hover { --d:100%; --p:0%; transition: .3s, background-size .3s .3s; }
@@ -90,7 +90,7 @@ export const HOVER_LINE_CSS = `
 .ah-hu-8:hover { --p:10.1%; transition: .5s cubic-bezier(0,800,1,800); }
 `;
 
-export const HOVER_ALLSIDES_CSS = `
+const HOVER_ALLSIDES_CSS = `
 .ah-as { display: inline-block; padding: 8px; cursor: pointer; }
 .allsides-1 {
   background:

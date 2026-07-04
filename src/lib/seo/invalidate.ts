@@ -37,7 +37,7 @@ export interface RouterLike {
  * prawdziwymi kluczami z src/lib/queries i pilnuje, ze kazdy z nich faktycznie
  * przechodzi w stan invalidated - to on wyłapie dryf nazw kluczy.
  */
-export const SEO_QUERY_KEY_PREFIXES: readonly (readonly string[])[] = [
+const SEO_QUERY_KEY_PREFIXES: readonly (readonly string[])[] = [
   ["public"],
   ["seo-panel-path"],
   ["site_settings"],

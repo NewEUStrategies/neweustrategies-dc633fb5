@@ -17,7 +17,7 @@ import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { EMPTY_BLOCKS_DOC } from "@/lib/blocks/types";
 import { useBlocksHistory, type BlocksHistory } from "./useBlocksHistory";
 
-export type BlocksLang = "pl" | "en";
+type BlocksLang = "pl" | "en";
 
 export interface LocalizedBlocksHistory {
   lang: BlocksLang;

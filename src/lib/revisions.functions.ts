@@ -14,7 +14,7 @@ import { pickRestorableFields, pickRevisionSnapshot } from "./content/revisions"
 const UUID = z.string().uuid();
 const EntityType = z.enum(["post", "page"]);
 
-export interface RevisionListItem {
+interface RevisionListItem {
   id: string;
   created_at: string;
   author_id: string | null;

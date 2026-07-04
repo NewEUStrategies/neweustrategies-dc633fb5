@@ -12,8 +12,8 @@ export interface SeoStatusInput extends SeoFieldsRow {
   cover_image_url: string | null;
 }
 
-export type DescriptionSource = "override" | "excerpt" | "missing";
-export type SocialImageSource = "override" | "cover" | "card" | "default";
+type DescriptionSource = "override" | "excerpt" | "missing";
+type SocialImageSource = "override" | "cover" | "card" | "default";
 export type SeoGrade = "good" | "warn" | "poor";
 
 export interface SeoContentStatus {

@@ -76,8 +76,8 @@ describe("resolveTickerSource", () => {
   });
   it("respects pinnedUntil expiry", () => {
     const past = new Date(Date.now() - 60_000).toISOString();
-    expect(
-      resolveTickerSource({ source: "pinned", pinnedPostId: "x", pinnedUntil: past }),
-    ).toBe("latest");
+    expect(resolveTickerSource({ source: "pinned", pinnedPostId: "x", pinnedUntil: past })).toBe(
+      "latest",
+    );
   });
 });

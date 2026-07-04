@@ -5,7 +5,7 @@ import { useState } from "react";
 import { ImageLightbox } from "@/components/Lightbox";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 
-export interface GalleryItem {
+interface GalleryItem {
   url: string;
   alt: string;
 }

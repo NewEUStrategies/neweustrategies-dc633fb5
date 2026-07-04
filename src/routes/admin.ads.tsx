@@ -26,7 +26,6 @@ import {
   type AdPosition,
   type AdSlot,
   type AdSlotKind,
-  type AdSlotStatus,
 } from "@/lib/ads/types";
 
 export const Route = createFileRoute("/admin/ads")({ component: AdsAdmin });

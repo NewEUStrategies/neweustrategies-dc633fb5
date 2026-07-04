@@ -1,7 +1,7 @@
 import { Check, Pencil, Lock, Circle, Clock, Send } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
 
-export type ContentStatus = "published" | "draft" | "archived" | "pending_review" | "scheduled";
+type ContentStatus = "published" | "draft" | "archived" | "pending_review" | "scheduled";
 
 interface StatusBadgeProps {
   status: ContentStatus | string;

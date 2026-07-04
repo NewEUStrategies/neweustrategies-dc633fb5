@@ -13,10 +13,6 @@ export type Footnote = { id: number; html: string };
 // Match [fn]...[/fn] non-greedy. Inner content keeps user HTML (sanitized at render time).
 const FN_RE = /\[fn\]([\s\S]*?)\[\/fn\]/g;
 
-export function hasFootnotes(html: string | null | undefined): boolean {
-  return !!html && html.includes("[fn]");
-}
-
 /**
  * Recover the footnote list from ALREADY-RENDERED markup (the "baked" output of
  * processHtmlFootnotes + footnotesSectionHtml that migrated content stores in a

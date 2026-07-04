@@ -137,13 +137,6 @@ export const BlocksDocSchema: z.ZodType<BlocksDoc> = z
   })
   .strict() as z.ZodType<BlocksDoc>;
 
-export const LocalizedBlocksSchema = z
-  .object({
-    pl: BlocksDocSchema,
-    en: BlocksDocSchema,
-  })
-  .strict();
-
 export function isBlocksDoc(value: unknown): value is BlocksDoc {
   return BlocksDocSchema.safeParse(value).success;
 }

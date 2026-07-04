@@ -57,7 +57,7 @@ export function sliderPostsLimit(c: WidgetContent): number {
   return Math.max(1, Math.min(20, getNum(c, "limit", 5)));
 }
 
-export function sliderPostsInput(c: WidgetContent): SliderPostsInput {
+function sliderPostsInput(c: WidgetContent): SliderPostsInput {
   return {
     limit: sliderPostsLimit(c),
     categoryId: getStr(c, "categoryId"),

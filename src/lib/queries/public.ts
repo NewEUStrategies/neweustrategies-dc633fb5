@@ -110,7 +110,7 @@ export interface PostData extends PageData {
   author_id: string | null;
 }
 
-export interface PostAuthor {
+interface PostAuthor {
   id: string;
   slug: string | null;
   display_name: string | null;

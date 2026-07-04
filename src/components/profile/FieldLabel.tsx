@@ -46,5 +46,3 @@ export function FieldLabel({ htmlFor, children, tip, hint, className }: FieldLab
     </div>
   );
 }
-
-export default FieldLabel;

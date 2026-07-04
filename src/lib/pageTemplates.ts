@@ -4,8 +4,6 @@
 //   - queries/public.ts to project the field on PageData
 export type PageTemplateType = "default" | "full_width" | "landing" | "archive_listing" | "contact";
 
-export type HeaderOverride = null | "transparent" | "hidden" | string; // builder_template_id for custom
-
 export interface PageTemplateSpec {
   id: PageTemplateType;
   label_pl: string;
@@ -66,25 +64,6 @@ export const PAGE_TEMPLATES: readonly PageTemplateSpec[] = [
   },
 ] as const;
 
-export const PAGE_TEMPLATE_IDS: readonly PageTemplateType[] = PAGE_TEMPLATES.map((t) => t.id);
-
 export function findPageTemplate(id: string | null | undefined): PageTemplateSpec {
   return PAGE_TEMPLATES.find((t) => t.id === id) ?? PAGE_TEMPLATES[0];
-}
-
-export function isValidPageTemplate(v: unknown): v is PageTemplateType {
-  return typeof v === "string" && PAGE_TEMPLATE_IDS.includes(v as PageTemplateType);
-}
-
-/** Special header tokens (anything else is treated as a builder_template UUID). */
-export const HEADER_OVERRIDE_TOKENS = ["transparent", "hidden"] as const;
-export type HeaderOverrideToken = (typeof HEADER_OVERRIDE_TOKENS)[number];
-
-export function parseHeaderOverride(v: string | null | undefined): {
-  kind: "default" | HeaderOverrideToken | "template";
-  templateId?: string;
-} {
-  if (!v) return { kind: "default" };
-  if (v === "transparent" || v === "hidden") return { kind: v };
-  return { kind: "template", templateId: v };
 }

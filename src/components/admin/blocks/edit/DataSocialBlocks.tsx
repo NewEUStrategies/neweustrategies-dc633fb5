@@ -37,7 +37,6 @@ interface TeamMember {
 }
 
 export function TeamGridBlock({ block, onChange }: Props) {
-  const i18n = useBlocksI18n();
   const rawItems = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: TeamMember[] = rawItems.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -512,7 +511,6 @@ export function AlertBannerBlock({ block, onChange }: Props) {
 // ===== Divider with text =====
 
 export function DividerTextBlock({ block, onChange }: Props) {
-  const i18n = useBlocksI18n();
   const d = block.data;
   return (
     <Shell label="Separator z tekstem">

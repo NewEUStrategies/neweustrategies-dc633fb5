@@ -109,5 +109,3 @@ export function AdminSelect({
     </Select>
   );
 }
-
-export default AdminSelect;

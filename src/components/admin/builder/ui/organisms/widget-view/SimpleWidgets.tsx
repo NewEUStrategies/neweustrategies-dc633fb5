@@ -32,11 +32,10 @@ import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { AuthFormWidget } from "./AuthFormWidget";
-import { useSiteLogo, ImageWidget, PostsSliderWidget } from "./mediaWidgets";
+import { ImageWidget, PostsSliderWidget } from "./mediaWidgets";
 import { SearchButtonWidget } from "./SearchButtonWidget";
 import { LangSwitcherDropdown, ThemeToggleWidget } from "./chromeWidgets";
 import { AccountMenuWidget, type AccountMenuConfig } from "./AccountMenuWidget";
-import { ResizableImageWrap } from "./resizeWrappers";
 export { ResizableBox } from "./resizeWrappers";
 
 const compactRowStyle: CSSProperties = {

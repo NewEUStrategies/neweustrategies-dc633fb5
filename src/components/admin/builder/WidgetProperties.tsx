@@ -38,7 +38,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { PropField, ColorField, StepperInput, NumberInput } from "./ui/atoms";
+import { PropField, ColorField, StepperInput } from "./ui/atoms";
 import { PositionAnchor } from "./ui/atoms/PositionAnchor";
 import { SpacingControl } from "./ui/molecules/SpacingControl";
 import { TypographyControl } from "./ui/molecules/TypographyControl";
@@ -64,7 +64,6 @@ import {
   AccountLinkEditor,
   HeadingFallbackPreview,
 } from "./ui/organisms/widget-properties";
-import { ShadowEditor } from "./ui/molecules/ShadowEditor";
 
 interface Props {
   widget: WidgetNode;

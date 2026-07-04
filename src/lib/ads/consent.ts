@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-export const CONSENT_VERSION = 2;
+const CONSENT_VERSION = 2;
 const STORAGE_KEY = "consent:v2";
 const LEGACY_KEY = "consent:marketing";
 const EVENT = "consent-change";
@@ -23,14 +23,7 @@ export interface ConsentState {
   source?: "local" | "profile";
 }
 
-export const ALL_CATEGORIES: ConsentCategory[] = [
-  "necessary",
-  "functional",
-  "analytics",
-  "marketing",
-];
-
-export function defaultConsent(granted: boolean): ConsentState {
+function defaultConsent(granted: boolean): ConsentState {
   return {
     version: CONSENT_VERSION,
     ts: Date.now(),
@@ -87,15 +80,7 @@ function writeLocal(state: ConsentState) {
   window.dispatchEvent(new Event(EVENT));
 }
 
-export function getConsent(): ConsentState | null {
-  return readLocal();
-}
-
-export function hasConsentDecision(): boolean {
-  return !!readLocal();
-}
-
-export function setConsent(categories: Partial<Record<ConsentCategory, boolean>>) {
+function setConsent(categories: Partial<Record<ConsentCategory, boolean>>) {
   const next: ConsentState = {
     version: CONSENT_VERSION,
     ts: Date.now(),
@@ -113,16 +98,11 @@ export function setConsent(categories: Partial<Record<ConsentCategory, boolean>>
   return next;
 }
 
-export function clearConsent() {
+function clearConsent() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(STORAGE_KEY);
   window.localStorage.removeItem(LEGACY_KEY);
   window.dispatchEvent(new Event(EVENT));
-}
-
-export function openConsentPreferences() {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new Event(OPEN_PREFS_EVENT));
 }
 
 // -------------------- Profile sync --------------------
@@ -144,7 +124,7 @@ async function syncConsentToProfile(state: ConsentState): Promise<void> {
 }
 
 /** Pobiera consent z profilu zalogowanego użytkownika i wpisuje do localStorage (jeśli świeższy lub brakuje). */
-export async function hydrateConsentFromProfile(): Promise<ConsentState | null> {
+async function hydrateConsentFromProfile(): Promise<ConsentState | null> {
   try {
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth?.user?.id;
@@ -221,23 +201,6 @@ export function useConsent() {
 }
 
 // -------- Backward compat (marketing-only API) --------
-
-export function getMarketingConsent(): boolean {
-  return !!readLocal()?.categories.marketing;
-}
-
-export function setMarketingConsent(granted: boolean) {
-  const cur = readLocal() ?? defaultConsent(false);
-  setConsent({ ...cur.categories, marketing: granted });
-}
-
-export function clearMarketingConsent() {
-  clearConsent();
-}
-
-export function hasMarketingDecision(): boolean {
-  return hasConsentDecision();
-}
 
 export function useMarketingConsent() {
   const { state, decided, save } = useConsent();

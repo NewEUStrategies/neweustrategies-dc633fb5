@@ -23,15 +23,15 @@ function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-export function toLocalDate(d: Date): string {
+function toLocalDate(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function toLocalDateTime(d: Date): string {
+function toLocalDateTime(d: Date): string {
   return `${toLocalDate(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function parseLocalDateTime(v: string): Date | null {
+function parseLocalDateTime(v: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(v);
   if (!m) {
     const d = new Date(v);

@@ -6,7 +6,7 @@
 import { xmlEscape } from "@/lib/seo/rss";
 
 export const NEWS_SITEMAP_WINDOW_MS = 48 * 60 * 60 * 1000;
-export const NEWS_SITEMAP_MAX_ENTRIES = 1000;
+const NEWS_SITEMAP_MAX_ENTRIES = 1000;
 
 export interface NewsSitemapEntry {
   /** Absolute, language-addressed URL. */

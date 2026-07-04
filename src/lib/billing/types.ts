@@ -1,6 +1,6 @@
 // Domain types for billing/checkout module. Strict - no any.
 
-export type PlanInterval = "day" | "week" | "month" | "year" | "once";
+type PlanInterval = "day" | "week" | "month" | "year" | "once";
 
 export interface AccessPlan {
   id: string;
@@ -57,8 +57,8 @@ export interface BillingProfileInput {
   is_company: boolean;
 }
 
-export type OrderKind = "subscription" | "one_time";
-export type OrderStatus = "pending" | "processing" | "paid" | "failed" | "refunded" | "canceled";
+type OrderKind = "subscription" | "one_time";
+type OrderStatus = "pending" | "processing" | "paid" | "failed" | "refunded" | "canceled";
 
 export interface PaymentOrder {
   id: string;

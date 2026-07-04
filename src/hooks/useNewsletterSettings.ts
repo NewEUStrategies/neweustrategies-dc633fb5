@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";
-export type NewsletterPopupLayout = "stacked" | "split";
+type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";
+type NewsletterPopupLayout = "stacked" | "split";
 
 export interface NewsletterMailingList {
   id: string;

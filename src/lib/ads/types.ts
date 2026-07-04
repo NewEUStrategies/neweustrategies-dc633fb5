@@ -1,7 +1,7 @@
 // Współdzielone typy dla systemu reklamowego (ad_slots + ad_placements).
 
 export type AdSlotKind = "html" | "script" | "image";
-export type AdSlotStatus = "active" | "paused";
+type AdSlotStatus = "active" | "paused";
 
 export type AdPosition =
   | "header_banner"

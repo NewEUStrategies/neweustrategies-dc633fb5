@@ -1,15 +1,12 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import {
   Briefcase,
   GraduationCap,
   Wrench,
   Award,
   FileText,
-  Heart,
-  Sparkles,
   Plus,
   Trash2,
   ExternalLink,
@@ -20,7 +17,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -915,213 +911,6 @@ export function CvSection({
 }
 
 /* ------------------------------------------------------------------ */
-/* Personality (sidebar)                                               */
-/* ------------------------------------------------------------------ */
-
-type PersonalityRow = {
-  openness: number;
-  conscientiousness: number;
-  extraversion: number;
-  agreeableness: number;
-  neuroticism: number;
-  taken_at: string;
-};
-
-const AXIS_COLOR: Record<string, string> = {
-  openness: "bg-violet-500",
-  conscientiousness: "bg-sky-500",
-  extraversion: "bg-emerald-500",
-  agreeableness: "bg-amber-500",
-  neuroticism: "bg-rose-500",
-};
-
-export function PersonalityCard({ userId, editable }: { userId: string; editable: boolean }) {
-  const { t } = useTranslation();
-  const q = useQuery({
-    queryKey: ["personality_results", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("personality_results")
-        .select("openness,conscientiousness,extraversion,agreeableness,neuroticism,taken_at")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (error && error.code !== "PGRST116") throw error;
-      return (data as PersonalityRow | null) ?? null;
-    },
-  });
-
-  return (
-    <SectionCard
-      icon={<Sparkles className="h-4 w-4" />}
-      title={t("profile.sidebar.personality")}
-      action={
-        editable ? (
-          <Link to="/profile/personality" className="text-xs text-primary hover:underline">
-            {q.data ? t("profile.sidebar.retakeTest") : t("profile.sidebar.takeTest")}
-          </Link>
-        ) : undefined
-      }
-    >
-      {q.data ? (
-        <div className="space-y-2.5">
-          {(
-            [
-              "openness",
-              "conscientiousness",
-              "extraversion",
-              "agreeableness",
-              "neuroticism",
-            ] as const
-          ).map((axis) => {
-            const value = q.data![axis] ?? 0;
-            const [low, high] = t(`profile.personality.lowHigh.${axis}`, {
-              returnObjects: true,
-            }) as [string, string];
-            return (
-              <div key={axis}>
-                <div className="mb-1 flex items-center justify-between text-[11px]">
-                  <span className="text-muted-foreground">{low}</span>
-                  <span className="font-medium">{high}</span>
-                </div>
-                <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={`h-full ${AXIS_COLOR[axis]} transition-all`}
-                    style={{ width: `${value}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <p className="text-xs text-muted-foreground">{t("profile.sidebar.testNote")}</p>
-      )}
-    </SectionCard>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Hobbies                                                             */
-/* ------------------------------------------------------------------ */
-
-type Hobby = { id: string; label: string; icon: string | null };
-
-export function HobbiesCard({
-  userId,
-  tenantId,
-  editable,
-}: {
-  userId: string;
-  tenantId: string;
-  editable: boolean;
-}) {
-  const { t } = useTranslation();
-  const qc = useQueryClient();
-  const q = useUserList<Hobby>("profile_hobbies", "sort_order", true, userId);
-  const [value, setValue] = useState("");
-  const items = q.data ?? [];
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["profile_hobbies", userId] });
-
-  async function add() {
-    const label = value.trim();
-    if (!label) return;
-    const { error } = await supabase.from("profile_hobbies").insert({
-      user_id: userId,
-      tenant_id: tenantId,
-      label,
-    });
-    if (error) return toast.error(error.message);
-    setValue("");
-    invalidate();
-  }
-  async function remove(id: string) {
-    const { error } = await supabase.from("profile_hobbies").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    invalidate();
-  }
-
-  return (
-    <SectionCard icon={<Heart className="h-4 w-4" />} title={t("profile.sidebar.hobbies")}>
-      <div className="flex flex-wrap gap-1.5">
-        {items.map((h) => (
-          <span
-            key={h.id}
-            className="inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-muted/60 px-2 py-1 text-xs"
-          >
-            {h.label}
-            {editable ? (
-              <button
-                type="button"
-                onClick={() => remove(h.id)}
-                aria-label={t("profile.actions.remove")}
-                className="rounded text-muted-foreground hover:text-destructive"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            ) : null}
-          </span>
-        ))}
-        {!items.length ? (
-          <span className="text-xs italic text-muted-foreground">{t("profile.actions.empty")}</span>
-        ) : null}
-      </div>
-      {editable ? (
-        <div className="mt-3 flex gap-2">
-          <Input
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void add();
-              }
-            }}
-            placeholder={t("profile.forms.addHobby")}
-            className="h-8 text-xs"
-          />
-          <Button size="sm" onClick={add} className="h-8 px-3 text-xs">
-            <Plus className="mr-1 h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ) : null}
-    </SectionCard>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Public surface                                                      */
-/* ------------------------------------------------------------------ */
-
-export interface ProfileExtraSectionsProps {
-  userId: string;
-  tenantId: string;
-  editable: boolean;
-}
-
-/** Two-column extra sections: left = experience/edu/skills/awards/cv, right = sticky meta. */
-export function ProfileExtraSections({ userId, tenantId, editable }: ProfileExtraSectionsProps) {
-  if (!userId || !tenantId) return null;
-  return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-      <div className="space-y-4">
-        <ExperienceSection userId={userId} tenantId={tenantId} editable={editable} />
-        <EducationSection userId={userId} tenantId={tenantId} editable={editable} />
-        <SkillsSection userId={userId} tenantId={tenantId} editable={editable} />
-        <AwardsSection userId={userId} tenantId={tenantId} editable={editable} kind="award" />
-        <AwardsSection userId={userId} tenantId={tenantId} editable={editable} kind="recognition" />
-        <AwardsSection userId={userId} tenantId={tenantId} editable={editable} kind="mention" />
-        <CvSection userId={userId} tenantId={tenantId} editable={editable} />
-      </div>
-      <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-        <PersonalityCard userId={userId} editable={editable} />
-        <HobbiesCard userId={userId} tenantId={tenantId} editable={editable} />
-      </aside>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /* Mini form helpers                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -1197,6 +986,3 @@ function formatBytes(n: number): string {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(2)} MB`;
 }
-
-/* Re-exports for tests */
-export { formatBytes, formatRange };

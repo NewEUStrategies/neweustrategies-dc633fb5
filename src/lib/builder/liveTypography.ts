@@ -6,7 +6,7 @@ const EVENT_NAME = "builder:widget-typography";
 const STORAGE_PREFIX = "builder:widget-typography:";
 const STYLE_ID_PREFIX = "builder-live-typography-style-";
 
-export interface WidgetTypographyLivePayload {
+interface WidgetTypographyLivePayload {
   widgetId: string;
   typography: WidgetTypography | undefined;
   updatedAt: number;

@@ -54,7 +54,7 @@ function authorName(a: AuthorLite): string {
   return (
     a.display_name ||
     [a.first_name, a.last_name].filter(Boolean).join(" ") ||
-    (lang => (lang === "en" ? "Author" : "Autor"))("pl")
+    ((lang) => (lang === "en" ? "Author" : "Autor"))("pl")
   );
 }
 
@@ -80,7 +80,17 @@ export function PostOverlayMeta({ lang, author, publishedAt, readMinutes, custom
       )}
       {publishedAt && (
         <span className="inline-flex items-center gap-1.5">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 opacity-80" aria-hidden><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="w-3.5 h-3.5 opacity-80"
+            aria-hidden
+          >
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <path d="M16 2v4M8 2v4M3 10h18" />
+          </svg>
           <span className="opacity-80">{t.published}:</span>
           <time dateTime={publishedAt}>{fmtDate(publishedAt, lang)}</time>
         </span>

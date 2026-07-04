@@ -94,7 +94,7 @@ export interface NavStyleResolved {
   arrowStroke: number;
 }
 
-export function resolveNavStyle(cfg: SliderConfig): NavStyleResolved {
+function resolveNavStyle(cfg: SliderConfig): NavStyleResolved {
   const sizePx = Math.max(28, Math.min(96, cfg.navSizePx ?? 52));
   const radiusRaw = typeof cfg.navRoundedPx === "number" ? cfg.navRoundedPx : 999;
   const radiusCss = radiusRaw >= 999 ? "9999px" : `${Math.max(0, radiusRaw)}px`;

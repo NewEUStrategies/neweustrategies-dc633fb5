@@ -41,7 +41,7 @@ export interface VitalMetricSummary {
 }
 
 /** Compact per-metric stat used inside the per-path breakdown. */
-export interface VitalPathMetric {
+interface VitalPathMetric {
   metric: VitalName;
   count: number;
   p75: number;
@@ -99,7 +99,7 @@ export function percentile(sortedAsc: number[], p: number): number {
 }
 
 /** Round a metric value for display: CLS to 3 decimals, time metrics to whole ms. */
-export function roundVitalValue(metric: VitalName, v: number): number {
+function roundVitalValue(metric: VitalName, v: number): number {
   if (metric === "CLS") return Math.round(v * 1000) / 1000;
   return Math.round(v);
 }

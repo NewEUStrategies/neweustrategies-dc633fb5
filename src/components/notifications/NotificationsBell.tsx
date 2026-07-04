@@ -235,5 +235,3 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
     </Popover>
   );
 }
-
-export default NotificationsBell;

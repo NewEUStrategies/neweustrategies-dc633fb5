@@ -10,9 +10,7 @@ export function currentServerHost(): string | null {
   try {
     const request = getRequest();
     if (!request) return null;
-    return normalizeHost(
-      request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
-    );
+    return normalizeHost(request.headers.get("x-forwarded-host") ?? request.headers.get("host"));
   } catch {
     return null;
   }

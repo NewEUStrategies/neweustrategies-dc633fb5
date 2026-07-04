@@ -101,7 +101,7 @@ export const deleteMedia = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .inputValidator((input: unknown) => DeleteSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+    const { supabase } = context;
 
     // Read via user client - RLS makes sure the user is allowed to see this row.
     const { data: row, error } = await supabase
@@ -163,7 +163,9 @@ export const getMediaUsage = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => UsageSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ items: MediaUsageItem[] }> => {
     const { supabase, userId } = context;
-    const tenantId = await resolveUserTenantId(supabaseAdmin, userId);
+    // Fail-closed guard: a caller without a tenant must not run this scan
+    // (resolveUserTenantId throws). The tenant id itself is no longer used here.
+    await resolveUserTenantId(supabaseAdmin, userId);
 
     const { data: media, error: mErr } = await supabase
       .from("media")

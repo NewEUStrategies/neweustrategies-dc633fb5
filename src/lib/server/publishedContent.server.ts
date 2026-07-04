@@ -52,7 +52,7 @@ export interface PublishedCategoryRow {
 }
 
 /** Full paths of all published pages of a tenant, keyed by page id. */
-export async function fetchPagePaths(tenantId: string): Promise<Map<string, string>> {
+async function fetchPagePaths(tenantId: string): Promise<Map<string, string>> {
   return edgeTtlCache(`seo:page-paths:${tenantId}`, CACHE_TTL_MS, () =>
     resilient("page-paths", new Map<string, string>(), async () => {
       const { data } = await supabaseAdmin

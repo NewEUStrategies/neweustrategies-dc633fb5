@@ -43,7 +43,7 @@ async function loadIndex(tenantId: string): Promise<RedirectIndex> {
 }
 
 /** Cached redirect index for a tenant; concurrent cold requests share one round-trip. */
-export async function getRedirectIndex(tenantId: string): Promise<RedirectIndex> {
+async function getRedirectIndex(tenantId: string): Promise<RedirectIndex> {
   const now = Date.now();
   const cached = cacheByTenant.get(tenantId);
   if (cached && now - cached.at < CACHE_TTL_MS) return cached.index;
@@ -57,12 +57,6 @@ export async function getRedirectIndex(tenantId: string): Promise<RedirectIndex>
     inflightByTenant.set(tenantId, inflight);
   }
   return inflight;
-}
-
-/** Test/admin hook: drop the per-isolate cache after mutations. */
-export function invalidateRedirectCache(): void {
-  cacheByTenant.clear();
-  inflightByTenant.clear();
 }
 
 /** Match a request path against the tenant's cached rules. */
@@ -90,7 +84,7 @@ const log404Limiter = createRateLimiter({ capacity: 30, refillPerSec: 0.5 });
 const ASSET_EXT_RE =
   /\.(js|mjs|css|map|json|png|jpe?g|webp|avif|gif|svg|ico|woff2?|ttf|otf|eot|mp4|webm|mp3|pdf|zip)$/i;
 
-export function shouldLog404(pathname: string): boolean {
+function shouldLog404(pathname: string): boolean {
   if (pathname.length > 500) return false;
   if (ASSET_EXT_RE.test(pathname)) return false;
   if (pathname.startsWith("/.well-known/")) return false;

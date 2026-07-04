@@ -23,15 +23,12 @@ import {
   Linkedin,
   Twitter,
   Phone,
-  User as UserIcon,
-  Cake,
   Heart,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 
 import { supabase } from "@/integrations/supabase/client";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -51,8 +48,6 @@ import {
   SkillsSection,
   AwardsSection,
   CvSection,
-  PersonalityCard,
-  HobbiesCard,
 } from "@/components/profile/sections/ProfileExtraSections";
 import { cn } from "@/lib/utils";
 import { useSiteSetting } from "@/lib/useSiteSetting";
@@ -688,7 +683,6 @@ function CenteredHero({
   const coverInput = useRef<HTMLInputElement | null>(null);
   const [hoverCover, setHoverCover] = useState(false);
   const [hoverAvatar, setHoverAvatar] = useState(false);
-  const initial = fullName.trim().charAt(0).toUpperCase() || "·";
   const upCover = status.cover === "uploading";
   const upAvatar = status.avatar === "uploading";
 
@@ -917,50 +911,6 @@ function CompanyLogoIcon({ className = "h-3 w-3" }: { className?: string }) {
   );
 }
 
-function Chip({
-  icon,
-  children,
-  tone = "muted",
-  size = "sm",
-  onClick,
-}: {
-  icon?: ReactNode;
-  children: ReactNode;
-  tone?: "primary" | "muted" | "solid" | "accent";
-  size?: "sm" | "lg";
-  onClick?: () => void;
-}) {
-  const sizeCls =
-    size === "lg" ? "h-8 px-3 py-1.5 text-xs gap-1.5" : "h-auto px-2.5 py-1 text-[10px] gap-1";
-  const toneCls =
-    tone === "solid"
-      ? "border border-primary/30 bg-primary/10 text-foreground [&_svg]:text-primary shadow-sm"
-      : tone === "accent"
-        ? "border border-border bg-muted/60 text-foreground [&_svg]:text-primary"
-        : tone === "primary"
-          ? "border border-border bg-background text-foreground [&_svg]:text-primary"
-          : "border border-border bg-background text-foreground/80 [&_svg]:text-muted-foreground";
-  const cls = cn(
-    "inline-flex items-center rounded-[6px] font-medium leading-[1.2] whitespace-nowrap transition-colors",
-    sizeCls,
-    toneCls,
-    onClick && "cursor-pointer border-dashed italic hover:bg-accent hover:text-accent-foreground",
-  );
-  if (onClick)
-    return (
-      <button type="button" onClick={onClick} className={cls}>
-        {icon}
-        {children}
-      </button>
-    );
-  return (
-    <span className={cls}>
-      {icon}
-      {children}
-    </span>
-  );
-}
-
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid grid-cols-[110px_1fr] items-center gap-2">
@@ -968,18 +918,6 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
         {label}
       </dt>
       <dd className="min-w-0 text-sm">{children}</dd>
-    </div>
-  );
-}
-
-function MiniRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-2 rounded-[6px] px-1.5 py-1 hover:bg-muted/50">
-      <span className="flex items-center gap-1.5 text-muted-foreground">
-        {icon}
-        {label}
-      </span>
-      <span className="truncate text-foreground/90">{value}</span>
     </div>
   );
 }

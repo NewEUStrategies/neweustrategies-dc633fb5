@@ -26,11 +26,9 @@ import {
   DEFAULT_LIGHT_COLORS,
   DEFAULT_DARK_COLORS,
   DEFAULT_TICKER_COLORS,
-  DEFAULT_TICKER_CONFIG,
   MAX_TICKER_VARIANTS,
   makeDefaultVariant,
   normalizeTickerSettings,
-  type MixedFill,
   type TickerColors,
   type TickerColorScheme,
   type TickerSettings,
@@ -200,8 +198,6 @@ const COLOR_KEYS: readonly (keyof TickerColors)[] = [
   "counter",
 ];
 
-
-
 export function TrendingTickerPane() {
   const qc = useQueryClient();
   const { i18n } = useTranslation();
@@ -364,7 +360,9 @@ export function TrendingTickerPane() {
   const addVariant = (): void => {
     commit((s) => {
       if (s.variants.length >= MAX_TICKER_VARIANTS) return s;
-      const v = makeDefaultVariant(`${lang === "en" ? "Variant" : "Wariant"} ${s.variants.length + 1}`);
+      const v = makeDefaultVariant(
+        `${lang === "en" ? "Variant" : "Wariant"} ${s.variants.length + 1}`,
+      );
       return { activeVariantId: v.id, variants: [...s.variants, v] };
     });
   };
@@ -375,7 +373,10 @@ export function TrendingTickerPane() {
       const src = s.variants.find((v) => v.id === s.activeVariantId);
       if (!src) return s;
       const clone = makeDefaultVariant(`${src.name} (kopia)`);
-      clone.config = { ...src.config, colors: cloneColors(src.config.colors ?? DEFAULT_TICKER_COLORS) };
+      clone.config = {
+        ...src.config,
+        colors: cloneColors(src.config.colors ?? DEFAULT_TICKER_COLORS),
+      };
       return { activeVariantId: clone.id, variants: [...s.variants, clone] };
     });
   };
@@ -408,7 +409,6 @@ export function TrendingTickerPane() {
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo]);
 
-
   const setColor = (mode: "light" | "dark", key: keyof TickerColors, value: string): void => {
     const current: TickerColorScheme = cfg.colors ?? DEFAULT_TICKER_COLORS;
     const nextMode: TickerColors = { ...current[mode], [key]: value };
@@ -427,7 +427,11 @@ export function TrendingTickerPane() {
 
   const toggleSelected = (id: string): void => {
     const list = cfg.selectedPostIds ?? [];
-    if (list.includes(id)) set("selectedPostIds", list.filter((x) => x !== id));
+    if (list.includes(id))
+      set(
+        "selectedPostIds",
+        list.filter((x) => x !== id),
+      );
     else if (list.length < MAX_SELECTED) set("selectedPostIds", [...list, id]);
   };
   const moveSelected = (id: string, dir: -1 | 1): void => {
@@ -596,11 +600,9 @@ export function TrendingTickerPane() {
 
         {/* Icon animation removed - flame stays static. */}
 
-
         {/* Numerics */}
         <div className="grid grid-cols-2 gap-4">
-          {(currentSource === "trending" ||
-            currentSource === "mixed") && (
+          {(currentSource === "trending" || currentSource === "mixed") && (
             <div className="space-y-1.5">
               <Label htmlFor="tt-days">{t.days}</Label>
               <Input
@@ -975,4 +977,3 @@ function ColorField({
     </div>
   );
 }
-

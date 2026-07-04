@@ -200,7 +200,6 @@ interface Testimonial {
 }
 
 export function TestimonialsBlock({ block, onChange }: Props) {
-  const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: Testimonial[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
@@ -324,7 +323,6 @@ interface PricingPlan {
 }
 
 export function PricingTableBlock({ block, onChange }: Props) {
-  const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.plans) ? (block.data.plans as Json[]) : [];
   const plans: PricingPlan[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;

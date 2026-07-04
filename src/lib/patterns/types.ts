@@ -3,14 +3,14 @@
 // updated without migrations.
 import type { BuilderDocument } from "@/lib/builder/types";
 
-export type PatternKind = "page" | "post";
+type PatternKind = "page" | "post";
 
-export interface PatternI18nText {
+interface PatternI18nText {
   pl: string;
   en: string;
 }
 
-export interface PatternBase {
+interface PatternBase {
   /** Stable identifier for analytics + selection. */
   id: string;
   kind: PatternKind;

@@ -202,10 +202,14 @@
    dropdowny, popupy i pola wejściowe pasowały do design systemu zamiast
    pokazywać domyślne, natywne UI przeglądarki. */
 .admin-compact .block-canvas select,
-.admin-compact .block-canvas input:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact
+  .block-canvas
+  input:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
 .admin-compact .block-canvas textarea,
 .admin-compact [data-admin-form] select,
-.admin-compact [data-admin-form] input:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact
+  [data-admin-form]
+  input:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
 .admin-compact [data-admin-form] textarea {
   background: hsl(var(--card, 0 0% 100%));
   color: var(--foreground);
@@ -214,7 +218,10 @@
   padding: 0.375rem 0.625rem;
   font-size: 0.8125rem;
   line-height: 1.35;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
   -webkit-appearance: none;
   appearance: none;
 }
@@ -229,21 +236,29 @@
 }
 .admin-compact .block-canvas select:hover,
 .admin-compact [data-admin-form] select:hover,
-.admin-compact .block-canvas input:hover:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
-.admin-compact [data-admin-form] input:hover:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact
+  .block-canvas
+  input:hover:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact
+  [data-admin-form]
+  input:hover:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
 .admin-compact .block-canvas textarea:hover,
 .admin-compact [data-admin-form] textarea:hover {
   border-color: color-mix(in oklab, var(--foreground) 30%, transparent);
 }
 .admin-compact .block-canvas select:focus,
 .admin-compact [data-admin-form] select:focus,
-.admin-compact .block-canvas input:focus:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
-.admin-compact [data-admin-form] input:focus:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact
+  .block-canvas
+  input:focus:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.admin-compact
+  [data-admin-form]
+  input:focus:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
 .admin-compact .block-canvas textarea:focus,
 .admin-compact [data-admin-form] textarea:focus {
   outline: none;
-  border-color: #FDB078;
-  box-shadow: 0 0 0 2px color-mix(in oklab, #FDB078 30%, transparent);
+  border-color: #fdb078;
+  box-shadow: 0 0 0 2px color-mix(in oklab, #fdb078 30%, transparent);
 }
 /* Native <option> tuning - most browsers restrict styling, ale te reguły
    działają w Firefox/Chromium na Windows/Linux dla popupu wyboru. */
@@ -674,7 +689,11 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   /* Scale down proportionally on smaller viewports so the numeral never
      dwarfs the title or overflows the row on mobile / tablet. Keeps the
      authored --pl-num-fs as the desktop maximum. */
-  font-size: clamp(28px, calc(var(--pl-num-fs, 52px) * 0.55 + 1.6vw), var(--pl-num-fs, 52px)) !important;
+  font-size: clamp(
+    28px,
+    calc(var(--pl-num-fs, 52px) * 0.55 + 1.6vw),
+    var(--pl-num-fs, 52px)
+  ) !important;
   /* Keep the glyph inside its own box so `overflow-hidden` wrappers on
      mobile cards never crop the ascender ("01" / "02" showing only their
      bottom halves). Slightly airier than 0.82 but still tight enough. */
@@ -684,7 +703,9 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
 }
 
 .post-list-numbered-shell.post-list-numbered-shell {
-  min-height: calc(clamp(28px, calc(var(--pl-num-fs, 52px) * 0.55 + 1.6vw), var(--pl-num-fs, 52px)) * 0.95);
+  min-height: calc(
+    clamp(28px, calc(var(--pl-num-fs, 52px) * 0.55 + 1.6vw), var(--pl-num-fs, 52px)) * 0.95
+  );
 }
 
 .post-list-numbered-row.post-list-numbered-row {
@@ -1604,7 +1625,15 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
   align-items: center !important;
 }
 [data-builder-renderer][data-device="mobile"] a,
-[data-builder-renderer][data-device="mobile"] button { white-space: normal !important; overflow-wrap: anywhere; word-break: normal; hyphens: auto; overflow: visible !important; text-overflow: clip !important; max-width: 100% !important; }
+[data-builder-renderer][data-device="mobile"] button {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  hyphens: auto;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  max-width: 100% !important;
+}
 [data-builder-renderer][data-device="mobile"] nav ul,
 [data-builder-renderer][data-device="mobile"] nav ol,
 [data-builder-renderer][data-device="mobile"] [role="menubar"] {
@@ -1716,7 +1745,16 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     max-width: 100% !important;
   }
   /* Links / buttons: keep words intact but allow wrap, never collapse next to each other */
-  [data-builder-renderer] a, [data-builder-renderer] button { white-space: normal !important; overflow-wrap: anywhere; word-break: normal; hyphens: auto; overflow: visible !important; text-overflow: clip !important; max-width: 100% !important; }
+  [data-builder-renderer] a,
+  [data-builder-renderer] button {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    hyphens: auto;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    max-width: 100% !important;
+  }
   /* Navigation menus: keep horizontal but wrap to next line */
   [data-builder-renderer] nav ul,
   [data-builder-renderer] nav ol,
@@ -1819,7 +1857,6 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     min-height: 0 !important;
   }
 }
-
 
 @media (min-width: 768px) and (max-width: 1023px) {
   [data-builder-renderer] [data-columns-row] {
@@ -2330,14 +2367,14 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 .admin-calendar button[role="gridcell"]:hover:not([disabled]),
 .admin-calendar .rdp-day:hover:not([disabled]),
 .admin-calendar [data-slot="calendar"] button:hover:not([disabled]) {
-  background-color: #FDB078 !important;
+  background-color: #fdb078 !important;
   color: hsl(var(--foreground)) !important;
 }
 
 .admin-date-trigger:hover:not([disabled]) {
-  background-color: #FDB078 !important;
+  background-color: #fdb078 !important;
   color: hsl(var(--foreground)) !important;
-  border-color: #FDB078 !important;
+  border-color: #fdb078 !important;
 }
 
 /* ==========================================================================

@@ -20,7 +20,7 @@ import {
   FlaskConical,
 } from "@/lib/lucide-shim";
 
-export type CtxKind = "section" | "inner-section" | "column" | "widget" | "empty";
+type CtxKind = "section" | "inner-section" | "column" | "widget" | "empty";
 
 export interface CtxTarget {
   kind: CtxKind;
@@ -29,7 +29,7 @@ export interface CtxTarget {
   y: number;
 }
 
-export interface BuilderContextMenuActions {
+interface BuilderContextMenuActions {
   openProperties?: () => void;
   duplicate?: () => void;
   copy?: () => void;

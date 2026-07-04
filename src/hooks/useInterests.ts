@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const ANON_KEY = "nes.interests.anon.v1";
 
-export type InterestTargetType = "category" | "tag";
+type InterestTargetType = "category" | "tag";
 
 export interface InterestItem {
   id: string;
@@ -96,7 +96,7 @@ export function useInterestCatalog(lang: "pl" | "en" = "pl") {
   return query;
 }
 
-export function useCurrentUserId() {
+function useCurrentUserId() {
   const [uid, setUid] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;

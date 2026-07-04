@@ -29,7 +29,7 @@ async function ensureFontsLoaded(): Promise<void> {
 }
 
 /** Render the card and return it as a PNG blob. */
-export async function renderOgCard(input: OgCardInput): Promise<Blob> {
+async function renderOgCard(input: OgCardInput): Promise<Blob> {
   await ensureFontsLoaded();
   const canvas = document.createElement("canvas");
   canvas.width = OG_CARD_WIDTH;

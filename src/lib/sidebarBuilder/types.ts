@@ -31,7 +31,7 @@ export interface ReadingPanelSettings {
   social: Record<SocialKey, boolean>;
 }
 
-export type WidgetSettings = ReadingPanelSettings | Record<string, unknown>;
+type WidgetSettings = ReadingPanelSettings | Record<string, unknown>;
 
 export interface SidebarWidget {
   id: string;
@@ -51,27 +51,7 @@ export interface SidebarLayout {
 }
 
 // Zod schemas - walidacja przed zapisem do bazy.
-export const socialSchema = z.object({
-  x: z.boolean(),
-  facebook: z.boolean(),
-  linkedin: z.boolean(),
-  mail: z.boolean(),
-  copy: z.boolean(),
-  whatsapp: z.boolean(),
-  telegram: z.boolean(),
-  reddit: z.boolean(),
-});
-
-export const readingPanelSettingsSchema = z.object({
-  showToc: z.boolean(),
-  showProgress: z.boolean(),
-  showSaveLater: z.boolean(),
-  showPrint: z.boolean(),
-  showPdf: z.boolean(),
-  social: socialSchema,
-});
-
-export const widgetSchema = z.object({
+const widgetSchema = z.object({
   id: z.string().min(1),
   type: z.enum(["reading-panel", "tags", "author-card", "related-posts", "newsletter", "ad-slot"]),
   hidden: z.boolean().optional(),
