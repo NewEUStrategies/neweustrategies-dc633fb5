@@ -7,7 +7,6 @@ import { useRequiredTenant } from "@/hooks/useAuth";
 import { Upload, X, AlertCircle, Sparkles, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { BgPreset } from "./BgPresets";
-import { BgPresetPreview } from "./BgPresetPreview";
 
 interface Props {
   label: string;
@@ -118,13 +117,12 @@ export function ImageSlot({
         <div className="rounded-md border border-border/60 bg-muted/20 p-2 space-y-1.5">
           <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             <Sparkles className="w-3 h-3 text-brand" />
-            {presetLang === "en" ? "Premium animated backgrounds" : "Animowane tła premium"}
+            {presetLang === "en" ? "Premium presets" : "Warianty premium"}
           </div>
-          <div className="flex flex-col gap-1.5" data-bgp-anim>
+          <div className="grid grid-cols-4 gap-1.5">
             {presets.map((p) => {
               const active = value === p.url;
               const title = presetLang === "en" ? p.labelEn : p.labelPl;
-              const desc = presetLang === "en" ? p.descriptionEn : p.descriptionPl;
               return (
                 <button
                   key={p.id}
@@ -134,25 +132,24 @@ export function ImageSlot({
                     onChange(p.url);
                     onSelectPreset?.(p);
                   }}
-                  title={desc}
+                  title={title}
                   aria-label={title}
                   aria-pressed={active}
-                  className={`group relative w-full h-14 overflow-hidden rounded-md border text-left transition-all ${
+                  className={`group relative aspect-video overflow-hidden rounded-md border transition-all ${
                     active
-                      ? "border-brand ring-2 ring-brand/40 shadow-[0_4px_16px_-6px_rgba(59,111,160,0.5)]"
-                      : "border-border/60 hover:border-brand/60"
+                      ? "border-brand ring-2 ring-brand/40"
+                      : "border-border/60 hover:border-brand/60 hover:scale-[1.03]"
                   }`}
+                  style={{ background: p.thumb }}
                 >
-                  <BgPresetPreview preset={p} className="rounded-[5px]" />
-                  <span className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/55 via-black/10 to-transparent" />
-                  <span className="pointer-events-none absolute inset-0 flex flex-col justify-center px-2.5">
-                    <span className="text-[11px] font-semibold text-white leading-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
-                      {title}
-                    </span>
-                    <span className="text-[9px] text-white/75 leading-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
-                      {desc}
-                    </span>
-                  </span>
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 opacity-60 mix-blend-overlay animate-[pulse_3.5s_ease-in-out_infinite]"
+                    style={{
+                      background:
+                        "radial-gradient(60% 60% at 30% 30%, rgba(255,255,255,.18), transparent 70%)",
+                    }}
+                  />
                   {active && (
                     <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand text-white shadow">
                       <Check className="w-2.5 h-2.5" />
@@ -164,8 +161,8 @@ export function ImageSlot({
           </div>
           <div className="text-[10px] text-muted-foreground leading-tight">
             {presetLang === "en"
-              ? "Full-width previews - each pairs with its matching subtle motion."
-              : "Podgląd pełnej szerokości - każde tło z dopasowaną delikatną animacją."}
+              ? "Subtle premium background - pairs with a matching light animation."
+              : "Delikatne premium tło - dobierana lekka animacja."}
           </div>
         </div>
       )}
