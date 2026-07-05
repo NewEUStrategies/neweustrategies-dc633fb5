@@ -3,14 +3,18 @@
 // the real snippet, not an approximation of the form state.
 import { Globe } from "@/lib/lucide-shim";
 import { truncateToPx, SERP_DESCRIPTION_LIMIT_PX, SERP_TITLE_LIMIT_PX } from "@/lib/seo/serp";
-import { SITE_NAME } from "@/lib/seo/meta";
+import { SITE_NAME, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
+
+/** Host shown in the SERP preview - always the canonical brand origin, so the
+ * admin never sees a preview/sandbox URL like `*.lovableproject.com`. */
+const CANONICAL_HOST = SITE_CANONICAL_ORIGIN.replace(/^https?:\/\//, "");
 
 interface SerpPreviewProps {
   /** Final, resolved document title (with suffix when applicable). */
   title: string;
   /** Final, resolved description. */
   description: string;
-  /** Host shown in the URL line (falls back to the current origin). */
+  /** Host shown in the URL line (defaults to the canonical brand host). */
   host?: string;
   /** Path segments after the host ("blog/moj-wpis"). */
   path: string;
@@ -18,8 +22,7 @@ interface SerpPreviewProps {
 }
 
 export function SerpPreview({ title, description, host, path, noindex }: SerpPreviewProps) {
-  const displayHost =
-    host ?? (typeof window !== "undefined" ? window.location.host : "example.com");
+  const displayHost = host ?? CANONICAL_HOST;
   const crumbs = path.split("/").filter(Boolean);
   return (
     <div className="rounded-lg border border-border bg-background p-4 relative overflow-hidden">
