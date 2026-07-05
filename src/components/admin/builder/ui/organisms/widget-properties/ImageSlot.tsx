@@ -24,13 +24,22 @@ interface Props {
   presetLang?: "pl" | "en";
 }
 
+// Obsługiwane formaty tła:
+// - statyczne obrazy: JPG, PNG, WEBP, AVIF
+// - animowane obrazy: GIF, animowany WEBP, APNG
+// - wektor (może zawierać <animate>/SMIL/CSS): SVG
+// - wideo w tle (autoplay, muted, loop): MP4 (H.264), WEBM (VP9/AV1)
+// - Lottie/JSON renderowany jest osobnym playerem, nie przez <img>, więc tu nie jest wgrywany.
 const ALLOWED_MIME = [
   "image/jpeg",
   "image/png",
   "image/webp",
   "image/avif",
   "image/gif",
+  "image/apng",
   "image/svg+xml",
+  "video/mp4",
+  "video/webm",
 ];
 const URL_HINT = "Podaj pełny adres https://… lub wgraj plik z dysku.";
 
