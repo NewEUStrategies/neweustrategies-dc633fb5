@@ -4,8 +4,9 @@
 import { useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
-import { Upload, X, AlertCircle } from "lucide-react";
+import { Upload, X, AlertCircle, Sparkles, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import type { BgPreset } from "./BgPresets";
 
 interface Props {
   label: string;
@@ -15,6 +16,12 @@ interface Props {
   hint?: string;
   /** Max upload size in MB (default 8). */
   maxSizeMb?: number;
+  /** Optional premium preset picker rendered above the URL input. */
+  presets?: ReadonlyArray<BgPreset>;
+  /** Called when a preset is picked (in addition to `onChange` with the URL). */
+  onSelectPreset?: (preset: BgPreset) => void;
+  /** UI language for preset labels (defaults to PL). */
+  presetLang?: "pl" | "en";
 }
 
 const ALLOWED_MIME = [
