@@ -373,6 +373,10 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   const [stage, setStage] = useState<Stage | "all">("all");
   const [scope, setScope] = useState<"tenant" | "all">("tenant");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [liveTick, setLiveTick] = useState(0);
+  const qc = useQueryClient();
+  const openIdRef = useRef<string | null>(null);
+  openIdRef.current = openId;
 
   const q = useQuery({
     queryKey: ["crm-leads", { search, stage, scope }],
@@ -388,6 +392,53 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
       return JSON.parse((r as { json: string }).json) as Lead[];
     },
   });
+
+  // Realtime: refresh leads + open detail as soon as widgets write to CRM.
+  // RLS in Supabase restricts payloads to rows the current user may read,
+  // so no client-side tenant filtering is needed here.
+  useEffect(() => {
+    const invalidateAll = () => {
+      qc.invalidateQueries({ queryKey: ["crm-leads"] });
+      const id = openIdRef.current;
+      if (id) qc.invalidateQueries({ queryKey: ["crm-lead", id] });
+      setLiveTick((n) => (n + 1) % 1_000_000);
+    };
+    const channel = supabase
+      .channel("admin-crm-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "crm_leads" },
+        invalidateAll,
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "crm_consent_log" },
+        invalidateAll,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "contact_messages" },
+        invalidateAll,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "newsletter_subscribers" },
+        invalidateAll,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "crm_lead_notes" },
+        () => {
+          const id = openIdRef.current;
+          if (id) qc.invalidateQueries({ queryKey: ["crm-lead", id] });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc]);
+
 
   const onExport = async () => {
     const r = await exportCrmLeadsCsv({
