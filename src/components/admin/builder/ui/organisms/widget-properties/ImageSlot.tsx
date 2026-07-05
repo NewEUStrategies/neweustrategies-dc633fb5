@@ -82,8 +82,10 @@ export function ImageSlot({
     setError(null);
     if (!ALLOWED_MIME.includes(file.type)) {
       setError(
-        `Niedozwolony typ pliku (${file.type || "nieznany"}). Dozwolone: JPG, PNG, WEBP, AVIF, GIF, SVG.`,
+        `Niedozwolony typ pliku (${file.type || "nieznany"}). Dozwolone: JPG, PNG, WEBP, AVIF, GIF, APNG, SVG, MP4, WEBM.`,
       );
+      return;
+    }
       return;
     }
     const sizeMb = file.size / (1024 * 1024);
