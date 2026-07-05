@@ -164,9 +164,12 @@ export function NewsletterPopupForm({
         ? "Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych."
         : "I subscribe to the newsletter and accept receiving marketing messages.";
       consents.push({ key: "newsletter", text: nlText, given: true, lang });
-      if (requireTerms && v.terms && termsHtml) {
-        consents.push({ key: "terms", text: termsHtml, given: true, lang });
+      const currentTermsHtml =
+        (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
+      if (requireTerms && v.terms && currentTermsHtml) {
+        consents.push({ key: "terms", text: currentTermsHtml, given: true, lang });
       }
+
       const res = await subscribe({
         data: {
           email,
