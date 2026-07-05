@@ -86,8 +86,6 @@ export function ImageSlot({
       );
       return;
     }
-      return;
-    }
     const sizeMb = file.size / (1024 * 1024);
     if (sizeMb > maxSizeMb) {
       setError(`Plik jest za duży (${sizeMb.toFixed(1)} MB). Maksymalnie ${maxSizeMb} MB.`);
