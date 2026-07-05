@@ -159,11 +159,10 @@ export function NewsletterPopupForm({
 
     try {
       const consents: Array<{ key: string; text: string; given: boolean; lang: "pl" | "en" }> = [];
-      const nlText =
-        (isPl ? settings.popup_body_pl : settings.popup_body_en) ||
-        (isPl
-          ? "Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych."
-          : "I subscribe to the newsletter and accept receiving marketing messages.");
+      const popupTitle = (isPl ? settings.popup_title_pl : settings.popup_title_en) || undefined;
+      const nlText = isPl
+        ? "Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych."
+        : "I subscribe to the newsletter and accept receiving marketing messages.";
       consents.push({ key: "newsletter", text: nlText, given: true, lang });
       if (requireTerms && v.terms && termsHtml) {
         consents.push({ key: "terms", text: termsHtml, given: true, lang });
@@ -176,11 +175,12 @@ export function NewsletterPopupForm({
           lastName: v.surname.trim() || undefined,
           language: lang,
           source,
-          formName: (isPl ? settings.popup_title_pl : settings.popup_title_en) || undefined,
+          formName: popupTitle,
           consents,
           meta: Object.keys(meta).length ? meta : undefined,
         },
       });
+
 
       if (!res.ok) {
         setErr(
