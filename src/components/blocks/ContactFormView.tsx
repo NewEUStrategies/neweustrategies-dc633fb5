@@ -178,6 +178,21 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     if ((fd.get("website") as string)?.length) return; // honeypot
     const firstName = String(fd.get("firstName") ?? "").trim();
     const lastName = String(fd.get("lastName") ?? "").trim();
+    const rodoGiven = fd.get("consent") === "on";
+    const newsletterGiven = fd.get("newsletter_optin") === "on";
+    const consents: Array<{
+      key: string;
+      text: string;
+      given: boolean;
+      lang: string;
+      version?: string;
+    }> = [];
+    if (requireConsent) {
+      consents.push({ key: "rodo", text: consentTextRaw, given: rodoGiven, lang });
+    }
+    if (showNewsletter && newsletterGiven) {
+      consents.push({ key: "newsletter", text: newsletterLabel, given: true, lang });
+    }
     const payload = {
       name: [firstName, lastName].filter(Boolean).join(" "),
       firstName: firstName || undefined,
@@ -187,14 +202,20 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       company: String(fd.get("company") ?? "").trim() || undefined,
       subject: String(fd.get("subject") ?? "").trim() || undefined,
       message: String(fd.get("message") ?? "").trim(),
-      consent: fd.get("consent") === "on" || !requireConsent,
-      newsletterOptIn: fd.get("newsletter_optin") === "on",
+      consent: rodoGiven || !requireConsent,
+      newsletterOptIn: newsletterGiven,
       lang,
       // `recipient` is intentionally omitted from the payload - see
       // contact.functions.ts, the admin address is resolved server-side to
       // prevent open email relay abuse.
       source: typeof window !== "undefined" ? window.location.pathname : undefined,
+      formId: formId,
+      formName: title || undefined,
+      pageUrl: typeof window !== "undefined" ? window.location.href : undefined,
+      referer: typeof document !== "undefined" ? document.referrer || undefined : undefined,
+      consents,
     };
+
     const errs: Record<string, string> = {};
     if (showFirstName && !firstName) errs.firstName = t.required;
     if (showLastName && !lastName) errs.lastName = t.required;

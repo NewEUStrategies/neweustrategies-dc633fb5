@@ -11,6 +11,14 @@ import { z } from "zod";
 // The admin notification address must come from the trusted server-side
 // contact_form_settings.default_recipient - never from user input - otherwise
 // this endpoint can be abused as an open email relay.
+const ConsentEntry = z.object({
+  key: z.string().trim().min(1).max(64),
+  text: z.string().trim().min(1).max(2000),
+  version: z.string().trim().max(32).optional(),
+  given: z.boolean().optional(),
+  lang: z.string().trim().max(8).optional(),
+});
+
 const ContactInput = z.object({
   name: z.string().trim().min(1).max(200),
   firstName: z.string().trim().max(100).optional(),
@@ -24,9 +32,15 @@ const ContactInput = z.object({
   newsletterOptIn: z.boolean().optional(),
   lang: z.enum(["pl", "en"]),
   source: z.string().trim().max(500).optional(),
+  formId: z.string().trim().max(120).optional(),
+  formName: z.string().trim().max(200).optional(),
+  pageUrl: z.string().trim().max(2000).optional(),
+  referer: z.string().trim().max(2000).optional(),
+  consents: z.array(ConsentEntry).max(10).optional(),
 });
 
 type ContactPayload = z.infer<typeof ContactInput>;
+
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 const DOI_TTL_MS = 1000 * 60 * 60 * 48; // 48h
@@ -197,11 +211,28 @@ export const submitContactMessage = createServerFn({ method: "POST" })
     const hostTenantId = await resolveTenantIdForHost(await currentTenantHost());
     if (!hostTenantId) throw new Error("tenant unresolved");
 
+    // Extract client IP + UA from request headers (defensive: proxy chains vary)
+    let clientIp: string | null = null;
+    let userAgent: string | null = null;
+    try {
+      const req = getRequest();
+      const fwd = req.headers.get("x-forwarded-for");
+      const fwdFirst = fwd ? (fwd.split(",")[0]?.trim() ?? null) : null;
+      clientIp =
+        req.headers.get("cf-connecting-ip") ?? fwdFirst ?? req.headers.get("x-real-ip");
+
+      userAgent = req.headers.get("user-agent");
+    } catch {
+      // request context unavailable (e.g. non-HTTP invocation) - fine
+    }
+
     const { data: inserted, error } = await supabaseAdmin
       .from("contact_messages")
       .insert({
         tenant_id: hostTenantId,
         name: data.name,
+        first_name: data.firstName ?? null,
+        last_name: data.lastName ?? null,
         email: data.email,
         phone: data.phone ?? null,
         company: data.company ?? null,
@@ -212,11 +243,19 @@ export const submitContactMessage = createServerFn({ method: "POST" })
         recipient: null,
         newsletter_opt_in: data.newsletterOptIn ?? false,
         source: data.source ?? null,
+        form_id: data.formId ?? null,
+        form_name: data.formName ?? null,
+        page_url: data.pageUrl ?? null,
+        referer: data.referer ?? null,
+        ip: clientIp,
+        user_agent: userAgent,
+        consents: data.consents ?? [],
         status: "new",
       })
       .select("id, tenant_id")
       .single();
     if (error || !inserted) throw new Error(error?.message ?? "insert failed");
+
 
     const { data: cfs } = await supabaseAdmin
       .from("contact_form_settings")
