@@ -79,9 +79,20 @@ export function JoinUsForm({
     }
 
     try {
+      const nlText =
+        lang === "en"
+          ? "I subscribe to the newsletter and accept receiving marketing messages."
+          : "Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych.";
       const res = await subscribe({
-        data: { email: trimmed, name: name.trim() || undefined, language: lang, source },
+        data: {
+          email: trimmed,
+          name: name.trim() || undefined,
+          language: lang,
+          source,
+          consents: [{ key: "newsletter", text: nlText, given: true, lang }],
+        },
       });
+
       if (!res.ok) {
         setErrMsg(
           res.error === "not_configured" || res.error === "disabled"
