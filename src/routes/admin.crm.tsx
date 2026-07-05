@@ -401,7 +401,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
       qc.invalidateQueries({ queryKey: ["crm-leads"] });
       const id = openIdRef.current;
       if (id) qc.invalidateQueries({ queryKey: ["crm-lead", id] });
-      setLiveTick((n) => (n + 1) % 1_000_000);
+      setLastLiveAt(Date.now());
     };
     const channel = supabase
       .channel("admin-crm-live")
