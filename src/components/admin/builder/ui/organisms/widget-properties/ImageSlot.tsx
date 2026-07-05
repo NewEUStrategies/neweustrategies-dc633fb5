@@ -113,6 +113,59 @@ export function ImageSlot({
         {icon}
         {label}
       </div>
+      {presets && presets.length > 0 && (
+        <div className="rounded-md border border-border/60 bg-muted/20 p-2 space-y-1.5">
+          <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <Sparkles className="w-3 h-3 text-brand" />
+            {presetLang === "en" ? "Premium presets" : "Warianty premium"}
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {presets.map((p) => {
+              const active = value === p.url;
+              const title = presetLang === "en" ? p.labelEn : p.labelPl;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    onChange(p.url);
+                    onSelectPreset?.(p);
+                  }}
+                  title={title}
+                  aria-label={title}
+                  aria-pressed={active}
+                  className={`group relative aspect-video overflow-hidden rounded-md border transition-all ${
+                    active
+                      ? "border-brand ring-2 ring-brand/40"
+                      : "border-border/60 hover:border-brand/60 hover:scale-[1.03]"
+                  }`}
+                  style={{ background: p.thumb }}
+                >
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 opacity-60 mix-blend-overlay animate-[pulse_3.5s_ease-in-out_infinite]"
+                    style={{
+                      background:
+                        "radial-gradient(60% 60% at 30% 30%, rgba(255,255,255,.18), transparent 70%)",
+                    }}
+                  />
+                  {active && (
+                    <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand text-white shadow">
+                      <Check className="w-2.5 h-2.5" />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <div className="text-[10px] text-muted-foreground leading-tight">
+            {presetLang === "en"
+              ? "Subtle premium background - pairs with a matching light animation."
+              : "Delikatne premium tło - dobierana lekka animacja."}
+          </div>
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <Input
           value={value}
