@@ -57,6 +57,20 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
           value={asString(content[field.key])}
           onChange={(v) => setContent(field.key, v)}
           hint={field.hint}
+          presets={field.key === "bgImage" ? BG_PRESETS : undefined}
+          onSelectPreset={
+            field.key === "bgImage"
+              ? (p) => {
+                  // Auto-pair the preset with its intended subtle animation
+                  // when the user hasn't set one yet (or still has "none").
+                  const current = content["bgAnimation"];
+                  if (current === undefined || current === "" || current === "none") {
+                    setContent("bgAnimation", p.animation);
+                  }
+                }
+              : undefined
+          }
+          presetLang={lang}
         />
       );
 
