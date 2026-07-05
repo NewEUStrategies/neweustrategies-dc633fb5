@@ -276,7 +276,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   if (status === "ok") {
     return (
       <div
-        className={`cf-shell cf-shell--${variant}`}
+        className={`cf-shell cf-shell--${variant} w-full`}
         style={shellStyle}
         role="status"
         aria-live="polite"
@@ -295,7 +295,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   );
 
   return (
-    <div className={`cf-shell cf-shell--${variant}`} style={shellStyle}>
+    <div className={`cf-shell cf-shell--${variant} w-full`} style={shellStyle}>
       {/* Image background layer */}
       {(bgImage || bgImageMobile) && (
         <div
