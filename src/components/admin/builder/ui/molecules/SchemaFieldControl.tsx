@@ -15,7 +15,7 @@ import {
 import { PropField } from "../atoms/PropField";
 import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
 import { BG_PRESETS } from "../organisms/widget-properties/BgPresets";
-import { Image as ImageIcon } from "lucide-react";
+
 
 interface Props {
   field: SchemaFieldDef;
