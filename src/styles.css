@@ -2065,6 +2065,16 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 /* ============================================================
    Contact form widget - shell, layered backgrounds & 6 animations
    ============================================================ */
+.cf-shell,
+.cf-shell *,
+.cf-shell input,
+.cf-shell textarea,
+.cf-shell select,
+.cf-shell button,
+.cf-shell label,
+.cf-shell a {
+  font-family: "Red Hat Display", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
 .cf-shell {
   position: relative;
   border-radius: var(--cf-radius, 12px);
