@@ -393,7 +393,6 @@ export interface AuthorProfileRow {
   bio_pl: string | null;
   bio_en: string | null;
   job_title: string | null;
-  contact_email: string | null;
   twitter_url: string | null;
   linkedin_url: string | null;
   facebook_url: string | null;
@@ -402,8 +401,11 @@ export interface AuthorProfileRow {
   website_url: string | null;
 }
 
+// contact_email is intentionally NOT selected: it is PII scoped to owner/staff
+// (see migration revoking anon SELECT on that column). Public author-bio blocks
+// expose only non-sensitive fields.
 const AUTHOR_PROFILE_SELECT =
-  "id, slug, display_name, avatar_url, bio_pl, bio_en, job_title, contact_email, twitter_url, linkedin_url, facebook_url, instagram_url, spotify_url, website_url";
+  "id, slug, display_name, avatar_url, bio_pl, bio_en, job_title, twitter_url, linkedin_url, facebook_url, instagram_url, spotify_url, website_url";
 
 export const authorProfileByIdQueryOptions = (authorId: string) =>
   queryOptions({
