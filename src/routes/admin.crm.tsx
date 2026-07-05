@@ -373,7 +373,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   const [stage, setStage] = useState<Stage | "all">("all");
   const [scope, setScope] = useState<"tenant" | "all">("tenant");
   const [openId, setOpenId] = useState<string | null>(null);
-  const [liveTick, setLiveTick] = useState(0);
+  const [lastLiveAt, setLastLiveAt] = useState<number | null>(null);
   const qc = useQueryClient();
   const openIdRef = useRef<string | null>(null);
   openIdRef.current = openId;
