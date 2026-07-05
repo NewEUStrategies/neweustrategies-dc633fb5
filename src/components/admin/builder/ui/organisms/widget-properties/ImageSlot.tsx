@@ -4,9 +4,8 @@
 import { useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
-import { Upload, X, AlertCircle, Sparkles, Check } from "lucide-react";
+import { Upload, X, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import type { BgPreset } from "./BgPresets";
 
 interface Props {
   label: string;
@@ -16,12 +15,6 @@ interface Props {
   hint?: string;
   /** Max upload size in MB (default 8). */
   maxSizeMb?: number;
-  /** Optional premium preset picker rendered above the URL input. */
-  presets?: ReadonlyArray<BgPreset>;
-  /** Called when a preset is picked (in addition to `onChange` with the URL). */
-  onSelectPreset?: (preset: BgPreset) => void;
-  /** UI language for preset labels (defaults to PL). */
-  presetLang?: "pl" | "en";
 }
 
 // Obsługiwane formaty tła:
@@ -67,9 +60,6 @@ export function ImageSlot({
   onChange,
   hint,
   maxSizeMb = 8,
-  presets,
-  onSelectPreset,
-  presetLang = "pl",
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -122,51 +112,6 @@ export function ImageSlot({
         {icon}
         {label}
       </div>
-      {presets && presets.length > 0 && (
-        <div className="rounded-md border border-border/60 bg-muted/20 p-2 space-y-1.5">
-          <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            <Sparkles className="w-3 h-3 text-brand" />
-            {presetLang === "en" ? "Premium presets" : "Warianty premium"}
-          </div>
-          <div className="grid grid-cols-4 gap-1.5">
-            {presets.map((p) => {
-              const active = value === p.url;
-              const title = presetLang === "en" ? p.labelEn : p.labelPl;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => {
-                    setError(null);
-                    onChange(p.url);
-                    onSelectPreset?.(p);
-                  }}
-                  title={title}
-                  aria-label={title}
-                  aria-pressed={active}
-                  className={`group relative aspect-video overflow-hidden rounded-md border transition-all ${
-                    active
-                      ? "border-brand ring-2 ring-brand/40"
-                      : "border-border/60 hover:border-brand/60 hover:scale-[1.03]"
-                  }`}
-                  style={{ background: p.thumb }}
-                >
-                  {active && (
-                    <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand text-white shadow">
-                      <Check className="w-2.5 h-2.5" />
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          <div className="text-[10px] text-muted-foreground leading-tight">
-            {presetLang === "en"
-              ? "Subtle premium background - static preview; a matching light animation can be enabled separately."
-              : "Delikatne premium tło - statyczny podgląd; animację można włączyć osobno."}
-          </div>
-        </div>
-      )}
       <div className="flex items-center gap-2">
         <Input
           value={value}
