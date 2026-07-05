@@ -24,13 +24,22 @@ interface Props {
   presetLang?: "pl" | "en";
 }
 
+// Obsługiwane formaty tła:
+// - statyczne obrazy: JPG, PNG, WEBP, AVIF
+// - animowane obrazy: GIF, animowany WEBP, APNG
+// - wektor (może zawierać <animate>/SMIL/CSS): SVG
+// - wideo w tle (autoplay, muted, loop): MP4 (H.264), WEBM (VP9/AV1)
+// - Lottie/JSON renderowany jest osobnym playerem, nie przez <img>, więc tu nie jest wgrywany.
 const ALLOWED_MIME = [
   "image/jpeg",
   "image/png",
   "image/webp",
   "image/avif",
   "image/gif",
+  "image/apng",
   "image/svg+xml",
+  "video/mp4",
+  "video/webm",
 ];
 const URL_HINT = "Podaj pełny adres https://… lub wgraj plik z dysku.";
 
@@ -73,7 +82,7 @@ export function ImageSlot({
     setError(null);
     if (!ALLOWED_MIME.includes(file.type)) {
       setError(
-        `Niedozwolony typ pliku (${file.type || "nieznany"}). Dozwolone: JPG, PNG, WEBP, AVIF, GIF, SVG.`,
+        `Niedozwolony typ pliku (${file.type || "nieznany"}). Dozwolone: JPG, PNG, WEBP, AVIF, GIF, APNG, SVG, MP4, WEBM.`,
       );
       return;
     }
@@ -142,14 +151,6 @@ export function ImageSlot({
                   }`}
                   style={{ background: p.thumb }}
                 >
-                  <span
-                    aria-hidden
-                    className="absolute inset-0 opacity-60 mix-blend-overlay animate-[pulse_3.5s_ease-in-out_infinite]"
-                    style={{
-                      background:
-                        "radial-gradient(60% 60% at 30% 30%, rgba(255,255,255,.18), transparent 70%)",
-                    }}
-                  />
                   {active && (
                     <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand text-white shadow">
                       <Check className="w-2.5 h-2.5" />
@@ -161,8 +162,8 @@ export function ImageSlot({
           </div>
           <div className="text-[10px] text-muted-foreground leading-tight">
             {presetLang === "en"
-              ? "Subtle premium background - pairs with a matching light animation."
-              : "Delikatne premium tło - dobierana lekka animacja."}
+              ? "Subtle premium background - static preview; a matching light animation can be enabled separately."
+              : "Delikatne premium tło - statyczny podgląd; animację można włączyć osobno."}
           </div>
         </div>
       )}
@@ -194,7 +195,7 @@ export function ImageSlot({
       <input
         ref={fileRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp,image/avif,image/gif,image/apng,image/svg+xml,video/mp4,video/webm"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
