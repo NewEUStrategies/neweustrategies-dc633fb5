@@ -74,7 +74,7 @@ export function AuthorBioView({
           bio_pl: fetched.bio_pl ?? undefined,
           bio_en: fetched.bio_en ?? undefined,
           jobTitle: fetched.job_title ?? undefined,
-          contactEmail: fetched.contact_email ?? undefined,
+          contactEmail: undefined,
           twitterUrl: fetched.twitter_url ?? undefined,
           linkedinUrl: fetched.linkedin_url ?? undefined,
           facebookUrl: fetched.facebook_url ?? undefined,
