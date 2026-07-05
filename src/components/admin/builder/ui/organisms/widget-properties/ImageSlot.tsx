@@ -151,14 +151,6 @@ export function ImageSlot({
                   }`}
                   style={{ background: p.thumb }}
                 >
-                  <span
-                    aria-hidden
-                    className="absolute inset-0 opacity-60 mix-blend-overlay animate-[pulse_3.5s_ease-in-out_infinite]"
-                    style={{
-                      background:
-                        "radial-gradient(60% 60% at 30% 30%, rgba(255,255,255,.18), transparent 70%)",
-                    }}
-                  />
                   {active && (
                     <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand text-white shadow">
                       <Check className="w-2.5 h-2.5" />
