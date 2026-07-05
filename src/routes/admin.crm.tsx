@@ -3,9 +3,11 @@
 // pipeline stages, notes, and Merydian push controls. Super Admins can switch
 // to a cross-tenant view via the scope toggle.
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
 import {
   listCrmLeads,
   getCrmLead,
@@ -371,6 +373,10 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   const [stage, setStage] = useState<Stage | "all">("all");
   const [scope, setScope] = useState<"tenant" | "all">("tenant");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [lastLiveAt, setLastLiveAt] = useState<number | null>(null);
+  const qc = useQueryClient();
+  const openIdRef = useRef<string | null>(null);
+  openIdRef.current = openId;
 
   const q = useQuery({
     queryKey: ["crm-leads", { search, stage, scope }],
@@ -386,6 +392,53 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
       return JSON.parse((r as { json: string }).json) as Lead[];
     },
   });
+
+  // Realtime: refresh leads + open detail as soon as widgets write to CRM.
+  // RLS in Supabase restricts payloads to rows the current user may read,
+  // so no client-side tenant filtering is needed here.
+  useEffect(() => {
+    const invalidateAll = () => {
+      qc.invalidateQueries({ queryKey: ["crm-leads"] });
+      const id = openIdRef.current;
+      if (id) qc.invalidateQueries({ queryKey: ["crm-lead", id] });
+      setLastLiveAt(Date.now());
+    };
+    const channel = supabase
+      .channel("admin-crm-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "crm_leads" },
+        invalidateAll,
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "crm_consent_log" },
+        invalidateAll,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "contact_messages" },
+        invalidateAll,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "newsletter_subscribers" },
+        invalidateAll,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "crm_lead_notes" },
+        () => {
+          const id = openIdRef.current;
+          if (id) qc.invalidateQueries({ queryKey: ["crm-lead", id] });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc]);
+
 
   const onExport = async () => {
     const r = await exportCrmLeadsCsv({
@@ -442,7 +495,24 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             </SelectContent>
           </Select>
         )}
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex items-center gap-2">
+          <span
+            className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
+            aria-live="polite"
+            title={
+              lastLiveAt
+                ? new Date(lastLiveAt).toLocaleTimeString()
+                : undefined
+            }
+          >
+            <span
+              className={
+                "inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 " +
+                (lastLiveAt && Date.now() - lastLiveAt < 2500 ? "animate-ping" : "")
+              }
+            />
+            Live
+          </span>
           <Button variant="outline" size="sm" onClick={() => q.refetch()}>
             <RefreshCw className="w-3.5 h-3.5 mr-1" />
             {L.refresh}
@@ -452,6 +522,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             {L.export}
           </Button>
         </div>
+
       </div>
 
       <div className="rounded-md border overflow-hidden">
