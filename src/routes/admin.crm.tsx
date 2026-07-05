@@ -495,7 +495,24 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             </SelectContent>
           </Select>
         )}
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex items-center gap-2">
+          <span
+            className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
+            aria-live="polite"
+            title={
+              lastLiveAt
+                ? new Date(lastLiveAt).toLocaleTimeString()
+                : undefined
+            }
+          >
+            <span
+              className={
+                "inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 " +
+                (lastLiveAt && Date.now() - lastLiveAt < 2500 ? "animate-ping" : "")
+              }
+            />
+            Live
+          </span>
           <Button variant="outline" size="sm" onClick={() => q.refetch()}>
             <RefreshCw className="w-3.5 h-3.5 mr-1" />
             {L.refresh}
@@ -505,6 +522,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
             {L.export}
           </Button>
         </div>
+
       </div>
 
       <div className="rounded-md border overflow-hidden">
