@@ -162,8 +162,8 @@ export function ImageSlot({
           </div>
           <div className="text-[10px] text-muted-foreground leading-tight">
             {presetLang === "en"
-              ? "Subtle premium background - pairs with a matching light animation."
-              : "Delikatne premium tło - dobierana lekka animacja."}
+              ? "Subtle premium background - static preview; a matching light animation can be enabled separately."
+              : "Delikatne premium tło - statyczny podgląd; animację można włączyć osobno."}
           </div>
         </div>
       )}
