@@ -36,9 +36,24 @@ export function NewsletterForm({ lang = "pl", source = "post-bottom", variant = 
     }
 
     try {
+      const consentText =
+        (lang === "en" ? s.policy_html_en : s.policy_html_pl) ||
+        (lang === "en"
+          ? "I agree to receive the newsletter and processing of my e-mail address for that purpose."
+          : "Wyrażam zgodę na otrzymywanie newslettera i przetwarzanie mojego adresu e-mail w tym celu.");
       const res = await subscribe({
-        data: { email: trimmed, name: name.trim() || undefined, language: lang, source },
+        data: {
+          email: trimmed,
+          name: name.trim() || undefined,
+          language: lang,
+          source,
+          formName: (lang === "en" ? s.heading_en : s.heading_pl) || undefined,
+          consents: [
+            { key: "newsletter", text: consentText, given: true, lang },
+          ],
+        },
       });
+
       if (!res.ok) {
         setErrMsg(
           res.error === "not_configured" || res.error === "disabled"

@@ -158,15 +158,33 @@ export function NewsletterPopupForm({
     if (showLists && v.list) meta.mailing_list = v.list;
 
     try {
+      const consents: Array<{ key: string; text: string; given: boolean; lang: "pl" | "en" }> = [];
+      const popupTitle = (isPl ? settings.popup_title_pl : settings.popup_title_en) || undefined;
+      const nlText = isPl
+        ? "Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych."
+        : "I subscribe to the newsletter and accept receiving marketing messages.";
+      consents.push({ key: "newsletter", text: nlText, given: true, lang });
+      const currentTermsHtml =
+        (isPl ? settings.popup_terms_html_pl : settings.popup_terms_html_en) ?? "";
+      if (requireTerms && v.terms && currentTermsHtml) {
+        consents.push({ key: "terms", text: currentTermsHtml, given: true, lang });
+      }
+
       const res = await subscribe({
         data: {
           email,
           name: displayName || undefined,
+          firstName: v.name.trim() || undefined,
+          lastName: v.surname.trim() || undefined,
           language: lang,
           source,
+          formName: popupTitle,
+          consents,
           meta: Object.keys(meta).length ? meta : undefined,
         },
       });
+
+
       if (!res.ok) {
         setErr(
           res.error === "not_configured" || res.error === "disabled"

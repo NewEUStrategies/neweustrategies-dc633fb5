@@ -16,15 +16,29 @@ import { z } from "zod";
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 const DOI_TTL_MS = 1000 * 60 * 60 * 48; // 48h
 
+const ConsentEntry = z.object({
+  key: z.string().trim().min(1).max(64),
+  text: z.string().trim().min(1).max(2000),
+  version: z.string().trim().max(32).optional(),
+  given: z.boolean().optional(),
+  lang: z.string().trim().max(8).optional(),
+});
+
 const NewsletterInput = z.object({
   email: z.string().trim().email().max(254),
   name: z.string().trim().max(160).optional(),
+  firstName: z.string().trim().max(100).optional(),
+  lastName: z.string().trim().max(100).optional(),
   language: z.enum(["pl", "en"]).default("pl"),
   source: z.string().trim().max(120).optional(),
+  formId: z.string().trim().max(120).optional(),
+  formName: z.string().trim().max(200).optional(),
+  consents: z.array(ConsentEntry).max(10).optional(),
   // Popup "extended fields" (job, company, linkedin, phone, mailing_list, ...)
   // are persisted verbatim in newsletter_subscribers.meta; keys/values capped.
   meta: z.record(z.string().max(64), z.string().max(500)).optional(),
 });
+
 
 export type NewsletterSubscribeResult =
   | { ok: true; status: "pending" | "subscribed" | "exists"; emailSent?: boolean }
@@ -175,16 +189,38 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       .maybeSingle();
     if (existing?.status === "subscribed") return { ok: true, status: "exists" };
 
+    // Extract client IP + UA (best-effort; used for consent audit trail)
+    let clientIp: string | null = null;
+    let userAgent: string | null = null;
+    try {
+      const req = getRequest();
+      const fwd = req.headers.get("x-forwarded-for");
+      const fwdFirst = fwd ? (fwd.split(",")[0]?.trim() ?? null) : null;
+      clientIp =
+        req.headers.get("cf-connecting-ip") ?? fwdFirst ?? req.headers.get("x-real-ip");
+      userAgent = req.headers.get("user-agent");
+    } catch {
+      // request context unavailable - fine
+    }
+
     // `meta` is spread in only when present so a later signup (e.g. a plain form
     // over a popup entry) never clobbers previously captured fields with null.
     const base = {
       tenant_id: tenantId,
       email,
       display_name: displayName,
+      first_name: data.firstName ?? null,
+      last_name: data.lastName ?? null,
       language: data.language,
       source: data.source ?? "newsletter-form",
+      source_form_id: data.formId ?? null,
+      source_form_name: data.formName ?? null,
+      ip: clientIp,
+      user_agent: userAgent,
+      consents: data.consents ?? [],
       ...(meta ? { meta } : {}),
     };
+
 
     if (!doi) {
       const { error } = await supabaseAdmin.from("newsletter_subscribers").upsert(
