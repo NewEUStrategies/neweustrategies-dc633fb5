@@ -195,7 +195,7 @@ export function ImageSlot({
       <input
         ref={fileRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp,image/avif,image/gif,image/apng,image/svg+xml,video/mp4,video/webm"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
