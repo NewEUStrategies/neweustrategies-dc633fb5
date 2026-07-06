@@ -747,6 +747,14 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           showPhone={isOn("showPhone")}
           showCompany={isOn("showCompany")}
           showCountry={isOn("showCountry")}
+          requireFirstName={(getStr(c, "requireFirstName") ?? "0") === "1"}
+          requireLastName={(getStr(c, "requireLastName") ?? "0") === "1"}
+          requireEmail={(getStr(c, "requireEmail") ?? "1") === "1"}
+          requirePosition={(getStr(c, "requirePosition") ?? "0") === "1"}
+          requireLinkedin={(getStr(c, "requireLinkedin") ?? "0") === "1"}
+          requirePhone={(getStr(c, "requirePhone") ?? "0") === "1"}
+          requireCompany={(getStr(c, "requireCompany") ?? "0") === "1"}
+          requireCountry={(getStr(c, "requireCountry") ?? "0") === "1"}
           firstNamePlaceholder={pick("firstNamePlaceholder")}
           lastNamePlaceholder={pick("lastNamePlaceholder")}
           positionPlaceholder={pick("positionPlaceholder")}
