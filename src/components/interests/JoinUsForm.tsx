@@ -166,14 +166,54 @@ export function JoinUsForm({
   const updateExtra = (k: ExtraKey, v: string) =>
     setExtra((prev) => ({ ...prev, [k]: v }));
 
+  // Client-side "wymagane" enforcement — mirror of the server-side policy.
+  const requiredMap: Record<string, boolean> = {
+    firstName: showFirstName && requireFirstName,
+    lastName: showLastName && requireLastName,
+    email: requireEmail,
+    position: showPosition && requirePosition,
+    linkedin: showLinkedin && requireLinkedin,
+    phone: showPhone && requirePhone,
+    company: showCompany && requireCompany,
+    country: showCountry && requireCountry,
+  };
+  const requiredFields = Object.entries(requiredMap)
+    .filter(([, v]) => v)
+    .map(([k]) => k);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setState("loading");
     setErrMsg(null);
 
     const trimmed = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    if (requireEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
       setErrMsg(t("joinUs.errorEmail"));
+      setState("err");
+      return;
+    }
+
+    const firstName = showFirstName ? extra.firstName.trim() : "";
+    const lastName = showLastName ? extra.lastName.trim() : "";
+
+    // Client-side "required" verification (server re-checks).
+    const values: Record<string, string> = {
+      firstName,
+      lastName,
+      email: trimmed,
+      position: extra.position.trim(),
+      linkedin: extra.linkedin.trim(),
+      phone: extra.phone.trim(),
+      company: extra.company.trim(),
+      country: extra.country.trim(),
+    };
+    const missing = requiredFields.filter((k) => !values[k]);
+    if (missing.length) {
+      setErrMsg(
+        lang === "en"
+          ? `Please fill in required fields: ${missing.join(", ")}`
+          : `Uzupełnij wymagane pola: ${missing.join(", ")}`,
+      );
       setState("err");
       return;
     }
@@ -184,17 +224,14 @@ export function JoinUsForm({
           ? "I subscribe to the newsletter and accept receiving marketing messages."
           : "Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych.";
 
-      const firstName = showFirstName ? extra.firstName.trim() : "";
-      const lastName = showLastName ? extra.lastName.trim() : "";
-
       // Extras with no first-class column go into meta (persisted verbatim
       // in newsletter_subscribers.meta by the server fn).
       const meta: Record<string, string> = {};
-      if (showPosition && extra.position.trim()) meta.position = extra.position.trim().slice(0, 500);
-      if (showLinkedin && extra.linkedin.trim()) meta.linkedin = extra.linkedin.trim().slice(0, 500);
-      if (showPhone && extra.phone.trim()) meta.phone = extra.phone.trim().slice(0, 500);
-      if (showCompany && extra.company.trim()) meta.company = extra.company.trim().slice(0, 500);
-      if (showCountry && extra.country.trim()) meta.country = extra.country.trim().slice(0, 500);
+      if (showPosition && values.position) meta.position = values.position.slice(0, 500);
+      if (showLinkedin && values.linkedin) meta.linkedin = values.linkedin.slice(0, 500);
+      if (showPhone && values.phone) meta.phone = values.phone.slice(0, 500);
+      if (showCompany && values.company) meta.company = values.company.slice(0, 500);
+      if (showCountry && values.country) meta.country = values.country.slice(0, 500);
 
       const combinedName = useSplitName
         ? [firstName, lastName].filter(Boolean).join(" ")
@@ -210,6 +247,8 @@ export function JoinUsForm({
           source,
           consents: [{ key: "newsletter", text: nlText, given: true, lang }],
           meta: Object.keys(meta).length ? meta : undefined,
+          requiredFields,
+          formType: "join_us",
         },
       });
 
@@ -227,6 +266,7 @@ export function JoinUsForm({
       setState("err");
       return;
     }
+
 
     if (showInterests && allItems.length) {
       const catIds = new Set(catalog.data?.categories.map((c) => c.id) ?? []);
