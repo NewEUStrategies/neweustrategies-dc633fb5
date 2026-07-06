@@ -760,6 +760,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           requirePhone={(getStr(c, "requirePhone") ?? "0") === "1"}
           requireCompany={(getStr(c, "requireCompany") ?? "0") === "1"}
           requireCountry={(getStr(c, "requireCountry") ?? "0") === "1"}
+          requireInterests={(getStr(c, "requireInterests") ?? "0") === "1"}
+          interestSlugs={interestSlugs}
+
           firstNamePlaceholder={pick("firstNamePlaceholder")}
           lastNamePlaceholder={pick("lastNamePlaceholder")}
           positionPlaceholder={pick("positionPlaceholder")}
