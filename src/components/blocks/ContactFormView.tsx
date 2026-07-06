@@ -131,6 +131,14 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const showCompany = bool(data, "showCompany");
   const showSubject = bool(data, "showSubject", true);
   const showMessage = bool(data, "showMessage", true);
+  // per-field "wymagane" (spójne z tabelą form_field_policies)
+  const requireFirstName = bool(data, "requireFirstName", true);
+  const requireLastName = bool(data, "requireLastName", false);
+  const requireEmail = bool(data, "requireEmail", true);
+  const requirePhone = bool(data, "requirePhone", false);
+  const requireCompany = bool(data, "requireCompany", false);
+  const requireSubject = bool(data, "requireSubject", false);
+  const requireMessage = bool(data, "requireMessage", true);
   const requireConsent = bool(data, "requireConsent", true);
   const showNewsletter = bool(data, "showNewsletterOptIn");
   const consentTextRaw = s(data, `consentText_${lang}`, t.consent);
