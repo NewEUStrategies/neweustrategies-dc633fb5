@@ -78,9 +78,14 @@ export function useInterestCatalog(lang: "pl" | "en" = "pl") {
   });
 
   // Realtime: refresh catalog when admins add/edit/remove categories or tags.
+  // Uniquely-named channel per hook instance so multiple mounted widgets don't
+  // reuse a subscribed channel (which throws
+  // "cannot add postgres_changes callbacks ... after subscribe()").
   useEffect(() => {
-    const channel = supabase
-      .channel("interests-catalog-rt")
+    const channel = supabase.channel(
+      `interests-catalog-rt-${Math.random().toString(36).slice(2, 10)}`,
+    );
+    channel
       .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, () => {
         void qc.invalidateQueries({ queryKey: ["interests-catalog"] });
       })
@@ -92,6 +97,7 @@ export function useInterestCatalog(lang: "pl" | "en" = "pl") {
       void supabase.removeChannel(channel);
     };
   }, [qc]);
+
 
   return query;
 }
