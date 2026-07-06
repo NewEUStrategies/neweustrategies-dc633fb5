@@ -58,6 +58,11 @@ export interface JoinUsFormProps {
   requirePhone?: boolean;
   requireCompany?: boolean;
   requireCountry?: boolean;
+  requireInterests?: boolean;
+
+  // Optional curated allow-list of interests to show as chips (category or
+  // tag slugs). When empty/undefined - all catalog items are shown.
+  interestSlugs?: string[];
 
   firstNamePlaceholder?: string;
   lastNamePlaceholder?: string;
@@ -67,6 +72,7 @@ export interface JoinUsFormProps {
   companyPlaceholder?: string;
   countryPlaceholder?: string;
 }
+
 
 type ExtraKey =
   | "firstName"
