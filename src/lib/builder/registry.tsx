@@ -212,6 +212,14 @@ export const WIDGETS: WidgetDef[] = [
       showLastName: true,
       showEmail: true,
       showMessage: true,
+      requireFirstName: true,
+      requireLastName: false,
+      requireEmail: true,
+      requirePhone: false,
+      requireCompany: false,
+      requireSubject: false,
+      requireMessage: true,
+
       consentText_pl:
         "Wyrażam zgodę na przetwarzanie moich danych osobowych zgodnie z [Polityką prywatności](/polityka-prywatnosci).",
       consentText_en:
