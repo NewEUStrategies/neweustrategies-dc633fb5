@@ -187,7 +187,18 @@ export const WIDGETS: WidgetDef[] = [
     label: "Newsletter",
     category: "form",
     icon: Mail,
-    defaults: () => ({ title_pl: "Zapisz się", title_en: "Subscribe" }),
+    defaults: () => ({
+      title_pl: "Zapisz się",
+      title_en: "Subscribe",
+      requireEmail: "1",
+      showFirstName: "0",
+      showLastName: "0",
+      showCompany: "0",
+      requireFirstName: "0",
+      requireLastName: "0",
+      requireCompany: "0",
+      customFields: [] as unknown as Json,
+    }),
   },
   // Legacy "contact" widget kept for backward compatibility with already-saved
   // pages. New panels should use "contact-form" (richer config). Defaults are
