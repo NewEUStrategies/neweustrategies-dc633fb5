@@ -407,7 +407,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
               error={errors.message}
               className={widthCls(columns === 3 ? 3 : 2)}
             >
-              <textarea name="message" rows={20} required className="cf-input resize-y" />
+              <textarea name="message" rows={10} required className="cf-input resize-y" />
             </Field>
           )}
 
