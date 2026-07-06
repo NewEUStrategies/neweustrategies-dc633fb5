@@ -517,7 +517,9 @@ export function JoinUsForm({
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {iLabel}
+            {requireInterests && <span className="ml-1 text-destructive">*</span>}
           </p>
+
           <div className="flex flex-wrap gap-1.5 max-h-40 overflow-auto pr-1">
             {allItems.map((it) => {
               const active = picked.has(it.id);
