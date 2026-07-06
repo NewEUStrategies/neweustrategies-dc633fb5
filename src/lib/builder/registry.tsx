@@ -258,7 +258,17 @@ export const WIDGETS: WidgetDef[] = [
       showPhone: "0",
       showCompany: "0",
       showCountry: "0",
+      // per-field required (e-mail wymagany domyślnie)
+      requireFirstName: "0",
+      requireLastName: "0",
+      requireEmail: "1",
+      requirePosition: "0",
+      requireLinkedin: "0",
+      requirePhone: "0",
+      requireCompany: "0",
+      requireCountry: "0",
     }),
+
 
   },
   {
