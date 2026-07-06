@@ -201,6 +201,18 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     if (showNewsletter && newsletterGiven) {
       consents.push({ key: "newsletter", text: newsletterLabel, given: true, lang });
     }
+    const requiredMap: Record<string, boolean> = {
+      firstName: showFirstName && requireFirstName,
+      lastName: showLastName && requireLastName,
+      email: showEmail && requireEmail,
+      phone: showPhone && requirePhone,
+      company: showCompany && requireCompany,
+      subject: showSubject && requireSubject,
+      message: showMessage && requireMessage,
+    };
+    const requiredFields = Object.entries(requiredMap)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
     const payload = {
       name: [firstName, lastName].filter(Boolean).join(" "),
       firstName: firstName || undefined,
@@ -222,15 +234,19 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       pageUrl: typeof window !== "undefined" ? window.location.href : undefined,
       referer: typeof document !== "undefined" ? document.referrer || undefined : undefined,
       consents,
+      requiredFields,
     };
 
     const errs: Record<string, string> = {};
-    if (showFirstName && !firstName) errs.firstName = t.required;
-    if (showLastName && !lastName) errs.lastName = t.required;
-    if (showEmail && !payload.email) errs.email = t.required;
-    else if (showEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email))
+    if (requiredMap.firstName && !firstName) errs.firstName = t.required;
+    if (requiredMap.lastName && !lastName) errs.lastName = t.required;
+    if (requiredMap.email && !payload.email) errs.email = t.required;
+    else if (showEmail && payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email))
       errs.email = t.invalidEmail;
-    if (showMessage && !payload.message) errs.message = t.required;
+    if (requiredMap.phone && !payload.phone) errs.phone = t.required;
+    if (requiredMap.company && !payload.company) errs.company = t.required;
+    if (requiredMap.subject && !payload.subject) errs.subject = t.required;
+    if (requiredMap.message && !payload.message) errs.message = t.required;
     if (requireConsent && !payload.consent) errs.consent = t.required;
 
     setErrors(errs);
