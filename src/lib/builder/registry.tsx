@@ -800,6 +800,7 @@ export const WIDGETS: WidgetDef[] = [
       redirectTo: "/",
       registerHref: "/register",
       forgotHref: "/lost-password",
+      customFields: [] as unknown as Json,
     }),
   },
   {
