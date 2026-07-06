@@ -275,7 +275,9 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
         { onConflict: "tenant_id,email" },
       );
       if (error) return { ok: false, error: error.message };
+      await syncToCrm(tenantId, email, data, meta);
       return { ok: true, status: "subscribed" };
+
     }
 
     const token = hexToken(32);
@@ -296,5 +298,43 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     const confirmUrl = `${originFromRequest()}/newsletter/confirm?token=${encodeURIComponent(token)}`;
     const mail = buildDoiEmail(displayName, data.language, confirmUrl);
     const send = await sendEmail({ to: email, subject: mail.subject, html: mail.html });
+    await syncToCrm(tenantId, email, data, meta);
     return { ok: true, status: "pending", emailSent: send.ok };
   });
+
+// --- CRM sync -------------------------------------------------------------
+// Creates or updates the CRM contact + company for every successful signup.
+// Existing contacts are never overwritten - new alt emails/phones/companies/
+// positions/linkedins/countries and the submission source are appended to the
+// `aliases` history via the crm_upsert_from_form() DB helper.
+async function syncToCrm(
+  tenantId: string,
+  email: string,
+  data: {
+    firstName?: string;
+    lastName?: string;
+    source?: string;
+  },
+  meta: Record<string, string> | null,
+): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.rpc("crm_upsert_from_form", {
+      _tenant: tenantId,
+      _email: email,
+      _first_name: data.firstName?.trim() ?? "",
+      _last_name: data.lastName?.trim() ?? "",
+      _phone: meta?.phone?.trim() ?? "",
+      _company: meta?.company?.trim() ?? "",
+      _position: meta?.position?.trim() ?? "",
+      _linkedin: meta?.linkedin?.trim() ?? "",
+      _country: meta?.country?.trim() ?? "",
+      _source: data.source?.trim() ?? "newsletter",
+    });
+
+    if (error) console.error("[newsletter] crm sync failed", error);
+  } catch (err) {
+    console.error("[newsletter] crm sync threw", err);
+  }
+}
+

@@ -870,6 +870,39 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_companies: {
+        Row: {
+          aliases: Json
+          created_at: string
+          domain: string | null
+          id: string
+          name: string
+          name_norm: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          aliases?: Json
+          created_at?: string
+          domain?: string | null
+          id?: string
+          name: string
+          name_norm?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          aliases?: Json
+          created_at?: string
+          domain?: string | null
+          id?: string
+          name?: string
+          name_norm?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       crm_consent_log: {
         Row: {
           consent_key: string
@@ -1028,7 +1061,10 @@ export type Database = {
       }
       crm_leads: {
         Row: {
+          aliases: Json
           company: string | null
+          company_id: string | null
+          country: string | null
           created_at: string
           email: string
           email_norm: string
@@ -1037,11 +1073,13 @@ export type Database = {
           id: string
           last_activity_at: string
           last_name: string | null
+          linkedin_url: string | null
           marketing_consent: boolean
           newsletter_status: string | null
           owner_id: string | null
           phone: string | null
           phone_norm: string | null
+          position: string | null
           source_count: number
           stage: Database["public"]["Enums"]["crm_stage"]
           tags: string[]
@@ -1049,7 +1087,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aliases?: Json
           company?: string | null
+          company_id?: string | null
+          country?: string | null
           created_at?: string
           email: string
           email_norm: string
@@ -1058,11 +1099,13 @@ export type Database = {
           id?: string
           last_activity_at?: string
           last_name?: string | null
+          linkedin_url?: string | null
           marketing_consent?: boolean
           newsletter_status?: string | null
           owner_id?: string | null
           phone?: string | null
           phone_norm?: string | null
+          position?: string | null
           source_count?: number
           stage?: Database["public"]["Enums"]["crm_stage"]
           tags?: string[]
@@ -1070,7 +1113,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aliases?: Json
           company?: string | null
+          company_id?: string | null
+          country?: string | null
           created_at?: string
           email?: string
           email_norm?: string
@@ -1079,18 +1125,28 @@ export type Database = {
           id?: string
           last_activity_at?: string
           last_name?: string | null
+          linkedin_url?: string | null
           marketing_consent?: boolean
           newsletter_status?: string | null
           owner_id?: string | null
           phone?: string | null
           phone_norm?: string | null
+          position?: string | null
           source_count?: number
           stage?: Database["public"]["Enums"]["crm_stage"]
           tags?: string[]
           tenant_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "crm_leads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "crm_companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       custom_crop_sizes: {
         Row: {
@@ -3850,6 +3906,21 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"][]
       }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }
+      crm_upsert_from_form: {
+        Args: {
+          _company: string
+          _country: string
+          _email: string
+          _first_name: string
+          _last_name: string
+          _linkedin: string
+          _phone: string
+          _position: string
+          _source: string
+          _tenant: string
+        }
+        Returns: string
+      }
       crm_upsert_lead: {
         Args: {
           _company: string
@@ -4037,6 +4108,10 @@ export type Database = {
       }
       is_staff: { Args: never; Returns: boolean }
       is_super_admin: { Args: { _user_id?: string }; Returns: boolean }
+      jsonb_append_distinct: {
+        Args: { _key: string; _obj: Json; _val: string }
+        Returns: Json
+      }
       nes_jsonb_text: { Args: { _j: Json }; Returns: string }
       nes_pages_search_vector: {
         Args: {
