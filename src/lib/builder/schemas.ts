@@ -1153,20 +1153,6 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       step: 5,
     },
     {
-      key: "bgAnimation",
-      type: "select",
-      label: "Animacja tła",
-      options: [
-        { value: "none", label: "brak" },
-        { value: "aurora", label: "Aurora (zorze)" },
-        { value: "mesh-drift", label: "Mesh drift (dryf)" },
-        { value: "floating-dots", label: "Floating dots" },
-        { value: "wave-lines", label: "Wave lines (fale)" },
-        { value: "noise-shimmer", label: "Noise shimmer (poświata)" },
-        { value: "orbits", label: "Orbits (orbity)" },
-      ],
-    },
-    {
       key: "recipient",
       type: "text",
       label: "E-mail odbiorcy (override)",
