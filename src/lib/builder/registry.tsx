@@ -212,6 +212,14 @@ export const WIDGETS: WidgetDef[] = [
       showLastName: true,
       showEmail: true,
       showMessage: true,
+      requireFirstName: true,
+      requireLastName: false,
+      requireEmail: true,
+      requirePhone: false,
+      requireCompany: false,
+      requireSubject: false,
+      requireMessage: true,
+
       consentText_pl:
         "Wyrażam zgodę na przetwarzanie moich danych osobowych zgodnie z [Polityką prywatności](/polityka-prywatnosci).",
       consentText_en:
@@ -258,7 +266,17 @@ export const WIDGETS: WidgetDef[] = [
       showPhone: "0",
       showCompany: "0",
       showCountry: "0",
+      // per-field required (e-mail wymagany domyślnie)
+      requireFirstName: "0",
+      requireLastName: "0",
+      requireEmail: "1",
+      requirePosition: "0",
+      requireLinkedin: "0",
+      requirePhone: "0",
+      requireCompany: "0",
+      requireCountry: "0",
     }),
+
 
   },
   {
@@ -940,6 +958,15 @@ export const WIDGETS: WidgetDef[] = [
       showCompany: false,
       showSubject: true,
       showMessage: true,
+      // per-field "wymagane" — spójne z polityką w bazie
+      requireFirstName: true,
+      requireLastName: false,
+      requireEmail: true,
+      requirePhone: false,
+      requireCompany: false,
+      requireSubject: false,
+      requireMessage: true,
+
       showNewsletterOptIn: false,
       newsletterLabel_pl: "Zapisz mnie do newslettera",
       newsletterLabel_en: "Subscribe me to the newsletter",

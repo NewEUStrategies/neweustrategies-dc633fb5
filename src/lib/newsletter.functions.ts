@@ -37,6 +37,10 @@ const NewsletterInput = z.object({
   // Popup "extended fields" (job, company, linkedin, phone, mailing_list, ...)
   // are persisted verbatim in newsletter_subscribers.meta; keys/values capped.
   meta: z.record(z.string().max(64), z.string().max(500)).optional(),
+  // "Wymagane" pola zadeklarowane przez widget; server merguje z tenant
+  // policy floor (form_field_policies) i weryfikuje przed zapisem.
+  requiredFields: z.array(z.string().trim().max(64)).max(20).optional(),
+  formType: z.enum(["newsletter", "join_us"]).default("newsletter"),
 });
 
 
@@ -179,6 +183,43 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     const doi = settings.double_opt_in === true;
     const displayName = data.name?.trim() || null;
     const meta = data.meta && Object.keys(data.meta).length ? data.meta : null;
+
+    // ---- Server-side "wymagane" enforcement --------------------------------
+    // Tenant policy (form_field_policies) is authoritative; widget-declared
+    // requiredFields extends it but can never loosen it.
+    const policyPayload: Record<string, string> = {
+      email,
+      firstName: data.firstName ?? "",
+      lastName: data.lastName ?? "",
+      position: meta?.position ?? "",
+      linkedin: meta?.linkedin ?? "",
+      phone: meta?.phone ?? "",
+      company: meta?.company ?? "",
+      country: meta?.country ?? "",
+    };
+    const { data: policyErrors, error: policyErr } = await supabaseAdmin.rpc(
+      "enforce_form_field_policy",
+      {
+        _tenant: tenantId,
+        _form_type: data.formType,
+        _payload: policyPayload,
+      },
+    );
+    if (policyErr) console.error("[newsletter] policy check failed", policyErr);
+    const violations: string[] = Array.isArray(policyErrors) ? [...policyErrors] : [];
+    if (Array.isArray(data.requiredFields)) {
+      for (const key of data.requiredFields) {
+        const v = (policyPayload[key] ?? "").trim();
+        if (!v) violations.push(`required:${key}`);
+      }
+    }
+    if (violations.length) {
+      return {
+        ok: false,
+        error: `policy_violation:${Array.from(new Set(violations)).join(",")}`,
+      };
+    }
+
 
     // Never reset an already-confirmed subscriber.
     const { data: existing } = await supabaseAdmin

@@ -947,7 +947,7 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
     { key: "successText", type: "i18nText", label: "Komunikat sukcesu" },
     { key: "namePlaceholder", type: "i18nText", label: "Placeholder: Imię (pojedyncze pole)" },
     { key: "emailPlaceholder", type: "i18nText", label: "Placeholder: E-mail" },
-    // Optional extra fields
+    // Optional extra fields (+ per-field "wymagane" toggle)
     {
       key: "showFirstName",
       type: "select",
@@ -955,6 +955,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       options: [
         { value: "0", label: "ukryj" },
         { value: "1", label: "pokaż" },
+      ],
+    },
+    {
+      key: "requireFirstName",
+      type: "select",
+      label: "Imię: wymagane?",
+      options: [
+        { value: "0", label: "nie" },
+        { value: "1", label: "tak" },
       ],
     },
     { key: "firstNamePlaceholder", type: "i18nText", label: "Placeholder: Imię" },
@@ -967,7 +976,25 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "1", label: "pokaż" },
       ],
     },
+    {
+      key: "requireLastName",
+      type: "select",
+      label: "Nazwisko: wymagane?",
+      options: [
+        { value: "0", label: "nie" },
+        { value: "1", label: "tak" },
+      ],
+    },
     { key: "lastNamePlaceholder", type: "i18nText", label: "Placeholder: Nazwisko" },
+    {
+      key: "requireEmail",
+      type: "select",
+      label: "E-mail: wymagany?",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
     {
       key: "showPosition",
       type: "select",
@@ -975,6 +1002,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       options: [
         { value: "0", label: "ukryj" },
         { value: "1", label: "pokaż" },
+      ],
+    },
+    {
+      key: "requirePosition",
+      type: "select",
+      label: "Stanowisko: wymagane?",
+      options: [
+        { value: "0", label: "nie" },
+        { value: "1", label: "tak" },
       ],
     },
     { key: "positionPlaceholder", type: "i18nText", label: "Placeholder: Stanowisko" },
@@ -987,6 +1023,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "1", label: "pokaż" },
       ],
     },
+    {
+      key: "requireLinkedin",
+      type: "select",
+      label: "LinkedIn: wymagany?",
+      options: [
+        { value: "0", label: "nie" },
+        { value: "1", label: "tak" },
+      ],
+    },
     { key: "linkedinPlaceholder", type: "i18nText", label: "Placeholder: LinkedIn URL" },
     {
       key: "showPhone",
@@ -995,6 +1040,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       options: [
         { value: "0", label: "ukryj" },
         { value: "1", label: "pokaż" },
+      ],
+    },
+    {
+      key: "requirePhone",
+      type: "select",
+      label: "Telefon: wymagany?",
+      options: [
+        { value: "0", label: "nie" },
+        { value: "1", label: "tak" },
       ],
     },
     { key: "phonePlaceholder", type: "i18nText", label: "Placeholder: Telefon" },
@@ -1007,6 +1061,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "1", label: "pokaż" },
       ],
     },
+    {
+      key: "requireCompany",
+      type: "select",
+      label: "Firma: wymagana?",
+      options: [
+        { value: "0", label: "nie" },
+        { value: "1", label: "tak" },
+      ],
+    },
     { key: "companyPlaceholder", type: "i18nText", label: "Placeholder: Firma" },
     {
       key: "showCountry",
@@ -1017,8 +1080,18 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "1", label: "pokaż" },
       ],
     },
+    {
+      key: "requireCountry",
+      type: "select",
+      label: "Kraj: wymagany?",
+      options: [
+        { value: "0", label: "nie" },
+        { value: "1", label: "tak" },
+      ],
+    },
     { key: "countryPlaceholder", type: "i18nText", label: "Placeholder: Kraj" },
   ],
+
 
   "customize-interests": [
     {
@@ -1058,11 +1131,20 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       label: "Ikona nagłówka",
       hint: "Rekomendowane 128x128 px (PNG/SVG, kwadrat)",
     },
-    // ----- Pola formularza -----
+    // ----- Pola formularza (+ per-field "wymagane") -----
     {
       key: "showFirstName",
       type: "select",
       label: "Pole: Imię",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
+    {
+      key: "requireFirstName",
+      type: "select",
+      label: "Imię: wymagane?",
       options: [
         { value: "1", label: "tak" },
         { value: "0", label: "nie" },
@@ -1078,9 +1160,27 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
+      key: "requireLastName",
+      type: "select",
+      label: "Nazwisko: wymagane?",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
+    {
       key: "showEmail",
       type: "select",
       label: "Pole: E-mail",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
+    {
+      key: "requireEmail",
+      type: "select",
+      label: "E-mail: wymagany?",
       options: [
         { value: "1", label: "tak" },
         { value: "0", label: "nie" },
@@ -1096,12 +1196,30 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
+      key: "requirePhone",
+      type: "select",
+      label: "Telefon: wymagany?",
+      options: [
+        { value: "0", label: "nie" },
+        { value: "1", label: "tak" },
+      ],
+    },
+    {
       key: "showCompany",
       type: "select",
       label: "Pole: Firma",
       options: [
         { value: "1", label: "tak" },
         { value: "0", label: "nie" },
+      ],
+    },
+    {
+      key: "requireCompany",
+      type: "select",
+      label: "Firma: wymagana?",
+      options: [
+        { value: "0", label: "nie" },
+        { value: "1", label: "tak" },
       ],
     },
     {
@@ -1114,6 +1232,15 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     {
+      key: "requireSubject",
+      type: "select",
+      label: "Temat: wymagany?",
+      options: [
+        { value: "0", label: "nie" },
+        { value: "1", label: "tak" },
+      ],
+    },
+    {
       key: "showMessage",
       type: "select",
       label: "Pole: Wiadomość",
@@ -1122,6 +1249,16 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "0", label: "nie" },
       ],
     },
+    {
+      key: "requireMessage",
+      type: "select",
+      label: "Wiadomość: wymagana?",
+      options: [
+        { value: "1", label: "tak" },
+        { value: "0", label: "nie" },
+      ],
+    },
+
     {
       key: "requireConsent",
       type: "select",

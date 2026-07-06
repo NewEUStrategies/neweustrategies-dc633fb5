@@ -48,6 +48,17 @@ export interface JoinUsFormProps {
   showCompany?: boolean;
   showCountry?: boolean;
 
+  // Per-field "wymagane" toggles - kontrolowane w builderze, egzekwowane
+  // dodatkowo po stronie serwera przez enforce_form_field_policy().
+  requireFirstName?: boolean;
+  requireLastName?: boolean;
+  requireEmail?: boolean;
+  requirePosition?: boolean;
+  requireLinkedin?: boolean;
+  requirePhone?: boolean;
+  requireCompany?: boolean;
+  requireCountry?: boolean;
+
   firstNamePlaceholder?: string;
   lastNamePlaceholder?: string;
   positionPlaceholder?: string;
@@ -90,6 +101,14 @@ export function JoinUsForm({
   showPhone = false,
   showCompany = false,
   showCountry = false,
+  requireFirstName = false,
+  requireLastName = false,
+  requireEmail = true,
+  requirePosition = false,
+  requireLinkedin = false,
+  requirePhone = false,
+  requireCompany = false,
+  requireCountry = false,
   firstNamePlaceholder,
   lastNamePlaceholder,
   positionPlaceholder,
@@ -147,14 +166,54 @@ export function JoinUsForm({
   const updateExtra = (k: ExtraKey, v: string) =>
     setExtra((prev) => ({ ...prev, [k]: v }));
 
+  // Client-side "wymagane" enforcement — mirror of the server-side policy.
+  const requiredMap: Record<string, boolean> = {
+    firstName: showFirstName && requireFirstName,
+    lastName: showLastName && requireLastName,
+    email: requireEmail,
+    position: showPosition && requirePosition,
+    linkedin: showLinkedin && requireLinkedin,
+    phone: showPhone && requirePhone,
+    company: showCompany && requireCompany,
+    country: showCountry && requireCountry,
+  };
+  const requiredFields = Object.entries(requiredMap)
+    .filter(([, v]) => v)
+    .map(([k]) => k);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setState("loading");
     setErrMsg(null);
 
     const trimmed = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    if (requireEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
       setErrMsg(t("joinUs.errorEmail"));
+      setState("err");
+      return;
+    }
+
+    const firstName = showFirstName ? extra.firstName.trim() : "";
+    const lastName = showLastName ? extra.lastName.trim() : "";
+
+    // Client-side "required" verification (server re-checks).
+    const values: Record<string, string> = {
+      firstName,
+      lastName,
+      email: trimmed,
+      position: extra.position.trim(),
+      linkedin: extra.linkedin.trim(),
+      phone: extra.phone.trim(),
+      company: extra.company.trim(),
+      country: extra.country.trim(),
+    };
+    const missing = requiredFields.filter((k) => !values[k]);
+    if (missing.length) {
+      setErrMsg(
+        lang === "en"
+          ? `Please fill in required fields: ${missing.join(", ")}`
+          : `Uzupełnij wymagane pola: ${missing.join(", ")}`,
+      );
       setState("err");
       return;
     }
@@ -165,17 +224,14 @@ export function JoinUsForm({
           ? "I subscribe to the newsletter and accept receiving marketing messages."
           : "Zapisuję się do newslettera i akceptuję otrzymywanie wiadomości marketingowych.";
 
-      const firstName = showFirstName ? extra.firstName.trim() : "";
-      const lastName = showLastName ? extra.lastName.trim() : "";
-
       // Extras with no first-class column go into meta (persisted verbatim
       // in newsletter_subscribers.meta by the server fn).
       const meta: Record<string, string> = {};
-      if (showPosition && extra.position.trim()) meta.position = extra.position.trim().slice(0, 500);
-      if (showLinkedin && extra.linkedin.trim()) meta.linkedin = extra.linkedin.trim().slice(0, 500);
-      if (showPhone && extra.phone.trim()) meta.phone = extra.phone.trim().slice(0, 500);
-      if (showCompany && extra.company.trim()) meta.company = extra.company.trim().slice(0, 500);
-      if (showCountry && extra.country.trim()) meta.country = extra.country.trim().slice(0, 500);
+      if (showPosition && values.position) meta.position = values.position.slice(0, 500);
+      if (showLinkedin && values.linkedin) meta.linkedin = values.linkedin.slice(0, 500);
+      if (showPhone && values.phone) meta.phone = values.phone.slice(0, 500);
+      if (showCompany && values.company) meta.company = values.company.slice(0, 500);
+      if (showCountry && values.country) meta.country = values.country.slice(0, 500);
 
       const combinedName = useSplitName
         ? [firstName, lastName].filter(Boolean).join(" ")
@@ -191,6 +247,8 @@ export function JoinUsForm({
           source,
           consents: [{ key: "newsletter", text: nlText, given: true, lang }],
           meta: Object.keys(meta).length ? meta : undefined,
+          requiredFields,
+          formType: "join_us",
         },
       });
 
@@ -208,6 +266,7 @@ export function JoinUsForm({
       setState("err");
       return;
     }
+
 
     if (showInterests && allItems.length) {
       const catIds = new Set(catalog.data?.categories.map((c) => c.id) ?? []);
@@ -284,9 +343,10 @@ export function JoinUsForm({
 
   const inputCls =
     "px-3 py-2 rounded border border-input bg-background text-sm w-full";
+  const withMark = (label: string, req: boolean) => (req ? `${label} *` : label);
 
   const form = (
-    <form onSubmit={submit} className="space-y-3">
+    <form onSubmit={submit} className="space-y-3" noValidate>
       {useSplitName ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {showFirstName && (
@@ -294,7 +354,9 @@ export function JoinUsForm({
               type="text"
               value={extra.firstName}
               onChange={(e) => updateExtra("firstName", e.target.value)}
-              placeholder={phFirst}
+              placeholder={withMark(phFirst, requireFirstName)}
+              aria-required={requireFirstName || undefined}
+              required={requireFirstName}
               maxLength={100}
               className={inputCls}
               autoComplete="given-name"
@@ -305,7 +367,9 @@ export function JoinUsForm({
               type="text"
               value={extra.lastName}
               onChange={(e) => updateExtra("lastName", e.target.value)}
-              placeholder={phLast}
+              placeholder={withMark(phLast, requireLastName)}
+              aria-required={requireLastName || undefined}
+              required={requireLastName}
               maxLength={100}
               className={inputCls}
               autoComplete="family-name"
@@ -325,10 +389,11 @@ export function JoinUsForm({
           />
           <input
             type="email"
-            required
+            required={requireEmail}
+            aria-required={requireEmail || undefined}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder={phEmail}
+            placeholder={withMark(phEmail, requireEmail)}
             maxLength={254}
             className={inputCls}
             autoComplete="email"
@@ -339,10 +404,11 @@ export function JoinUsForm({
       {useSplitName && (
         <input
           type="email"
-          required
+          required={requireEmail}
+          aria-required={requireEmail || undefined}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder={phEmail}
+          placeholder={withMark(phEmail, requireEmail)}
           maxLength={254}
           className={inputCls}
           autoComplete="email"
@@ -356,7 +422,9 @@ export function JoinUsForm({
               type="text"
               value={extra.position}
               onChange={(e) => updateExtra("position", e.target.value)}
-              placeholder={phPosition}
+              placeholder={withMark(phPosition, requirePosition)}
+              aria-required={requirePosition || undefined}
+              required={requirePosition}
               maxLength={200}
               className={inputCls}
               autoComplete="organization-title"
@@ -367,7 +435,9 @@ export function JoinUsForm({
               type="url"
               value={extra.linkedin}
               onChange={(e) => updateExtra("linkedin", e.target.value)}
-              placeholder={phLinkedin}
+              placeholder={withMark(phLinkedin, requireLinkedin)}
+              aria-required={requireLinkedin || undefined}
+              required={requireLinkedin}
               maxLength={300}
               className={inputCls}
               autoComplete="url"
@@ -378,7 +448,9 @@ export function JoinUsForm({
               type="tel"
               value={extra.phone}
               onChange={(e) => updateExtra("phone", e.target.value)}
-              placeholder={phPhone}
+              placeholder={withMark(phPhone, requirePhone)}
+              aria-required={requirePhone || undefined}
+              required={requirePhone}
               maxLength={40}
               className={inputCls}
               autoComplete="tel"
@@ -389,7 +461,9 @@ export function JoinUsForm({
               type="text"
               value={extra.company}
               onChange={(e) => updateExtra("company", e.target.value)}
-              placeholder={phCompany}
+              placeholder={withMark(phCompany, requireCompany)}
+              aria-required={requireCompany || undefined}
+              required={requireCompany}
               maxLength={200}
               className={inputCls}
               autoComplete="organization"
@@ -400,7 +474,9 @@ export function JoinUsForm({
               type="text"
               value={extra.country}
               onChange={(e) => updateExtra("country", e.target.value)}
-              placeholder={phCountry}
+              placeholder={withMark(phCountry, requireCountry)}
+              aria-required={requireCountry || undefined}
+              required={requireCountry}
               maxLength={100}
               className={inputCls}
               autoComplete="country-name"
@@ -408,6 +484,8 @@ export function JoinUsForm({
           )}
         </div>
       )}
+
+
 
       {showInterests && allItems.length > 0 && (
         <div>

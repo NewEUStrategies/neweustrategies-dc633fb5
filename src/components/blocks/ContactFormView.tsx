@@ -131,6 +131,14 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const showCompany = bool(data, "showCompany");
   const showSubject = bool(data, "showSubject", true);
   const showMessage = bool(data, "showMessage", true);
+  // per-field "wymagane" (spójne z tabelą form_field_policies)
+  const requireFirstName = bool(data, "requireFirstName", true);
+  const requireLastName = bool(data, "requireLastName", false);
+  const requireEmail = bool(data, "requireEmail", true);
+  const requirePhone = bool(data, "requirePhone", false);
+  const requireCompany = bool(data, "requireCompany", false);
+  const requireSubject = bool(data, "requireSubject", false);
+  const requireMessage = bool(data, "requireMessage", true);
   const requireConsent = bool(data, "requireConsent", true);
   const showNewsletter = bool(data, "showNewsletterOptIn");
   const consentTextRaw = s(data, `consentText_${lang}`, t.consent);
@@ -193,6 +201,18 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     if (showNewsletter && newsletterGiven) {
       consents.push({ key: "newsletter", text: newsletterLabel, given: true, lang });
     }
+    const requiredMap: Record<string, boolean> = {
+      firstName: showFirstName && requireFirstName,
+      lastName: showLastName && requireLastName,
+      email: showEmail && requireEmail,
+      phone: showPhone && requirePhone,
+      company: showCompany && requireCompany,
+      subject: showSubject && requireSubject,
+      message: showMessage && requireMessage,
+    };
+    const requiredFields = Object.entries(requiredMap)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
     const payload = {
       name: [firstName, lastName].filter(Boolean).join(" "),
       firstName: firstName || undefined,
@@ -214,15 +234,19 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       pageUrl: typeof window !== "undefined" ? window.location.href : undefined,
       referer: typeof document !== "undefined" ? document.referrer || undefined : undefined,
       consents,
+      requiredFields,
     };
 
     const errs: Record<string, string> = {};
-    if (showFirstName && !firstName) errs.firstName = t.required;
-    if (showLastName && !lastName) errs.lastName = t.required;
-    if (showEmail && !payload.email) errs.email = t.required;
-    else if (showEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email))
+    if (requiredMap.firstName && !firstName) errs.firstName = t.required;
+    if (requiredMap.lastName && !lastName) errs.lastName = t.required;
+    if (requiredMap.email && !payload.email) errs.email = t.required;
+    else if (showEmail && payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email))
       errs.email = t.invalidEmail;
-    if (showMessage && !payload.message) errs.message = t.required;
+    if (requiredMap.phone && !payload.phone) errs.phone = t.required;
+    if (requiredMap.company && !payload.company) errs.company = t.required;
+    if (requiredMap.subject && !payload.subject) errs.subject = t.required;
+    if (requiredMap.message && !payload.message) errs.message = t.required;
     if (requireConsent && !payload.consent) errs.consent = t.required;
 
     setErrors(errs);
@@ -348,10 +372,11 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 
         <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
           {showFirstName && (
-            <Field label={t.firstName} error={errors.firstName} className={widthCls(1)}>
+            <Field label={t.firstName} required={requireFirstName} error={errors.firstName} className={widthCls(1)}>
               <input
                 name="firstName"
-                required
+                required={requireFirstName}
+                aria-required={requireFirstName || undefined}
                 className="cf-input"
                 autoComplete="given-name"
                 placeholder={lang === "pl" ? "Jan" : "John"}
@@ -359,10 +384,11 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showLastName && (
-            <Field label={t.lastName} error={errors.lastName} className={widthCls(1)}>
+            <Field label={t.lastName} required={requireLastName} error={errors.lastName} className={widthCls(1)}>
               <input
                 name="lastName"
-                required
+                required={requireLastName}
+                aria-required={requireLastName || undefined}
                 className="cf-input"
                 autoComplete="family-name"
                 placeholder={lang === "pl" ? "Kowalski" : "Doe"}
@@ -372,13 +398,15 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           {showEmail && (
             <Field
               label={t.email}
+              required={requireEmail}
               error={errors.email}
               className={widthCls(showFirstName || showLastName ? 1 : 2)}
             >
               <input
                 name="email"
                 type="email"
-                required
+                required={requireEmail}
+                aria-required={requireEmail || undefined}
                 className="cf-input"
                 autoComplete="email"
                 placeholder="name@example.com"
@@ -387,27 +415,52 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           )}
 
           {showPhone && (
-            <Field label={t.phone} className={widthCls(1)}>
-              <input name="phone" type="tel" className="cf-input" autoComplete="tel" />
+            <Field label={t.phone} required={requirePhone} error={errors.phone} className={widthCls(1)}>
+              <input
+                name="phone"
+                type="tel"
+                required={requirePhone}
+                aria-required={requirePhone || undefined}
+                className="cf-input"
+                autoComplete="tel"
+              />
             </Field>
           )}
           {showCompany && (
-            <Field label={t.company} className={widthCls(1)}>
-              <input name="company" className="cf-input" autoComplete="organization" />
+            <Field label={t.company} required={requireCompany} error={errors.company} className={widthCls(1)}>
+              <input
+                name="company"
+                required={requireCompany}
+                aria-required={requireCompany || undefined}
+                className="cf-input"
+                autoComplete="organization"
+              />
             </Field>
           )}
           {showSubject && (
-            <Field label={t.subject} className={widthCls(columns === 3 ? 3 : 2)}>
-              <input name="subject" className="cf-input" />
+            <Field label={t.subject} required={requireSubject} error={errors.subject} className={widthCls(columns === 3 ? 3 : 2)}>
+              <input
+                name="subject"
+                required={requireSubject}
+                aria-required={requireSubject || undefined}
+                className="cf-input"
+              />
             </Field>
           )}
           {showMessage && (
             <Field
               label={t.message}
+              required={requireMessage}
               error={errors.message}
               className={widthCls(columns === 3 ? 3 : 2)}
             >
-              <textarea name="message" rows={10} required className="cf-input resize-y" />
+              <textarea
+                name="message"
+                rows={10}
+                required={requireMessage}
+                aria-required={requireMessage || undefined}
+                className="cf-input resize-y"
+              />
             </Field>
           )}
 
@@ -450,18 +503,23 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 
 function Field({
   label,
+  required,
   error,
   className,
   children,
 }: {
   label: string;
+  required?: boolean;
   error?: string;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <label className={`block space-y-1 ${className ?? ""}`}>
-      <span className="text-xs font-semibold tracking-wide opacity-95">{label}</span>
+      <span className="text-xs font-semibold tracking-wide opacity-95">
+        {label}
+        {required ? <span className="text-destructive ml-0.5" aria-hidden="true">*</span> : null}
+      </span>
       {children}
       {error && <span className="block text-[11px] text-destructive">{error}</span>}
     </label>
