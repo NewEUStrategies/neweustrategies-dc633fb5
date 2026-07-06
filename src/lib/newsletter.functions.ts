@@ -320,15 +320,16 @@ async function syncToCrm(
     const { error } = await supabaseAdmin.rpc("crm_upsert_from_form", {
       _tenant: tenantId,
       _email: email,
-      _first_name: data.firstName?.trim() || null,
-      _last_name: data.lastName?.trim() || null,
-      _phone: meta?.phone?.trim() || null,
-      _company: meta?.company?.trim() || null,
-      _position: meta?.position?.trim() || null,
-      _linkedin: meta?.linkedin?.trim() || null,
-      _country: meta?.country?.trim() || null,
-      _source: data.source?.trim() || "newsletter",
+      _first_name: data.firstName?.trim() ?? "",
+      _last_name: data.lastName?.trim() ?? "",
+      _phone: meta?.phone?.trim() ?? "",
+      _company: meta?.company?.trim() ?? "",
+      _position: meta?.position?.trim() ?? "",
+      _linkedin: meta?.linkedin?.trim() ?? "",
+      _country: meta?.country?.trim() ?? "",
+      _source: data.source?.trim() ?? "newsletter",
     });
+
     if (error) console.error("[newsletter] crm sync failed", error);
   } catch (err) {
     console.error("[newsletter] crm sync threw", err);
