@@ -1131,6 +1131,59 @@ export type Database = {
         }
         Relationships: []
       }
+      form_field_policies: {
+        Row: {
+          active: boolean
+          created_at: string
+          field_key: string
+          form_type: string
+          id: string
+          max_length: number | null
+          min_length: number | null
+          notes: string | null
+          pattern: string | null
+          required: boolean
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          field_key: string
+          form_type: string
+          id?: string
+          max_length?: number | null
+          min_length?: number | null
+          notes?: string | null
+          pattern?: string | null
+          required?: boolean
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          field_key?: string
+          form_type?: string
+          id?: string
+          max_length?: number | null
+          min_length?: number | null
+          notes?: string | null
+          pattern?: string | null
+          required?: boolean
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_field_policies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       icon_library: {
         Row: {
           created_at: string
@@ -3811,6 +3864,10 @@ export type Database = {
         Returns: string
       }
       current_tenant_id: { Args: never; Returns: string }
+      enforce_form_field_policy: {
+        Args: { _form_type: string; _payload: Json; _tenant: string }
+        Returns: string[]
+      }
       get_entity_content: {
         Args: {
           _entity_id: string
@@ -3972,6 +4029,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_form_field_active: {
+        Args: { _field: string; _form_type: string; _tenant: string }
         Returns: boolean
       }
       is_staff: { Args: never; Returns: boolean }
