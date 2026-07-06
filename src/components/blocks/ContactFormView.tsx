@@ -11,7 +11,7 @@ import {
 } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactMessage } from "@/lib/contact.functions";
-import { ContactFormBackground, type ContactBgVariant } from "./ContactFormBackgrounds";
+
 
 type Lang = "pl" | "en";
 type Cfg = Record<string, unknown>;
