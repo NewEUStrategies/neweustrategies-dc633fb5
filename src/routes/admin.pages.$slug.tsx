@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -187,11 +187,19 @@ function EditPage() {
       // on collision). Navigate only to the persisted slug so the address bar
       // and the loaded record always match what is really in the database.
       const canonical = result?.slug ?? snapshot.slug;
-      qc.invalidateQueries({ queryKey: ["admin-pages"] });
-      invalidateWidgetCaches(qc);
-      emitWidgetCacheInvalidate();
-      // Odswiez publiczne surface'y SEO (mapa strony HTML, /admin/seo).
-      invalidateSeoCaches(qc, router);
+      // WAŻNE: autosave NIE może przebudowywać całego świata przy każdym
+      // debounced zapisie. Wcześniej `qc.invalidateQueries(["page-by-slug",...])`
+      // powodowało refetch strony, `history.reset(page)` wpisywał nowy obiekt
+      // do formularza (nowa referencja, ta sama treść), a `useAutosave`
+      // (Object.is) traktował to jako "dirty" i zapisywał ponownie -
+      // stąd cykliczne "odświeżanie" edytora co ~1-3 s.
+      //
+      // Rozwiązanie mirrorujemy z admin.posts.$slug.tsx: cache listy tylko
+      // w tle (refetchType: "none"), ciężkie inwalidacje (widget cache, SEO
+      // cache, router.invalidate) odpalamy dopiero przy odmontowaniu
+      // edytora - to zapewnia świeży stan przy następnej wizycie
+      // użytkownika bez destabilizacji trwającej sesji edycji.
+      void qc.invalidateQueries({ queryKey: ["admin-pages"], refetchType: "none" });
       if (canonical !== snapshot.slug) {
         // Kolizja sluga nie może być cicha - pokaz ostrzeżenie i zsynchronizuj
         // formularz z wartością faktycznie zapisaną.
@@ -206,16 +214,35 @@ function EditPage() {
       if (canonical !== routeSlug) {
         qc.setQueryData(["page-by-slug", tenantId, canonical], { ...snapshot, slug: canonical });
         navigate({ to: "/admin/pages/$slug", params: { slug: canonical }, replace: true });
-      } else {
-        qc.invalidateQueries({ queryKey: ["page-by-slug", tenantId, routeSlug] });
       }
     },
-    [id, update$, qc, navigate, routeSlug, tenantId, router, setForm, t],
+    [id, update$, qc, navigate, routeSlug, tenantId, setForm, t],
   );
 
   const autosave = useAutosave({ value: form, enabled: !!form && !!id, save: saveFn });
   // Tab close / route change with unsaved edits -> confirmation prompt.
   useUnsavedChangesGuard(autosave.isDirty || autosave.status === "saving");
+
+  // Ciężkie inwalidacje (widget cache, SEO cache, router.invalidate) NIE
+  // odpalają się przy każdym autozapisie (patrz saveFn) - powodowałoby to
+  // ciągłe "auto-refresh" edytora. Uruchamiamy je raz przy opuszczeniu
+  // edytora, tak żeby publiczne widoki i dashboard SEO załadowały świeży
+  // stan przy następnej wizycie użytkownika.
+  const dirtyRef = useRef(false);
+  useEffect(() => {
+    if (autosave.status === "saved") dirtyRef.current = true;
+  }, [autosave.status]);
+  useEffect(() => {
+    return () => {
+      if (!dirtyRef.current) return;
+      void qc.invalidateQueries({ queryKey: ["admin-pages"] });
+      invalidateWidgetCaches(qc);
+      emitWidgetCacheInvalidate();
+      invalidateSeoCaches(qc, router);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   if (isLoading || !form || !id) return <div className="text-sm text-muted-foreground">...</div>;
 
