@@ -296,5 +296,42 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     const confirmUrl = `${originFromRequest()}/newsletter/confirm?token=${encodeURIComponent(token)}`;
     const mail = buildDoiEmail(displayName, data.language, confirmUrl);
     const send = await sendEmail({ to: email, subject: mail.subject, html: mail.html });
+    await syncToCrm(tenantId, email, data, meta);
     return { ok: true, status: "pending", emailSent: send.ok };
   });
+
+// --- CRM sync -------------------------------------------------------------
+// Creates or updates the CRM contact + company for every successful signup.
+// Existing contacts are never overwritten - new alt emails/phones/companies/
+// positions/linkedins/countries and the submission source are appended to the
+// `aliases` history via the crm_upsert_from_form() DB helper.
+async function syncToCrm(
+  tenantId: string,
+  email: string,
+  data: {
+    firstName?: string;
+    lastName?: string;
+    source?: string;
+  },
+  meta: Record<string, string> | null,
+): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.rpc("crm_upsert_from_form", {
+      _tenant: tenantId,
+      _email: email,
+      _first_name: data.firstName?.trim() || null,
+      _last_name: data.lastName?.trim() || null,
+      _phone: meta?.phone?.trim() || null,
+      _company: meta?.company?.trim() || null,
+      _position: meta?.position?.trim() || null,
+      _linkedin: meta?.linkedin?.trim() || null,
+      _country: meta?.country?.trim() || null,
+      _source: data.source?.trim() || "newsletter",
+    });
+    if (error) console.error("[newsletter] crm sync failed", error);
+  } catch (err) {
+    console.error("[newsletter] crm sync threw", err);
+  }
+}
+
