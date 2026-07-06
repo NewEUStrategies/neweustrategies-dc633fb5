@@ -251,7 +251,15 @@ export const WIDGETS: WidgetDef[] = [
       title_en: "",
       subtitle_pl: "",
       subtitle_en: "",
+      showFirstName: "0",
+      showLastName: "0",
+      showPosition: "0",
+      showLinkedin: "0",
+      showPhone: "0",
+      showCompany: "0",
+      showCountry: "0",
     }),
+
   },
   {
     type: "customize-interests",
