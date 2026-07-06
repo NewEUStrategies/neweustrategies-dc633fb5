@@ -1282,6 +1282,24 @@ a:has(.cms-post-title):focus {
   font-size: 12.5px !important;
 }
 
+/* Exception: real form widgets rendered on canvas (ContactForm etc.)
+   must preserve their natural multiline textarea sizing. */
+.admin-compact .cf-shell textarea,
+.cms-builder-compact .cf-shell textarea,
+.wp-compact .cf-shell textarea,
+.block-canvas .cf-shell textarea {
+  min-height: unset !important;
+  height: auto !important;
+  max-height: none !important;
+  resize: vertical !important;
+  overflow: auto !important;
+  white-space: pre-wrap !important;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
 /* Native <select> styling - unified across the whole platform.
    Removes the OS-native look and matches our themed inputs (border, bg,
    rounded, custom chevron, focus ring in brand color). */
