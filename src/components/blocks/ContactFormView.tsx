@@ -158,7 +158,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const bgImage = s(data, "bgImage");
   const bgImageMobile = s(data, "bgImageMobile");
   const bgOverlay = num(data, "bgOverlay", 0);
-  const bgAnimation = s(data, "bgAnimation", "none") as ContactBgVariant;
+  
 
   const shellStyle = useMemo<CSSProperties>(() => {
     const css: Record<string, string> = {
