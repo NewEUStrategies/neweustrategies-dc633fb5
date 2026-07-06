@@ -934,9 +934,92 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "0", label: "nie" },
       ],
     },
-    { key: "title", type: "i18nText", label: "Tytuł (opcjonalny - zastępuje domyślny)" },
-    { key: "subtitle", type: "i18nText", label: "Podtytuł (opcjonalny)" },
+    // Copy overrides
+    { key: "title", type: "i18nText", label: "Tytuł" },
+    { key: "subtitle", type: "i18nText", label: "Podtytuł" },
+    { key: "perk1", type: "i18nText", label: "Korzyść 1" },
+    { key: "perk2", type: "i18nText", label: "Korzyść 2" },
+    { key: "perk3", type: "i18nText", label: "Korzyść 3" },
+    { key: "interestsLabel", type: "i18nText", label: "Nagłówek zainteresowań" },
+    { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
+    { key: "submittingLabel", type: "i18nText", label: "Etykieta podczas wysyłki" },
+    { key: "consentText", type: "i18nText", label: "Tekst zgody / stopka" },
+    { key: "successText", type: "i18nText", label: "Komunikat sukcesu" },
+    { key: "namePlaceholder", type: "i18nText", label: "Placeholder: Imię (pojedyncze pole)" },
+    { key: "emailPlaceholder", type: "i18nText", label: "Placeholder: E-mail" },
+    // Optional extra fields
+    {
+      key: "showFirstName",
+      type: "select",
+      label: "Pole: Imię (rozdzielone)",
+      options: [
+        { value: "0", label: "ukryj" },
+        { value: "1", label: "pokaż" },
+      ],
+    },
+    { key: "firstNamePlaceholder", type: "i18nText", label: "Placeholder: Imię" },
+    {
+      key: "showLastName",
+      type: "select",
+      label: "Pole: Nazwisko",
+      options: [
+        { value: "0", label: "ukryj" },
+        { value: "1", label: "pokaż" },
+      ],
+    },
+    { key: "lastNamePlaceholder", type: "i18nText", label: "Placeholder: Nazwisko" },
+    {
+      key: "showPosition",
+      type: "select",
+      label: "Pole: Stanowisko (LinkedIn)",
+      options: [
+        { value: "0", label: "ukryj" },
+        { value: "1", label: "pokaż" },
+      ],
+    },
+    { key: "positionPlaceholder", type: "i18nText", label: "Placeholder: Stanowisko" },
+    {
+      key: "showLinkedin",
+      type: "select",
+      label: "Pole: Profil LinkedIn",
+      options: [
+        { value: "0", label: "ukryj" },
+        { value: "1", label: "pokaż" },
+      ],
+    },
+    { key: "linkedinPlaceholder", type: "i18nText", label: "Placeholder: LinkedIn URL" },
+    {
+      key: "showPhone",
+      type: "select",
+      label: "Pole: Telefon",
+      options: [
+        { value: "0", label: "ukryj" },
+        { value: "1", label: "pokaż" },
+      ],
+    },
+    { key: "phonePlaceholder", type: "i18nText", label: "Placeholder: Telefon" },
+    {
+      key: "showCompany",
+      type: "select",
+      label: "Pole: Firma",
+      options: [
+        { value: "0", label: "ukryj" },
+        { value: "1", label: "pokaż" },
+      ],
+    },
+    { key: "companyPlaceholder", type: "i18nText", label: "Placeholder: Firma" },
+    {
+      key: "showCountry",
+      type: "select",
+      label: "Pole: Kraj",
+      options: [
+        { value: "0", label: "ukryj" },
+        { value: "1", label: "pokaż" },
+      ],
+    },
+    { key: "countryPlaceholder", type: "i18nText", label: "Placeholder: Kraj" },
   ],
+
   "customize-interests": [
     {
       key: "variant",
