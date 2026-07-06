@@ -224,7 +224,6 @@ export const WIDGETS: WidgetDef[] = [
       radiusPx: 12,
       paddingPx: 32,
       bgOverlay: 0,
-      bgAnimation: "none",
     }),
   },
   {
@@ -951,7 +950,7 @@ export const WIDGETS: WidgetDef[] = [
       bgImage: "", // recommended 1600x900 px (hero 2400x1200)
       bgImageMobile: "", // recommended 800x1000 px
       bgOverlay: 0, // 0-100
-      bgAnimation: "none", // none | aurora | mesh-drift | floating-dots | wave-lines | noise-shimmer | orbits
+      
       iconUrl: "", // recommended 128x128 px
       recipient: "",
     }),

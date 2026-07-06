@@ -11,7 +11,7 @@ import {
 } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactMessage } from "@/lib/contact.functions";
-import { ContactFormBackground, type ContactBgVariant } from "./ContactFormBackgrounds";
+
 
 type Lang = "pl" | "en";
 type Cfg = Record<string, unknown>;
@@ -158,7 +158,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const bgImage = s(data, "bgImage");
   const bgImageMobile = s(data, "bgImageMobile");
   const bgOverlay = num(data, "bgOverlay", 0);
-  const bgAnimation = s(data, "bgAnimation", "none") as ContactBgVariant;
+  
 
   const shellStyle = useMemo<CSSProperties>(() => {
     const css: Record<string, string> = {
@@ -316,8 +316,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           )}
         </div>
       )}
-      {/* Animated background layer */}
-      <ContactFormBackground variant={bgAnimation} />
+
+
 
       <form onSubmit={onSubmit} data-cf-id={formId} className="cf-inner relative" noValidate>
         {(iconUrl || title || subtitle) && (
