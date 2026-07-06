@@ -343,9 +343,10 @@ export function JoinUsForm({
 
   const inputCls =
     "px-3 py-2 rounded border border-input bg-background text-sm w-full";
+  const withMark = (label: string, req: boolean) => (req ? `${label} *` : label);
 
   const form = (
-    <form onSubmit={submit} className="space-y-3">
+    <form onSubmit={submit} className="space-y-3" noValidate>
       {useSplitName ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {showFirstName && (
@@ -353,7 +354,9 @@ export function JoinUsForm({
               type="text"
               value={extra.firstName}
               onChange={(e) => updateExtra("firstName", e.target.value)}
-              placeholder={phFirst}
+              placeholder={withMark(phFirst, requireFirstName)}
+              aria-required={requireFirstName || undefined}
+              required={requireFirstName}
               maxLength={100}
               className={inputCls}
               autoComplete="given-name"
@@ -364,7 +367,9 @@ export function JoinUsForm({
               type="text"
               value={extra.lastName}
               onChange={(e) => updateExtra("lastName", e.target.value)}
-              placeholder={phLast}
+              placeholder={withMark(phLast, requireLastName)}
+              aria-required={requireLastName || undefined}
+              required={requireLastName}
               maxLength={100}
               className={inputCls}
               autoComplete="family-name"
@@ -384,10 +389,11 @@ export function JoinUsForm({
           />
           <input
             type="email"
-            required
+            required={requireEmail}
+            aria-required={requireEmail || undefined}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder={phEmail}
+            placeholder={withMark(phEmail, requireEmail)}
             maxLength={254}
             className={inputCls}
             autoComplete="email"
@@ -398,10 +404,11 @@ export function JoinUsForm({
       {useSplitName && (
         <input
           type="email"
-          required
+          required={requireEmail}
+          aria-required={requireEmail || undefined}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder={phEmail}
+          placeholder={withMark(phEmail, requireEmail)}
           maxLength={254}
           className={inputCls}
           autoComplete="email"
@@ -415,7 +422,9 @@ export function JoinUsForm({
               type="text"
               value={extra.position}
               onChange={(e) => updateExtra("position", e.target.value)}
-              placeholder={phPosition}
+              placeholder={withMark(phPosition, requirePosition)}
+              aria-required={requirePosition || undefined}
+              required={requirePosition}
               maxLength={200}
               className={inputCls}
               autoComplete="organization-title"
@@ -426,7 +435,9 @@ export function JoinUsForm({
               type="url"
               value={extra.linkedin}
               onChange={(e) => updateExtra("linkedin", e.target.value)}
-              placeholder={phLinkedin}
+              placeholder={withMark(phLinkedin, requireLinkedin)}
+              aria-required={requireLinkedin || undefined}
+              required={requireLinkedin}
               maxLength={300}
               className={inputCls}
               autoComplete="url"
@@ -437,7 +448,9 @@ export function JoinUsForm({
               type="tel"
               value={extra.phone}
               onChange={(e) => updateExtra("phone", e.target.value)}
-              placeholder={phPhone}
+              placeholder={withMark(phPhone, requirePhone)}
+              aria-required={requirePhone || undefined}
+              required={requirePhone}
               maxLength={40}
               className={inputCls}
               autoComplete="tel"
@@ -448,7 +461,9 @@ export function JoinUsForm({
               type="text"
               value={extra.company}
               onChange={(e) => updateExtra("company", e.target.value)}
-              placeholder={phCompany}
+              placeholder={withMark(phCompany, requireCompany)}
+              aria-required={requireCompany || undefined}
+              required={requireCompany}
               maxLength={200}
               className={inputCls}
               autoComplete="organization"
@@ -459,7 +474,9 @@ export function JoinUsForm({
               type="text"
               value={extra.country}
               onChange={(e) => updateExtra("country", e.target.value)}
-              placeholder={phCountry}
+              placeholder={withMark(phCountry, requireCountry)}
+              aria-required={requireCountry || undefined}
+              required={requireCountry}
               maxLength={100}
               className={inputCls}
               autoComplete="country-name"
@@ -467,6 +484,8 @@ export function JoinUsForm({
           )}
         </div>
       )}
+
+
 
       {showInterests && allItems.length > 0 && (
         <div>
