@@ -721,18 +721,44 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     case "join-us": {
       const variant = (getStr(c, "variant") || "split") as "card" | "split" | "inline";
       const showInterests = (getStr(c, "showInterests") ?? "1") !== "0";
-      const title = getStr(c, `title_${lang}`) || getStr(c, "title_pl") || undefined;
-      const subtitle = getStr(c, `subtitle_${lang}`) || getStr(c, "subtitle_pl") || undefined;
+      const pick = (base: string) =>
+        getStr(c, `${base}_${lang}`) || getStr(c, `${base}_pl`) || undefined;
+      const isOn = (k: string) => getStr(c, k) === "1";
       return wrap(
         <JoinUsForm
           variant={variant}
           showInterests={showInterests}
-          title={title || undefined}
-          subtitle={subtitle || undefined}
+          title={pick("title")}
+          subtitle={pick("subtitle")}
+          perk1={pick("perk1")}
+          perk2={pick("perk2")}
+          perk3={pick("perk3")}
+          interestsLabel={pick("interestsLabel")}
+          submitLabel={pick("submitLabel")}
+          submittingLabel={pick("submittingLabel")}
+          consentText={pick("consentText")}
+          successText={pick("successText")}
+          namePlaceholder={pick("namePlaceholder")}
+          emailPlaceholder={pick("emailPlaceholder")}
+          showFirstName={isOn("showFirstName")}
+          showLastName={isOn("showLastName")}
+          showPosition={isOn("showPosition")}
+          showLinkedin={isOn("showLinkedin")}
+          showPhone={isOn("showPhone")}
+          showCompany={isOn("showCompany")}
+          showCountry={isOn("showCountry")}
+          firstNamePlaceholder={pick("firstNamePlaceholder")}
+          lastNamePlaceholder={pick("lastNamePlaceholder")}
+          positionPlaceholder={pick("positionPlaceholder")}
+          linkedinPlaceholder={pick("linkedinPlaceholder")}
+          phonePlaceholder={pick("phonePlaceholder")}
+          companyPlaceholder={pick("companyPlaceholder")}
+          countryPlaceholder={pick("countryPlaceholder")}
           source={`widget:${node.id}`}
         />,
       );
     }
+
 
     case "customize-interests": {
       const variant = (getStr(c, "variant") || "full") as "full" | "compact";
