@@ -215,6 +215,44 @@ export const submitContactMessage = createServerFn({ method: "POST" })
     const hostTenantId = await resolveTenantIdForHost(await currentTenantHost());
     if (!hostTenantId) throw new Error("tenant unresolved");
 
+    // ---- Server-side "wymagane" enforcement ----------------------------------
+    // 1) Widget-declared required list is trusted only as an addendum; the
+    //    tenant policy in form_field_policies is authoritative and cannot be
+    //    loosened by the client. 2) enforce_form_field_policy() checks the
+    //    tenant floor; then we re-check any widget-declared keys locally.
+    const policyPayload: Record<string, string> = {
+      firstName: data.firstName ?? "",
+      lastName: data.lastName ?? "",
+      email: data.email,
+      phone: data.phone ?? "",
+      company: data.company ?? "",
+      subject: data.subject ?? "",
+      message: data.message,
+      consent: data.consent ? "1" : "",
+    };
+    const { data: policyErrors, error: policyErr } = await supabaseAdmin.rpc(
+      "enforce_form_field_policy",
+      {
+        _tenant: hostTenantId,
+        _form_type: "contact_form",
+        _payload: policyPayload,
+      },
+    );
+    if (policyErr) {
+      console.error("[contact] policy check failed", policyErr);
+    }
+    const violations: string[] = Array.isArray(policyErrors) ? [...policyErrors] : [];
+    if (Array.isArray(data.requiredFields)) {
+      for (const key of data.requiredFields) {
+        const v = (policyPayload[key] ?? "").trim();
+        if (!v) violations.push(`required:${key}`);
+      }
+    }
+    if (violations.length) {
+      throw new Error(`policy_violation:${Array.from(new Set(violations)).join(",")}`);
+    }
+
+
     // Extract client IP + UA from request headers (defensive: proxy chains vary)
     let clientIp: string | null = null;
     let userAgent: string | null = null;
