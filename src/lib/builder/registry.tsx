@@ -819,8 +819,19 @@ export const WIDGETS: WidgetDef[] = [
       requireConsent: true,
       newsletterOptIn: true,
       showOAuthGoogle: true,
+      showPasswordConfirm: "0",
+      requirePasswordConfirm: "0",
+      showPhone: "0",
+      requirePhone: "0",
+      showCompany: "0",
+      requireCompany: "0",
+      consentText_pl:
+        "Wyrażam zgodę na przetwarzanie moich danych osobowych zgodnie z [Polityką prywatności](/polityka-prywatnosci).",
+      consentText_en:
+        "I consent to processing of my personal data in accordance with the [Privacy Policy](/privacy-policy).",
       redirectTo: "/",
       loginHref: "/login",
+      customFields: [] as unknown as Json,
     }),
   },
   {
