@@ -721,8 +721,13 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     case "join-us": {
       const variant = (getStr(c, "variant") || "split") as "card" | "split" | "inline";
       const showInterests = (getStr(c, "showInterests") ?? "1") !== "0";
+      const interestSlugsRaw = c.interestSlugs;
+      const interestSlugs = Array.isArray(interestSlugsRaw)
+        ? interestSlugsRaw.filter((x): x is string => typeof x === "string")
+        : undefined;
       const pick = (base: string) =>
         getStr(c, `${base}_${lang}`) || getStr(c, `${base}_pl`) || undefined;
+
       const isOn = (k: string) => getStr(c, k) === "1";
       return wrap(
         <JoinUsForm
