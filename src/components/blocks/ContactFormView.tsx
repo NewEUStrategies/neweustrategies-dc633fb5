@@ -372,10 +372,11 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 
         <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
           {showFirstName && (
-            <Field label={t.firstName} error={errors.firstName} className={widthCls(1)}>
+            <Field label={t.firstName} required={requireFirstName} error={errors.firstName} className={widthCls(1)}>
               <input
                 name="firstName"
-                required
+                required={requireFirstName}
+                aria-required={requireFirstName || undefined}
                 className="cf-input"
                 autoComplete="given-name"
                 placeholder={lang === "pl" ? "Jan" : "John"}
@@ -383,10 +384,11 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showLastName && (
-            <Field label={t.lastName} error={errors.lastName} className={widthCls(1)}>
+            <Field label={t.lastName} required={requireLastName} error={errors.lastName} className={widthCls(1)}>
               <input
                 name="lastName"
-                required
+                required={requireLastName}
+                aria-required={requireLastName || undefined}
                 className="cf-input"
                 autoComplete="family-name"
                 placeholder={lang === "pl" ? "Kowalski" : "Doe"}
@@ -396,13 +398,15 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           {showEmail && (
             <Field
               label={t.email}
+              required={requireEmail}
               error={errors.email}
               className={widthCls(showFirstName || showLastName ? 1 : 2)}
             >
               <input
                 name="email"
                 type="email"
-                required
+                required={requireEmail}
+                aria-required={requireEmail || undefined}
                 className="cf-input"
                 autoComplete="email"
                 placeholder="name@example.com"
@@ -411,27 +415,52 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           )}
 
           {showPhone && (
-            <Field label={t.phone} className={widthCls(1)}>
-              <input name="phone" type="tel" className="cf-input" autoComplete="tel" />
+            <Field label={t.phone} required={requirePhone} error={errors.phone} className={widthCls(1)}>
+              <input
+                name="phone"
+                type="tel"
+                required={requirePhone}
+                aria-required={requirePhone || undefined}
+                className="cf-input"
+                autoComplete="tel"
+              />
             </Field>
           )}
           {showCompany && (
-            <Field label={t.company} className={widthCls(1)}>
-              <input name="company" className="cf-input" autoComplete="organization" />
+            <Field label={t.company} required={requireCompany} error={errors.company} className={widthCls(1)}>
+              <input
+                name="company"
+                required={requireCompany}
+                aria-required={requireCompany || undefined}
+                className="cf-input"
+                autoComplete="organization"
+              />
             </Field>
           )}
           {showSubject && (
-            <Field label={t.subject} className={widthCls(columns === 3 ? 3 : 2)}>
-              <input name="subject" className="cf-input" />
+            <Field label={t.subject} required={requireSubject} error={errors.subject} className={widthCls(columns === 3 ? 3 : 2)}>
+              <input
+                name="subject"
+                required={requireSubject}
+                aria-required={requireSubject || undefined}
+                className="cf-input"
+              />
             </Field>
           )}
           {showMessage && (
             <Field
               label={t.message}
+              required={requireMessage}
               error={errors.message}
               className={widthCls(columns === 3 ? 3 : 2)}
             >
-              <textarea name="message" rows={10} required className="cf-input resize-y" />
+              <textarea
+                name="message"
+                rows={10}
+                required={requireMessage}
+                aria-required={requireMessage || undefined}
+                className="cf-input resize-y"
+              />
             </Field>
           )}
 
