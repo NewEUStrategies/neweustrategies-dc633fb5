@@ -503,18 +503,23 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 
 function Field({
   label,
+  required,
   error,
   className,
   children,
 }: {
   label: string;
+  required?: boolean;
   error?: string;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <label className={`block space-y-1 ${className ?? ""}`}>
-      <span className="text-xs font-semibold tracking-wide opacity-95">{label}</span>
+      <span className="text-xs font-semibold tracking-wide opacity-95">
+        {label}
+        {required ? <span className="text-destructive ml-0.5" aria-hidden="true">*</span> : null}
+      </span>
       {children}
       {error && <span className="block text-[11px] text-destructive">{error}</span>}
     </label>
