@@ -275,7 +275,9 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
         { onConflict: "tenant_id,email" },
       );
       if (error) return { ok: false, error: error.message };
+      await syncToCrm(tenantId, email, data, meta);
       return { ok: true, status: "subscribed" };
+
     }
 
     const token = hexToken(32);
