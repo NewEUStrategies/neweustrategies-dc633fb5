@@ -158,8 +158,15 @@ export function JoinUsForm({
   const allItems = useMemo(() => {
     const cats = catalog.data?.categories ?? [];
     const tags = catalog.data?.tags ?? [];
-    return [...cats, ...tags];
-  }, [catalog.data]);
+    const all = [...cats, ...tags];
+    const allow = (interestSlugs ?? [])
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    if (!allow.length) return all;
+    const set = new Set(allow);
+    return all.filter((it) => set.has(it.slug.toLowerCase()));
+  }, [catalog.data, interestSlugs]);
+
 
   const togglePick = (id: string) => {
     setPicked((prev) => {
