@@ -1525,11 +1525,11 @@ pushLabelsFor("contact-form", [
   { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
   ...labelPh("email", "E-mail"),
   ...labelPh("password", "Hasło"),
-  ...fieldBlock("remember", "„Zapamiętaj mnie"", { defaultShow: "1", defaultRequire: "0" }),
+  ...fieldBlock("remember", "Zapamiętaj mnie", { defaultShow: "1", defaultRequire: "0" }),
   {
     key: "showShowPassword",
     type: "select",
-    label: "Pokaż przycisk „pokaż hasło"?",
+    label: "Pokaż przycisk pokaż hasło?",
     options: [
       { value: "1", label: "tak" },
       { value: "0", label: "nie" },
@@ -1539,7 +1539,7 @@ pushLabelsFor("contact-form", [
   {
     key: "showForgot",
     type: "select",
-    label: "Pokaż link „zapomniałem hasła"?",
+    label: "Pokaż link zapomniałem hasła?",
     options: [
       { value: "1", label: "tak" },
       { value: "0", label: "nie" },
@@ -1549,7 +1549,7 @@ pushLabelsFor("contact-form", [
   {
     key: "showRegister",
     type: "select",
-    label: "Pokaż link „załóż konto"?",
+    label: "Pokaż link załóż konto?",
     options: [
       { value: "1", label: "tak" },
       { value: "0", label: "nie" },
