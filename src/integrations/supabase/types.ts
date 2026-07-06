@@ -3906,21 +3906,38 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"][]
       }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }
-      crm_upsert_from_form: {
-        Args: {
-          _company: string
-          _country: string
-          _email: string
-          _first_name: string
-          _last_name: string
-          _linkedin: string
-          _phone: string
-          _position: string
-          _source: string
-          _tenant: string
-        }
-        Returns: string
-      }
+      crm_upsert_from_form:
+        | {
+            Args: {
+              _company: string
+              _country: string
+              _email: string
+              _first_name: string
+              _last_name: string
+              _linkedin: string
+              _phone: string
+              _position: string
+              _source: string
+              _tenant: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              _company: string
+              _country: string
+              _custom?: Json
+              _email: string
+              _first_name: string
+              _last_name: string
+              _linkedin: string
+              _phone: string
+              _position: string
+              _source: string
+              _tenant: string
+            }
+            Returns: string
+          }
       crm_upsert_lead: {
         Args: {
           _company: string

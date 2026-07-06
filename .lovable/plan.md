@@ -1,104 +1,87 @@
 ## Cel
 
-Dodać ikonę notyfikacji obok menu konta w headerze, z rozwijaną listą po kliknięciu i pełną skrzynką użytkownika pod `/profile/notifications`. Multi-tenant: każdy widzi wyłącznie własne notyfikacje (RLS na `auth.uid()` + `tenant_id`).
+Każdy widget formularzowy (Dołącz do nas, Formularz kontaktowy, Newsletter, Logowanie, Rejestracja, Odzyskaj hasło, Ustaw nowe hasło) dostaje spójny, w pełni edytowalny zestaw pól:
 
-## Zakres
+- pokaż / ukryj pole
+- wymagane / opcjonalne
+- edytowalna etykieta (label PL/EN)
+- edytowalny placeholder PL/EN
+- dodatkowe custom pola (hybryda: text / textarea / select / checkbox) - trafiają do `metadata` JSON + do CRM `aliases.custom`
 
-### 1. Baza danych (migracja)
+Walidacja: klient + serwer (`form_field_policies` tabela + kontrakt schematu widgetu weryfikowany w server function).
 
-Tabela `public.notifications`:
+## Zakres zmian
 
-- `id uuid PK`
-- `user_id uuid` - FK do `auth.users`, ON DELETE CASCADE
-- `tenant_id uuid NOT NULL` - izolacja tenantów
-- `kind text` - np. `system`, `comment`, `follow`, `subscription`, `content`
-- `title_pl text`, `title_en text`
-- `body_pl text`, `body_en text`
-- `href text` - link docelowy (np. `/posts/xyz`)
-- `icon text` - nazwa ikony Lucide (opcjonalnie)
-- `read_at timestamptz` - null = nieprzeczytana
-- `created_at timestamptz DEFAULT now()`
-- Indeks: `(user_id, tenant_id, created_at DESC)` i częściowy `WHERE read_at IS NULL`
+### 1. Warstwa schematów (`src/lib/builder/schemas.ts`)
 
-Grants + RLS:
+Nowy helper `formFieldSchema(key, { defaultShow, defaultRequire, defaultLabelPl, defaultLabelEn })` generujący 4 wpisy: `show{Key}`, `require{Key}`, `{key}Label` (i18nText), `{key}Placeholder` (i18nText). Pogrupowane w UI edytora przez prefix `Pole: <Nazwa>`.
 
-```
-GRANT SELECT, UPDATE, DELETE ON public.notifications TO authenticated;
-GRANT ALL ON public.notifications TO service_role;
-```
+Nowy typ pola `formFields` (JSON array editor) - lista custom pól z: `id`, `type` (text|email|tel|textarea|select|checkbox), `labelPl/En`, `placeholderPl/En`, `required`, `options[]` (dla select). Renderowany jako lista kart w prawym panelu edytora widgetu.
 
-Polityki:
+Rozszerzenia schematów:
+- `newsletter`: dołożone showFirstName/showLastName/showCompany + require + label + placeholder + `customFields`
+- `join-us`: dołożone edytowalne `*Label` (i18nText) do wszystkich istniejących pól + `customFields`
+- `contact-form`: dołożone `*Label` + `customFields`
+- `login-form`: pola `email`, `password` + `showRemember/require*` + labelki + placeholders
+- `register-form`: `email`, `password`, `firstName`, `lastName` + labelki/placeholders + `customFields`
+- `lost-password-form`: `email` + labelki/placeholders
+- `reset-password-form`: `password`, `passwordConfirm` + labelki/placeholders
 
-- SELECT: `auth.uid() = user_id AND tenant_id = (SELECT tenant_id FROM profiles WHERE id = auth.uid())`
-- UPDATE (tylko `read_at`): `auth.uid() = user_id`
-- DELETE: `auth.uid() = user_id`
-- INSERT: tylko `service_role` (systemowe eventy) - brak polityki dla `authenticated`
+### 2. Editor UI (`src/components/admin/builder/ui/molecules/SchemaFieldEditor.tsx` lub podobny)
 
-Trigger walidacyjny: przy INSERT wymusza `tenant_id` zgodny z `profiles.tenant_id` odbiorcy.
+Nowy renderer dla typu `formFields` - lista kart z: przełącznikiem `required`, selektorem typu, dwoma polami label (PL/EN), dwoma placeholder (PL/EN), edytorem opcji dla select. Reorder, dodaj, usuń.
 
-### 2. Komponenty frontendowe (atomic design)
+Grupowanie pól w edytorze przez rozpoznawanie prefiksu `show*/require*/*Label/*Placeholder` w jeden collapsible "Pole: X".
 
-`src/components/notifications/NotificationsBell.tsx` (molecule):
+### 3. Renderery form-widgetów
 
-- Przycisk z ikoną `Bell` (Lucide) + badge z liczbą nieprzeczytanych
-- Popover (Radix, ten sam wzorzec animacji co AccountMenu - fade+scale+slide 220ms, `sticky="always"`)
-- Lista ostatnich 10 - tytuł, opis, względny czas (`Intl.RelativeTimeFormat`), ikona kind
-- Akcje: "Oznacz wszystkie jako przeczytane", "Otwórz skrzynkę" -> `/profile/notifications`
-- Realtime: subskrypcja Supabase channel `notifications:user_id=eq.<uid>` -> refetch + odznaczenie badge z animacją pulse
+Dla każdego z: `JoinUsForm.tsx`, `ContactFormView.tsx`, `NewsletterForm` (nowy - obecnie inline), `LoginFormView`, `RegisterFormView`, `LostPasswordFormView`, `ResetPasswordFormView`:
 
-`src/lib/notifications/useNotifications.ts` (hook):
+- czytają z propsów per-field `show`, `require`, `label`, `placeholder` i renderują dynamicznie
+- iterują po `customFields[]` i renderują odpowiedni input
+- walidacja klient: zod schema budowany z konfiguracji widgetu
+- wysyłka: obok znanych pól przekazują `custom` map do server function
 
-- TanStack Query: `list()`, `unreadCount()`, `markAllRead()`, `markRead(id)`, `remove(id)`
-- Realtime hook `useNotificationsRealtime()`
+### 4. Warstwa serwerowa
 
-### 3. Strona skrzynki
+- `crm_upsert_from_form`: rozszerzone o parametr `_custom jsonb` - append do `aliases -> 'custom' -> field_id -> [...]`
+- Server functions (`newsletter.functions.ts`, `contact.functions.ts`, nowa `auth.functions.ts` wrapper dla register) czytają widget schema z payload (przekazywane z klienta) i weryfikują: required, typy, długości. `form_field_policies` (istniejąca) używana jako globalny fallback / audyt.
 
-`src/routes/_authenticated/profile/notifications.tsx`:
+### 5. Migracja DB
 
-- Pełna lista z filtrami: Wszystkie / Nieprzeczytane / wg kind
-- Zaznacz/odznacz, usuń, "oznacz wszystkie", stronicowanie
-- Empty state + i18n PL/EN
+- `crm_upsert_from_form`: dodatkowy parametr `_custom jsonb default '{}'::jsonb`, logika append-only
+- brak nowych tabel (custom fields żyją w widget content jako JSON)
 
-### 4. Integracja w headerze
+### 6. i18n
 
-W `AccountMenuWidget.tsx`:
+Wszystkie stringi renderera przez `t()` z fallbackiem do wartości z widget content (PL/EN). Placeholdery: `content[keyPlaceholder_pl|_en]`.
 
-- Przed przyciskiem trigger, wewnątrz tego samego kontenera flex, renderowany `<NotificationsBell />` (tylko gdy `session`)
-- Dopasowanie do gap/height triggera, spójne z motywem (używa tokenów semantycznych)
+### 7. Testy
 
-### 5. i18n
+- `tests/widgets/joinUsForm.test.tsx`: renderuje z minimalną / pełną konfiguracją, sprawdza wymagane pola i custom fields
+- `tests/widgets/contactForm.test.tsx`: analogicznie
+- `tests/widgets/authForms.test.tsx`: login/register/reset - custom labels + required
+- `tests/lib/crm_upsert_custom.test.ts` (integracja z Supabase): custom fields append-only
 
-Klucze w `pl.json` i `en.json`:
+## Kolejność implementacji (3 kolejne tury)
 
-- `notifications.title`, `notifications.empty`, `notifications.markAllRead`, `notifications.openInbox`, `notifications.unread`, `notifications.filters.*`
+**Tura A - dzisiaj (ta tura):**
+1. Rozszerzone schematy dla WSZYSTKICH 7 widgetów + typ pola `formFields` + defaults w registry
+2. Migracja `crm_upsert_from_form` z `_custom`
 
-### 6. Testy
+**Tura B:**
+3. `SchemaFieldEditor` obsługa `formFields` (UI karty)
+4. Renderery `NewsletterForm`, `LoginFormView`, `RegisterFormView`, `LostPasswordFormView`, `ResetPasswordFormView` - wyciągnięcie do osobnych plików, obsługa nowych propsów
+5. Rozszerzenie `JoinUsForm` i `ContactFormView` o custom labels + customFields
 
-- `NotificationsBell.test.tsx` - badge liczy poprawnie, popover otwiera/zamyka, mark-all-read wywołuje mutację
-- `useNotifications.test.ts` - filtrowanie po tenant i kind, sortowanie po `created_at`
+**Tura C:**
+6. Server-side walidacja per-widget-schema + zapis `custom` do CRM
+7. Testy (vitest)
 
-## Zasady techniczne
+## Ryzyka / decyzje
 
-- Zero `any` / `as any`, wszędzie typy z `Database` (`src/integrations/supabase/types.ts`)
-- Semantyczne tokeny motywu (`bg-popover`, `text-muted-foreground`, `--tt-*`), brak hardcoded kolorów
-- Dzwonek respektuje `prefers-reduced-motion`
-- Realtime subskrypcja czyszczona w `useEffect` cleanup
-- Server functions: `createServerFn` + `requireSupabaseAuth` dla `markAllRead` bulk (opcjonalnie); prosty CRUD jednostkowy przez klient Supabase w hooku
+- Brak przełomowej zmiany typów - `WidgetContent` już akceptuje `Json[]`, więc `customFields` = tablica obiektów mieści się.
+- Wsteczna kompatybilność: brak `*Label` w istniejących widgetach = fallback do domyślnych stringów z t().
+- `login-form` / `register-form` idą przez Supabase Auth - custom fields NIE trafiają do `auth.users`, tylko do `profiles.metadata` + CRM.
 
-## Poza zakresem tej iteracji
-
-- Wysyłka notyfikacji e-mail
-- Preferencje kanałów w profilu (kolejna iteracja - `notifications.settings`)
-- Panel admina do broadcastu (dołożymy po zatwierdzeniu MVP)
-
-## Diagram przepływu
-
-```text
-[System event] --(service_role INSERT)--> notifications
-                                            |
-                       realtime channel <---+
-                                            |
-[Browser: useNotificationsRealtime] --refetch--> Bell badge + popover
-                                            |
-                            klik "Otwórz skrzynkę" --> /profile/notifications
-```
+Potwierdź podział na 3 tury albo powiedz "zrób wszystko naraz" - wtedy jedziemy sekwencyjnie w tej samej sesji (dłuższy czas odpowiedzi).

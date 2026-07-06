@@ -187,7 +187,18 @@ export const WIDGETS: WidgetDef[] = [
     label: "Newsletter",
     category: "form",
     icon: Mail,
-    defaults: () => ({ title_pl: "Zapisz się", title_en: "Subscribe" }),
+    defaults: () => ({
+      title_pl: "Zapisz się",
+      title_en: "Subscribe",
+      requireEmail: "1",
+      showFirstName: "0",
+      showLastName: "0",
+      showCompany: "0",
+      requireFirstName: "0",
+      requireLastName: "0",
+      requireCompany: "0",
+      customFields: [] as unknown as Json,
+    }),
   },
   // Legacy "contact" widget kept for backward compatibility with already-saved
   // pages. New panels should use "contact-form" (richer config). Defaults are
@@ -789,6 +800,7 @@ export const WIDGETS: WidgetDef[] = [
       redirectTo: "/",
       registerHref: "/register",
       forgotHref: "/lost-password",
+      customFields: [] as unknown as Json,
     }),
   },
   {
@@ -807,8 +819,19 @@ export const WIDGETS: WidgetDef[] = [
       requireConsent: true,
       newsletterOptIn: true,
       showOAuthGoogle: true,
+      showPasswordConfirm: "0",
+      requirePasswordConfirm: "0",
+      showPhone: "0",
+      requirePhone: "0",
+      showCompany: "0",
+      requireCompany: "0",
+      consentText_pl:
+        "Wyrażam zgodę na przetwarzanie moich danych osobowych zgodnie z [Polityką prywatności](/polityka-prywatnosci).",
+      consentText_en:
+        "I consent to processing of my personal data in accordance with the [Privacy Policy](/privacy-policy).",
       redirectTo: "/",
       loginHref: "/login",
+      customFields: [] as unknown as Json,
     }),
   },
   {

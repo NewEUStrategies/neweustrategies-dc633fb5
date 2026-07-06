@@ -1397,6 +1397,278 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
   ],
 };
 
+// -----------------------------------------------------------------------------
+// Form-field editor extensions (Tura A):
+// - Every form widget now exposes per-field: show / require / label / placeholder
+// - Every form widget gets a `customFields` JSON array editor (hybrid mode)
+// -----------------------------------------------------------------------------
+
+/** Generates {label, placeholder} i18nText pairs for a field key. */
+const labelPh = (key: string, labelBase: string): SchemaField[] => [
+  { key: `${key}Label`, type: "i18nText", label: `Etykieta: ${labelBase}` },
+  { key: `${key}Placeholder`, type: "i18nText", label: `Placeholder: ${labelBase}` },
+];
+
+/** Full editor block for one form field: show + require + label + placeholder. */
+const fieldBlock = (
+  key: string,
+  labelBase: string,
+  opts: { defaultShow?: "0" | "1"; defaultRequire?: "0" | "1" } = {},
+): SchemaField[] => [
+  {
+    key: `show${key.charAt(0).toUpperCase()}${key.slice(1)}`,
+    type: "select",
+    label: `Pole: ${labelBase} - widoczne?`,
+    options: [
+      { value: "1", label: "pokaż" },
+      { value: "0", label: "ukryj" },
+    ],
+    default: opts.defaultShow ?? "1",
+  },
+  {
+    key: `require${key.charAt(0).toUpperCase()}${key.slice(1)}`,
+    type: "select",
+    label: `${labelBase} - wymagane?`,
+    options: [
+      { value: "1", label: "tak" },
+      { value: "0", label: "nie" },
+    ],
+    default: opts.defaultRequire ?? "0",
+  },
+  ...labelPh(key, labelBase),
+];
+
+/**
+ * Custom-fields JSON editor. Users add own fields on top of predefined ones.
+ * Format (JSON array of objects, one per line-lite; stored as JSON):
+ * [{ "id":"unique","type":"text|email|tel|textarea|select|checkbox",
+ *    "labelPl":"", "labelEn":"", "placeholderPl":"", "placeholderEn":"",
+ *    "required":false, "options":[{"value":"","labelPl":"","labelEn":""}] }]
+ */
+const customFieldsField: SchemaField = {
+  key: "customFields",
+  type: "stringArray",
+  rows: 8,
+  label: "Dodatkowe pola (JSON, po jednym obiekcie na linię)",
+  hint:
+    'Przykład: {"id":"branza","type":"select","labelPl":"Branża","labelEn":"Industry","required":true,"options":[{"value":"fintech","labelPl":"Fintech","labelEn":"Fintech"}]}',
+};
+
+// --- Push i18n label editors into existing join-us / contact-form schemas ---
+const pushLabelsFor = (widgetType: WidgetType, fields: Array<[string, string]>) => {
+  const arr = WIDGET_SCHEMAS[widgetType] as SchemaField[] | undefined;
+  if (!arr) return;
+  const existingKeys = new Set(arr.map((f) => f.key));
+  for (const [key, labelBase] of fields) {
+    for (const f of labelPh(key, labelBase)) {
+      if (!existingKeys.has(f.key)) arr.push(f);
+    }
+  }
+  if (!existingKeys.has("customFields")) arr.push(customFieldsField);
+};
+
+pushLabelsFor("join-us", [
+  ["firstName", "Imię"],
+  ["lastName", "Nazwisko"],
+  ["email", "E-mail"],
+  ["position", "Stanowisko"],
+  ["linkedin", "LinkedIn"],
+  ["phone", "Telefon"],
+  ["company", "Firma"],
+  ["country", "Kraj"],
+  ["interests", "Zainteresowania"],
+]);
+
+pushLabelsFor("contact-form", [
+  ["firstName", "Imię"],
+  ["lastName", "Nazwisko"],
+  ["email", "E-mail"],
+  ["phone", "Telefon"],
+  ["company", "Firma"],
+  ["subject", "Temat"],
+  ["message", "Wiadomość"],
+]);
+
+// --- Extend newsletter widget with per-field editors + custom fields ---
+(WIDGET_SCHEMAS.newsletter as SchemaField[]).push(
+  ...fieldBlock("firstName", "Imię", { defaultShow: "0", defaultRequire: "0" }),
+  ...fieldBlock("lastName", "Nazwisko", { defaultShow: "0", defaultRequire: "0" }),
+  ...fieldBlock("company", "Firma", { defaultShow: "0", defaultRequire: "0" }),
+  ...labelPh("email", "E-mail"),
+  {
+    key: "requireEmail",
+    type: "select",
+    label: "E-mail - wymagany?",
+    options: [
+      { value: "1", label: "tak" },
+      { value: "0", label: "nie" },
+    ],
+    default: "1",
+  },
+  customFieldsField,
+);
+
+// --- Auth form widgets: login / register / lost-password / reset-password ---
+(WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField>>)["login-form"] = [
+  {
+    key: "variant",
+    type: "select",
+    label: "Wariant",
+    options: [
+      { value: "card", label: "Karta" },
+      { value: "flat", label: "Płaski" },
+      { value: "inline", label: "Inline" },
+    ],
+  },
+  { key: "title", type: "i18nText", label: "Tytuł" },
+  { key: "subtitle", type: "i18nText", label: "Podtytuł" },
+  { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
+  ...labelPh("email", "E-mail"),
+  ...labelPh("password", "Hasło"),
+  ...fieldBlock("remember", "Zapamiętaj mnie", { defaultShow: "1", defaultRequire: "0" }),
+  {
+    key: "showShowPassword",
+    type: "select",
+    label: "Pokaż przycisk pokaż hasło?",
+    options: [
+      { value: "1", label: "tak" },
+      { value: "0", label: "nie" },
+    ],
+    default: "1",
+  },
+  {
+    key: "showForgot",
+    type: "select",
+    label: "Pokaż link zapomniałem hasła?",
+    options: [
+      { value: "1", label: "tak" },
+      { value: "0", label: "nie" },
+    ],
+    default: "1",
+  },
+  {
+    key: "showRegister",
+    type: "select",
+    label: "Pokaż link załóż konto?",
+    options: [
+      { value: "1", label: "tak" },
+      { value: "0", label: "nie" },
+    ],
+    default: "1",
+  },
+  {
+    key: "showOAuthGoogle",
+    type: "select",
+    label: "Pokaż logowanie Google?",
+    options: [
+      { value: "1", label: "tak" },
+      { value: "0", label: "nie" },
+    ],
+    default: "1",
+  },
+  { key: "redirectTo", type: "text", label: "Po zalogowaniu przekieruj do", placeholder: "/" },
+  { key: "registerHref", type: "text", label: "URL do rejestracji", placeholder: "/register" },
+  { key: "forgotHref", type: "text", label: "URL do odzyskiwania hasła", placeholder: "/lost-password" },
+  customFieldsField,
+];
+
+(WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField>>)["register-form"] = [
+  {
+    key: "variant",
+    type: "select",
+    label: "Wariant",
+    options: [
+      { value: "card", label: "Karta" },
+      { value: "flat", label: "Płaski" },
+    ],
+  },
+  { key: "title", type: "i18nText", label: "Tytuł" },
+  { key: "subtitle", type: "i18nText", label: "Podtytuł" },
+  { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
+  ...fieldBlock("firstName", "Imię", { defaultShow: "1", defaultRequire: "1" }),
+  ...fieldBlock("lastName", "Nazwisko", { defaultShow: "1", defaultRequire: "1" }),
+  ...fieldBlock("email", "E-mail", { defaultShow: "1", defaultRequire: "1" }),
+  ...fieldBlock("password", "Hasło", { defaultShow: "1", defaultRequire: "1" }),
+  ...fieldBlock("passwordConfirm", "Powtórz hasło", { defaultShow: "0", defaultRequire: "0" }),
+  ...fieldBlock("phone", "Telefon", { defaultShow: "0", defaultRequire: "0" }),
+  ...fieldBlock("company", "Firma", { defaultShow: "0", defaultRequire: "0" }),
+  {
+    key: "requireConsent",
+    type: "select",
+    label: "Wymagaj zgody RODO?",
+    options: [
+      { value: "1", label: "tak" },
+      { value: "0", label: "nie" },
+    ],
+    default: "1",
+  },
+  { key: "consentText", type: "i18nText", label: "Treść zgody (RODO)" },
+  {
+    key: "newsletterOptIn",
+    type: "select",
+    label: "Pokaż zapis do newslettera?",
+    options: [
+      { value: "1", label: "tak" },
+      { value: "0", label: "nie" },
+    ],
+    default: "1",
+  },
+  { key: "newsletterLabel", type: "i18nText", label: "Etykieta zapisu do newslettera" },
+  {
+    key: "showOAuthGoogle",
+    type: "select",
+    label: "Pokaż rejestrację Google?",
+    options: [
+      { value: "1", label: "tak" },
+      { value: "0", label: "nie" },
+    ],
+    default: "1",
+  },
+  { key: "redirectTo", type: "text", label: "Po rejestracji przekieruj do", placeholder: "/" },
+  { key: "loginHref", type: "text", label: "URL logowania", placeholder: "/login" },
+  customFieldsField,
+];
+
+(WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField>>)["lost-password-form"] = [
+  {
+    key: "variant",
+    type: "select",
+    label: "Wariant",
+    options: [
+      { value: "card", label: "Karta" },
+      { value: "flat", label: "Płaski" },
+    ],
+  },
+  { key: "title", type: "i18nText", label: "Tytuł" },
+  { key: "subtitle", type: "i18nText", label: "Podtytuł" },
+  { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
+  ...labelPh("email", "E-mail"),
+  { key: "loginHref", type: "text", label: "URL powrotu do logowania", placeholder: "/login" },
+  { key: "successText", type: "i18nText", label: "Komunikat po wysłaniu" },
+];
+
+(WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField>>)["reset-password-form"] = [
+  {
+    key: "variant",
+    type: "select",
+    label: "Wariant",
+    options: [
+      { value: "card", label: "Karta" },
+      { value: "flat", label: "Płaski" },
+    ],
+  },
+  { key: "title", type: "i18nText", label: "Tytuł" },
+  { key: "subtitle", type: "i18nText", label: "Podtytuł" },
+  { key: "submitLabel", type: "i18nText", label: "Etykieta przycisku" },
+  ...labelPh("password", "Nowe hasło"),
+  ...fieldBlock("passwordConfirm", "Powtórz nowe hasło", {
+    defaultShow: "1",
+    defaultRequire: "1",
+  }),
+  { key: "redirectTo", type: "text", label: "Po zapisaniu przekieruj do", placeholder: "/login" },
+  { key: "successText", type: "i18nText", label: "Komunikat po zapisaniu" },
+];
+
 // Alias legacy "contact" widget schema to the new "contact-form" schema so any
 // page still referencing the old type gets the full property panel.
 (WIDGET_SCHEMAS as Record<string, ReadonlyArray<SchemaField> | undefined>).contact =
