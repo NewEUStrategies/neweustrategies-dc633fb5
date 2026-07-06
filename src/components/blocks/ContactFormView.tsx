@@ -316,8 +316,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           )}
         </div>
       )}
-      {/* Animated background layer */}
-      <ContactFormBackground variant={bgAnimation} />
+
+
 
       <form onSubmit={onSubmit} data-cf-id={formId} className="cf-inner relative" noValidate>
         {(iconUrl || title || subtitle) && (
