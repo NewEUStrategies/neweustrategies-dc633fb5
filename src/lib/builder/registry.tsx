@@ -259,16 +259,16 @@ export const WIDGETS: WidgetDef[] = [
       title_en: "",
       subtitle_pl: "",
       subtitle_en: "",
-      showFirstName: "0",
-      showLastName: "0",
+      showFirstName: "1",
+      showLastName: "1",
       showPosition: "0",
       showLinkedin: "0",
       showPhone: "0",
       showCompany: "0",
       showCountry: "0",
       // per-field required (e-mail wymagany domyślnie)
-      requireFirstName: "0",
-      requireLastName: "0",
+      requireFirstName: "1",
+      requireLastName: "1",
       requireEmail: "1",
       requirePosition: "0",
       requireLinkedin: "0",
@@ -278,6 +278,7 @@ export const WIDGETS: WidgetDef[] = [
       requireInterests: "0",
       interestSlugs: [],
     }),
+
 
 
 
