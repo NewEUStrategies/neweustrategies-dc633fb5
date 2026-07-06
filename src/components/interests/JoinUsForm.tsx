@@ -233,6 +233,16 @@ export function JoinUsForm({
       setState("err");
       return;
     }
+    if (showInterests && requireInterests && allItems.length > 0 && picked.size === 0) {
+      setErrMsg(
+        lang === "en"
+          ? "Please pick at least one topic."
+          : "Wybierz co najmniej jeden temat.",
+      );
+      setState("err");
+      return;
+    }
+
 
     try {
       const nlText =
