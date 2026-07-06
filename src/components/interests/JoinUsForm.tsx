@@ -115,6 +115,8 @@ export function JoinUsForm({
   requirePhone = false,
   requireCompany = false,
   requireCountry = false,
+  requireInterests = false,
+  interestSlugs,
   firstNamePlaceholder,
   lastNamePlaceholder,
   positionPlaceholder,
@@ -123,6 +125,7 @@ export function JoinUsForm({
   companyPlaceholder,
   countryPlaceholder,
 }: JoinUsFormProps) {
+
   const { t, i18n } = useTranslation();
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
   const { data: nl } = useNewsletterSettings();
