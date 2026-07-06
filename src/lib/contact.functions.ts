@@ -37,6 +37,10 @@ const ContactInput = z.object({
   pageUrl: z.string().trim().max(2000).optional(),
   referer: z.string().trim().max(2000).optional(),
   consents: z.array(ConsentEntry).max(10).optional(),
+  // Widget-declared "wymagane" set. Server merges with tenant policy floor
+  // via public.enforce_form_field_policy - client tampering cannot loosen
+  // rules below what the tenant admin configured in form_field_policies.
+  requiredFields: z.array(z.string().trim().max(64)).max(20).optional(),
 });
 
 type ContactPayload = z.infer<typeof ContactInput>;
