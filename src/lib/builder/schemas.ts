@@ -934,6 +934,22 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "0", label: "nie" },
       ],
     },
+    {
+      key: "requireInterests",
+      type: "select",
+      label: "Zainteresowania: wymagane?",
+      options: [
+        { value: "0", label: "nie" },
+        { value: "1", label: "tak (min. 1)" },
+      ],
+    },
+    {
+      key: "interestSlugs",
+      type: "stringArray",
+      rows: 6,
+      label: "Lista tematów do pokazania (po jednym slug na linię; puste = wszystkie z katalogu)",
+    },
+
     // Copy overrides
     { key: "title", type: "i18nText", label: "Tytuł" },
     { key: "subtitle", type: "i18nText", label: "Podtytuł" },

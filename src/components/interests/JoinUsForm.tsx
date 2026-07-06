@@ -58,6 +58,11 @@ export interface JoinUsFormProps {
   requirePhone?: boolean;
   requireCompany?: boolean;
   requireCountry?: boolean;
+  requireInterests?: boolean;
+
+  // Optional curated allow-list of interests to show as chips (category or
+  // tag slugs). When empty/undefined - all catalog items are shown.
+  interestSlugs?: string[];
 
   firstNamePlaceholder?: string;
   lastNamePlaceholder?: string;
@@ -67,6 +72,7 @@ export interface JoinUsFormProps {
   companyPlaceholder?: string;
   countryPlaceholder?: string;
 }
+
 
 type ExtraKey =
   | "firstName"
@@ -109,6 +115,8 @@ export function JoinUsForm({
   requirePhone = false,
   requireCompany = false,
   requireCountry = false,
+  requireInterests = false,
+  interestSlugs,
   firstNamePlaceholder,
   lastNamePlaceholder,
   positionPlaceholder,
@@ -117,6 +125,7 @@ export function JoinUsForm({
   companyPlaceholder,
   countryPlaceholder,
 }: JoinUsFormProps) {
+
   const { t, i18n } = useTranslation();
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
   const { data: nl } = useNewsletterSettings();
@@ -149,8 +158,15 @@ export function JoinUsForm({
   const allItems = useMemo(() => {
     const cats = catalog.data?.categories ?? [];
     const tags = catalog.data?.tags ?? [];
-    return [...cats, ...tags];
-  }, [catalog.data]);
+    const all = [...cats, ...tags];
+    const allow = (interestSlugs ?? [])
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    if (!allow.length) return all;
+    const set = new Set(allow);
+    return all.filter((it) => set.has(it.slug.toLowerCase()));
+  }, [catalog.data, interestSlugs]);
+
 
   const togglePick = (id: string) => {
     setPicked((prev) => {
@@ -217,6 +233,16 @@ export function JoinUsForm({
       setState("err");
       return;
     }
+    if (showInterests && requireInterests && allItems.length > 0 && picked.size === 0) {
+      setErrMsg(
+        lang === "en"
+          ? "Please pick at least one topic."
+          : "Wybierz co najmniej jeden temat.",
+      );
+      setState("err");
+      return;
+    }
+
 
     try {
       const nlText =
@@ -491,7 +517,9 @@ export function JoinUsForm({
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {iLabel}
+            {requireInterests && <span className="ml-1 text-destructive">*</span>}
           </p>
+
           <div className="flex flex-wrap gap-1.5 max-h-40 overflow-auto pr-1">
             {allItems.map((it) => {
               const active = picked.has(it.id);

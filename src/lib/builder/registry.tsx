@@ -275,7 +275,10 @@ export const WIDGETS: WidgetDef[] = [
       requirePhone: "0",
       requireCompany: "0",
       requireCountry: "0",
+      requireInterests: "0",
+      interestSlugs: [],
     }),
+
 
 
   },
