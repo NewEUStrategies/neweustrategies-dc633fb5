@@ -37,6 +37,10 @@ const NewsletterInput = z.object({
   // Popup "extended fields" (job, company, linkedin, phone, mailing_list, ...)
   // are persisted verbatim in newsletter_subscribers.meta; keys/values capped.
   meta: z.record(z.string().max(64), z.string().max(500)).optional(),
+  // "Wymagane" pola zadeklarowane przez widget; server merguje z tenant
+  // policy floor (form_field_policies) i weryfikuje przed zapisem.
+  requiredFields: z.array(z.string().trim().max(64)).max(20).optional(),
+  formType: z.enum(["newsletter", "join_us"]).default("newsletter"),
 });
 
 
