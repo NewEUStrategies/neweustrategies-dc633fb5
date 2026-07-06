@@ -224,7 +224,6 @@ export const WIDGETS: WidgetDef[] = [
       radiusPx: 12,
       paddingPx: 32,
       bgOverlay: 0,
-      bgAnimation: "none",
     }),
   },
   {
