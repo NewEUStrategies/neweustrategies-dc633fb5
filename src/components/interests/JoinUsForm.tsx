@@ -48,6 +48,17 @@ export interface JoinUsFormProps {
   showCompany?: boolean;
   showCountry?: boolean;
 
+  // Per-field "wymagane" toggles - kontrolowane w builderze, egzekwowane
+  // dodatkowo po stronie serwera przez enforce_form_field_policy().
+  requireFirstName?: boolean;
+  requireLastName?: boolean;
+  requireEmail?: boolean;
+  requirePosition?: boolean;
+  requireLinkedin?: boolean;
+  requirePhone?: boolean;
+  requireCompany?: boolean;
+  requireCountry?: boolean;
+
   firstNamePlaceholder?: string;
   lastNamePlaceholder?: string;
   positionPlaceholder?: string;
