@@ -958,6 +958,15 @@ export const WIDGETS: WidgetDef[] = [
       showCompany: false,
       showSubject: true,
       showMessage: true,
+      // per-field "wymagane" — spójne z polityką w bazie
+      requireFirstName: true,
+      requireLastName: false,
+      requireEmail: true,
+      requirePhone: false,
+      requireCompany: false,
+      requireSubject: false,
+      requireMessage: true,
+
       showNewsletterOptIn: false,
       newsletterLabel_pl: "Zapisz mnie do newslettera",
       newsletterLabel_en: "Subscribe me to the newsletter",
