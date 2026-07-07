@@ -387,6 +387,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 
   return (
     <div className={`cf-shell cf-shell--${variant}`} style={shellStyle}>
+      {fontSizeCss && <style dangerouslySetInnerHTML={{ __html: fontSizeCss }} />}
       {/* Image background layer */}
       {(bgImage || bgImageMobile) && (
         <div
