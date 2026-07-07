@@ -16,7 +16,14 @@ export const requireStaff = createMiddleware({ type: "function" })
   .server(async ({ next, context }) => {
     const { data: isStaff, error } = await context.supabase.rpc("is_staff");
     if (error) {
-      throw new Error("Forbidden: could not verify staff role");
+      console.error("[requireStaff] is_staff RPC failed", {
+        userId: context.userId,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      throw new Error(`Forbidden: could not verify staff role (${error.message})`);
     }
     if (!isStaff) {
       throw new Error("Forbidden: staff role (admin/editor/author) required");
