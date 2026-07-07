@@ -230,11 +230,25 @@ export interface NlSectionStyle {
  */
 export type NlSectionLayout = "single" | "1-2" | "1-1" | "2-1";
 
+/**
+ * Sekcja moze miec pelnowysokosciowy obraz przyklejony do jednej krawedzi.
+ * Obraz stretchuje sie na cala wysokosc sekcji (background-size: cover),
+ * a zawartosc (widgety) uklada sie obok w drugiej kolumnie flex.
+ */
+export interface NlSectionMedia {
+  url: string;
+  alt?: string;
+  position: "left" | "right";
+  /** Szerokosc kolumny obrazu w procentach (10-70). Domyslnie 40. */
+  widthPct?: number;
+}
+
 export interface NlSection {
   id: string;
   widgets: NlWidget[];
   style?: NlSectionStyle;
   layout?: NlSectionLayout;
+  media?: NlSectionMedia | null;
 }
 
 export interface NlDoc {
