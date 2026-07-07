@@ -422,11 +422,40 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     return <div className="text-sm text-muted-foreground p-6">Ladowanie ustawien...</div>;
   }
 
-  const canvasWidth = device === "desktop" ? "100%" : device === "tablet" ? 720 : 380;
+  // Realistyczne szerokosci podgladu - popup ma stala szerokosc jak w produkcji,
+  // inline dostosowuje sie do dostepnej przestrzeni w kanwie.
+  const popupLayout = variant === "popup" ? (doc.popup?.layout ?? settings.popup_layout ?? "classic") : null;
+  const desktopPopupWidth =
+    popupLayout === "side" ? 880 : popupLayout === "fullscreen" ? 1024 : 520;
+  const canvasWidth =
+    variant === "popup"
+      ? device === "desktop"
+        ? desktopPopupWidth
+        : device === "tablet"
+          ? 560
+          : 360
+      : device === "desktop"
+        ? "100%"
+        : device === "tablet"
+          ? 720
+          : 380;
   const popupBg = variant === "popup" ? (doc.popup?.bg ?? settings.popup_bg_color) : undefined;
+  const overlayBg =
+    variant === "popup"
+      ? (doc.popup?.overlay ?? settings.popup_overlay_color ?? "rgba(0,0,0,0.7)")
+      : undefined;
+  const popupRadius = variant === "popup" ? (doc.popup?.radius ?? settings.popup_border_radius_px ?? 16) : 0;
   const draggingWidget = draggingWidgetId
     ? doc.sections.flatMap((s) => s.widgets).find((w) => w.id === draggingWidgetId) ?? null
     : null;
+
+  const deviceLabel =
+    device === "desktop"
+      ? lang === "pl" ? "Desktop" : "Desktop"
+      : device === "tablet"
+        ? "Tablet"
+        : "Mobile";
+  const canvasPxLabel = typeof canvasWidth === "number" ? `${canvasWidth}px` : lang === "pl" ? "pelna szerokosc" : "full width";
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
