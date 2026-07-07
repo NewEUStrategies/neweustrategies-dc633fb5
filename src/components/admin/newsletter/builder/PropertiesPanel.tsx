@@ -288,15 +288,23 @@ function ColorInput({
   const v = value ?? fallback ?? "";
   return (
     <div className="space-y-1">
-      <Label>{label}</Label>
-      <div className="flex gap-2">
+      <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </Label>
+      <div className="flex gap-1.5 items-center">
         <input
           type="color"
           value={v || "#000000"}
           onChange={(e) => onChange(e.target.value)}
-          className="h-9 w-12 rounded border border-input cursor-pointer"
+          className="h-7 w-7 shrink-0 rounded border border-input cursor-pointer p-0 bg-transparent [&::-webkit-color-swatch]:rounded-sm [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0.5"
+          aria-label={label}
         />
-        <Input value={v} onChange={(e) => onChange(e.target.value || null)} placeholder={fallback} />
+        <Input
+          value={v}
+          onChange={(e) => onChange(e.target.value || null)}
+          placeholder={fallback}
+          className="h-7 text-xs font-mono px-2"
+        />
       </div>
     </div>
   );
