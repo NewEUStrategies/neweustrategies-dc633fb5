@@ -156,6 +156,26 @@ export interface NlCountdownWidget extends NlWidgetBase {
   accent?: string | null;
 }
 
+export interface NlCtaButtonWidget extends NlWidgetBase {
+  type: "cta-button";
+  label: NlI18n;
+  url: string;
+  target?: "_self" | "_blank";
+  bg?: string | null;
+  fg?: string | null;
+  fullWidth?: boolean;
+  align?: "left" | "center" | "right";
+}
+
+export interface NlCouponWidget extends NlWidgetBase {
+  type: "coupon";
+  code: string;
+  label: NlI18n;
+  copiedLabel: NlI18n;
+  style?: "boxed" | "dashed";
+  accent?: string | null;
+}
+
 export type NlWidget =
   | NlHeadingWidget
   | NlParagraphWidget
@@ -170,7 +190,9 @@ export type NlWidget =
   | NlSubmitWidget
   | NlSuccessMessageWidget
   | NlSocialProofWidget
-  | NlCountdownWidget;
+  | NlCountdownWidget
+  | NlCtaButtonWidget
+  | NlCouponWidget;
 
 export interface NlSectionStyle {
   bg?: string | null;
