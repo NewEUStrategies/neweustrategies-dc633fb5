@@ -76,6 +76,10 @@ export interface JoinUsFormProps {
   phonePlaceholder?: string;
   companyPlaceholder?: string;
   countryPlaceholder?: string;
+
+  /** Extra CMS-defined fields ("hybrid" mode). Values are forwarded to CRM
+   *  under `aliases.custom.<id>` via the crm_upsert_from_form(_custom) RPC. */
+  customFields?: CustomFieldDef[];
 }
 
 
