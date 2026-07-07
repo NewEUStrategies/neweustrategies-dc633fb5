@@ -550,7 +550,8 @@ export function JoinUsForm({
   }
 
   const form = (
-    <form onSubmit={submit} className="space-y-3" noValidate>
+    <form onSubmit={submit} className="space-y-3" noValidate data-edit-target="placeholderSize">
+
       {useSplitName ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {showFirstName && (
