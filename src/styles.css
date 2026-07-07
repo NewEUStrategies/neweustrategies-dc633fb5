@@ -2545,10 +2545,10 @@ textarea::placeholder {
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
     select
   ):hover {
-  border-color: var(--gc-input-hover-border, color-mix(in oklab, hsl(var(--primary)) 55%, hsl(var(--border))));
+  border-color: var(--gc-input-hover-border, #FDB078);
 }
 :where([data-w-id]) :where(textarea):hover {
-  border-color: var(--gc-input-hover-border, color-mix(in oklab, hsl(var(--primary)) 55%, hsl(var(--border))));
+  border-color: var(--gc-input-hover-border, #FDB078);
 }
 :where([data-w-id])
   :where(
@@ -2563,8 +2563,7 @@ textarea::placeholder {
     select
   ):focus-visible {
   outline: none;
-  border-color: var(--gc-input-focus-border, hsl(var(--primary)));
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--gc-input-focus-border, hsl(var(--primary))) 22%, transparent);
+  border-color: var(--gc-input-focus-border, #FDB078);
   background: var(--gc-input-bg, hsl(var(--background)));
   /* Kill Tailwind ring utilities (they'd stack an extra blue box-shadow). */
   --tw-ring-color: transparent;
