@@ -1517,7 +1517,7 @@ function GridView({
                   {m.filename}
                 </div>
               )}
-              <div className="text-muted-foreground flex justify-between text-[8px]">
+              <div className="text-muted-foreground flex justify-between text-[6px] leading-[8px] gap-1">
                 <span>{formatBytes(m.size_bytes)}</span>
                 <span>{extOf(m.filename)}</span>
               </div>
