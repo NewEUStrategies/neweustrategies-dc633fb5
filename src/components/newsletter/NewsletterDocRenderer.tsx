@@ -305,8 +305,7 @@ function SectionRenderer({
       (() => {
         const col0 = section.widgets.filter((w) => (w.col ?? 0) === 0);
         const col1 = section.widgets.filter((w) => w.col === 1);
-        const gridCols =
-          layout === "1-2" ? "1fr 2fr" : layout === "2-1" ? "2fr 1fr" : "1fr 1fr";
+        const gridCols = "1fr 1fr";
         return (
           <div
             style={{
