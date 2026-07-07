@@ -25,7 +25,7 @@ function ImagePlaceholder({ widget, lang }: { widget: NlImageWidget; lang: NlLan
   const [width, setWidth] = useState<number>(0);
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver((entries) => {
       const w = Math.round(entries[0]?.contentRect.width ?? 0);
       if (w > 0) setWidth(w);
