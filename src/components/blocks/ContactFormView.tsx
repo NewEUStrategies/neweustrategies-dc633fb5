@@ -380,7 +380,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   }
 
   const submitButton: ReactNode = (
-    <button type="submit" disabled={status === "sending"} className={buttonClasses}>
+    <button type="submit" disabled={status === "sending"} className={`cf-submit ${buttonClasses}`}>
       {status === "sending" ? t.sending : submitLabel}
     </button>
   );
