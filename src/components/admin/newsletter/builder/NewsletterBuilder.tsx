@@ -147,6 +147,11 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
   const isDirty = savedRef.current ? doc !== savedRef.current : false;
   useUnsavedChangesGuard(isDirty);
 
+  // Auto-switch to settings tab when a widget or section is selected.
+  useEffect(() => {
+    if (selectedId || selectedSectionId) setSideTab("settings");
+  }, [selectedId, selectedSectionId]);
+
   // ------------- lookup helpers -------------
   const findWidgetLocation = (
     widgetId: string,
