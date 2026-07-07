@@ -108,6 +108,10 @@ import { Route as AdminPostsSlugRouteImport } from './routes/admin.posts.$slug'
 import { Route as AdminPopupsIdRouteImport } from './routes/admin.popups.$id'
 import { Route as AdminPagesNewRouteImport } from './routes/admin.pages.new'
 import { Route as AdminPagesSlugRouteImport } from './routes/admin.pages.$slug'
+import { Route as AdminNewsletterSubscribersRouteImport } from './routes/admin.newsletter.subscribers'
+import { Route as AdminNewsletterPopupRouteImport } from './routes/admin.newsletter.popup'
+import { Route as AdminNewsletterOverviewRouteImport } from './routes/admin.newsletter.overview'
+import { Route as AdminNewsletterInlineRouteImport } from './routes/admin.newsletter.inline'
 import { Route as AdminAppearancePostSidebarRouteImport } from './routes/admin.appearance.post-sidebar'
 import { Route as AdminAppearanceMenuRouteImport } from './routes/admin.appearance.menu'
 import { Route as AdminAppearanceHeaderRouteImport } from './routes/admin.appearance.header'
@@ -614,6 +618,27 @@ const AdminPagesSlugRoute = AdminPagesSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => AdminPagesRoute,
 } as any)
+const AdminNewsletterSubscribersRoute =
+  AdminNewsletterSubscribersRouteImport.update({
+    id: '/subscribers',
+    path: '/subscribers',
+    getParentRoute: () => AdminNewsletterRoute,
+  } as any)
+const AdminNewsletterPopupRoute = AdminNewsletterPopupRouteImport.update({
+  id: '/popup',
+  path: '/popup',
+  getParentRoute: () => AdminNewsletterRoute,
+} as any)
+const AdminNewsletterOverviewRoute = AdminNewsletterOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => AdminNewsletterRoute,
+} as any)
+const AdminNewsletterInlineRoute = AdminNewsletterInlineRouteImport.update({
+  id: '/inline',
+  path: '/inline',
+  getParentRoute: () => AdminNewsletterRoute,
+} as any)
 const AdminAppearancePostSidebarRoute =
   AdminAppearancePostSidebarRouteImport.update({
     id: '/post-sidebar',
@@ -745,6 +770,10 @@ export interface FileRoutesByFullPath {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
+  '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
+  '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/popups/$id': typeof AdminPopupsIdRoute
@@ -849,6 +878,10 @@ export interface FileRoutesByTo {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
+  '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
+  '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/popups/$id': typeof AdminPopupsIdRoute
@@ -959,6 +992,10 @@ export interface FileRoutesById {
   '/admin/appearance/header': typeof AdminAppearanceHeaderRoute
   '/admin/appearance/menu': typeof AdminAppearanceMenuRoute
   '/admin/appearance/post-sidebar': typeof AdminAppearancePostSidebarRoute
+  '/admin/newsletter/inline': typeof AdminNewsletterInlineRoute
+  '/admin/newsletter/overview': typeof AdminNewsletterOverviewRoute
+  '/admin/newsletter/popup': typeof AdminNewsletterPopupRoute
+  '/admin/newsletter/subscribers': typeof AdminNewsletterSubscribersRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/pages/new': typeof AdminPagesNewRoute
   '/admin/popups/$id': typeof AdminPopupsIdRoute
@@ -1070,6 +1107,10 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/newsletter/inline'
+    | '/admin/newsletter/overview'
+    | '/admin/newsletter/popup'
+    | '/admin/newsletter/subscribers'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/popups/$id'
@@ -1174,6 +1215,10 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/newsletter/inline'
+    | '/admin/newsletter/overview'
+    | '/admin/newsletter/popup'
+    | '/admin/newsletter/subscribers'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/popups/$id'
@@ -1283,6 +1328,10 @@ export interface FileRouteTypes {
     | '/admin/appearance/header'
     | '/admin/appearance/menu'
     | '/admin/appearance/post-sidebar'
+    | '/admin/newsletter/inline'
+    | '/admin/newsletter/overview'
+    | '/admin/newsletter/popup'
+    | '/admin/newsletter/subscribers'
     | '/admin/pages/$slug'
     | '/admin/pages/new'
     | '/admin/popups/$id'
@@ -2040,6 +2089,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPagesSlugRouteImport
       parentRoute: typeof AdminPagesRoute
     }
+    '/admin/newsletter/subscribers': {
+      id: '/admin/newsletter/subscribers'
+      path: '/subscribers'
+      fullPath: '/admin/newsletter/subscribers'
+      preLoaderRoute: typeof AdminNewsletterSubscribersRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
+    '/admin/newsletter/popup': {
+      id: '/admin/newsletter/popup'
+      path: '/popup'
+      fullPath: '/admin/newsletter/popup'
+      preLoaderRoute: typeof AdminNewsletterPopupRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
+    '/admin/newsletter/overview': {
+      id: '/admin/newsletter/overview'
+      path: '/overview'
+      fullPath: '/admin/newsletter/overview'
+      preLoaderRoute: typeof AdminNewsletterOverviewRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
+    '/admin/newsletter/inline': {
+      id: '/admin/newsletter/inline'
+      path: '/inline'
+      fullPath: '/admin/newsletter/inline'
+      preLoaderRoute: typeof AdminNewsletterInlineRouteImport
+      parentRoute: typeof AdminNewsletterRoute
+    }
     '/admin/appearance/post-sidebar': {
       id: '/admin/appearance/post-sidebar'
       path: '/post-sidebar'
@@ -2120,10 +2197,18 @@ const AdminAppearanceRouteWithChildren = AdminAppearanceRoute._addFileChildren(
 )
 
 interface AdminNewsletterRouteChildren {
+  AdminNewsletterInlineRoute: typeof AdminNewsletterInlineRoute
+  AdminNewsletterOverviewRoute: typeof AdminNewsletterOverviewRoute
+  AdminNewsletterPopupRoute: typeof AdminNewsletterPopupRoute
+  AdminNewsletterSubscribersRoute: typeof AdminNewsletterSubscribersRoute
   AdminNewsletterIndexRoute: typeof AdminNewsletterIndexRoute
 }
 
 const AdminNewsletterRouteChildren: AdminNewsletterRouteChildren = {
+  AdminNewsletterInlineRoute: AdminNewsletterInlineRoute,
+  AdminNewsletterOverviewRoute: AdminNewsletterOverviewRoute,
+  AdminNewsletterPopupRoute: AdminNewsletterPopupRoute,
+  AdminNewsletterSubscribersRoute: AdminNewsletterSubscribersRoute,
   AdminNewsletterIndexRoute: AdminNewsletterIndexRoute,
 }
 
