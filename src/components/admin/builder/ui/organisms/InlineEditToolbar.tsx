@@ -89,9 +89,11 @@ function readFontSize(el: HTMLElement, key: string) {
 
 export function InlineEditToolbar({
   selectedWidgetId,
+  onSelectWidget,
   canvasRef,
 }: {
   selectedWidgetId: string | null;
+  onSelectWidget: (widgetId: string) => void;
   canvasRef: React.RefObject<HTMLElement | null>;
 }) {
   const [target, setTarget] = useState<EditTarget | null>(null);
@@ -157,7 +159,7 @@ export function InlineEditToolbar({
   // currently selected widget. Hover would be noisier while dragging/typing.
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !selectedWidgetId) {
+    if (!canvas) {
       setTarget(null);
       return;
     }
@@ -167,17 +169,19 @@ export function InlineEditToolbar({
       const editable = t.closest<HTMLElement>("[data-edit-target]");
       if (!editable) return;
       const widget = editable.closest<HTMLElement>("[data-widget-id]");
-      if (!widget || widget.dataset.widgetId !== selectedWidgetId) return;
+      const widgetId = widget?.dataset.widgetId;
+      if (!widgetId) return;
       const key = editable.getAttribute("data-edit-target") ?? "";
       if (!key || !LABELS[key]) return;
       missingSinceRef.current = null;
       setCurrent(readFontSize(editable, key));
-      setTarget({ key, widgetId: selectedWidgetId, rect: editable.getBoundingClientRect() });
+      onSelectWidget(widgetId);
+      setTarget({ key, widgetId, rect: editable.getBoundingClientRect() });
     };
     // Keep hint alive when user clicks input / button by not stopping propagation.
     canvas.addEventListener("click", onClick, true);
     return () => canvas.removeEventListener("click", onClick, true);
-  }, [canvasRef, selectedWidgetId]);
+  }, [canvasRef, onSelectWidget]);
 
   // Dismiss when the widget selection changes or Escape is pressed.
   useEffect(() => {
@@ -205,7 +209,7 @@ export function InlineEditToolbar({
 
   // Read current px value from the DOM (source of truth is CSS since the widget
   // may not have an explicit override yet — we fall back to computed style).
-  if (!target || !selectedWidgetId) return null;
+  if (!target) return null;
 
   const [min, max] = RANGES[target.key] || [8, 96];
 

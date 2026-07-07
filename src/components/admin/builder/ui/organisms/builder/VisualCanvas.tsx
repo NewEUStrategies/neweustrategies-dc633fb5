@@ -697,6 +697,7 @@ export function VisualCanvas({
       </div>
       <InlineEditToolbar
         selectedWidgetId={selection.kind === "widget" ? selection.id : null}
+        onSelectWidget={(id) => setSelection({ kind: "widget", id })}
         canvasRef={rootRef}
       />
     </div>
