@@ -496,6 +496,34 @@ function PopupPreview({ settings, lang }: { settings: NewsletterSettings; lang: 
       <p className="text-center text-sm text-muted-foreground py-16">Popup jest wylaczony.</p>
     );
   }
+
+  // Zsynchronizowane z /admin/newsletter/popup - renderujemy dokument z buildera
+  // gdy jest zapisany. Legacy fallback tylko dla starych tenantow bez popup_doc.
+  if (settings.popup_doc) {
+    const p = settings.popup_doc.popup ?? {};
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <div
+          className="w-full max-w-sm overflow-hidden shadow-2xl border border-white/10"
+          style={{
+            backgroundColor: p.bg ?? settings.popup_bg_color,
+            color: p.fg ?? settings.popup_text_color,
+            borderRadius: `${p.radius ?? settings.popup_border_radius_px}px`,
+          }}
+        >
+          <div className="p-5">
+            <NewsletterDocRenderer
+              doc={settings.popup_doc}
+              settings={settings}
+              lang={lang}
+              source="admin-preview"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const title = lang === "pl" ? settings.popup_title_pl : settings.popup_title_en;
   const desc = lang === "pl" ? settings.popup_description_pl : settings.popup_description_en;
   const cta = lang === "pl" ? settings.popup_cta_pl : settings.popup_cta_en;
