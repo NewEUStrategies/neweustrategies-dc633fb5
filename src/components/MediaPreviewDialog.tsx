@@ -81,6 +81,12 @@ export function MediaPreviewDialog({
 
   const [downloading, setDownloading] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
+  const [duration, setDuration] = useState<number | null>(null);
+  const mediaContainerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const download = async () => {
     if (!item) return;
     setDownloading(true);
