@@ -840,6 +840,13 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           phonePlaceholder={pick("phonePlaceholder")}
           companyPlaceholder={pick("companyPlaceholder")}
           countryPlaceholder={pick("countryPlaceholder")}
+          titleSize={getNum(c, "titleSize", 0) || undefined}
+          descriptionSize={getNum(c, "descriptionSize", 0) || undefined}
+          perkSize={getNum(c, "perkSize", 0) || undefined}
+          labelSize={getNum(c, "labelSize", 0) || undefined}
+          placeholderSize={getNum(c, "placeholderSize", 0) || undefined}
+          buttonSize={getNum(c, "buttonSize", 0) || undefined}
+          consentSize={getNum(c, "consentSize", 0) || undefined}
           customFields={customFields}
           source={`widget:${node.id}`}
         />,
