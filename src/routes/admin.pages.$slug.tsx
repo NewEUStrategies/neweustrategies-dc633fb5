@@ -283,7 +283,11 @@ function EditPage() {
     }
     setBusy(true);
     try {
+      const snapshot = form;
       await autosave.flush();
+      // Mark the just-persisted snapshot as clean so the unsaved-changes
+      // guard stops firing until the next real edit.
+      savedFormRef.current = snapshot;
       toast.success(t("admin.saved"));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
