@@ -438,9 +438,79 @@ function RuntimeWidget({
         </div>
       );
     }
+    case "cta-button": {
+      const wrapAlign =
+        w.align === "left" ? "justify-start" : w.align === "right" ? "justify-end" : "justify-center";
+      const safeHref =
+        typeof w.url === "string" && /^(https?:|mailto:|tel:|\/)/i.test(w.url.trim()) ? w.url.trim() : "#";
+      return (
+        <div className={"flex " + wrapAlign}>
+          <a
+            href={safeHref}
+            target={w.target ?? "_self"}
+            rel={w.target === "_blank" ? "noopener noreferrer" : undefined}
+            className={"inline-flex items-center justify-center px-4 py-2.5 rounded text-sm font-medium transition-opacity hover:opacity-90 " + (w.fullWidth ? "w-full" : "")}
+            style={{
+              backgroundColor: w.bg ?? "var(--primary)",
+              color: w.fg ?? "var(--primary-foreground)",
+            }}
+          >
+            {pickI(w.label, lang) || "-"}
+          </a>
+        </div>
+      );
+    }
+    case "coupon":
+      return <CouponWidgetView widget={w} lang={lang} />;
     default:
       return null;
   }
+}
+
+function CouponWidgetView({
+  widget,
+  lang,
+}: {
+  widget: import("@/lib/newsletter-builder/types").NlCouponWidget;
+  lang: NlLang;
+}) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(widget.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* noop - starsze przegladarki */
+    }
+  };
+  return (
+    <div
+      className={
+        "flex items-center justify-between gap-3 px-4 py-3 rounded-lg " +
+        (widget.style === "boxed" ? "border-2" : "border-2 border-dashed")
+      }
+      style={{ borderColor: widget.accent ?? "var(--primary)" }}
+    >
+      <div className="flex flex-col min-w-0">
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">
+          {pickI(widget.label, lang)}
+        </span>
+        <span className="font-mono font-bold text-base tracking-wider truncate">{widget.code}</span>
+      </div>
+      <button
+        type="button"
+        onClick={() => void onCopy()}
+        className="text-[11px] px-3 py-1.5 rounded font-medium shrink-0 transition-opacity hover:opacity-90"
+        style={{
+          backgroundColor: widget.accent ?? "var(--primary)",
+          color: "var(--primary-foreground)",
+        }}
+      >
+        {copied ? pickI(widget.copiedLabel, lang) : lang === "pl" ? "Kopiuj" : "Copy"}
+      </button>
+    </div>
+  );
 }
 
 function FieldWrap({
