@@ -248,6 +248,23 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     if (ta === "center") return "center";
     return undefined;
   })();
+  // When user picks alignment (Lewo/Środek/Prawo) but hasn't defined a
+  // contentMaxWidth, the direct child (e.g. join-us card / contact-form) is
+  // still `width: 100%` and align-items on the flex-col parent has no visible
+  // effect. Wrap children in a shrink-to-content div with align-self so the
+  // block actually shifts inside its column.
+  const needsAlignShrinkWrap = Boolean(styleAlignItems) && !innerShellStyle;
+  const alignShrinkWrapStyle: CSSProperties | undefined = needsAlignShrinkWrap
+    ? {
+        alignSelf: styleAlignItems,
+        width: "auto",
+        maxWidth: "100%",
+        minWidth: 0,
+        display: "flex",
+        flexDirection: "column",
+      }
+    : undefined;
+
   const wrap = (children: React.ReactNode) => (
     <div
       id={htmlId}
@@ -287,12 +304,15 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
         >
           {children}
         </div>
+      ) : alignShrinkWrapStyle ? (
+        <div style={alignShrinkWrapStyle}>{children}</div>
       ) : (
         children
       )}
       {widgetCss && <style dangerouslySetInnerHTML={{ __html: widgetCss }} />}
     </div>
   );
+
 
 
   const c = node.content;
