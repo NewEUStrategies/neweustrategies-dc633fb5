@@ -651,6 +651,74 @@ export function WidgetProperties({
 
           <section className="space-y-2 pt-2 border-t border-border">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Treść wewnątrz widgetu
+            </h4>
+            <PropField label="Max. szerokość treści (px)">
+              <Input
+                type="number"
+                min={0}
+                placeholder="pełna szerokość"
+                value={
+                  typeof widget.advanced?.contentMaxWidth === "number"
+                    ? widget.advanced.contentMaxWidth
+                    : ""
+                }
+                onChange={(e) =>
+                  setAdvanced((a) => {
+                    const n = e.target.value === "" ? undefined : Number(e.target.value);
+                    a.contentMaxWidth = n && n > 0 ? n : undefined;
+                  })
+                }
+                className="h-8 text-xs"
+              />
+            </PropField>
+            <PropField label="Wyrównanie treści">
+              <div className="flex gap-1">
+                {(["start", "center", "end"] as const).map((v) => {
+                  const active = (widget.advanced?.contentAlign ?? "start") === v;
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() =>
+                        setAdvanced((a) => {
+                          a.contentAlign = v === "start" ? undefined : v;
+                        })
+                      }
+                      className={`flex-1 h-8 px-2 text-xs rounded border ${active ? "border-brand bg-brand/10 text-brand" : "border-border bg-background"}`}
+                    >
+                      {v === "start" ? "Lewo" : v === "center" ? "Środek" : "Prawo"}
+                    </button>
+                  );
+                })}
+              </div>
+            </PropField>
+            <PropField label="Odstęp między elementami (px)">
+              <Input
+                type="number"
+                min={0}
+                placeholder="domyślny"
+                value={
+                  typeof widget.advanced?.contentGap === "number" ? widget.advanced.contentGap : ""
+                }
+                onChange={(e) =>
+                  setAdvanced((a) => {
+                    const n = e.target.value === "" ? undefined : Number(e.target.value);
+                    a.contentGap = typeof n === "number" && n >= 0 ? n : undefined;
+                  })
+                }
+                className="h-8 text-xs"
+              />
+            </PropField>
+            <p className="text-[10px] text-muted-foreground">
+              Zwęża i centruje treść wewnątrz widgetu bez zmiany jego szerokości. Odstęp działa na
+              bezpośrednich dzieciach treści.
+            </p>
+          </section>
+
+
+          <section className="space-y-2 pt-2 border-t border-border">
+            <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Motion
             </h4>
             <MotionControl value={widget.advanced} onChange={setAdvanced} />
