@@ -438,7 +438,8 @@ export function JoinUsForm({
   }
 
   const inputCls =
-    "px-3 py-2 rounded border border-input bg-background text-sm w-full";
+    "px-3 py-2 rounded border border-input bg-background font-sans w-full";
+  const inputStyle = placeholderSize ? { fontSize: `${placeholderSize}px` } : { fontSize: "14px" };
   const withMark = (label: string, req: boolean) => (req ? `${label} *` : label);
 
   const form = (
