@@ -1364,6 +1364,7 @@ function GridView({
   onContextFolder,
   onDragStart,
   onDropFolder,
+  onPreviewFile,
 }: {
   folders: string[];
   files: MediaRow[];
@@ -1379,6 +1380,7 @@ function GridView({
   onContextFolder: (e: ReactMouseEvent, id: string) => void;
   onDragStart: (id: string) => (e: DragEvent) => void;
   onDropFolder: (p: string) => (e: DragEvent) => void;
+  onPreviewFile: (m: MediaRow) => void;
 }) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
