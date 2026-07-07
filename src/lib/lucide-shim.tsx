@@ -107,6 +107,13 @@ import {
   Facebook as LFacebook,
   Linkedin as LLinkedin,
   Twitter as LTwitter,
+  Folder as LFolder,
+  FolderOpen as LFolderOpen,
+  FolderPlus as LFolderPlus,
+  Info as LInfo,
+  MoreVertical as LMoreVertical,
+  Scissors as LScissors,
+  ClipboardPaste as LClipboardPaste,
   type LucideIcon as LucideIconImpl,
 } from "lucide-react";
 import { useIconPack } from "@/lib/iconPack";
@@ -272,3 +279,12 @@ export const Download = makeIcon("Download", LDownload);
 export const Facebook = makeIcon("Facebook", LFacebook);
 export const Linkedin = makeIcon("Linkedin", LLinkedin);
 export const Twitter = makeIcon("Twitter", LTwitter);
+
+// Files/folders extras
+export const Folder = makeIcon("Folder", LFolder);
+export const FolderOpen = makeIcon("FolderOpen", LFolderOpen);
+export const FolderPlus = makeIcon("FolderPlus", LFolderPlus);
+export const Info = makeIcon("Info", LInfo);
+export const MoreVertical = makeIcon("MoreVertical", LMoreVertical);
+export const Scissors = makeIcon("Scissors", LScissors);
+export const ClipboardPaste = makeIcon("ClipboardPaste", LClipboardPaste);
