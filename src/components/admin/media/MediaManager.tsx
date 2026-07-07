@@ -64,6 +64,11 @@ import {
   MoreVertical,
   Download,
   Check,
+  Film,
+  Mic,
+  FileText,
+  BookOpen,
+  Image,
 } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import {
@@ -1419,9 +1424,9 @@ function GridView({
           onContextMenu={(e) => onContextFolder(e, p)}
           onDragOver={(e) => e.preventDefault()}
           onDrop={onDropFolder(p)}
-          className="flex flex-col items-center gap-1 p-2 rounded-md border border-transparent hover:bg-muted/50 hover:border-border"
+          className="flex flex-col items-center justify-center gap-2 aspect-square p-2 rounded-md border border-transparent bg-muted/30 hover:bg-muted/50 hover:border-border transition-colors"
         >
-          <Folder className="w-12 h-12 text-brand" />
+          <Folder className="w-14 h-14 text-brand" />
           <span className="text-[11px] truncate w-full text-center" title={folderName(p)}>
             {folderName(p)}
           </span>
@@ -1430,6 +1435,14 @@ function GridView({
       {files.map((m) => {
         const selected = selectedIds.has(m.id);
         const isImage = m.mime_type?.startsWith("image/");
+        const isVideo = m.mime_type?.startsWith("video/");
+        const isAudio = m.mime_type?.startsWith("audio/");
+        const ext = extOf(m.filename).toLowerCase();
+        const isPdf = m.mime_type === "application/pdf" || ext === "pdf";
+        const isWord = /^(doc|docx|odt|rtf)$/.test(ext);
+        const isExcel = /^(xls|xlsx|ods|csv)$/.test(ext);
+        const isEbook = /^(epub|mobi|azw3)$/.test(ext);
+        const isGif = ext === "gif";
         return (
           <div
             key={m.id}
@@ -1446,7 +1459,7 @@ function GridView({
             }`}
           >
             <div className="aspect-square bg-muted/30 flex items-center justify-center">
-              {isImage ? (
+              {isImage && !isGif ? (
                 <img
                   src={m.public_url}
                   alt={m.alt_text || m.filename}
@@ -1455,8 +1468,22 @@ function GridView({
                   draggable={false}
                 />
               ) : (
-                <div className="flex flex-col items-center text-muted-foreground gap-1">
-                  <span className="text-2xl">📄</span>
+                <div className="flex flex-col items-center justify-center text-muted-foreground gap-1">
+                  {isVideo ? (
+                    <Film className="w-10 h-10" />
+                  ) : isAudio ? (
+                    <Mic className="w-10 h-10" />
+                  ) : isPdf ? (
+                    <FileText className="w-10 h-10" />
+                  ) : isWord || isExcel ? (
+                    <FileText className="w-10 h-10" />
+                  ) : isEbook ? (
+                    <BookOpen className="w-10 h-10" />
+                  ) : isGif || isImage ? (
+                    <Image className="w-10 h-10" />
+                  ) : (
+                    <span className="text-2xl">📄</span>
+                  )}
                   <span className="text-[10px]">{extOf(m.filename)}</span>
                 </div>
               )}
