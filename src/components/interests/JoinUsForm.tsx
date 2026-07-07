@@ -482,17 +482,19 @@ export function JoinUsForm({
       )}
 
       {useSplitName && (
-        <input
-          type="email"
-          required={requireEmail}
-          aria-required={requireEmail || undefined}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder={withMark(phEmail, requireEmail)}
-          maxLength={254}
-          className={inputCls}
-          autoComplete="email"
-        />
+        <div className="grid gap-2 sm:grid-cols-2">
+          <input
+            type="email"
+            required={requireEmail}
+            aria-required={requireEmail || undefined}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder={withMark(phEmail, requireEmail)}
+            maxLength={254}
+            className={inputCls}
+            autoComplete="email"
+          />
+        </div>
       )}
 
       {(showPosition || showLinkedin || showPhone || showCompany || showCountry) && (
