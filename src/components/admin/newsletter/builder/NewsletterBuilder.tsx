@@ -576,6 +576,9 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                       ? setSectionLayout(selectedSection.id, layout)
                       : setSectionLayout(doc.sections[0]!.id, layout)
                   }
+                  onPatchSectionMedia={(patch) =>
+                    selectedSection && patchSectionMedia(selectedSection.id, patch)
+                  }
                   lang={lang}
                 />
               )}
