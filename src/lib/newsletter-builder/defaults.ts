@@ -136,6 +136,23 @@ export const widgetFactories: Record<NlWidgetType, () => NlWidget> = {
     labelMinutes: i18n("min", "min"),
     labelSeconds: i18n("sek", "sec"),
   }),
+  "cta-button": (): NlCtaButtonWidget => ({
+    id: uid(),
+    type: "cta-button",
+    label: i18n("Dowiedz sie wiecej", "Learn more"),
+    url: "https://",
+    target: "_self",
+    fullWidth: false,
+    align: "center",
+  }),
+  coupon: (): NlCouponWidget => ({
+    id: uid(),
+    type: "coupon",
+    code: "PROMO10",
+    label: i18n("Twoj kod rabatowy", "Your coupon code"),
+    copiedLabel: i18n("Skopiowano!", "Copied!"),
+    style: "dashed",
+  }),
 };
 
 export function makeWidget(type: NlWidgetType): NlWidget {
