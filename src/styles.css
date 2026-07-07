@@ -89,6 +89,11 @@
   --gc-input-hover-border: #FDB078; /* light-orange hover ring, per brand */
   --gc-input-focus-border: #FDB078; /* focus uses the same orange for continuity */
   --gc-label-font-size: 0.75rem;   /* 12px - unified input-label size */
+  --gc-input-font-size: 14px;      /* unified input/select/textarea text size */
+  --gc-input-line-height: 1.4;
+  --gc-input-text: hsl(var(--foreground));
+  --gc-input-placeholder: oklch(0.62 0 0);
+  --gc-input-placeholder-dark: oklch(0.58 0 0);
 
 
 
@@ -2596,6 +2601,39 @@ textarea::placeholder {
 .auth-shell label,
 .join-us-shell label {
   font-size: var(--gc-label-font-size, 0.75rem);
+}
+
+/* ============================================================
+   Global input/select/textarea text + placeholder — unified
+   across every widget to match the contact-form baseline.
+   ============================================================ */
+.cf-shell :where(input, select, textarea),
+[data-w-id] :where(input, select, textarea),
+.cms-widget-form :where(input, select, textarea),
+.nl-shell :where(input, select, textarea),
+.auth-shell :where(input, select, textarea),
+.join-us-shell :where(input, select, textarea) {
+  font-size: var(--gc-input-font-size, 14px);
+  line-height: var(--gc-input-line-height, 1.4);
+  color: var(--gc-input-text, hsl(var(--foreground)));
+}
+.cf-shell :where(input, select, textarea)::placeholder,
+[data-w-id] :where(input, select, textarea)::placeholder,
+.cms-widget-form :where(input, select, textarea)::placeholder,
+.nl-shell :where(input, select, textarea)::placeholder,
+.auth-shell :where(input, select, textarea)::placeholder,
+.join-us-shell :where(input, select, textarea)::placeholder {
+  font-size: var(--gc-input-font-size, 14px);
+  color: var(--gc-input-placeholder, oklch(0.62 0 0));
+  opacity: 1;
+}
+.dark .cf-shell :where(input, select, textarea)::placeholder,
+.dark [data-w-id] :where(input, select, textarea)::placeholder,
+.dark .cms-widget-form :where(input, select, textarea)::placeholder,
+.dark .nl-shell :where(input, select, textarea)::placeholder,
+.dark .auth-shell :where(input, select, textarea)::placeholder,
+.dark .join-us-shell :where(input, select, textarea)::placeholder {
+  color: var(--gc-input-placeholder-dark, oklch(0.58 0 0));
 }
 
 
