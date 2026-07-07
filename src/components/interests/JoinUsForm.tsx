@@ -807,13 +807,22 @@ export function JoinUsForm({
             id="joinus-heading"
             className={cn("font-display mb-2", !titleSize && "text-2xl")}
             style={titleStyle}
+            data-edit-target="titleSize"
           >
             {heading}
           </h3>
-          <p className="font-sans text-muted-foreground mb-4" style={descStyle}>
+          <p
+            className="font-sans text-muted-foreground mb-4"
+            style={descStyle}
+            data-edit-target="descriptionSize"
+          >
             {description}
           </p>
-          <ul className="join-us-perks flex flex-col gap-2 font-sans" style={perkStyle}>
+          <ul
+            className="join-us-perks flex flex-col gap-2 font-sans"
+            style={perkStyle}
+            data-edit-target="perkSize"
+          >
             <li className="flex items-start gap-2">
               <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" />
               <span>{p1}</span>
@@ -840,11 +849,16 @@ export function JoinUsForm({
         id="joinus-heading"
         className={cn("font-display mb-2", !titleSize && "text-2xl")}
         style={titleStyle}
+        data-edit-target="titleSize"
       >
         {heading}
       </h3>
       {description && (
-        <p className="font-sans text-muted-foreground mb-4" style={descStyle}>
+        <p
+          className="font-sans text-muted-foreground mb-4"
+          style={descStyle}
+          data-edit-target="descriptionSize"
+        >
           {description}
         </p>
       )}
@@ -852,3 +866,4 @@ export function JoinUsForm({
     </section>
   );
 }
+
