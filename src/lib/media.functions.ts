@@ -388,7 +388,11 @@ export const updateMediaMeta = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) => UpdateMediaSchema.parse(i))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const patch: Record<string, unknown> = {};
+    const patch: {
+      filename?: string;
+      alt_text?: string | null;
+      folder_path?: string;
+    } = {};
     if (data.filename !== undefined) {
       const clean = data.filename.replace(/[/\\]/g, "-").trim();
       if (!clean) throw new Error("Invalid filename");
