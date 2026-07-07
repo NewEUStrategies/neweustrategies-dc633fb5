@@ -107,6 +107,13 @@ import {
   Facebook as LFacebook,
   Linkedin as LLinkedin,
   Twitter as LTwitter,
+  Folder as LFolder,
+  FolderOpen as LFolderOpen,
+  FolderPlus as LFolderPlus,
+  Info as LInfo,
+  MoreVertical as LMoreVertical,
+  Scissors as LScissors,
+  ClipboardPaste as LClipboardPaste,
   type LucideIcon as LucideIconImpl,
 } from "lucide-react";
 import { useIconPack } from "@/lib/iconPack";
