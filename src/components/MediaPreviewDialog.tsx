@@ -80,6 +80,7 @@ export function MediaPreviewDialog({
   const { hasAccess, loading, rule } = useContentAccess("media" as AccessEntityType, entityId);
 
   const [downloading, setDownloading] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const download = async () => {
     if (!item) return;
     setDownloading(true);
@@ -102,7 +103,10 @@ export function MediaPreviewDialog({
   };
 
   useEffect(() => {
-    if (!open) setDownloading(false);
+    if (!open) {
+      setDownloading(false);
+      setInfoOpen(false);
+    }
   }, [open]);
 
   if (!item) return null;
