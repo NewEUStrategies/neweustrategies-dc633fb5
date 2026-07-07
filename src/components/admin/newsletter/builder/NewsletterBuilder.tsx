@@ -662,7 +662,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                       </div>
 
                       <div
-                        className="rounded-xl p-4 min-h-[160px]"
+                        className="rounded-xl overflow-hidden"
                         style={{
                           backgroundColor:
                             st.bg ??
@@ -677,25 +677,63 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                               ? (doc.popup?.fg ?? settings.popup_text_color)
                               : undefined),
                           borderRadius: st.radius != null ? `${st.radius}px` : undefined,
-                          paddingTop: st.paddingY != null ? `${st.paddingY}px` : undefined,
-                          paddingBottom: st.paddingY != null ? `${st.paddingY}px` : undefined,
-                          paddingLeft: st.paddingX != null ? `${st.paddingX}px` : undefined,
-                          paddingRight: st.paddingX != null ? `${st.paddingX}px` : undefined,
+                          display: section.media?.url ? "flex" : undefined,
+                          flexDirection: section.media?.url ? "row" : undefined,
+                          alignItems: section.media?.url ? "stretch" : undefined,
+                          minHeight: 160,
                         }}
                       >
-                        <BuilderCanvas
-                          sectionId={section.id}
-                          widgets={section.widgets}
-                          lang={lang}
-                          layout={section.layout ?? "single"}
-                          selectedId={selectedId}
-                          onSelect={(id) => {
-                            setSelectedId(id);
-                            setSelectedSectionId(null);
+                        {section.media?.url && section.media.position === "left" && (
+                          <div
+                            aria-label={section.media.alt ?? ""}
+                            style={{
+                              flex: `0 0 ${Math.min(70, Math.max(10, section.media.widthPct ?? 40))}%`,
+                              alignSelf: "stretch",
+                              backgroundImage: `url(${section.media.url})`,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center",
+                              backgroundRepeat: "no-repeat",
+                            }}
+                          />
+                        )}
+                        <div
+                          className="min-h-[160px]"
+                          style={{
+                            flex: section.media?.url ? "1 1 0%" : undefined,
+                            minWidth: 0,
+                            paddingTop: st.paddingY != null ? `${st.paddingY}px` : 16,
+                            paddingBottom: st.paddingY != null ? `${st.paddingY}px` : 16,
+                            paddingLeft: st.paddingX != null ? `${st.paddingX}px` : 16,
+                            paddingRight: st.paddingX != null ? `${st.paddingX}px` : 16,
                           }}
-                          onRemove={removeWidget}
-                          onDuplicate={duplicateWidget}
-                        />
+                        >
+                          <BuilderCanvas
+                            sectionId={section.id}
+                            widgets={section.widgets}
+                            lang={lang}
+                            layout={section.layout ?? "single"}
+                            selectedId={selectedId}
+                            onSelect={(id) => {
+                              setSelectedId(id);
+                              setSelectedSectionId(null);
+                            }}
+                            onRemove={removeWidget}
+                            onDuplicate={duplicateWidget}
+                          />
+                        </div>
+                        {section.media?.url && section.media.position === "right" && (
+                          <div
+                            aria-label={section.media.alt ?? ""}
+                            style={{
+                              flex: `0 0 ${Math.min(70, Math.max(10, section.media.widthPct ?? 40))}%`,
+                              alignSelf: "stretch",
+                              backgroundImage: `url(${section.media.url})`,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center",
+                              backgroundRepeat: "no-repeat",
+                            }}
+                          />
+                        )}
                       </div>
                     </div>
 
