@@ -110,8 +110,14 @@ export function defaultNewsletterSettings(): NewsletterSettings {
     popup_border_radius_px: 16,
     popup_eyebrow_pl: "Newsletter",
     popup_eyebrow_en: "Newsletter",
+    mode: "both",
+    inline_doc: null,
+    popup_doc: null,
+    sender_name: null,
+    sender_email: null,
   };
 }
+
 
 export function useNewsletterSettings() {
   return useQuery({
