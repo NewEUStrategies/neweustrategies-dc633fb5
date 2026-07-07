@@ -66,23 +66,40 @@ export function InlineEditToolbar({
   const rafRef = useRef<number | null>(null);
 
   // Track element geometry so the floating panel follows scroll / layout shifts.
+  // If the element unmounts (widget re-render after a size change), re-resolve
+  // by data-edit-target key inside the currently selected widget so the toolbar
+  // stays open across updates.
   useEffect(() => {
     if (!target) return;
     const tick = () => {
-      const rect = target.el.getBoundingClientRect();
-      // Auto-dismiss if element left the viewport or was unmounted.
-      if (!document.contains(target.el) || rect.width === 0) {
+      let el: HTMLElement | null = target.el;
+      if (!document.contains(el)) {
+        const canvas = canvasRef.current;
+        const widget = canvas?.querySelector<HTMLElement>(
+          `[data-widget-id="${selectedWidgetId}"]`,
+        );
+        el = widget?.querySelector<HTMLElement>(
+          `[data-edit-target="${target.key}"]`,
+        ) ?? null;
+        if (!el) {
+          setTarget(null);
+          return;
+        }
+      }
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) {
         setTarget(null);
         return;
       }
-      setTarget((prev) => (prev ? { ...prev, rect } : prev));
+      const nextEl = el;
+      setTarget((prev) => (prev ? { ...prev, el: nextEl, rect } : prev));
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [target?.el]);
+  }, [target?.key, selectedWidgetId, canvasRef]);
 
   // Click-based detection: pick the innermost [data-edit-target] within the
   // currently selected widget. Hover would be noisier while dragging/typing.
@@ -196,21 +213,21 @@ export function InlineEditToolbar({
         role="toolbar"
         aria-label={`Edytuj rozmiar: ${LABELS[target.key]}`}
         style={{ position: "fixed", top, left, zIndex: 9999 }}
-        className="flex items-center gap-1 rounded-md border border-border bg-popover px-1.5 py-1 shadow-lg animate-in fade-in slide-in-from-top-1"
+        className="flex items-center gap-0.5 rounded-md border border-border bg-popover px-1 py-0.5 shadow-lg animate-in fade-in slide-in-from-top-1"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        <span className="px-1.5 text-[11px] font-medium text-muted-foreground">
+        <span className="px-1 text-[9px] font-medium text-muted-foreground">
           {LABELS[target.key]}
         </span>
         <button
           type="button"
           onClick={() => bump(-1)}
-          className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
+          className="inline-flex h-5 w-5 items-center justify-center rounded hover:bg-muted"
           title="Zmniejsz (↓ / Shift+↓ = 4)"
           aria-label="Zmniejsz rozmiar"
         >
-          <Minus className="h-3 w-3" />
+          <Minus className="h-2.5 w-2.5" />
         </button>
         <input
           type="number"
@@ -221,32 +238,32 @@ export function InlineEditToolbar({
             const n = Number(e.target.value);
             if (!Number.isNaN(n)) setValue(n);
           }}
-          className="h-6 w-14 rounded border border-input bg-background px-1.5 text-center text-[11px] tabular-nums"
+          className="h-5 w-10 rounded border border-input bg-background px-1 text-center text-[9px] tabular-nums"
         />
-        <span className="pr-1 text-[10px] text-muted-foreground">px</span>
+        <span className="pr-0.5 text-[8px] text-muted-foreground">px</span>
         <button
           type="button"
           onClick={() => bump(1)}
-          className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
+          className="inline-flex h-5 w-5 items-center justify-center rounded hover:bg-muted"
           title="Zwiększ (↑ / Shift+↑ = 4)"
           aria-label="Zwiększ rozmiar"
         >
-          <Plus className="h-3 w-3" />
+          <Plus className="h-2.5 w-2.5" />
         </button>
-        <span className="mx-0.5 h-4 w-px bg-border" />
+        <span className="mx-0.5 h-3 w-px bg-border" />
         <button
           type="button"
           onClick={openInPanel}
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] text-muted-foreground hover:bg-muted hover:text-foreground"
           title="Otwórz w panelu Styl"
         >
-          <PanelRightOpen className="h-3 w-3" />
+          <PanelRightOpen className="h-2.5 w-2.5" />
           Panel
         </button>
         <button
           type="button"
           onClick={() => setValue(null)}
-          className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="inline-flex items-center rounded px-1 py-0.5 text-[9px] text-muted-foreground hover:bg-muted hover:text-foreground"
           title="Przywróć domyślny"
         >
           Reset
@@ -254,11 +271,11 @@ export function InlineEditToolbar({
         <button
           type="button"
           onClick={() => setTarget(null)}
-          className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
+          className="inline-flex h-5 w-5 items-center justify-center rounded hover:bg-muted"
           title="Zamknij"
           aria-label="Zamknij"
         >
-          <X className="h-3 w-3" />
+          <X className="h-2.5 w-2.5" />
         </button>
       </div>
     </>,
