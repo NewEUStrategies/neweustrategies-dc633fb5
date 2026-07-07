@@ -227,9 +227,33 @@ export function WidgetProperties({
 
   const widgetLabel = WIDGETS.find((w) => w.type === widget.type)?.label ?? widget.type;
 
+  // Inline edit toolbar → focus a specific field in the Style tab.
+  const [activeTab, setActiveTab] = useState<string>("content");
+  useEffect(() => {
+    const onFocus = (e: Event) => {
+      const detail = (e as CustomEvent<{ key: string }>).detail;
+      if (!detail?.key) return;
+      setActiveTab("style");
+      // Wait for the tab content to mount before scrolling.
+      requestAnimationFrame(() => {
+        const el = document.querySelector<HTMLElement>(
+          `[data-field-key="${detail.key}"]`,
+        );
+        if (!el) return;
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        el.classList.add("field-focus-flash");
+        window.setTimeout(() => el.classList.remove("field-focus-flash"), 1600);
+      });
+    };
+    window.addEventListener("lovable:focus-field", onFocus);
+    return () => window.removeEventListener("lovable:focus-field", onFocus);
+  }, []);
+
   return (
     <div className="wp-compact">
-      <Tabs defaultValue="content">
+      <style>{`.field-focus-flash{outline:2px solid hsl(var(--brand));outline-offset:2px;border-radius:4px;animation:field-focus-flash 1.6s ease-out;}@keyframes field-focus-flash{0%{background:color-mix(in oklab, hsl(var(--brand)) 25%, transparent);}100%{background:transparent;}}`}</style>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+
         <div className="mb-1.5 px-0.5">
           <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Widget</div>
           <div className="text-[12px] font-medium truncate">{widgetLabel}</div>
