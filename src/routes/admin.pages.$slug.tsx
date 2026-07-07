@@ -504,6 +504,17 @@ function EditPage() {
           <Button variant="ghost" size="sm" onClick={del}>
             <Trash2 className="w-4 h-4 mr-1 text-destructive" /> {t("admin.delete")}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => page && history.reset(page)}
+            disabled={!isDirty || busy}
+            title={t("admin.cancelHint", {
+              defaultValue: "Odrzuć niezapisane zmiany i przywróć wersję z serwera",
+            })}
+          >
+            {t("admin.cancel", { defaultValue: "Anuluj" })}
+          </Button>
           <Button onClick={save} disabled={busy}>
             <Save className="w-4 h-4 mr-2" /> {busy ? "..." : t("admin.save")}
           </Button>
