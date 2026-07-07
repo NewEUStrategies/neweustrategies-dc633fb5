@@ -172,10 +172,6 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
         const val = String(fd.get(w.name) ?? "").trim();
         if (w.required && !val) errs[w.name] = REQUIRED_TXT[lang];
         if (val) meta[w.name] = val;
-      } else if (w.type === "field.select") {
-        const val = String(fd.get(w.name) ?? "").trim();
-        if (w.required && !val) errs[w.name] = REQUIRED_TXT[lang];
-        if (val) meta[w.name] = val;
       } else if (w.type === "field.checkbox") {
         const on = fd.get(w.key) === "on";
         if (w.required && !on) errs[w.key] = REQUIRED_TXT[lang];
