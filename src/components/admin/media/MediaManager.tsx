@@ -64,6 +64,11 @@ import {
   MoreVertical,
   Download,
   Check,
+  Film,
+  Mic,
+  FileText,
+  BookOpen,
+  Image,
 } from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import {
