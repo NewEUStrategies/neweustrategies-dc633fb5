@@ -57,7 +57,14 @@ export interface NewsletterSettings {
   popup_border_radius_px: number;
   popup_eyebrow_pl: string;
   popup_eyebrow_en: string;
+  // Builder documents + globalne przelaczniki nowej wersji admin panelu.
+  mode: NewsletterMode;
+  inline_doc: NlDoc | null;
+  popup_doc: NlDoc | null;
+  sender_name: string | null;
+  sender_email: string | null;
 }
+
 
 export function defaultNewsletterSettings(): NewsletterSettings {
   return {
