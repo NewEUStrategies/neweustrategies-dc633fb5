@@ -80,7 +80,11 @@ import {
   createMediaFolder,
   renameMediaFolder,
   deleteMediaFolder,
+  getMediaUsage,
+  type MediaUsageArea,
 } from "@/lib/media.functions";
+import { Link as RouterLink } from "@tanstack/react-router";
+import { Link as LinkIcon } from "@/lib/lucide-shim";
 
 // ---------- Types ----------
 export interface MediaRow {
@@ -1727,59 +1731,183 @@ function MediaPreviewDialog({
                   ? "office"
                   : "other";
 
+  const [infoOpen, setInfoOpen] = useState(false);
+  useEffect(() => {
+    if (!file) setInfoOpen(false);
+  }, [file]);
+
+  const fetchUsage = useServerFn(getMediaUsage);
+  const usageQ = useQuery({
+    queryKey: ["media-usage", file?.id],
+    queryFn: () => fetchUsage({ data: { mediaId: file!.id } }),
+    enabled: !!file && infoOpen,
+  });
+
+  const areaLabel = (a: MediaUsageArea): string => {
+    const map: Record<MediaUsageArea, string> = {
+      cover: t("admin.media.usage.cover", { defaultValue: "Okładka" }),
+      excerpt: t("admin.media.usage.excerpt", { defaultValue: "Zajawka" }),
+      content: t("admin.media.usage.content", { defaultValue: "Treść" }),
+      builder: t("admin.media.usage.builder", { defaultValue: "Builder" }),
+      blocks: t("admin.media.usage.blocks", { defaultValue: "Bloki" }),
+      layout: t("admin.media.usage.layout", { defaultValue: "Layout" }),
+    };
+    return map[a];
+  };
+
   return (
     <Dialog open={!!file} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-5xl w-[95vw] h-[90vh] p-0 flex flex-col overflow-hidden">
-        <DialogHeader className="px-4 py-3 border-b border-border shrink-0">
-          <DialogTitle className="truncate text-sm">
+        <DialogHeader className="px-4 py-3 border-b border-border shrink-0 flex-row items-center justify-between gap-3 space-y-0">
+          <DialogTitle className="truncate text-sm min-w-0">
             {file?.filename ?? ""}
           </DialogTitle>
+          <Button
+            type="button"
+            size="sm"
+            variant={infoOpen ? "default" : "outline"}
+            onClick={() => setInfoOpen((v) => !v)}
+            className="shrink-0 mr-8"
+            title={t("admin.media.usageInfo", { defaultValue: "Gdzie wykorzystywane" })}
+            aria-label={t("admin.media.usageInfo", { defaultValue: "Gdzie wykorzystywane" })}
+            aria-pressed={infoOpen}
+          >
+            <Info className="w-4 h-4" />
+          </Button>
         </DialogHeader>
-        <div className="flex-1 min-h-0 bg-muted/30 flex items-center justify-center overflow-auto">
-          {file && kind === "image" && (
-            <img
-              src={url}
-              alt={file.alt_text || file.filename}
-              className="max-w-full max-h-full object-contain"
-            />
-          )}
-          {file && kind === "video" && (
-            <video src={url} controls className="max-w-full max-h-full" />
-          )}
-          {file && kind === "audio" && (
-            <audio src={url} controls className="w-[80%]" />
-          )}
-          {file && kind === "pdf" && (
-            <iframe
-              src={`${url}#toolbar=1`}
-              title={file.filename}
-              className="w-full h-full border-0 bg-background"
-            />
-          )}
-          {file && kind === "text" && (
-            <iframe
-              src={url}
-              title={file.filename}
-              className="w-full h-full border-0 bg-background"
-            />
-          )}
-          {file && kind === "office" && (
-            <iframe
-              src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`}
-              title={file.filename}
-              className="w-full h-full border-0 bg-background"
-            />
-          )}
-          {file && kind === "other" && (
-            <div className="flex flex-col items-center gap-3 text-muted-foreground p-6 text-center">
-              <span className="text-5xl">📄</span>
-              <div className="text-sm">
-                {t("admin.media.previewUnavailable", {
-                  defaultValue: "Podgląd niedostępny dla tego formatu.",
-                })}
+        <div className="flex-1 min-h-0 flex overflow-hidden">
+          <div className="flex-1 min-w-0 bg-muted/30 flex items-center justify-center overflow-auto">
+            {file && kind === "image" && (
+              <img
+                src={url}
+                alt={file.alt_text || file.filename}
+                className="max-w-full max-h-full object-contain"
+              />
+            )}
+            {file && kind === "video" && (
+              <video src={url} controls className="max-w-full max-h-full" />
+            )}
+            {file && kind === "audio" && (
+              <audio src={url} controls className="w-[80%]" />
+            )}
+            {file && kind === "pdf" && (
+              <iframe
+                src={`${url}#toolbar=1`}
+                title={file.filename}
+                className="w-full h-full border-0 bg-background"
+              />
+            )}
+            {file && kind === "text" && (
+              <iframe
+                src={url}
+                title={file.filename}
+                className="w-full h-full border-0 bg-background"
+              />
+            )}
+            {file && kind === "office" && (
+              <iframe
+                src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`}
+                title={file.filename}
+                className="w-full h-full border-0 bg-background"
+              />
+            )}
+            {file && kind === "other" && (
+              <div className="flex flex-col items-center gap-3 text-muted-foreground p-6 text-center">
+                <span className="text-5xl">📄</span>
+                <div className="text-sm">
+                  {t("admin.media.previewUnavailable", {
+                    defaultValue: "Podgląd niedostępny dla tego formatu.",
+                  })}
+                </div>
+                <div className="text-xs">{mime || ext.toUpperCase()}</div>
               </div>
-              <div className="text-xs">{mime || ext.toUpperCase()}</div>
-            </div>
+            )}
+          </div>
+          {infoOpen && (
+            <aside className="w-80 shrink-0 border-l border-border bg-background overflow-y-auto">
+              <div className="flex items-center justify-between p-3 border-b border-border">
+                <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                  <Info className="w-4 h-4" />
+                  {t("admin.media.usedIn", { defaultValue: "Wykorzystywane w" })}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setInfoOpen(false)}
+                  className="p-1 rounded hover:bg-muted"
+                  aria-label={t("admin.close", { defaultValue: "Zamknij" })}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-3 text-xs">
+                {usageQ.isLoading && (
+                  <p className="text-muted-foreground">
+                    {t("admin.loading", { defaultValue: "Ładowanie…" })}
+                  </p>
+                )}
+                {usageQ.error && (
+                  <p className="text-destructive">
+                    {usageQ.error instanceof Error
+                      ? usageQ.error.message
+                      : String(usageQ.error)}
+                  </p>
+                )}
+                {!usageQ.isLoading && !usageQ.error && (usageQ.data?.items.length ?? 0) === 0 && (
+                  <p className="text-muted-foreground">
+                    {t("admin.media.notUsed", {
+                      defaultValue:
+                        "Ten materiał nie jest jeszcze używany w żadnym poście ani stronie.",
+                    })}
+                  </p>
+                )}
+                {(usageQ.data?.items.length ?? 0) > 0 && (
+                  <ul className="divide-y divide-border border border-border rounded-md overflow-hidden">
+                    {usageQ.data!.items.map((it) => (
+                      <li
+                        key={`${it.kind}-${it.id}`}
+                        className="p-2 hover:bg-muted/40 flex flex-col gap-1"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-medium truncate" title={it.title}>
+                              {it.title}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground flex items-center gap-1 flex-wrap">
+                              <span className="uppercase font-semibold">
+                                {it.kind === "post"
+                                  ? t("admin.media.post", { defaultValue: "Post" })
+                                  : t("admin.media.page", { defaultValue: "Strona" })}
+                              </span>
+                              <span>·</span>
+                              <span className="truncate">/{it.slug}</span>
+                            </div>
+                          </div>
+                          <RouterLink
+                            to={it.kind === "post" ? "/admin/posts/$slug" : "/admin/pages/$slug"}
+                            params={{ slug: it.slug }}
+                            className="shrink-0 inline-flex items-center gap-1 text-brand hover:underline"
+                            title={t("admin.edit", { defaultValue: "Edytuj" })}
+                          >
+                            {t("admin.edit", { defaultValue: "Edytuj" })}
+                            <LinkIcon className="w-3 h-3" />
+                          </RouterLink>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {it.where.map((a) => (
+                            <span
+                              key={a}
+                              className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide"
+                            >
+                              {areaLabel(a)}
+                            </span>
+                          ))}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </aside>
           )}
         </div>
         <DialogFooter className="px-4 py-3 border-t border-border shrink-0 gap-2">
