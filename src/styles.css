@@ -2529,8 +2529,9 @@ textarea::placeholder {
   :where(input[type="checkbox"], input[type="radio"]) {
   appearance: none;
   -webkit-appearance: none;
-  width: 1.05rem;
-  height: 1.05rem;
+  width: var(--form-control-size);
+  height: var(--form-control-size);
+
   margin: 0;
   padding: 0;
   border: 1.5px solid hsl(var(--border));
