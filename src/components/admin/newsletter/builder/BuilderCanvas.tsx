@@ -13,9 +13,7 @@ import type { NlWidget, NlLang, NlSectionLayout } from "@/lib/newsletter-builder
 import { WidgetPreview } from "./WidgetPreview";
 
 const LAYOUT_GRID: Record<Exclude<NlSectionLayout, "single">, string> = {
-  "1-2": "md:grid-cols-[1fr_2fr]",
   "1-1": "md:grid-cols-[1fr_1fr]",
-  "2-1": "md:grid-cols-[2fr_1fr]",
 };
 
 export interface BuilderCanvasProps {
