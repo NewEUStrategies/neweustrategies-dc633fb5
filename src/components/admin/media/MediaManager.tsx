@@ -1537,6 +1537,7 @@ function ListView({
                 draggable
                 onDragStart={onDragStart(m.id)}
                 onClick={(e) => onSelect(m.id, e)}
+                onDoubleClick={() => onPreviewFile(m)}
                 onContextMenu={(e) => onContextFile(e, m.id)}
                 className={`border-t border-border cursor-pointer ${
                   selected ? "bg-brand/10" : "hover:bg-muted/40"
