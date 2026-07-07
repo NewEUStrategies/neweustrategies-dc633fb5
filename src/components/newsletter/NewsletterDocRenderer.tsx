@@ -162,9 +162,6 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
               }
               break;
             }
-            default: {
-              meta[w.name] = raw.slice(0, 500);
-            }
           }
         }
         if (w.required) requiredFields.push(w.name);
