@@ -2508,6 +2508,31 @@ textarea::placeholder {
   box-shadow: 0 0 0 3px hsl(var(--foreground) / 0.12);
 }
 
+/* ============================================================
+   Kill the blue focus/hover ring that shadcn's <Input>/<Textarea>/<Select>
+   emit via `focus-visible:ring-ring` (Tailwind ring utilities compile to
+   box-shadow driven by --tw-ring-color / --tw-ring-shadow, whose default
+   token resolves to a blue-ish color). We neutralize it on ALL frontend
+   input surfaces — hover AND focus — while keeping a subtle, neutral
+   focus indicator for accessibility.
+   Scoped OUT of the admin builder shells so the CMS keeps its ring.
+   ============================================================ */
+:where(body:not(.admin-shell):not(.builder-shell))
+  :where(input, textarea, select):is(:hover, :focus, :focus-visible, :focus-within) {
+  --tw-ring-color: transparent;
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+  box-shadow: none;
+  border-color: hsl(var(--foreground) / 0.35);
+}
+:where(body:not(.admin-shell):not(.builder-shell))
+  :where(input, textarea, select):focus-visible {
+  outline: 2px solid hsl(var(--foreground) / 0.35);
+  outline-offset: 1px;
+}
+
+
+
 /* Chrome autofill: kill the blue/yellow background + inner shadow that some
    themes paint on inputs after the browser fills in credentials. */
 :where(input):-webkit-autofill,
