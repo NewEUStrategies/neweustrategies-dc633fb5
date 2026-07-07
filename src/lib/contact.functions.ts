@@ -41,7 +41,11 @@ const ContactInput = z.object({
   // via public.enforce_form_field_policy - client tampering cannot loosen
   // rules below what the tenant admin configured in form_field_policies.
   requiredFields: z.array(z.string().trim().max(64)).max(20).optional(),
+  // Widget-defined "custom" hybrid fields → forwarded to CRM under
+  // aliases.custom.<id> via crm_upsert_from_form(_custom).
+  custom: z.record(z.string().max(64), z.string().max(500)).optional(),
 });
+
 
 type ContactPayload = z.infer<typeof ContactInput>;
 
