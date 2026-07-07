@@ -31,9 +31,12 @@ function pickLang(data: Record<string, unknown>, key: string, lang: Lang, fallba
 }
 
 function wrap(variant: Variant | undefined, children: React.ReactNode) {
-  if (variant === "plain") return <div className="not-prose my-6 max-w-md mx-auto">{children}</div>;
+  if (variant === "plain")
+    return (
+      <div className="auth-shell auth-shell--plain not-prose my-6 max-w-md mx-auto">{children}</div>
+    );
   return (
-    <section className="not-prose my-6 max-w-md mx-auto rounded-xl border border-border bg-card shadow-sm p-6">
+    <section className="auth-shell auth-shell--card not-prose my-6 max-w-md mx-auto rounded-xl border border-border bg-card shadow-sm p-6">
       {children}
     </section>
   );

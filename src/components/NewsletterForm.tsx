@@ -171,9 +171,9 @@ export function NewsletterForm({
   const success = lang === "en" ? s.success_message_en : s.success_message_pl;
 
   const containerCls =
-    variant === "card"
+    (variant === "card"
       ? "border border-border rounded-lg p-6 lg:p-8 bg-card"
-      : "border-t border-b border-border py-8";
+      : "border-t border-b border-border py-8") + ` nl-shell nl-shell--${variant}`;
 
   const inputCls = "px-3 py-2 rounded border border-input bg-background text-sm w-full";
   const hasExtras = showFirstName || showLastName || showCompany || customFields.length > 0;
