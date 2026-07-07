@@ -2637,21 +2637,40 @@ textarea::placeholder {
 }
 
 /* ============================================================
-   Join-us perks list: bridge widget text-align → flex justify
-   so cały wiersz (ikona + tekst) przesuwa się jako blok.
+   Widget alignment bridge: text-align (Styl panel) → flex justify
+   dla flex-rzędów wewnątrz widgetów formularzy/newslettera.
+   Cały wiersz (ikona + tekst / checkbox + label) przesuwa się jako blok.
+
+   Opt-in klasy:
+     .join-us-perks    - lista perków (ul > li)
+     .widget-perks     - dowolna lista perków w innym widgecie
+     .widget-align-row - pojedynczy flex-row (np. label z checkboxem)
    ============================================================ */
-.join-us-perks > li { justify-content: flex-start; }
-[style*="text-align: center"] .join-us-perks > li,
-[style*="text-align:center"] .join-us-perks > li,
-.text-center .join-us-perks > li,
-[data-align="center"] .join-us-perks > li {
+:where(.join-us-perks, .widget-perks) > li,
+.widget-align-row { justify-content: flex-start; }
+
+/* Center */
+[style*="text-align: center"] :where(.join-us-perks, .widget-perks) > li,
+[style*="text-align:center"] :where(.join-us-perks, .widget-perks) > li,
+.text-center :where(.join-us-perks, .widget-perks) > li,
+[data-align="center"] :where(.join-us-perks, .widget-perks) > li,
+[style*="text-align: center"] .widget-align-row,
+[style*="text-align:center"] .widget-align-row,
+.text-center .widget-align-row,
+[data-align="center"] .widget-align-row {
   justify-content: center;
   text-align: left;
 }
-[style*="text-align: right"] .join-us-perks > li,
-[style*="text-align:right"] .join-us-perks > li,
-.text-right .join-us-perks > li,
-[data-align="right"] .join-us-perks > li {
+
+/* Right */
+[style*="text-align: right"] :where(.join-us-perks, .widget-perks) > li,
+[style*="text-align:right"] :where(.join-us-perks, .widget-perks) > li,
+.text-right :where(.join-us-perks, .widget-perks) > li,
+[data-align="right"] :where(.join-us-perks, .widget-perks) > li,
+[style*="text-align: right"] .widget-align-row,
+[style*="text-align:right"] .widget-align-row,
+.text-right .widget-align-row,
+[data-align="right"] .widget-align-row {
   justify-content: flex-end;
   text-align: left;
 }
