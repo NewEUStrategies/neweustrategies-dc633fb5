@@ -504,15 +504,71 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)_300px] gap-3 min-h-[70vh]">
-          <aside className="bg-card border border-border rounded-xl p-3 overflow-y-auto max-h-[80vh]">
-            <WidgetLibrary
-              lang={lang}
-              onAdd={(type) => {
-                const sid = selectedSectionId ?? doc.sections[0]?.id;
-                if (sid) addWidget(type, sid);
-              }}
-            />
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-3 min-h-[70vh]">
+          <aside className="bg-card border border-border rounded-xl flex flex-col overflow-hidden max-h-[80vh]">
+            <div role="tablist" className="flex items-center gap-1 p-1 m-2 rounded-md bg-muted/50 border border-border/60">
+              <button
+                role="tab"
+                aria-selected={sideTab === "widgets"}
+                type="button"
+                onClick={() => setSideTab("widgets")}
+                className={
+                  "flex-1 px-2 py-1.5 text-xs font-semibold rounded transition-colors " +
+                  (sideTab === "widgets"
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground")
+                }
+              >
+                {lang === "pl" ? "Widgety" : "Widgets"}
+              </button>
+              <button
+                role="tab"
+                aria-selected={sideTab === "settings"}
+                type="button"
+                onClick={() => setSideTab("settings")}
+                className={
+                  "flex-1 px-2 py-1.5 text-xs font-semibold rounded transition-colors " +
+                  (sideTab === "settings"
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground")
+                }
+              >
+                {selectedWidget
+                  ? (lang === "pl" ? "Widget" : "Widget")
+                  : selectedSection
+                    ? (lang === "pl" ? "Sekcja" : "Section")
+                    : (lang === "pl" ? "Dokument" : "Document")}
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-3 pb-3">
+              {sideTab === "widgets" ? (
+                <WidgetLibrary
+                  lang={lang}
+                  onAdd={(type) => {
+                    const sid = selectedSectionId ?? doc.sections[0]?.id;
+                    if (sid) addWidget(type, sid);
+                  }}
+                />
+              ) : (
+                <PropertiesPanel
+                  variant={variant}
+                  doc={doc}
+                  selected={selectedWidget}
+                  selectedSection={selectedSection}
+                  onPatch={(patch) => selectedWidget && patchWidget(selectedWidget.id, patch)}
+                  onPatchPopup={patchPopupStyle}
+                  onPatchSection={(patch) =>
+                    selectedSection && patchSectionStyle(selectedSection.id, patch)
+                  }
+                  onPatchLayout={(layout) =>
+                    selectedSection
+                      ? setSectionLayout(selectedSection.id, layout)
+                      : setSectionLayout(doc.sections[0]!.id, layout)
+                  }
+                  lang={lang}
+                />
+              )}
+            </div>
           </aside>
 
           <main
