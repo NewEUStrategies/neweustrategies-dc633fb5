@@ -311,6 +311,9 @@ export const submitContactMessage = createServerFn({ method: "POST" })
         _last_name: data.lastName?.trim() ?? "",
         _phone: data.phone?.trim() ?? "",
         _company: data.company?.trim() ?? "",
+        _position: "",
+        _linkedin: "",
+        _country: "",
         _source: `contact-form${data.source ? `:${data.source}` : ""}`,
         _custom: data.custom && Object.keys(data.custom).length ? data.custom : {},
       });
