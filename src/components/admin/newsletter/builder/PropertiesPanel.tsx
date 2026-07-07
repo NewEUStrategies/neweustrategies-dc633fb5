@@ -33,7 +33,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Settings2 } from "lucide-react";
+
+// Kompaktowa paleta presetow - dopasowana do design tokens projektu.
+const COLOR_PRESETS: string[] = [
+  "#000000", "#0a0a0a", "#1a1a1a", "#333333", "#666666", "#999999", "#cccccc", "#ffffff",
+  "#f97316", "#ea580c", "#f59e0b", "#eab308", "#84cc16", "#22c55e", "#10b981", "#14b8a6",
+  "#06b6d4", "#0ea5e9", "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899",
+  "#ef4444", "#dc2626", "#b91c1c", "#7f1d1d", "transparent",
+];
 
 interface Props {
   variant: "inline" | "popup";
@@ -286,19 +295,71 @@ function ColorInput({
   fallback?: string;
 }) {
   const v = value ?? fallback ?? "";
+  const swatchBg = v || "transparent";
   return (
     <div className="space-y-1">
       <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </Label>
       <div className="flex gap-1.5 items-center">
-        <input
-          type="color"
-          value={v || "#000000"}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-7 w-7 shrink-0 rounded border border-input cursor-pointer p-0 bg-transparent [&::-webkit-color-swatch]:rounded-sm [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0.5"
-          aria-label={label}
-        />
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={label}
+              className="h-7 w-7 shrink-0 rounded border border-input cursor-pointer relative overflow-hidden bg-[conic-gradient(from_0deg,#f3f3f3_25%,#d1d1d1_0_50%,#f3f3f3_0_75%,#d1d1d1_0)] bg-[length:8px_8px]"
+            >
+              <span
+                className="absolute inset-0 rounded-[3px]"
+                style={{ backgroundColor: swatchBg }}
+              />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" side="bottom" sideOffset={6} className="w-[220px] p-3 space-y-2">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(v) ? v : "#000000"}
+                onChange={(e) => onChange(e.target.value)}
+                className="h-6 w-6 shrink-0 rounded border border-input cursor-pointer p-0 bg-transparent [&::-webkit-color-swatch]:rounded-sm [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0"
+                aria-label={`${label} - selektor`}
+              />
+              <Input
+                value={v}
+                onChange={(e) => onChange(e.target.value || null)}
+                placeholder={fallback}
+                className="h-6 text-[11px] font-mono px-2"
+              />
+            </div>
+            <div className="grid grid-cols-8 gap-1">
+              {COLOR_PRESETS.map((c) => {
+                const active = v.toLowerCase() === c.toLowerCase();
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-label={c}
+                    title={c}
+                    onClick={() => onChange(c)}
+                    className={
+                      "h-5 w-5 rounded border transition-all bg-[conic-gradient(from_0deg,#f3f3f3_25%,#d1d1d1_0_50%,#f3f3f3_0_75%,#d1d1d1_0)] bg-[length:6px_6px] relative " +
+                      (active ? "ring-2 ring-primary ring-offset-1 ring-offset-background border-primary" : "border-border/60 hover:border-primary/40")
+                    }
+                  >
+                    <span className="absolute inset-0 rounded-[2px]" style={{ backgroundColor: c }} />
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              className="w-full text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground py-1 border-t border-border/60 pt-2"
+            >
+              Wyczysc
+            </button>
+          </PopoverContent>
+        </Popover>
         <Input
           value={v}
           onChange={(e) => onChange(e.target.value || null)}
