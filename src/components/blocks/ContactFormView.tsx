@@ -228,7 +228,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   // Scoped CSS for per-instance font sizes. Empty (0) values are skipped so
   // Tailwind defaults still apply.
   const fontSizeCss = useMemo(() => {
-    const scope = `[data-cf-id="${formId}"]`;
+    const scope = `[data-cf-id="${formId}"].cf-inner`;
     const rules: string[] = [];
     // NOTE: `!important` is required so the per-instance font-size wins over
     // `.cms-builder-compact ... .text-xs / .text-sm` builder overrides and any
