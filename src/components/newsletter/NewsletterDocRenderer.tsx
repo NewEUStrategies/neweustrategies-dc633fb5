@@ -462,6 +462,36 @@ function RuntimeWidget({
     }
     case "coupon":
       return <CouponWidgetView widget={w} lang={lang} />;
+    case "close-button": {
+      const size = w.size ?? 32;
+      const text = w.variant === "text" ? pickI(w.label ?? { pl: "Zamknij", en: "Close" }, lang) : null;
+      const glyph = w.variant === "icon-chevron" ? "‹" : w.variant === "icon-x" ? "✕" : text;
+      const isCorner = w.position === "top-right";
+      const btn = (
+        <button
+          type="button"
+          data-popup-close
+          className="inline-flex items-center justify-center rounded-full transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          style={{
+            width: w.variant === "text" ? undefined : size,
+            height: size,
+            paddingInline: w.variant === "text" ? 12 : 0,
+            backgroundColor: w.bg ?? "rgba(0,0,0,0.06)",
+            color: w.fg ?? "currentColor",
+            fontSize: Math.round(size * 0.5),
+            lineHeight: 1,
+          }}
+          aria-label={lang === "pl" ? "Zamknij popup" : "Close popup"}
+        >
+          {glyph}
+        </button>
+      );
+      return isCorner ? (
+        <div className="absolute right-3 top-3 z-20">{btn}</div>
+      ) : (
+        <div className="flex justify-center">{btn}</div>
+      );
+    }
     default:
       return null;
   }
