@@ -115,9 +115,7 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
           style={{ aspectRatio: widget.aspect === "auto" ? undefined : widget.aspect?.replace("/", " / ") }}
         />
       ) : (
-        <div className="w-full aspect-video rounded-lg border border-dashed border-border/60 flex items-center justify-center text-xs text-muted-foreground">
-          {lang === "pl" ? "Brak obrazu" : "No image"}
-        </div>
+        <ImagePlaceholder widget={widget} lang={lang} />
       );
     case "divider":
       return (
