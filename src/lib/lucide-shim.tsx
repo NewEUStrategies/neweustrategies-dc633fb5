@@ -279,3 +279,12 @@ export const Download = makeIcon("Download", LDownload);
 export const Facebook = makeIcon("Facebook", LFacebook);
 export const Linkedin = makeIcon("Linkedin", LLinkedin);
 export const Twitter = makeIcon("Twitter", LTwitter);
+
+// Files/folders extras
+export const Folder = makeIcon("Folder", LFolder);
+export const FolderOpen = makeIcon("FolderOpen", LFolderOpen);
+export const FolderPlus = makeIcon("FolderPlus", LFolderPlus);
+export const Info = makeIcon("Info", LInfo);
+export const MoreVertical = makeIcon("MoreVertical", LMoreVertical);
+export const Scissors = makeIcon("Scissors", LScissors);
+export const ClipboardPaste = makeIcon("ClipboardPaste", LClipboardPaste);
