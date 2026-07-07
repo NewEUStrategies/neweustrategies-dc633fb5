@@ -374,11 +374,12 @@ function LayoutPicker({
   onChange: (l: NlSectionLayout) => void;
   lang: NlLang;
 }) {
+  // Dozwolone tylko dwa uklady:
+  //  - single: pelna szerokosc (obraz sekcji, jesli ustawiony, staje sie tlem)
+  //  - 1-1:    dwie rowne kolumny (jedna to obraz - pozycja lewo/prawo w media.position)
   const options: { v: NlSectionLayout; label: string; ratio: number[] }[] = [
     { v: "single", label: lang === "pl" ? "1 kol." : "1 col", ratio: [1] },
-    { v: "1-2", label: "1 / 3", ratio: [1, 2] },
     { v: "1-1", label: "1 / 2", ratio: [1, 1] },
-    { v: "2-1", label: "3 / 1", ratio: [2, 1] },
   ];
   return (
     <div className="space-y-2">
