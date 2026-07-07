@@ -682,80 +682,95 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                         </SectionBtn>
                       </div>
 
-                      <div
-                        className="rounded-xl overflow-hidden"
-                        style={{
-                          backgroundColor:
-                            st.bg ??
-                            (variant === "popup"
-                              ? "transparent"
-                              : sIdx === 0
-                                ? "var(--card)"
-                                : "transparent"),
-                          color:
-                            st.fg ??
-                            (variant === "popup"
-                              ? (doc.popup?.fg ?? settings.popup_text_color)
-                              : undefined),
-                          borderRadius: st.radius != null ? `${st.radius}px` : undefined,
-                          display: section.media?.url ? "flex" : undefined,
-                          flexDirection: section.media?.url ? "row" : undefined,
-                          alignItems: section.media?.url ? "stretch" : undefined,
-                          minHeight: 160,
-                        }}
-                      >
-                        {section.media?.url && section.media.position === "left" && (
+                      {(() => {
+                        const secLayout = section.layout ?? "single";
+                        const hasMedia = Boolean(section.media?.url);
+                        // single + media -> tlo; 1-1 + media -> kolumna 50%
+                        const bgAsBackground = hasMedia && secLayout === "single";
+                        const splitMedia = hasMedia && secLayout === "1-1";
+                        return (
                           <div
-                            aria-label={section.media.alt ?? ""}
+                            className="rounded-xl overflow-hidden"
                             style={{
-                              flex: `0 0 ${Math.min(70, Math.max(10, section.media.widthPct ?? 40))}%`,
-                              alignSelf: "stretch",
-                              backgroundImage: `url(${section.media.url})`,
-                              backgroundSize: "cover",
-                              backgroundPosition: "center",
-                              backgroundRepeat: "no-repeat",
+                              backgroundColor:
+                                st.bg ??
+                                (variant === "popup"
+                                  ? "transparent"
+                                  : sIdx === 0
+                                    ? "var(--card)"
+                                    : "transparent"),
+                              color:
+                                st.fg ??
+                                (variant === "popup"
+                                  ? (doc.popup?.fg ?? settings.popup_text_color)
+                                  : undefined),
+                              borderRadius: st.radius != null ? `${st.radius}px` : undefined,
+                              backgroundImage: bgAsBackground
+                                ? `url(${section.media!.url})`
+                                : undefined,
+                              backgroundSize: bgAsBackground ? "cover" : undefined,
+                              backgroundPosition: bgAsBackground ? "center" : undefined,
+                              backgroundRepeat: bgAsBackground ? "no-repeat" : undefined,
+                              display: splitMedia ? "flex" : undefined,
+                              flexDirection: splitMedia ? "row" : undefined,
+                              alignItems: splitMedia ? "stretch" : undefined,
+                              minHeight: 160,
                             }}
-                          />
-                        )}
-                        <div
-                          className="min-h-[160px]"
-                          style={{
-                            flex: section.media?.url ? "1 1 0%" : undefined,
-                            minWidth: 0,
-                            paddingTop: st.paddingY != null ? `${st.paddingY}px` : 16,
-                            paddingBottom: st.paddingY != null ? `${st.paddingY}px` : 16,
-                            paddingLeft: st.paddingX != null ? `${st.paddingX}px` : 16,
-                            paddingRight: st.paddingX != null ? `${st.paddingX}px` : 16,
-                          }}
-                        >
-                          <BuilderCanvas
-                            sectionId={section.id}
-                            widgets={section.widgets}
-                            lang={lang}
-                            layout={section.layout ?? "single"}
-                            selectedId={selectedId}
-                            onSelect={(id) => {
-                              setSelectedId(id);
-                              setSelectedSectionId(null);
-                            }}
-                            onRemove={removeWidget}
-                            onDuplicate={duplicateWidget}
-                          />
-                        </div>
-                        {section.media?.url && section.media.position === "right" && (
-                          <div
-                            aria-label={section.media.alt ?? ""}
-                            style={{
-                              flex: `0 0 ${Math.min(70, Math.max(10, section.media.widthPct ?? 40))}%`,
-                              alignSelf: "stretch",
-                              backgroundImage: `url(${section.media.url})`,
-                              backgroundSize: "cover",
-                              backgroundPosition: "center",
-                              backgroundRepeat: "no-repeat",
-                            }}
-                          />
-                        )}
-                      </div>
+                          >
+                            {splitMedia && section.media!.position === "left" && (
+                              <div
+                                aria-label={section.media!.alt ?? ""}
+                                style={{
+                                  flex: "0 0 50%",
+                                  alignSelf: "stretch",
+                                  backgroundImage: `url(${section.media!.url})`,
+                                  backgroundSize: "cover",
+                                  backgroundPosition: "center",
+                                  backgroundRepeat: "no-repeat",
+                                }}
+                              />
+                            )}
+                            <div
+                              className="min-h-[160px]"
+                              style={{
+                                flex: splitMedia ? "1 1 0%" : undefined,
+                                minWidth: 0,
+                                paddingTop: st.paddingY != null ? `${st.paddingY}px` : 16,
+                                paddingBottom: st.paddingY != null ? `${st.paddingY}px` : 16,
+                                paddingLeft: st.paddingX != null ? `${st.paddingX}px` : 16,
+                                paddingRight: st.paddingX != null ? `${st.paddingX}px` : 16,
+                              }}
+                            >
+                              <BuilderCanvas
+                                sectionId={section.id}
+                                widgets={section.widgets}
+                                lang={lang}
+                                layout={secLayout}
+                                selectedId={selectedId}
+                                onSelect={(id) => {
+                                  setSelectedId(id);
+                                  setSelectedSectionId(null);
+                                }}
+                                onRemove={removeWidget}
+                                onDuplicate={duplicateWidget}
+                              />
+                            </div>
+                            {splitMedia && section.media!.position === "right" && (
+                              <div
+                                aria-label={section.media!.alt ?? ""}
+                                style={{
+                                  flex: "0 0 50%",
+                                  alignSelf: "stretch",
+                                  backgroundImage: `url(${section.media!.url})`,
+                                  backgroundSize: "cover",
+                                  backgroundPosition: "center",
+                                  backgroundRepeat: "no-repeat",
+                                }}
+                              />
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Add-section between sections */}
