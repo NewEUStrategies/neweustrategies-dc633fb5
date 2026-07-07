@@ -80,7 +80,11 @@ import {
   createMediaFolder,
   renameMediaFolder,
   deleteMediaFolder,
+  getMediaUsage,
+  type MediaUsageArea,
 } from "@/lib/media.functions";
+import { Link as RouterLink } from "@tanstack/react-router";
+import { ExternalLink } from "@/lib/lucide-shim";
 
 // ---------- Types ----------
 export interface MediaRow {
