@@ -443,13 +443,13 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
           </div>
         )}
         {data.showNewsletterOptIn !== false && (
-          <label className="flex items-start gap-2 text-sm cursor-pointer">
+          <label className="widget-align-row flex items-start gap-2 text-sm cursor-pointer">
             <Checkbox checked={newsletter} onCheckedChange={(v) => setNewsletter(Boolean(v))} />
             <span>{L.newsletter}</span>
           </label>
         )}
         {data.requireConsent !== false && (
-          <label className="flex items-start gap-2 text-sm cursor-pointer">
+          <label className="widget-align-row flex items-start gap-2 text-sm cursor-pointer">
             <Checkbox checked={consent} onCheckedChange={(v) => setConsent(Boolean(v))} required />
             <span>
               {consentLabel ||
