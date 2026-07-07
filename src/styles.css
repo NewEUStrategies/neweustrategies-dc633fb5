@@ -2450,19 +2450,30 @@ textarea::placeholder {
 
 /* ============================================================
    Widget form fields — global baseline
-   - Kills the browser-default blue focus ring / glow
-   - Enforces a uniform default input height across every widget
+   - Kills the browser-default blue focus glow (Chrome/Safari)
+   - Enforces a uniform default input SIZE across every widget
    - Uses :where() so any per-widget override still wins
+     (Tailwind utilities like h-9/h-11 always beat this)
    ============================================================ */
-:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"])),
-:where(textarea),
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"])
+    :not([type="color"]):not([type="file"]):not([type="submit"])
+    :not([type="button"]):not([type="reset"]):not([type="image"])
+),
 :where(select) {
-  min-height: 2.5rem;
+  height: 2.5rem;
+  padding-inline: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 :where(textarea) {
   min-height: 5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.35;
 }
-/* Neutralize the browser's default focus outline (Chrome/Safari blue glow) */
+
+/* Neutralize the browser's default focus outline (blue glow) everywhere. */
 :where(input, textarea, select):focus {
   outline: none;
 }
@@ -2471,9 +2482,27 @@ textarea::placeholder {
   outline-offset: 1px;
   box-shadow: none;
 }
-/* Also neutralize the primary-tinted focus ring on the contact-form shell */
+
+/* Some browsers (Firefox) still paint a text-input inner focus ring. */
+:where(input, textarea, select)::-moz-focus-inner {
+  border: 0;
+}
+
+/* Neutralize the primary-tinted focus ring on the contact-form shell. */
 .cf-shell .cf-input:focus,
 .dark .cf-shell .cf-input:focus {
   border-color: hsl(var(--foreground) / 0.55);
   box-shadow: 0 0 0 3px hsl(var(--foreground) / 0.12);
 }
+
+/* Chrome autofill: kill the blue/yellow background + inner shadow that some
+   themes paint on inputs after the browser fills in credentials. */
+:where(input):-webkit-autofill,
+:where(input):-webkit-autofill:hover,
+:where(input):-webkit-autofill:focus {
+  -webkit-text-fill-color: hsl(var(--foreground));
+  -webkit-box-shadow: 0 0 0 1000px hsl(var(--background)) inset;
+  transition: background-color 5000s ease-in-out 0s;
+  caret-color: hsl(var(--foreground));
+}
+
