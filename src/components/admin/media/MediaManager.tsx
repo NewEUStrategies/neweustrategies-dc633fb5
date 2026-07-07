@@ -1424,9 +1424,9 @@ function GridView({
           onContextMenu={(e) => onContextFolder(e, p)}
           onDragOver={(e) => e.preventDefault()}
           onDrop={onDropFolder(p)}
-          className="flex flex-col items-center gap-1 p-2 rounded-md border border-transparent hover:bg-muted/50 hover:border-border"
+          className="flex flex-col items-center justify-center gap-2 aspect-square p-2 rounded-md border border-transparent bg-muted/30 hover:bg-muted/50 hover:border-border transition-colors"
         >
-          <Folder className="w-12 h-12 text-brand" />
+          <Folder className="w-14 h-14 text-brand" />
           <span className="text-[11px] truncate w-full text-center" title={folderName(p)}>
             {folderName(p)}
           </span>
