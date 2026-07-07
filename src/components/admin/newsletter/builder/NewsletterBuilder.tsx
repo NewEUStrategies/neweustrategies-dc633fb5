@@ -327,16 +327,15 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                     : { backgroundColor: "var(--card)" }
                 }
               >
-                <SortableContext items={widgets.map((w) => w.id)} strategy={verticalListSortingStrategy}>
-                  <BuilderCanvas
-                    widgets={widgets}
-                    lang={lang}
-                    selectedId={selectedId}
-                    onSelect={setSelectedId}
-                    onRemove={removeWidget}
-                    onDuplicate={duplicateWidget}
-                  />
-                </SortableContext>
+                <BuilderCanvas
+                  widgets={widgets}
+                  lang={lang}
+                  layout={sectionLayout}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onRemove={removeWidget}
+                  onDuplicate={duplicateWidget}
+                />
               </div>
             </div>
           </main>
@@ -348,9 +347,11 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
               selected={selected}
               onPatch={(patch) => selected && patchWidget(selected.id, patch)}
               onPatchPopup={patchPopupStyle}
+              onPatchLayout={setSectionLayout}
               lang={lang}
             />
           </aside>
+
         </div>
       </div>
 
