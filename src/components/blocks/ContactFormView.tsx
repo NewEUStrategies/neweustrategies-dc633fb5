@@ -230,19 +230,23 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const fontSizeCss = useMemo(() => {
     const scope = `[data-cf-id="${formId}"]`;
     const rules: string[] = [];
-    if (titleSize > 0) rules.push(`${scope} .cf-title{font-size:${titleSize}px;line-height:1.2;}`);
+    // NOTE: `!important` is required so the per-instance font-size wins over
+    // `.cms-builder-compact ... .text-xs / .text-sm` builder overrides and any
+    // Tailwind text-* utility on the element (labels/consent/subtitle).
+    if (titleSize > 0)
+      rules.push(`${scope} .cf-title{font-size:${titleSize}px !important;line-height:1.2;}`);
     if (descriptionSize > 0)
-      rules.push(`${scope} .cf-subtitle{font-size:${descriptionSize}px;}`);
+      rules.push(`${scope} .cf-subtitle{font-size:${descriptionSize}px !important;}`);
     if (labelSize > 0)
-      rules.push(`${scope} .cf-field-label{font-size:${labelSize}px;}`);
+      rules.push(`${scope} .cf-field-label{font-size:${labelSize}px !important;}`);
     if (placeholderSize > 0)
       rules.push(
-        `${scope} .cf-input{font-size:${placeholderSize}px;}${scope} .cf-input::placeholder{font-size:${placeholderSize}px;}`,
+        `${scope} .cf-input{font-size:${placeholderSize}px !important;}${scope} .cf-input::placeholder{font-size:${placeholderSize}px !important;}`,
       );
     if (buttonFontSize > 0)
-      rules.push(`${scope} .cf-submit{font-size:${buttonFontSize}px;}`);
+      rules.push(`${scope} .cf-submit{font-size:${buttonFontSize}px !important;}`);
     if (consentSize > 0)
-      rules.push(`${scope} .cf-consent{font-size:${consentSize}px;}`);
+      rules.push(`${scope} .cf-consent{font-size:${consentSize}px !important;}`);
     return rules.join("");
   }, [formId, titleSize, descriptionSize, labelSize, placeholderSize, buttonFontSize, consentSize]);
 
