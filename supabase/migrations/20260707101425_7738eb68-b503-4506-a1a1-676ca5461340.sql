@@ -1,0 +1,1 @@
+UPDATE public.pages SET deleted_at = NULL WHERE slug = 'main' AND tenant_id = '07167e87-2e0f-42e8-ac5e-72445a2d4b0a';
