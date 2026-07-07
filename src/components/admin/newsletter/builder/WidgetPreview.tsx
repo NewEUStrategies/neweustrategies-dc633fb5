@@ -248,6 +248,48 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
         </div>
       );
     }
+    case "cta-button": {
+      const wrapAlign =
+        widget.align === "left" ? "justify-start" : widget.align === "right" ? "justify-end" : "justify-center";
+      return (
+        <div className={"flex " + wrapAlign}>
+          <span
+            className={"inline-flex items-center justify-center px-4 py-2 rounded text-sm font-medium " + (widget.fullWidth ? "w-full" : "")}
+            style={{
+              backgroundColor: widget.bg ?? "var(--primary)",
+              color: widget.fg ?? "var(--primary-foreground)",
+            }}
+          >
+            {pick(widget.label) || "-"}
+          </span>
+        </div>
+      );
+    }
+    case "coupon":
+      return (
+        <div
+          className={
+            "flex items-center justify-between gap-3 px-4 py-3 rounded-lg " +
+            (widget.style === "boxed" ? "border-2" : "border-2 border-dashed")
+          }
+          style={{ borderColor: widget.accent ?? "var(--primary)" }}
+        >
+          <div className="flex flex-col min-w-0">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">
+              {pick(widget.label)}
+            </span>
+            <span className="font-mono font-bold text-base tracking-wider truncate">
+              {widget.code}
+            </span>
+          </div>
+          <span
+            className="text-[10px] px-2 py-1 rounded font-medium shrink-0"
+            style={{ backgroundColor: widget.accent ?? "var(--primary)", color: "var(--primary-foreground)" }}
+          >
+            {lang === "pl" ? "Kopiuj" : "Copy"}
+          </span>
+        </div>
+      );
     default:
       return null;
   }
