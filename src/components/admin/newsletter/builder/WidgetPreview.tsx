@@ -1,8 +1,74 @@
 // WidgetPreview - wizualny render pojedynczego widgetu na kanwie buildera.
 // Uzywane rowniez w DragOverlay. HTML uzytkownika sanityzowany przez
 // `sanitizeHtml`; input fieldy renderowane jako read-only.
-import type { NlWidget, NlLang } from "@/lib/newsletter-builder/types";
+import { useEffect, useRef, useState } from "react";
+import type { NlWidget, NlLang, NlImageWidget } from "@/lib/newsletter-builder/types";
 import { sanitizeHtml } from "@/lib/sanitize";
+
+const ASPECT_RATIO: Record<NonNullable<NlImageWidget["aspect"]>, number | null> = {
+  "16/7": 16 / 7,
+  "16/9": 16 / 9,
+  "1/1": 1,
+  "4/3": 4 / 3,
+  auto: null,
+};
+
+/**
+ * Placeholder obrazka - mierzy realna szerokosc kolumny w buildera przez
+ * ResizeObserver i pokazuje rekomendowany rozmiar zrodlowy (1x i 2x retina)
+ * dopasowany do proporcji `aspect` widgetu. Dzieki temu redaktor wie od razu
+ * jaka grafike wgrac, niezaleznie od layoutu sekcji (single/1-1/1-2/2-1) i
+ * biezacego viewportu (desktop/tablet/mobile).
+ */
+function ImagePlaceholder({ widget, lang }: { widget: NlImageWidget; lang: NlLang }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState<number>(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.round(entries[0]?.contentRect.width ?? 0);
+      if (w > 0) setWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const ratio = ASPECT_RATIO[widget.aspect ?? "16/9"] ?? 16 / 9;
+  const w1x = Math.max(1, Math.round(width));
+  const h1x = Math.max(1, Math.round(width / ratio));
+  const w2x = w1x * 2;
+  const h2x = h1x * 2;
+  return (
+    <div
+      ref={ref}
+      className={
+        "w-full flex flex-col items-center justify-center gap-1 border border-dashed border-border/60 text-xs text-muted-foreground " +
+        (widget.rounded ? "rounded-lg " : "") +
+        (widget.aspect && widget.aspect !== "auto" ? "" : "aspect-video")
+      }
+      style={{
+        aspectRatio:
+          widget.aspect && widget.aspect !== "auto" ? widget.aspect.replace("/", " / ") : undefined,
+      }}
+    >
+      <span className="font-medium">{lang === "pl" ? "Brak obrazu" : "No image"}</span>
+      {width > 0 && (
+        <span className="text-[10px] tracking-wide opacity-80 text-center leading-tight px-2">
+          {lang === "pl" ? "Rekomendowany rozmiar" : "Recommended size"}
+          <br />
+          <span className="font-mono">
+            {w1x}x{h1x}px
+          </span>
+          <span className="opacity-60"> - </span>
+          <span className="font-mono">
+            {w2x}x{h2x}px
+          </span>
+          <span className="opacity-60"> (2x)</span>
+        </span>
+      )}
+    </div>
+  );
+}
 
 export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang: NlLang }) {
   if (!widget) return null;
@@ -49,9 +115,7 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
           style={{ aspectRatio: widget.aspect === "auto" ? undefined : widget.aspect?.replace("/", " / ") }}
         />
       ) : (
-        <div className="w-full aspect-video rounded-lg border border-dashed border-border/60 flex items-center justify-center text-xs text-muted-foreground">
-          {lang === "pl" ? "Brak obrazu" : "No image"}
-        </div>
+        <ImagePlaceholder widget={widget} lang={lang} />
       );
     case "divider":
       return (
