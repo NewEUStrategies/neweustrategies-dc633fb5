@@ -618,10 +618,11 @@ function WidgetProps({
         <div className="space-y-3">
           <div>
             <Label>URL obrazu</Label>
-            <Input
+            <ImageUrlField
               value={w.url ?? ""}
-              onChange={(e) => onPatch({ url: e.target.value || null } as Partial<NlWidget>)}
-              placeholder="https://..."
+              onChange={(url) => onPatch({ url: url || null } as Partial<NlWidget>)}
+              folder="newsletter-image"
+              lang="pl"
             />
           </div>
           <div>
