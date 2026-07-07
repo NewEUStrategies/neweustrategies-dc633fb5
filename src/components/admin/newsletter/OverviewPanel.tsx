@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { NewsletterForm } from "@/components/NewsletterForm";
+import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { sanitizeHtml } from "@/lib/sanitize";
 
 interface KpiRow {
