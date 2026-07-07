@@ -155,8 +155,12 @@ export function JoinUsForm({
     country: "",
   });
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  const cfList = customFields ?? [];
+  const setCustom = (id: string, v: string) =>
+    setCustomValues((prev) => ({ ...prev, [id]: v }));
 
   const useSplitName = showFirstName || showLastName;
 
