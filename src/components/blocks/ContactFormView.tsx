@@ -592,7 +592,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             )}
 
             {showNewsletter && (
-              <label className="flex items-start gap-2 text-xs opacity-80">
+              <label className="widget-align-row flex items-start gap-2 text-xs opacity-80">
                 <input type="checkbox" name="newsletter_optin" className="mt-0.5" />
                 <span>{newsletterLabel}</span>
               </label>
