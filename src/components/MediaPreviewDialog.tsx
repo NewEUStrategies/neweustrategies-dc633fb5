@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText, Link as LinkIcon } from "@/lib/lucide-shim";
+import { FileText, Link as LinkIcon, Info, X } from "@/lib/lucide-shim";
 import { useContentAccess, type AccessEntityType } from "@/hooks/useContentAccess";
 import { Paywall } from "@/components/Paywall";
 import { useTranslation } from "react-i18next";
@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getMediaUsage, type MediaUsageArea } from "@/lib/media.functions";
 import { Link } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 
 // Usage areas arrive from the server as stable keys - the UI owns the words.
 const USAGE_AREA_LABELS: Record<"pl" | "en", Record<MediaUsageArea, string>> = {
