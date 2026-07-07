@@ -6,6 +6,8 @@ import { BuilderRenderer } from "../../../BuilderRenderer";
 import { SectionDropZone } from "./SectionDropZone";
 import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
+import { InlineEditToolbar } from "../InlineEditToolbar";
+
 
 /** Drag payload for a global-widget instance dragged from the palette. */
 export interface GlobalDragPayload {
@@ -691,6 +693,11 @@ export function VisualCanvas({
           </div>
         ))}
       </div>
+      <InlineEditToolbar
+        selectedWidgetId={selection.kind === "widget" ? selection.id : null}
+        canvasRef={rootRef}
+      />
     </div>
   );
 }
+

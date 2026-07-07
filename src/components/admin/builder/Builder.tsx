@@ -15,7 +15,7 @@
 // dragstart/dragover/drop to the onMoveWidget* callbacks). There is no @dnd-kit
 // DndContext in the builder; the previous @dnd-kit onDragEnd/sensors here were
 // never mounted and have been removed.
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Settings as SettingsIcon,
   X,
@@ -207,6 +207,30 @@ export function Builder({
     moveSection,
     onToggleNavigator: () => setShowNavigator((v) => !v),
   });
+
+  // Inline edit toolbar bridge: apply per-widget content patches emitted by the
+  // floating toolbar (canvas → CustomEvent → same updateWidget pipeline).
+  useEffect(() => {
+    const onSet = (e: Event) => {
+      const detail = (e as CustomEvent<{ widgetId: string; key: string; value: number | null }>)
+        .detail;
+      if (!detail?.widgetId || !detail.key) return;
+      updateWidget(detail.widgetId, (w) => {
+        const content = { ...(w.content ?? {}) } as Record<string, unknown>;
+        if (detail.value === null || detail.value === undefined) {
+          delete content[detail.key];
+        } else {
+          content[detail.key] = detail.value;
+        }
+        w.content = content as typeof w.content;
+      });
+    };
+    window.addEventListener("lovable:inline-edit-set", onSet);
+    return () => window.removeEventListener("lovable:inline-edit-set", onSet);
+
+  }, [updateWidget]);
+
+
 
   // ---------- left panel content ----------
   const selectedWidget =

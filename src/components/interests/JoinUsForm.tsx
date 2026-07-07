@@ -550,7 +550,8 @@ export function JoinUsForm({
   }
 
   const form = (
-    <form onSubmit={submit} className="space-y-3" noValidate>
+    <form onSubmit={submit} className="space-y-3" noValidate data-edit-target="placeholderSize">
+
       {useSplitName ? (
         <div className="grid gap-2 sm:grid-cols-2">
           {showFirstName && (
@@ -640,10 +641,12 @@ export function JoinUsForm({
           <p
             className="mb-2 font-sans font-semibold uppercase tracking-wider text-muted-foreground"
             style={{ fontSize: labelSize ? `${labelSize}px` : "12px" }}
+            data-edit-target="labelSize"
           >
             {iLabel}
             {requireInterests && <span className="ml-1 text-destructive">*</span>}
           </p>
+
 
           {interestsDisplay === "droplist" ? (
             <div className="space-y-2">
@@ -769,6 +772,7 @@ export function JoinUsForm({
         disabled={state === "loading"}
         className="inline-flex w-full items-center justify-center gap-2 rounded bg-brand px-4 py-2.5 font-sans font-semibold text-brand-foreground transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
         style={{ fontSize: buttonSize ? `${buttonSize}px` : "14px" }}
+        data-edit-target="buttonSize"
       >
         {state === "loading" ? (
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -782,11 +786,13 @@ export function JoinUsForm({
       <p
         className="font-sans leading-relaxed text-muted-foreground"
         style={{ fontSize: consentSize ? `${consentSize}px` : "11px" }}
+        data-edit-target="consentSize"
       >
         {consent}
       </p>
     </form>
   );
+
 
 
   const titleStyle = titleSize ? { fontSize: `${titleSize}px` } : undefined;
@@ -801,13 +807,22 @@ export function JoinUsForm({
             id="joinus-heading"
             className={cn("font-display mb-2", !titleSize && "text-2xl")}
             style={titleStyle}
+            data-edit-target="titleSize"
           >
             {heading}
           </h3>
-          <p className="font-sans text-muted-foreground mb-4" style={descStyle}>
+          <p
+            className="font-sans text-muted-foreground mb-4"
+            style={descStyle}
+            data-edit-target="descriptionSize"
+          >
             {description}
           </p>
-          <ul className="join-us-perks flex flex-col gap-2 font-sans" style={perkStyle}>
+          <ul
+            className="join-us-perks flex flex-col gap-2 font-sans"
+            style={perkStyle}
+            data-edit-target="perkSize"
+          >
             <li className="flex items-start gap-2">
               <Check className="w-4 h-4 mt-0.5 text-brand shrink-0" />
               <span>{p1}</span>
@@ -834,11 +849,16 @@ export function JoinUsForm({
         id="joinus-heading"
         className={cn("font-display mb-2", !titleSize && "text-2xl")}
         style={titleStyle}
+        data-edit-target="titleSize"
       >
         {heading}
       </h3>
       {description && (
-        <p className="font-sans text-muted-foreground mb-4" style={descStyle}>
+        <p
+          className="font-sans text-muted-foreground mb-4"
+          style={descStyle}
+          data-edit-target="descriptionSize"
+        >
           {description}
         </p>
       )}
@@ -846,3 +866,4 @@ export function JoinUsForm({
     </section>
   );
 }
+

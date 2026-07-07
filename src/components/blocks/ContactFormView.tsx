@@ -2,6 +2,7 @@
 // columns, button placement, light/dark backgrounds, image background,
 // and six subtle animated background variants.
 import {
+  useEffect,
   useId,
   useMemo,
   useState,
@@ -9,6 +10,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactMessage } from "@/lib/contact.functions";
 import {
@@ -243,6 +245,28 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       rules.push(`${scope} .cf-consent{font-size:${consentSize}px;}`);
     return rules.join("");
   }, [formId, titleSize, descriptionSize, labelSize, placeholderSize, buttonFontSize, consentSize]);
+
+  // Builder-only: stamp data-edit-target on form elements matching cf-* classes
+  // so the inline edit toolbar can attach quick font-size steppers.
+  useEffect(() => {
+    const root = document.querySelector<HTMLElement>(`[data-cf-id="${formId}"]`);
+    if (!root) return;
+    const pairs: Array<[string, string]> = [
+      [".cf-title", "titleSize"],
+      [".cf-subtitle", "descriptionSize"],
+      [".cf-field-label", "labelSize"],
+      [".cf-input", "placeholderSize"],
+      [".cf-submit", "buttonFontSize"],
+      [".cf-consent", "consentSize"],
+    ];
+    for (const [sel, key] of pairs) {
+      root.querySelectorAll<HTMLElement>(sel).forEach((el) => {
+        el.setAttribute("data-edit-target", key);
+      });
+    }
+  });
+
+
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
