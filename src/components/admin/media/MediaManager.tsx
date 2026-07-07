@@ -1064,6 +1064,11 @@ export function MediaManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MediaPreviewDialog
+        file={previewFile}
+        onClose={() => setPreviewFile(null)}
+      />
     </div>
   );
 
