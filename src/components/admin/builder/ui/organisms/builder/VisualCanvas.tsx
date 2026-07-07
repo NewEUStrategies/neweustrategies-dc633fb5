@@ -6,7 +6,6 @@ import { BuilderRenderer } from "../../../BuilderRenderer";
 import { SectionDropZone } from "./SectionDropZone";
 import type { Selection } from "./types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
-import { InlineEditToolbar } from "../InlineEditToolbar";
 
 
 /** Drag payload for a global-widget instance dragged from the palette. */
@@ -608,8 +607,6 @@ export function VisualCanvas({
     [data-visual-canvas] button{pointer-events:none}
     [data-visual-canvas] [data-section-inserter] button,
     [data-visual-canvas] [data-section-inserter] a{pointer-events:auto}
-    [data-visual-canvas] [data-edit-target],
-    [data-visual-canvas] [data-edit-target] *{pointer-events:auto}
     [data-visual-canvas] img{max-width:100% !important;}
     [data-visual-canvas] img:not([class*="object-cover"]):not([class*="object-fill"]):not([class*="h-"]):not([data-fill-image]){height:auto;object-fit:contain;}
     [data-visual-canvas] img[data-fill-image]{width:100%;height:100%;}
@@ -695,11 +692,6 @@ export function VisualCanvas({
           </div>
         ))}
       </div>
-      <InlineEditToolbar
-        selectedWidgetId={selection.kind === "widget" ? selection.id : null}
-        onSelectWidget={(id) => setSelection({ kind: "widget", id })}
-        canvasRef={rootRef}
-      />
     </div>
   );
 }
