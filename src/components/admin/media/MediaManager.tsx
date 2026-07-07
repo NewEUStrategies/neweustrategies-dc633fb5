@@ -182,6 +182,7 @@ export function MediaManager() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [infoOpen, setInfoOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState<MediaRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
