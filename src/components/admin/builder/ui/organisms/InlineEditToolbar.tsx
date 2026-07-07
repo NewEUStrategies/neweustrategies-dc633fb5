@@ -66,23 +66,40 @@ export function InlineEditToolbar({
   const rafRef = useRef<number | null>(null);
 
   // Track element geometry so the floating panel follows scroll / layout shifts.
+  // If the element unmounts (widget re-render after a size change), re-resolve
+  // by data-edit-target key inside the currently selected widget so the toolbar
+  // stays open across updates.
   useEffect(() => {
     if (!target) return;
     const tick = () => {
-      const rect = target.el.getBoundingClientRect();
-      // Auto-dismiss if element left the viewport or was unmounted.
-      if (!document.contains(target.el) || rect.width === 0) {
+      let el: HTMLElement | null = target.el;
+      if (!document.contains(el)) {
+        const canvas = canvasRef.current;
+        const widget = canvas?.querySelector<HTMLElement>(
+          `[data-widget-id="${selectedWidgetId}"]`,
+        );
+        el = widget?.querySelector<HTMLElement>(
+          `[data-edit-target="${target.key}"]`,
+        ) ?? null;
+        if (!el) {
+          setTarget(null);
+          return;
+        }
+      }
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) {
         setTarget(null);
         return;
       }
-      setTarget((prev) => (prev ? { ...prev, rect } : prev));
+      const nextEl = el;
+      setTarget((prev) => (prev ? { ...prev, el: nextEl, rect } : prev));
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [target?.el]);
+  }, [target?.key, selectedWidgetId, canvasRef]);
 
   // Click-based detection: pick the innermost [data-edit-target] within the
   // currently selected widget. Hover would be noisier while dragging/typing.
