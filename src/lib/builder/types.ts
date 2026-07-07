@@ -479,6 +479,15 @@ export interface BuilderDocument {
 
 export const emptyDocument = (): BuilderDocument => ({ version: 1, sections: [] });
 
+/**
+ * True when a builder document has no content yet (missing, malformed, or zero
+ * sections). This is the canonical "no document yet" check shared by the editor
+ * (show a create-first-section fallback) and the public renderer (skip rendering
+ * an empty popup/section instead of an empty shell).
+ */
+export const isEmptyDocument = (doc: BuilderDocument | null | undefined): boolean =>
+  !doc || !Array.isArray(doc.sections) || doc.sections.length === 0;
+
 export const newId = (): string =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()

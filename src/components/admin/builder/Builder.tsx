@@ -25,7 +25,7 @@ import {
   ChevronRight,
 } from "@/lib/lucide-shim";
 import type { BuilderDocument, Device, Mode } from "@/lib/builder/types";
-import { emptyDocument } from "@/lib/builder/types";
+import { emptyDocument, isEmptyDocument } from "@/lib/builder/types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { BuilderModeProvider } from "@/lib/builder/modeContext";
 import { useTheme } from "@/components/ThemeProvider";
@@ -572,12 +572,16 @@ export function Builder({
                   }}
                 />
 
-                {doc.sections.length === 0 && scope === "page" && (
+                {/* Readable fallback when the document is empty (no sections yet):
+                    every scope gets a scope-specific empty state + StructurePicker
+                    so the user can create the first section (i.e. start the
+                    document). "Load homepage layout" is page-only. */}
+                {isEmptyDocument(doc) && (
                   <EmptyState
                     onAdd={addSection}
                     title={copy.title}
                     hint={copy.hint}
-                    onLoadHomepage={loadHomepage}
+                    onLoadHomepage={scope === "page" ? loadHomepage : undefined}
                   />
                 )}
                 <VisualCanvas
