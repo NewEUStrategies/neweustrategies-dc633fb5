@@ -82,6 +82,15 @@ export interface JoinUsFormProps {
   /** Extra CMS-defined fields ("hybrid" mode). Values are forwarded to CRM
    *  under `aliases.custom.<id>` via the crm_upsert_from_form(_custom) RPC. */
   customFields?: CustomFieldDef[];
+
+  // Font-size overrides (px). undefined = fallback to Tailwind defaults.
+  titleSize?: number;
+  descriptionSize?: number;
+  perkSize?: number;
+  labelSize?: number;
+  placeholderSize?: number;
+  buttonSize?: number;
+  consentSize?: number;
 }
 
 
