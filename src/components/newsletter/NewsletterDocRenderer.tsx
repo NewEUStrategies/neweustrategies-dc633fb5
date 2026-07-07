@@ -254,7 +254,7 @@ function SectionRenderer({
         gridTemplateColumns: gridCols,
         gap: `${gap}px`,
       }}
-      className="max-md:!grid-cols-1"
+     
     >
       <div style={{ display: "flex", flexDirection: "column", gap: `${gap}px`, minWidth: 0 }}>
         {renderWidgets(col0)}
