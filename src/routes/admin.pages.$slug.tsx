@@ -219,9 +219,12 @@ function EditPage() {
     [id, update$, qc, navigate, routeSlug, tenantId, setForm, t],
   );
 
-  const autosave = useAutosave({ value: form, enabled: !!form && !!id, save: saveFn });
-  // Tab close / route change with unsaved edits -> confirmation prompt.
-  useUnsavedChangesGuard(autosave.isDirty || autosave.status === "saving");
+  // Autozapis wyłączony na życzenie użytkownika - zmiany zapisują się
+  // wyłącznie po kliknięciu „Zapisz". `flush()` pozostaje wywoływane w
+  // handlerze `save`, aby ręczny zapis nadal działał.
+  const autosave = useAutosave({ value: form, enabled: false, save: saveFn });
+  const isDirty = history.canUndo;
+  useUnsavedChangesGuard(isDirty || autosave.status === "saving");
 
   // Ciężkie inwalidacje (widget cache, SEO cache, router.invalidate) NIE
   // odpalają się przy każdym autozapisie (patrz saveFn) - powodowałoby to
