@@ -544,7 +544,14 @@ export function JoinUsForm({
         </div>
       )}
 
-
+      {cfList.length > 0 && (
+        <CustomFieldsRenderer
+          fields={cfList}
+          values={customValues}
+          onChange={setCustom}
+          lang={lang}
+        />
+      )}
 
       {showInterests && allItems.length > 0 && (
         <div>
