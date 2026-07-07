@@ -57,6 +57,7 @@ interface Props {
   onPatchPopup: (patch: Partial<NonNullable<NlDoc["popup"]>>) => void;
   onPatchSection: (patch: Partial<NlSectionStyle>) => void;
   onPatchLayout: (layout: NlSectionLayout) => void;
+  onPatchSectionMedia: (patch: Partial<NlSectionMedia> | null) => void;
   lang: NlLang;
 }
 
@@ -69,6 +70,7 @@ export function PropertiesPanel({
   onPatchPopup,
   onPatchSection,
   onPatchLayout,
+  onPatchSectionMedia,
   lang,
 }: Props) {
   const title = selected
@@ -95,6 +97,7 @@ export function PropertiesPanel({
           section={selectedSection}
           onPatchSection={onPatchSection}
           onPatchLayout={onPatchLayout}
+          onPatchSectionMedia={onPatchSectionMedia}
           lang={lang}
         />
       ) : (
