@@ -36,7 +36,7 @@ function wrap(variant: Variant | undefined, children: React.ReactNode) {
       <div className="auth-shell auth-shell--plain not-prose my-6 max-w-md mx-auto">{children}</div>
     );
   return (
-    <section className="auth-shell auth-shell--card not-prose my-6 max-w-md mx-auto rounded-xl border border-border bg-card shadow-sm p-6">
+    <section className="auth-shell auth-shell--card not-prose my-6 max-w-md mx-auto rounded-xl border border-border bg-transparent shadow-sm p-6">
       {children}
     </section>
   );
