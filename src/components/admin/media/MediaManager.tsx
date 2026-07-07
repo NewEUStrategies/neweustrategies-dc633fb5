@@ -904,6 +904,7 @@ export function MediaManager() {
                 onContextFolder={(e, id) => openContext(e, "folder", id)}
                 onDragStart={onItemDragStart}
                 onDropFolder={onFolderDrop}
+                onPreviewFile={(m) => setPreviewFile(m)}
               />
             ) : (
               <ListView
