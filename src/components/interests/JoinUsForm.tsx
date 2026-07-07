@@ -133,6 +133,7 @@ export function JoinUsForm({
   phonePlaceholder,
   companyPlaceholder,
   countryPlaceholder,
+  customFields,
 }: JoinUsFormProps) {
 
   const { t, i18n } = useTranslation();
