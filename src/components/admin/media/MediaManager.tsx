@@ -1483,6 +1483,7 @@ function ListView({
   onContextFolder,
   onDragStart,
   onDropFolder,
+  onPreviewFile,
 }: {
   folders: string[];
   files: MediaRow[];
@@ -1493,6 +1494,7 @@ function ListView({
   onContextFolder: (e: ReactMouseEvent, id: string) => void;
   onDragStart: (id: string) => (e: DragEvent) => void;
   onDropFolder: (p: string) => (e: DragEvent) => void;
+  onPreviewFile: (m: MediaRow) => void;
 }) {
   return (
     <div className="border border-border rounded-md overflow-hidden">
