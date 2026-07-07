@@ -2637,42 +2637,66 @@ textarea::placeholder {
 }
 
 /* ============================================================
-   Widget alignment bridge: text-align (Styl panel) → flex justify
-   dla flex-rzędów wewnątrz widgetów formularzy/newslettera.
-   Cały wiersz (ikona + tekst / checkbox + label) przesuwa się jako blok.
+   Widget alignment bridge: text-align (Styl panel → dropdown
+   „Wyrównanie") → block-level flex justify dla WSZYSTKICH flex-rzędów
+   wewnątrz widgetów (form/newsletter/perks/chips/checkbox-labels).
+   Cały wiersz (ikona/checkbox + tekst) przesuwa się jako blok, a tekst
+   wewnątrz wiersza zostaje wyrównany do ikony (text-align: left na li).
 
-   Opt-in klasy:
-     .join-us-perks    - lista perków (ul > li)
-     .widget-perks     - dowolna lista perków w innym widgecie
-     .widget-align-row - pojedynczy flex-row (np. label z checkboxem)
+   Zakres: wszystko wewnątrz [data-w-id] (każdy widget builder-a).
+   Wyzwalacze: inline style text-align, .text-center/.text-right,
+   [data-align="..."] na wrapperze widgetu, oraz opt-in klasy:
+     .join-us-perks / .widget-perks / .widget-align-row
    ============================================================ */
-:where(.join-us-perks, .widget-perks) > li,
-.widget-align-row { justify-content: flex-start; }
+:where([data-w-id]) :where(.join-us-perks, .widget-perks) > li,
+:where([data-w-id]) .widget-align-row {
+  justify-content: flex-start;
+}
 
 /* Center */
-[style*="text-align: center"] :where(.join-us-perks, .widget-perks) > li,
-[style*="text-align:center"] :where(.join-us-perks, .widget-perks) > li,
-.text-center :where(.join-us-perks, .widget-perks) > li,
-[data-align="center"] :where(.join-us-perks, .widget-perks) > li,
-[style*="text-align: center"] .widget-align-row,
-[style*="text-align:center"] .widget-align-row,
-.text-center .widget-align-row,
-[data-align="center"] .widget-align-row {
+[data-w-id][style*="text-align: center"] :where(.join-us-perks, .widget-perks) > li,
+[data-w-id][style*="text-align:center"] :where(.join-us-perks, .widget-perks) > li,
+[data-w-id].text-center :where(.join-us-perks, .widget-perks) > li,
+[data-w-id][data-align="center"] :where(.join-us-perks, .widget-perks) > li,
+[data-w-id][style*="text-align: center"] .widget-align-row,
+[data-w-id][style*="text-align:center"] .widget-align-row,
+[data-w-id].text-center .widget-align-row,
+[data-w-id][data-align="center"] .widget-align-row {
   justify-content: center;
   text-align: left;
 }
 
 /* Right */
-[style*="text-align: right"] :where(.join-us-perks, .widget-perks) > li,
-[style*="text-align:right"] :where(.join-us-perks, .widget-perks) > li,
-.text-right :where(.join-us-perks, .widget-perks) > li,
-[data-align="right"] :where(.join-us-perks, .widget-perks) > li,
-[style*="text-align: right"] .widget-align-row,
-[style*="text-align:right"] .widget-align-row,
-.text-right .widget-align-row,
-[data-align="right"] .widget-align-row {
+[data-w-id][style*="text-align: right"] :where(.join-us-perks, .widget-perks) > li,
+[data-w-id][style*="text-align:right"] :where(.join-us-perks, .widget-perks) > li,
+[data-w-id].text-right :where(.join-us-perks, .widget-perks) > li,
+[data-w-id][data-align="right"] :where(.join-us-perks, .widget-perks) > li,
+[data-w-id][style*="text-align: right"] .widget-align-row,
+[data-w-id][style*="text-align:right"] .widget-align-row,
+[data-w-id].text-right .widget-align-row,
+[data-w-id][data-align="right"] .widget-align-row {
   justify-content: flex-end;
   text-align: left;
+}
+
+/* Auto-catch: any UL directly inside a widget whose <li> is flex.
+   Bez opt-in — dopasowuje listy „perks-like" w kolejnych widgetach. */
+[data-w-id] ul > li {
+  --widget-row-justify: flex-start;
+}
+[data-w-id][style*="text-align: center"] ul > li,
+[data-w-id][style*="text-align:center"] ul > li,
+[data-w-id][data-align="center"] ul > li {
+  --widget-row-justify: center;
+}
+[data-w-id][style*="text-align: right"] ul > li,
+[data-w-id][style*="text-align:right"] ul > li,
+[data-w-id][data-align="right"] ul > li {
+  --widget-row-justify: flex-end;
+}
+[data-w-id] ul > li[style*="display: flex"],
+[data-w-id] ul > li[style*="display:flex"] {
+  justify-content: var(--widget-row-justify);
 }
 
 
