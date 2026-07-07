@@ -443,15 +443,24 @@ export function RegisterFormView({ data, lang }: { data: RegisterData; lang: Lan
           </div>
         )}
         {data.showNewsletterOptIn !== false && (
-          <label className="widget-align-row flex items-start gap-2 text-sm cursor-pointer">
-            <Checkbox checked={newsletter} onCheckedChange={(v) => setNewsletter(Boolean(v))} />
-            <span>{L.newsletter}</span>
+          <label className="widget-align-row flex w-full items-start gap-2 text-sm cursor-pointer leading-snug">
+            <Checkbox
+              className="mt-0.5 shrink-0"
+              checked={newsletter}
+              onCheckedChange={(v) => setNewsletter(Boolean(v))}
+            />
+            <span className="flex-1 min-w-0">{L.newsletter}</span>
           </label>
         )}
         {data.requireConsent !== false && (
-          <label className="widget-align-row flex items-start gap-2 text-sm cursor-pointer">
-            <Checkbox checked={consent} onCheckedChange={(v) => setConsent(Boolean(v))} required />
-            <span>
+          <label className="widget-align-row flex w-full items-start gap-2 text-sm cursor-pointer leading-snug">
+            <Checkbox
+              className="mt-0.5 shrink-0"
+              checked={consent}
+              onCheckedChange={(v) => setConsent(Boolean(v))}
+              required
+            />
+            <span className="flex-1 min-w-0">
               {consentLabel ||
                 (lang === "pl"
                   ? "Akceptuję regulamin i politykę prywatności."
