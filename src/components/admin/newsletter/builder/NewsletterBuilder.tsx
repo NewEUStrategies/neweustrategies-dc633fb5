@@ -655,6 +655,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                 );
               })}
             </div>
+            </div>
           </main>
 
           <aside className="bg-card border border-border rounded-xl p-4 overflow-y-auto max-h-[80vh]">
