@@ -256,6 +256,16 @@ export function JoinUsForm({
       setState("err");
       return;
     }
+    const missingCustom = validateCustomFields(cfList, customValues);
+    if (missingCustom.length) {
+      setErrMsg(
+        lang === "en"
+          ? `Please fill in required fields: ${missingCustom.join(", ")}`
+          : `Uzupełnij wymagane pola: ${missingCustom.join(", ")}`,
+      );
+      setState("err");
+      return;
+    }
 
 
     try {
