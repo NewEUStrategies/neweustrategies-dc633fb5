@@ -1053,13 +1053,11 @@ function DocProps({
   const layoutBlock = (
     <div className="space-y-2">
       <Label>{lang === "pl" ? "Uklad sekcji" : "Section layout"}</Label>
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-2 gap-1.5">
         {(
           [
             { v: "single" as const, label: lang === "pl" ? "1 kol." : "1 col", ratio: [1] },
-            { v: "1-2" as const, label: "1 / 3", ratio: [1, 2] },
             { v: "1-1" as const, label: "1 / 2", ratio: [1, 1] },
-            { v: "2-1" as const, label: "3 / 1", ratio: [2, 1] },
           ]
         ).map((opt) => {
           const active = currentLayout === opt.v;
