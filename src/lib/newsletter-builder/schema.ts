@@ -123,6 +123,26 @@ export const NlWidgetSchema = z.discriminatedUnion("type", [
     labelSeconds: NlI18n,
     accent: z.string().max(32).nullish(),
   }),
+  z.object({
+    ...BaseWidget,
+    type: z.literal("cta-button"),
+    label: NlI18n,
+    url: z.string().max(2048),
+    target: z.enum(["_self", "_blank"]).optional(),
+    bg: z.string().max(32).nullish(),
+    fg: z.string().max(32).nullish(),
+    fullWidth: z.boolean().optional(),
+    align: z.enum(["left", "center", "right"]).optional(),
+  }),
+  z.object({
+    ...BaseWidget,
+    type: z.literal("coupon"),
+    code: z.string().min(1).max(64),
+    label: NlI18n,
+    copiedLabel: NlI18n,
+    style: z.enum(["boxed", "dashed"]).optional(),
+    accent: z.string().max(32).nullish(),
+  }),
 ]);
 
 const NlSectionStyle = z.object({
