@@ -422,8 +422,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                 className="rounded-md object-cover"
               />
             )}
-            {title && <h3 className="text-xl font-semibold leading-tight">{title}</h3>}
-            {subtitle && <p className="text-sm opacity-80">{subtitle}</p>}
+            {title && <h3 className="cf-title text-xl font-semibold leading-tight">{title}</h3>}
+            {subtitle && <p className="cf-subtitle text-sm opacity-80">{subtitle}</p>}
           </header>
         )}
 
