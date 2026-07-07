@@ -399,24 +399,27 @@ export function WidgetProperties({
                   const raw = (widget.content as Record<string, Json> | undefined)?.[f.key];
                   const v = typeof raw === "number" ? raw : "";
                   return (
-                    <PropField key={f.key} label={f.label}>
-                      <Input
-                        type="number"
-                        min={f.min}
-                        max={f.max}
-                        value={v}
-                        placeholder="px"
-                        onChange={(e) => {
-                          const n = Number(e.target.value);
-                          setContent(
-                            f.key,
-                            e.target.value === "" || Number.isNaN(n) ? null : n,
-                          );
-                        }}
-                        className="h-8 text-xs"
-                      />
-                    </PropField>
+                    <div key={f.key} data-field-key={f.key}>
+                      <PropField label={f.label}>
+                        <Input
+                          type="number"
+                          min={f.min}
+                          max={f.max}
+                          value={v}
+                          placeholder="px"
+                          onChange={(e) => {
+                            const n = Number(e.target.value);
+                            setContent(
+                              f.key,
+                              e.target.value === "" || Number.isNaN(n) ? null : n,
+                            );
+                          }}
+                          className="h-8 text-xs"
+                        />
+                      </PropField>
+                    </div>
                   );
+
                 })}
               </div>
             </section>
