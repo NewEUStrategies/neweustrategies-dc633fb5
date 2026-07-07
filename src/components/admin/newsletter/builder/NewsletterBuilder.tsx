@@ -719,26 +719,6 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
             </div>
             </div>
           </main>
-
-          <aside className="bg-card border border-border rounded-xl p-4 overflow-y-auto max-h-[80vh]">
-            <PropertiesPanel
-              variant={variant}
-              doc={doc}
-              selected={selectedWidget}
-              selectedSection={selectedSection}
-              onPatch={(patch) => selectedWidget && patchWidget(selectedWidget.id, patch)}
-              onPatchPopup={patchPopupStyle}
-              onPatchSection={(patch) =>
-                selectedSection && patchSectionStyle(selectedSection.id, patch)
-              }
-              onPatchLayout={(layout) =>
-                selectedSection
-                  ? setSectionLayout(selectedSection.id, layout)
-                  : setSectionLayout(doc.sections[0]!.id, layout)
-              }
-              lang={lang}
-            />
-          </aside>
         </div>
       </div>
 
