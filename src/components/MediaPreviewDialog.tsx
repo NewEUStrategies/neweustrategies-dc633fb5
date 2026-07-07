@@ -115,6 +115,11 @@ export function MediaPreviewDialog({
     }
   }, [open]);
 
+  useEffect(() => {
+    setNaturalSize(null);
+    setDuration(null);
+  }, [item?.id]);
+
   if (!item) return null;
 
   const mime = item.mime_type ?? "";
