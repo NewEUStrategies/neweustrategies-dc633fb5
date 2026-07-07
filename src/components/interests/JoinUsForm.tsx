@@ -641,10 +641,12 @@ export function JoinUsForm({
           <p
             className="mb-2 font-sans font-semibold uppercase tracking-wider text-muted-foreground"
             style={{ fontSize: labelSize ? `${labelSize}px` : "12px" }}
+            data-edit-target="labelSize"
           >
             {iLabel}
             {requireInterests && <span className="ml-1 text-destructive">*</span>}
           </p>
+
 
           {interestsDisplay === "droplist" ? (
             <div className="space-y-2">
