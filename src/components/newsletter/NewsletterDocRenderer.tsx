@@ -223,47 +223,87 @@ function SectionRenderer({
     textAlign: st.align ?? undefined,
   };
 
-  if (layout === "single") {
+  const innerContent =
+    layout === "single" ? (
+      <div style={{ display: "flex", flexDirection: "column", gap: `${gap}px` }}>
+        {renderWidgets(section.widgets)}
+      </div>
+    ) : (
+      (() => {
+        const col0 = section.widgets.filter((w) => (w.col ?? 0) === 0);
+        const col1 = section.widgets.filter((w) => w.col === 1);
+        const gridCols =
+          layout === "1-2" ? "1fr 2fr" : layout === "2-1" ? "2fr 1fr" : "1fr 1fr";
+        return (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: gridCols,
+              gap: `${gap}px`,
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: `${gap}px`, minWidth: 0 }}>
+              {renderWidgets(col0)}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: `${gap}px`, minWidth: 0 }}>
+              {renderWidgets(col1)}
+            </div>
+          </div>
+        );
+      })()
+    );
+
+  // Pelnowysokosciowy obraz sekcji: flex row + align-items:stretch, kolumna
+  // obrazu ma background-size:cover, wiec naturalnie wypelnia cala wysokosc.
+  const media = section.media;
+  if (media && media.url) {
+    const w = Math.min(70, Math.max(10, media.widthPct ?? 40));
+    const mediaCol = (
+      <div
+        role="img"
+        aria-label={media.alt ?? ""}
+        style={{
+          flex: `0 0 ${w}%`,
+          alignSelf: "stretch",
+          minHeight: "100%",
+          backgroundImage: `url(${media.url})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      />
+    );
+    const contentCol = <div style={{ flex: "1 1 0%", minWidth: 0 }}>{innerContent}</div>;
     return (
       <div
         style={{
           ...containerStyle,
+          // padding zeruje sie na kontenerze zewnetrznym; pojdzie na kolumne tresci
+          padding: 0,
           display: "flex",
-          flexDirection: "column",
-          gap: `${gap}px`,
+          flexDirection: "row",
+          alignItems: "stretch",
+          overflow: "hidden",
         }}
       >
-        {renderWidgets(section.widgets)}
+        {media.position === "left" ? mediaCol : null}
+        <div
+          style={{
+            flex: "1 1 0%",
+            minWidth: 0,
+            padding: `${st.paddingY ?? 0}px ${st.paddingX ?? 0}px`,
+          }}
+        >
+          {innerContent}
+        </div>
+        {media.position === "right" ? mediaCol : null}
+        {/* zapewniamy ze contentCol renderuje sie tylko raz */}
+        {false ? contentCol : null}
       </div>
     );
   }
 
-  const col0 = section.widgets.filter((w) => (w.col ?? 0) === 0);
-  const col1 = section.widgets.filter((w) => w.col === 1);
-  const gridCols =
-    layout === "1-2"
-      ? "1fr 2fr"
-      : layout === "2-1"
-        ? "2fr 1fr"
-        : "1fr 1fr";
-  return (
-    <div
-      style={{
-        ...containerStyle,
-        display: "grid",
-        gridTemplateColumns: gridCols,
-        gap: `${gap}px`,
-      }}
-     
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: `${gap}px`, minWidth: 0 }}>
-        {renderWidgets(col0)}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: `${gap}px`, minWidth: 0 }}>
-        {renderWidgets(col1)}
-      </div>
-    </div>
-  );
+  return <div style={containerStyle}>{innerContent}</div>;
 }
 
 function widgetErrorKey(w: NlWidget): string {
