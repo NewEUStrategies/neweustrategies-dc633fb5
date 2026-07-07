@@ -15,7 +15,7 @@
 // dragstart/dragover/drop to the onMoveWidget* callbacks). There is no @dnd-kit
 // DndContext in the builder; the previous @dnd-kit onDragEnd/sensors here were
 // never mounted and have been removed.
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Settings as SettingsIcon,
   X,
