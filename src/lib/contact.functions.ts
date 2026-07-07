@@ -307,10 +307,10 @@ export const submitContactMessage = createServerFn({ method: "POST" })
       const { error: crmErr } = await supabaseAdmin.rpc("crm_upsert_from_form", {
         _tenant: inserted.tenant_id,
         _email: data.email,
-        _first_name: data.firstName ?? undefined,
-        _last_name: data.lastName ?? undefined,
-        _phone: data.phone ?? undefined,
-        _company: data.company ?? undefined,
+        _first_name: data.firstName?.trim() ?? "",
+        _last_name: data.lastName?.trim() ?? "",
+        _phone: data.phone?.trim() ?? "",
+        _company: data.company?.trim() ?? "",
         _source: `contact-form${data.source ? `:${data.source}` : ""}`,
         _custom: data.custom && Object.keys(data.custom).length ? data.custom : {},
       });
