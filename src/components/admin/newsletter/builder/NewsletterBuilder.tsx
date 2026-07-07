@@ -626,8 +626,8 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
                         setSelectedId(null);
                       }}
                     >
-                      {/* Section toolbar */}
-                      <div className="absolute -top-3 left-3 z-10 flex items-center gap-1 bg-card border border-border rounded-md shadow-sm text-[10px]">
+                      {/* Section toolbar - inline (nie moze byc chowany przez overflow-hidden karty popupu) */}
+                      <div className="flex items-center gap-1 mb-2 bg-card border border-border rounded-md shadow-sm text-[10px] w-fit">
                         <span className="px-2 py-1 text-muted-foreground uppercase tracking-wider">
                           {lang === "pl" ? "Sekcja" : "Section"} {sIdx + 1}
                         </span>
