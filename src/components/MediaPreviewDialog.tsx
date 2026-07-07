@@ -128,8 +128,17 @@ export function MediaPreviewDialog({
           <div className="flex items-center gap-2 shrink-0 mr-10">
             <span className="text-xs text-muted-foreground hidden sm:inline">
               {mime || "plik"}
-              {item.size_bytes ? ` · ${(item.size_bytes / 1024).toFixed(0)} KB` : ""}
+              {item.size_bytes ? ` · ${formatBytes(item.size_bytes)}` : ""}
             </span>
+            <Button
+              size="sm"
+              variant={infoOpen ? "default" : "outline"}
+              onClick={() => setInfoOpen((o) => !o)}
+              title={lang === "pl" ? "Informacje o pliku" : "File info"}
+              aria-label={lang === "pl" ? "Informacje" : "Info"}
+            >
+              <Info className="w-4 h-4" />
+            </Button>
             {!blocked && (
               <Button size="sm" onClick={download} disabled={downloading}>
                 <DownloadIcon className="w-4 h-4 mr-2" />
@@ -139,56 +148,92 @@ export function MediaPreviewDialog({
           </div>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-auto bg-muted/30">
-          {blocked && rule ? (
-            <div className="p-6">
-              <Paywall rule={rule} lang={lang} fallbackText={null} />
-            </div>
-          ) : loading && gated ? (
-            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-              {lang === "pl" ? "Sprawdzanie dostępu…" : "Checking access…"}
-            </div>
-          ) : isImage ? (
-            <div className="h-full w-full flex items-center justify-center p-4">
-              <img
-                src={item.public_url}
-                alt={item.filename}
-                className="max-h-full max-w-full object-contain"
+        <div className="flex-1 min-h-0 flex overflow-hidden">
+          <div
+            className="flex-1 min-w-0 min-h-0 overflow-auto bg-muted/30"
+            ref={mediaContainerRef}
+          >
+            {blocked && rule ? (
+              <div className="p-6">
+                <Paywall rule={rule} lang={lang} fallbackText={null} />
+              </div>
+            ) : loading && gated ? (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                {lang === "pl" ? "Sprawdzanie dostępu…" : "Checking access…"}
+              </div>
+            ) : isImage ? (
+              <div className="h-full w-full flex items-center justify-center p-4">
+                <img
+                  ref={imgRef}
+                  src={item.public_url}
+                  alt={item.filename}
+                  className="max-h-full max-w-full object-contain"
+                  onLoad={(e) => {
+                    const el = e.currentTarget;
+                    setNaturalSize({ w: el.naturalWidth, h: el.naturalHeight });
+                  }}
+                />
+              </div>
+            ) : isPdf ? (
+              <iframe
+                src={`${item.public_url}#toolbar=1&navpanes=0`}
+                title={item.filename}
+                className="w-full h-full border-0 bg-white"
               />
-            </div>
-          ) : isPdf ? (
-            <iframe
-              src={`${item.public_url}#toolbar=1&navpanes=0`}
-              title={item.filename}
-              className="w-full h-full border-0 bg-white"
+            ) : isVideo ? (
+              <div className="h-full w-full flex items-center justify-center bg-black">
+                <video
+                  ref={videoRef}
+                  src={item.public_url}
+                  controls
+                  className="max-h-full max-w-full"
+                  onLoadedMetadata={(e) => {
+                    const v = e.currentTarget;
+                    setNaturalSize({ w: v.videoWidth, h: v.videoHeight });
+                    setDuration(v.duration);
+                  }}
+                />
+              </div>
+            ) : isAudio ? (
+              <div className="h-full flex items-center justify-center p-8">
+                <audio
+                  ref={audioRef}
+                  src={item.public_url}
+                  controls
+                  className="w-full max-w-xl"
+                  onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                />
+              </div>
+            ) : isText ? (
+              <iframe
+                src={item.public_url}
+                title={item.filename}
+                className="w-full h-full border-0 bg-white"
+              />
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center gap-3 text-center p-8 text-muted-foreground">
+                <FileText className="w-12 h-12 opacity-60" />
+                <p className="text-sm">
+                  {lang === "pl"
+                    ? "Podgląd nie jest dostępny dla tego typu pliku."
+                    : "Preview not available for this file type."}
+                </p>
+                <Button onClick={download} disabled={downloading}>
+                  <DownloadIcon className="w-4 h-4 mr-2" />{" "}
+                  {lang === "pl" ? "Pobierz plik" : "Download file"}
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {infoOpen && (
+            <InfoSidebar
+              item={item}
+              lang={lang}
+              naturalSize={naturalSize}
+              duration={duration}
+              onClose={() => setInfoOpen(false)}
             />
-          ) : isVideo ? (
-            <div className="h-full w-full flex items-center justify-center bg-black">
-              <video src={item.public_url} controls className="max-h-full max-w-full" />
-            </div>
-          ) : isAudio ? (
-            <div className="h-full flex items-center justify-center p-8">
-              <audio src={item.public_url} controls className="w-full max-w-xl" />
-            </div>
-          ) : isText ? (
-            <iframe
-              src={item.public_url}
-              title={item.filename}
-              className="w-full h-full border-0 bg-white"
-            />
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center gap-3 text-center p-8 text-muted-foreground">
-              <FileText className="w-12 h-12 opacity-60" />
-              <p className="text-sm">
-                {lang === "pl"
-                  ? "Podgląd nie jest dostępny dla tego typu pliku."
-                  : "Preview not available for this file type."}
-              </p>
-              <Button onClick={download} disabled={downloading}>
-                <DownloadIcon className="w-4 h-4 mr-2" />{" "}
-                {lang === "pl" ? "Pobierz plik" : "Download file"}
-              </Button>
-            </div>
           )}
         </div>
 
