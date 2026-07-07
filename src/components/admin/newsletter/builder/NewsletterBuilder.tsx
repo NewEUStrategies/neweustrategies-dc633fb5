@@ -189,31 +189,58 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     else setDraggingWidgetId(String(e.active.id));
   };
 
+  const resolveDropTarget = (
+    overId: string,
+  ): { col: 0 | 1 | null; overWidgetIdx: number | null } => {
+    // Drop na pusty droppable kolumny.
+    if (overId === "canvas-drop") return { col: null, overWidgetIdx: null };
+    if (overId === "canvas-col-0") return { col: 0, overWidgetIdx: null };
+    if (overId === "canvas-col-1") return { col: 1, overWidgetIdx: null };
+    // Drop na inny widget - dziedziczy jego kolumne.
+    const idx = widgets.findIndex((w) => w.id === overId);
+    if (idx < 0) return { col: null, overWidgetIdx: null };
+    const target = widgets[idx]!;
+    return { col: (target.col ?? 0) as 0 | 1, overWidgetIdx: idx };
+  };
+
   const onDragEnd = (e: DragEndEvent) => {
     setDraggingType(null);
     setDraggingWidgetId(null);
     const { active, over } = e;
     if (!over) return;
     const data = active.data.current as { kind?: string; type?: NlWidgetType } | undefined;
+    const target = resolveDropTarget(String(over.id));
 
     // Drop from library
     if (data?.kind === "library" && data.type) {
-      if (over.id === "canvas-drop") {
-        addWidget(data.type);
-      } else {
-        const overIdx = widgets.findIndex((w) => w.id === over.id);
-        addWidget(data.type, overIdx >= 0 ? overIdx : undefined);
-      }
+      const col = sectionLayout === "single" ? 0 : (target.col ?? 0);
+      addWidget(data.type, target.overWidgetIdx ?? undefined, col);
       return;
     }
 
-    // Reorder within canvas
-    if (active.id !== over.id) {
-      const oldIdx = widgets.findIndex((w) => w.id === active.id);
-      const newIdx = widgets.findIndex((w) => w.id === over.id);
-      if (oldIdx < 0 || newIdx < 0) return;
-      updateWidgets((list) => arrayMove(list, oldIdx, newIdx));
-    }
+    // Reorder / cross-column move within canvas
+    if (active.id === over.id) return;
+    const oldIdx = widgets.findIndex((w) => w.id === active.id);
+    if (oldIdx < 0) return;
+    const activeWidget = widgets[oldIdx]!;
+    const targetCol = sectionLayout === "single" ? undefined : ((target.col ?? activeWidget.col ?? 0) as 0 | 1);
+
+    updateWidgets((list) => {
+      const moved: NlWidget = { ...list[oldIdx]!, col: targetCol } as NlWidget;
+      const without = list.filter((_, i) => i !== oldIdx);
+      let insertAt: number;
+      if (target.overWidgetIdx == null) {
+        insertAt = without.length;
+      } else {
+        const overWidget = list[target.overWidgetIdx]!;
+        const newIdx = without.findIndex((w) => w.id === overWidget.id);
+        insertAt = newIdx >= 0 ? newIdx : without.length;
+      }
+      const next = [...without];
+      next.splice(insertAt, 0, moved);
+      return next;
+    });
+    void arrayMove; // used via manual splice, keep import warning silent
   };
 
   const onSave = async () => {
