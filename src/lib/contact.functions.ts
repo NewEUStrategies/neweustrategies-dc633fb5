@@ -41,7 +41,11 @@ const ContactInput = z.object({
   // via public.enforce_form_field_policy - client tampering cannot loosen
   // rules below what the tenant admin configured in form_field_policies.
   requiredFields: z.array(z.string().trim().max(64)).max(20).optional(),
+  // Widget-defined "custom" hybrid fields → forwarded to CRM under
+  // aliases.custom.<id> via crm_upsert_from_form(_custom).
+  custom: z.record(z.string().max(64), z.string().max(500)).optional(),
 });
+
 
 type ContactPayload = z.infer<typeof ContactInput>;
 
@@ -297,6 +301,28 @@ export const submitContactMessage = createServerFn({ method: "POST" })
       .select("id, tenant_id")
       .single();
     if (error || !inserted) throw new Error(error?.message ?? "insert failed");
+
+    // Push contact into CRM (append-only aliases so history is preserved).
+    try {
+      const { error: crmErr } = await supabaseAdmin.rpc("crm_upsert_from_form", {
+        _tenant: inserted.tenant_id,
+        _email: data.email,
+        _first_name: data.firstName?.trim() ?? "",
+        _last_name: data.lastName?.trim() ?? "",
+        _phone: data.phone?.trim() ?? "",
+        _company: data.company?.trim() ?? "",
+        _position: "",
+        _linkedin: "",
+        _country: "",
+        _source: `contact-form${data.source ? `:${data.source}` : ""}`,
+        _custom: data.custom && Object.keys(data.custom).length ? data.custom : {},
+      });
+      if (crmErr) console.error("[contact] crm sync failed", crmErr);
+    } catch (e) {
+      console.error("[contact] crm sync threw", e);
+    }
+
+
 
 
     const { data: cfs } = await supabaseAdmin

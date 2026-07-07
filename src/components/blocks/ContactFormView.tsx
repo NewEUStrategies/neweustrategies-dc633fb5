@@ -11,6 +11,16 @@ import {
 } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactMessage } from "@/lib/contact.functions";
+import {
+  collectCustomValues,
+  parseCustomFields,
+  pickLabel,
+  pickPlaceholder,
+  readI18nOverride,
+  validateCustom,
+  type CustomField,
+} from "@/lib/builder/formFields";
+
 
 
 type Lang = "pl" | "en";
@@ -143,6 +153,31 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   const showNewsletter = bool(data, "showNewsletterOptIn");
   const consentTextRaw = s(data, `consentText_${lang}`, t.consent);
 
+  // Per-field label / placeholder overrides (fall back to defaults from `t`).
+  const L = {
+    firstName: readI18nOverride(data, "firstNameLabel", lang, t.firstName),
+    lastName: readI18nOverride(data, "lastNameLabel", lang, t.lastName),
+    email: readI18nOverride(data, "emailLabel", lang, t.email),
+    phone: readI18nOverride(data, "phoneLabel", lang, t.phone),
+    company: readI18nOverride(data, "companyLabel", lang, t.company),
+    subject: readI18nOverride(data, "subjectLabel", lang, t.subject),
+    message: readI18nOverride(data, "messageLabel", lang, t.message),
+  };
+  const P = {
+    firstName: readI18nOverride(data, "firstNamePlaceholder", lang, lang === "pl" ? "Jan" : "John"),
+    lastName: readI18nOverride(data, "lastNamePlaceholder", lang, lang === "pl" ? "Kowalski" : "Doe"),
+    email: readI18nOverride(data, "emailPlaceholder", lang, "name@example.com"),
+    phone: readI18nOverride(data, "phonePlaceholder", lang, ""),
+    company: readI18nOverride(data, "companyPlaceholder", lang, ""),
+    subject: readI18nOverride(data, "subjectPlaceholder", lang, ""),
+    message: readI18nOverride(data, "messagePlaceholder", lang, ""),
+  };
+  const customFields = useMemo<CustomField[]>(
+    () => parseCustomFields(data.customFields),
+    [data.customFields],
+  );
+
+
   const columns = Math.max(1, Math.min(3, num(data, "columns", 2)));
   const buttonAlign = s(data, "buttonAlign", "left") as "left" | "center" | "right" | "full";
   const buttonPosition = s(data, "buttonPosition", "bottom") as "bottom" | "inline-right";
@@ -235,6 +270,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
       referer: typeof document !== "undefined" ? document.referrer || undefined : undefined,
       consents,
       requiredFields,
+      custom: collectCustomValues(customFields, fd),
     };
 
     const errs: Record<string, string> = {};
@@ -248,9 +284,11 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     if (requiredMap.subject && !payload.subject) errs.subject = t.required;
     if (requiredMap.message && !payload.message) errs.message = t.required;
     if (requireConsent && !payload.consent) errs.consent = t.required;
+    Object.assign(errs, validateCustom(customFields, payload.custom, t.required));
 
     setErrors(errs);
     if (Object.keys(errs).length) return;
+
     setStatus("sending");
     try {
       await submit({ data: payload });
@@ -372,32 +410,32 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 
         <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
           {showFirstName && (
-            <Field label={t.firstName} required={requireFirstName} error={errors.firstName} className={widthCls(1)}>
+            <Field label={L.firstName} required={requireFirstName} error={errors.firstName} className={widthCls(1)}>
               <input
                 name="firstName"
                 required={requireFirstName}
                 aria-required={requireFirstName || undefined}
                 className="cf-input"
                 autoComplete="given-name"
-                placeholder={lang === "pl" ? "Jan" : "John"}
+                placeholder={P.firstName}
               />
             </Field>
           )}
           {showLastName && (
-            <Field label={t.lastName} required={requireLastName} error={errors.lastName} className={widthCls(1)}>
+            <Field label={L.lastName} required={requireLastName} error={errors.lastName} className={widthCls(1)}>
               <input
                 name="lastName"
                 required={requireLastName}
                 aria-required={requireLastName || undefined}
                 className="cf-input"
                 autoComplete="family-name"
-                placeholder={lang === "pl" ? "Kowalski" : "Doe"}
+                placeholder={P.lastName}
               />
             </Field>
           )}
           {showEmail && (
             <Field
-              label={t.email}
+              label={L.email}
               required={requireEmail}
               error={errors.email}
               className={widthCls(showFirstName || showLastName ? 1 : 2)}
@@ -409,13 +447,13 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                 aria-required={requireEmail || undefined}
                 className="cf-input"
                 autoComplete="email"
-                placeholder="name@example.com"
+                placeholder={P.email}
               />
             </Field>
           )}
 
           {showPhone && (
-            <Field label={t.phone} required={requirePhone} error={errors.phone} className={widthCls(1)}>
+            <Field label={L.phone} required={requirePhone} error={errors.phone} className={widthCls(1)}>
               <input
                 name="phone"
                 type="tel"
@@ -423,33 +461,36 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                 aria-required={requirePhone || undefined}
                 className="cf-input"
                 autoComplete="tel"
+                placeholder={P.phone}
               />
             </Field>
           )}
           {showCompany && (
-            <Field label={t.company} required={requireCompany} error={errors.company} className={widthCls(1)}>
+            <Field label={L.company} required={requireCompany} error={errors.company} className={widthCls(1)}>
               <input
                 name="company"
                 required={requireCompany}
                 aria-required={requireCompany || undefined}
                 className="cf-input"
                 autoComplete="organization"
+                placeholder={P.company}
               />
             </Field>
           )}
           {showSubject && (
-            <Field label={t.subject} required={requireSubject} error={errors.subject} className={widthCls(columns === 3 ? 3 : 2)}>
+            <Field label={L.subject} required={requireSubject} error={errors.subject} className={widthCls(columns === 3 ? 3 : 2)}>
               <input
                 name="subject"
                 required={requireSubject}
                 aria-required={requireSubject || undefined}
                 className="cf-input"
+                placeholder={P.subject}
               />
             </Field>
           )}
           {showMessage && (
             <Field
-              label={t.message}
+              label={L.message}
               required={requireMessage}
               error={errors.message}
               className={widthCls(columns === 3 ? 3 : 2)}
@@ -460,9 +501,77 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                 required={requireMessage}
                 aria-required={requireMessage || undefined}
                 className="cf-input resize-y"
+                placeholder={P.message}
               />
             </Field>
           )}
+
+          {customFields.map((f) => {
+            const label = pickLabel(f, lang);
+            const placeholder = pickPlaceholder(f, lang);
+            const err = errors[f.id];
+            const name = `custom_${f.id}`;
+            const span = widthCls(f.type === "textarea" ? (columns === 3 ? 3 : 2) : 1);
+            if (f.type === "checkbox") {
+              return (
+                <div key={f.id} className={span}>
+                  <label className="flex items-start gap-2 text-xs opacity-90">
+                    <input type="checkbox" name={name} className="mt-0.5" />
+                    <span>
+                      {label}
+                      {f.required ? <span className="text-destructive ml-0.5" aria-hidden="true">*</span> : null}
+                    </span>
+                  </label>
+                  {err && <span className="block text-[11px] text-destructive">{err}</span>}
+                </div>
+              );
+            }
+            if (f.type === "select") {
+              return (
+                <Field key={f.id} label={label} required={f.required} error={err} className={span}>
+                  <select name={name} required={f.required} aria-required={f.required || undefined} className="cf-input" defaultValue="">
+                    <option value="" disabled>
+                      {placeholder || (lang === "pl" ? "Wybierz..." : "Select...")}
+                    </option>
+                    {(f.options ?? []).map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {(lang === "pl" ? o.labelPl : o.labelEn) ?? o.value}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              );
+            }
+            if (f.type === "textarea") {
+              return (
+                <Field key={f.id} label={label} required={f.required} error={err} className={span}>
+                  <textarea
+                    name={name}
+                    rows={5}
+                    required={f.required}
+                    aria-required={f.required || undefined}
+                    className="cf-input resize-y"
+                    placeholder={placeholder}
+                    maxLength={f.maxLength ?? 4000}
+                  />
+                </Field>
+              );
+            }
+            return (
+              <Field key={f.id} label={label} required={f.required} error={err} className={span}>
+                <input
+                  name={name}
+                  type={f.type}
+                  required={f.required}
+                  aria-required={f.required || undefined}
+                  className="cf-input"
+                  placeholder={placeholder}
+                  maxLength={f.maxLength ?? 500}
+                />
+              </Field>
+            );
+          })}
+
 
           {/* Inline-right button slot inside grid */}
           {buttonPosition === "inline-right" && (
