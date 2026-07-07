@@ -247,7 +247,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
   }, [formId, titleSize, descriptionSize, labelSize, placeholderSize, buttonFontSize, consentSize]);
 
   // Builder-only: stamp data-edit-target on form elements matching cf-* classes
-  // so the inline edit toolbar can attach quick font-size steppers.
+  // so the properties panel can highlight the exact preview elements it changes.
   useEffect(() => {
     const root = document.querySelector<HTMLElement>(`[data-cf-id="${formId}"]`);
     if (!root) return;

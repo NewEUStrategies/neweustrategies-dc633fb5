@@ -25,7 +25,7 @@ import {
   isThemedValue,
 } from "@/lib/builder/themed";
 import { broadcastWidgetTypography } from "@/lib/builder/liveTypography";
-import { Sun, Moon, Undo as RotateCcw, Globe, Link2Off } from "@/lib/lucide-shim";
+import { Sun, Moon, Undo as RotateCcw, Globe, Link2Off, Minus, Plus } from "@/lib/lucide-shim";
 import { useGlobalWidgetMeta } from "@/lib/builder/globalWidgets";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -86,6 +86,13 @@ export function WidgetProperties({
     onChange((w) => {
       w.content = w.content ?? {};
       w.content[k] = v;
+    });
+  const setOptionalNumberContent = (k: string, v: number | null) =>
+    onChange((w) => {
+      const content = { ...(w.content ?? {}) } as Record<string, Json>;
+      if (v === null) delete content[k];
+      else content[k] = v;
+      w.content = content;
     });
   const setStyle = (mut: (s: CommonStyle) => void) =>
     onChange((w) => {
@@ -227,31 +234,26 @@ export function WidgetProperties({
 
   const widgetLabel = WIDGETS.find((w) => w.type === widget.type)?.label ?? widget.type;
 
-  // Inline edit toolbar → focus a specific field in the Style tab.
+  const highlightPreviewTarget = (key: string) => {
+    if (typeof document === "undefined") return;
+    const root = document.querySelector<HTMLElement>(
+      `[data-widget-id="${escapeAttrSelector(widget.id)}"]`,
+    );
+    const targets = root?.querySelectorAll<HTMLElement>(
+      `[data-edit-target="${escapeAttrSelector(key)}"]`,
+    );
+    if (!targets?.length) return;
+    targets.forEach((el) => {
+      el.classList.add("cms-preview-field-focus");
+      window.setTimeout(() => el.classList.remove("cms-preview-field-focus"), 900);
+    });
+  };
+
   const [activeTab, setActiveTab] = useState<string>("content");
-  useEffect(() => {
-    const onFocus = (e: Event) => {
-      const detail = (e as CustomEvent<{ key: string }>).detail;
-      if (!detail?.key) return;
-      setActiveTab("style");
-      // Wait for the tab content to mount before scrolling.
-      requestAnimationFrame(() => {
-        const el = document.querySelector<HTMLElement>(
-          `[data-field-key="${detail.key}"]`,
-        );
-        if (!el) return;
-        el.scrollIntoView({ block: "center", behavior: "smooth" });
-        el.classList.add("field-focus-flash");
-        window.setTimeout(() => el.classList.remove("field-focus-flash"), 1600);
-      });
-    };
-    window.addEventListener("lovable:focus-field", onFocus);
-    return () => window.removeEventListener("lovable:focus-field", onFocus);
-  }, []);
 
   return (
     <div className="wp-compact">
-      <style>{`.field-focus-flash{outline:2px solid hsl(var(--brand));outline-offset:2px;border-radius:4px;animation:field-focus-flash 1.6s ease-out;}@keyframes field-focus-flash{0%{background:color-mix(in oklab, hsl(var(--brand)) 25%, transparent);}100%{background:transparent;}}`}</style>
+      <style>{`.cms-preview-field-focus{outline:2px solid var(--brand) !important;outline-offset:3px;border-radius:4px;box-shadow:0 0 0 4px color-mix(in oklab, var(--brand) 25%, transparent);transition:outline-color .15s, box-shadow .15s;}`}</style>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
 
         <div className="mb-1.5 px-0.5">
@@ -378,7 +380,7 @@ export function WidgetProperties({
                 Rozmiary elementów formularza (px)
               </h4>
               <p className="text-[10px] text-muted-foreground -mt-1">
-                Puste = domyślne. Wpisz wartość w pikselach.
+                Zmiany działają od razu w preview. Puste = domyślne.
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {(widget.type === "join-us"
@@ -400,23 +402,17 @@ export function WidgetProperties({
                   const v = typeof raw === "number" ? raw : "";
                   return (
                     <div key={f.key} data-field-key={f.key}>
-                      <PropField label={f.label}>
-                        <Input
-                          type="number"
-                          min={f.min}
-                          max={f.max}
-                          value={v}
-                          placeholder="px"
-                          onChange={(e) => {
-                            const n = Number(e.target.value);
-                            setContent(
-                              f.key,
-                              e.target.value === "" || Number.isNaN(n) ? null : n,
-                            );
-                          }}
-                          className="h-8 text-xs"
-                        />
-                      </PropField>
+                      <FormElementSizeField
+                        label={f.label}
+                        value={v}
+                        min={f.min}
+                        max={f.max}
+                        onPreview={() => highlightPreviewTarget(f.key)}
+                        onChange={(next) => {
+                          setOptionalNumberContent(f.key, next);
+                          highlightPreviewTarget(f.key);
+                        }}
+                      />
                     </div>
                   );
 
@@ -911,6 +907,74 @@ function ThemedColorField({
         placeholder={placeholderHint ?? "#000 / var(--brand) / transparent"}
         inheritedValue={inheritedValue}
       />
+    </PropField>
+  );
+}
+
+function escapeAttrSelector(value: string) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(value);
+  }
+  return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+}
+
+function FormElementSizeField({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+  onPreview,
+}: {
+  label: string;
+  value: number | "";
+  min: number;
+  max: number;
+  onChange: (next: number | null) => void;
+  onPreview: () => void;
+}) {
+  const clamp = (next: number) => Math.max(min, Math.min(max, Math.round(next)));
+  const numericValue = typeof value === "number" ? value : null;
+  const commit = (raw: string) => {
+    if (raw.trim() === "") {
+      onChange(null);
+      return;
+    }
+    const next = Number(raw);
+    if (Number.isNaN(next)) return;
+    onChange(clamp(next));
+  };
+  const bump = (delta: number) => onChange(clamp((numericValue ?? min) + delta));
+
+  return (
+    <PropField label={label}>
+      <div className="flex items-center gap-1" onFocus={onPreview} onMouseEnter={onPreview}>
+        <button
+          type="button"
+          onClick={() => bump(-1)}
+          className="inline-flex h-8 w-7 shrink-0 items-center justify-center rounded border border-input text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label={`Zmniejsz: ${label}`}
+        >
+          <Minus className="h-3 w-3" />
+        </button>
+        <Input
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          placeholder="px"
+          onChange={(e) => commit(e.target.value)}
+          className="h-8 text-center text-xs tabular-nums"
+        />
+        <button
+          type="button"
+          onClick={() => bump(1)}
+          className="inline-flex h-8 w-7 shrink-0 items-center justify-center rounded border border-input text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label={`Zwiększ: ${label}`}
+        >
+          <Plus className="h-3 w-3" />
+        </button>
+      </div>
     </PropField>
   );
 }
