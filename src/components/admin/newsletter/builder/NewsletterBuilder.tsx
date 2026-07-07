@@ -80,6 +80,20 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
         variant === "popup"
           ? { pl: settings.popup_terms_html_pl, en: settings.popup_terms_html_en }
           : { pl: null, en: null },
+      popupStyle:
+        variant === "popup"
+          ? {
+              bg: settings.popup_bg_color,
+              fg: settings.popup_text_color,
+              muted: settings.popup_muted_color,
+              accent: settings.popup_accent_color,
+              accentFg: settings.popup_accent_text_color,
+              overlay: settings.popup_overlay_color,
+              radius: settings.popup_border_radius_px,
+              layout: settings.popup_layout,
+              sideImage: settings.popup_side_image_url,
+            }
+          : undefined,
     });
   }, [settings, variant]);
 

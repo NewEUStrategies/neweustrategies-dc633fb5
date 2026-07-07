@@ -15,6 +15,10 @@ import type {
   NlCheckboxWidget,
   NlSubmitWidget,
   NlSuccessMessageWidget,
+  NlSelectWidget,
+  NlMailingListsWidget,
+  NlSocialProofWidget,
+  NlCountdownWidget,
 } from "@/lib/newsletter-builder/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -354,6 +358,122 @@ function WidgetProps({
     case "success-message": {
       const w = selected as NlSuccessMessageWidget;
       return <I18nField label="Komunikat" value={w.text} onChange={(text) => onPatch({ text } as Partial<NlWidget>)} multiline />;
+    }
+    case "field.select": {
+      const w = selected as NlSelectWidget;
+      return (
+        <div className="space-y-3">
+          <div>
+            <Label>Nazwa (klucz meta)</Label>
+            <Input value={w.name} onChange={(e) => onPatch({ name: e.target.value } as Partial<NlWidget>)} />
+          </div>
+          <I18nField label="Etykieta" value={w.label} onChange={(label) => onPatch({ label } as Partial<NlWidget>)} />
+          <I18nField label="Placeholder" value={w.placeholder} onChange={(placeholder) => onPatch({ placeholder } as Partial<NlWidget>)} />
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={!!w.required} onChange={(e) => onPatch({ required: e.target.checked } as Partial<NlWidget>)} />
+            Wymagane
+          </label>
+          <div className="space-y-2">
+            <Label>Opcje</Label>
+            {w.options.map((o, i) => (
+              <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1 items-center">
+                <Input value={o.value} placeholder="value" onChange={(e) => {
+                  const next = [...w.options]; next[i] = { ...o, value: e.target.value };
+                  onPatch({ options: next } as Partial<NlWidget>);
+                }} />
+                <Input value={o.labelPl} placeholder="PL" onChange={(e) => {
+                  const next = [...w.options]; next[i] = { ...o, labelPl: e.target.value };
+                  onPatch({ options: next } as Partial<NlWidget>);
+                }} />
+                <Input value={o.labelEn} placeholder="EN" onChange={(e) => {
+                  const next = [...w.options]; next[i] = { ...o, labelEn: e.target.value };
+                  onPatch({ options: next } as Partial<NlWidget>);
+                }} />
+                <button type="button" className="text-destructive text-xs px-2" onClick={() => {
+                  const next = w.options.filter((_, j) => j !== i);
+                  onPatch({ options: next } as Partial<NlWidget>);
+                }}>×</button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="text-xs px-2 py-1 rounded border border-dashed border-border hover:border-primary"
+              onClick={() => onPatch({ options: [...w.options, { value: `opt${w.options.length + 1}`, labelPl: "", labelEn: "" }] } as Partial<NlWidget>)}
+            >+ dodaj opcje</button>
+          </div>
+        </div>
+      );
+    }
+    case "field.mailing-lists": {
+      const w = selected as NlMailingListsWidget;
+      return (
+        <div className="space-y-3">
+          <I18nField label="Etykieta" value={w.label} onChange={(label) => onPatch({ label } as Partial<NlWidget>)} />
+          <div>
+            <Label>Tryb</Label>
+            <Select value={w.display ?? "checkboxes"} onValueChange={(v) => onPatch({ display: v as "select" | "checkboxes" } as Partial<NlWidget>)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="checkboxes">Checkboxy</SelectItem>
+                <SelectItem value="select">Lista rozwijana</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={!!w.required} onChange={(e) => onPatch({ required: e.target.checked } as Partial<NlWidget>)} />
+            Wymagane
+          </label>
+          <p className="text-[11px] text-muted-foreground">Listy zarzadzasz w Overview - Ustawienia logiki.</p>
+        </div>
+      );
+    }
+    case "social-proof": {
+      const w = selected as NlSocialProofWidget;
+      return (
+        <div className="space-y-3">
+          <I18nField label="Tekst (uzyj {count})" value={w.text} onChange={(text) => onPatch({ text } as Partial<NlWidget>)} />
+          <div>
+            <Label>Minimalna liczba (fallback)</Label>
+            <Input type="number" min={0} value={w.fallbackCount ?? 0} onChange={(e) => onPatch({ fallbackCount: Number(e.target.value) || 0 } as Partial<NlWidget>)} />
+          </div>
+          <div>
+            <Label>Wyrownanie</Label>
+            <Select value={w.align ?? "center"} onValueChange={(v) => onPatch({ align: v as "left" | "center" | "right" } as Partial<NlWidget>)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="left">Lewo</SelectItem>
+                <SelectItem value="center">Srodek</SelectItem>
+                <SelectItem value="right">Prawo</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      );
+    }
+    case "countdown": {
+      const w = selected as NlCountdownWidget;
+      const dtLocal = (() => {
+        const d = new Date(w.deadline);
+        if (Number.isNaN(d.getTime())) return "";
+        const pad = (n: number) => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      })();
+      return (
+        <div className="space-y-3">
+          <div>
+            <Label>Deadline</Label>
+            <Input type="datetime-local" value={dtLocal} onChange={(e) => {
+              const iso = e.target.value ? new Date(e.target.value).toISOString() : w.deadline;
+              onPatch({ deadline: iso } as Partial<NlWidget>);
+            }} />
+          </div>
+          <ColorInput label="Akcent" value={w.accent} onChange={(v) => onPatch({ accent: v } as Partial<NlWidget>)} />
+          <I18nField label="Dni" value={w.labelDays} onChange={(labelDays) => onPatch({ labelDays } as Partial<NlWidget>)} />
+          <I18nField label="Godziny" value={w.labelHours} onChange={(labelHours) => onPatch({ labelHours } as Partial<NlWidget>)} />
+          <I18nField label="Minuty" value={w.labelMinutes} onChange={(labelMinutes) => onPatch({ labelMinutes } as Partial<NlWidget>)} />
+          <I18nField label="Sekundy" value={w.labelSeconds} onChange={(labelSeconds) => onPatch({ labelSeconds } as Partial<NlWidget>)} />
+        </div>
+      );
     }
     default:
       return null;

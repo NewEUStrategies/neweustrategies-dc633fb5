@@ -9,6 +9,7 @@ import { useLocation } from "@tanstack/react-router";
 import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { NewsletterPopupForm } from "@/components/NewsletterPopupForm";
+import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
 import { X, Send } from "@/lib/lucide-shim";
 
 const LS_KEY = "nl_popup_last";
@@ -41,6 +42,7 @@ export function NewsletterPopup() {
 
   useEffect(() => {
     if (!s?.popup_enabled || !s.enabled) return;
+    if (s.mode === "off" || s.mode === "inline") return;
     if (loc.pathname.startsWith("/admin") || loc.pathname.startsWith("/auth")) return;
     if (!shouldShow(s.popup_frequency_days)) return;
 
@@ -139,7 +141,16 @@ export function NewsletterPopup() {
           <X className="w-4 h-4" />
         </button>
 
-        {split ? (
+        {s.popup_doc ? (
+          <div className="p-6 lg:p-8 space-y-3 md:max-h-[92vh] md:overflow-y-auto">
+            <NewsletterDocRenderer
+              doc={s.popup_doc}
+              settings={s}
+              lang={isPl ? "pl" : "en"}
+              source="popup"
+            />
+          </div>
+        ) : split ? (
           <>
             <div
               className="relative h-40 sm:h-56 md:h-auto md:min-h-[560px] bg-cover bg-center"

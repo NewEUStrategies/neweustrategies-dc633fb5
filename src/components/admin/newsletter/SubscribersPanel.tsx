@@ -13,7 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, Search, Trash2 } from "lucide-react";
+import { Download, Search, Trash2, Upload } from "lucide-react";
+import { ImportCsvDialog } from "./subscribers/ImportCsvDialog";
 
 interface SubRow {
   id: string;
@@ -33,6 +34,7 @@ export function SubscribersPanel() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [lang, setLang] = useState<"all" | "pl" | "en">("all");
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data: subs, isLoading } = useQuery({
     queryKey: ["newsletter-subscribers"],
@@ -103,11 +105,19 @@ export function SubscribersPanel() {
             Zarzadzaj lista mailingowa - filtruj, eksportuj, usuwaj.
           </p>
         </div>
-        <Button variant="outline" onClick={exportCsv} disabled={!filtered.length}>
-          <Download className="w-4 h-4 mr-2" />
-          Eksportuj CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="w-4 h-4 mr-2" />
+            Import CSV
+          </Button>
+          <Button variant="outline" onClick={exportCsv} disabled={!filtered.length}>
+            <Download className="w-4 h-4 mr-2" />
+            Eksportuj CSV
+          </Button>
+        </div>
       </header>
+      <ImportCsvDialog open={importOpen} onOpenChange={setImportOpen} />
+
 
       <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_180px] gap-2">
         <div className="relative">
