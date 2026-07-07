@@ -190,6 +190,17 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     patchSectionById(sectionId, (s) => ({ ...s, style: { ...(s.style ?? {}), ...patch } }));
   };
 
+  const patchSectionMedia = (
+    sectionId: string,
+    patch: Partial<NonNullable<NlSection["media"]>> | null,
+  ) => {
+    patchSectionById(sectionId, (s) => {
+      if (patch === null) return { ...s, media: null };
+      const current = s.media ?? { url: "", position: "left" as const };
+      return { ...s, media: { ...current, ...patch } };
+    });
+  };
+
   const setSectionLayout = (sectionId: string, layout: NlSectionLayout) => {
     patchSectionById(sectionId, (s) => {
       if (layout === "single") {
