@@ -199,30 +199,69 @@ function SectionRenderer({
   tick: number;
 }) {
   const st = section.style ?? {};
+  const layout = section.layout ?? "single";
+  const gap = st.gap ?? 12;
+
+  const renderWidgets = (list: typeof section.widgets) =>
+    list.map((w) => (
+      <RuntimeWidget
+        key={w.id}
+        widget={w}
+        lang={lang}
+        error={errors[widgetErrorKey(w)]}
+        liveCount={liveCount}
+        mailingLists={mailingLists}
+        tick={tick}
+      />
+    ));
+
+  const containerStyle: React.CSSProperties = {
+    backgroundColor: st.bg ?? undefined,
+    color: st.fg ?? undefined,
+    padding: `${st.paddingY ?? 0}px ${st.paddingX ?? 0}px`,
+    borderRadius: st.radius ? `${st.radius}px` : undefined,
+    textAlign: st.align ?? undefined,
+  };
+
+  if (layout === "single") {
+    return (
+      <div
+        style={{
+          ...containerStyle,
+          display: "flex",
+          flexDirection: "column",
+          gap: `${gap}px`,
+        }}
+      >
+        {renderWidgets(section.widgets)}
+      </div>
+    );
+  }
+
+  const col0 = section.widgets.filter((w) => (w.col ?? 0) === 0);
+  const col1 = section.widgets.filter((w) => w.col === 1);
+  const gridCols =
+    layout === "1-2"
+      ? "1fr 2fr"
+      : layout === "2-1"
+        ? "2fr 1fr"
+        : "1fr 1fr";
   return (
     <div
       style={{
-        backgroundColor: st.bg ?? undefined,
-        color: st.fg ?? undefined,
-        padding: `${st.paddingY ?? 0}px ${st.paddingX ?? 0}px`,
-        borderRadius: st.radius ? `${st.radius}px` : undefined,
-        display: "flex",
-        flexDirection: "column",
-        gap: `${st.gap ?? 12}px`,
-        textAlign: st.align ?? undefined,
+        ...containerStyle,
+        display: "grid",
+        gridTemplateColumns: gridCols,
+        gap: `${gap}px`,
       }}
+     
     >
-      {section.widgets.map((w) => (
-        <RuntimeWidget
-          key={w.id}
-          widget={w}
-          lang={lang}
-          error={errors[widgetErrorKey(w)]}
-          liveCount={liveCount}
-          mailingLists={mailingLists}
-          tick={tick}
-        />
-      ))}
+      <div style={{ display: "flex", flexDirection: "column", gap: `${gap}px`, minWidth: 0 }}>
+        {renderWidgets(col0)}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: `${gap}px`, minWidth: 0 }}>
+        {renderWidgets(col1)}
+      </div>
     </div>
   );
 }

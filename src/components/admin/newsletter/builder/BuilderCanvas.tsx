@@ -1,15 +1,24 @@
 // BuilderCanvas - lista widgetow z @dnd-kit/sortable.
-// Zaznaczenie klikniete widgeta, hover pokazuje toolbar (dup / usun).
+// Obsluguje layout "single" (jedna kolumna) oraz split ("1-2" / "1-1" / "2-1")
+// - kazda kolumna to osobny droppable + SortableContext, dzieki czemu widgety
+// mozna przenosic pomiedzy kolumnami drag & drop.
 import { useDroppable } from "@dnd-kit/core";
-import { useSortable } from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Copy, GripVertical, Trash2 } from "lucide-react";
-import type { NlWidget, NlLang } from "@/lib/newsletter-builder/types";
+import type { NlWidget, NlLang, NlSectionLayout } from "@/lib/newsletter-builder/types";
 import { WidgetPreview } from "./WidgetPreview";
+
+const LAYOUT_GRID: Record<Exclude<NlSectionLayout, "single">, string> = {
+  "1-2": "md:grid-cols-[1fr_2fr]",
+  "1-1": "md:grid-cols-[1fr_1fr]",
+  "2-1": "md:grid-cols-[2fr_1fr]",
+};
 
 export function BuilderCanvas({
   widgets,
   lang,
+  layout = "single",
   selectedId,
   onSelect,
   onRemove,
@@ -17,46 +26,114 @@ export function BuilderCanvas({
 }: {
   widgets: NlWidget[];
   lang: NlLang;
+  layout?: NlSectionLayout;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: "canvas-drop" });
-
-  if (widgets.length === 0) {
+  if (layout === "single") {
     return (
-      <div
-        ref={setNodeRef}
-        className={
-          "flex flex-col items-center justify-center py-24 text-center border-2 border-dashed rounded-xl transition-colors " +
-          (isOver ? "border-primary bg-primary/5" : "border-border/60 text-muted-foreground")
-        }
-      >
-        <p className="text-sm font-medium">
-          {lang === "pl" ? "Przeciagnij widget z lewego panelu" : "Drag a widget from the left panel"}
-        </p>
-        <p className="text-xs mt-1 opacity-70">
-          {lang === "pl" ? "lub kliknij aby dodac na koniec" : "or click to append"}
-        </p>
-      </div>
+      <ColumnDropZone
+        id="canvas-drop"
+        widgets={widgets.filter((w) => !w.col)}
+        lang={lang}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        onRemove={onRemove}
+        onDuplicate={onDuplicate}
+      />
     );
   }
 
+  const col0 = widgets.filter((w) => (w.col ?? 0) === 0);
+  const col1 = widgets.filter((w) => w.col === 1);
+
   return (
-    <div ref={setNodeRef} className={"space-y-2 " + (isOver ? "outline outline-2 outline-primary/40 outline-offset-4 rounded-lg" : "")}>
-      {widgets.map((w) => (
-        <SortableItem
-          key={w.id}
-          widget={w}
-          lang={lang}
-          selected={w.id === selectedId}
-          onSelect={() => onSelect(w.id)}
-          onRemove={() => onRemove(w.id)}
-          onDuplicate={() => onDuplicate(w.id)}
-        />
-      ))}
+    <div className={`grid grid-cols-1 ${LAYOUT_GRID[layout]} gap-3`}>
+      <ColumnDropZone
+        id="canvas-col-0"
+        widgets={col0}
+        lang={lang}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        onRemove={onRemove}
+        onDuplicate={onDuplicate}
+        columnLabel={lang === "pl" ? "Kolumna 1" : "Column 1"}
+      />
+      <ColumnDropZone
+        id="canvas-col-1"
+        widgets={col1}
+        lang={lang}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        onRemove={onRemove}
+        onDuplicate={onDuplicate}
+        columnLabel={lang === "pl" ? "Kolumna 2" : "Column 2"}
+      />
     </div>
+  );
+}
+
+function ColumnDropZone({
+  id,
+  widgets,
+  lang,
+  selectedId,
+  onSelect,
+  onRemove,
+  onDuplicate,
+  columnLabel,
+}: {
+  id: string;
+  widgets: NlWidget[];
+  lang: NlLang;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onRemove: (id: string) => void;
+  onDuplicate: (id: string) => void;
+  columnLabel?: string;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+
+  return (
+    <SortableContext items={widgets.map((w) => w.id)} strategy={verticalListSortingStrategy}>
+      <div
+        ref={setNodeRef}
+        className={
+          "space-y-2 rounded-lg transition-colors " +
+          (columnLabel ? "border border-dashed p-2 min-h-[160px] " : "") +
+          (isOver
+            ? "border-primary bg-primary/5"
+            : columnLabel
+              ? "border-border/50"
+              : "")
+        }
+      >
+        {columnLabel && (
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 px-1">
+            {columnLabel}
+          </div>
+        )}
+        {widgets.length === 0 ? (
+          <div className="flex items-center justify-center py-10 text-center text-xs text-muted-foreground opacity-70">
+            {lang === "pl" ? "Upusc widget tutaj" : "Drop widget here"}
+          </div>
+        ) : (
+          widgets.map((w) => (
+            <SortableItem
+              key={w.id}
+              widget={w}
+              lang={lang}
+              selected={w.id === selectedId}
+              onSelect={() => onSelect(w.id)}
+              onRemove={() => onRemove(w.id)}
+              onDuplicate={() => onDuplicate(w.id)}
+            />
+          ))
+        )}
+      </div>
+    </SortableContext>
   );
 }
 
@@ -77,6 +154,7 @@ function SortableItem({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: widget.id,
+    data: { kind: "widget", col: widget.col ?? 0 },
   });
   return (
     <div
@@ -99,7 +177,7 @@ function SortableItem({
         {...attributes}
         {...listeners}
         className="absolute -left-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-muted-foreground cursor-grab active:cursor-grabbing p-1"
-        aria-label="Przenies"
+        aria-label={lang === "pl" ? "Przenies" : "Move"}
         onClick={(e) => e.stopPropagation()}
       >
         <GripVertical className="w-4 h-4" />
@@ -112,7 +190,7 @@ function SortableItem({
             onDuplicate();
           }}
           className="p-1 text-muted-foreground hover:text-foreground"
-          aria-label="Duplikuj"
+          aria-label={lang === "pl" ? "Duplikuj" : "Duplicate"}
         >
           <Copy className="w-3.5 h-3.5" />
         </button>
@@ -123,7 +201,7 @@ function SortableItem({
             onRemove();
           }}
           className="p-1 text-destructive hover:bg-destructive/10 rounded-r"
-          aria-label="Usun"
+          aria-label={lang === "pl" ? "Usun" : "Remove"}
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>

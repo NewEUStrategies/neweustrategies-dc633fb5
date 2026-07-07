@@ -43,6 +43,8 @@ export interface NlSelectOption {
 export interface NlWidgetBase {
   id: string;
   type: NlWidgetType;
+  /** Kolumna docelowa w split layoutach (0 = lewa, 1 = prawa). Undefined = single. */
+  col?: 0 | 1;
 }
 
 export interface NlHeadingWidget extends NlWidgetBase {
@@ -178,10 +180,20 @@ export interface NlSectionStyle {
   align?: "left" | "center";
 }
 
+/**
+ * Layout sekcji:
+ * - "single"  -> jedna kolumna (domyslnie)
+ * - "1-2"     -> dwie kolumny 1/3 + 2/3
+ * - "1-1"     -> dwie kolumny 1/2 + 1/2
+ * - "2-1"     -> dwie kolumny 2/3 + 1/3
+ */
+export type NlSectionLayout = "single" | "1-2" | "1-1" | "2-1";
+
 export interface NlSection {
   id: string;
   widgets: NlWidget[];
   style?: NlSectionStyle;
+  layout?: NlSectionLayout;
 }
 
 export interface NlDoc {

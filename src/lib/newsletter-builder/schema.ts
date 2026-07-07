@@ -9,7 +9,7 @@ const NlI18n = z.object({
   en: z.string().max(4000).default(""),
 });
 
-const BaseWidget = { id: z.string().min(1).max(64) };
+const BaseWidget = { id: z.string().min(1).max(64), col: z.union([z.literal(0), z.literal(1)]).optional() };
 
 export const NlWidgetSchema = z.discriminatedUnion("type", [
   z.object({
@@ -139,6 +139,7 @@ export const NlSectionSchema = z.object({
   id: z.string().min(1).max(64),
   widgets: z.array(NlWidgetSchema).max(64),
   style: NlSectionStyle.optional(),
+  layout: z.enum(["single", "1-2", "1-1", "2-1"]).optional(),
 });
 
 export const NlDocSchema = z.object({

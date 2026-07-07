@@ -5,6 +5,7 @@ import type {
   NlWidget,
   NlDoc,
   NlLang,
+  NlSectionLayout,
   NlHeadingWidget,
   NlParagraphWidget,
   NlImageWidget,
@@ -38,10 +39,11 @@ interface Props {
   selected: NlWidget | null;
   onPatch: (patch: Partial<NlWidget>) => void;
   onPatchPopup: (patch: Partial<NonNullable<NlDoc["popup"]>>) => void;
+  onPatchLayout: (layout: NlSectionLayout) => void;
   lang: NlLang;
 }
 
-export function PropertiesPanel({ variant, doc, selected, onPatch, onPatchPopup, lang }: Props) {
+export function PropertiesPanel({ variant, doc, selected, onPatch, onPatchPopup, onPatchLayout, lang }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -57,7 +59,7 @@ export function PropertiesPanel({ variant, doc, selected, onPatch, onPatchPopup,
       {selected ? (
         <WidgetProps selected={selected} onPatch={onPatch} />
       ) : (
-        <DocProps variant={variant} doc={doc} onPatchPopup={onPatchPopup} />
+        <DocProps variant={variant} doc={doc} onPatchPopup={onPatchPopup} onPatchLayout={onPatchLayout} lang={lang} />
       )}
     </div>
   );
@@ -484,21 +486,80 @@ function DocProps({
   variant,
   doc,
   onPatchPopup,
+  onPatchLayout,
+  lang,
 }: {
   variant: "inline" | "popup";
   doc: NlDoc;
   onPatchPopup: (patch: Partial<NonNullable<NlDoc["popup"]>>) => void;
+  onPatchLayout: (layout: NlSectionLayout) => void;
+  lang: NlLang;
 }) {
+  const currentLayout: NlSectionLayout = doc.sections[0]?.layout ?? "single";
+  const layoutBlock = (
+    <div className="space-y-2">
+      <Label>{lang === "pl" ? "Uklad sekcji" : "Section layout"}</Label>
+      <div className="grid grid-cols-4 gap-1.5">
+        {(
+          [
+            { v: "single" as const, label: lang === "pl" ? "1 kol." : "1 col", ratio: [1] },
+            { v: "1-2" as const, label: "1 / 3", ratio: [1, 2] },
+            { v: "1-1" as const, label: "1 / 2", ratio: [1, 1] },
+            { v: "2-1" as const, label: "3 / 1", ratio: [2, 1] },
+          ]
+        ).map((opt) => {
+          const active = currentLayout === opt.v;
+          return (
+            <button
+              key={opt.v}
+              type="button"
+              onClick={() => onPatchLayout(opt.v)}
+              className={
+                "flex flex-col items-center gap-1 p-2 rounded-md border text-[10px] transition-colors " +
+                (active
+                  ? "border-primary bg-primary/5 text-foreground"
+                  : "border-border text-muted-foreground hover:border-primary/40")
+              }
+              aria-pressed={active}
+            >
+              <div className="flex gap-0.5 w-full h-5">
+                {opt.ratio.map((r, i) => (
+                  <div
+                    key={i}
+                    className={active ? "bg-primary/60 rounded-sm" : "bg-muted-foreground/40 rounded-sm"}
+                    style={{ flex: r }}
+                  />
+                ))}
+              </div>
+              <span className="font-semibold">{opt.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        {lang === "pl"
+          ? "Wybierz uklad i przeciagnij widgety pomiedzy kolumnami."
+          : "Pick a layout and drag widgets between columns."}
+      </p>
+    </div>
+  );
+
   if (variant === "inline") {
     return (
-      <p className="text-xs text-muted-foreground">
-        Wybierz widget na kanwie aby edytowac jego wlasciwosci, lub przeciagnij nowy z lewego panelu.
-      </p>
+      <div className="space-y-4">
+        {layoutBlock}
+        <p className="text-xs text-muted-foreground">
+          {lang === "pl"
+            ? "Wybierz widget na kanwie aby edytowac jego wlasciwosci, lub przeciagnij nowy z lewego panelu."
+            : "Select a widget on the canvas to edit its properties, or drag a new one from the left panel."}
+        </p>
+      </div>
     );
   }
   const p = doc.popup ?? {};
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {layoutBlock}
       <p className="text-xs text-muted-foreground">
         Ustawienia globalne popupu. Wybierz widget na kanwie aby edytowac jego wlasciwosci.
       </p>
