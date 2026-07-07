@@ -378,7 +378,9 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     setDraggingWidgetId(null);
     const { active, over } = e;
     if (!over) return;
-    const data = active.data.current as { kind?: string; type?: NlWidgetType } | undefined;
+    const data = active.data.current as
+      | { kind?: string; type?: NlWidgetType; preset?: Partial<NlWidget> }
+      | undefined;
     const target = resolveDropTarget(String(over.id));
     if (!target.sectionId) return;
 
@@ -388,7 +390,7 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
     // Drop from library
     if (data?.kind === "library" && data.type) {
       const col = targetLayout === "single" ? 0 : (target.col ?? 0);
-      addWidget(data.type, target.sectionId, target.overWidgetIdx ?? undefined, col);
+      addWidget(data.type, target.sectionId, target.overWidgetIdx ?? undefined, col, data.preset);
       return;
     }
 
