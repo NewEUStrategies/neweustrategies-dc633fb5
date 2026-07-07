@@ -350,7 +350,7 @@ export const regenerateThumbnails = createServerFn({ method: "POST" })
 // - bulk delete / move / duplicate (copy in storage)
 // ============================================================================
 
-const FOLDER_PATH_RE = /^\/(?:[A-Za-z0-9 _.\-]{1,64}\/)*$/;
+const FOLDER_PATH_RE = /^\/(?:[^/\\<>:"|?*\x00-\x1f]{1,64}\/)*$/u;
 
 function normalizeFolderPath(input: string): string {
   let p = (input || "/").trim();
