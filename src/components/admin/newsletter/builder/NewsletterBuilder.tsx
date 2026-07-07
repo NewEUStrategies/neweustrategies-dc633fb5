@@ -561,11 +561,12 @@ export function NewsletterBuilder({ variant }: { variant: "inline" | "popup" }) 
               {sideTab === "widgets" ? (
                 <WidgetLibrary
                   lang={lang}
-                  onAdd={(type) => {
+                  onAdd={(type, preset) => {
                     const sid = selectedSectionId ?? doc.sections[0]?.id;
-                    if (sid) addWidget(type, sid);
+                    if (sid) addWidget(type, sid, undefined, 0, preset);
                   }}
                 />
+
               ) : (
                 <PropertiesPanel
                   variant={variant}
