@@ -1380,6 +1380,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           filename: string
+          folder_path: string
           id: string
           mime_type: string | null
           public_url: string
@@ -1393,6 +1394,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           filename: string
+          folder_path?: string
           id?: string
           mime_type?: string | null
           public_url: string
@@ -1406,6 +1408,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           filename?: string
+          folder_path?: string
           id?: string
           mime_type?: string | null
           public_url?: string
@@ -1423,6 +1426,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      media_folders: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          path: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          path: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          path?: string
+          tenant_id?: string
+        }
+        Relationships: []
       }
       mobile_drawer_configs: {
         Row: {
