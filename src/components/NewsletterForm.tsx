@@ -335,7 +335,7 @@ function CustomFieldRender({
   if (field.type === "checkbox") {
     return (
       <div>
-        <label className="flex items-start gap-2 text-xs opacity-90">
+        <label className="widget-align-row flex items-start gap-2 text-xs opacity-90">
           <input type="checkbox" name={name} className="mt-0.5" />
           <span>
             {label}

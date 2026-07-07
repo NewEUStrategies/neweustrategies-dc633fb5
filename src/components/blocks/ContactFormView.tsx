@@ -515,7 +515,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             if (f.type === "checkbox") {
               return (
                 <div key={f.id} className={span}>
-                  <label className="flex items-start gap-2 text-xs opacity-90">
+                  <label className="widget-align-row flex items-start gap-2 text-xs opacity-90">
                     <input type="checkbox" name={name} className="mt-0.5" />
                     <span>
                       {label}
@@ -584,7 +584,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
         {(requireConsent || showNewsletter) && (
           <div className="mt-3 space-y-1.5">
             {requireConsent && (
-              <label className="flex items-start gap-2 text-xs opacity-80">
+              <label className="widget-align-row flex items-start gap-2 text-xs opacity-80">
                 <input type="checkbox" name="consent" className="mt-0.5" />
                 <span>{renderConsentText(consentTextRaw)}</span>
                 {errors.consent && <span className="text-destructive ml-1">*</span>}
@@ -592,7 +592,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             )}
 
             {showNewsletter && (
-              <label className="flex items-start gap-2 text-xs opacity-80">
+              <label className="widget-align-row flex items-start gap-2 text-xs opacity-80">
                 <input type="checkbox" name="newsletter_optin" className="mt-0.5" />
                 <span>{newsletterLabel}</span>
               </label>
