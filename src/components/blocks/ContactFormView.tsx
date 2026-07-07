@@ -613,7 +613,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
         {(requireConsent || showNewsletter) && (
           <div className="mt-3 space-y-1.5">
             {requireConsent && (
-              <label className="widget-align-row flex items-start gap-2 text-xs opacity-80">
+              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80">
                 <input type="checkbox" name="consent" className="mt-0.5" />
                 <span>{renderConsentText(consentTextRaw)}</span>
                 {errors.consent && <span className="text-destructive ml-1">*</span>}
@@ -621,7 +621,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             )}
 
             {showNewsletter && (
-              <label className="widget-align-row flex items-start gap-2 text-xs opacity-80">
+              <label className="cf-consent widget-align-row flex items-start gap-2 text-xs opacity-80">
                 <input type="checkbox" name="newsletter_optin" className="mt-0.5" />
                 <span>{newsletterLabel}</span>
               </label>
