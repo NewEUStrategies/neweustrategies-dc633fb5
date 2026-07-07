@@ -15,6 +15,11 @@ import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { useInterestCatalog, useMyInterests } from "@/hooks/useInterests";
 import { cn } from "@/lib/utils";
+import {
+  CustomFieldsRenderer,
+  validateCustomFields,
+  type CustomFieldDef,
+} from "@/lib/builder/formFieldConfig";
 import "@/lib/i18n-interests";
 
 export interface JoinUsFormProps {
